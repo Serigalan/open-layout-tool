@@ -1,8 +1,11 @@
 import { generateId, nextTrackName, rebuildCoords, recalcAbsLengths } from '../storage'
 import { computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm, nodeUtm } from './elementUtils'
 import { utmToWgs84 } from './coordinateUtils'
-import { SAGITTA_ELEMENT } from './mapConstants'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
 import { splitHeights } from './heightUtils'
+import {
+  computeClothoidUtm, transitionBearingAtUtm, clothoidRadiusAt, transitionCantEnds,
+} from './clothoidUtils'
 
 const DEG2RAD = Math.PI / 180
 
@@ -22,9 +25,12 @@ function makeSplitTrack(srcTrack, elements, id, name, heights) {
  * Split the element `elIdx` of `track` at `junction` into two half-tracks;
  * neighbouring elements stay on their side. A straight splits into two
  * collinear straights, an arc into two arcs of its own radius — a switch on a
- * curve needs the second. (A transition curve is not splittable this way: its
- * curvature runs with the station, so the halves are not transitions of the
- * same parameters. Callers reject one before they get here.)
+ * curve needs the second — and a clothoid into two clothoids of its own
+ * parameter, which a switch on a transition curve needs. A clothoid is only cut
+ * where the junction states its station along the element (`junction.station`):
+ * its curvature runs with the station, so the pieces follow from that and not
+ * from a point. (A Bloss curve is not splittable at all — its pieces are no
+ * Bloss curves. Callers reject one before they get here.)
  *
  * `junction` is a point in the track's own plane ({ easting, northing } in
  * `track.epsg`). The halves are built in that plane from the element's stored
@@ -54,8 +60,12 @@ function makeSplitTrack(srcTrack, elements, id, name, heights) {
  *
  * The shared machinery of the two splits below — one parts a track at a
  * junction, the other only parts an element inside a track.
+ *
+ * A transition with `cut.station` is cut as a clothoid (see splitClothoid);
+ * `ramp` is its cant at both ends, which the pieces keep.
  */
-function splitElement(el, epsg, cut) {
+function splitElement(el, epsg, cut, ramp = null) {
+  if (el.elementType === 2 && Number.isFinite(cut.station)) return splitClothoid(el, epsg, cut, ramp)
   const radius = el.radius ?? null
   const coords = el.geometry.coordinates
   const gStart = coords[0]
@@ -89,24 +99,140 @@ function splitElement(el, epsg, cut) {
   }
 }
 
+/**
+ * Cut a clothoid at station `cut.station` into two clothoids. Its curvature runs
+ * linearly, so each piece is a clothoid of the same parameter again: the first
+ * from r1 to the radius at the cut, the second from there to r2, both meeting in
+ * the tangent the element has at that station. The cut node is the caller's
+ * plane point itself (it lies on the curve at that station), so what is built
+ * from the same point — a switch toe, a switch end — joins the pieces exactly.
+ * The element's own end nodes and WGS84 end points stay as they are.
+ *
+ * A transition carries no cant of its own; `ramp` is the cant at its two ends
+ * (transitionCantEnds). Each piece keeps the ramp's value at its own ends as
+ * cantStart / cantEnd, since after the cut one of the neighbours that stated it
+ * is no longer beside it.
+ */
+function splitClothoid(el, epsg, cut, ramp) {
+  if (el.transitionType === 'bloss' || el.r1 === undefined) {
+    throw new Error('splitClothoid: only a clothoid can be cut into pieces of itself')
+  }
+  const L      = el.length
+  const r1     = el.r1 ?? null
+  const r2     = el.r2 ?? null
+  const s      = Math.min(L, Math.max(0, cut.station))
+  const coords = el.geometry.coordinates
+  const gStart = coords[0]
+  const gEnd   = coords[coords.length - 1]
+  const sUtm   = nodeUtm(el.startNode, gStart, epsg)
+  const eUtm   = nodeUtm(el.endNode, gEnd, epsg)
+  const jUtm   = { easting: cut.easting, northing: cut.northing, zone: epsg }
+  const cutWgs = utmToWgs84(jUtm.easting, jUtm.northing, epsg)
+  const rCut   = clothoidRadiusAt(r1, r2, L, s)
+  const bCut   = transitionBearingAtUtm(el.bearing, L, r1, r2, 'clothoid', s)
+  const bEnd   = el.endBearing ?? transitionBearingAtUtm(el.bearing, L, r1, r2, 'clothoid', L)
+  const uCut   = ramp && L > 0 ? ramp.start + (ramp.end - ramp.start) * s / L : null
+
+  const { epsg: _epsg, ...elRest } = el
+  const piece = ({ from, fromWgs, toNode, toWgs, bearing, endBearing, length, ra, rb, ua, ub }) => {
+    const line = (sagitta) => (length > 0
+      ? [fromWgs, ...computeClothoidUtm(from, bearing, length, ra, rb, sagitta).coords.slice(1, -1), toWgs]
+      : [fromWgs, toWgs])
+    return {
+      ...elRest,
+      r1: ra, r2: rb,
+      startNode: [from.easting, from.northing], endNode: toNode,
+      bearing, endBearing, length, absLength: length,
+      ...(ramp ? { cantStart: ua, cantEnd: ub } : {}),
+      geometry: { type: 'LineString', coordinates: line(SAGITTA_ELEMENT) },
+      renderCoords: line(SAGITTA_TRACK),
+    }
+  }
+  const a = piece({
+    from: sUtm, fromWgs: gStart, toNode: [jUtm.easting, jUtm.northing], toWgs: cutWgs,
+    bearing: el.bearing, endBearing: bCut, length: s, ra: r1, rb: rCut, ua: ramp?.start, ub: uCut,
+  })
+  const b = piece({
+    from: jUtm, fromWgs: cutWgs, toNode: [eUtm.easting, eUtm.northing], toWgs: gEnd,
+    bearing: bCut, endBearing: bEnd, length: L - s, ra: rCut, rb: r2, ua: uCut, ub: ramp?.end,
+  })
+  return {
+    cutWgs, a, b,
+    svA: { length: a.length, bearing: a.bearing, endBearing: a.endBearing },
+    svB: { length: b.length, bearing: b.bearing, endBearing: b.endBearing },
+  }
+}
+
 /** Below this a carved remainder is not an element, it is the cut itself [m]. */
 const CARVE_TOL = 1e-3
 
 /**
- * Give a switch's through route its own element at the `endpoint` end of a
- * track. A turnout is two elements of fixed length — the through route and the
+ * Give a switch's through route its own elements at the `endpoint` end of a
+ * track. A turnout is two routes of fixed length — the through route and the
  * branch — and the branch is a track of its own, but the through route runs
  * inside the track the switch was laid into. The frog is no junction, the track
- * runs on through it, so this is an element boundary and not a track boundary:
- * the turnout's own dimension is cut off as one element carrying `mark`
- * (switchBranch and the switch's name), and what is left of the element stays
- * as it was.
+ * runs on through it, so these are element boundaries and not a track boundary:
+ * the elements the turnout's own dimension covers carry `mark` (switchBranch and
+ * the switch's name), the one it ends in is cut there, and what is left of that
+ * one stays as it was.
  *
- * `cut` is the switch end in the track's plane. Returns the track with its
- * elements replaced, or null when the terminal element cannot carry the route
- * (a transition curve, or one shorter than the turnout).
+ * `cut` is the switch end in the track's plane, on the element the route ends
+ * in. `routeLength` is the through route's length. With it the route reaches
+ * over as many elements as it needs — a turnout laid into a track may lie
+ * across a straight running into a transition and on into an arc — and a
+ * clothoid is cut at the station that length puts the switch end at.
+ * `accepts` may restrict the elements the route may lie on. Without
+ * `routeLength` only the terminal element is carved, and only a straight or an
+ * arc.
+ *
+ * Returns the track with its elements replaced, or null when the route cannot
+ * be carved: the track ends first, the route runs onto a Bloss curve or an
+ * element `accepts` refuses, or (without `routeLength`) the terminal element is
+ * a transition.
  */
-export function carveSwitchRoute(track, endpoint, cut, mark) {
+export function carveSwitchRoute(track, endpoint, cut, mark, routeLength = null, { accepts = null } = {}) {
+  if (routeLength == null) return carveTerminal(track, endpoint, cut, mark)
+  const els = track.elements ?? []
+  const n   = els.length
+  const covered = new Set()            // elements the route covers whole
+  let total = 0
+  for (let k = 0; k < n; k++) {
+    const idx = endpoint === 'BEGIN' ? k : n - 1 - k
+    const el  = els[idx]
+    if (!el?.geometry) return null
+    if (accepts && !accepts(el)) return null
+    if (el.elementType === 2 && (el.transitionType === 'bloss' || el.r1 === undefined)) return null
+    const remaining = routeLength - total
+    if (el.length < remaining - CARVE_TOL) {
+      covered.add(idx)
+      total += el.length
+      continue
+    }
+
+    // The route ends in this element — with it, where that is within CARVE_TOL
+    // of its far end.
+    let replacement
+    if (el.length - remaining <= CARVE_TOL) {
+      replacement = [{ ...el, ...mark }]
+    } else {
+      const station = endpoint === 'BEGIN' ? remaining : el.length - remaining
+      const ramp = el.elementType === 2 ? transitionCantEnds(els, idx) : null
+      const { a, b } = splitElement(el, track.epsg, el.elementType === 2 ? { ...cut, station } : cut, ramp)
+      const [route, rest] = endpoint === 'BEGIN' ? [a, b] : [b, a]
+      if (!(route.length > CARVE_TOL)) return null
+      replacement = rest.length <= CARVE_TOL
+        ? [{ ...el, ...mark }]
+        : endpoint === 'BEGIN' ? [{ ...route, ...mark }, rest] : [rest, { ...route, ...mark }]
+    }
+    const elements = recalcAbsLengths(els.flatMap((e, i) => (
+      i === idx ? replacement : covered.has(i) ? [{ ...e, ...mark }] : [e])))
+    return { ...track, elements, coordinates: rebuildCoords(elements) }
+  }
+  return null
+}
+
+/** The through route on the terminal element alone, a straight or an arc. */
+function carveTerminal(track, endpoint, cut, mark) {
   const els = track.elements ?? []
   const idx = endpoint === 'BEGIN' ? 0 : els.length - 1
   const el  = els[idx]
@@ -125,10 +251,49 @@ export function carveSwitchRoute(track, endpoint, cut, mark) {
   return { ...track, elements, coordinates: rebuildCoords(elements) }
 }
 
+/**
+ * Split `track` at the joint before its element `j` (0 < j < elements.length)
+ * into two half-tracks without cutting an element — what splitElementAt does
+ * for a junction that falls on an element boundary, where it would leave an
+ * element of no length. A transition beside the joint loses the neighbour that
+ * stated its cant on that side, so it keeps the ramp's end values as its own
+ * (transitionCantEnds). `bearing` decides which half is ahead, and the result
+ * has splitElementAt's shape.
+ */
+export function splitTrackAtJoint(track, j, bearing, existingNames) {
+  const els = track.elements
+  const keepRamp = (el, i) => {
+    if (el.elementType !== 2) return el
+    const { start, end } = transitionCantEnds(els, i)
+    return { ...el, cantStart: start, cantEnd: end }
+  }
+  const before = els.slice(0, j).map((el, i) => (i === j - 1 ? keepRamp(el, i) : el))
+  const after  = els.slice(j).map((el, i) => (i === 0 ? keepRamp(el, j) : el))
+  const cutAt  = before.reduce((sum, e) => sum + (e.length ?? 0), 0)
+  const [heightsA, heightsB] = splitHeights(track.heights, cutAt)
+  const prefix = (track.name?.split('.')[0]) || 'track'
+  const nameA = nextTrackName(prefix, existingNames); existingNames.add(nameA)
+  const nameB = nextTrackName(prefix, existingNames); existingNames.add(nameB)
+  const trackA = makeSplitTrack(track, before, generateId(), nameA, heightsA)
+  const trackB = makeSplitTrack(track, after, generateId(), nameB, heightsB)
+  const aheadIsB = Math.cos((bearing - after[0].bearing) * DEG2RAD) > 0
+  return {
+    tracks: [trackA, trackB],
+    junctionWgs:    after[0].geometry?.coordinates?.[0] ?? null,
+    ahead:          aheadIsB ? trackB  : trackA,
+    aheadEndpoint:  aheadIsB ? 'BEGIN' : 'END',
+    behind:         aheadIsB ? trackA  : trackB,
+    behindEndpoint: aheadIsB ? 'END'   : 'BEGIN',
+  }
+}
+
 export function splitElementAt(track, elIdx, junction, bearing, existingNames) {
   const el    = track.elements[elIdx]
   const epsg  = track.epsg
-  const { cutWgs: junctionWgs, svA, svB, a: halfA, b: halfB } = splitElement(el, epsg, junction)
+  // A clothoid keeps the cant ramp it lies in on both pieces.
+  const ramp  = el.elementType === 2 && Number.isFinite(junction.station)
+    ? transitionCantEnds(track.elements, elIdx) : null
+  const { cutWgs: junctionWgs, svA, svB, a: halfA, b: halfB } = splitElement(el, epsg, junction, ramp)
   const before = track.elements.slice(0, elIdx)
   const after  = track.elements.slice(elIdx + 1)
   // The vertical alignment is the track's, stationed along it: it is cut where

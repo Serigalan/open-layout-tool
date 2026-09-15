@@ -363,8 +363,13 @@ function elementParts(el, comma, { brief = false, switchText = SWITCH_TEXT } = {
   // nothing else, the same way the map labels it.
   if (isBranch(el)) {
     const route = el.switchRoute ?? (el.radius == null ? 'main' : 'branch')
+    const r = (v) => (v == null ? '∞' : `${n(Math.abs(v))} m`)
+    // Laid into a clothoid, the route is a clothoid and runs from one radius to
+    // the other. The dash is set rather than an arrow: the PDF draws glyph by
+    // glyph in a standard font, which has the one and not the other.
+    const value = isTransition(el) ? `${r(el.r1)} – ${r(el.r2)}` : r(el.radius)
     return [{ t: 'r' }, { t: route === 'main' ? switchText.rMain : switchText.rBranch, sub: true },
-      { t: ` = ${el.radius == null ? '∞' : `${n(Math.abs(el.radius))} m`}` }]
+      { t: ` = ${value}` }]
   }
   if (isTransition(el)) {
     return [{ t: 'l' }, { t: el.transitionType === 'bloss' ? 'ub' : 'u', sub: true },

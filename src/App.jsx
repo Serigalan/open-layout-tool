@@ -63,7 +63,10 @@ const bauformCode = (tr, form) => tr(`switch_code_${form ?? 'plain'}`)
 function switchElementLabel(tr, el) {
   const route = el.switchRoute ?? (el.radius == null ? 'main' : 'branch')
   const sub   = tr(route === 'main' ? 'switch_r_sub_main' : 'switch_r_sub_branch')
-  const value = el.radius == null ? '∞' : `${Math.round(Math.abs(el.radius) * 100) / 100} m`
+  const r     = (v) => (v == null ? '∞' : `${Math.round(Math.abs(v) * 100) / 100} m`)
+  // A route of a turnout laid into a clothoid is a clothoid itself: it has no
+  // single radius but runs from one to the other.
+  const value = el.elementType === 2 ? `${r(el.r1)} → ${r(el.r2)}` : r(el.radius)
   return [{ t: 'r' }, { t: sub, sub: true }, { t: ` = ${value}` }]
 }
 

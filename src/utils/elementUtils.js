@@ -260,6 +260,11 @@ export function reverseElement(el) {
     ...(el.elementType === 2 && el.r1 !== undefined
       ? { r1: flipR(el.r2 ?? null), r2: flipR(el.r1 ?? null) }
       : {}),
+    // A cut transition keeps the cant ramp at its own ends (see
+    // transitionCantEnds): those swap ends and change side like `cant` does.
+    ...(el.cantStart !== undefined || el.cantEnd !== undefined
+      ? { cantStart: flipR(el.cantEnd ?? null), cantEnd: flipR(el.cantStart ?? null) }
+      : {}),
     geometry: { ...el.geometry, coordinates: [...coords].reverse() },
     ...(el.renderCoords ? { renderCoords: [...el.renderCoords].reverse() } : {}),
   }

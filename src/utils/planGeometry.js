@@ -1,9 +1,12 @@
 import {
-  nodeUtm, endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm, reverseElement,
+  nodeUtm, endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm,
 } from './elementUtils'
 import { sampleTransitionUtm, transitionBearingAtUtm } from './clothoidUtils'
 import { elementAtStation, pointAtStationUtm, trackLength } from './heightUtils'
-import { switchTypeByLabel, switchStraightLength, asRadius, lcsLineUtm, bauform, switchFillRing, switchRouteSegments } from './switchUtils'
+import {
+  lcsLineUtm, switchFillRing, switchRoutePointsUtm, switchRoutesFromTracks,
+  switchChainPointUtm, switchChainBearingAt, switchChainBauform,
+} from './switchUtils'
 import { switchNumberOf } from './identifierUtils'
 
 /**
@@ -205,76 +208,48 @@ export function trackPointAt(track, station) {
   return { point: [p.easting, p.northing], bearing: tangentAt(hit.el, hit.s) }
 }
 
-/** Points along a route of a switch, close enough that a fill reads as smooth. */
-function routePointsUtm(startUtm, bearing, length, signedR) {
-  const n = switchRouteSegments(length, signedR)
-  const pts = []
-  for (let i = 0; i <= n; i++) {
-    const s = length * i / n
-    const p = signedR
-      ? endPointCurvedUtm(startUtm, bearing, s, signedR)
-      : endPointStraightUtm(startUtm, bearing, s)
-    pts.push([p.easting, p.northing])
-  }
-  return pts
-}
-
 /**
  * Symbol of a switch in the plane — the body between the through route and the
- * branch, plus the LCS mark. The plane twin of `rebuildSwitchSymbol`: the
- * branch track's element at the switch end carries the node and the tangent,
- * and the switch form named by `label` gives the through length, so the symbol
- * keeps the turnout's own dimensions whatever the tracks do later. The bauform
- * comes with it: the stem radius and the resulting branch radius say whether
- * the turnout is unbent or bent, and which way.
+ * branch, plus the LCS mark. The plane twin of `rebuildSwitchSymbol`, from the
+ * same routes (switchRoutesFromTracks): the branch's elements carry the node and
+ * the tangent, the marked elements at port B2 the through route over as many
+ * elements as the turnout covers, and the switch form named by `label` gives
+ * the through length, so the symbol keeps the turnout's own dimensions whatever
+ * the tracks do later. The bauform comes with it (switchChainBauform).
  * Returns null for a switch whose branch or form cannot be resolved.
  */
 export function switchSymbolUtm(sw, trackById) {
-  const branch = trackById[sw.portB1_trackId]
-  const els = branch?.elements ?? []
-  if (!els.length) return null
+  const routes = switchRoutesFromTracks(sw, trackById)
+  if (!routes) return null
+  const { type, node, bearing, mainLen, stem, branch } = routes
 
-  const stored = sw.portB1_endpoint === 'END' ? els[els.length - 1] : els[0]
-  // Oriented away from the node, whichever end of the track the switch is at.
-  const arcEl = sw.portB1_endpoint === 'END' ? reverseElement(stored) : stored
-  if (!(arcEl.length > 0) || !arcEl.startNode || !arcEl.endNode) return null
-
-  const type = switchTypeByLabel(sw.label)
-  const absR = Math.abs(arcEl.radius ?? 0)
-  const mainLen = type ? switchStraightLength(type.R, type.ratio)
-    : absR > 0 ? 2 * absR * Math.tan(arcEl.length / (2 * absR))
-      : null
-  if (mainLen == null) return null
-
-  const stemR = asRadius(sw.mainRadius)
-  const branchR = asRadius(arcEl.radius)
-  const node = { easting: arcEl.startNode[0], northing: arcEl.startNode[1], zone: branch.epsg }
-  const mainPts   = routePointsUtm(node, arcEl.bearing, mainLen, stemR)
-  const branchPts = routePointsUtm(node, arcEl.bearing, arcEl.length, branchR)
+  const mainPts   = switchRoutePointsUtm(node, bearing, stem)
+  const branchPts = switchRoutePointsUtm(node, bearing, branch)
   const mainEnd = mainPts[mainPts.length - 1]
 
   // Half way along the through route, with its tangent — the body reaches from
   // the toe to the frog, so its name belongs over the middle of that.
   const midS = mainLen / 2
-  const mid = stemR
-    ? endPointCurvedUtm(node, arcEl.bearing, midS, stemR)
-    : endPointStraightUtm(node, arcEl.bearing, midS)
+  const mid = switchChainPointUtm(node, bearing, stem, midS)
+  // The branch's radius at the toe — or, where it leaves straight, the one it
+  // bends into.
+  const branchR = branch[0].r1 ?? branch[0].r2
 
   return {
     node: [node.easting, node.northing],
-    bearing: arcEl.bearing,
+    bearing,
     number: switchNumberOf(sw),
     // Where the toe sits along the branch track — the start of it, unless the
     // switch hangs on that track's far end.
-    station: sw.portB1_endpoint === 'END' ? trackLength(branch) : 0,
+    station: sw.portB1_endpoint === 'END' ? trackLength(trackById[sw.portB1_trackId]) : 0,
     mid: [mid.easting, mid.northing],
-    midBearing: stemR ? bearingAfterUtm(arcEl.bearing, midS, stemR) : arcEl.bearing,
+    midBearing: switchChainBearingAt(bearing, stem, midS),
     // Which way the branch leaves: its body lies on that side, so a label has
     // to go to the other one, and the branch arc's centre is on it as well.
     branchTurn: branchR ? Math.sign(branchR) : 0,
     fill: switchFillRing(mainPts, branchPts),
-    lcs: type ? lcsLineUtm([node.easting, node.northing], arcEl.endNode, mainEnd, type.dLcs) : null,
+    lcs: type ? lcsLineUtm([node.easting, node.northing], routes.branchEnd, mainEnd, type.dLcs) : null,
     label: sw.label ?? null,
-    bauform: bauform(stemR, branchR),
+    bauform: switchChainBauform(stem, branch),
   }
 }

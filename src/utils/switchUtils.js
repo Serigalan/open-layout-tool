@@ -1,5 +1,9 @@
 import { wgs84ToUTM, utmToWgs84 } from './coordinateUtils'
 import { reverseElement, bearingAfterUtm, projectOnArcUtm } from './elementUtils'
+import {
+  transitionPointAtUtm, transitionBearingAtUtm, sampleTransitionUtm, projectOnTransitionUtm,
+  clothoidRadiusAt, curvatureOf, radiusOfCurvature,
+} from './clothoidUtils'
 
 // minl = minimum intermediate straight between two turnouts in a crossover [m].
 // Primary table — checked first by the switch-connection calculation.
@@ -91,6 +95,219 @@ export function bauform(stemSignedR, branchSignedR) {
   return Math.sign(stemSignedR) === Math.sign(branchSignedR) ? 'ibw' : 'abw'
 }
 
+// ── Routes ──────────────────────────────────────────────────────────────────
+//
+// A switch route — the through route or the branch — as it runs away from the
+// point it starts at: { length, r1, r2 }, the signed radius at either end (null
+// = straight). Where both ends agree the route is a straight or an arc, as on
+// every switch on a straight or a curve. Where they differ its curvature runs
+// linearly between them: a clothoid, which is what both routes of a turnout
+// laid into a clothoid are (see switchBranchRoute).
+//
+// A turnout that reaches over several elements of the track it lies in has
+// routes of several such pieces, one per element: a chain, the pieces in the
+// order they run from the toe. A single route is a chain of one, and every
+// chain helper below gives exactly the single route's result for one.
+
+/** A route from { length, r1, r2 }, or from { length, radius } for a constant one. */
+function toRoute(route) {
+  if ('r1' in route || 'r2' in route) {
+    const r1 = asRadius(route.r1)
+    return { length: route.length, r1, r2: 'r2' in route ? asRadius(route.r2) : r1 }
+  }
+  const r = asRadius(route.radius)
+  return { length: route.length, r1: r, r2: r }
+}
+
+/** A chain from a route or from a list of routes. */
+function toChain(route) {
+  return Array.isArray(route) ? route.map(toRoute) : [toRoute(route)]
+}
+
+const negR = (r) => (r == null ? null : -r)
+
+/** Does the curvature change along the route — is it a clothoid? */
+export const switchRouteVaries = (route) => route.r1 !== route.r2
+
+/** Signed radius of a route at `s` from its start. */
+export function switchRouteRadiusAt(route, s) {
+  return switchRouteVaries(route) ? clothoidRadiusAt(route.r1, route.r2, route.length, s) : route.r1
+}
+
+/** Point of a route in the plane at `s` from its start — its end by default. */
+export function switchRoutePointUtm(originUtm, bearing, route, s = route.length) {
+  return switchRouteVaries(route)
+    ? transitionPointAtUtm(originUtm, bearing, route.length, route.r1, route.r2, 'clothoid', s)
+    : utmEndRoute(originUtm, bearing, s, route.r1)
+}
+
+/** Tangent bearing of a route at `s` from its start — at its end by default. */
+export function switchRouteBearingAt(bearing, route, s = route.length) {
+  return switchRouteVaries(route)
+    ? transitionBearingAtUtm(bearing, route.length, route.r1, route.r2, 'clothoid', s)
+    : bearingAfterUtm(bearing, s, route.r1)
+}
+
+/** The piece of a route from `a` to `b` along it; a clothoid keeps its parameter. */
+export function switchRouteSlice(route, a, b) {
+  if (!switchRouteVaries(route)) return { length: b - a, r1: route.r1, r2: route.r1 }
+  return { length: b - a, r1: switchRouteRadiusAt(route, a), r2: switchRouteRadiusAt(route, b) }
+}
+
+/**
+ * Branch of a switch whose through route, running from the toe, is `stem`;
+ * `length` is how far along it the branch is wanted.
+ *
+ * The rule branchRadius states for one radius holds at every station: bending
+ * moves no sleeper, so the branch's curvature is the stem's there plus the
+ * form's, κ_branch(s) = κ_stem(s) + κ_form. On a stem of constant curvature that
+ * is branchRadius itself. On a clothoid stem the sum still runs linearly in s,
+ * at the stem's own rate — so the branch is a clothoid of the stem's parameter,
+ * and its two end radii say all of it. Its far end lies `length` from the toe,
+ * which need not be where the stem ends. Those radii are kept as exact as the
+ * stem's pieces are (see radiusOfCurvature), since they are element data.
+ */
+export function switchBranchRoute(formSignedR, stem, length) {
+  if (!switchRouteVaries(stem)) {
+    const r = branchRadius(formSignedR, stem.r1)
+    return { length, r1: r, r2: r }
+  }
+  const kForm = 1 / formSignedR
+  const k1    = curvatureOf(stem.r1)
+  const kEnd  = k1 + (curvatureOf(stem.r2) - k1) * length / stem.length
+  return { length, r1: radiusOfCurvature(k1 + kForm), r2: radiusOfCurvature(kEnd + kForm) }
+}
+
+/**
+ * Through route of a switch record, `length` long, as it runs from the toe,
+ * for a record whose tracks do not state it (see switchRoutesFromTracks):
+ * `mainRadius` is the stem radius at the toe and `mainRadiusEnd` the one at the
+ * switch end. Neither set: the through route is straight.
+ */
+export function switchStemRoute(sw, length) {
+  const r1 = asRadius(sw.mainRadius)
+  return { length, r1, r2: sw.mainRadiusEnd !== undefined ? asRadius(sw.mainRadiusEnd) : r1 }
+}
+
+/** The route an element describes, in its own running direction. */
+export function switchElementRoute(el) {
+  return el.elementType === 2
+    ? toRoute({ length: el.length, r1: el.r1 ?? null, r2: el.r2 ?? null })
+    : toRoute({ length: el.length, radius: el.radius })
+}
+
+// ── Chains ──────────────────────────────────────────────────────────────────
+
+/**
+ * Within this [m] two lengths of a route are the same: lengths added up from
+ * elements miss the form's own by float noise.
+ */
+export const SWITCH_CHAIN_TOL = 1e-3
+
+/**
+ * The first `length` metres of a chain. A chain short of that by no more than
+ * SWITCH_CHAIN_TOL is made up on its last piece, since the form's dimension is
+ * the one a turnout has; one shorter still is returned as it is.
+ */
+export function switchChainTo(chain, length) {
+  const out = []
+  let before = 0            // length of the pieces taken whole
+  for (const piece of toChain(chain)) {
+    const left = length - before
+    if (left <= SWITCH_CHAIN_TOL && out.length) break
+    if (piece.length < left) {
+      out.push(piece)
+      before += piece.length
+    } else {
+      out.push(switchRouteSlice(piece, 0, left))
+      return out
+    }
+  }
+  const short = length - before
+  if (out.length && short > 0 && short <= SWITCH_CHAIN_TOL) {
+    const last = out.pop()
+    out.push(switchRouteSlice(last, 0, length - (before - last.length)))
+  }
+  return out
+}
+
+/**
+ * Every piece of a chain placed in the plane from `originUtm` on `bearing`: the
+ * piece with its station `s0` along the chain, its two ends and tangents.
+ */
+export function switchChainSegmentsUtm(originUtm, bearing, chain) {
+  const segments = []
+  let startUtm = originUtm
+  let b = bearing
+  let s0 = 0
+  for (const piece of toChain(chain)) {
+    const endUtm     = switchRoutePointUtm(startUtm, b, piece)
+    const endBearing = switchRouteBearingAt(b, piece)
+    segments.push({ ...piece, s0, startUtm, endUtm, bearing: b, endBearing })
+    startUtm = endUtm
+    b = endBearing
+    s0 += piece.length
+  }
+  return segments
+}
+
+/** Point of a chain in the plane at `s` from its start — its end by default. */
+export function switchChainPointUtm(originUtm, bearing, chain, s = null) {
+  const segments = switchChainSegmentsUtm(originUtm, bearing, chain)
+  if (s == null) return segments[segments.length - 1].endUtm
+  const i   = segments.findIndex(seg => s <= seg.s0 + seg.length)
+  const seg = segments[i < 0 ? segments.length - 1 : i]
+  return switchRoutePointUtm(seg.startUtm, seg.bearing, seg, s - seg.s0)
+}
+
+/** Tangent bearing of a chain at `s` from its start — at its end by default. */
+export function switchChainBearingAt(bearing, chain, s = null) {
+  const pieces = toChain(chain)
+  let b  = bearing
+  let s0 = 0
+  for (const [i, piece] of pieces.entries()) {
+    if (s != null && (s <= s0 + piece.length || i === pieces.length - 1)) {
+      return switchRouteBearingAt(b, piece, s - s0)
+    }
+    b = switchRouteBearingAt(b, piece)
+    s0 += piece.length
+  }
+  return b
+}
+
+/**
+ * Branch of a switch whose through route, running from the toe, is the chain
+ * `stem`: its first `length` metres, each piece offset by the form's curvature
+ * as switchBranchRoute does for one. The branch's pieces part where the stem's
+ * do — where the elements under the turnout part.
+ */
+export function switchBranchChain(formSignedR, stem, length) {
+  return switchChainTo(stem, length).map(piece => switchBranchRoute(formSignedR, piece, piece.length))
+}
+
+/**
+ * Bauform of a turnout from its two chains, both running from the toe. It is
+ * unbent only where the stem is straight throughout; otherwise it is the bent
+ * form it has where its stem is tightest, so a turnout that starts on a straight
+ * and ends in a curve counts as the bent one it mostly is. The branch there is
+ * the stem plus the form, and the toe gives the form: κ_form = κ_branch(0) −
+ * κ_stem(0).
+ */
+export function switchChainBauform(stem, branch) {
+  const s = toChain(stem)
+  const b = toChain(branch)
+  let tightest = null
+  for (const piece of s) {
+    for (const r of [piece.r1, piece.r2]) {
+      if (r != null && (tightest == null || Math.abs(r) < Math.abs(tightest))) tightest = r
+    }
+  }
+  if (tightest == null) return 'plain'
+  if (tightest === s[0].r1) return bauform(s[0].r1, b[0].r1)
+  const k = 1 / tightest + curvatureOf(b[0].r1) - curvatureOf(s[0].r1)
+  return bauform(tightest, Math.abs(k) < STRAIGHT_CURVATURE ? null : 1 / k)
+}
+
 // ── Pure UTM helpers ────────────────────────────────────────────────────────
 
 function utmEndStraight(utm, bearing, length) {
@@ -129,9 +346,20 @@ function utmEndCurved(utm, bearing, arcLength, signedR) {
 const SWITCH_STEP = 2
 
 /** Segments such a route gets — one rule for map, preview and plan export, so
- *  all three draw the same curve. A straight is its two ends. */
-export function switchRouteSegments(length, signedR) {
-  return signedR ? Math.max(2, Math.ceil(length / SWITCH_STEP)) : 1
+ *  all three draw the same curve. A straight is its two ends; a route curved
+ *  at either end (a clothoid may start or end straight) is stepped. */
+export function switchRouteSegments(length, signedR, signedREnd = signedR) {
+  return signedR || signedREnd ? Math.max(2, Math.ceil(length / SWITCH_STEP)) : 1
+}
+
+/** Simpson sub-intervals per step of a clothoid route — puts every point on the curve. */
+const ROUTE_SUBDIV = 8
+
+/** Plane points of a clothoid route, stepped like every other switch route. */
+function clothoidRoutePoints(originUtm, bearing, route) {
+  const n = switchRouteSegments(route.length, route.r1, route.r2)
+  return sampleTransitionUtm(originUtm, bearing, route.length, route.r1, route.r2, 'clothoid',
+    { steps: n, subdiv: ROUTE_SUBDIV })
 }
 
 function utmArcCoords(startUtm, bearing, arcLength, signedR) {
@@ -161,12 +389,37 @@ function utmEndRoute(utm, bearing, length, signedR) {
 /**
  * Polyline (WGS84) of such a route. It starts at the caller's own WGS84 twin of
  * the origin, so the join with what comes before is exact — the plane point is
- * never sent through WGS84 and back.
+ * never sent through WGS84 and back. A clothoid also ends on the caller's twin
+ * of its end.
  */
-function routeCoords(originUtm, originWgs, bearing, length, signedR, endWgs) {
-  return signedR
-    ? [originWgs, ...utmArcCoords(originUtm, bearing, length, signedR).slice(1)]
+function routeCoords(originUtm, originWgs, bearing, route, endWgs) {
+  if (switchRouteVaries(route)) {
+    const pts = clothoidRoutePoints(originUtm, bearing, route)
+    return [originWgs, ...pts.slice(1, -1).map(([e, n]) => utmToWgs84(e, n, originUtm.zone)), endWgs]
+  }
+  return route.r1
+    ? [originWgs, ...utmArcCoords(originUtm, bearing, route.length, route.r1).slice(1)]
     : [originWgs, endWgs]
+}
+
+/**
+ * Polyline (WGS84) of a chain, and its segments (switchChainSegmentsUtm) each
+ * with its own polyline `coords` — the one an element built from that piece is
+ * drawn with. Each piece starts on the last vertex of the one before, so the
+ * whole runs through without a gap.
+ */
+function chainGeometry(originUtm, originWgs, bearing, chain, endWgs) {
+  const segments = switchChainSegmentsUtm(originUtm, bearing, chain)
+  const coords = []
+  segments.forEach((seg, i) => {
+    const fromWgs = i === 0 ? originWgs : coords[coords.length - 1]
+    const toWgs   = i === segments.length - 1
+      ? endWgs
+      : utmToWgs84(seg.endUtm.easting, seg.endUtm.northing, originUtm.zone)
+    seg.coords = routeCoords(seg.startUtm, fromWgs, seg.bearing, seg, toWgs)
+    coords.push(...(i === 0 ? seg.coords : seg.coords.slice(1)))
+  })
+  return { coords, segments }
 }
 
 /**
@@ -182,27 +435,75 @@ const SWITCH_LABEL_OFFSET = 2
  * Polyline (WGS84) running parallel to a switch route at `offset` metres, left
  * of the running direction for a positive offset.
  */
-function routeOffsetCoords(originUtm, bearing, length, signedR, offset, epsg) {
-  const n = switchRouteSegments(length, signedR)
+function routeOffsetCoords(originUtm, bearing, route, offset, epsg) {
+  const n = switchRouteSegments(route.length, route.r1, route.r2)
+  const pts = switchRouteVaries(route) ? clothoidRoutePoints(originUtm, bearing, route) : null
   const coords = []
   for (let i = 0; i <= n; i++) {
-    const s = length * i / n
-    const p = utmEndRoute(originUtm, bearing, s, signedR)
-    const b = (bearingAfterUtm(bearing, s, signedR)) * Math.PI / 180
+    const s = route.length * i / n
+    const p = pts
+      ? { easting: pts[i][0], northing: pts[i][1] }
+      : utmEndRoute(originUtm, bearing, s, route.r1)
+    const b = switchRouteBearingAt(bearing, route, s) * Math.PI / 180
     coords.push(utmToWgs84(p.easting - offset * Math.cos(b), p.northing + offset * Math.sin(b), epsg))
   }
   return coords
 }
 
-/** Points of a switch route in the plane, stepped like everything else here. */
-function routePointsUtm(originUtm, bearing, length, signedR) {
-  const n = switchRouteSegments(length, signedR)
+/** The same along a chain, piece by piece. */
+function chainOffsetCoords(originUtm, bearing, chain, offset, epsg) {
+  return switchChainSegmentsUtm(originUtm, bearing, chain).flatMap((seg, i) => {
+    const c = routeOffsetCoords(seg.startUtm, seg.bearing, seg, offset, epsg)
+    return i === 0 ? c : c.slice(1)
+  })
+}
+
+/** Plane points of one route piece, stepped like everything else here. */
+function routePointsPlane(originUtm, bearing, route) {
+  if (switchRouteVaries(route)) return clothoidRoutePoints(originUtm, bearing, route)
+  const n = switchRouteSegments(route.length, route.r1)
   const pts = []
   for (let i = 0; i <= n; i++) {
-    const p = utmEndRoute(originUtm, bearing, length * i / n, signedR)
+    const p = utmEndRoute(originUtm, bearing, route.length * i / n, route.r1)
     pts.push([p.easting, p.northing])
   }
   return pts
+}
+
+/**
+ * Points ([E, N]) of a switch route — one piece or a chain — in the plane,
+ * stepped like everything else here: map symbol and plan export draw a turnout
+ * from the same points.
+ */
+export function switchRoutePointsUtm(originUtm, bearing, route) {
+  if (!Array.isArray(route)) return routePointsPlane(originUtm, bearing, route)
+  return switchChainSegmentsUtm(originUtm, bearing, route).flatMap((seg, i) => {
+    const pts = routePointsPlane(seg.startUtm, seg.bearing, seg)
+    return i === 0 ? pts : pts.slice(1)
+  })
+}
+
+/** Offset of a point from one route piece (see projectOnArcUtm for the frame). */
+function projectOnPiece(startUtm, bearing, piece, pointUtm) {
+  return switchRouteVaries(piece)
+    ? projectOnTransitionUtm(startUtm, pointUtm, bearing, piece.length, piece.r1, piece.r2)
+    : projectOnArcUtm(startUtm, pointUtm, bearing, piece.r1)
+}
+
+/**
+ * Offset (`perp`, positive to the right) of a point beside a chain, read off the
+ * piece it lies beside: the one its foot falls within, the nearest where none.
+ */
+function projectOnChainUtm(originUtm, bearing, chain, pointUtm) {
+  let best = null
+  for (const seg of switchChainSegmentsUtm(originUtm, bearing, chain)) {
+    const { along, perp } = projectOnPiece(seg.startUtm, seg.bearing, seg, pointUtm)
+    const miss = along < 0 ? -along : Math.max(0, along - seg.length)
+    if (!best || miss < best.miss || (miss === best.miss && Math.abs(perp) < Math.abs(best.perp))) {
+      best = { miss, perp }
+    }
+  }
+  return best
 }
 
 /**
@@ -248,23 +549,27 @@ function ringCentroid(ring) {
  *
  * Both routes are given as they run from the toe, so which way is "away" comes
  * out of the geometry rather than out of the direction an element was stored in.
+ * Each is a chain, a route ({ length, r1, r2 }) or, for a constant one,
+ * { length, radius }.
  */
-export function switchLabelGeometry(toeUtm, bearing, through, branch, epsg) {
+export function switchLabelGeometry(toeUtm, bearing, throughRoute, branchRoute, epsg) {
+  const through = toChain(throughRoute)
+  const branch  = toChain(branchRoute)
   const centre = ringCentroid(switchFillRing(
-    routePointsUtm(toeUtm, bearing, through.length, through.radius),
-    routePointsUtm(toeUtm, bearing, branch.length, branch.radius)))
+    switchRoutePointsUtm(toeUtm, bearing, through),
+    switchRoutePointsUtm(toeUtm, bearing, branch)))
   const centreUtm = { easting: centre[0], northing: centre[1], zone: epsg }
 
   // Where the centre sits beside a route (positive to the left of the running
   // direction), and from that the offset a label needs to stand `d` from it on
   // the route's far side.
-  const away = (route, d) => {
-    const { perp } = projectOnArcUtm(toeUtm, centreUtm, bearing, route.radius ?? null)
+  const away = (chain, d) => {
+    const { perp } = projectOnChainUtm(toeUtm, bearing, chain, centreUtm)
     const c = -perp
     return c - Math.sign(c || 1) * d
   }
   return {
-    labelCoords: routeOffsetCoords(toeUtm, bearing, through.length, through.radius,
+    labelCoords: chainOffsetCoords(toeUtm, bearing, through,
       away(through, SWITCH_LABEL_OFFSET), epsg),
     bodyCentre: utmToWgs84(centre[0], centre[1], epsg),
   }
@@ -320,64 +625,120 @@ export function lcsLine(portA, portB1, portB2, dLcs, zone) {
 }
 
 /**
+ * The elements a route of a switch lies on, oriented away from its node: from
+ * the end of the port's track that meets the switch, as long as they are marked
+ * as that route of that switch and until they make up `length` (without one,
+ * just the first). `first` takes the element at the port whatever its marks —
+ * a branch track begins with its branch however old the record is.
+ */
+function routeElements(sw, trackById, port, route, length, { first = false } = {}) {
+  const track    = trackById[sw[`port${port}_trackId`]]
+  const endpoint = sw[`port${port}_endpoint`]
+  const els      = track?.elements ?? []
+  if (!els.length || (endpoint !== 'BEGIN' && endpoint !== 'END')) return []
+  const ordered = endpoint === 'END' ? [...els].reverse() : els
+  const out = []
+  let total = 0
+  for (const el of ordered) {
+    if (length == null ? out.length > 0 : total >= length - SWITCH_CHAIN_TOL) break
+    const mine = el.switchBranch
+      && (!el.switchRoute || el.switchRoute === route)
+      && (!el.switchName || !sw.name || el.switchName === sw.name)
+    if (!mine && !(first && out.length === 0)) break
+    if (!(el.length > 0)) break
+    out.push(endpoint === 'END' ? reverseElement(el) : el)
+    total += el.length
+  }
+  return out
+}
+
+/**
+ * The two routes of a switch as its tracks state them, both as chains running
+ * from the toe: the branch from the elements at port B1, the through route from
+ * the marked elements at port B2 — the stem the turnout lies on, over as many
+ * elements as it reaches across. A record whose tracks carry no such marks (an
+ * import, or one from before the through route was marked) falls back on its
+ * stem radii (switchStemRoute). The switch form named by `label` gives the
+ * through length, so the symbol keeps the turnout's own dimensions whatever the
+ * tracks do later; a record whose label no longer resolves falls back on the
+ * branch's own tangent length.
+ *
+ * Returns { type, epsg, node, bearing, mainLen, stem, branch, branchEnd,
+ * branchStartWgs, branchEndWgs } — node and bearing of the toe, branchEnd the
+ * branch's far node [E, N] — or null where the branch or the form cannot be
+ * resolved.
+ */
+export function switchRoutesFromTracks(sw, trackById) {
+  const branchTrack = trackById[sw.portB1_trackId]
+  const type = switchTypeByLabel(sw.label)
+  const branchEls = routeElements(sw, trackById, 'B1', 'branch',
+    type ? switchArcLength(type.R, type.ratio) : null, { first: true })
+  const first = branchEls[0]
+  if (!first || !(first.length > 0) || !first.startNode || !first.endNode) return null
+  const last = branchEls[branchEls.length - 1]
+  if (!last.endNode) return null
+
+  const epsg = branchTrack.epsg
+  // Through route length: the form's, so a bent switch (whose branch element
+  // carries the *combined* radius) still gets its own dimension.
+  const absR    = Math.abs(first.radius ?? 0)
+  const mainLen = type ? switchStraightLength(type.R, type.ratio)
+    : absR > 0 ? 2 * absR * Math.tan(first.length / (2 * absR))
+      : null
+  if (mainLen == null) return null
+
+  const node    = { easting: first.startNode[0], northing: first.startNode[1], zone: epsg }
+  const stemEls = routeElements(sw, trackById, 'B2', 'main', mainLen)
+  const onNode  = stemEls.length > 0 && Array.isArray(stemEls[0].startNode)
+    && Math.hypot(stemEls[0].startNode[0] - node.easting, stemEls[0].startNode[1] - node.northing)
+      <= SWITCH_CHAIN_TOL
+  const firstCoords = first.geometry?.coordinates ?? []
+  const lastCoords  = last.geometry?.coordinates ?? []
+  return {
+    type, epsg, node, bearing: first.bearing, mainLen,
+    stem: onNode
+      ? switchChainTo(stemEls.map(switchElementRoute), mainLen)
+      : [switchStemRoute(sw, mainLen)],
+    branch: branchEls.map(switchElementRoute),
+    branchEnd: last.endNode,
+    branchStartWgs: firstCoords.length >= 2 ? firstCoords[0] : null,
+    branchEndWgs:   lastCoords.length >= 2 ? lastCoords[lastCoords.length - 1] : null,
+  }
+}
+
+/**
  * Display symbol of a switch — the body between the branch and the through
  * route (fillCoords) and the LCS mark (lcsCoords), both WGS84 — rebuilt from
- * the tracks it joins. Port B1 names the branch: its element at the switch end
- * carries the node and the tangent direction, and the switch form named by
- * `label` gives both route lengths, so the symbol keeps the turnout's own
- * dimensions whatever the tracks do later. `mainRadius` is the stem radius of a
- * bent switch, signed in the direction the branch leaves the node; without one
- * the through route is straight. The record itself keeps only name, label,
- * trailing, speed, that radius and the ports, so the symbol can never disagree
- * with the tracks. Returns the record with the symbol set — or without one when
- * the branch is missing.
+ * the tracks it joins (see switchRoutesFromTracks). The record itself keeps
+ * only name, label, trailing, speed and the ports, so the symbol can never
+ * disagree with the tracks. Returns the record with the symbol set — or without
+ * one when the branch is missing.
  */
 export function rebuildSwitchSymbol(sw, trackById) {
   const {
     fillCoords: _f, lcsCoords: _l, labelCoords: _lc, bodyCentre: _bc, bauform: _b, ...rest
   } = sw
-  const branch = trackById[sw.portB1_trackId]
-  const els    = branch?.elements ?? []
-  if (!els.length) return rest
-  const stored = sw.portB1_endpoint === 'END' ? els[els.length - 1] : els[0]
-  // Oriented away from the node, whichever end of the track the switch is at.
-  const arcEl  = sw.portB1_endpoint === 'END' ? reverseElement(stored) : stored
-  const arc    = arcEl.geometry?.coordinates ?? []
-  if (arc.length < 2 || !(arcEl.length > 0) || !arcEl.startNode || !arcEl.endNode) return rest
+  const routes = switchRoutesFromTracks(sw, trackById)
+  if (!routes || !routes.branchStartWgs || !routes.branchEndWgs) return rest
 
-  const epsg = branch.epsg
-  const type = switchTypeByLabel(sw.label)
-  // Through route length: the form's, so a bent switch (whose branch element
-  // carries the *combined* radius) still gets its own dimension. A record whose
-  // label no longer resolves falls back to the branch's own tangent length.
-  const absR    = Math.abs(arcEl.radius ?? 0)
-  const mainLen = type ? switchStraightLength(type.R, type.ratio)
-    : absR > 0 ? 2 * absR * Math.tan(arcEl.length / (2 * absR))
-      : null
-  if (mainLen == null) return rest
-
-  const stemR      = asRadius(sw.mainRadius)
-  const nodePt     = { easting: arcEl.startNode[0], northing: arcEl.startNode[1], zone: epsg }
-  const mainEndUtm = utmEndRoute(nodePt, arcEl.bearing, mainLen, stemR)
+  const { type, epsg, node, bearing, stem, branch } = routes
+  const mainEndUtm = switchChainPointUtm(node, bearing, stem)
   const mainEndWgs = utmToWgs84(mainEndUtm.easting, mainEndUtm.northing, epsg)
-  const mainCoords = routeCoords(nodePt, arc[0], arcEl.bearing, mainLen, stemR, mainEndWgs)
-  // The branch is drawn from the element's own node, bearing, length and radius
-  // rather than from its stored polyline: same curve, same source of truth, but
-  // stepped like every other switch route — a branch element saved at some other
+  const mainCoords = chainGeometry(node, routes.branchStartWgs, bearing, stem, mainEndWgs).coords
+  // The branch is drawn from the elements' own node, bearing, length and radii
+  // rather than from their stored polylines: same curve, same source of truth,
+  // but stepped like every other switch route — a branch saved at some other
   // density would otherwise give the symbol a different outline after a reload.
-  const branchCoords = routeCoords(nodePt, arc[0], arcEl.bearing, arcEl.length,
-    asRadius(arcEl.radius), arc[arc.length - 1])
-  const lcsCoords  = type
-    ? lcsLine([nodePt.easting, nodePt.northing], arcEl.endNode,
+  const branchCoords = chainGeometry(node, routes.branchStartWgs, bearing, branch, routes.branchEndWgs).coords
+  const lcsCoords = type
+    ? lcsLine([node.easting, node.northing], routes.branchEnd,
       [mainEndUtm.easting, mainEndUtm.northing], type.dLcs, epsg)
     : null
   return {
     ...rest,
     fillCoords: switchFillRing(mainCoords, branchCoords),
-    ...switchLabelGeometry(nodePt, arcEl.bearing,
-      { length: mainLen, radius: stemR },
-      { length: arcEl.length, radius: asRadius(arcEl.radius) }, epsg),
-    bauform: bauform(stemR, asRadius(arcEl.radius)),
+    ...switchLabelGeometry(node, bearing, stem, branch, epsg),
+    bauform: switchChainBauform(stem, branch),
     ...(lcsCoords ? { lcsCoords } : {}),
   }
 }
@@ -415,27 +776,51 @@ export function computeSwitchGeometry(startWgs, bearing, sw, side, trailing, crs
  * so `signedR` comes back null for the outer-bent switch whose branch is
  * straight. `mainSignedR` and `stemAtToe` are that stem radius in the two
  * frames a caller builds elements in: along `bearing`, and away from the toe.
+ *
+ * Given as { r1, r2 } instead, `mainR` lays the switch into a clothoid: r1 is
+ * the stem radius at the start, r2 the one at the far end of the through route,
+ * both along `bearing`. Given as a list of such pieces with their lengths, it
+ * lays the switch across the elements of a track — one piece each, in the order
+ * they run along `bearing`, taken to the form's through length.
+ *
+ * `stemChain` and `branchChain` are both routes as chains running from the toe,
+ * the branch parting where the stem does; `stemSegments` and `branchSegments`
+ * are their pieces placed in the plane (switchChainSegmentsUtm), the branch's
+ * with their own polylines, one per element a caller builds.
+ * `branchEndBearing` is the branch's tangent at its end.
  */
 export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, startWgs = null, mainR = null) {
   const arcLen      = switchArcLength(sw.R, sw.ratio)
   const straightLen = switchStraightLength(sw.R, sw.ratio)
   const formR       = side === 'left' ? -sw.R : sw.R
-  const mainSignedR = asRadius(mainR)
+  // The through route along `bearing`: straight, an arc, a piece of clothoid or
+  // a chain of such pieces.
+  const stem = Array.isArray(mainR)
+    ? switchChainTo(mainR, straightLen)
+    : [mainR !== null && typeof mainR === 'object'
+      ? toRoute({ length: straightLen, r1: mainR.r1, r2: mainR.r2 })
+      : toRoute({ length: straightLen, radius: mainR })]
+  const mainSignedR = stem[0].r1
 
   const sWgs = startWgs ?? utmToWgs84(startUtm.easting, startUtm.northing, startUtm.zone)
 
   // Through route: the form's through length, laid on the stem's curvature.
-  const straightUtm    = utmEndRoute(startUtm, bearing, straightLen, mainSignedR)
-  const mainEndBearing = bearingAfterUtm(bearing, straightLen, mainSignedR)
+  const straightUtm    = switchChainPointUtm(startUtm, bearing, stem)
+  const mainEndBearing = switchChainBearingAt(bearing, stem)
 
   // The branch leaves the toe — the start point of a facing switch, the far end
   // of a trailing one taken against the through route. Reversing that direction
-  // flips the sign of the stem radius the branch's curvature is added to.
+  // turns the chain round: its pieces run the other way, their radii change sign
+  // and swap ends. The branch's curvature is added to the stem's from there.
   const arcOriginUtm = trailing ? straightUtm : startUtm
   const curveBearing = trailing ? (mainEndBearing + 180) % 360 : bearing
-  const stemAtToe    = mainSignedR == null ? null : (trailing ? -mainSignedR : mainSignedR)
-  const signedR      = branchRadius(formR, stemAtToe)
-  const curvedUtm    = utmEndRoute(arcOriginUtm, curveBearing, arcLen, signedR)
+  const stemChain    = trailing
+    ? [...stem].reverse().map(p => ({ length: p.length, r1: negR(p.r2), r2: negR(p.r1) }))
+    : stem
+  const stemAtToe    = stemChain[0].r1
+  const branchChain  = switchBranchChain(formR, stemChain, arcLen)
+  const signedR      = branchChain[0].r1
+  const curvedUtm    = switchChainPointUtm(arcOriginUtm, curveBearing, branchChain)
 
   // Ports as UTM [easting, northing]
   const portA  = trailing ? [straightUtm.easting, straightUtm.northing] : [startUtm.easting, startUtm.northing]
@@ -446,8 +831,10 @@ export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, 
   const straightEnd  = utmToWgs84(straightUtm.easting, straightUtm.northing, startUtm.zone)
   const arcOriginWgs = trailing ? straightEnd : sWgs
   const curvedEnd    = utmToWgs84(curvedUtm.easting, curvedUtm.northing, startUtm.zone)
-  const straightCoords = routeCoords(startUtm, sWgs, bearing, straightLen, mainSignedR, straightEnd)
-  const arcCoords      = routeCoords(arcOriginUtm, arcOriginWgs, curveBearing, arcLen, signedR, curvedEnd)
+  const main   = chainGeometry(startUtm, sWgs, bearing, stem, straightEnd)
+  const branch = chainGeometry(arcOriginUtm, arcOriginWgs, curveBearing, branchChain, curvedEnd)
+  const straightCoords = main.coords
+  const arcCoords      = branch.coords
 
   const portA_wgs  = trailing ? straightEnd : sWgs
   const portB1_wgs = curvedEnd
@@ -460,19 +847,20 @@ export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, 
   // towards it, so it turns round for the ring.
   const throughFromToe = trailing ? [...straightCoords].reverse() : straightCoords
   const fillCoords = switchFillRing(throughFromToe, arcCoords)
-  const labelGeom = switchLabelGeometry(arcOriginUtm, curveBearing,
-    { length: straightLen, radius: stemAtToe },
-    { length: arcLen, radius: signedR }, startUtm.zone)
+  const labelGeom = switchLabelGeometry(arcOriginUtm, curveBearing, stemChain, branchChain, startUtm.zone)
 
   return {
     straightCoords, arcCoords, fillCoords, ...labelGeom,
-    bauform: bauform(stemAtToe, signedR),
+    bauform: switchChainBauform(stemChain, branchChain),
     portA, portB1, portB2,
     portA_wgs, portB1_wgs, portB2_wgs,
     lcsCoords,
     straightEnd, arcOrigin: arcOriginWgs, curvedEnd,
     startUtm, straightUtm, arcOriginUtm, curvedUtm,
-    signedR, mainSignedR, stemAtToe,
-    curveBearing, mainEndBearing, arcLen, straightLen,
+    signedR, mainSignedR, stemAtToe, stemChain, branchChain,
+    stemSegments: trailing ? switchChainSegmentsUtm(arcOriginUtm, curveBearing, stemChain) : main.segments,
+    branchSegments: branch.segments,
+    curveBearing, mainEndBearing, branchEndBearing: switchChainBearingAt(curveBearing, branchChain),
+    arcLen, straightLen,
   }
 }

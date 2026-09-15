@@ -67,6 +67,7 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, branchUtm, sw,
   }
   return {
     throughEnd: geom.straightUtm,
+    throughLength: geom.straightLen,
     record: {
       number: switchNumber, name: switchDesignation(switchNumber), label: sw.label, trailing: false, speed,
       portA_trackId:  behindTrackId,  portA_endpoint:  behindEndpoint,
@@ -78,11 +79,15 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, branchUtm, sw,
   }
 }
 
-// Put the switch's through route into its own element in the half-track it runs
+// A connection joins straights, and its turnouts' through routes are straight:
+// they may lie on straights only, however many the running track is made of.
+const isPlainStraight = (el) => el.elementType !== 2 && el.radius == null
+
+// Put the switch's through route into its own elements in the half-track it runs
 // into, and hand back the split's tracks with that one replaced — same id, so
 // the remap is untouched. A half-track that cannot carry it stays as it is.
-function carveThrough(split, cutUtm, mark) {
-  const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, cutUtm, mark)
+function carveThrough(split, cutUtm, mark, length) {
+  const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, cutUtm, mark, length, { accepts: isPlainStraight })
   return carved ? split.tracks.map(tr => (tr.id === carved.id ? carved : tr)) : split.tracks
 }
 
@@ -427,8 +432,8 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
       switchBranch: true, switchRoute: 'main',
       switchName: switchDesignation(number), switchLabel: swType.label,
     })
-    const s1Tracks = carveThrough(s1, toPlane(j1.throughEnd, t1.epsg), mainMark(no1))
-    const s2Tracks = carveThrough(s2, toPlane(j2.throughEnd, t2.epsg), mainMark(no2))
+    const s1Tracks = carveThrough(s1, toPlane(j1.throughEnd, t1.epsg), mainMark(no1), j1.throughLength)
+    const s2Tracks = carveThrough(s2, toPlane(j2.throughEnd, t2.epsg), mainMark(no2), j2.throughLength)
 
     commitSwitchConnection(project.id, {
       removeTrackIds: [t1.id, t2.id],

@@ -167,3 +167,100 @@ export function transitionShift(L, R, type = 'clothoid') {
   const phi = L / (2 * R)
   return { p: y + R * Math.cos(phi) - R, t: x - R * Math.sin(phi), phi }
 }
+
+// ── Pieces of a clothoid ─────────────────────────────────────────────────────
+
+/**
+ * Below this a curvature is float noise, not a radius (R > 10⁶ km). Kept far
+ * below STRAIGHT_CURVATURE on purpose: a piece of a clothoid has to keep the
+ * curvature it really has, or its neighbours stop meeting it tangentially.
+ */
+const CURVATURE_ZERO = 1e-12
+
+/** Curvature 1/r of a signed radius, in the radius' own sign; 0 for a straight. */
+export const curvatureOf = (r) => (r ? 1 / r : 0)
+
+/** Signed radius of a curvature; null where it is none. */
+export const radiusOfCurvature = (k) => (Math.abs(k) < CURVATURE_ZERO ? null : 1 / k)
+
+/**
+ * Signed radius of a clothoid at station `s`. Its curvature runs linearly from
+ * 1/r1 to 1/r2 (0 at a straight end), so every piece of it is a clothoid of the
+ * same parameter again — which is what lets one be cut, and a turnout be laid
+ * into one. A Bloss curve has no such property; this is for clothoids only.
+ *
+ * The ends come back as stored, so a piece reaching an end carries that end's
+ * radius exactly instead of its reciprocal taken twice. Null where the
+ * curvature vanishes: at a straight end, or where a reverse clothoid inflects.
+ */
+export function clothoidRadiusAt(r1, r2, length, s) {
+  if (s <= 0) return r1 ?? null
+  if (s >= length) return r2 ?? null
+  const k1 = curvatureOf(r1)
+  return radiusOfCurvature(k1 + (curvatureOf(r2) - k1) * s / length)
+}
+
+/**
+ * Offset of a plane point from a transition leaving `startUtm` on `bearing`:
+ * `along` is the station of its foot on the curve (clamped to the element),
+ * `perp` the offset from there, positive to the right of the running direction
+ * — the same convention as projectOnBearingUtm / projectOnArcUtm.
+ *
+ * The nearest chord of a 1 m sampling gives the start, a few Newton steps on
+ * the tangential offset put the foot on the exact curve.
+ */
+export function projectOnTransitionUtm(startUtm, pointUtm, bearing, length, r1, r2, type = 'clothoid') {
+  if (!(length > 0)) {
+    return { along: 0, perp: 0 }
+  }
+  const px = pointUtm.easting
+  const py = pointUtm.northing
+  const steps = Math.max(16, Math.ceil(length))
+  const pts = sampleTransitionUtm(startUtm, bearing, length, r1, r2, type, { steps, subdiv: 4 })
+
+  let best = { d2: Infinity, s: 0 }
+  for (let i = 0; i < steps; i++) {
+    const [ax, ay] = pts[i]
+    const [bx, by] = pts[i + 1]
+    const dx = bx - ax, dy = by - ay
+    const l2 = dx * dx + dy * dy
+    const u  = l2 > 0 ? Math.min(1, Math.max(0, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0
+    const ex = ax + u * dx - px, ey = ay + u * dy - py
+    const d2 = ex * ex + ey * ey
+    if (d2 < best.d2) best = { d2, s: length * (i + u) / steps }
+  }
+
+  const DEG = Math.PI / 180
+  let s = best.s
+  let foot = null
+  for (let it = 0; it < 6; it++) {
+    foot = transitionPointAtUtm(startUtm, bearing, length, r1, r2, type, s)
+    const b  = transitionBearingAtUtm(bearing, length, r1, r2, type, s) * DEG
+    const ds = (px - foot.easting) * Math.sin(b) + (py - foot.northing) * Math.cos(b)
+    const next = Math.min(length, Math.max(0, s + ds))
+    const done = Math.abs(next - s) < 1e-10
+    s = next
+    if (done) break
+  }
+  foot = transitionPointAtUtm(startUtm, bearing, length, r1, r2, type, s)
+  const b = transitionBearingAtUtm(bearing, length, r1, r2, type, s) * DEG
+  const dE = px - foot.easting, dN = py - foot.northing
+  return { along: s, perp: dE * Math.cos(b) - dN * Math.sin(b) }
+}
+
+/**
+ * Cant at the two ends of a transition [mm, signed like `cant`]. A transition
+ * carries none of its own: across it the cant ramps between the elements it
+ * joins, so each end takes the cant of its neighbour there. A transition that
+ * was cut — a turnout laid into it — no longer has both of those beside it
+ * (the cut ends the track, or the next piece is a transition too), so its
+ * pieces keep the ramp's value at their ends as cantStart / cantEnd, which win
+ * over the neighbours.
+ */
+export function transitionCantEnds(elements, i) {
+  const el = elements[i]
+  return {
+    start: el.cantStart ?? elements[i - 1]?.cant ?? 0,
+    end:   el.cantEnd   ?? elements[i + 1]?.cant ?? 0,
+  }
+}

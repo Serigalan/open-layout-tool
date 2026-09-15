@@ -12,7 +12,7 @@ An interactive web application for designing railway track layouts on a map — 
 - **Connect elements** — link to other elements using curves, straight lines, and transition curves
   (clothoid, Bloss)
 - **Switches**, to form the foundation of a train station or whatever the requirements may be, including
-  switch connections between two tracks
+  switches laid into existing tracks across straights, curves and clothoids, and switch connections between two tracks
 - **Splice elements** — connect two track elements with a matching track element
 - **Edit elements** — modify geometry, elements and switches
 - **Platforms** — create platforms

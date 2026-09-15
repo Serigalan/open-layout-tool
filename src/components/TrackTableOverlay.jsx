@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { loadTracks, replaceAllTracks } from '../storage'
 import { applyElementChange } from './panels/EditElementPanel/editGeometry'
+import { transitionCantEnds } from '../utils/clothoidUtils'
 import {
   cantSign, computeCantDefSigned, computeMaxSpeed, roundCant, filterForElement, FILTER_NONE, CANT_STEP, MAX_CANT, MAX_CANT_DEF, MAX_SWITCH_CANT_DEF, mapIsLive,
 } from '../utils/mapConstants'
@@ -21,8 +22,9 @@ const DEFAULT_SPEED_CAP = 160
 /**
  * Radius (m) and signed cant (mm) that govern an element's cant physics.
  * An arc carries both itself. Across a transition both ramp, so the tighter end
- * governs — and its cant is the one of the neighbouring element on that side
- * (same rule the OSRD export uses for the ramp ends). A straight has neither,
+ * governs — and its cant is the one of the neighbouring element on that side,
+ * or the ramp value a cut transition keeps there (transitionCantEnds, the same
+ * rule the exchange export uses for the ramp ends). A straight has neither,
  * hence null: no deficiency, no curvature-imposed speed limit.
  */
 function governing(elements, i) {
@@ -35,9 +37,10 @@ function governing(elements, i) {
     const r1 = el.r1 ? Math.abs(el.r1) : Infinity   // a null end runs into a straight
     const r2 = el.r2 ? Math.abs(el.r2) : Infinity
     if (!Number.isFinite(Math.min(r1, r2))) return null
+    const ends = transitionCantEnds(elements, i)
     return r1 <= r2
-      ? { radius: el.r1, cant: elements[i - 1]?.cant ?? 0 }
-      : { radius: el.r2, cant: elements[i + 1]?.cant ?? 0 }
+      ? { radius: el.r1, cant: ends.start }
+      : { radius: el.r2, cant: ends.end }
   }
   return null
 }

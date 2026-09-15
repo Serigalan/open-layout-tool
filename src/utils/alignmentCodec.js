@@ -4,6 +4,8 @@
 // scalars a polyline cannot express — and differ only in where it sits and
 // what surrounds it. The import (osrdImport) reads either.
 
+import { transitionCantEnds } from './clothoidUtils'
+
 export const DEG2GON = 10 / 9
 export const GON2DEG = 9 / 10
 
@@ -37,13 +39,14 @@ function elementType(el) {
  * signed radii, cants and design speed.
  *
  * Cant lives on arcs as a scalar; across a transition it is a ramp, so its two
- * ends are taken from the neighbouring elements. Values equal to 0 are omitted,
+ * ends are taken from the neighbouring elements — or from the transition's own
+ * ends where it was cut (see transitionCantEnds). Values equal to 0 are omitted,
  * as is a design speed of 0 (unknown).
  */
 export function horizontalElements(track) {
   const els = track.elements ?? []
   const cantEnds = (el, i) => el.elementType === 2
-    ? { start: els[i - 1]?.cant ?? 0, end: els[i + 1]?.cant ?? 0 }
+    ? transitionCantEnds(els, i)
     : { start: el.cant ?? 0, end: el.cant ?? 0 }
 
   let station = 0

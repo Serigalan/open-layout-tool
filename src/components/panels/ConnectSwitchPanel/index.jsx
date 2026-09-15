@@ -42,14 +42,6 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     </>
   )
 
-  if (page === 'oncurve') return (
-    <>
-      <BackButton t={t} onBack={back} />
-      <h2>{t('switch_on_curve')}</h2>
-      <SwitchOnTrackForm curved t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
-    </>
-  )
-
   if (page === 'scurve') return (
     <>
       <BackButton t={t} onBack={back} />
@@ -88,14 +80,6 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
             <path d="m6 11 8.475-6.735" fill="none" stroke="currentColor"/>
           </svg>
           {t('switch_on_track')}
-        </button>
-        <button className="create-element-btn" onClick={() => setPage('oncurve')}>
-          <svg width="16" height="16" viewBox="0 0 16 16">
-            <path d="M.75 12.055c4.631-2.027 9.193-2.085 14.096-.135" fill="none" stroke="currentColor"/>
-            <circle cx="4.537" cy="10.787" r="1.8" fill="currentColor"/>
-            <path d="M4.537 10.787C6.64 6.811 9.924 5.037 14.96 5.423" fill="none" stroke="currentColor"/>
-          </svg>
-          {t('switch_on_curve')}
         </button>
         <button className="create-element-btn" onClick={() => setPage('scurve')}>
           <svg width="16" height="16" viewBox="0 0 16 16">

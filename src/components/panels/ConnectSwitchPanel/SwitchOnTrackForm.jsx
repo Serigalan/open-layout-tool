@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  loadTracks, commitSwitchConnection, generateId,
+  loadTracks, commitSwitchConnection, generateId, recalcAbsLengths,
 } from '../../../storage'
 import {
-  computeCurvedValuesUtm, computeStraightValuesUtm, projectOnArcUtm,
-  endPointCurvedUtm, endPointStraightUtm, bearingAfterUtm, nodeUtm,
+  computeCurvedValuesUtm, computeStraightValuesUtm, projectOnArcUtm, nodeUtm,
 } from '../../../utils/elementUtils'
 import { wgs84ToUTM, utmToWgs84 } from '../../../utils/coordinateUtils'
-import { splitElementAt, carveSwitchRoute } from '../../../utils/trackSplitUtils'
+import { projectOnTransitionUtm } from '../../../utils/clothoidUtils'
+import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
-  SWITCH_TYPES, switchArcLength, switchStraightLength, computeSwitchGeometryUtm, asRadius, bauform,
+  SWITCH_TYPES, switchArcLength, switchStraightLength, computeSwitchGeometryUtm, asRadius, switchRouteVaries,
 } from '../../../utils/switchUtils'
+import { placeSwitchOnTrack } from '../../../utils/switchPlacement'
+import { trackLength } from '../../../utils/heightUtils'
 import { buildTypeFields } from '../../../utils/identifierUtils'
 import {
   HIT_TOLERANCE, computeSwitchCant, computeCantDef, computeCantDefSigned,
@@ -30,27 +32,75 @@ import {
   EMPTY_FC, buildLinesGeoJSON, buildFillGeoJSON,
 } from './switchPreview'
 
-const isStraight = (el) => el && el.radius == null && el.elementType !== 2 && !el.switchBranch
-const isArc      = (el) => el && el.radius != null && el.elementType !== 2 && !el.switchBranch
+/** Track the toe must leave behind it, or the split would part off next to nothing [m]. */
+const MIN_BEHIND = 0.5
+
+// Display only — the stored values keep their full precision.
+const fmtR    = (r) => (r == null ? '∞' : `${Math.round(r)} m`)
+const fmtCant = (u) => String(Math.round(u))
+
+/** Station along the whole track of a point clicked beside its element `elIdx`. */
+function clickStation(track, elIdx, clickUtm) {
+  const el = track.elements[elIdx]
+  const startUtm = nodeUtm(el.startNode, el.geometry.coordinates[0], track.epsg)
+  const { along } = el.elementType === 2
+    ? projectOnTransitionUtm(startUtm, clickUtm, el.bearing, el.length, el.r1 ?? null, el.r2 ?? null,
+      el.transitionType === 'bloss' ? 'bloss' : 'clothoid')
+    : projectOnArcUtm(startUtm, clickUtm, el.bearing, asRadius(el.radius))
+  const before = track.elements.slice(0, elIdx).reduce((sum, e) => sum + (e.length ?? 0), 0)
+  return before + Math.min(el.length, Math.max(0, along))
+}
 
 /**
- * Place a switch onto an existing track element. The element is split at the
- * switch toe, so it becomes two half-tracks; the diverging branch is added as a
- * new track. Unlike the plain switch form no through-route element is created —
- * the existing track *is* the through route, and the turnout symbol comes from
- * the switch record's fillCoords (same as the junction switches).
- *
- * With `curved` the host is an arc rather than a straight and the switch is
- * bent into it: the branch takes the arc's curvature on top of the form's (see
- * branchRadius) and can even come out straight. The stem radius is the host's,
- * so there is nothing to enter for it, and so is the cant — one turnout sits on
- * one set of sleepers, so its two routes cannot have two different ones.
+ * Radius of a route as a turnout states it: the one it keeps throughout, or
+ * where it changes — along a clothoid, or from one element to the next — its
+ * value at the toe and at the far end.
  */
-export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCommitted, curved = false }) {
+function radiusText(segments, straightText) {
+  const r0 = segments[0].r1
+  if (segments.every(seg => seg.r1 === r0 && seg.r2 === r0)) {
+    return r0 == null ? straightText : `${Math.round(r0)} m`
+  }
+  return `${fmtR(r0)} → ${fmtR(segments[segments.length - 1].r2)}`
+}
+
+/** Branch element from a piece of the branch with one radius (or none). */
+function constantBranchElement(seg, cant) {
+  const r  = seg.r1
+  const bv = r
+    ? computeCurvedValuesUtm(seg.startUtm, seg.endUtm, r)
+    : computeStraightValuesUtm(seg.startUtm, seg.endUtm)
+  return {
+    elementType: r ? 1 : 0,
+    startNode: bv.startNode, endNode: bv.endNode,
+    bearing: bv.bearing,
+    length: bv.length, absLength: bv.length,
+    ...(r ? { endBearing: bv.endBearing, radius: r } : {}),
+    cant,
+  }
+}
+
+/**
+ * Place a switch onto an existing track. The track is split at the switch toe,
+ * so it becomes two half-tracks; the diverging branch is added as a new track.
+ * No through-route track is created — the existing track *is* the through
+ * route, and the elements it covers are marked as the turnout's through route.
+ *
+ * The turnout may reach over as many elements as its length needs, whatever
+ * the track is made of under it — straights, arcs and clothoids (see
+ * placeSwitchOnTrack). Wherever the stem is curved the switch is bent into it:
+ * both routes take the stem's curvature on top of their own, at every station,
+ * so the branch is built piece by piece where the stem's elements part — an arc
+ * over an arc, a clothoid over a clothoid (switchBranchChain). One turnout sits
+ * on one set of sleepers, so its cant is the track's own there too, and a
+ * turnout on nothing but straights is the ordinary one, whose cant follows
+ * speed and switch form.
+ */
+export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCommitted }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [phase, setPhase]           = useState('select')
-  const [pick, setPick]             = useState(null)   // { trackId, elIdx, startUtm, bearing, length, radius, cant }
-  const [station, setStation]       = useState('')     // toe position along the element [m]
+  const [pick, setPick]             = useState(null)   // { trackId }
+  const [station, setStation]       = useState('')     // toe position along the track [m]
   const [switchTypeIdx, setTypeIdx] = useState(2)
   const [side, setSide]             = useState('left')
   const [reversed, setReversed]     = useState(false)  // switch opens against the track direction
@@ -65,7 +115,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
   useTrackHover(map, phase, 'select', project)
   usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
 
-  // ── Pick an element and place the toe where it was clicked ────────────────
+  // ── Pick a track and place the toe where it was clicked ──────────────────
   useEffect(() => {
     if (phase !== 'select' || !map?.current) return
     const m = map.current
@@ -80,96 +130,98 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
       const { trackId, elementIndex } = features[0].properties
       const elIdx = Number(elementIndex)
       const track = loadTracks(project.id).find(tr => tr.id === trackId)
-      const el    = track?.elements?.[elIdx]
-      if (!(curved ? isArc(el) : isStraight(el))) {
-        setErrors([t(curved ? 'switch_on_curve_arc_only' : 'switch_on_track_straight_only')])
-        return
-      }
+      if (!track?.elements?.[elIdx]) return
       setErrors([])
-
-      // The element's stored start node anchors everything in the track's own
-      // plane; the click is projected onto the element from there.
-      const startUtm = nodeUtm(el.startNode, el.geometry.coordinates[0], track.epsg)
-      const hostR    = curved ? asRadius(el.radius) : null
-      const { along } = projectOnArcUtm(
-        startUtm, wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg), el.bearing, hostR)
-      setPick({
-        trackId, elIdx, startUtm, bearing: el.bearing, length: el.length,
-        radius: hostR, cant: el.cant ?? 0,
-      })
-      setStation(String(Math.round(Math.min(el.length, Math.max(0, along)) * 1000) / 1000))
+      // The click is projected onto the element in the track's own plane and
+      // stated as a station along the whole track, which the turnout is placed by.
+      const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
+      setPick({ trackId })
+      setStation(String(Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000))
       setPhase('editing')
     }
     m.on('click', onClick)
     return () => m.off('click', onClick)
-  }, [phase, map, project.id, t, setErrors, curved])
+  }, [phase, map, project.id, setErrors])
 
   // ── Derived geometry for the current settings ─────────────────────────────
   const track = pick ? loadTracks(project.id).find(tr => tr.id === pick.trackId) : null
   const sw    = SWITCH_TYPES[switchTypeIdx]
-  const along = Number(station)
-  const hostR = pick?.radius ?? null
+  const toeStation  = Number(station)
   const straightLen = switchStraightLength(sw.R, sw.ratio)
+  const arcLen      = switchArcLength(sw.R, sw.ratio)
 
-  // Toe position and the turnout geometry it produces — derived, so the preview
-  // and the commit always agree. The toe is stepped along the element in the
-  // track's own plane from the stored start node; its WGS84 twin is derived for
-  // the display and never converted back (the GK/DB_REF datum round trip is not
-  // exact). The switch needs the length `straightLen` ahead of the toe and must
-  // leave something behind, otherwise the split is degenerate.
+  // Where the turnout lies and the geometry it produces — derived, so the
+  // preview and the commit always agree. Everything is read in the track's own
+  // plane from the elements' stored nodes; the WGS84 twin of the toe is derived
+  // for the display and never converted back (the GK/DB_REF datum round trip is
+  // not exact).
   const placement = useMemo(() => {
-    if (!track || !pick || !Number.isFinite(along)) return { error: null }
-    if (along < 0 || along > pick.length) return { error: t('switch_on_track_outside') }
-    const ahead  = reversed ? along : pick.length - along
-    const behind = reversed ? pick.length - along : along
-    if (ahead < straightLen || behind <= 0.5) {
-      return { error: t('switch_on_track_no_room').replace('{{m}}', straightLen.toFixed(1)) }
-    }
-    const toeUtm = hostR
-      ? endPointCurvedUtm(pick.startUtm, pick.bearing, along, hostR)
-      : endPointStraightUtm(pick.startUtm, pick.bearing, along)
-    const tangent       = bearingAfterUtm(pick.bearing, along, hostR)
-    const facingBearing = reversed ? (tangent + 180) % 360 : tangent
-    // Stem radius in the direction the switch opens — reversing flips its sign.
-    const stemR  = hostR == null ? null : (reversed ? -hostR : hostR)
-    const toeWgs = utmToWgs84(toeUtm.easting, toeUtm.northing, track.epsg)
+    if (!track || !Number.isFinite(toeStation)) return { error: null }
+    const noRoom = t('switch_on_track_no_room').replace('{{m}}', straightLen.toFixed(1))
+    const total  = trackLength(track)
+    if (toeStation < 0 || toeStation > total) return { error: t('switch_on_track_outside') }
+    if ((reversed ? total - toeStation : toeStation) <= MIN_BEHIND) return { error: noRoom }
+    const place = placeSwitchOnTrack(track, toeStation, reversed, straightLen)
+    if (place.error) return { error: place.error === 'switch_on_track_no_room' ? noRoom : t(place.error) }
+    // On nothing but straights the turnout is the ordinary, unbent one.
+    const plain  = place.pieces.every(p => p.r1 == null && p.r2 == null)
+    const toeWgs = utmToWgs84(place.toeUtm.easting, place.toeUtm.northing, track.epsg)
     return {
-      error: null, toeUtm, facingBearing, stemR,
-      geom: computeSwitchGeometryUtm(toeUtm, facingBearing, sw, side, false, toeWgs, stemR),
+      error: null, place, plain,
+      geom: computeSwitchGeometryUtm(place.toeUtm, place.bearing, sw, side, false, toeWgs,
+        plain ? null : place.pieces),
     }
-  }, [track, pick, hostR, along, reversed, straightLen, sw, side, t])
+  }, [track, toeStation, reversed, straightLen, sw, side, t])
 
   const placeError = placement.error
-  const branchR    = placement.geom?.signedR ?? null
-  const stemR      = placement.stemR ?? null
+  const place      = placement.place ?? null
+  const plain      = placement.plain ?? true
+  const g          = placement.geom ?? null
+  const branchR    = g?.signedR ?? null
 
-  // The branch as it will be saved: the line it lies on names it.
-  const branchGeometry = placement.geom
-    ? elementPath(placement.geom.arcOriginUtm, placement.geom.curvedUtm, branchR)
-    : null
+  // The branch as it will be saved: the line it lies on names it. A branch of
+  // several pieces, or a clothoid, is looked up along its chord.
+  const singleArc = !!g && g.branchSegments.length === 1 && !switchRouteVaries(g.branchSegments[0])
+  const branchGeometry = g ? elementPath(g.arcOriginUtm, g.curvedUtm, singleArc ? branchR : null) : null
   const { name, setName, reset: resetName } = useTrackName(project.id, fields, { geometry: branchGeometry, setField })
 
-  // On a bent switch there is one cant for the whole turnout, and it is the
-  // host arc's: both routes lie on its sleepers. Off a curve it follows speed
-  // and switch form unless the user overrode it for that combination.
-  const hostCant = pick ? (reversed ? -(pick.cant ?? 0) : (pick.cant ?? 0)) : 0
-  const cantKey  = `${speed}|${switchTypeIdx}`
-  const cant = curved
-    ? hostCant
-    : cantEdit?.key === cantKey ? cantEdit.value : computeSwitchCant(speed, sw.R)
+  // Cant. Unbent it follows speed and switch form unless the user overrode it
+  // for that combination; bent it is the track's own under the turnout — this
+  // is its value at the toe, and it may change along the turnout.
+  const cantKey = `${speed}|${switchTypeIdx}`
+  const cant = plain
+    ? (cantEdit?.key === cantKey ? cantEdit.value : computeSwitchCant(speed, sw.R))
+    : place.cantAt(0)
+  const cantEnd    = plain ? cant : place.cantAt(straightLen)
+  const cantVaries = !plain && place.spans.some(sp => sp.cantStart !== cant || sp.cantEnd !== cant)
 
   // Deficiency per route. Bent, the two routes share one cant that only one of
   // them is banked for, so the sign of the cant has to be read against each.
-  const cantDef = curved ? computeCantDefSigned(speed, branchR, cant) : computeCantDef(speed, sw.R, cant)
-  const stemDef = curved ? computeCantDefSigned(speed, stemR, cant) : null
+  // Radius and cant run linearly along each piece, and so does the deficiency
+  // wherever the route keeps its side: the worst end of any piece is the route's.
+  const worstDef = (segments) => Math.max(...segments.flatMap((seg, i) => [
+    computeCantDefSigned(speed, seg.r1, place.cantAt(seg.s0, i)),
+    computeCantDefSigned(speed, seg.r2, place.cantAt(seg.s0 + seg.length, i)),
+  ]))
+  const cantDef = plain ? computeCantDef(speed, sw.R, cant) : g ? worstDef(g.branchSegments) : 0
+  const stemDef = plain || !g ? null : worstDef(g.stemSegments)
+
+  // What the turnout covers, element by element.
+  const elementsText = place && track
+    ? place.spans.map(sp => {
+      const el = track.elements[sp.elIdx]
+      const kind = el.elementType === 2 ? 'table_type_transition' : el.radius ? 'table_type_arc' : 'table_type_straight'
+      return `${t(kind)} ${sp.length.toFixed(2)} m`
+    }).join(' · ')
+    : '–'
 
   // ── Preview ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const m = map?.current
     if (!m) return
-    const g = placement.geom
-    m.getSource(SWITCH_LINES_SOURCE)?.setData(g ? buildLinesGeoJSON(g) : EMPTY_FC)
-    m.getSource(SWITCH_FILL_SOURCE)?.setData(g ? buildFillGeoJSON(g) : EMPTY_FC)
+    const geom = placement.geom
+    m.getSource(SWITCH_LINES_SOURCE)?.setData(geom ? buildLinesGeoJSON(geom) : EMPTY_FC)
+    m.getSource(SWITCH_FILL_SOURCE)?.setData(geom ? buildFillGeoJSON(geom) : EMPTY_FC)
   }, [placement, map])
 
   const clearPreview = () => {
@@ -182,36 +234,58 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
 
   const handleCommit = () => {
     setErrors([])
-    if (lineNumberError || !placement.geom || !track || placeError) return
+    if (lineNumberError || !g || !place || !track || placeError) return
     const tracks = loadTracks(project.id)
     const existingNames = new Set(tracks.map(tr => tr.name).filter(Boolean))
 
     if (name && existingNames.has(name)) { setNameError(true); return }
-    if (!switchNo.claim()) return
     setNameError(false)
 
-    const { toeUtm, facingBearing, geom: g } = placement
-
-    // Split the host element at the toe (in the plane); the halves keep the
-    // source metadata, and an arc keeps its radius.
-    const split = splitElementAt(track, pick.elIdx, toeUtm, facingBearing, existingNames)
+    // Part the track at the toe (in the plane): on the joint it falls on, or
+    // inside its element — an arc keeps its radius, a clothoid is cut at the
+    // toe's station into two clothoids of its own parameter.
+    const split = place.joint != null
+      ? splitTrackAtJoint(track, place.joint, place.bearing, existingNames)
+      : splitElementAt(track, place.elIdx,
+        place.cutsClothoid ? { ...place.toeUtm, station: place.s } : place.toeUtm, place.bearing, existingNames)
 
     // The turnout's through route is the host track's own geometry, so it stays
-    // in that track — but as an element of its own, of the form's length, marked
-    // like the branch. A switch is two elements everywhere it is built.
+    // in that track — as the elements it covers, the last one cut at the switch
+    // end, all marked like the branch. A switch is its two routes everywhere it
+    // is built.
     const mainMark = { switchBranch: true, switchRoute: 'main', switchName, switchLabel: sw.label }
-    const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, g.straightUtm, mainMark)
-    const splitTracks = carved
-      ? split.tracks.map(tr => (tr.id === carved.id ? carved : tr))
-      : split.tracks
+    const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, place.endUtm, mainMark, straightLen)
+    if (!carved) {
+      setErrors([t('switch_on_track_no_room').replace('{{m}}', straightLen.toFixed(1))])
+      return
+    }
+    if (!switchNo.claim()) return
+    const splitTracks = split.tracks.map(tr => (tr.id === carved.id ? carved : tr))
 
-    // Diverging branch: the turnout's own branch as a new track, built from its
-    // ends in the plane so its start node is the junction node exactly. Bent to
-    // the far side of a curve the branch can come out straight — then it is one.
-    const bv = branchR
-      ? computeCurvedValuesUtm(g.arcOriginUtm, g.curvedUtm, branchR)
-      : computeStraightValuesUtm(g.arcOriginUtm, g.curvedUtm)
+    // Diverging branch: the turnout's own branch as a new track, one element per
+    // piece — where the elements under the turnout part, the branch parts too.
+    // Each is built from its ends in the plane, so the first starts on the
+    // junction node exactly and every joint is shared. Bent to the far side of
+    // a curve a piece can come out straight — then it is one; over a clothoid
+    // it is a clothoid, whose cant ramps with the track's.
     const branchId = generateId()
+    const branchEls = recalcAbsLengths(g.branchSegments.map((seg, i) => {
+      const base = switchRouteVaries(seg)
+        ? {
+            elementType: 2, transitionType: 'clothoid', r1: seg.r1, r2: seg.r2,
+            startNode: [seg.startUtm.easting, seg.startUtm.northing],
+            endNode:   [seg.endUtm.easting, seg.endUtm.northing],
+            bearing: seg.bearing, endBearing: seg.endBearing,
+            length: seg.length,
+            cantStart: place.cantAt(seg.s0, i), cantEnd: place.cantAt(seg.s0 + seg.length, i),
+          }
+        : constantBranchElement(seg, plain ? cant : place.cantAt(seg.s0, i))
+      return {
+        ...base,
+        switchBranch: true, switchRoute: 'branch', switchName, switchLabel: sw.label,
+        geometry: { type: 'LineString', coordinates: seg.coords },
+      }
+    }))
     const branchTrack = {
       id: branchId,
       name,
@@ -219,21 +293,13 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
       ...buildTypeFields(fields),
       epsg: track.epsg,
       coordinates: g.arcCoords,
-      elements: [{
-        elementType: branchR ? 1 : 0,
-        startNode: bv.startNode, endNode: bv.endNode,
-        bearing: bv.bearing,
-        length: bv.length, absLength: bv.length,
-        switchBranch: true, switchRoute: 'branch', switchName, switchLabel: sw.label,
-        ...(branchR ? { endBearing: bv.endBearing, radius: branchR } : {}),
-        cant,
-        geometry: { type: 'LineString', coordinates: g.arcCoords },
-      }],
+      elements: branchEls,
     }
 
+    // The record keeps only the ports: both routes are read back from the
+    // tracks' marked elements (switchRoutesFromTracks).
     const switchRecord = {
       number: switchNo.number, name: switchName, label: sw.label, trailing: false, speed,
-      ...(g.stemAtToe ? { mainRadius: g.stemAtToe } : {}),
       portA_trackId:  split.behind.id, portA_endpoint:  split.behindEndpoint,
       portB1_trackId: branchId,        portB1_endpoint: 'BEGIN',
       portB2_trackId: split.ahead.id,  portB2_endpoint: split.aheadEndpoint,
@@ -255,14 +321,15 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
     onCommitted?.()
   }
 
-  const arcLen  = switchArcLength(sw.R, sw.ratio)
-  const cantErr = Math.abs(cant) > MAX_CANT
+  const cantErr = plain
+    ? Math.abs(cant) > MAX_CANT
+    : place.spans.some(sp => Math.abs(sp.cantStart) > MAX_CANT || Math.abs(sp.cantEnd) > MAX_CANT)
   const defErr  = cantDef > MAX_SWITCH_CANT_DEF || (stemDef ?? 0) > MAX_SWITCH_CANT_DEF
 
   if (phase === 'select') {
     return (
       <>
-        <p>{t(curved ? 'switch_on_curve_hint' : 'switch_on_track_hint')}</p>
+        <p>{t('switch_on_track_hint')}</p>
         {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
         <button className="panel-btn panel-btn-full" style={{ marginTop: 8, background: '#888' }} onClick={handleCancel}>
           {t('btn_cancel')}
@@ -290,8 +357,12 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
         <span className="create-element-section">Geometry Data</span>
         <div className="form-field">
           <label>{t('switch_on_track_station')}</label>
-          <input type="number" step="0.001" min="0" max={pick?.length ?? 0} value={station}
+          <input type="number" step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
             onChange={e => setStation(e.target.value)} />
+        </div>
+        <div className="form-field">
+          <label>{t('switch_on_track_elements')}</label>
+          <input type="text" readOnly value={elementsText} />
         </div>
         <div className="form-field">
           <label>{t('switch_form')}</label>
@@ -314,21 +385,23 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
           <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
         </div>
         <div className="form-field">
-          <label>{t('cant')}</label>
-          <input type="number" min={-MAX_CANT} max={MAX_CANT} step={CANT_STEP} value={cant}
-            readOnly={curved}
-            onChange={e => setCantEdit({ key: cantKey,
-              value: roundCant(Math.max(-MAX_CANT, Math.min(MAX_CANT, Number(e.target.value) || 0))) })} />
+          <label>{cantVaries ? t('switch_cant_ramp') : t('cant')}</label>
+          {plain
+            ? <input type="number" min={-MAX_CANT} max={MAX_CANT} step={CANT_STEP} value={cant}
+                onChange={e => setCantEdit({ key: cantKey,
+                  value: roundCant(Math.max(-MAX_CANT, Math.min(MAX_CANT, Number(e.target.value) || 0))) })} />
+            : <input type="text" readOnly
+                value={cantVaries ? `${fmtCant(cant)} → ${fmtCant(cantEnd)}` : fmtCant(cant)} />}
         </div>
-        {curved && (
+        {!plain && g && (
           <>
             <div className="form-field">
               <label>{t('switch_stem_radius')}</label>
-              <input type="text" readOnly value={stemR != null ? `${Math.round(stemR)} m` : '–'} />
+              <input type="text" readOnly value={radiusText(g.stemSegments, '–')} />
             </div>
             <div className="form-field">
               <label>{t('switch_bauform')}</label>
-              <input type="text" readOnly value={t(`switch_bauform_${bauform(stemR, branchR)}`)} />
+              <input type="text" readOnly value={t(`switch_bauform_${g.bauform}`)} />
             </div>
             <div className="form-field">
               <label>{t('switch_stem_cant_def')}</label>
@@ -337,18 +410,17 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
           </>
         )}
         <div className="form-field">
-          <label>{curved ? t('switch_branch_cant_def') : t('cant_def')}</label>
+          <label>{plain ? t('cant_def') : t('switch_branch_cant_def')}</label>
           <input type="number" readOnly value={cantDef} />
         </div>
         <div className="form-field">
           <label>{t('arc_length')}</label>
           <input type="text" readOnly value={`~${arcLen.toFixed(1)} m`} />
         </div>
-        {curved && (
+        {!plain && g && (
           <div className="form-field">
             <label>{t('switch_branch_radius')}</label>
-            <input type="text" readOnly
-              value={branchR != null ? `${Math.round(branchR)} m` : t('switch_branch_straight')} />
+            <input type="text" readOnly value={radiusText(g.branchSegments, t('switch_branch_straight'))} />
           </div>
         )}
         <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
@@ -367,6 +439,8 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
           nameError={nameError} />
       </div>
 
+      {cantVaries && <p className="selecting-hint">{t('switch_in_cant_ramp')}</p>}
+      {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
       {placeError && <p className="form-error">{placeError}</p>}
       {cantErr && <p className="form-error">{t('cant_error')}</p>}
       {defErr  && <p className="form-error">{t('cant_def_error')}</p>}
