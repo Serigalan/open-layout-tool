@@ -1,0 +1,331 @@
+import {
+  endPointStraightUtm, endPointCurvedUtm,
+  computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
+  reverseElement,
+} from './elementUtils'
+import {
+  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, switchArcLength, lcsLine, switchFillRing,
+  switchLabelGeometry, bauform,
+} from './switchUtils'
+import { computeClothoidUtm } from './clothoidUtils'
+import { utmToWgs84 } from './coordinateUtils'
+import { SAGITTA_ELEMENT } from './mapConstants'
+import { TYPE_CODES, SIDE_CODES } from './identifierUtils'
+
+const GON2DEG = 9 / 10
+
+// Closing checks against the values the alignment states for itself.
+const LENGTH_TOL   = 0.001   // 1 mm over the whole alignment
+const POSITION_TOL = 0.001   // 1 mm between the walked end and the stated one
+const BEARING_TOL  = 1e-4    // degrees
+
+// ── Switches ────────────────────────────────────────────────────────────────
+// In RailJSON a switch is a node: its ports say which track ends meet there,
+// not what the turnout looks like. The app instead draws a switch body — the
+// filled area between the branch arc and the tangent straight, plus the LCS
+// mark — so that body is rebuilt here from the branch, which is what port B1
+// names. Its arc carries everything needed: the node, the tangent direction,
+// the radius and the arc length; the straight side ends at the same station,
+// at 2·R·tan(L/2R). A point switch without an arc at B1 (a foreign file, where
+// all three ports sit on the same spot) is left to the passthrough.
+
+const ARC_TOL = 0.01   // 1 cm of arc length when identifying the switch type
+
+/** Switch type matching a branch arc of radius `absR` and length `arcLen`. */
+function matchSwitchType(absR, arcLen) {
+  let best = null
+  let bestErr = Infinity
+  for (const type of [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2]) {
+    if (Math.abs(type.R - absR) > 1e-6) continue
+    const err = Math.abs(switchArcLength(type.R, type.ratio) - arcLen)
+    if (err < bestErr) { best = type; bestErr = err }
+  }
+  return bestErr <= ARC_TOL ? best : null
+}
+
+/** Index of the element sitting at `endpoint` of a track. */
+const portElementIndex = (els, endpoint) => (endpoint === 'END' ? els.length - 1 : 0)
+
+/**
+ * Rebuild one app switch record from an OSRD switch, and mark the elements that
+ * make up its body so they render as switch geometry rather than as ordinary
+ * track. The parsed elements are this module's own fresh objects, so they are
+ * marked in place. Returns null when the switch has no body to draw.
+ */
+function rebuildSwitch(sw, trackById) {
+  const ports = sw?.ports ?? {}
+  if (typeof sw?.id !== 'string' || !ports.B1?.track) return null
+
+  const branchTrack = trackById[ports.B1.track]
+  const branchEls   = branchTrack?.elements ?? []
+  if (!branchEls.length) return null
+
+  const branchIdx = portElementIndex(branchEls, ports.B1.endpoint)
+  const stored    = branchEls[branchIdx]
+  // Oriented away from the node, whichever end of the track the switch is at.
+  const arcEl = ports.B1.endpoint === 'END' ? reverseElement(stored) : stored
+  const arc   = arcEl.geometry?.coordinates ?? []
+  if (!arcEl.radius || arc.length < 2 || !(arcEl.length > 0)) return null
+
+  const absR   = Math.abs(arcEl.radius)
+  const arcLen = arcEl.length
+  const epsg   = branchTrack.epsg
+  const type   = matchSwitchType(absR, arcLen)
+
+  const straightLen = 2 * absR * Math.tan(arcLen / (2 * absR))
+  const nodeUtm     = { easting: arcEl.startNode[0], northing: arcEl.startNode[1], zone: epsg }
+  const straightUtm = endPointStraightUtm(nodeUtm, arcEl.bearing, straightLen)
+  const straightEnd = utmToWgs84(straightUtm.easting, straightUtm.northing, epsg)
+  const node        = arc[0]
+
+  const name  = sw.extensions?.sncf?.label ?? sw.id
+  const label = type?.label
+  const mark  = (el) => Object.assign(el, { switchBranch: true, switchName: name, ...(label ? { switchLabel: label } : {}) })
+  mark(stored)
+
+  // The straight side is its own track when the switch was built onto a track
+  // end: one straight element of exactly that length. Then it belongs to the
+  // switch too — that is the element the map labels with the switch type.
+  const straightTrack = trackById[ports.B2?.track]
+  const straightEls   = straightTrack?.elements ?? []
+  if (straightEls.length === 1 && straightEls[0].radius == null
+      && Math.abs((straightEls[0].length ?? 0) - straightLen) < 0.001) {
+    mark(straightEls[0])
+  }
+
+  const lcsCoords = type
+    ? lcsLine([nodeUtm.easting, nodeUtm.northing], arcEl.endNode,
+      [straightUtm.easting, straightUtm.northing], type.dLcs, epsg)
+    : null
+
+  return {
+    name,
+    ...(label ? { label } : {}),
+    ...(arcEl.speed ? { speed: arcEl.speed } : {}),
+    portA_trackId:  ports.A?.track     ?? null, portA_endpoint:  ports.A?.endpoint  ?? null,
+    portB1_trackId: ports.B1.track,             portB1_endpoint: ports.B1.endpoint,
+    portB2_trackId: ports.B2?.track    ?? null, portB2_endpoint: ports.B2?.endpoint ?? null,
+    fillCoords: switchFillRing([node, straightEnd], arc),
+    ...switchLabelGeometry(nodeUtm, arcEl.bearing,
+      { length: straightLen, radius: null },
+      { length: arcLen, radius: arcEl.radius ?? null }, epsg),
+    bauform: bauform(null, arcEl.radius ?? null),
+    ...(lcsCoords ? { lcsCoords } : {}),
+  }
+}
+
+/**
+ * Rebuild tracks from a file written by either exporter — the alignment
+ * exchange format (exchangeExport) or OSRD's RailJSON (osrdExport).
+ *
+ * The geometry is taken exclusively from the alignment block: it carries the
+ * design scalars (native CRS anchor, gon bearings, signed radii and cants)
+ * that a polyline cannot express — `geo` is only a flattened picture of it.
+ * The exchange format states it as `horizontal_alignment`, RailJSON under
+ * `extensions.db.alignment`; both are read. A track section without either is
+ * reported instead of guessed at.
+ *
+ * Elements are chained forward from the anchor, each starting where the
+ * previous one ended, so the result is exact rather than re-fitted. The stated
+ * length, end position and end bearing are verified against the walk and
+ * reported in `errors` when they disagree.
+ *
+ * The vertical alignment — the track's height points with their vertical curve
+ * radii — is the track's own list, stationed along it and independent of the
+ * elements, so it is taken as stated. A file without one leaves the track to
+ * the terrain fill.
+ *
+ * Everything the app does not model itself is carried through untouched so an
+ * export can hand it back: infra-level objects (signals, routes, detectors, …)
+ * come back as `infra`, per-track leftovers (loading gauge, foreign extensions)
+ * as `track.osrd`. Only what the export regenerates is dropped there — id,
+ * geo, length, the alignments, curves/slopes, and the sncf/olt extensions —
+ * so nothing is stored twice.
+ *
+ * Returns { tracks, errors, infra, switches } with tracks in the app's element
+ * shape (display geometry included, absLength left to recalcAbsLengths) and
+ * switches as app records, rebuilt so they are drawn as switch bodies again
+ * (see rebuildSwitch).
+ */
+export function parseOsrdRailJson(data) {
+  const sections = Array.isArray(data?.track_sections) ? data.track_sections : []
+  const tracks = []
+  const errors = []
+  // Infra-level passthrough: everything except the track sections, which are
+  // rebuilt from the tracks themselves.
+  const { track_sections: _sections, ...infra } = data ?? {}
+  if (!sections.length) {
+    errors.push('Keine track_sections in der Datei gefunden.')
+    return { tracks, errors, infra }
+  }
+
+  sections.forEach((section, si) => {
+    const label = section.id ?? `#${si + 1}`
+    const legacy = section.extensions?.db?.alignment
+    const alignment = section.horizontal_alignment ?? legacy
+    if (!alignment) {
+      errors.push(`${label}: keine horizontal_alignment – ohne sie ist die Geometrie nicht exakt rekonstruierbar.`)
+      return
+    }
+    const ref = alignment.horizontal_reference ?? {}
+    const epsg = Number(ref.epsg)
+    if (!epsg) {
+      errors.push(`${label}: horizontal_reference.epsg fehlt.`)
+      return
+    }
+    const items = Array.isArray(alignment.horizontal_elements) ? alignment.horizontal_elements : []
+    if (!items.length) {
+      errors.push(`${label}: horizontal_elements ist leer.`)
+      return
+    }
+
+    // The earlier format named the anchor easting_m / northing_m.
+    let cursor  = { easting: Number(ref.start_easting ?? ref.easting_m), northing: Number(ref.start_northing ?? ref.northing_m), zone: epsg }
+    let bearing = (Number(ref.bearing_start_gon) || 0) * GON2DEG
+    if (!Number.isFinite(cursor.easting) || !Number.isFinite(cursor.northing)) {
+      errors.push(`${label}: horizontal_reference ohne Startkoordinate.`)
+      return
+    }
+    const elements = []
+
+    for (const item of items) {
+      const length = Number(item.length_m)
+      if (!(length > 0)) continue          // degenerate entries carry no geometry
+      const speed = Number(item.design_speed_kmh) || 0
+      const wgs = (p) => utmToWgs84(p.easting, p.northing, epsg)
+
+      if (item.type === 'curve') {
+        const radius = Number(item.radius_m)
+        const end = endPointCurvedUtm(cursor, bearing, length, radius)
+        const cv  = computeCurvedValuesUtm(cursor, end, radius)
+        elements.push({
+          elementType: 1,
+          startNode: cv.startNode, endNode: cv.endNode,
+          bearing: cv.bearing, endBearing: cv.endBearing,
+          length: cv.length, absLength: cv.length, speed,
+          radius, cant: Number(item.cant_start_mm) || 0,
+          geometry: { type: 'LineString', coordinates:
+            arcCoordsFromRadiusUtm(cursor, end, radius, SAGITTA_ELEMENT) ?? [wgs(cursor), wgs(end)] },
+        })
+        cursor = end
+        bearing = cv.endBearing
+
+      } else if (item.type === 'clothoid' || item.type === 'bloss') {
+        // null radius = the transition runs into a straight on that side
+        const r1 = item.radius_start_m == null ? null : Number(item.radius_start_m)
+        const r2 = item.radius_end_m   == null ? null : Number(item.radius_end_m)
+        const cl = computeClothoidUtm(cursor, bearing, length, r1, r2, SAGITTA_ELEMENT, item.type)
+        elements.push({
+          elementType: 2, transitionType: item.type, r1, r2,
+          startNode: [cursor.easting, cursor.northing],
+          endNode: [cl.endUtm.easting, cl.endUtm.northing],
+          bearing, endBearing: cl.endBearing,
+          length, absLength: length, speed,
+          geometry: { type: 'LineString', coordinates: cl.coords },
+        })
+        cursor = cl.endUtm
+        bearing = cl.endBearing
+
+      } else {
+        const end = endPointStraightUtm(cursor, bearing, length)
+        const sv  = computeStraightValuesUtm(cursor, end)
+        // A kink at the straight's end: the alignment leaves in a different
+        // direction than the straight runs, by the stated deflection angle.
+        const kink = Number(item.kink_gon) * GON2DEG || 0
+        const kinked = kink ? (((sv.bearing + kink) % 360) + 360) % 360 : null
+        elements.push({
+          elementType: 0,
+          startNode: sv.startNode, endNode: sv.endNode,
+          bearing: sv.bearing, length: sv.length, absLength: sv.length, speed,
+          ...(kinked != null ? { endBearing: kinked } : {}),
+          ...(Number(item.cant_start_mm) ? { cant: Number(item.cant_start_mm) } : {}),
+          geometry: { type: 'LineString', coordinates: [wgs(cursor), wgs(end)] },
+        })
+        cursor = end
+        bearing = kinked ?? sv.bearing
+      }
+    }
+
+    if (!elements.length) {
+      errors.push(`${label}: keine verwertbaren Elemente.`)
+      return
+    }
+
+    // Closing checks against the alignment's own statements
+    const walked = elements.reduce((s, el) => s + el.length, 0)
+    const stated = Number(legacy?.length_m ?? section.length)
+    if (Number.isFinite(stated) && Math.abs(walked - stated) > LENGTH_TOL) {
+      errors.push(`${label}: Länge weicht ab – gerechnet ${walked.toFixed(4)} m, angegeben ${stated.toFixed(4)} m.`)
+    }
+    if (ref.end_easting != null && ref.end_northing != null) {
+      const off = Math.hypot(cursor.easting - Number(ref.end_easting), cursor.northing - Number(ref.end_northing))
+      if (off > POSITION_TOL) {
+        errors.push(`${label}: Endpunkt weicht ab – gerechnet liegt er ${off.toFixed(4)} m neben dem angegebenen.`)
+      }
+    }
+    if (ref.bearing_end_gon != null) {
+      const statedEnd = Number(ref.bearing_end_gon) * GON2DEG
+      const diff = Math.abs((((bearing - statedEnd) + 540) % 360) - 180)
+      if (diff > BEARING_TOL) {
+        errors.push(`${label}: Endrichtung weicht ab – gerechnet ${(bearing / GON2DEG).toFixed(4)} gon, `
+          + `angegeben ${Number(ref.bearing_end_gon).toFixed(4)} gon.`)
+      }
+    }
+
+    // The vertical alignment is the track's own list, stationed along it — it
+    // is taken as it is, with no element to fit it to.
+    const vertical = section.vertical_alignment ?? {}
+    const heights = (Array.isArray(vertical.vertical_points) ? vertical.vertical_points : [])
+      .map(p => ({
+        station: Number(p.station_point_m),
+        z: Number(p.elevation),
+        ...(p.vertical_curve_radius_m == null ? {} : { rv: Number(p.vertical_curve_radius_m) }),
+      }))
+      .filter(p => Number.isFinite(p.station) && Number.isFinite(p.z))
+      .sort((a, b) => a.station - b.station)
+    const heightEpsg = Number(vertical.vertical_reference?.epsg) || undefined
+
+    // Per-track passthrough: keep what the export does not regenerate. The
+    // sncf fields the app writes itself and an empty loading gauge are
+    // regenerated too, so they are not kept twice.
+    const {
+      id: _id, geo: _geo, length: _len, curves: _curves, slopes: _slopes,
+      horizontal_alignment: _h, vertical_alignment: _v, loading_gauge_limits,
+      extensions: sectionExt, ...sectionRest
+    } = section
+    const { db: _db, olt = {}, sncf = {}, source, ...extRest } = sectionExt ?? {}
+    const { line_code: _lc, line_name: _ln, track_name: _tn, track_number: _tnr, ...sncfRest } = sncf
+    if (Object.keys(sncfRest).length) extRest.sncf = sncfRest
+    if (source != null) extRest.source = source
+    if (loading_gauge_limits?.length) sectionRest.loading_gauge_limits = loading_gauge_limits
+    const passthrough = { ...sectionRest, ...(Object.keys(extRest).length ? { extensions: extRest } : {}) }
+
+    const defined = (obj) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
+    tracks.push({
+      id: section.id,
+      ...(Object.keys(passthrough).length ? { osrd: passthrough } : {}),
+      ...defined({
+        name: sncf.track_name && sncf.track_name !== 'default_track' ? sncf.track_name : undefined,
+        lineNumber: sncf.line_code && sncf.line_code !== 9900 ? String(sncf.line_code) : undefined,
+        lineName: sncf.line_name && sncf.line_name !== 'default_name' ? sncf.line_name : undefined,
+        trackNumber: sncf.track_number != null ? String(sncf.track_number) : undefined,
+        owner:       olt.owner ?? undefined,
+        trackType:   TYPE_CODES[olt.track_type] != null ? Number(TYPE_CODES[olt.track_type]) : undefined,
+        side:        SIDE_CODES[olt.side] != null ? Number(SIDE_CODES[olt.side]) : undefined,
+        stationName: olt.station_name ?? undefined,
+        uicStation:  olt.uic_station ?? undefined,
+        heightEpsg,
+      }),
+      epsg,
+      elements,
+      ...(heights.length >= 2 ? { heights } : {}),
+    })
+  })
+
+  const trackById = Object.fromEntries(tracks.map(tr => [tr.id, tr]))
+  const switches = (Array.isArray(infra.switches) ? infra.switches : [])
+    .map(sw => rebuildSwitch(sw, trackById))
+    .filter(Boolean)
+
+  return { tracks, errors, infra, switches }
+}

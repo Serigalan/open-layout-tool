@@ -1,0 +1,1750 @@
+:root {
+  --color-primary: #303383;
+}
+
+.layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+
+/* Primary icon sidebar */
+.sidebar-primary {
+  width: 52px;
+  flex-shrink: 0;
+  background: var(--color-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  z-index: 10;
+}
+
+.sidebar-top,
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  padding: 0;
+}
+
+.sidebar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar-icon-btn.active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Secondary panel */
+.sidebar-secondary {
+  width: 320px;
+  flex-shrink: 0;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 20px;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  border-right: 2px solid #e0e0e0;
+  overflow-y: auto;
+  z-index: 9;
+  box-sizing: border-box;
+}
+
+.sidebar-secondary h2 {
+  font-family: system-ui, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 0;
+}
+
+.sidebar-secondary p {
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #555;
+  margin: 0;
+}
+
+.panel-btn {
+  align-self: flex-start;
+  padding: 8px 16px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  /* Stated rather than left to the browser: a button takes the platform's own
+     form font, an anchor styled as one takes the page's, and the two do not
+     match. */
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.panel-btn:hover {
+  background: #2428a0;
+}
+
+.panel-btn-danger {
+  background: #e74c3c;
+}
+
+.panel-btn-danger:hover {
+  background: #c0392b;
+}
+
+.panel-btn-full {
+  align-self: stretch;
+  width: 100%;
+  text-align: center;
+}
+
+.preview-tooltip .maplibregl-popup-content {
+  background: rgba(30, 30, 40, 0.85);
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  box-shadow: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.preview-tooltip .maplibregl-popup-tip {
+  border-top-color: rgba(30, 30, 40, 0.85);
+}
+
+/* Kilometrage readout of the DB overlay — in the overlay's own colour, so it
+   is never read as belonging to the project's geometry. */
+.km-tooltip .maplibregl-popup-content {
+  background: rgba(15, 118, 110, 0.92);
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  box-shadow: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.km-tooltip .maplibregl-popup-tip {
+  border-top-color: rgba(15, 118, 110, 0.92);
+}
+
+.overlay-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Same box as .lv-state-btn, so the two expandable lists in the germany group
+   read as one family — this one just holds a checkbox instead of a button. */
+.overlay-item {
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 6px 10px;
+}
+
+/* The kilometrage lines around the view, offered where a track's line number
+   is asked for. */
+.line-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.line-suggestion {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.line-suggestion:hover { background: #f0f0f4; }
+
+.line-suggestion.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.line-suggestion-distance {
+  font-size: 10px;
+  color: #888;
+}
+
+.line-suggestion.active .line-suggestion-distance { color: var(--color-primary); }
+
+.overlay-error {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 6px 0 0;
+  color: #a52a1f;
+}
+
+.track-label-svg {
+  fill: var(--color-primary);
+  font-family: system-ui, sans-serif;
+  font-weight: 600;
+  stroke: #fff;
+  stroke-width: 3px;
+  paint-order: stroke fill;
+}
+
+.selecting-hint {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: #6c5ce7;
+  margin: 0;
+  font-style: italic;
+}
+
+.form-error {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: #c0392b;
+  margin: 0;
+}
+
+.input-error {
+  border-color: #c0392b !important;
+  outline-color: #c0392b !important;
+}
+
+.form-error-required {
+  font-weight: 600;
+  color: #c0392b;
+}
+
+/* Basemap tile grid */
+.basemap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.basemap-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.basemap-tile:hover {
+  border-color: #aaa;
+}
+
+.basemap-tile.active {
+  border-color: var(--color-primary);
+}
+
+.basemap-thumbnail {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.basemap-label {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  color: #333;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.basemap-tile.active .basemap-label {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.basemap-tile-full {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  gap: 10px;
+  justify-content: flex-start;
+  padding: 6px 8px;
+  /* This tile only opens a list, it never becomes "the" active basemap the
+     way the photo tiles do, so it keeps a light border rather than the
+     transparent one .basemap-tile defaults to — otherwise it would vanish
+     into the panel background while unmarked. */
+  border-color: #ddd;
+}
+
+.basemap-tile-full .basemap-thumbnail {
+  width: 60px;
+  aspect-ratio: 4 / 3;
+  flex-shrink: 0;
+}
+
+.lv-state-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lv-state-btn {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+  color: #333;
+  transition: background 0.1s;
+}
+
+.lv-state-btn:hover:not(:disabled) {
+  background: #f0f0f4;
+}
+
+.lv-state-btn.active {
+  color: var(--color-primary);
+  font-weight: 600;
+  border-color: var(--color-primary);
+}
+
+.lv-state-btn:disabled {
+  color: #bbb;
+  cursor: default;
+}
+
+/* Back button */
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0 0 4px;
+  margin-bottom: 4px;
+}
+
+.back-btn:hover {
+  text-decoration: underline;
+}
+
+/* Create Element */
+.create-element-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.create-element-section {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin-top: 8px;
+  margin-bottom: -2px;
+}
+
+.create-element-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: #1a1a2e;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.create-element-btn:hover {
+  background: #eeeef8;
+  border-color: var(--color-primary);
+}
+
+.create-element-btn.active {
+  background: #eeeef8;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.element-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.form-field label {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-field select,
+.form-field input {
+  padding: 5px 8px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: 13px;
+  font-family: system-ui, sans-serif;
+  color: #1a1a2e;
+  background: white;
+}
+
+.form-field input[readonly] {
+  background: #f5f5f5;
+  color: #888;
+}
+
+.uic-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  z-index: 100;
+  max-height: 220px;
+  overflow-y: auto;
+  font-family: system-ui, sans-serif;
+}
+
+.uic-suggestions li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  gap: 8px;
+}
+
+.uic-suggestions li:hover {
+  background: #eeeef8;
+}
+
+.uic-suggestion-name {
+  color: #1a1a2e;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uic-suggestion-uic {
+  color: #888;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.form-field select:focus,
+.form-field input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.toggle-switch-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.toggle-switch-wrap span {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  transition: color 0.2s, font-weight 0.2s;
+  user-select: none;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #ccc;
+  border-radius: 24px;
+  transition: background 0.25s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.25s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--color-primary);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.coord-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.coord-prefix {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  min-width: 16px;
+}
+
+.coord-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Settings */
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-label {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #333;
+}
+
+.settings-select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: system-ui, sans-serif;
+  color: #1a1a2e;
+  background: #f9f9f9;
+  cursor: pointer;
+}
+
+.settings-select:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.settings-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+.settings-color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.settings-color-swatch.active {
+  border-color: #fff;
+  outline: 2px solid #333;
+}
+
+/* Start page */
+.start-action-btn-active {
+  background: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+  color: white !important;
+}
+
+.start-page {
+  width: 100vw;
+  height: 100vh;
+  background: #f4f4f6;
+  color-scheme: light;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px;
+  box-sizing: border-box;
+  gap: 40px;
+  overflow-y: auto;
+}
+
+.start-section-label {
+  color: #888;
+}
+
+.start-header {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.start-logo {
+  width: 48px;
+  height: 52px;
+  color: var(--color-primary);
+}
+
+.start-title {
+  font-family: system-ui, sans-serif;
+  font-size: 30px;
+  font-weight: 300;
+  letter-spacing: 0.06em;
+  color: #1a1a2e;
+  margin: 0;
+  align-self: center;
+}
+
+.start-section {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.start-section-title {
+  margin-bottom: 120px;
+}
+
+.start-section-label {
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #888;
+}
+
+.start-projects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.start-project-new {
+  width: 100px;
+  height: 100px;
+  border-radius: 10px;
+  border: 2px dashed #ccc;
+  background: white;
+  color: #aaa;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.start-project-new:hover,
+.start-project-new.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.start-project-tile-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.start-project-delete {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: #e74c3c;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 2;
+  padding: 0;
+}
+
+.start-project-tile-wrapper:hover .start-project-delete {
+  opacity: 1;
+}
+
+.start-project-tile {
+  width: 100px;
+  height: 100px;
+  border-radius: 10px;
+  border: 1px solid #e0e0e0;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  transition: border-color 0.15s;
+}
+
+.start-project-tile:hover {
+  border-color: var(--color-primary);
+}
+
+.start-project-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.start-project-placeholder {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #eeeef8 0%, #d8d8f0 100%);
+}
+
+.start-project-title {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.45);
+  color: white;
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+/* Server templates — same tile as a project, with what it holds under the
+   name. The listing carries no images, so these tiles always show the
+   placeholder. */
+.start-templates-hint {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: #aaa;
+}
+
+.start-template-meta {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 0 6px 4px;
+  background: rgba(0, 0, 0, 0.45);
+  color: rgba(255, 255, 255, 0.7);
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+.start-project-tile:disabled {
+  cursor: default;
+}
+
+.start-project-tile:disabled:hover {
+  border-color: #e0e0e0;
+}
+
+/* Project section header */
+.start-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.start-section-divider {
+  border: none;
+  border-top: 1px solid #ddd;
+  margin: 8px 0;
+}
+
+/* Project action buttons */
+.start-project-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-self: flex-start;
+}
+.start-action-btn {
+  padding: 6px 16px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  background: white;
+  font-size: 12px;
+  font-family: system-ui, sans-serif;
+  color: #888;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.start-action-btn:not(:disabled):hover {
+  background: #f0f0f6;
+  color: #333;
+}
+.start-action-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.start-action-btn-danger {
+  color: #e74c3c;
+  border-color: #e74c3c;
+}
+.start-action-btn-danger:not(:disabled):hover {
+  background: #fdf0ef;
+  color: #c0392b;
+}
+.start-project-tile.selected {
+  outline: 2px solid var(--color-primary);
+}
+.start-project-checkbox {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 2px solid white;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.start-project-checkbox.checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* Guideline section */
+.start-guide-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: #888;
+}
+.start-guide-toggle:hover .start-section-label {
+  color: #555;
+}
+.start-guide-wrapper {
+  position: relative;
+  height: 250px;
+  overflow: hidden;
+  transition: height 0.3s ease;
+  margin-top: 8px;
+  border-radius: 8px;
+}
+.start-guide-wrapper.open {
+  height: 560px;
+}
+.start-guide-fade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
+  background: linear-gradient(to bottom, transparent, #f4f4f6);
+  border-radius: 0 0 8px 8px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+}
+.start-guide-expand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: system-ui, sans-serif;
+  color: #555;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.start-guide-expand:hover {
+  background: #f0f0f6;
+  color: #333;
+}
+.start-guide-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  animation: guideSlideUp 0.25s ease;
+}
+@keyframes guideSlideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.start-guide-fullscreen-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid #e0e0e8;
+  background: #f4f4f6;
+}
+.start-guide-close {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: system-ui, sans-serif;
+  color: #888;
+  padding: 0;
+}
+.start-guide-close:hover {
+  color: #333;
+}
+.start-guide-fullscreen-frame {
+  flex: 1;
+  width: 100%;
+  max-width: 800px;
+  align-self: center;
+  border: none;
+}
+.start-guide-frame {
+  width: 100%;
+  height: 560px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-top: 8px;
+  background: #fff;
+}
+
+/* New project form */
+.new-project-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 20px;
+  max-width: 420px;
+}
+
+.new-project-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.new-project-field label {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #666;
+}
+
+.required {
+  color: #c0392b;
+}
+
+.new-project-field input[type="text"],
+.new-project-field textarea {
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: system-ui, sans-serif;
+  color: #1a1a2e;
+  background: #fafafa;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+
+.new-project-field input[type="text"]:focus,
+.new-project-field textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: white;
+}
+
+.new-project-field input[type="file"] {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: #555;
+}
+
+.new-project-submit {
+  align-self: flex-start;
+  padding: 9px 20px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: system-ui, sans-serif;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.new-project-submit:hover:not(:disabled) {
+  background: #2428a0;
+}
+
+.new-project-submit:disabled {
+  background: #aaa;
+  cursor: not-allowed;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  padding: 28px 24px;
+  width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.modal-code {
+  font-family: monospace;
+  font-size: 14px;
+  background: #f0f0f4;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: #1a1a2e;
+}
+
+.modal-message {
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+  color: #1a1a2e;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal-btn {
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: none;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal-btn-cancel {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.modal-btn-cancel:hover {
+  background: #e0e0e0;
+}
+
+.modal-btn-confirm {
+  background: #e74c3c;
+  color: white;
+}
+
+.modal-btn-confirm:hover {
+  background: #c0392b;
+}
+
+/* Map */
+.map-container {
+  flex: 1;
+  height: 100%;
+}
+
+/* Elevation legend — top left of the map, clear of the navigation control and
+   of the track table that covers the lower half. */
+.elevation-legend {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  color: #1a1a2e;
+  pointer-events: none;
+}
+
+.elevation-legend-title {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+
+.elevation-legend-body {
+  display: flex;
+  gap: 6px;
+}
+
+.elevation-legend-bar {
+  width: 14px;
+  height: 120px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 2px;
+}
+
+.elevation-legend-ticks {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 122px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.track-table-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: #fff;
+  border-top: 2px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  font-family: system-ui, sans-serif;
+}
+
+.track-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.track-table-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.track-table-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #888;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.track-table-close:hover {
+  background: #f0f0f0;
+  color: #1a1a2e;
+}
+
+.track-table-scroll {
+  overflow: auto;
+  flex: 1;
+}
+
+.track-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.track-table th {
+  position: sticky;
+  top: 0;
+  background: #f5f5f5;
+  text-align: left;
+  padding: 6px 12px;
+  font-weight: 600;
+  color: #555;
+  border-bottom: 1px solid #e0e0e0;
+  white-space: nowrap;
+}
+
+.track-table td {
+  padding: 5px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #1a1a2e;
+  white-space: nowrap;
+}
+
+.track-table tbody tr:hover td {
+  background: #f9f9ff;
+}
+
+/* Active row = the element the map draws in red on tracks-selected-layer;
+   the bar matches that layer's line colour. */
+.track-table tbody tr.track-table-row-active td {
+  background: #fbe4e1;
+}
+
+.track-table tbody tr.track-table-row-active td:first-child {
+  box-shadow: inset 3px 0 0 #a52a1f;
+  font-weight: 600;
+}
+
+.track-table-input {
+  width: 80px;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-family: system-ui, sans-serif;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  background: #fff;
+  color: #1a1a2e;
+  box-sizing: border-box;
+}
+
+/* Type labels and the r1 → r2 ramp of a transition need more room than a number. */
+.track-table-input-wide {
+  width: 160px;
+}
+
+.track-table-input:disabled {
+  background: #f5f5f5;
+  color: #999;
+  border-color: #e8e8e8;
+  cursor: default;
+  /* Let the click through to the row: a disabled input fires no click event,
+     so read-only columns would otherwise not activate their row. */
+  pointer-events: none;
+}
+
+.track-table-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* Line-speed ceiling, sitting with the V_max button it bounds. */
+.track-table-cap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #555;
+}
+
+.track-table-cap-input {
+  width: 64px;
+}
+
+/* Secondary action next to Save — outlined so the primary button stays the
+   one that commits the table. */
+.track-table-vmax-btn {
+  padding: 4px 12px;
+  background: #fff;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.track-table-vmax-btn:hover {
+  background: #f0f0f8;
+}
+
+.track-table-save-btn {
+  padding: 4px 12px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.track-table-save-btn:hover {
+  background: #232660;
+}
+
+.transition-curve-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.transition-curve-row span {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a2e;
+}
+
+/* Info panel — one row per panel: icon + heading + description */
+.info-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.info-panel-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.info-panel-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-panel-text p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #666;
+}
+
+.info-panel-link {
+  color: var(--color-primary);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.info-panel-link svg {
+  vertical-align: middle;
+  margin-left: 3px;
+}
+
+.info-panel-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Longitudinal profile overlay ─────────────────────────────────────────── */
+.profile-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: #fff;
+  border-top: 2px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  font-family: system-ui, sans-serif;
+}
+
+/* Grab the top edge to change the overlay's height. */
+.profile-resize {
+  position: absolute;
+  top: -5px;
+  left: 0;
+  right: 0;
+  height: 10px;
+  cursor: ns-resize;
+  z-index: 1;
+}
+
+.profile-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.profile-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #555;
+}
+
+.profile-edit .track-table-input {
+  width: 90px;
+}
+
+/* Discreet entry point at the bottom of a panel — a section that is there when
+   it is wanted and out of the way otherwise. */
+.panel-dot-row {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+.panel-dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #ccc;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.panel-dot:hover {
+  background: #999;
+  transform: scale(1.25);
+}
+
+.panel-dot.active {
+  background: var(--color-primary);
+}
+
+.profile-delete-btn {
+  background: #e74c3c;
+}
+
+.profile-delete-btn:hover:not(:disabled) {
+  background: #c0392b;
+}
+
+.profile-delete-btn:disabled {
+  background: #ccc;
+  cursor: default;
+}
+
+.profile-hint {
+  font-size: 12px;
+  color: #888;
+}
+
+.profile-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-svg {
+  display: block;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.profile-svg.dragging {
+  cursor: grabbing;
+}
+
+.profile-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 13px;
+}
+
+/* ── Server store (data exchange) ──────────────────────────────────────────
+   One row per project on the server: name, what it holds, and the button that
+   brings it into this browser. */
+.server-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 8px;
+  border-radius: 4px;
+  background: #e8e8f4;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--color-primary);
+}
+
+.server-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-row-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #777;
+}
+
+.server-row-btn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.server-row-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.server-row-delete {
+  flex-shrink: 0;
+  padding: 0 4px;
+  color: #999;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.server-row-delete:hover {
+  color: #e74c3c;
+}
+
+.server-note {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: #777;
+}
+
+.server-note-error {
+  color: #e74c3c;
+}
+
+.server-note-ok {
+  color: var(--color-primary);
+}
+
+/* ── Plan preview ──────────────────────────────────────────────────────────
+   The sheet as it will be printed, drawn by the SVG backend of the plan
+   model. It covers the map area like the track table and the profile do. */
+.plan-preview-overlay {
+  position: absolute;
+  inset: 0;
+  background: #e8e8ec;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  font-family: system-ui, sans-serif;
+}
+
+.plan-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.plan-preview-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.plan-preview-title span {
+  font-size: 12px;
+  color: #888;
+}
+
+.plan-preview-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-preview-tools select {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  padding: 4px 6px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.plan-preview-tools .panel-btn {
+  align-self: auto;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.plan-preview-step,
+.plan-preview-close {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #1a1a2e;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.plan-preview-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.plan-preview-close {
+  font-size: 20px;
+  margin-left: 4px;
+}
+
+.plan-preview-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+/* The sheet keeps its aspect ratio; the width is the zoom. */
+.plan-preview-sheet svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 10px 30px -14px rgba(0, 0, 0, 0.35);
+}

@@ -1,0 +1,5 @@
+
+# Python (tools/optimizer)
+__pycache__/
+*.egg-info/
+.venv/

@@ -1,0 +1,16 @@
+[project]
+name = "olt-optimizer"
+version = "0.1.0"
+description = "Track optimizer for Open Layout Tool exports (radius/cant within an offset corridor)"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "scipy>=1.10"]
+
+[project.scripts]
+olt-optimize = "olt_optimizer.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["olt_optimizer*"]
