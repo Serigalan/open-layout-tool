@@ -18,6 +18,14 @@ RAMP_FACTOR = {"clothoid": 8.0, "bloss": 6.0}
 U_MAX = 160.0   # max cant [mm]
 U_STEP = 5.0    # cant grid step [mm]
 
+# A curve group running through a turnout is held to the switch's limits rather
+# than the line's — the same pair as src/utils/mapConstants.js (MAX_SWITCH_CANT,
+# MAX_SWITCH_CANT_DEF). The 120 mm exception is deliberately not read here: it is
+# a decision a designer writes down for one element, not headroom an automatic
+# run may help itself to.
+U_MAX_SWITCH = 100.0    # max cant on a switch route [mm]
+UF_MAX_SWITCH = 110.0   # max cant deficiency on a switch route [mm]
+
 
 def permissible_speed(radius, u, uf):
     """Permissible speed [km/h] for radius [m], cant u and cant deficiency uf [mm]."""

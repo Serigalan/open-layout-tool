@@ -46,6 +46,11 @@ def is_arc(el):
     return el.get("radius") is not None
 
 
+def is_switch_element(el):
+    """Is this element part of a turnout's own route? (switchModel.js)"""
+    return bool(el.get("switchBranch"))
+
+
 def _bearing_from_nodes(el):
     (s_e, s_n), (e_e, e_n) = el["startNode"], el["endNode"]
     return (math.atan2(e_e - s_e, e_n - s_n) * RAD2DEG) % 360.0
@@ -154,6 +159,10 @@ def _build_group(els, entry_idx, arc_idxs, t_idxs, exit_idx):
         } for k in arc_idxs],
         "types": ["bloss" if (t or {}).get("transitionType") == "bloss" else "clothoid" for t in trans],
         "has_t": [t is not None for t in trans],
+        # The curve part is what the run re-cants; the bounding straights carry
+        # no cant of their own and are shared with the neighbouring groups, so a
+        # turnout on one of them is not this group's business.
+        "on_switch": any(is_switch_element(el) for el in els[entry_idx + 1:exit_idx]),
         "ref_poly": _ref_polyline(els, entry_idx, exit_idx),
         "ref_curve_pts": _ref_polyline(els, entry_idx + 1, exit_idx - 1),
     }

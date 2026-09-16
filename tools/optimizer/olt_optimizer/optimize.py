@@ -21,10 +21,20 @@ import math
 
 from .geometry import (
     fit_compound_group, permissible_speed, sample_transition, sample_arc,
-    max_dist_to_polyline, RAMP_FACTOR, U_MAX, U_STEP,
+    max_dist_to_polyline, RAMP_FACTOR, U_MAX, U_MAX_SWITCH, UF_MAX_SWITCH, U_STEP,
 )
 
 PENALTY = 1000.0
+
+
+def u_max_for(g):
+    """Cant ceiling of a group: the switch's where it runs through one."""
+    return U_MAX_SWITCH if g.get("on_switch") else U_MAX
+
+
+def uf_for(g, params):
+    """Deficiency the group is evaluated at — never over what a switch admits."""
+    return min(params["uf"], UF_MAX_SWITCH) if g.get("on_switch") else params["uf"]
 
 
 def _clamp(value, lo, hi):
@@ -77,7 +87,7 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None):
     """Feasibility evaluation of one group; returns a solution dict or None."""
     p1 = p1 or g["p1"]
     p2 = p2 or g["p2"]
-    v_arcs = [permissible_speed(r, u, params["uf"]) for r, u in zip(radii, us)]
+    v_arcs = [permissible_speed(r, u, uf_for(g, params)) for r, u in zip(radii, us)]
     v = min(v_arcs)
     trans_l, min_len = ramp_lengths(g, v, us)
     fit = fit_compound_group(p1, g["d1"], g["b1"], p2, g["d2"], g["b2"],
@@ -175,10 +185,13 @@ def baseline(groups, params, window=None, target_gi=None):
             solutions.append(_bestand_solution(g, params))
             continue
         u_alt = g["arcs"][0]["u_alt"]
+        # The existing cant is always a candidate, even where it already stands
+        # above what the group may be raised to: the run improves an alignment,
+        # it does not quietly re-cant one that is already over its limit.
         u_values = [u_alt]
         if _u_variable(g, 0):
             u = math.ceil(u_alt / U_STEP) * U_STEP
-            while u <= U_MAX:
+            while u <= u_max_for(g):
                 if u > u_alt:
                     u_values.append(u)
                 u += U_STEP
@@ -230,7 +243,9 @@ def _decode(x, groups, straight_ids, params):
         for i in range(n):
             u_alt = g["arcs"][i]["u_alt"]
             u = x[pos + n + i] if _u_variable(g, i) else u_alt
-            u = _clamp(u, u_alt, U_MAX)
+            # lo before hi: a group already over its ceiling keeps what it has
+            # rather than being pulled down to it.
+            u = _clamp(u, u_alt, max(u_alt, u_max_for(g)))
             # cants live on the 5 mm grid — quantize inside the objective so
             # every evaluated candidate is directly usable
             us.append(max(u_alt, math.floor(u / U_STEP) * U_STEP))
@@ -309,11 +324,11 @@ def joint_optimize(groups, n_elements, params, maxiter=150, seed=1, target_gi=No
         thetas = sol["thetas_free"] if sol else [a["sweep_alt"] for a in g["arcs"][:-1]]
         x0 += radii + us + thetas
         bounds += [(max(25.0, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
-        bounds += [(a["u_alt"], U_MAX) for a in g["arcs"]]
+        bounds += [(a["u_alt"], max(a["u_alt"], u_max_for(g))) for a in g["arcs"]]
         bounds += [(max(1e-3, 0.2 * a["sweep_alt"]), min(math.pi, 2.5 * max(a["sweep_alt"], 1e-3)))
                    for a in g["arcs"][:-1]]
 
-    v_floors = [min(permissible_speed(a["r_alt"], a["u_alt"], params["uf"]) for a in g["arcs"])
+    v_floors = [min(permissible_speed(a["r_alt"], a["u_alt"], uf_for(g, params)) for a in g["arcs"])
                 for g in groups]
     args = (groups, straight_ids, params, locked, target_gi, v_floors)
     if all(locked):

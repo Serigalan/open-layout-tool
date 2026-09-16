@@ -1348,9 +1348,20 @@
   box-sizing: border-box;
 }
 
-/* Type labels and the r1 → r2 ramp of a transition need more room than a number. */
+/* Type labels, the r1 → r2 ramp of a transition and the cant justification need
+   more room than a number. */
 .track-table-input-wide {
   width: 160px;
+}
+
+/* A cant a switch route carries on a written exception: inside the rules, but
+   not the ordinary case, so it is marked without being called an error. Over the
+   limit the cell takes .input-error instead. */
+.track-table-input-exception {
+  /* Like .input-error, it has to win over :disabled — a read-only ramp cell is
+     exactly where the mark is needed. */
+  border-color: #e08b00 !important;
+  background: #fffaf0 !important;
 }
 
 .track-table-input:disabled {

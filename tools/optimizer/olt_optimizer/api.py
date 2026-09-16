@@ -3,7 +3,7 @@
 """
 
 from .geometry import permissible_speed
-from .optimize import baseline, joint_optimize, window_for
+from .optimize import baseline, joint_optimize, uf_for, window_for
 from .track_io import parse_groups, build_elements
 
 
@@ -68,7 +68,7 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
     report_gis = sorted(window_for(groups_used, target_gi)) if target_gi is not None \
         else range(len(groups_used))
     score_gis = [target_gi] if target_gi is not None else report_gis
-    v_bestand = min(permissible_speed(a["r_alt"], a["u_alt"], params["uf"])
+    v_bestand = min(permissible_speed(a["r_alt"], a["u_alt"], uf_for(groups_used[j], params))
                     for j in score_gis for a in groups_used[j]["arcs"])
     v_base = min((base[j]["v"] for j in score_gis if base[j]), default=v_bestand)
     v_neu = min((solutions[j]["v"] for j in score_gis if solutions[j]), default=v_bestand)
@@ -77,7 +77,7 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
     for j in report_gis:
         g, sol = groups_used[j], solutions[j]
         for i, arc in enumerate(g["arcs"]):
-            v_alt = permissible_speed(arc["r_alt"], arc["u_alt"], params["uf"])
+            v_alt = permissible_speed(arc["r_alt"], arc["u_alt"], uf_for(g, params))
             row = {
                 "group": j + 1, "arc": i + 1, "arcs": len(g["arcs"]),
                 "rAlt": arc["r_alt"], "uAlt": arc["u_alt"], "vAlt": v_alt,
@@ -87,7 +87,7 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
             if sol is not None:
                 row.update({
                     "rNeu": sol["radii"][i], "uNeu": sol["us"][i],
-                    "vNeu": permissible_speed(sol["radii"][i], sol["us"][i], params["uf"]),
+                    "vNeu": permissible_speed(sol["radii"][i], sol["us"][i], uf_for(g, params)),
                     "offsetCm": sol["offset"] * 100.0,
                 })
             report.append(row)

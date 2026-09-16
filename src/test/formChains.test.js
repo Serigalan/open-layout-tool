@@ -11,7 +11,9 @@ import {
   SWITCH_TYPES, computeSwitchGeometryUtm, switchRouteVaries, switchStraightLength,
 } from '../utils/switchUtils'
 import { dehydrateProjects, hydrateProjects } from '../utils/persistenceUtils'
-import { expectValidTrack, expectNodesJoin, expectTangentsContinuous } from './chainInvariants'
+import {
+  expectValidTrack, expectNodesJoin, expectTangentsContinuous, expectSwitchCantAdmissible,
+} from './chainInvariants'
 
 /**
  * The audit of "create element" and "connect element": the chains those forms
@@ -222,6 +224,35 @@ describe('the branch a switch dialog commits', () => {
     expectNodesJoin(elements)
     expectTangentsContinuous(elements, EPSG)
     expect(elements.some(el => el.elementType === 2)).toBe(true)
+  })
+
+  // The cant rule of AP 1.1, as the chain has to hold it: the marked elements of
+  // a turnout stay inside what a switch admits, and an exception is only an
+  // exception where the reason for it is on the element itself.
+  describe('the cant its elements may carry', () => {
+    const branch = (extra) => branchElements(null).elements.map(el => ({
+      ...el, switchBranch: true, switchRoute: 'branch', switchId: 'sw-1', ...extra,
+    }))
+
+    it('passes at the plain limit, and with a reason up to the exception', () => {
+      expect(() => expectSwitchCantAdmissible(branch({ cant: 100 }))).not.toThrow()
+      expect(() => expectSwitchCantAdmissible(branch({ cant: 120, cantException: 'Zwangspunkt' })))
+        .not.toThrow()
+    })
+
+    it('fails over the plain limit without one', () => {
+      expect(() => expectSwitchCantAdmissible(branch({ cant: 105 }))).toThrow()
+    })
+
+    it('fails past the exception even with one', () => {
+      expect(() => expectSwitchCantAdmissible(branch({ cant: 125, cantException: 'Zwangspunkt' })))
+        .toThrow()
+    })
+
+    it('leaves a line element alone — the rule is the turnout’s', () => {
+      const line = branchElements(null).elements.map(el => ({ ...el, cant: 150 }))
+      expect(() => expectSwitchCantAdmissible(line)).not.toThrow()
+    })
   })
 
   it('the branch runs the form’s own length however the stem is made up', () => {

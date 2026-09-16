@@ -3,7 +3,9 @@ import {
   arcCenter, computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
 } from './elementUtils'
 import { utmToWgs84 } from './coordinateUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK, cantSign } from './mapConstants'
+import {
+  SAGITTA_ELEMENT, SAGITTA_TRACK, cantSign, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF,
+} from './mapConstants'
 
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI
@@ -13,6 +15,19 @@ const RAMP_FACTOR = { clothoid: 8, bloss: 6 }
 
 const U_MAX  = 160    // max cant [mm]
 const U_STEP = 5      // cant grid step [mm]
+
+/**
+ * A curve group that runs through a turnout is held to the switch's limits
+ * rather than the line's: cant to MAX_SWITCH_CANT and deficiency to
+ * MAX_SWITCH_CANT_DEF. The exception that lifts the cant to 120 is deliberately
+ * not read here — it is a decision a designer writes down for one element, not
+ * headroom an automatic run may help itself to.
+ *
+ * The group keeps its own pair, so a uf the caller asks for cannot lift the
+ * ceiling back over what a switch admits.
+ */
+const groupUMax = (g) => (g.onSwitch ? MAX_SWITCH_CANT : U_MAX)
+const groupUf   = (g, params) => (g.onSwitch ? Math.min(params.uf, MAX_SWITCH_CANT_DEF) : params.uf)
 
 /** Permissible speed [km/h] for radius R [m], cant u and cant deficiency uf [mm]. */
 export function permissibleSpeed(R, u, uf) {
@@ -90,6 +105,10 @@ function buildGroup(els, entryIdx, t1Idx, arcIdx, t2Idx, exitIdx, zone) {
     type2: t2?.transitionType === 'bloss' ? 'bloss' : 'clothoid',
     hasT1: !!t1,
     hasT2: !!t2,
+    // The curve part is what the run re-cants; the bounding straights carry no
+    // cant of their own and are shared with the neighbouring groups, so a
+    // turnout on one of them is not this group's business.
+    onSwitch: els.slice(entryIdx + 1, exitIdx).some(el => el.switchBranch),
   }
   g.refPoly = buildReferencePolyline(els, entryIdx, exitIdx, zone)
   g.refCurvePts = buildReferencePolyline(els, entryIdx + 1, exitIdx - 1, zone)
@@ -259,7 +278,7 @@ function rampLengths(g, v, u) {
 }
 
 function evaluate(g, R, u, params) {
-  const v = permissibleSpeed(R, u, params.uf)
+  const v = permissibleSpeed(R, u, groupUf(g, params))
   const { l1, l2, minLen } = rampLengths(g, v, u)
   const fit = fitCurveGroup(g, R, l1, l2)
   if (!fit) return null
@@ -308,9 +327,13 @@ function maxRadiusFor(g, u, params) {
  * by bisection. Returns the best candidate or null (no feasible change).
  */
 export function optimizeGroup(g, params) {
+  // The existing cant is always a candidate, even where it already stands above
+  // what the group may be raised to: the run improves an alignment, it does not
+  // quietly re-cant one that is already over its limit.
   const uValues = [g.uAlt]
   if (g.hasT1 && g.hasT2) {
-    for (let u = Math.ceil(g.uAlt / U_STEP) * U_STEP; u <= U_MAX; u += U_STEP) {
+    const uMax = groupUMax(g)
+    for (let u = Math.ceil(g.uAlt / U_STEP) * U_STEP; u <= uMax; u += U_STEP) {
       if (u > g.uAlt) uValues.push(u)
     }
   }
@@ -410,8 +433,8 @@ export function optimizeTrack(track, params, targetElementIdx = null) {
       const remaining = (a ? a.fit.exitLen : fullLen) + (b ? b.fit.entryLen : fullLen) - fullLen
       const need = 0.2 * Math.max(a?.v ?? 0, b?.v ?? 0)
       if (remaining >= need) break
-      const gainA = a ? a.v - permissibleSpeed(gA.rAlt, gA.uAlt, params.uf) : -Infinity
-      const gainB = b ? b.v - permissibleSpeed(gB.rAlt, gB.uAlt, params.uf) : -Infinity
+      const gainA = a ? a.v - permissibleSpeed(gA.rAlt, gA.uAlt, groupUf(gA, params)) : -Infinity
+      const gainB = b ? b.v - permissibleSpeed(gB.rAlt, gB.uAlt, groupUf(gB, params)) : -Infinity
       if (gainA <= gainB) solutions[i] = null
       else solutions[i + 1] = null
     }
@@ -467,10 +490,10 @@ export function optimizeTrack(track, params, targetElementIdx = null) {
     const sol = solutions[gi]
     results.push({
       rAlt: g.rAlt, uAlt: g.uAlt,
-      vAlt: permissibleSpeed(g.rAlt, g.uAlt, params.uf),
+      vAlt: permissibleSpeed(g.rAlt, g.uAlt, groupUf(g, params)),
       rNeu: sol ? sol.R : g.rAlt,
       uNeu: sol ? sol.u : g.uAlt,
-      vNeu: sol ? sol.v : permissibleSpeed(g.rAlt, g.uAlt, params.uf),
+      vNeu: sol ? sol.v : permissibleSpeed(g.rAlt, g.uAlt, groupUf(g, params)),
       l1: sol ? sol.l1 : null, l2: sol ? sol.l2 : null,
       offset: sol ? sol.offset : 0,
       changed: !!sol,

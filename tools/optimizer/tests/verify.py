@@ -6,6 +6,7 @@
 3. End-to-end: two-curve track and a compound curve (Korbbogen) → baseline →
    joint optimization; continuity, fixed end points, corridor, ramp rules,
    joint never below baseline.
+4. Switch elements in a group: the tighter cant and deficiency limits (AP 1.1).
 """
 
 import math
@@ -22,7 +23,9 @@ from olt_optimizer.track_io import (          # noqa: E402
     parse_groups, build_elements, _straight_element, _transition_element,
     _arc_element_seg, _element_ref_points,
 )
-from olt_optimizer.optimize import baseline, joint_optimize, window_for   # noqa: E402
+from olt_optimizer.optimize import (        # noqa: E402
+    baseline, joint_optimize, u_max_for, uf_for, window_for,
+)
 from olt_optimizer.api import optimize_payload                # noqa: E402
 
 FAILED = 0
@@ -289,6 +292,50 @@ try:
 except ValueError as exc:
     picked_err = str(exc)
 ok("Gerade als Ziel → verständlicher Fehler", picked_err is not None and "Bogen" in picked_err)
+
+# ── 6) Weichenelemente in der Gruppe: engere u/uf-Grenzen (AP 1.1) ───────────
+# Derselbe Seed-Track einmal als reine Strecke und einmal mit einer Weichenmarke
+# am Bogen der ersten Gruppe. Erwartet: die Marke bindet nur die Gruppe, in deren
+# Bogenteil sie liegt, und dort sinken u auf 100 mm und uf auf 110 mm.
+SW_ARC = groups[0]["arc_idxs"][0]
+sw_elements = [{**el, **({"switchBranch": True} if i == SW_ARC else {})}
+               for i, el in enumerate(elements)]
+sw_groups = parse_groups({**track, "id": "py-weiche", "elements": sw_elements})
+ok("Weiche: nur die Gruppe mit der Marke im Bogenteil zählt als Weichengruppe",
+   sw_groups[0]["on_switch"] and not sw_groups[1]["on_switch"])
+
+# Die Randgeraden tragen keine eigene Überhöhung und sind zwischen benachbarten
+# Gruppen geteilt — eine Marke dort darf keine von beiden binden.
+edge_elements = [{**el, **({"switchBranch": True} if i == groups[0]["entry_idx"] else {})}
+                 for i, el in enumerate(elements)]
+edge_groups = parse_groups({**track, "id": "py-weiche-rand", "elements": edge_elements})
+ok("Weiche: Marke auf einer Randgeraden bindet keine Gruppe",
+   not any(g["on_switch"] for g in edge_groups))
+
+ok("Weiche: u_max 100 mm statt 160, uf gedeckelt auf 110 mm",
+   u_max_for(sw_groups[0]) == 100.0 and uf_for(sw_groups[0], params) == 110.0
+   and u_max_for(sw_groups[1]) == 160.0 and uf_for(sw_groups[1], params) == params["uf"])
+
+sw_base = baseline(sw_groups, params)
+print(f"   Weichengruppe: u {sw_base[0]['us']} bei v {sw_base[0]['v']:.1f} km/h | "
+      f"Streckengruppe: u {base[0]['us']} bei v {base[0]['v']:.1f} km/h")
+ok("Weiche: Baseline überhöht höchstens 100 mm", all(u <= 100.0 for u in sw_base[0]["us"]))
+ok("Weiche: gleiche Geometrie, aber weniger v als die Streckengruppe",
+   sw_base[0]["v"] < base[0]["v"])
+
+sw_sols, _, _ = joint_optimize(sw_groups, len(sw_elements), params, maxiter=40, seed=1)
+ok("Weiche: auch die Joint-Optimierung bleibt unter 100 mm",
+   all(u <= 100.0 for u in sw_sols[0]["us"]))
+
+# Ein Bestandswert über der Grenze ist ein Befund für die Elementtabelle, keine
+# Rechenreserve: er wird weder angehoben noch stillschweigend gekappt.
+over_elements = [{**el, **({"switchBranch": True, "cant": 120.0} if i == SW_ARC else {})}
+                 for i, el in enumerate(elements)]
+over_groups = parse_groups({**track, "id": "py-weiche-ueber", "elements": over_elements})
+over_base = baseline(over_groups, params)
+ok("Weiche: Bestandsüberhöhung über der Grenze bleibt unverändert stehen",
+   over_groups[0]["arcs"][0]["u_alt"] == 120.0
+   and (over_base[0] is None or over_base[0]["us"] == [120.0]))
 
 print()
 sys.exit(1 if FAILED else 0)

@@ -12,9 +12,13 @@ import useTrackHover from '../../../hooks/useTrackHover'
 import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
 import SwitchNumberField from './SwitchNumberField'
+import SwitchCantField from './SwitchCantField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
-import { HIT_TOLERANCE, computeSwitchCant, computeCantDef, roundCant, CANT_STEP, MAX_CANT, MAX_SWITCH_CANT_DEF } from '../../../utils/mapConstants'
+import {
+  HIT_TOLERANCE, cantExceptionFields, computeSwitchCant, computeCantDef, switchCantError,
+  MAX_SWITCH_CANT_DEF,
+} from '../../../utils/mapConstants'
 import { SWITCH_TYPES, switchBranchLength, computeSwitchGeometryUtm } from '../../../utils/switchUtils'
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import {
@@ -43,6 +47,9 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
   const switchTypeIdx = SPEED_TO_TYPE_IDX[speed] ?? 2
   // Follows speed and switch type unless the user overrode it for that pair.
   const [cant, setCant] = useDerivedField(`${speed}|${switchTypeIdx}`, computeSwitchCant(speed, SWITCH_TYPES[switchTypeIdx].R))
+  // Why this turnout may carry more than MAX_SWITCH_CANT. Empty unless the user
+  // pushed it there, and the commit stays blocked until it is written.
+  const [cantReason, setCantReason] = useState('')
 
   // The tracks as they would be saved, each named by the line it lies on: the
   // branch always, the through route where it becomes a track of its own
@@ -238,6 +245,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
       endBearing:   cv.endBearing,
       radius:       signedR,
       cant,
+      ...cantExceptionFields(cant, cantReason),
       geometry:     { type: 'LineString', coordinates: arcCoords },
     }
 
@@ -340,10 +348,8 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
             <option value="right">{t('switch_side_right')}</option>
           </select>
         </div>
-        <div className="form-field">
-          <label>{t('cant')}</label>
-          <input type="number" min={-MAX_CANT} max={MAX_CANT} step={CANT_STEP} value={cant} onChange={e => setCant(roundCant(Math.max(-MAX_CANT, Math.min(MAX_CANT, Number(e.target.value) || 0))))} />
-        </div>
+        <SwitchCantField t={t} cant={cant} onCant={setCant}
+          reason={cantReason} onReason={setCantReason} />
         <div className="form-field">
           <label>{t('cant_def')}</label>
           <input type="number" readOnly value={computeCantDef(speed, SWITCH_TYPES[switchTypeIdx].R, cant)} />
@@ -389,13 +395,13 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
 
       {phase === 'editing' && (() => {
         const cantDef = computeCantDef(speed, SWITCH_TYPES[switchTypeIdx].R, cant)
-        const cantErr = Math.abs(cant) > MAX_CANT
+        const cantErr = switchCantError(cant, cantReason)
         const defErr  = cantDef > MAX_SWITCH_CANT_DEF
         return (
           <>
-            {cantErr && <p className="form-error">{t('cant_error')}</p>}
-            {defErr  && <p className="form-error">{t('cant_def_error')}</p>}
-            <button className="panel-btn panel-btn-full" style={{ marginTop: 8, opacity: (cantErr || defErr) ? 0.5 : 1 }} onClick={handleCommit} disabled={cantErr || defErr}>
+            {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
+            {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
+            <button className="panel-btn panel-btn-full" style={{ marginTop: 8, opacity: (cantErr || defErr) ? 0.5 : 1 }} onClick={handleCommit} disabled={!!cantErr || defErr}>
               {t('btn_commit')}
             </button>
             <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={handleCancel}>

@@ -3,7 +3,8 @@ import { loadTracks, replaceAllTracks } from '../storage'
 import { applyElementChange } from './panels/EditElementPanel/editGeometry'
 import { transitionCantEnds } from '../utils/clothoidUtils'
 import {
-  cantSign, computeCantDefSigned, computeMaxSpeed, roundCant, filterForElement, FILTER_NONE, CANT_STEP, MAX_CANT, MAX_CANT_DEF, MAX_SWITCH_CANT_DEF, mapIsLive,
+  cantSign, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned, computeMaxSpeed,
+  roundCant, filterForElement, FILTER_NONE, CANT_STEP, MAX_CANT_DEF, MAX_SWITCH_CANT_DEF, mapIsLive,
 } from '../utils/mapConstants'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
@@ -165,28 +166,54 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
         if (key === 'length' && value <= 0) return
       }
       setTracks(prev => applyElementChange(prev, track.id, row, { [key]: value }))
+    } else if (key === 'cantException') {
+      // The justification is a free text, and the text *is* the exception:
+      // emptying the field takes the limit straight back to 100 mm, and the cant
+      // that stands there is then marked as over it rather than quietly trimmed.
+      setMeta(row, key, isEmpty ? undefined : String(raw).trim() || undefined)
     } else {
       const value = isEmpty ? undefined : clampMeta(key, Number(raw), elements[row])
       if (value != null && !Number.isFinite(value)) return
-      setTracks(prev => prev.map(tr => tr.id !== track.id ? tr : {
-        ...tr,
-        elements: (tr.elements ?? []).map((el, idx) => idx === row ? { ...el, [key]: value } : el),
-      }))
+      setMeta(row, key, value)
     }
   }
 
+  // Write one metadata field onto one element of the edited track.
+  function setMeta(row, key, value) {
+    setTracks(prev => prev.map(tr => tr.id !== track.id ? tr : {
+      ...tr,
+      elements: (tr.elements ?? []).map((el, idx) => idx === row ? { ...el, [key]: value } : el),
+    }))
+  }
+
   // Speed and cant follow the same bounds the create/connect forms enforce: no
-  // negative speed, cant on the 5 mm design step, within ±170 mm and signed by
-  // the curve it sits in.
+  // negative speed, cant on the 5 mm design step and signed by the curve it sits
+  // in, within what the element may carry — the line's 170 mm, or a switch
+  // route's 100, raised to 120 only by the justification already on the element.
+  // So the reason is typed first and the cant second; the other order clamps.
   function clampMeta(key, value, el) {
     if (!Number.isFinite(value)) return value
     if (key === 'speed') return Math.min(Math.max(0, value), capValue ?? Infinity)
     if (key === 'cant') {
-      const magnitude = Math.min(MAX_CANT, roundCant(Math.abs(value)))
+      const magnitude = Math.min(cantLimit(el), roundCant(Math.abs(value)))
       return el?.radius ? cantSign(el.radius) * magnitude : Math.sign(value) * magnitude
     }
     return value
   }
+
+  // What the cant cell says about itself: over its limit it is an error — the
+  // element is not buildable until the cant comes down or a reason is written
+  // for it — and on a standing exception it carries that reason as its note.
+  const cantNote = (el) => {
+    if (cantExceedsLimit(el)) return t('table_cant_over_limit').replace('{{mm}}', String(cantLimit(el)))
+    const reason = cantExceptionOf(el)
+    return reason ? t('table_cant_exception_note').replace('{{text}}', reason) : undefined
+  }
+
+  // Over the limit reads as an error, a standing exception as a mark, and the
+  // ordinary case as nothing at all.
+  const cantClass = (el) => (cantExceedsLimit(el) ? 'input-error'
+    : cantExceptionOf(el) ? 'track-table-input-exception' : '')
 
   // Speed column filled with the highest value the geometry allows. Only the
   // metadata changes, so the element chain stands as it is; Save persists it.
@@ -220,20 +247,25 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
 
   // Read-only cell, styled like the editable ones; `wide` for text that does not
   // fit a number column (type label, radius ramp).
-  const textCell = (value, { wide = false } = {}) => (
-    <input className={`track-table-input${wide ? ' track-table-input-wide' : ''}`}
-      disabled readOnly value={value} />
+  const textCell = (value, { wide = false, className = '', title } = {}) => (
+    <input className={`track-table-input${wide ? ' track-table-input-wide' : ''}${className ? ` ${className}` : ''}`}
+      disabled readOnly title={title} value={value} />
   )
 
-  // Editable numeric cell with a typing draft committed on blur / Enter.
-  const numCell = (i, key, rawValue, { disabled = false, step } = {}) => {
+  // Editable cell with a typing draft committed on blur / Enter. Numeric unless
+  // told otherwise — the justification is the one text column among them.
+  const editCell = (i, key, rawValue, {
+    disabled = false, step, type = 'number', wide = false, className = '', placeholder, title,
+  } = {}) => {
     const editing = draft && draft.row === i && draft.key === key
     return (
       <input
-        className="track-table-input"
-        type="number"
+        className={`track-table-input${wide ? ' track-table-input-wide' : ''}${className ? ` ${className}` : ''}`}
+        type={type}
         disabled={disabled}
         step={step}
+        placeholder={placeholder}
+        title={title}
         value={editing ? draft.value : (rawValue ?? '')}
         onFocus={() => setDraft({ row: i, key, value: rawValue == null ? '' : String(rawValue) })}
         onChange={e => setDraft(d => (d ? { ...d, value: e.target.value } : d))}
@@ -277,6 +309,7 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
               <th>{t('table_radius')} (m)</th>
               <th>{t('table_speed')} (km/h)</th>
               <th>{t('table_cant')} (mm)</th>
+              <th>{t('table_cant_exception')}</th>
               <th>{t('table_cant_def')} (mm)</th>
               <th>{t('table_max_speed')} (km/h)</th>
             </tr>
@@ -297,18 +330,31 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
                   onFocus={() => setActiveRow(i)}>
                   <td>{i + 1}</td>
                   <td>{textCell(typeLabel(el), { wide: true })}</td>
-                  <td>{numCell(i, 'bearing', el.bearing)}</td>
+                  <td>{editCell(i, 'bearing', el.bearing)}</td>
                   <td>{textCell(el.endBearing != null ? el.endBearing.toFixed(2) : '–')}</td>
-                  <td>{numCell(i, 'length', el.length)}</td>
+                  <td>{editCell(i, 'length', el.length)}</td>
                   <td>
                     {isTransition(el)
                       ? textCell(radiusText(el), { wide: true })
-                      : numCell(i, 'radius', el.radius, { disabled: !el.radius })}
+                      : editCell(i, 'radius', el.radius, { disabled: !el.radius })}
                   </td>
-                  <td>{numCell(i, 'speed', el.speed)}</td>
+                  <td>{editCell(i, 'speed', el.speed)}</td>
                   {/* Cant ramps across a transition — its ends belong to the
                       neighbouring elements, so there is nothing to edit here. */}
-                  <td>{isTransition(el) ? textCell('–') : numCell(i, 'cant', el.cant, { step: CANT_STEP })}</td>
+                  <td>{isTransition(el)
+                    ? textCell('–', { className: cantClass(el), title: cantNote(el) })
+                    : editCell(i, 'cant', el.cant, {
+                      step: CANT_STEP, className: cantClass(el), title: cantNote(el),
+                    })}</td>
+                  {/* Only a switch route knows the 100 mm limit, so only there is
+                      there anything to justify — including a route laid into a
+                      cant ramp, whose own cant cell is not editable. */}
+                  <td>{el.switchBranch
+                    ? editCell(i, 'cantException', el.cantException, {
+                      type: 'text', wide: true, placeholder: '–',
+                      className: cantClass(el), title: cantNote(el),
+                    })
+                    : textCell('–')}</td>
                   <td>{textCell(cantDef)}</td>
                   <td>{textCell(vMax != null ? vMax : '–')}</td>
                 </tr>

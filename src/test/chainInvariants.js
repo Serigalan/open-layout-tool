@@ -1,7 +1,7 @@
 import { expect } from 'vitest'
 import { wgs84ToUTM } from '../utils/coordinateUtils'
 import { resolveEndBearing } from '../utils/elementUtils'
-import { SAGITTA_ELEMENT } from '../utils/mapConstants'
+import { SAGITTA_ELEMENT, cantExceptionOf, cantLimit, worstCantOf } from '../utils/mapConstants'
 
 /**
  * The invariants an element chain has to hold however it was built — the
@@ -78,6 +78,23 @@ export function expectEpsgThroughout(track) {
   }
 }
 
+/**
+ * A turnout's own elements stay inside the cant a switch admits: 100 mm, or the
+ * 120 a written justification on the element buys. This is not geometry, but it
+ * is an invariant of a chain a form produced — a dialog that refuses the value
+ * must not leave it on an element anyway, and a dialog that accepts an exception
+ * has to write the reason onto the element the cant sits on, not only into its
+ * own state.
+ */
+export function expectSwitchCantAdmissible(elements) {
+  elements.forEach((el, i) => {
+    if (!el.switchBranch) return
+    expect(worstCantOf(el), `cant of switch element ${i}`
+      + (cantExceptionOf(el) ? ' (on a written exception)' : ' (no justification)'))
+      .toBeLessThanOrEqual(cantLimit(el))
+  })
+}
+
 /** Shortest distance from a plane point to a plane polyline. */
 function distanceToPolyline(point, polyline) {
   let best = Infinity
@@ -143,4 +160,5 @@ export function expectValidTrack(track) {
   expectAbsLengthsRunning(elements)
   expectLengthsTrue(elements)
   expectRenderCoordsConsistent(elements, track.epsg)
+  expectSwitchCantAdmissible(elements)
 }

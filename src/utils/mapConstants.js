@@ -125,15 +125,86 @@ export function computeAutoC(speed, radius) {
   return cantSign(radius) * Math.min(MAX_CANT, roundCant((CANT_COEFF * speed * speed) / R))
 }
 
-export const MAX_SWITCH_CANT_DEF = 110  // maximum cant deficiency for switches (mm)
+/**
+ * What a turnout may be canted to. A switch is built on one set of sleepers and
+ * its two routes run over the same rails, so it is held well below the line's
+ * own 170 mm: 100 mm, and 120 only where the design states in writing why it has
+ * to be. The deficiency ceiling is the same either way.
+ *
+ * The justification is the text itself (`cantException` on the element), not a
+ * flag: an exception nobody had to write down is one that can be clicked away,
+ * and then it is no exception at all. It is stated on the plan and warned about
+ * in the element table, so it stays visible long after the dialog is gone.
+ */
+export const MAX_SWITCH_CANT           = 100  // maximum cant on a switch route (mm)
+export const MAX_SWITCH_CANT_EXCEPTION = 120  // …raised to this by a written justification
+export const MAX_SWITCH_CANT_DEF       = 110  // maximum cant deficiency for switches (mm)
 
-/** Auto-compute cant for a switch (signed): 0 unless deficiency would exceed 110. */
+/** The justification an element carries, trimmed — '' when it carries none. */
+export const cantExceptionOf = (el) =>
+  (typeof el?.cantException === 'string' ? el.cantException.trim() : '')
+
+/** The cant a switch route may carry, given the justification offered for it. */
+export const switchCantLimit = (reason) =>
+  (reason?.trim() ? MAX_SWITCH_CANT_EXCEPTION : MAX_SWITCH_CANT)
+
+/** The cant this element may carry: a switch route's limit, or the line's own. */
+export const cantLimit = (el) =>
+  (el?.switchBranch ? switchCantLimit(cantExceptionOf(el)) : MAX_CANT)
+
+/**
+ * The cant magnitudes an element carries. An arc has the one; a transition ramps
+ * between two, and a turnout laid into one is built on that ramp — so both ends
+ * are read, or a switch element on a ramp would answer for a cant it is not on.
+ */
+const cantsOf = (el) => (el?.elementType === 2 && (el.cantStart != null || el.cantEnd != null)
+  ? [el.cantStart ?? 0, el.cantEnd ?? 0]
+  : [el?.cant ?? 0])
+
+/** The greatest cant magnitude anywhere along this element. */
+export const worstCantOf = (el) => Math.max(...cantsOf(el).map(Math.abs))
+
+/** Does this element carry more cant than it is allowed to, anywhere along it? */
+export const cantExceedsLimit = (el) => worstCantOf(el) > cantLimit(el)
+
+/**
+ * The justification field an element built with this cant needs, ready to be
+ * spread in. Below the plain limit there is nothing to justify, so nothing is
+ * written — a stale reason must not sit on an element that no longer needs one.
+ */
+export const cantExceptionFields = (cant, reason) =>
+  (Math.abs(cant ?? 0) > MAX_SWITCH_CANT && reason?.trim() ? { cantException: reason.trim() } : {})
+
+/** A cant typed into a switch dialog, on the design step and under the ceiling. */
+export const clampSwitchCant = (value) =>
+  roundCant(Math.max(-MAX_SWITCH_CANT_EXCEPTION, Math.min(MAX_SWITCH_CANT_EXCEPTION, value)))
+
+/**
+ * What stands between this cant and being built, as a key the dialogs translate:
+ * `'over'` — past even the exception, so there is no reason that would do;
+ * `'unjustified'` — past the plain limit with nothing written down; null — fine.
+ */
+export function switchCantError(cant, reason) {
+  const magnitude = Math.abs(cant ?? 0)
+  if (magnitude > MAX_SWITCH_CANT_EXCEPTION) return 'over'
+  if (magnitude > switchCantLimit(reason)) return 'unjustified'
+  return null
+}
+
+/**
+ * Auto-compute cant for a switch (signed): 0 unless the deficiency would exceed
+ * 110, then just enough to bring it back to that — capped at the plain 100 mm,
+ * since a value nobody typed carries no justification. Where the cap is not
+ * enough the deficiency stays over its limit and the dialog refuses the design,
+ * rather than the turnout being over-canted on no one's authority.
+ */
 export function computeSwitchCant(speed, radius) {
   const R = Math.abs(radius)
   if (R <= 0) return 0
   const defAt0 = Math.round((CANT_DEF_COEFF * speed * speed) / R)
   if (defAt0 <= MAX_SWITCH_CANT_DEF) return 0
-  return cantSign(radius) * Math.max(0, roundCant((CANT_DEF_COEFF * speed * speed) / R - MAX_SWITCH_CANT_DEF))
+  const needed = roundCant((CANT_DEF_COEFF * speed * speed) / R - MAX_SWITCH_CANT_DEF)
+  return cantSign(radius) * Math.min(MAX_SWITCH_CANT, Math.max(0, needed))
 }
 
 /** Compute cant deficiency from speed (km/h), radius (m), and signed cant (mm). */

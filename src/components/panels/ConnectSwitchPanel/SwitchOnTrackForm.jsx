@@ -11,13 +11,13 @@ import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../../../ut
 import {
   SWITCH_TYPES, switchBranchLength, switchStraightLength, computeSwitchGeometryUtm, asRadius, switchRouteVaries,
 } from '../../../utils/switchUtils'
-import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
+import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { placeSwitchOnTrack } from '../../../utils/switchPlacement'
 import { trackLength } from '../../../utils/heightUtils'
 import { buildTypeFields } from '../../../utils/identifierUtils'
 import {
-  HIT_TOLERANCE, computeSwitchCant, computeCantDef, computeCantDefSigned,
-  roundCant, CANT_STEP, MAX_CANT, MAX_SWITCH_CANT_DEF,
+  HIT_TOLERANCE, cantExceptionFields, computeSwitchCant, computeCantDef, computeCantDefSigned,
+  switchCantError, worstCantOf, MAX_SWITCH_CANT_DEF,
 } from '../../../utils/mapConstants'
 import { elementPath } from '../../../utils/lineLookup'
 import useTrackFields from '../../../hooks/useTrackFields'
@@ -26,6 +26,7 @@ import useTrackHover from '../../../hooks/useTrackHover'
 import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
 import SwitchNumberField from './SwitchNumberField'
+import SwitchCantField from './SwitchCantField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
 import {
@@ -109,6 +110,10 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
   // Cant follows speed/switch type unless the user overrode it for exactly that
   // combination — derived instead of set from an effect.
   const [cantEdit, setCantEdit]     = useState(null)   // { key, value }
+  // Why this turnout may carry more than MAX_SWITCH_CANT. Laid into a canted
+  // track the cant is not the dialog's to set, but the limit still is its to
+  // keep — so the reason is asked for either way.
+  const [cantReason, setCantReason] = useState('')
   const [nameError, setNameError]   = useState(false)
   const switchNo = useSwitchNumber(project.id)
   const switchName = switchNo.name
@@ -195,6 +200,10 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
     : place.cantAt(0)
   const cantEnd    = plain ? cant : place.cantAt(straightLen)
   const cantVaries = !plain && place.spans.some(sp => sp.cantStart !== cant || sp.cantEnd !== cant)
+  // What the switch limit has to answer for: the one value unbent, and bent the
+  // worst of the ramp the turnout sits on — not just its value at the toe.
+  const worstCant = plain ? Math.abs(cant)
+    : place.spans.reduce((m, sp) => Math.max(m, Math.abs(sp.cantStart), Math.abs(sp.cantEnd)), 0)
 
   // Deficiency per route. Bent, the two routes share one cant that only one of
   // them is banked for, so the sign of the cant has to be read against each.
@@ -264,7 +273,18 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
       return
     }
     if (!switchNo.claim()) return
-    const splitTracks = split.tracks.map(tr => (tr.id === carved.id ? carved : tr))
+    // A cant over the plain switch limit stands on the reason typed for it, and
+    // the reason belongs on the element that carries the cant — otherwise the
+    // element table flags as an error what this dialog just accepted. Only the
+    // elements over the limit get one: a stale reason on the rest would say a
+    // turnout runs on an exception it does not need.
+    const justify = (el) => ({ ...el, ...cantExceptionFields(worstCantOf(el), cantReason) })
+    // The through route is the host track's own elements, carved and marked here.
+    const carvedRoute = {
+      ...carved,
+      elements: carved.elements.map(el => (elementBelongsToSwitch(el, identity) ? justify(el) : el)),
+    }
+    const splitTracks = split.tracks.map(tr => (tr.id === carved.id ? carvedRoute : tr))
 
     // Diverging branch: the turnout's own branch as a new track, one element per
     // piece — where the elements under the turnout part, the branch parts too.
@@ -284,11 +304,11 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
             cantStart: place.cantAt(seg.s0, i), cantEnd: place.cantAt(seg.s0 + seg.length, i),
           }
         : constantBranchElement(seg, plain ? cant : place.cantAt(seg.s0, i))
-      return {
+      return justify({
         ...base,
         ...switchElementMark(identity, 'branch'),
         geometry: { type: 'LineString', coordinates: seg.coords },
-      }
+      })
     }))
     const branchTrack = {
       id: branchId,
@@ -326,9 +346,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
     onCommitted?.()
   }
 
-  const cantErr = plain
-    ? Math.abs(cant) > MAX_CANT
-    : place.spans.some(sp => Math.abs(sp.cantStart) > MAX_CANT || Math.abs(sp.cantEnd) > MAX_CANT)
+  const cantErr = switchCantError(worstCant, cantReason)
   const defErr  = cantDef > MAX_SWITCH_CANT_DEF || (stemDef ?? 0) > MAX_SWITCH_CANT_DEF
 
   if (phase === 'select') {
@@ -389,15 +407,13 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
           <label>{t('field_speed')}</label>
           <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
         </div>
-        <div className="form-field">
-          <label>{cantVaries ? t('switch_cant_ramp') : t('cant')}</label>
-          {plain
-            ? <input type="number" min={-MAX_CANT} max={MAX_CANT} step={CANT_STEP} value={cant}
-                onChange={e => setCantEdit({ key: cantKey,
-                  value: roundCant(Math.max(-MAX_CANT, Math.min(MAX_CANT, Number(e.target.value) || 0))) })} />
-            : <input type="text" readOnly
-                value={cantVaries ? `${fmtCant(cant)} → ${fmtCant(cantEnd)}` : fmtCant(cant)} />}
-        </div>
+        <SwitchCantField t={t}
+          label={cantVaries ? t('switch_cant_ramp') : t('cant')}
+          cant={cant} onCant={value => setCantEdit({ key: cantKey, value })}
+          readOnlyText={plain ? undefined
+            : cantVaries ? `${fmtCant(cant)} → ${fmtCant(cantEnd)}` : fmtCant(cant)}
+          magnitude={worstCant}
+          reason={cantReason} onReason={setCantReason} />
         {!plain && g && (
           <>
             <div className="form-field">
@@ -447,11 +463,11 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
       {cantVaries && <p className="selecting-hint">{t('switch_in_cant_ramp')}</p>}
       {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
       {placeError && <p className="form-error">{placeError}</p>}
-      {cantErr && <p className="form-error">{t('cant_error')}</p>}
-      {defErr  && <p className="form-error">{t('cant_def_error')}</p>}
+      {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
+      {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
 
       <button className="panel-btn panel-btn-full" onClick={handleCommit}
-        disabled={!!placeError || cantErr || defErr}
+        disabled={!!placeError || !!cantErr || defErr}
         style={{ opacity: (placeError || cantErr || defErr) ? 0.5 : 1 }}>
         {t('btn_commit')}
       </button>

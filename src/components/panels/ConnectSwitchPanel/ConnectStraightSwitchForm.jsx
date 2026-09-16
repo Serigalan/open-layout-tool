@@ -12,11 +12,12 @@ import useTrackHover from '../../../hooks/useTrackHover'
 import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
 import SwitchNumberField from './SwitchNumberField'
+import SwitchCantField from './SwitchCantField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
 import {
-  HIT_TOLERANCE, computeSwitchCant, computeCantDef, computeCantDefSigned,
-  roundCant, CANT_STEP, MAX_CANT, MAX_SWITCH_CANT_DEF,
+  HIT_TOLERANCE, cantExceptionFields, computeSwitchCant, computeCantDef, computeCantDefSigned,
+  switchCantError, MAX_SWITCH_CANT_DEF,
 } from '../../../utils/mapConstants'
 import {
   SWITCH_TYPES, switchBranchLength, computeSwitchGeometryUtm, asRadius, branchRadius, bauform,
@@ -77,6 +78,9 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
   const cantKey  = curved ? `${speed}|${switchTypeIdx}|${side}|${trailing}|${stemInput}` : `${speed}|${switchTypeIdx}`
   const [cant, setCant] = useDerivedField(cantKey,
     computeSwitchCant(speed, curved ? governingR : currentSw.R))
+  // Why this turnout may carry more than MAX_SWITCH_CANT. Empty unless the user
+  // pushed it there, and the commit stays blocked until it is written.
+  const [cantReason, setCantReason] = useState('')
 
   // The tracks as they would be saved, each named by the line it lies on: the
   // branch always, the through route where it becomes a track of its own
@@ -289,7 +293,9 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
       length:       sv.length,
       absLength:    sv.length,
       ...switchElementMark(identity, 'main'),
-      ...(mainSignedR ? { endBearing: sv.endBearing, radius: mainSignedR, cant: mainCant } : {}),
+      ...(mainSignedR
+        ? { endBearing: sv.endBearing, radius: mainSignedR, cant: mainCant, ...cantExceptionFields(mainCant, cantReason) }
+        : {}),
       geometry:     { type: 'LineString', coordinates: straightCoords },
     }
     const curvedEl = {
@@ -302,6 +308,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
       ...switchElementMark(identity, 'branch'),
       ...(signedR ? { endBearing: cv.endBearing, radius: signedR } : {}),
       cant,
+      ...cantExceptionFields(cant, cantReason),
       geometry:     { type: 'LineString', coordinates: arcCoords },
     }
 
@@ -381,7 +388,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
   const cantDef = curved ? computeCantDefSigned(speed, branchSignedR, cant)
     : computeCantDef(speed, currentSw.R, cant)
   const stemDef = curved ? computeCantDefSigned(speed, stemAtToe, cant) : null
-  const cantErr = Math.abs(cant) > MAX_CANT
+  const cantErr = switchCantError(cant, cantReason)
   const defErr  = cantDef > MAX_SWITCH_CANT_DEF || (stemDef ?? 0) > MAX_SWITCH_CANT_DEF
 
   return (
@@ -433,10 +440,8 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
           <label>{t('field_speed')}</label>
           <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
         </div>
-        <div className="form-field">
-          <label>{t('cant')}</label>
-          <input type="number" min={-MAX_CANT} max={MAX_CANT} step={CANT_STEP} value={cant} onChange={e => setCant(roundCant(Math.max(-MAX_CANT, Math.min(MAX_CANT, Number(e.target.value) || 0))))} />
-        </div>
+        <SwitchCantField t={t} cant={cant} onCant={setCant}
+          reason={cantReason} onReason={setCantReason} />
         {curved && (
           <div className="form-field">
             <label>{t('switch_stem_cant_def')}</label>
@@ -488,9 +493,9 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
 
       {phase === 'editing' && (
         <>
-          {cantErr && <p className="form-error">{t('cant_error')}</p>}
-          {defErr  && <p className="form-error">{t('cant_def_error')}</p>}
-          <button className="panel-btn panel-btn-full" style={{ marginTop: 8, opacity: (cantErr || defErr) ? 0.5 : 1 }} onClick={handleCommit} disabled={cantErr || defErr}>
+          {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
+          {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
+          <button className="panel-btn panel-btn-full" style={{ marginTop: 8, opacity: (cantErr || defErr) ? 0.5 : 1 }} onClick={handleCommit} disabled={!!cantErr || defErr}>
             {t('btn_commit')}
           </button>
           <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={handleCancel}>

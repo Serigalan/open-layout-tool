@@ -5,7 +5,7 @@ import {
   trackPathUtm, mainPoints, switchSymbolUtm, trackPointAt, isArc, isTransition,
 } from './planGeometry'
 import { pointAtStationUtm } from './heightUtils'
-import { computeCantDef } from './mapConstants'
+import { cantExceptionOf, computeCantDef, worstCantOf } from './mapConstants'
 
 /**
  * The plan as a list of drawing primitives per sheet, in page millimetres
@@ -333,7 +333,7 @@ const line = (x1, y1, x2, y2, opts) => path([['M', x1, y1], ['L', x2, y2]], opts
  */
 const SWITCH_TEXT = {
   plain: 'EW', ibw: 'IBW', abw: 'ABW', abw_straight: 'ABW',
-  rBranch: 'z', rMain: 's',
+  rBranch: 'z', rMain: 's', cantException: 'Ausnahme',
 }
 
 /** Is this element a switch's own geometry rather than a running track? */
@@ -368,8 +368,18 @@ function elementParts(el, comma, { brief = false, switchText = SWITCH_TEXT } = {
     // the other. The dash is set rather than an arrow: the PDF draws glyph by
     // glyph in a standard font, which has the one and not the other.
     const value = isTransition(el) ? `${r(el.r1)} – ${r(el.r2)}` : r(el.radius)
-    return [{ t: 'r' }, { t: route === 'main' ? switchText.rMain : switchText.rBranch, sub: true },
+    const parts = [{ t: 'r' }, { t: route === 'main' ? switchText.rMain : switchText.rBranch, sub: true },
       { t: ` = ${value}` }]
+    // A turnout canted past its plain limit stands on a written justification
+    // (mapConstants: MAX_SWITCH_CANT). That justification is a design decision,
+    // so the plan states it rather than leaving the raised cant unexplained.
+    // `brief` drops it with everything else that does not fit the element.
+    const reason = cantExceptionOf(el)
+    if (!brief && reason) {
+      parts.push(separatorPart(),
+        { t: `u = ${n(worstCantOf(el), 0)} mm (${switchText.cantException}: ${reason})` })
+    }
+    return parts
   }
   if (isTransition(el)) {
     return [{ t: 'l' }, { t: el.transitionType === 'bloss' ? 'ub' : 'u', sub: true },

@@ -113,6 +113,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
         plain: t('switch_code_plain'), ibw: t('switch_code_ibw'),
         abw: t('switch_code_abw'), abw_straight: t('switch_code_abw_straight'),
         rBranch: t('switch_r_sub_branch'), rMain: t('switch_r_sub_main'),
+        cantException: t('switch_plan_cant_exception'),
       },
       titleBlock: {
         title: project.title || t('plan_default_title'),
