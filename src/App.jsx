@@ -98,7 +98,10 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
       if (!el.geometry) return
       lineFeatures.push({
         type: 'Feature', id: track.id,
-        properties: { trackId: track.id, elementIndex: elIdx, switchBranch: el.switchBranch ?? false },
+        properties: {
+          trackId: track.id, elementIndex: elIdx,
+          switchBranch: el.switchBranch ?? false, switchId: el.switchId ?? '',
+        },
         geometry: { type: 'LineString', coordinates: displayCoords(el, track.epsg) },
       })
       const coords = el.geometry.coordinates
@@ -139,7 +142,10 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
     .filter(sw => sw.fillCoords)
     .map(sw => ({
       type: 'Feature',
-      properties: {},
+      // The body is what a dialog picks a switch by (EditElementPanel/
+      // DeleteSwitchForm) — it is the one part of the map that is the switch
+      // itself rather than one of its routes.
+      properties: { switchId: sw.switchId ?? '' },
       geometry: { type: 'Polygon', coordinates: [sw.fillCoords] },
     }))
   const switchFillGeoJSON = { type: 'FeatureCollection', features: switchFillFeatures }

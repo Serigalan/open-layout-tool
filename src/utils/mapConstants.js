@@ -65,6 +65,13 @@ export const filterForElements = (trackId, elementIndexes) =>
 /** Filter that matches every element of one track */
 export const filterForTrack = (trackId) => ['==', ['get', 'trackId'], trackId]
 
+/**
+ * Filter that matches every element a switch owns, wherever it lies: its branch
+ * and the through route carved into the track it was laid into are on two
+ * tracks, so the id on the element is what picks them out, not the track.
+ */
+export const filterForSwitch = (switchId) => ['==', ['get', 'switchId'], switchId ?? '']
+
 /** Pixel tolerance for click/hover hit detection */
 export const HIT_TOLERANCE = 10
 

@@ -5,6 +5,7 @@ import EditPropertiesForm from './EditPropertiesForm'
 import ChangeDirectionForm from './ChangeDirectionForm'
 import DeleteForm from './DeleteForm'
 import DeleteTrackForm from './DeleteTrackForm'
+import DeleteSwitchForm from './DeleteSwitchForm'
 
 export default function EditElementPanel({ t, map, project, onTrackSaved, onShowTrackTable }) {
   const [page, setPage] = useState('menu')
@@ -72,6 +73,15 @@ export default function EditElementPanel({ t, map, project, onTrackSaved, onShow
     </>
   )
 
+  if (page === 'delete_switch') return (
+    <>
+      {backButton()}
+      <h2>{t('switch_delete')}</h2>
+      <DeleteSwitchForm t={t} map={map} project={project}
+        onTrackSaved={() => { onTrackSaved?.(); setPage('menu') }} onCommitted={() => setPage('menu')} />
+    </>
+  )
+
   if (page === 'change_direction') return (
     <>
       {backButton()}
@@ -125,6 +135,14 @@ export default function EditElementPanel({ t, map, project, onTrackSaved, onShow
             <path d="M3 4 H13 M6 4 V2 H10 V4 M5 4 V13 H11 V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           {t('edit_track_delete')}
+        </button>
+        <span className="create-element-section">{t('edit_switch')}</span>
+        <button className="create-element-btn" onClick={() => setPage('delete_switch')}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 12 H14 M6 12 Q10 12 14 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
+            <path d="M3 3 L7 7 M7 3 L3 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          {t('switch_delete')}
         </button>
       </div>
     </>

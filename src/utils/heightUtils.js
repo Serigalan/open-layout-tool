@@ -95,6 +95,21 @@ export function splitHeights(heights, sJ) {
 }
 
 /**
+ * The inverse: the heights of a track joined from two, `b` picking up where `a`
+ * ends after `aLength`. Where both state the joint — which is how splitHeights
+ * leaves them — it is kept once, `a`'s, so a point's own gradient radius
+ * survives the round trip. A half that carries no heights contributes none, and
+ * the join then has them only over the stretch the other half had them for.
+ */
+export function joinHeights(a, b, aLength) {
+  const left  = a ?? []
+  const right = (b ?? []).map(p => ({ ...p, station: p.station + aLength }))
+  if (!left.length && !right.length) return undefined
+  const last = left[left.length - 1]
+  return [...left, ...right.filter(p => !last || p.station > last.station + STATION_TOL)]
+}
+
+/**
  * The heights of a track whose stretch from `at` on has been re-shaped — an
  * element's length edited, a track spliced. What lies before `at` keeps its
  * points and the point at `at` itself is kept as the new end; the rest is

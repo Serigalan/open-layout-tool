@@ -241,6 +241,19 @@
   margin: 0;
 }
 
+/* What a dialog says it is about to do, item by item (switch deletion). */
+.form-list {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: #333;
+  margin: 4px 0 8px;
+  padding-left: 18px;
+}
+
+.form-list li {
+  margin: 2px 0;
+}
+
 .input-error {
   border-color: #c0392b !important;
   outline-color: #c0392b !important;

@@ -74,3 +74,42 @@ export function newSwitchFields(kind = DEFAULT_SWITCH_KIND) {
 export function isModelledSwitch(sw) {
   return Boolean(sw?.switchId) && Boolean(sw?.kind) && sw?.formVersion != null
 }
+
+/**
+ * The ports of a turnout: the track each names, which end of that track the
+ * switch sits at, and which of the switch's routes runs into it. A port is a
+ * pair of fields on the record rather than a record of its own — that is the
+ * shape the store, the exchange format and the OSRD codec all read, and the
+ * one place that pairs the two field names is here. (AP 3.2 replaces this with
+ * the general port model a crossing needs; until then everything that walks the
+ * ports walks this list.)
+ *
+ * Port A is the toe. The switch owns no elements there — the toe is a node, not
+ * a stretch — so `route` says which route *would* run into it, not what is
+ * marked on its track.
+ */
+export const SWITCH_PORTS = [
+  { port: 'A',  trackKey: 'portA_trackId',  endKey: 'portA_endpoint',  route: 'main' },
+  { port: 'B1', trackKey: 'portB1_trackId', endKey: 'portB1_endpoint', route: 'branch' },
+  { port: 'B2', trackKey: 'portB2_trackId', endKey: 'portB2_endpoint', route: 'main' },
+]
+
+/** Does this element carry `sw`'s mark for `route`? */
+export const elementOnSwitchRoute = (el, sw, route) => Boolean(el?.switchBranch)
+  && elementBelongsToSwitch(el, sw)
+  && (!el.switchRoute || el.switchRoute === route)
+
+/**
+ * The element without any of the marks that tied it to a switch — what a route
+ * becomes when the switch over it is deleted and the geometry stays as ordinary
+ * track. The cant justification goes with them: it was written for a switch
+ * route's 100 mm limit, and on a line element (limit 170) it would claim an
+ * exception nothing needs any more.
+ */
+export function unmarkSwitchElement(el) {
+  const {
+    switchBranch: _b, switchRoute: _r, switchId: _i, switchName: _n, switchLabel: _l,
+    cantException: _c, ...rest
+  } = el
+  return rest
+}

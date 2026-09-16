@@ -2,8 +2,8 @@ import {
   SCHEMA_VERSION, extractImages, hydrateProjects, dehydrateProjects,
 } from './utils/persistenceUtils'
 import { reverseElement } from './utils/elementUtils'
-import { elementBelongsToSwitch } from './utils/switchModel'
-import { reverseHeights, splitHeights, trackLength } from './utils/heightUtils'
+import { elementBelongsToSwitch, SWITCH_PORTS } from './utils/switchModel'
+import { joinHeights, reverseHeights, splitHeights, trackLength } from './utils/heightUtils'
 import * as idb from './utils/idbStorage'
 
 export const STORAGE_KEY = 'olt_projects'
@@ -301,12 +301,12 @@ export function updateTrack(projectId, track) {
 // A switch port names a track plus which end of it the switch sits at. The end
 // is the track's own BEGIN (elements[0].startNode) or END (last endNode) — the
 // axis that OSRD's track_section arrow and all length offsets refer to.
-const PORT_IDS  = ['portA_trackId',   'portB1_trackId',   'portB2_trackId']
-const PORT_ENDS = ['portA_endpoint',  'portB1_endpoint',  'portB2_endpoint']
+const PORT_IDS  = SWITCH_PORTS.map(p => p.trackKey)
+const PORT_ENDS = SWITCH_PORTS.map(p => p.endKey)
 
 const flipEndpoint = (e) => (e === 'BEGIN' ? 'END' : e === 'END' ? 'BEGIN' : e)
 
-function remapSwitches(switches, remap) {
+export function remapSwitches(switches, remap) {
   // remap: [{ oldId, newId, flip }]
   //   newId array [firstHalf, secondHalf] – a track was split; the port's
   //     endpoint decides which half it stays on,
@@ -383,6 +383,55 @@ function makeTrack(base, elements, id, heights) {
   }
 }
 
+/**
+ * A track running the other way: its elements in the other order, each of them
+ * flipped, the heights mirrored about its length. Its BEGIN and END swap with
+ * it, so every switch port that names the track has to be flipped too — the
+ * callers do that through `remapSwitches` (`flip: true`) resp.
+ * flipSwitchEndpoints. Pure: nothing is written here.
+ */
+export function reverseTrack(track) {
+  const elements = recalcAbsLengths([...(track.elements ?? [])].reverse().map(reverseElement))
+  const heights  = reverseHeights(track.heights, trackLength(track))
+  return {
+    ...track,
+    elements,
+    coordinates: rebuildCoords(elements),
+    ...(heights?.length ? { heights } : {}),
+  }
+}
+
+/**
+ * Join two tracks back into one at the node where `head` ends and `tail`
+ * begins — the counterpart of splitElementAt / splitTrackAtJoint, which part a
+ * track where a turnout is laid into it. Without it the halves outlive the
+ * switch that made them: deleting the turnout would leave two fragments of one
+ * line lying end to end, and the next one would part a fragment again.
+ *
+ * The two have to meet at that node and run the same way. Orienting them is the
+ * caller's job, because only the caller knows which end of each the junction
+ * was (see switchDelete.planSwitchDeletion, which reverses the piece that meets
+ * it backwards). The elements are taken as they are: the joint may be a kink,
+ * and merging what is continuous across it is a separate step
+ * (switchDelete.mergeChain).
+ *
+ * The result keeps `head`'s id and metadata — `tail`'s id is the one that goes,
+ * so every switch port naming it has to be repointed (`remapSwitches`). The
+ * heights are the split's inverse (joinHeights): `tail`'s stations move up by
+ * `head`'s length and the point they share at the joint is kept once.
+ */
+export function joinTracks(head, tail) {
+  const elements = recalcAbsLengths([...(head.elements ?? []), ...(tail.elements ?? [])])
+  const heights  = joinHeights(head.heights, tail.heights, trackLength(head))
+  const { heights: _h, ...rest } = head
+  return {
+    ...rest,
+    coordinates: rebuildCoords(elements),
+    elements,
+    ...(heights?.length ? { heights } : {}),
+  }
+}
+
 export function deleteElement(projectId, trackId, elementIndex) {
   pushUndo()
   const project = getCache().find((p) => p.id === projectId)
@@ -448,11 +497,8 @@ export function reverseTrackDirection(projectId, trackId) {
   if (!project) return
   const track = (project.tracks ?? []).find(t => t.id === trackId)
   if (!track) return
-  const elements = recalcAbsLengths([...(track.elements ?? [])].reverse().map(reverseElement))
-  const heights  = reverseHeights(track.heights, trackLength(track))
-  project.tracks = project.tracks.map(t => t.id === trackId
-    ? { ...t, elements, coordinates: rebuildCoords(elements), ...(heights ? { heights } : {}) }
-    : t)
+  const reversed = reverseTrack(track)
+  project.tracks = project.tracks.map(t => (t.id === trackId ? reversed : t))
   project.switches = flipSwitchEndpoints(project.switches, trackId)
   persist(projectId)
 }
@@ -586,6 +632,42 @@ export function commitSwitchConnection(projectId, { removeTrackIds, addTracks, a
   project.tracks = (project.tracks ?? []).filter((t) => !removeSet.has(t.id)).concat(addTracks ?? [])
   if (remap?.length) project.switches = remapSwitches(project.switches ?? [], remap)
   project.switches = [...(project.switches ?? []), ...(addSwitches ?? [])]
+  persist(projectId)
+}
+
+/**
+ * Carry out a switch deletion (switchDelete.planSwitchDeletion): the record
+ * goes, the tracks that were nothing but its geometry go with it, the tracks it
+ * rewrote take their new elements, and every other switch that named a track
+ * the join has swallowed is repointed — all under a single undo step, the way
+ * commitSwitchConnection commits one.
+ *
+ * A platform is stationed along its track and cannot outlive it, exactly as in
+ * deleteTrack.
+ *
+ * @param {string}   projectId
+ * @param {object}   plan
+ * @param {string}   plan.switchId       the record to remove
+ * @param {string[]} plan.removeTrackIds tracks that go entirely
+ * @param {object[]} plan.updateTracks   tracks to replace in place (same ids)
+ * @param {object[]} plan.remap          remapSwitches entries for the others
+ */
+export function commitSwitchDeletion(projectId, { switchId, removeTrackIds, updateTracks, remap }) {
+  pushUndo()
+  const project = getCache().find((p) => p.id === projectId)
+  if (!project) return
+  const removeSet = new Set(removeTrackIds ?? [])
+  const updated   = new Map((updateTracks ?? []).map(t => [t.id, t]))
+  project.tracks = (project.tracks ?? [])
+    .filter(t => !removeSet.has(t.id))
+    .map(t => updated.get(t.id) ?? t)
+  // The record first, then the remap: the switch that is going has no ports
+  // left to repoint, and leaving it in would point them at the joined track.
+  project.switches = (project.switches ?? []).filter(sw => sw.switchId !== switchId)
+  if (remap?.length) project.switches = remapSwitches(project.switches, remap)
+  if (project.platforms?.length) {
+    project.platforms = project.platforms.filter(p => !removeSet.has(p.trackId))
+  }
   persist(projectId)
 }
 
