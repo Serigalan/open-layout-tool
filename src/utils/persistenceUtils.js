@@ -1,12 +1,11 @@
 import { reconstructElements } from './elementReconstruct'
 import { rebuildSwitchSymbol } from './switchUtils'
 import { rebuildPlatformSymbol } from './platformUtils'
-import { migrateTrackHeights } from './heightUtils'
-import { migrateProjectSwitches } from './switchModel'
+import { isModelledSwitch } from './switchModel'
 
 /**
  * Persisted store format:
- *   { version: 1, projects: [...] }
+ *   { version: 2, projects: [...] }
  *   – one lean record per project. What defines an element is its plane data:
  *     startNode / endNode in the track's CRS (`track.epsg`, one code per
  *     track — the single source of truth for all of its elements), bearing,
@@ -16,7 +15,7 @@ import { migrateProjectSwitches } from './switchModel'
  *     stripped on persist and rebuilt on load, so it can never disagree with
  *     the plane data.
  *   – the vertical alignment is the track's own (`track.heights`, stationed
- *     along the track); records written before that are migrated on load.
+ *     along the track).
  *   – a platform is stationed along its track too (`platforms[].trackId` plus
  *     start/end station); its drawn polygon is derived like the switch symbols.
  *   – `kmLines` are the kilometrage lines the project references its main
@@ -32,12 +31,16 @@ import { migrateProjectSwitches } from './switchModel'
  * Export files embed images so they stay self-contained:
  *   { version: 2, projects: [...] }
  *
- * Version 2 gave every switch record a `switchId`, a `kind` and the
- * `formVersion` of the form table it was built against, and wrote that id onto
- * the elements of its routes (see switchModel). Older records are migrated on
- * load by the absence of those fields rather than by the stated version — the
- * store is read field by field and a record can reach hydrateProjects from an
- * import that states no version at all.
+ * Version 2 is what this tool reads and writes, and the only thing it reads:
+ * every switch record carries a `switchId`, a `kind` and the `formVersion` of
+ * the form table it was built against, and the elements of its routes carry
+ * that id (see switchModel). A payload from before that is refused rather than
+ * converted — parseProjectsPayload is the door, and nothing downstream has to
+ * ask again whether a record is complete.
+ *
+ * The number stays monotonic for exactly that reason: a version-1 file is
+ * recognisable as one, so the refusal can say what is wrong instead of naming
+ * whichever field happened to be missed first.
  */
 export const SCHEMA_VERSION = 2
 
@@ -53,9 +56,46 @@ export function extractImages(projects) {
   return images
 }
 
-/** Unwrap an imported/exported payload ({ version, projects }). */
+/**
+ * A payload this tool will not take, `code` being the key the UI translates —
+ * the same shape as serverStorage.ServerError, so one handler covers both.
+ */
+export class PayloadError extends Error {
+  constructor(code) {
+    super(code)
+    this.name = 'PayloadError'
+    this.code = code
+  }
+}
+
+/**
+ * Unwrap an imported payload ({ version, projects }) — and refuse it where it is
+ * not one of this tool's own.
+ *
+ * This is the one place that decides. Everything downstream — hydrateProjects,
+ * the switch symbols, the delete rules — may then take the model for granted
+ * instead of each guarding for a field that might be missing, which is what the
+ * name comparison used to be.
+ *
+ * Refused with `unsupported_version` where the file states another version (a
+ * file from before the switch model says 1), and with `invalid_payload` where it
+ * states the right one but does not hold it.
+ */
 export function parseProjectsPayload(data) {
-  return { projects: Array.isArray(data?.projects) ? data.projects : [] }
+  if (!data || typeof data !== 'object' || !Array.isArray(data.projects)) {
+    throw new PayloadError('invalid_payload')
+  }
+  if (data.version !== SCHEMA_VERSION) throw new PayloadError('unsupported_version')
+
+  for (const p of data.projects) {
+    if (!(p.switches ?? []).every(isModelledSwitch)) throw new PayloadError('invalid_payload')
+    for (const track of p.tracks ?? []) {
+      for (const el of track.elements ?? []) {
+        if (el.switchBranch && !el.switchId) throw new PayloadError('invalid_payload')
+      }
+    }
+  }
+  return { projects: data.projects }
 }
 
 // ── Hydrate (load) / dehydrate (persist) ─────────────────────────────────────
@@ -70,18 +110,15 @@ function buildTrackCoords(elements) {
 /**
  * Rebuild all derived geometry in place: element geometry and renderCoords,
  * track coordinates, the switch symbols and the platform polygons — from the
- * plane data only.
+ * plane data only. Nothing here converts or repairs; what reaches this point
+ * has been through parseProjectsPayload or was written by this tool.
  */
 export function hydrateProjects(projects) {
   for (const p of projects ?? []) {
-    if (p.tracks) p.tracks = p.tracks.map(migrateTrackHeights)
     for (const track of p.tracks ?? []) {
       track.elements    = reconstructElements(track.elements, track.epsg)
       track.coordinates = buildTrackCoords(track.elements)
     }
-    // Before the symbols: rebuilding one reads its routes back off the tracks,
-    // and which elements answer for it is what the migration settles.
-    migrateProjectSwitches(p)
     if (p.switches || p.platforms) {
       const byId = Object.fromEntries((p.tracks ?? []).map(t => [t.id, t]))
       if (p.switches)  p.switches  = p.switches.map(sw => rebuildSwitchSymbol(sw, byId))

@@ -298,29 +298,3 @@ export function verticalCurves(points, steps = 24) {
   return points.map((_, i) => verticalCurve(points, i, steps)).filter(Boolean)
 }
 
-// ── Migration ───────────────────────────────────────────────────────────────
-
-/**
- * A track whose heights still sit on its elements ([{ s, z }] stationed along
- * the element, the joints repeated) with them as one list along the track.
- * Returns the track unchanged once it is in the current shape.
- */
-export function migrateTrackHeights(track) {
-  const els = track?.elements ?? []
-  if (track?.heights || !els.some(el => el.heights?.length)) return track
-  const heights = []
-  let station = 0
-  for (const el of els) {
-    for (const p of el.heights ?? []) {
-      const at = station + p.s
-      if (heights.length && Math.abs(heights[heights.length - 1].station - at) <= STATION_TOL) continue
-      heights.push({ station: at, z: p.z, ...(p.rv != null ? { rv: p.rv } : {}) })
-    }
-    station += el.length ?? 0
-  }
-  return {
-    ...track,
-    elements: els.map(({ heights: _h, ...el }) => el),
-    ...(heights.length >= 2 ? { heights } : {}),
-  }
-}

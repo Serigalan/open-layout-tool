@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION, SWITCH_KINDS, SWITCH_ROUTES,
-  elementBelongsToSwitch, migrateProjectSwitches, newSwitchFields, switchElementMark,
+  elementBelongsToSwitch, isModelledSwitch, newSwitchFields, switchElementMark,
 } from './switchModel'
 
 describe('the model’s vocabulary', () => {
@@ -18,7 +18,7 @@ describe('the model’s vocabulary', () => {
 const branchEl = (props) => ({ switchBranch: true, length: 10, ...props })
 
 describe('elementBelongsToSwitch', () => {
-  it('the id decides wherever both carry one', () => {
+  it('the id decides, and the name is not consulted', () => {
     const sw = { switchId: 'a', name: 'switch.001' }
     expect(elementBelongsToSwitch(branchEl({ switchId: 'a', switchName: 'switch.009' }), sw)).toBe(true)
     expect(elementBelongsToSwitch(branchEl({ switchId: 'b', switchName: 'switch.001' }), sw)).toBe(false)
@@ -32,16 +32,25 @@ describe('elementBelongsToSwitch', () => {
     expect(elementBelongsToSwitch(el, second)).toBe(true)
   })
 
-  it('falls back on the name where either side has no id yet', () => {
-    expect(elementBelongsToSwitch(branchEl({ switchName: 'switch.001' }), { name: 'switch.001' })).toBe(true)
-    expect(elementBelongsToSwitch(branchEl({ switchName: 'switch.002' }), { name: 'switch.001' })).toBe(false)
-    // An element with an id against a record without one: still the name.
-    expect(elementBelongsToSwitch(branchEl({ switchId: 'a', switchName: 'switch.001' }), { name: 'switch.001' })).toBe(true)
+  it('a missing id is never a match — not even against another missing one', () => {
+    expect(elementBelongsToSwitch(branchEl({ switchName: 'switch.001' }), { name: 'switch.001' })).toBe(false)
+    expect(elementBelongsToSwitch(branchEl({}), {})).toBe(false)
+    expect(elementBelongsToSwitch(branchEl({}), { switchId: 'a' })).toBe(false)
+    expect(elementBelongsToSwitch(branchEl({ switchId: 'a' }), {})).toBe(false)
+  })
+})
+
+describe('isModelledSwitch', () => {
+  it('wants the id, the kind and the form version', () => {
+    expect(isModelledSwitch({ switchId: 'a', kind: 'turnout', formVersion: 1 })).toBe(true)
+    expect(isModelledSwitch({ kind: 'turnout', formVersion: 1 })).toBe(false)
+    expect(isModelledSwitch({ switchId: 'a', formVersion: 1 })).toBe(false)
+    expect(isModelledSwitch({ switchId: 'a', kind: 'turnout' })).toBe(false)
+    expect(isModelledSwitch(undefined)).toBe(false)
   })
 
-  it('an unnamed element or record matches, as it did before ids existed', () => {
-    expect(elementBelongsToSwitch(branchEl({}), { name: 'switch.001' })).toBe(true)
-    expect(elementBelongsToSwitch(branchEl({ switchName: 'switch.001' }), {})).toBe(true)
+  it('takes what newSwitchFields produces', () => {
+    expect(isModelledSwitch(newSwitchFields())).toBe(true)
   })
 })
 
@@ -68,65 +77,3 @@ describe('newSwitchFields', () => {
   })
 })
 
-describe('migrateProjectSwitches', () => {
-  const legacyProject = () => ({
-    switches: [{ name: 'switch.001', label: '300 – 1:9' }],
-    tracks: [
-      { id: 't1', elements: [
-        { switchBranch: true, switchRoute: 'main', switchName: 'switch.001' },
-        { length: 50 },
-      ] },
-      { id: 't2', elements: [
-        { switchBranch: true, switchRoute: 'branch', switchName: 'switch.001' },
-      ] },
-    ],
-  })
-
-  it('gives a record without them an id, a kind and a form version', () => {
-    const p = migrateProjectSwitches(legacyProject())
-    const [sw] = p.switches
-    expect(sw.switchId).toMatch(/^[0-9a-f-]{36}$/)
-    expect(sw.kind).toBe(DEFAULT_SWITCH_KIND)
-    expect(sw.formVersion).toBe(SWITCH_FORM_VERSION)
-  })
-
-  it('writes that id onto the elements the name pointed at, and onto no others', () => {
-    const p = migrateProjectSwitches(legacyProject())
-    const id = p.switches[0].switchId
-    expect(p.tracks[0].elements[0].switchId).toBe(id)
-    expect(p.tracks[1].elements[0].switchId).toBe(id)
-    expect(p.tracks[0].elements[1].switchId).toBeUndefined()
-  })
-
-  it('leaves what already carries the fields alone', () => {
-    const p = migrateProjectSwitches(legacyProject())
-    const before = JSON.stringify(p)
-    migrateProjectSwitches(p)
-    expect(JSON.stringify(p)).toBe(before)
-  })
-
-  it('keeps an id a record already has', () => {
-    const p = migrateProjectSwitches({
-      switches: [{ switchId: 'kept', name: 'switch.001', kind: 'turnout', formVersion: 1 }],
-      tracks: [{ id: 't1', elements: [{ switchBranch: true, switchName: 'switch.001' }] }],
-    })
-    expect(p.switches[0].switchId).toBe('kept')
-    expect(p.tracks[0].elements[0].switchId).toBe('kept')
-  })
-
-  it('gives elements of two records sharing a name to the first, rather than to both', () => {
-    const p = migrateProjectSwitches({
-      switches: [{ name: 'switch.001' }, { name: 'switch.001' }],
-      tracks: [{ id: 't1', elements: [{ switchBranch: true, switchName: 'switch.001' }] }],
-    })
-    const [first, second] = p.switches
-    expect(first.switchId).not.toBe(second.switchId)
-    expect(p.tracks[0].elements[0].switchId).toBe(first.switchId)
-  })
-
-  it('leaves a project without switches untouched', () => {
-    const p = { tracks: [{ id: 't1', elements: [{ length: 10 }] }] }
-    expect(migrateProjectSwitches(p)).toBe(p)
-    expect(p.tracks[0].elements[0].switchId).toBeUndefined()
-  })
-})

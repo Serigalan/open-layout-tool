@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dehydrateProjects, hydrateProjects, SCHEMA_VERSION } from './persistenceUtils'
+import { dehydrateProjects, hydrateProjects, parseProjectsPayload, PayloadError, SCHEMA_VERSION } from './persistenceUtils'
 import { SWITCH_TYPES, computeSwitchGeometryUtm, switchArcLength, switchStraightLength } from './switchUtils'
 import { DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION } from './switchModel'
 import goldenElements from '../../track_optimized.json'
@@ -94,20 +94,18 @@ describe('track_optimized.json fixture — chain continuity invariants', () => {
   })
 })
 
-// ── A project from before the switch id, loaded by the current app ───────────
+// ── A project of the current model ───────────────────────────────────────────
 
 const SWITCH_EPSG = 25832
 const FORM = SWITCH_TYPES[1]                       // 300 – 1:9
 
-/**
- * A facing turnout on a straight, written the way records were written before
- * switchId existed: the record names itself and its elements name it back.
- */
-function legacySwitchProject() {
+/** A facing turnout on a straight, written the way the dialogs write one. */
+function switchProject(identity = { switchId: 'sw-1', kind: DEFAULT_SWITCH_KIND, formVersion: SWITCH_FORM_VERSION }) {
   const toe = { easting: 500000, northing: 5600000, zone: SWITCH_EPSG }
   const g = computeSwitchGeometryUtm(toe, 30, FORM, 'right', false)
   const mark = (route) => ({
-    switchBranch: true, switchRoute: route, switchName: 'switch.001', switchLabel: FORM.label,
+    switchBranch: true, switchRoute: route,
+    switchId: identity.switchId, switchName: 'switch.001', switchLabel: FORM.label,
   })
   return [{
     id: 'p1',
@@ -125,7 +123,7 @@ function legacySwitchProject() {
       }] },
     ],
     switches: [{
-      name: 'switch.001', label: FORM.label, trailing: false,
+      ...identity, name: 'switch.001', label: FORM.label, trailing: false,
       portA_trackId: null,       portA_endpoint:  null,
       portB1_trackId: 'branch',  portB1_endpoint: 'BEGIN',
       portB2_trackId: 'through', portB2_endpoint: 'BEGIN',
@@ -133,29 +131,9 @@ function legacySwitchProject() {
   }]
 }
 
-describe('loading a project written before the switch id', () => {
-  it('the store declares the version that introduced it', () => {
-    expect(SCHEMA_VERSION).toBe(2)
-  })
-
-  it('gives the record an id, a kind and the form version it was built against', () => {
-    const [p] = hydrateProjects(legacySwitchProject())
-    const [sw] = p.switches
-    expect(sw.switchId).toMatch(/^[0-9a-f-]{36}$/)
-    expect(sw.kind).toBe(DEFAULT_SWITCH_KIND)
-    expect(sw.formVersion).toBe(SWITCH_FORM_VERSION)
-  })
-
-  it('writes that id onto the elements of both routes', () => {
-    const [p] = hydrateProjects(legacySwitchProject())
-    const id = p.switches[0].switchId
-    for (const track of p.tracks) {
-      expect(track.elements[0].switchId).toBe(id)
-    }
-  })
-
-  it('still rebuilds the symbol — the migration runs before the routes are read back', () => {
-    const [p] = hydrateProjects(legacySwitchProject())
+describe('loading a project of the current model', () => {
+  it('builds the switch symbol from the tracks', () => {
+    const [p] = hydrateProjects(switchProject())
     const [sw] = p.switches
     expect(sw.fillCoords.length).toBeGreaterThan(2)
     expect(sw.lcsCoords).toHaveLength(2)
@@ -163,11 +141,60 @@ describe('loading a project written before the switch id', () => {
     expect(sw.bodyCentre).toHaveLength(2)
   })
 
-  it('a reload after the migration is stable — same id, same symbol', () => {
-    const [first]  = hydrateProjects(legacySwitchProject())
+  it('a reload leaves the id and the symbol as they were', () => {
+    const [first]  = hydrateProjects(switchProject())
     const [second] = hydrateProjects(dehydrateProjects(structuredClone([first])))
-    expect(second.switches[0].switchId).toBe(first.switches[0].switchId)
+    expect(second.switches[0].switchId).toBe('sw-1')
     expect(second.switches[0].fillCoords).toEqual(first.switches[0].fillCoords)
-    expect(second.tracks[1].elements[0].switchId).toBe(first.switches[0].switchId)
+    expect(second.tracks[1].elements[0].switchId).toBe('sw-1')
+  })
+})
+
+// ── The door: what this tool will and will not take ──────────────────────────
+
+const payloadOf = (projects) => ({ version: SCHEMA_VERSION, projects: dehydrateProjects(projects) })
+
+describe('parseProjectsPayload', () => {
+  it('takes a payload of the current version and hands the projects back', () => {
+    const payload = payloadOf(switchProject())
+    expect(parseProjectsPayload(payload).projects).toHaveLength(1)
+  })
+
+  it('takes a project with no switches at all', () => {
+    expect(parseProjectsPayload(payloadOf(project())).projects).toHaveLength(1)
+  })
+
+  it('refuses a file from before the switch model by its version alone', () => {
+    // The point of keeping the number monotonic: a version-1 file is turned away
+    // as one, not as "some field is missing".
+    const payload = { ...payloadOf(switchProject()), version: 1 }
+    expect(() => parseProjectsPayload(payload)).toThrow(PayloadError)
+    expect(() => parseProjectsPayload(payload)).toThrow('unsupported_version')
+  })
+
+  it('refuses a payload that is not one at all', () => {
+    for (const bad of [null, undefined, 42, {}, { projects: 'nope' }]) {
+      expect(() => parseProjectsPayload(bad)).toThrow('invalid_payload')
+    }
+  })
+
+  it('refuses a switch record missing any of the model’s fields', () => {
+    for (const drop of ['switchId', 'kind', 'formVersion']) {
+      const payload = payloadOf(switchProject())
+      delete payload.projects[0].switches[0][drop]
+      expect(() => parseProjectsPayload(payload), drop).toThrow('invalid_payload')
+    }
+  })
+
+  it('refuses a marked element without its switch id', () => {
+    const payload = payloadOf(switchProject())
+    delete payload.projects[0].tracks[1].elements[0].switchId
+    expect(() => parseProjectsPayload(payload)).toThrow('invalid_payload')
+  })
+
+  it('lets an ordinary element through — only marked ones need an id', () => {
+    const payload = payloadOf(project())
+    expect(payload.projects[0].tracks[0].elements.some(el => el.switchBranch)).toBe(false)
+    expect(() => parseProjectsPayload(payload)).not.toThrow()
   })
 })

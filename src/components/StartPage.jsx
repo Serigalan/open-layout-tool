@@ -30,6 +30,7 @@ export default function StartPage({ onOpenProject, t, language, onLanguageChange
   const [templates, setTemplates]         = useState([])
   const [templateBusy, setTemplateBusy]   = useState(null)   // id being fetched
   const [templateFailed, setTemplateFailed] = useState(null) // id that would not load
+  const [importFailed, setImportFailed]     = useState(false) // a file this tool will not take
 
   const guideSrc = GUIDE_PAGES[language] ?? GUIDE_PAGES.de
 
@@ -115,6 +116,7 @@ export default function StartPage({ onOpenProject, t, language, onLanguageChange
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
+    setImportFailed(false)
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result)
@@ -133,7 +135,11 @@ export default function StartPage({ onOpenProject, t, language, onLanguageChange
             existing: existing.find(p => p.id === imp.id),
           })))
         }
-      } catch { /* invalid JSON */ }
+      } catch {
+        // Broken JSON, or a project from before the current model — either way
+        // nothing is imported, and the page says so instead of staying still.
+        setImportFailed(true)
+      }
     }
     reader.readAsText(file)
     e.target.value = ''
@@ -193,6 +199,9 @@ export default function StartPage({ onOpenProject, t, language, onLanguageChange
             )}
           </div>
         </div>
+        {importFailed && (
+          <p className="start-import-error">{t('start_import_failed')}</p>
+        )}
         <hr className="start-section-divider" />
         <div className="start-projects">
           {projects.map((project) => {

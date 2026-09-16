@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { loadTracks, loadProjects, importProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName } from '../../storage'
-import { parseProjectsPayload } from '../../utils/persistenceUtils'
+import { parseProjectsPayload, PayloadError } from '../../utils/persistenceUtils'
 import { parseRecords, buildElements } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'
-import { migrateTrackHeights } from '../../utils/heightUtils'
 import { ExternalLinkIcon } from '../icons'
 import { exportToOsrd, OSRD_URL } from '../../utils/osrdExport'
 import { exportExchange, FORMAT_VERSION } from '../../utils/exchangeExport'
@@ -82,6 +81,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const [serverPassword, setServerPassword] = useState('')
   const [serverBusy, setServerBusy]         = useState(false)
   const [serverStatus, setServerStatus]     = useState(null)   // { error: bool, text }
+  const [importError, setImportError]       = useState(null)   // why a project file was refused
   const [serverDelete, setServerDelete]     = useState(null)   // entry awaiting confirmation
 
   useTrackHover(map, phase, 'selecting', project)
@@ -120,6 +120,17 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     }
   }, [map])
 
+  // The server client and the payload check both carry a `code`, so one lookup
+  // names either. An error without one says as much as the caller knows: a
+  // request that threw was the server being unreachable, a file that threw was
+  // the file. Codes with no text of their own fall back to the generic one.
+  const codedErrorText = (err, fallback = 'unavailable') => {
+    const code = (err instanceof ServerError || err instanceof PayloadError) ? err.code : fallback
+    const key  = `data_exchange_server_err_${code}`
+    const text = t(key)
+    return text === key ? t('data_exchange_server_err_unavailable') : text
+  }
+
   // Take imported projects into the store — from a file or from the server.
   // Ids that are already here are asked about one by one; nothing is written
   // until every conflict is answered.
@@ -145,11 +156,14 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
+    setImportError(null)
     reader.onload = (ev) => {
       try {
         ingestProjects(parseProjectsPayload(JSON.parse(ev.target.result)).projects)
-      } catch {
-        // invalid JSON — ignore
+      } catch (err) {
+        // A file this tool will not take — broken JSON, or a project from
+        // before the current model. Both say so rather than doing nothing.
+        setImportError(codedErrorText(err, 'invalid_payload'))
       }
     }
     reader.readAsText(file)
@@ -197,12 +211,6 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     }
   }
 
-  const serverErrorText = (err) => {
-    const key = `data_exchange_server_err_${err instanceof ServerError ? err.code : 'unavailable'}`
-    const text = t(key)
-    return text === key ? t('data_exchange_server_err_unavailable') : text
-  }
-
   // Only the open project goes up, and only ever as itself — the plain export
   // button writes the whole local store into one file, which is not something
   // to put on a server everyone can read.
@@ -215,7 +223,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       await reloadServerList()
       setServerStatus({ error: false, text: t('data_exchange_server_uploaded').replace('{{title}}', project.title ?? '') })
     } catch (err) {
-      setServerStatus({ error: true, text: serverErrorText(err) })
+      setServerStatus({ error: true, text: codedErrorText(err) })
     } finally {
       setServerBusy(false)
     }
@@ -228,7 +236,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     try {
       ingestProjects(parseProjectsPayload(await fetchServerProject(entry.id)).projects)
     } catch (err) {
-      setServerStatus({ error: true, text: serverErrorText(err) })
+      setServerStatus({ error: true, text: codedErrorText(err) })
     } finally {
       setServerBusy(false)
     }
@@ -244,7 +252,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       await deleteServerProject(entry.id, serverPassword)
       await reloadServerList()
     } catch (err) {
-      setServerStatus({ error: true, text: serverErrorText(err) })
+      setServerStatus({ error: true, text: codedErrorText(err) })
     } finally {
       setServerBusy(false)
     }
@@ -266,12 +274,9 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   }
 
   // Rebuild display geometry from the element scalars (native CRS per element).
-  // A file written before the vertical alignment moved onto the track brings
-  // its height points along on the elements — they are migrated here too.
   function reconstructTrack(track) {
-    const migrated = migrateTrackHeights(track)
-    const elements = reconstructElements(migrated.elements, migrated.epsg)
-    return { ...migrated, elements, coordinates: rebuildCoords(elements) }
+    const elements = reconstructElements(track.elements, track.epsg)
+    return { ...track, elements, coordinates: rebuildCoords(elements) }
   }
 
   const handleTracksImport = (e) => {
@@ -545,6 +550,11 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
             {t('data_exchange_export')}
           </button>
         </div>
+        {importError && (
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+            {importError}
+          </p>
+        )}
       </ExchangeSection>
 
       <ExchangeSection title={t('data_exchange_tracks')}>

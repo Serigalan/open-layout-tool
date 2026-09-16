@@ -831,6 +831,13 @@
   color: #aaa;
 }
 
+.start-import-error {
+  margin: 4px 0 0;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: #e74c3c;
+}
+
 .start-template-meta {
   position: relative;
   z-index: 1;

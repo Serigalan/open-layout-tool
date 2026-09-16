@@ -55,15 +55,14 @@ export function switchElementMark(sw, route) {
 }
 
 /**
- * Does this element belong to that switch? The id decides wherever both carry
- * one. An element or a record from before the id existed falls back on the name
- * comparison it was written with, so data that has not been through
- * migrateProjectSwitches still reads correctly — an import builds its records
- * before anything migrates them.
+ * Does this element belong to that switch? The id decides, and only the id —
+ * every record and every marked element carries one, and a payload that does
+ * not is refused at the door (persistenceUtils.parseProjectsPayload). The
+ * missing id is checked for explicitly: two of them absent must not read as a
+ * match and join elements of unrelated turnouts.
  */
 export function elementBelongsToSwitch(el, sw) {
-  if (el.switchId && sw.switchId) return el.switchId === sw.switchId
-  return !el.switchName || !sw.name || el.switchName === sw.name
+  return el.switchId != null && el.switchId === sw.switchId
 }
 
 /** The fields a record needs to be one of the current model, for a new record. */
@@ -71,38 +70,7 @@ export function newSwitchFields(kind = DEFAULT_SWITCH_KIND) {
   return { switchId: newSwitchId(), kind, formVersion: SWITCH_FORM_VERSION }
 }
 
-/**
- * Bring a project's switches up to the current model, in place: every record
- * gets its `switchId`, `kind` and `formVersion`, and the elements of its routes
- * get that id. Elements are matched by the name they were written with — the
- * only link the old records had — so this runs on load, before anything reads a
- * route back from the tracks.
- *
- * Idempotent: a record that already carries the fields keeps them, and an
- * element that already carries an id is left alone.
- */
-export function migrateProjectSwitches(project) {
-  const switches = project?.switches
-  if (!switches?.length) return project
-
-  const byName = new Map()
-  for (const sw of switches) {
-    if (!sw.switchId) sw.switchId = newSwitchId()
-    if (!sw.kind) sw.kind = DEFAULT_SWITCH_KIND
-    if (sw.formVersion == null) sw.formVersion = SWITCH_FORM_VERSION
-    // Two records sharing a name is the very thing the id ends. While migrating
-    // off the name there is nothing left to tell them apart by, so the first of
-    // them takes the elements and the second comes out with none — visible, and
-    // repairable, rather than silently splitting a turnout between both.
-    if (sw.name && !byName.has(sw.name)) byName.set(sw.name, sw)
-  }
-
-  for (const track of project.tracks ?? []) {
-    for (const el of track.elements ?? []) {
-      if (!el.switchBranch || el.switchId) continue
-      const sw = el.switchName ? byName.get(el.switchName) : null
-      if (sw) el.switchId = sw.switchId
-    }
-  }
-  return project
+/** Does this record carry what the model requires of it? */
+export function isModelledSwitch(sw) {
+  return Boolean(sw?.switchId) && Boolean(sw?.kind) && sw?.formVersion != null
 }
