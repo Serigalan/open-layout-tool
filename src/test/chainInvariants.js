@@ -2,6 +2,7 @@ import { expect } from 'vitest'
 import { wgs84ToUTM } from '../utils/coordinateUtils'
 import { resolveEndBearing } from '../utils/elementUtils'
 import { SAGITTA_ELEMENT, cantExceptionOf, cantLimit, worstCantOf } from '../utils/mapConstants'
+import { switchParts } from '../utils/switchDelete'
 
 /**
  * The invariants an element chain has to hold however it was built — the
@@ -93,6 +94,22 @@ export function expectSwitchCantAdmissible(elements) {
       + (cantExceptionOf(el) ? ' (on a written exception)' : ' (no justification)'))
       .toBeLessThanOrEqual(cantLimit(el))
   })
+}
+
+/**
+ * Both ends of a turnout are element boundaries: each of its two routes is made
+ * of whole elements of its own, beginning at the port's node and ending where
+ * the turnout ends. A route with no elements is the failure this guards against
+ * — the record would carry a port and nothing else, the symbol would fall back
+ * on the stem radii, and the delete rules would find a route that is not there.
+ *
+ * The far boundary needs no assertion of its own: the elements are whole, so
+ * where the last of them ends, the next element begins.
+ */
+export function expectSwitchRoutesCarved(sw, tracks) {
+  const { byPort } = switchParts(sw, tracks)
+  expect(byPort.B1.mine.length, `branch elements of ${sw.name ?? sw.switchId}`).toBeGreaterThan(0)
+  expect(byPort.B2.mine.length, `through route elements of ${sw.name ?? sw.switchId}`).toBeGreaterThan(0)
 }
 
 /** Shortest distance from a plane point to a plane polyline. */

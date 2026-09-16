@@ -137,6 +137,8 @@
   "switch_on_track_over_switch": "Die Weiche würde über eine bestehende Weiche reichen",
   "switch_on_track_kink": "Das Gleis hat unter der Weiche einen Knick",
   "switch_on_track_elements": "Elemente unter der Weiche",
+  "switch_anchor_not_track_end": "Hier endet kein Gleis – eine Weiche mitten im Gleis legt „Weiche auf Gleis“ an.",
+  "switch_anchor_no_element": "Dort liegt kein Element.",
   "switch_curved": "Bogenweiche",
   "switch_curved_hint": "Klicke auf einen Streckenendpunkt – die Weiche wird in den Bogen gelegt.",
   "switch_cant_ramp": "Überhöhung Weichenanfang → Weichenende (mm)",

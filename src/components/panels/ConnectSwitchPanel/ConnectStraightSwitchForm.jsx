@@ -23,6 +23,7 @@ import {
   SWITCH_TYPES, switchBranchLength, computeSwitchGeometryUtm, asRadius, branchRadius, bauform,
 } from '../../../utils/switchUtils'
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
+import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
 import {
   SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
   EMPTY_FC, buildLinesGeoJSON, buildFillGeoJSON,
@@ -49,6 +50,8 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
   const { fields, errors, setErrors, setField, lineNumberError }                                              = useTrackFields()
   const { fields: mainFields, errors: mainErrors, setErrors: setMainErrors, setField: setMainField, lineNumberError: mainLineNumberError } = useTrackFields()
   const [nameError, setNameError]       = useState(false)
+  // Why the last click was no place for a turnout (switchEndAnchorRefusal).
+  const [pickError, setPickError]       = useState(null)
   const [mainNameError, setMainNameError] = useState(false)
   const switchNo                        = useSwitchNumber(project.id)
   const switchName                      = switchNo.name
@@ -136,6 +139,13 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
       const track = loadTracks(project.id).find(tr => tr.id === trackId)
       const el    = track?.elements?.[Number(elementIndex)]
       if (!el) return
+      // Only where one may actually go — the preview is the answer to "here?",
+      // so it must not stand somewhere the commit would then refuse.
+      if (switchEndAnchorRefusal(track, Number(elementIndex))) {
+        m.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
+        m.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
+        return
+      }
 
       const endWgs = el.geometry.coordinates[el.geometry.coordinates.length - 1]
       const endUtm = nodeUtm(el.endNode, endWgs, track.epsg)
@@ -171,6 +181,9 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
       const track  = tracks.find(tr => tr.id === trackId)
       const el     = track?.elements?.[elIdx]
       if (!el) return
+      const refusal = switchEndAnchorRefusal(track, elIdx)
+      if (refusal) { setPickError(refusal); return }
+      setPickError(null)
 
       const endWgs = el.geometry.coordinates[el.geometry.coordinates.length - 1]
       const brg    = resolveEndBearing(el, track.epsg)
@@ -235,6 +248,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
 
   const handleCancel = () => {
     clearPreview()
+    setPickError(null)
     setPhase('select')
     onCommitted?.()
   }
@@ -489,7 +503,12 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
           name={name} onNameChange={handleNameChange} nameError={nameError} />
       </div>
 
-      {phase === 'select' && <p>{t(curved ? 'switch_curved_hint' : 'switch_hint')}</p>}
+      {phase === 'select' && (
+        <>
+          <p>{t(curved ? 'switch_curved_hint' : 'switch_hint')}</p>
+          {pickError && <p className="form-error">{t(pickError)}</p>}
+        </>
+      )}
 
       {phase === 'editing' && (
         <>

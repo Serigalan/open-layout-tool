@@ -18,6 +18,7 @@ import { joinHeights, splitHeights } from './heightUtils'
 import { switchParts, planSwitchDeletion, mergeableRun, mergeChain } from './switchDelete'
 import {
   expectValidTrack, expectNodesJoin, expectAbsLengthsRunning, expectLengthsTrue,
+  expectSwitchRoutesCarved,
 } from '../test/chainInvariants'
 
 /**
@@ -124,6 +125,9 @@ describe('switchParts', () => {
     expect(byPort.B1.mine).toHaveLength(1)
     expect(byPort.B1.beyond).toHaveLength(0)
     expect(byPort.B1.occupied).toBe(false)         // the branch is the switch itself
+
+    // The same invariant AP 1.3 holds the four dialogs to, here on the carve.
+    expectSwitchRoutesCarved(record, tracks)
   })
 
   it('does not count another switch’s elements as this one’s', () => {

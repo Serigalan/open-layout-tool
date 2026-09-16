@@ -88,10 +88,17 @@ const isPlainStraight = (el) => el.elementType !== 2 && el.radius == null
 
 // Put the switch's through route into its own elements in the half-track it runs
 // into, and hand back the split's tracks with that one replaced — same id, so
-// the remap is untouched. A half-track that cannot carry it stays as it is.
+// the remap is untouched.
+//
+// Null where the half-track cannot carry it: too little straight ahead of the
+// junction, or a curve where the route would have to lie. That is not a
+// cosmetic miss. The through route would then exist only as a port on the
+// record, with no element boundary at the switch end and nothing marked, so the
+// symbol would fall back on the stem radii and the delete rules would find a
+// route with no elements. The caller refuses the connection instead.
 function carveThrough(split, cutUtm, mark, length) {
   const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, cutUtm, mark, length, { accepts: isPlainStraight })
-  return carved ? split.tracks.map(tr => (tr.id === carved.id ? carved : tr)) : split.tracks
+  return carved ? split.tracks.map(tr => (tr.id === carved.id ? carved : tr)) : null
 }
 
 // Orient line 1 towards line 2 (the connection's initial tangent at S1).
@@ -224,6 +231,9 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
   const [speedIdx, setSpeedIdx] = useState(DEFAULT_TYPE)   // selected design speed (index into SWITCH_TYPES)
   const [shiftRaw, setShift] = useState(0)              // start-point offset along line 1 [m]
   const [pickStatus, setPickStatus] = useState(null)    // { msg, error } — selection phases only
+  // Straight the turnouts' through routes need beside the junction [m], set
+  // when the commit found too little of it (see carveThrough).
+  const [carveError, setCarveError] = useState(null)
 
   const picksRef = useRef(picks)
   const speed    = SWITCH_TYPES[speedIdx]?.speed ?? 0
@@ -433,9 +443,14 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
       branchTrackId: connTrack.id, branchEndpoint: 'END',
     })
 
-    // Each running track gets the turnout's through route as its own element.
+    // Each running track gets the turnout's through route as its own element —
+    // the element boundary at the switch end both turnouts are built on.
     const s1Tracks = carveThrough(s1, toPlane(j1.throughEnd, t1.epsg), switchElementMark(id1, 'main'), j1.throughLength)
     const s2Tracks = carveThrough(s2, toPlane(j2.throughEnd, t2.epsg), switchElementMark(id2, 'main'), j2.throughLength)
+    if (!s1Tracks || !s2Tracks) {
+      setCarveError(Math.max(j1.throughLength, j2.throughLength))
+      return
+    }
 
     commitSwitchConnection(project.id, {
       removeTrackIds: [t1.id, t2.id],
@@ -468,7 +483,7 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
 
           <div className="form-field">
             <label>{t('field_speed')}</label>
-            <select value={speedIdx} onChange={e => handleSpeedChange(Number(e.target.value))}>
+            <select value={speedIdx} onChange={e => { setCarveError(null); handleSpeedChange(Number(e.target.value)) }}>
               {SWITCH_TYPES.map((s, i) => (
                 <option key={i} value={i} disabled={connections[i] && !connections[i].valid}>
                   {s.speed} km/h
@@ -485,7 +500,7 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
           <div className="form-field">
             <label>{t('scurve_shift')}: {shift} m</label>
             <input type="range" min={shiftRange.min} max={shiftRange.max} step="1" value={shift}
-              onChange={e => setShift(Number(e.target.value))} />
+              onChange={e => { setCarveError(null); setShift(Number(e.target.value)) }} />
           </div>
         </div>
 
@@ -523,6 +538,11 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
         <p style={{ color: result?.valid ? '#5b9bd5' : '#e74c3c', fontSize: 12, marginTop: 4 }}>
           {result?.valid ? t('scurve_valid') : t(REASON_MSG[result?.reason] ?? 'scurve_invalid')}
         </p>
+        {carveError != null && (
+          <p className="form-error">
+            {t('switch_on_track_no_room').replace('{{m}}', carveError.toFixed(1))}
+          </p>
+        )}
 
         <button
           className="panel-btn panel-btn-full"

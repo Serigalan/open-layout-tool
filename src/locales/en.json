@@ -137,6 +137,8 @@
   "switch_on_track_over_switch": "The switch would reach over an existing switch",
   "switch_on_track_kink": "The track has a kink under the switch",
   "switch_on_track_elements": "Elements under the switch",
+  "switch_anchor_not_track_end": "No track ends here – a turnout inside a track is laid by “Switch on track”.",
+  "switch_anchor_no_element": "There is no element there.",
   "switch_curved": "Curved Switch",
   "switch_curved_hint": "Click a track endpoint – the switch is bent into the curve.",
   "switch_cant_ramp": "Cant switch start → switch end (mm)",

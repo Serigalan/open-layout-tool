@@ -148,3 +148,29 @@ export function placeSwitchOnTrack(track, station, reversed, length) {
     pieces, spans, endUtm, cantAt,
   }
 }
+
+/**
+ * May a turnout be attached at the far end of element `elIdx` of `track`?
+ *
+ * The two "turnout at a track end" dialogs build both of their routes as new
+ * geometry running forward from the node they are handed, and they hang the
+ * through route on the track that node belongs to: appended to it (trailing) or
+ * as the track the toe parts it from (facing). Both only hold where the node
+ * *is* the track's end. Anchored inside a track, the appended element lands
+ * behind elements it does not join — the chain breaks — and the port that
+ * records the track's END names a node somewhere else entirely.
+ *
+ * A turnout inside a track is the other dialog's job (placeSwitchOnTrack): it
+ * carves the through route out of the elements that are already there, instead
+ * of building a second set on top of them. So the refusal here is not a
+ * limitation, it is the line between the two.
+ *
+ * Returns the locale key of what is in the way, or null where a turnout may go.
+ */
+export function switchEndAnchorRefusal(track, elIdx) {
+  const els = track?.elements ?? []
+  const el  = els[elIdx]
+  if (!el) return 'switch_anchor_no_element'
+  if (elIdx !== els.length - 1) return 'switch_anchor_not_track_end'
+  return null
+}
