@@ -7,6 +7,7 @@ import {
   SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, switchArcLength, lcsLine, switchFillRing,
   switchLabelGeometry, bauform,
 } from './switchUtils'
+import { newSwitchFields, switchElementMark } from './switchModel'
 import { computeClothoidUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT } from './mapConstants'
@@ -78,10 +79,13 @@ function rebuildSwitch(sw, trackById) {
   const straightEnd = utmToWgs84(straightUtm.easting, straightUtm.northing, epsg)
   const node        = arc[0]
 
-  const name  = sw.extensions?.sncf?.label ?? sw.id
-  const label = type?.label
-  const mark  = (el) => Object.assign(el, { switchBranch: true, switchName: name, ...(label ? { switchLabel: label } : {}) })
-  mark(stored)
+  const name     = sw.extensions?.sncf?.label ?? sw.id
+  const label    = type?.label
+  // The imported record and the elements it marks share one identity from the
+  // start, so an import needs no name-matching pass to be linked up.
+  const identity = { ...newSwitchFields(), name, ...(label ? { label } : {}) }
+  const mark     = (el, route) => Object.assign(el, switchElementMark(identity, route))
+  mark(stored, 'branch')
 
   // The straight side is its own track when the switch was built onto a track
   // end: one straight element of exactly that length. Then it belongs to the
@@ -90,7 +94,7 @@ function rebuildSwitch(sw, trackById) {
   const straightEls   = straightTrack?.elements ?? []
   if (straightEls.length === 1 && straightEls[0].radius == null
       && Math.abs((straightEls[0].length ?? 0) - straightLen) < 0.001) {
-    mark(straightEls[0])
+    mark(straightEls[0], 'main')
   }
 
   const lcsCoords = type
@@ -99,8 +103,7 @@ function rebuildSwitch(sw, trackById) {
     : null
 
   return {
-    name,
-    ...(label ? { label } : {}),
+    ...identity,
     ...(arcEl.speed ? { speed: arcEl.speed } : {}),
     portA_trackId:  ports.A?.track     ?? null, portA_endpoint:  ports.A?.endpoint  ?? null,
     portB1_trackId: ports.B1.track,             portB1_endpoint: ports.B1.endpoint,

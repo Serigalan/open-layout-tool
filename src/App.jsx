@@ -79,8 +79,12 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
   const tr = (key) => translations[lang]?.[key] ?? key
   const switches = loadSwitches(project.id)
   // The switch an element belongs to, so its radius label knows which side of
-  // its own line the turnout body fills and can go to the other one.
+  // its own line the turnout body fills and can go to the other one. Keyed by
+  // id; a record still carrying only a name is reachable under that, which is
+  // what an element written before the id has to go on.
+  const switchById   = Object.fromEntries(switches.filter(sw => sw.switchId).map(sw => [sw.switchId, sw]))
   const switchByName = Object.fromEntries(switches.filter(sw => sw.name).map(sw => [sw.name, sw]))
+  const switchOf     = (el) => switchById[el.switchId] ?? switchByName[el.switchName] ?? null
 
   const lineFeatures = []
   const pointFeatures = []
@@ -112,7 +116,7 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
       const labelCoords = el.renderCoords ?? coords
       if (el.switchBranch) {
         createTrackLabel(map, labelCoords, switchElementLabel(tr, el),
-          { avoid: switchByName[el.switchName]?.bodyCentre ?? null })
+          { avoid: switchOf(el)?.bodyCentre ?? null })
       } else if (el.length) {
         let labelText
         if (el.radius != null) {

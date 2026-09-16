@@ -2,6 +2,7 @@ import {
   SCHEMA_VERSION, extractImages, hydrateProjects, dehydrateProjects,
 } from './utils/persistenceUtils'
 import { reverseElement } from './utils/elementUtils'
+import { elementBelongsToSwitch } from './utils/switchModel'
 import { reverseHeights, splitHeights, trackLength } from './utils/heightUtils'
 import * as idb from './utils/idbStorage'
 
@@ -259,15 +260,18 @@ export function deleteTrack(projectId, trackId) {
   const tracks   = project.tracks ?? []
   const switches = project.switches ?? []
 
-  const isBranchTrack = (id) => {
+  // A track that is nothing but this switch's own geometry. Asking whose
+  // geometry it is — and not merely whether it is some switch's — keeps a track
+  // two turnouts share, as a crossover's connection is, out of one of them.
+  const isBranchTrack = (id, sw) => {
     const tr = tracks.find(t => t.id === id)
     const els = tr?.elements ?? []
-    return els.length > 0 && els.every(el => el.switchBranch)
+    return els.length > 0 && els.every(el => el.switchBranch && elementBelongsToSwitch(el, sw))
   }
 
   const doomed  = new Set(switches.filter(sw => PORT_IDS.some(k => sw[k] === trackId)))
   const removed = new Set([trackId])
-  doomed.forEach(sw => PORT_IDS.forEach(k => { if (sw[k] && isBranchTrack(sw[k])) removed.add(sw[k]) }))
+  doomed.forEach(sw => PORT_IDS.forEach(k => { if (sw[k] && isBranchTrack(sw[k], sw)) removed.add(sw[k]) }))
 
   project.tracks   = tracks.filter(t => !removed.has(t.id))
   project.switches = switches.filter(sw => !doomed.has(sw))
@@ -421,7 +425,10 @@ export function addElementToTrack(projectId, trackId, element) {
   const prevAbsLength = elements.length > 0 ? (elements[elements.length - 1].absLength ?? elements[elements.length - 1].length) : 0
   const elementWithAbs = { ...element, absLength: prevAbsLength + element.length }
   track.elements = [...elements, elementWithAbs]
-  const coords = elementWithAbs.geometry?.coordinates
+  // The same polyline rebuildCoords and the reload take, which is the coarse one
+  // wherever the element carries it: appending the fine one instead left the
+  // track drawn at one density until a reload replaced it with the other.
+  const coords = elementWithAbs.renderCoords ?? elementWithAbs.geometry?.coordinates
   if (coords && coords.length > 0) {
     track.coordinates = [...(track.coordinates ?? []), ...coords.slice(1)]
   }

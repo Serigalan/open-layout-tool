@@ -19,8 +19,9 @@ import {
   roundCant, CANT_STEP, MAX_CANT, MAX_SWITCH_CANT_DEF,
 } from '../../../utils/mapConstants'
 import {
-  SWITCH_TYPES, switchArcLength, computeSwitchGeometryUtm, asRadius, branchRadius, bauform,
+  SWITCH_TYPES, switchBranchLength, computeSwitchGeometryUtm, asRadius, branchRadius, bauform,
 } from '../../../utils/switchUtils'
+import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import {
   SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
   EMPTY_FC, buildLinesGeoJSON, buildFillGeoJSON,
@@ -276,6 +277,10 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
     // the raised rail, so it turns with the direction.
     const mainCant = trailing ? -cant : cant
 
+    // The identity the record and the elements of both routes share: the id ties
+    // them together, and it has to exist before the first element is marked.
+    const identity = { ...newSwitchFields(), name: switchName, label: sw.label }
+
     const straightEl = {
       elementType:  mainSignedR ? 1 : 0,
       startNode:    sv.startNode,
@@ -283,10 +288,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
       bearing:      sv.bearing,
       length:       sv.length,
       absLength:    sv.length,
-      switchBranch: true,
-      switchRoute:  'main',
-      switchName,
-      switchLabel:  sw.label,
+      ...switchElementMark(identity, 'main'),
       ...(mainSignedR ? { endBearing: sv.endBearing, radius: mainSignedR, cant: mainCant } : {}),
       geometry:     { type: 'LineString', coordinates: straightCoords },
     }
@@ -297,10 +299,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
       bearing:      cv.bearing,
       length:       cv.length,
       absLength:    cv.length,
-      switchBranch: true,
-      switchRoute:  'branch',
-      switchName,
-      switchLabel:  sw.label,
+      ...switchElementMark(identity, 'branch'),
       ...(signedR ? { endBearing: cv.endBearing, radius: signedR } : {}),
       cant,
       geometry:     { type: 'LineString', coordinates: arcCoords },
@@ -345,9 +344,8 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
     saveTrack(project.id, curvedTrack)
 
     saveSwitch(project.id, {
+      ...identity,
       number:         switchNo.number,
-      name:           switchName,
-      label:          sw.label,
       trailing,
       speed,
       // Stem radius of a bent switch, signed away from the node — the frame the
@@ -377,7 +375,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
     onCommitted?.()
   }
 
-  const arcLen  = switchArcLength(currentSw.R, currentSw.ratio)
+  const arcLen  = switchBranchLength(currentSw)
   // Deficiency per route. Bent, the two share one cant that only one of them is
   // banked for, so the sign of the cant is read against each rather than dropped.
   const cantDef = curved ? computeCantDefSigned(speed, branchSignedR, cant)

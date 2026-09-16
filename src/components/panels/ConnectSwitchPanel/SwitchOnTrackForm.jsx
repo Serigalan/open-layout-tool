@@ -9,8 +9,9 @@ import { wgs84ToUTM, utmToWgs84 } from '../../../utils/coordinateUtils'
 import { projectOnTransitionUtm } from '../../../utils/clothoidUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
-  SWITCH_TYPES, switchArcLength, switchStraightLength, computeSwitchGeometryUtm, asRadius, switchRouteVaries,
+  SWITCH_TYPES, switchBranchLength, switchStraightLength, computeSwitchGeometryUtm, asRadius, switchRouteVaries,
 } from '../../../utils/switchUtils'
+import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { placeSwitchOnTrack } from '../../../utils/switchPlacement'
 import { trackLength } from '../../../utils/heightUtils'
 import { buildTypeFields } from '../../../utils/identifierUtils'
@@ -148,7 +149,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
   const sw    = SWITCH_TYPES[switchTypeIdx]
   const toeStation  = Number(station)
   const straightLen = switchStraightLength(sw.R, sw.ratio)
-  const arcLen      = switchArcLength(sw.R, sw.ratio)
+  const arcLen      = switchBranchLength(sw)
 
   // Where the turnout lies and the geometry it produces — derived, so the
   // preview and the commit always agree. Everything is read in the track's own
@@ -253,7 +254,10 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
     // in that track — as the elements it covers, the last one cut at the switch
     // end, all marked like the branch. A switch is its two routes everywhere it
     // is built.
-    const mainMark = { switchBranch: true, switchRoute: 'main', switchName, switchLabel: sw.label }
+    // The identity the record and the elements of both routes share: the id ties
+    // them together, and it has to exist before the first element is marked.
+    const identity = { ...newSwitchFields(), name: switchName, label: sw.label }
+    const mainMark = switchElementMark(identity, 'main')
     const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, place.endUtm, mainMark, straightLen)
     if (!carved) {
       setErrors([t('switch_on_track_no_room').replace('{{m}}', straightLen.toFixed(1))])
@@ -282,7 +286,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
         : constantBranchElement(seg, plain ? cant : place.cantAt(seg.s0, i))
       return {
         ...base,
-        switchBranch: true, switchRoute: 'branch', switchName, switchLabel: sw.label,
+        ...switchElementMark(identity, 'branch'),
         geometry: { type: 'LineString', coordinates: seg.coords },
       }
     }))
@@ -299,7 +303,8 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
     // The record keeps only the ports: both routes are read back from the
     // tracks' marked elements (switchRoutesFromTracks).
     const switchRecord = {
-      number: switchNo.number, name: switchName, label: sw.label, trailing: false, speed,
+      ...identity,
+      number: switchNo.number, trailing: false, speed,
       portA_trackId:  split.behind.id, portA_endpoint:  split.behindEndpoint,
       portB1_trackId: branchId,        portB1_endpoint: 'BEGIN',
       portB2_trackId: split.ahead.id,  portB2_endpoint: split.aheadEndpoint,

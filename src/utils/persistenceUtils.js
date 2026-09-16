@@ -2,6 +2,7 @@ import { reconstructElements } from './elementReconstruct'
 import { rebuildSwitchSymbol } from './switchUtils'
 import { rebuildPlatformSymbol } from './platformUtils'
 import { migrateTrackHeights } from './heightUtils'
+import { migrateProjectSwitches } from './switchModel'
 
 /**
  * Persisted store format:
@@ -29,9 +30,16 @@ import { migrateTrackHeights } from './heightUtils'
  *   – project images live outside the records (own IndexedDB store).
  *
  * Export files embed images so they stay self-contained:
- *   { version: 1, projects: [...] }
+ *   { version: 2, projects: [...] }
+ *
+ * Version 2 gave every switch record a `switchId`, a `kind` and the
+ * `formVersion` of the form table it was built against, and wrote that id onto
+ * the elements of its routes (see switchModel). Older records are migrated on
+ * load by the absence of those fields rather than by the stated version — the
+ * store is read field by field and a record can reach hydrateProjects from an
+ * import that states no version at all.
  */
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 /** Remove embedded images from projects; returns them as [{ id, image }]. */
 export function extractImages(projects) {
@@ -71,6 +79,9 @@ export function hydrateProjects(projects) {
       track.elements    = reconstructElements(track.elements, track.epsg)
       track.coordinates = buildTrackCoords(track.elements)
     }
+    // Before the symbols: rebuilding one reads its routes back off the tracks,
+    // and which elements answer for it is what the migration settles.
+    migrateProjectSwitches(p)
     if (p.switches || p.platforms) {
       const byId = Object.fromEntries((p.tracks ?? []).map(t => [t.id, t]))
       if (p.switches)  p.switches  = p.switches.map(sw => rebuildSwitchSymbol(sw, byId))

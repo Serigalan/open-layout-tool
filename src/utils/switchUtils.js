@@ -4,6 +4,7 @@ import {
   transitionPointAtUtm, transitionBearingAtUtm, sampleTransitionUtm, projectOnTransitionUtm,
   clothoidRadiusAt, curvatureOf, radiusOfCurvature,
 } from './clothoidUtils'
+import { elementBelongsToSwitch } from './switchModel'
 
 // minl = minimum intermediate straight between two turnouts in a crossover [m].
 // Primary table — checked first by the switch-connection calculation.
@@ -34,6 +35,7 @@ export function switchTypeByLabel(label) {
   return [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2].find(t => t.label === label) ?? null
 }
 
+/** Length of the arc a form turns its frog angle through. */
 export function switchArcLength(R, ratio) {
   return R * Math.atan(1 / ratio)
 }
@@ -42,10 +44,54 @@ export function switchArcLength(R, ratio) {
  * Length of the through route of a switch form — the tangent polygon from the
  * toe to the switch end. A bent switch keeps it: bending moves no sleeper, it
  * only lays the same length on the stem's curvature instead of on a straight.
+ *
+ * This is the symmetric tangent construction, and it is the through length of a
+ * branch that is a single arc — every form the tables above hold. A form whose
+ * branch ends in a straight piece does not close on that construction, so its
+ * through length has to be taken from the form's own drawing instead of derived
+ * here; adding the first such form means answering that question first.
  */
 export function switchStraightLength(R, ratio) {
   const arcLen = switchArcLength(R, ratio)
   return 2 * R * Math.tan(arcLen / (2 * R))
+}
+
+/**
+ * The branch of a form as the sequence of sections it is built from — each
+ * `{ type, R, length }`, with `R: null` for a straight one.
+ *
+ * Every form in the tables above is one arc from the toe to its frog angle, so
+ * its sequence is that single arc and every helper here gives exactly the result
+ * it gave when a form *was* one arc. A form may state a `branch` of its own
+ * instead, which is what the sequence exists for: the forms that end in a
+ * straight piece are written `[{ type:'arc', R }, { type:'straight', length }]`.
+ */
+export function switchBranchSections(type) {
+  if (!type.branch) {
+    return [{ type: 'arc', R: type.R, length: switchArcLength(type.R, type.ratio) }]
+  }
+  return type.branch.map((section) => {
+    if (section.type === 'straight') return { type: 'straight', R: null, length: section.length }
+    const R = section.R ?? type.R
+    return { type: 'arc', R, length: switchArcLength(R, section.ratio ?? type.ratio) }
+  })
+}
+
+/** Length of the whole branch — how far from the toe the turnout's own geometry reaches. */
+export function switchBranchLength(type) {
+  return switchBranchSections(type).reduce((sum, section) => sum + section.length, 0)
+}
+
+/**
+ * The form's branch as a chain of `{ length, signedR }`, signed by the side the
+ * turnout diverges to — the shape switchBranchChain lays onto a stem.
+ */
+export function switchFormChain(type, side) {
+  const sign = side === 'left' ? -1 : 1
+  return switchBranchSections(type).map(section => ({
+    length:  section.length,
+    signedR: section.R == null ? null : sign * section.R,
+  }))
 }
 
 /**
@@ -169,10 +215,13 @@ export function switchRouteSlice(route, a, b) {
  */
 export function switchBranchRoute(formSignedR, stem, length) {
   if (!switchRouteVaries(stem)) {
-    const r = branchRadius(formSignedR, stem.r1)
+    // A straight section of the form adds no curvature of its own, so over it
+    // the branch takes the stem's: laid in a curve, a straight end piece curves
+    // with the track it is bent into.
+    const r = formSignedR ? branchRadius(formSignedR, stem.r1) : stem.r1
     return { length, r1: r, r2: r }
   }
-  const kForm = 1 / formSignedR
+  const kForm = formSignedR ? 1 / formSignedR : 0
   const k1    = curvatureOf(stem.r1)
   const kEnd  = k1 + (curvatureOf(stem.r2) - k1) * length / stem.length
   return { length, r1: radiusOfCurvature(k1 + kForm), r2: radiusOfCurvature(kEnd + kForm) }
@@ -275,14 +324,55 @@ export function switchChainBearingAt(bearing, chain, s = null) {
   return b
 }
 
+/** Below this an overlap is float noise at a section boundary, not a piece [m]. */
+const SLICE_EPS = 1e-9
+
+/**
+ * The pieces of a chain between the stations `a` and `b` along it, cut where the
+ * chain's own pieces part. A clothoid piece keeps its parameter
+ * (switchRouteSlice), so a piece of one is a clothoid of the same.
+ */
+export function switchChainSlice(chain, a, b) {
+  const out = []
+  let s0 = 0
+  for (const piece of toChain(chain)) {
+    const s1   = s0 + piece.length
+    const from = Math.max(a, s0)
+    const to   = Math.min(b, s1)
+    if (to - from > SLICE_EPS) out.push(switchRouteSlice(piece, from - s0, to - s0))
+    s0 = s1
+  }
+  return out
+}
+
 /**
  * Branch of a switch whose through route, running from the toe, is the chain
- * `stem`: its first `length` metres, each piece offset by the form's curvature
- * as switchBranchRoute does for one. The branch's pieces part where the stem's
- * do — where the elements under the turnout part.
+ * `stem`. The form is given as its own chain (switchFormChain) — one entry per
+ * section, each with its length and signed radius — and each piece of the branch
+ * takes the curvature of both: κ_branch = κ_stem + κ_form, as switchBranchRoute
+ * does for one.
+ *
+ * So the branch parts wherever *either* side parts: where the elements under the
+ * turnout part, and where the form's sections do. A form of a single arc — every
+ * one the tables hold — has no interior boundary of its own, and the branch then
+ * parts exactly where the stem's elements do.
  */
-export function switchBranchChain(formSignedR, stem, length) {
-  return switchChainTo(stem, length).map(piece => switchBranchRoute(formSignedR, piece, piece.length))
+export function switchBranchChain(formChain, stem) {
+  const sections = Array.isArray(formChain) ? formChain : [formChain]
+  const total    = sections.reduce((sum, section) => sum + section.length, 0)
+  // Taken to the form's own dimension first, so a stem chain that adds up a hair
+  // short of it (float noise off the elements) is made up on its last piece
+  // rather than leaving the branch short.
+  const onStem = switchChainTo(stem, total)
+  const out = []
+  let s = 0
+  for (const section of sections) {
+    for (const piece of switchChainSlice(onStem, s, s + section.length)) {
+      out.push(switchBranchRoute(section.signedR, piece, piece.length))
+    }
+    s += section.length
+  }
+  return out
 }
 
 /**
@@ -643,7 +733,7 @@ function routeElements(sw, trackById, port, route, length, { first = false } = {
     if (length == null ? out.length > 0 : total >= length - SWITCH_CHAIN_TOL) break
     const mine = el.switchBranch
       && (!el.switchRoute || el.switchRoute === route)
-      && (!el.switchName || !sw.name || el.switchName === sw.name)
+      && elementBelongsToSwitch(el, sw)
     if (!mine && !(first && out.length === 0)) break
     if (!(el.length > 0)) break
     out.push(endpoint === 'END' ? reverseElement(el) : el)
@@ -672,7 +762,7 @@ export function switchRoutesFromTracks(sw, trackById) {
   const branchTrack = trackById[sw.portB1_trackId]
   const type = switchTypeByLabel(sw.label)
   const branchEls = routeElements(sw, trackById, 'B1', 'branch',
-    type ? switchArcLength(type.R, type.ratio) : null, { first: true })
+    type ? switchBranchLength(type) : null, { first: true })
   const first = branchEls[0]
   if (!first || !(first.length > 0) || !first.startNode || !first.endNode) return null
   const last = branchEls[branchEls.length - 1]
@@ -790,9 +880,9 @@ export function computeSwitchGeometry(startWgs, bearing, sw, side, trailing, crs
  * `branchEndBearing` is the branch's tangent at its end.
  */
 export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, startWgs = null, mainR = null) {
-  const arcLen      = switchArcLength(sw.R, sw.ratio)
+  const formChain   = switchFormChain(sw, side)
+  const arcLen      = switchBranchLength(sw)
   const straightLen = switchStraightLength(sw.R, sw.ratio)
-  const formR       = side === 'left' ? -sw.R : sw.R
   // The through route along `bearing`: straight, an arc, a piece of clothoid or
   // a chain of such pieces.
   const stem = Array.isArray(mainR)
@@ -818,7 +908,7 @@ export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, 
     ? [...stem].reverse().map(p => ({ length: p.length, r1: negR(p.r2), r2: negR(p.r1) }))
     : stem
   const stemAtToe    = stemChain[0].r1
-  const branchChain  = switchBranchChain(formR, stemChain, arcLen)
+  const branchChain  = switchBranchChain(formChain, stemChain)
   const signedR      = branchChain[0].r1
   const curvedUtm    = switchChainPointUtm(arcOriginUtm, curveBearing, branchChain)
 

@@ -3,6 +3,7 @@ import { loadTracks, loadSwitches, commitSwitchConnection, generateId, nextTrack
 import { resolveEndBearing, nodeUtm, projectOnBearingUtm, endPointStraightUtm } from '../../../utils/elementUtils'
 import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../../../utils/coordinateUtils'
 import { computeSwitchGeometryUtm } from '../../../utils/switchUtils'
+import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { switchDesignation, nextSwitchNumber } from '../../../utils/identifierUtils'
 import { splitElementAt, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
@@ -54,6 +55,7 @@ const DEFAULT_TYPE = Math.max(0, SWITCH_TYPES.findIndex(s => s.R === 1200))
 // `throughEnd` comes back with it: the switch end on the running track, where
 // that track has to be parted so the turnout's through route is its own element.
 function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, branchUtm, sw, speed, switchNumber,
+                               identity,
                                behindTrackId, behindEndpoint, aheadTrackId, aheadEndpoint,
                                branchTrackId, branchEndpoint }) {
   const tE = Math.sin(tangentBearing * DEG2RAD), tN = Math.cos(tangentBearing * DEG2RAD)
@@ -69,7 +71,8 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, branchUtm, sw,
     throughEnd: geom.straightUtm,
     throughLength: geom.straightLen,
     record: {
-      number: switchNumber, name: switchDesignation(switchNumber), label: sw.label, trailing: false, speed,
+      ...identity,
+      number: switchNumber, trailing: false, speed,
       portA_trackId:  behindTrackId,  portA_endpoint:  behindEndpoint,
       portB1_trackId: branchTrackId,  portB1_endpoint: branchEndpoint,
       portB2_trackId: aheadTrackId,   portB2_endpoint: aheadEndpoint,
@@ -391,17 +394,20 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
     const existing = loadSwitches(project.id)
     const no1 = nextSwitchNumber(existing)
     const no2 = nextSwitchNumber(existing, [no1])
+    // The identity each record shares with the elements of its two routes: the
+    // id ties them together, and it has to exist before the first element is
+    // marked — which here is before either record is built.
+    const id1 = { ...newSwitchFields(), name: switchDesignation(no1), label: swType.label }
+    const id2 = { ...newSwitchFields(), name: switchDesignation(no2), label: swType.label }
 
     // Connection track (S1 → S2): branch arc + middle element + branch arc. The
     // two arcs are the turnouts' own branches — fixed length, marked as such —
     // while the element between them is ordinary track.
     const { arc1El, midEl, arc2El } = buildConnectionElements(res, speed)
-    const branchMark = (number) => ({
-      switchBranch: true, switchRoute: 'branch',
-      switchName: switchDesignation(number), switchLabel: swType.label,
-    })
     const connElements = recalcAbsLengths([
-      { ...arc1El, ...branchMark(no1) }, midEl, { ...arc2El, ...branchMark(no2) },
+      { ...arc1El, ...switchElementMark(id1, 'branch') },
+      midEl,
+      { ...arc2El, ...switchElementMark(id2, 'branch') },
     ])
     const connTrack = {
       id:          generateId(),
@@ -414,26 +420,22 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
     // The connection track runs S1 → S2, so it begins at switch 1 and ends at switch 2.
     const j1 = buildJunctionSwitch({
       jWgs: res.tp1Wgs, jNode: [res.TP1.easting, res.TP1.northing], zone,
-      tangentBearing: b1, branchUtm: res.B1E, sw: swType, speed, switchNumber: no1,
+      tangentBearing: b1, branchUtm: res.B1E, sw: swType, speed, switchNumber: no1, identity: id1,
       behindTrackId: s1.behind.id, behindEndpoint: s1.behindEndpoint,
       aheadTrackId:  s1.ahead.id,  aheadEndpoint:  s1.aheadEndpoint,
       branchTrackId: connTrack.id, branchEndpoint: 'BEGIN',
     })
     const j2 = buildJunctionSwitch({
       jWgs: res.tp2Wgs, jNode: [res.TP2.easting, res.TP2.northing], zone,
-      tangentBearing: b2, branchUtm: res.B2A, sw: swType, speed, switchNumber: no2,
+      tangentBearing: b2, branchUtm: res.B2A, sw: swType, speed, switchNumber: no2, identity: id2,
       behindTrackId: s2.behind.id, behindEndpoint: s2.behindEndpoint,
       aheadTrackId:  s2.ahead.id,  aheadEndpoint:  s2.aheadEndpoint,
       branchTrackId: connTrack.id, branchEndpoint: 'END',
     })
 
     // Each running track gets the turnout's through route as its own element.
-    const mainMark = (number) => ({
-      switchBranch: true, switchRoute: 'main',
-      switchName: switchDesignation(number), switchLabel: swType.label,
-    })
-    const s1Tracks = carveThrough(s1, toPlane(j1.throughEnd, t1.epsg), mainMark(no1), j1.throughLength)
-    const s2Tracks = carveThrough(s2, toPlane(j2.throughEnd, t2.epsg), mainMark(no2), j2.throughLength)
+    const s1Tracks = carveThrough(s1, toPlane(j1.throughEnd, t1.epsg), switchElementMark(id1, 'main'), j1.throughLength)
+    const s2Tracks = carveThrough(s2, toPlane(j2.throughEnd, t2.epsg), switchElementMark(id2, 'main'), j2.throughLength)
 
     commitSwitchConnection(project.id, {
       removeTrackIds: [t1.id, t2.id],

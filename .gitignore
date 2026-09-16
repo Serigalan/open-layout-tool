@@ -24,9 +24,15 @@ npm-debug.log*
 # Vite cache
 .vite/
 
+# Test output
+coverage/
+
 # Scratch dirs for verification harnesses
 .tmp-*/
 
 # Server store — deployed to the server separately, not part of this repo
 api/
 tools/make-api-config.sh
+
+# Roadmap — planning document, not part of the published tool
+ROADMAP.md

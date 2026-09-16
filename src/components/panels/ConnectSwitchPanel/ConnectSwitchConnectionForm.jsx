@@ -15,7 +15,8 @@ import SwitchNumberField from './SwitchNumberField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
 import { HIT_TOLERANCE, computeSwitchCant, computeCantDef, roundCant, CANT_STEP, MAX_CANT, MAX_SWITCH_CANT_DEF } from '../../../utils/mapConstants'
-import { SWITCH_TYPES, switchArcLength, computeSwitchGeometryUtm } from '../../../utils/switchUtils'
+import { SWITCH_TYPES, switchBranchLength, computeSwitchGeometryUtm } from '../../../utils/switchUtils'
+import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import {
   SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
   EMPTY_FC, buildLinesGeoJSON, buildFillGeoJSON,
@@ -212,6 +213,10 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
     const sv = computeStraightValuesUtm(startUtm, straightUtm)
     const cv = computeCurvedValuesUtm(arcOriginUtm, curvedUtm, signedR)
 
+    // The identity the record and the elements of both routes share: the id ties
+    // them together, and it has to exist before the first element is marked.
+    const identity = { ...newSwitchFields(), name: switchName, label: sw.label }
+
     const straightEl = {
       elementType:  0,
       startNode:    sv.startNode,
@@ -219,10 +224,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
       bearing:      sv.bearing,
       length:       sv.length,
       absLength:    sv.length,
-      switchBranch: true,
-      switchRoute:  'main',
-      switchName,
-      switchLabel:  sw.label,
+      ...switchElementMark(identity, 'main'),
       geometry:     { type: 'LineString', coordinates: straightCoords },
     }
     const curvedEl = {
@@ -232,10 +234,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
       bearing:      cv.bearing,
       length:       cv.length,
       absLength:    cv.length,
-      switchBranch: true,
-      switchRoute:  'branch',
-      switchName,
-      switchLabel:  sw.label,
+      ...switchElementMark(identity, 'branch'),
       endBearing:   cv.endBearing,
       radius:       signedR,
       cant,
@@ -278,9 +277,8 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
     saveTrack(project.id, curvedTrack)
 
     saveSwitch(project.id, {
+      ...identity,
       number:         switchNo.number,
-      name:           switchName,
-      label:          sw.label,
       trailing,
       speed,
       // Node position: the toe (facing) resp. the far end of the appended
@@ -308,7 +306,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
   }
 
   const currentSw = SWITCH_TYPES[switchTypeIdx]
-  const arcLen    = switchArcLength(currentSw.R, currentSw.ratio)
+  const arcLen    = switchBranchLength(currentSw)
 
   return (
     <>
