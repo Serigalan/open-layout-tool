@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitSwitchConnection, generateId, nextTrackName, rebuildCoords, recalcAbsLengths } from '../../../storage'
-import { resolveEndBearing, nodeUtm, projectOnBearingUtm, endPointStraightUtm } from '../../../utils/elementUtils'
+import {
+  nodeUtm, projectOnArcUtm, bearingAfterUtm, endPointStraightUtm, endPointCurvedUtm,
+} from '../../../utils/elementUtils'
 import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../../../utils/coordinateUtils'
 import { computeSwitchGeometryUtm } from '../../../utils/switchUtils'
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
@@ -8,6 +10,7 @@ import { switchDesignation, nextSwitchNumber } from '../../../utils/identifierUt
 import { splitElementAt, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
   SWITCH_TYPES, computeSwitchConnections, solveSwitchConnection, buildConnectionElements,
+  orientStemToward,
 } from '../../../utils/switchConnectionUtils'
 import { HIT_TOLERANCE, ZOOM_LINE_WIDTH } from '../../../utils/mapConstants'
 import useTrackHover from '../../../hooks/useTrackHover'
@@ -55,16 +58,19 @@ const DEFAULT_TYPE = Math.max(0, SWITCH_TYPES.findIndex(s => s.R === 1200))
 // `throughEnd` comes back with it: the switch end on the running track, where
 // that track has to be parted so the turnout's through route is its own element.
 function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, branchUtm, sw, speed, switchNumber,
-                               identity,
+                               identity, stemR = null,
                                behindTrackId, behindEndpoint, aheadTrackId, aheadEndpoint,
                                branchTrackId, branchEndpoint }) {
   const tE = Math.sin(tangentBearing * DEG2RAD), tN = Math.cos(tangentBearing * DEG2RAD)
   const crossSign = (p) => Math.sign(tE * (p.northing - jNode[1]) - tN * (p.easting - jNode[0]))
   const target = crossSign(branchUtm)
   const jUtm = { easting: jNode[0], northing: jNode[1], zone }
-  let geom = computeSwitchGeometryUtm(jUtm, tangentBearing, sw, 'left', false, jWgs)
+  // `stemR` bends the turnout into the track it is laid in: both of its routes
+  // take that curvature on top of their own, so in a curve the symbol follows
+  // the track instead of standing beside it.
+  let geom = computeSwitchGeometryUtm(jUtm, tangentBearing, sw, 'left', false, jWgs, stemR)
   for (const side of ['left', 'right']) {
-    const g  = computeSwitchGeometryUtm(jUtm, tangentBearing, sw, side, false, jWgs)
+    const g  = computeSwitchGeometryUtm(jUtm, tangentBearing, sw, side, false, jWgs, stemR)
     if (crossSign(g.curvedUtm) === target) { geom = g; break }
   }
   return {
@@ -73,6 +79,9 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, branchUtm, sw,
     record: {
       ...identity,
       number: switchNumber, trailing: false, speed,
+      // The stem radius at the toe, so a reload can rebuild a bent symbol even
+      // where the marked elements cannot be read back.
+      ...(geom.stemAtToe ? { mainRadius: geom.stemAtToe } : {}),
       portA_trackId:  behindTrackId,  portA_endpoint:  behindEndpoint,
       portB1_trackId: branchTrackId,  portB1_endpoint: branchEndpoint,
       portB2_trackId: aheadTrackId,   portB2_endpoint: aheadEndpoint,
@@ -82,9 +91,11 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, branchUtm, sw,
   }
 }
 
-// A connection joins straights, and its turnouts' through routes are straight:
-// they may lie on straights only, however many the running track is made of.
-const isPlainStraight = (el) => el.elementType !== 2 && el.radius == null
+// A turnout of the connection is laid into one element of its track — straight
+// or curved, the construction bends it either way (AP 2.1). A transition is not
+// one: its curvature runs, so the turnout over it has no single stem radius and
+// its branch would be a clothoid rather than the arc this builds (AP 2.2).
+const isPlainElement = (el) => el.elementType !== 2
 
 // Put the switch's through route into its own elements in the half-track it runs
 // into, and hand back the split's tracks with that one replaced — same id, so
@@ -97,15 +108,8 @@ const isPlainStraight = (el) => el.elementType !== 2 && el.radius == null
 // symbol would fall back on the stem radii and the delete rules would find a
 // route with no elements. The caller refuses the connection instead.
 function carveThrough(split, cutUtm, mark, length) {
-  const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, cutUtm, mark, length, { accepts: isPlainStraight })
+  const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, cutUtm, mark, length, { accepts: isPlainElement })
   return carved ? split.tracks.map(tr => (tr.id === carved.id ? carved : tr)) : null
-}
-
-// Orient line 1 towards line 2 (the connection's initial tangent at S1).
-function orientB1(g1, p1, p2) {
-  const toward = (p2.easting - p1.easting) * Math.sin(g1.bearing * DEG2RAD) +
-                 (p2.northing - p1.northing) * Math.cos(g1.bearing * DEG2RAD)
-  return toward < 0 ? (g1.bearing + 180) % 360 : g1.bearing
 }
 
 // A plane point expressed in another CRS plane (as it is when already there).
@@ -114,68 +118,85 @@ function toPlane(p, crs) {
   return wgs84ToUTM(utmToWgs84(p.easting, p.northing, p.zone), crs)
 }
 
-// Project pick 2 into pick 1's native plane (point + grid bearing). All solver
-// math runs in line 1's CRS; a second track in another CRS gets converted.
-function pick2InPlane(g1, g2) {
-  const p2 = toPlane(g2.pointUtm, g1.zone)
-  let b2 = g2.bearing
-  if (Number(g2.zone) !== Number(g1.zone)) {
-    b2 = transformGridBearing(g2.pointUtm.easting, g2.pointUtm.northing, g2.bearing, g2.zone, g1.zone)
+// Pick 2 expressed in pick 1's native plane. All solver math runs in line 1's
+// CRS; a second track in another CRS gets its point and its grid bearing
+// converted. The radius is carried across as it stands — the two grids differ in
+// scale by parts in ten thousand, which over a turnout is microns.
+function stemInPlane(g, crs) {
+  if (Number(g.zone) === Number(crs)) return { pointUtm: g.pointUtm, bearing: g.bearing, radius: g.radius, cant: g.cant }
+  return {
+    pointUtm: toPlane(g.pointUtm, crs),
+    bearing: transformGridBearing(g.pointUtm.easting, g.pointUtm.northing, g.bearing, g.zone, crs),
+    radius: g.radius,
+    cant: g.cant,
   }
-  return { p2, b2 }
+}
+
+// The two picks as the solver takes them: both in line 1's plane, line 1 turned
+// towards line 2 (which turns its curvature and its cant with it).
+function stems(picks) {
+  const [g1, g2] = picks
+  const zone = g1.zone
+  const s2 = stemInPlane(g2, zone)
+  return { g1: orientStemToward(stemInPlane(g1, zone), s2.pointUtm), g2: s2 }
 }
 
 // Solve the connection geometry for a given shift (pure — no React state).
 function solveConnection({ picks, speed, shift }) {
   const [g1, g2] = picks
   if (!g1 || !g2 || !speed) return null
-  const p1 = g1.pointUtm
-  const { p2, b2 } = pick2InPlane(g1, g2)
-  return solveSwitchConnection(p1, orientB1(g1, p1, p2), p2, b2, speed, shift)
+  const { g1: a, g2: b } = stems(picks)
+  return solveSwitchConnection(a, b, speed, shift)
 }
 
 // Why a shift has no connection, in the words the panel shows.
 const REASON_MSG = {
-  no_solution: 'scurve_no_solution',
-  too_short:   'scurve_too_short',
-  too_sharp:   'scurve_too_sharp',
+  no_solution:      'scurve_no_solution',
+  too_short:        'scurve_too_short',
+  too_sharp:        'scurve_too_sharp',
+  branch_too_sharp: 'scurve_branch_too_sharp',
+  cant_mismatch:    'scurve_cant_mismatch',
+  cant_over:        'scurve_cant_over',
 }
 
-// Endpoints of a track's clicked element, projected into the given CRS plane.
-function segmentEndsUtm(track, elIdx, crs) {
-  const el     = track.elements[elIdx]
-  const coords = el.geometry.coordinates
-  return {
-    a: toPlane(nodeUtm(el.startNode, coords[0], track.epsg), crs),
-    b: toPlane(nodeUtm(el.endNode, coords[coords.length - 1], track.epsg), crs),
-  }
+/** Below this a turnout still counts as lying on its element [m]. */
+const FIT_TOL = 1e-6
+
+/**
+ * Does the turnout fit inside the element it was picked on? Its stem has to be
+ * one element's worth of geometry — that is what makes the branch a single arc
+ * and lets the through route be carved out of one element — so the whole of its
+ * through route has to lie between that element's two nodes.
+ *
+ * `toe` is the toe's station along the element, `dir` which way the connection
+ * runs along it (+1 with the element, −1 against), and `opening` which way the
+ * turnout opens from its toe: with the connection for the first one, against it
+ * for the second, whose toe is the far end of the crossover.
+ */
+function turnoutOnElement(pick, toe, dir, opening, throughLength) {
+  const far = toe + dir * opening * throughLength
+  return Math.min(toe, far) >= -FIT_TOL && Math.max(toe, far) <= pick.elLength + FIT_TOL
 }
 
-// Is the UTM point within the segment [a, b] (projection parameter in [0, 1])?
-function inSegment(pt, a, b) {
-  const dE = b.easting - a.easting, dN = b.northing - a.northing
-  const denom = dE * dE + dN * dN
-  if (denom === 0) return false
-  const tt = ((pt.easting - a.easting) * dE + (pt.northing - a.northing) * dN) / denom
-  return tt >= -1e-9 && tt <= 1 + 1e-9
+/** Which way the connection runs along the first picked element (+1 with it, −1 against). */
+function direction1(picks) {
+  const { g1 } = stems(picks)
+  return Math.abs(((g1.bearing - picks[0].bearing + 540) % 360) - 180) < 90 ? 1 : -1
 }
 
-// Shift range [min, max] (metres) for which S1 stays on segment 1 AND the
-// resulting S2 stays on segment 2. S1 is analytic; S2 follows the geometry, so we
-// walk the solver outward from shift 0 until S2 leaves its segment (or the
-// geometry stops being valid). The valid region is a single interval around 0.
-function computeShiftBounds({ picks, speed, t1Track, t2Track }) {
-  const [g1, g2] = picks
-  const p1 = g1.pointUtm
-  const { p2 } = pick2InPlane(g1, g2)
-  const b1 = orientB1(g1, p1, p2)
-  const b1E = Math.sin(b1 * DEG2RAD), b1N = Math.cos(b1 * DEG2RAD)
-  const seg1 = segmentEndsUtm(t1Track, g1.elIdx, g1.zone)
-  const seg2 = segmentEndsUtm(t2Track, g2.elIdx, g1.zone)
-
-  // S1 bounds: the shift that lands S1 on each segment-1 endpoint.
-  const sA = (seg1.a.easting - p1.easting) * b1E + (seg1.a.northing - p1.northing) * b1N
-  const sB = (seg1.b.easting - p1.easting) * b1E + (seg1.b.northing - p1.northing) * b1N
+/**
+ * Shift range [min, max] (metres) over which the connection stands: the first
+ * turnout on its element, the second one — wherever the solver puts it — on
+ * its own, and the geometry valid throughout. The first is analytic, the second
+ * follows the construction, so the solver is walked outward from shift 0 until
+ * one of them gives. The valid region is a single interval around 0.
+ */
+function computeShiftBounds({ picks, speed }) {
+  const [p1, p2] = picks
+  const dir1 = direction1(picks)
+  // The shifts that put the first toe on either end of its element.
+  const sA = -dir1 * p1.along
+  const sB = dir1 * (p1.elLength - p1.along)
   const lo1 = Math.min(sA, sB), hi1 = Math.max(sA, sB)
   const span = hi1 - lo1
   if (!(span > 0)) return { min: 0, max: 0 }
@@ -183,7 +204,10 @@ function computeShiftBounds({ picks, speed, t1Track, t2Track }) {
 
   const probe = (s) => {
     const res = solveConnection({ picks, speed, shift: s })
-    return !!res?.valid && inSegment(res.TP2, seg2.a, seg2.b)
+    if (!res?.valid || res.s2 == null) return false
+    const dir2 = (res.flipped2 ? -1 : 1)
+    return turnoutOnElement(p1, p1.along + dir1 * s, dir1, 1, res.throughLength)
+        && turnoutOnElement(p2, p2.along + dir2 * res.s2, dir2, -1, res.throughLength)
   }
 
   const c = Math.min(hi1, Math.max(lo1, 0))
@@ -278,21 +302,31 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
       const el     = track?.elements?.[elIdx]
       if (!el) return
 
-      // The connection joins two straight elements
-      if (el.radius != null) {
-        setPickStatus({ msg: t('scurve_hint_straight_only'), error: true })
+      // A straight or a curve carries a turnout of the connection; a transition
+      // does not — see isPlainElement.
+      if (!isPlainElement(el)) {
+        setPickStatus({ msg: t('scurve_hint_no_transition'), error: true })
         return
       }
 
       const coords   = el.geometry.coordinates
       const startUtm = nodeUtm(el.startNode, coords[0], track.epsg)
       const endUtm   = nodeUtm(el.endNode, coords[coords.length - 1], track.epsg)
-      const bearing  = resolveEndBearing(el, track.epsg)
-      // The clicked point, projected onto the element's line in the track's
-      // plane, drives start (line 1) / target (line 2).
-      const { along } = projectOnBearingUtm(startUtm, wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg), bearing)
-      const pointUtm = endPointStraightUtm(startUtm, bearing, along)
-      const pick     = { trackId, elIdx, startUtm, endUtm, pointUtm, bearing, zone: track.epsg, label: trackLabel(track) }
+      const radius   = el.radius ?? null
+      // The clicked point as a station along the element in the track's own
+      // plane — along its arc where it has one — with the tangent there.
+      const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
+      const raw      = projectOnArcUtm(startUtm, clickUtm, el.bearing, radius).along
+      const along    = Math.min(el.length, Math.max(0, raw))
+      const pointUtm = radius
+        ? endPointCurvedUtm(startUtm, el.bearing, along, radius)
+        : endPointStraightUtm(startUtm, el.bearing, along)
+      const bearing  = bearingAfterUtm(el.bearing, along, radius)
+      const pick     = {
+        trackId, elIdx, startUtm, endUtm, pointUtm, bearing,
+        radius, cant: el.cant ?? 0, along, elLength: el.length,
+        zone: track.epsg, label: trackLabel(track),
+      }
 
       if (phase === 'select_first') {
         setPicks([pick])
@@ -311,16 +345,12 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
     return () => m.off('click', onClick)
   }, [phase, map, project.id, t])
 
-  // ── Valid shift range: keep S1 on segment 1 and S2 on segment 2 ───────────
+  // ── Valid shift range: keep both turnouts on the elements they were picked on
   const shiftRange = useMemo(() => {
     const wide = { min: -200, max: 200 }
     if (phase !== 'config' || !picks[0] || !picks[1] || !speed) return wide
-    const tracks  = loadTracks(project.id)
-    const t1Track = tracks.find(tr => tr.id === picks[0].trackId)
-    const t2Track = tracks.find(tr => tr.id === picks[1].trackId)
-    if (!t1Track || !t2Track) return wide
-    return computeShiftBounds({ picks, speed, t1Track, t2Track })
-  }, [phase, picks, speed, project.id])
+    return computeShiftBounds({ picks, speed })
+  }, [phase, picks, speed])
 
   // The slider's own value, held inside the range the geometry allows.
   const shift = Math.min(shiftRange.max, Math.max(shiftRange.min, shiftRaw))
@@ -329,11 +359,9 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
   // — the dropdown's disabled state. It follows from the picks and the shift, so
   // it is derived rather than pushed into state by an effect.
   const connections = useMemo(() => {
-    const [g1, g2] = picks
-    if (!g1 || !g2) return []
-    const p1 = g1.pointUtm
-    const { p2, b2 } = pick2InPlane(g1, g2)
-    return computeSwitchConnections(p1, orientB1(g1, p1, p2), p2, b2, shift)
+    if (!picks[0] || !picks[1]) return []
+    const { g1, g2 } = stems(picks)
+    return computeSwitchConnections(g1, g2, shift)
   }, [picks, shift])
 
   // ── The connection itself ─────────────────────────────────────────────────
@@ -362,6 +390,7 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
     setPicks([])
     setShift(0)
     setPickStatus(null)
+    setCarveError(null)
     onCommitted?.()
   }
 
@@ -378,20 +407,13 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
     const zone   = res.zone
     const swType = res.switchType   // the form the solver settled on (primary or fallback)
 
-    // Connection's initial tangent at S1 (line 1 oriented towards line 2).
-    const p1 = g1.pointUtm
-    const { p2, b2: b2Grid } = pick2InPlane(g1, g2)
-    const d1E = Math.sin(g1.bearing * DEG2RAD), d1N = Math.cos(g1.bearing * DEG2RAD)
-    const b1 = ((p2.easting - p1.easting) * d1E + (p2.northing - p1.northing) * d1N) < 0
-      ? (g1.bearing + 180) % 360 : g1.bearing
-    // Line-2 tangent at S2 oriented towards the connection (B2A side), in line 1's plane.
-    const dotB2 = (deg) => (res.B2A.easting  - res.TP2.easting)  * Math.sin(deg * DEG2RAD) +
-                           (res.B2A.northing - res.TP2.northing) * Math.cos(deg * DEG2RAD)
-    const b2 = dotB2(b2Grid) >= dotB2((b2Grid + 180) % 360) ? b2Grid : (b2Grid + 180) % 360
-    // The same tangent expressed in track 2's own CRS plane (for the split).
+    // The tangent each turnout opens on, as the construction settled them: at S1
+    // the direction the connection leaves track 1 in, at S2 the direction back
+    // towards the connection, which is the way the second turnout opens.
+    const b1 = res.bearing1
     const b2Track = Number(t2.epsg) !== Number(g1.zone)
-      ? transformGridBearing(res.TP2.easting, res.TP2.northing, b2, g1.zone, t2.epsg)
-      : b2
+      ? transformGridBearing(res.TP2.easting, res.TP2.northing, res.bearing2, g1.zone, t2.epsg)
+      : res.bearing2
 
     const existingNames = new Set(tracks.map(tr => tr.name))
 
@@ -431,13 +453,17 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
     const j1 = buildJunctionSwitch({
       jWgs: res.tp1Wgs, jNode: [res.TP1.easting, res.TP1.northing], zone,
       tangentBearing: b1, branchUtm: res.B1E, sw: swType, speed, switchNumber: no1, identity: id1,
+      stemR: res.stemR1,
       behindTrackId: s1.behind.id, behindEndpoint: s1.behindEndpoint,
       aheadTrackId:  s1.ahead.id,  aheadEndpoint:  s1.aheadEndpoint,
       branchTrackId: connTrack.id, branchEndpoint: 'BEGIN',
     })
     const j2 = buildJunctionSwitch({
       jWgs: res.tp2Wgs, jNode: [res.TP2.easting, res.TP2.northing], zone,
-      tangentBearing: b2, branchUtm: res.B2A, sw: swType, speed, switchNumber: no2, identity: id2,
+      tangentBearing: res.bearing2, branchUtm: res.B2A, sw: swType, speed, switchNumber: no2, identity: id2,
+      // Turnout 2 opens against the direction the connection runs, so its stem
+      // turns the other way under it.
+      stemR: res.stemR2 == null ? null : -res.stemR2,
       behindTrackId: s2.behind.id, behindEndpoint: s2.behindEndpoint,
       aheadTrackId:  s2.ahead.id,  aheadEndpoint:  s2.aheadEndpoint,
       branchTrackId: connTrack.id, branchEndpoint: 'END',
@@ -528,6 +554,18 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
                 ? `${Math.abs(result.signedRg).toFixed(0)} m`
                 : t('scurve_mid_straight')} />
             </div>
+            <div className="form-field">
+              <label>{t('scurve_branch_radius')}</label>
+              <input type="text" readOnly value={[result.signedR1, result.signedR2]
+                .map(r => (r ? `${Math.abs(r).toFixed(0)} m` : t('scurve_mid_straight')))
+                .join('  /  ')} />
+            </div>
+            {result.cantMid !== 0 && (
+              <div className="form-field">
+                <label>{t('scurve_cant')}</label>
+                <input type="text" readOnly value={`${Math.abs(result.cantMid)} mm`} />
+              </div>
+            )}
             <div className="form-field">
               <label>{t('scurve_total')}</label>
               <input type="text" readOnly value={`${result.laenge.toFixed(2)} m`} />
