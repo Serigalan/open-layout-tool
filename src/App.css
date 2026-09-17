@@ -1641,6 +1641,20 @@
   user-select: none;
 }
 
+/* One superstructure stretch: type, from, to and the button that drops it. */
+.range-row {
+  display: grid;
+  grid-template-columns: 1fr 72px 72px 18px;
+  gap: 4px;
+  align-items: center;
+}
+
+.range-use {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  color: #888;
+}
+
 .profile-empty {
   position: absolute;
   inset: 0;

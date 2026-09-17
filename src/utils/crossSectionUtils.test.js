@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
-  RUNNING_CIRCLE_DISTANCE, TRACK_GAUGE,
-  resolveSuperstructure, cantAngle, rotatePoint, fitSection, sectionStates, crossSection,
+  RUNNING_CIRCLE_DISTANCE, TRACK_GAUGE, RAILS, SLEEPERS, DEFAULT_RAIL, DEFAULT_SLEEPER,
+  superstructureAt, elementStartStation,
+  cantAngle, rotatePoint, fitSection, sectionStates, crossSection,
 } from './crossSectionUtils'
 import { GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileRing } from './gaugeProfiles'
 
@@ -12,19 +13,37 @@ describe('the frame the section is drawn in', () => {
   })
 })
 
-describe('resolveSuperstructure', () => {
-  const track = { rail: 'S54', sleeper: 'B70' }
+describe('the superstructure along a track', () => {
+  const track = { elements: [{ length: 100 }, { length: 150 }] }
 
-  it('takes the track’s superstructure where the element says nothing', () => {
-    expect(resolveSuperstructure(track, { length: 100 })).toEqual({ rail: 'S54', sleeper: 'B70' })
+  it('builds a track that states nothing of the defaults, begin to end', () => {
+    expect(superstructureAt(track, 0)).toEqual({ rail: DEFAULT_RAIL, sleeper: DEFAULT_SLEEPER })
+    expect(superstructureAt(track, 250)).toEqual({ rail: DEFAULT_RAIL, sleeper: DEFAULT_SLEEPER })
+    expect(RAILS[DEFAULT_RAIL]).toBeDefined()
+    expect(SLEEPERS[DEFAULT_SLEEPER]).toBeDefined()
   })
 
-  it('lets the element win, field by field — a rail change need not restate the sleeper', () => {
-    expect(resolveSuperstructure(track, { rail: 'UIC60' })).toEqual({ rail: 'UIC60', sleeper: 'B70' })
+  it('reads a stated stretch where the station falls in it, the default outside', () => {
+    const stated = { ...track, rails: [{ type: '60E2', from: 100, to: 200 }] }
+    expect(superstructureAt(stated, 99).rail).toBe(DEFAULT_RAIL)
+    expect(superstructureAt(stated, 100).rail).toBe('60E2')
+    expect(superstructureAt(stated, 200).rail).toBe('60E2')
+    expect(superstructureAt(stated, 201).rail).toBe(DEFAULT_RAIL)
   })
 
-  it('answers with nothing where neither states anything', () => {
-    expect(resolveSuperstructure({}, {})).toEqual({ rail: null, sleeper: null })
+  it('lets the later stretch win where two overlap — the last adjustment holds', () => {
+    const stated = { ...track, sleepers: [
+      { type: 'B90', from: 0, to: 250 },
+      { type: 'SWITCH', from: 100, to: 130 },
+    ] }
+    expect(superstructureAt(stated, 50).sleeper).toBe('B90')
+    expect(superstructureAt(stated, 120).sleeper).toBe('SWITCH')
+    expect(superstructureAt(stated, 200).sleeper).toBe('B90')
+  })
+
+  it('stations an element from the track begin, so a stretch can be read at it', () => {
+    expect(elementStartStation(track, 0)).toBe(0)
+    expect(elementStartStation(track, 1)).toBe(100)
   })
 })
 
@@ -59,19 +78,20 @@ describe('the cant turning the section', () => {
 
 describe('sectionStates', () => {
   it('reads an arc once, at the cant and radius it carries throughout', () => {
-    expect(sectionStates({ cant: 80, radius: -500 })).toEqual([{ id: 'const', cant: 80, radius: -500 }])
+    expect(sectionStates({ cant: 80, radius: -500, length: 40 }, 120))
+      .toEqual([{ id: 'const', cant: 80, radius: -500, station: 120 }])
   })
 
   it('reads a transition at both ends — the ramp answers for neither middle', () => {
-    const el = { elementType: 2, cantStart: 0, cantEnd: 120, r1: null, r2: 300 }
-    expect(sectionStates(el)).toEqual([
-      { id: 'start', cant: 0, radius: null },
-      { id: 'end', cant: 120, radius: 300 },
+    const el = { elementType: 2, cantStart: 0, cantEnd: 120, r1: null, r2: 300, length: 60 }
+    expect(sectionStates(el, 40)).toEqual([
+      { id: 'start', cant: 0, radius: null, station: 40 },
+      { id: 'end', cant: 120, radius: 300, station: 100 },
     ])
   })
 
   it('reads a straight as the one state without cant it is', () => {
-    expect(sectionStates({ length: 200 })).toEqual([{ id: 'const', cant: 0, radius: null }])
+    expect(sectionStates({ length: 200 })).toEqual([{ id: 'const', cant: 0, radius: null, station: 0 }])
   })
 })
 
@@ -118,5 +138,53 @@ describe('the section of an element, as it is drawn', () => {
 
   it('draws nothing where no profile is given, rather than an empty outline', () => {
     expect(crossSection({ cant: 0, gaugeRing: [] }).gauge).toEqual([])
+  })
+})
+
+describe('the superstructure as it is drawn', () => {
+  const section = (over = {}) => crossSection({ cant: 0, rail: '54E4', sleeper: 'B70', ...over })
+
+  it('sets each rail with its inner face on the gauge, head top on the running plane', () => {
+    const [left, right] = section().rails
+    const rail = RAILS['54E4']
+    // The gauge is measured between the heads; the foot reaches further in.
+    const headTop = (r) => r.filter(p => p[1] === 0).map(p => p[0])
+    expect(Math.max(...headTop(left))).toBeCloseTo(-TRACK_GAUGE / 2, 9)
+    expect(Math.min(...headTop(right))).toBeCloseTo(TRACK_GAUGE / 2, 9)
+    expect(Math.max(...right.map(p => p[1]))).toBeCloseTo(0, 9)
+    expect(Math.min(...right.map(p => p[1]))).toBeCloseTo(-rail.height, 9)
+  })
+
+  it('carries the running circle over the rail head, where the wheel rides', () => {
+    const [, right] = section().rails
+    const head = right.filter(p => p[1] === 0).map(p => p[0])
+    expect(Math.min(...head)).toBeLessThanOrEqual(RUNNING_CIRCLE_DISTANCE / 2)
+    expect(Math.max(...head)).toBeGreaterThanOrEqual(RUNNING_CIRCLE_DISTANCE / 2)
+  })
+
+  it('is as wide as the profile says, no wider', () => {
+    const [, right] = section().rails
+    const rail = RAILS['54E4']
+    const width = Math.max(...right.map(p => p[0])) - Math.min(...right.map(p => p[0]))
+    expect(width).toBeCloseTo(rail.foot, 9)
+  })
+
+  it('lays the sleeper under the rail foot, its own length across the track', () => {
+    const s = section()
+    const sleeper = SLEEPERS.B70, rail = RAILS['54E4']
+    expect(Math.max(...s.sleeper.map(p => p[0]))).toBeCloseTo(sleeper.length / 2, 9)
+    expect(Math.max(...s.sleeper.map(p => p[1]))).toBeCloseTo(-rail.height, 9)
+    expect(Math.min(...s.sleeper.map(p => p[1]))).toBeCloseTo(-rail.height - sleeper.height, 9)
+  })
+
+  it('draws no superstructure where the track states a type that is gone', () => {
+    const s = crossSection({ cant: 0, rail: 'whatever', sleeper: 'whatever' })
+    expect(s.rails).toEqual([])
+    expect(s.sleeper).toEqual([])
+  })
+
+  it('turns the superstructure with the section — rail and contour lean together', () => {
+    const [, right] = section({ cant: 150 }).rails
+    expect(Math.max(...right.map(p => p[1]))).toBeLessThan(0)   // the right rail goes down
   })
 })

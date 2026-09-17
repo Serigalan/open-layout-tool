@@ -78,6 +78,10 @@ function oltExtension(track) {
     side:         SIDE_NAMES[track.side] ?? null,
     station_name: track.stationName ?? null,
     uic_station:  track.uicStation ?? null,
+    // The superstructure, where the track states a stretch of its own; a track
+    // built of the defaults from begin to end states nothing (crossSectionUtils).
+    rails:        track.rails?.length ? track.rails : null,
+    sleepers:     track.sleepers?.length ? track.sleepers : null,
   }
   const present = Object.entries(fields).filter(([, v]) => v != null && v !== '')
   return present.length ? Object.fromEntries(present) : null

@@ -317,6 +317,8 @@ export function parseOsrdRailJson(data) {
         side:        SIDE_CODES[olt.side] != null ? Number(SIDE_CODES[olt.side]) : undefined,
         stationName: olt.station_name ?? undefined,
         uicStation:  olt.uic_station ?? undefined,
+        rails:       olt.rails?.length ? olt.rails : undefined,
+        sleepers:    olt.sleepers?.length ? olt.sleepers : undefined,
         heightEpsg,
       }),
       epsg,

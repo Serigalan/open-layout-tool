@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'react'
 import { loadTracks, updateTrack, updateProject } from '../../storage'
+import { trackLength } from '../../utils/heightUtils'
 import { FILTER_NONE, HIT_TOLERANCE, filterForElement, mapIsLive } from '../../utils/mapConstants'
 import {
-  RAIL_TYPES, SLEEPER_TYPES, resolveSuperstructure, sectionStates,
+  RAILS, SLEEPERS, DEFAULT_RAIL, DEFAULT_SLEEPER,
+  superstructureAt, sectionStates, elementStartStation,
 } from '../../utils/crossSectionUtils'
 import { GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE } from '../../utils/gaugeProfiles'
 import useTrackHover from '../../hooks/useTrackHover'
 
 /**
- * Cross section of one element: its superstructure, the clearance profile the
- * project is designed against, and the drawing of both in the overlay.
+ * Cross section of one element: the clearance profile the project is designed
+ * against, the superstructure of the track it sits on, and the drawing of both
+ * in the overlay.
  *
- * It hangs on an element, not on a track, and that is the whole point — the
- * cant turns the section and the curvature decides what a clearance check even
- * means, and both belong to the element. The superstructure is stated on the
- * track and overridden per element where it changes part way along
- * (Entscheidung 9), the same resolution rule the cant already follows.
+ * The section is taken at an element, and that is the whole point — the cant
+ * turns it and the curvature decides what a clearance check even means, and
+ * both belong to the element. The superstructure belongs to the track instead,
+ * as stretches along it (Entscheidung 18): every track is 54 E 4 on B70 from
+ * begin to end, and only an adjustment is written down.
  */
 export default function CrossSectionPanel({ t, map, project, onTrackSaved, onShowCrossSection, crossSectionAt }) {
   const [picked, setPicked] = useState(null)   // { trackId, elIdx }
@@ -62,22 +65,24 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
     return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
   }, [map, project.id, onShowCrossSection])
 
-  // ── Superstructure: the track states it, an element may override it ───────
-  const setTrackField = (field, value) => {
+  // ── The superstructure stretches of the track ─────────────────────────────
+  const writeRanges = (field, ranges) => {
     if (!track) return
-    updateTrack(project.id, { ...track, [field]: value || undefined })
+    updateTrack(project.id, { ...track, [field]: ranges.length ? ranges : undefined })
     onTrackSaved?.()
   }
 
-  const setElementField = (field, value) => {
-    if (!track || !el) return
-    const elements = track.elements.map((e, i) => {
-      if (i !== picked.elIdx) return e
-      const { [field]: _drop, ...rest } = e
-      return value ? { ...rest, [field]: value } : rest
-    })
-    updateTrack(project.id, { ...track, elements })
-    onTrackSaved?.()
+  const addRange = (field, type) => {
+    const ranges = track?.[field] ?? []
+    writeRanges(field, [...ranges, { type, from: 0, to: Math.round(trackLength(track) * 1000) / 1000 }])
+  }
+
+  const patchRange = (field, index, patch) => {
+    writeRanges(field, (track?.[field] ?? []).map((r, i) => (i === index ? { ...r, ...patch } : r)))
+  }
+
+  const dropRange = (field, index) => {
+    writeRanges(field, (track?.[field] ?? []).filter((_, i) => i !== index))
   }
 
   const clear = () => {
@@ -94,8 +99,45 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
     return `${index + 1} · ${t('table_type_straight')}`
   }
 
-  const inherited = resolveSuperstructure(track, {})
-  const states = el ? sectionStates(el) : []
+  /** The stretches of one kind, as rows that can be edited and removed. */
+  const rangeEditor = (field, table, defaultType) => {
+    const ranges = track?.[field] ?? []
+    const total  = Math.round(trackLength(track) * 1000) / 1000
+    return (
+      <>
+        <div className="form-field">
+          <label>{t(field === 'rails' ? 'cross_section_rail_default' : 'cross_section_sleeper_default')}</label>
+          <input type="text" readOnly value={`${table[defaultType].label} · 0 – ${total} m`} />
+        </div>
+        {ranges.map((r, i) => (
+          <div className="form-field" key={`${field}${i}`}>
+            <label>{t('cross_section_range')}</label>
+            <div className="range-row">
+              <select value={r.type} onChange={e => patchRange(field, i, { type: e.target.value })}>
+                {Object.entries(table).map(([key, v]) => (
+                  <option key={key} value={key}>{v.label}</option>
+                ))}
+              </select>
+              <input type="number" step="0.001" min="0" max={total} value={r.from ?? 0}
+                onChange={e => patchRange(field, i, { from: Number(e.target.value) })} />
+              <input type="number" step="0.001" min="0" max={total} value={r.to ?? total}
+                onChange={e => patchRange(field, i, { to: Number(e.target.value) })} />
+              <button type="button" className="field-override" onClick={() => dropRange(field, i)}>✕</button>
+            </div>
+            {table[r.type]?.use && (
+              <span className="range-use">{t(`cross_section_use_${table[r.type].use}`)}</span>
+            )}
+          </div>
+        ))}
+        <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+          onClick={() => addRange(field, defaultType)}>
+          {t('cross_section_add_range')}
+        </button>
+      </>
+    )
+  }
+
+  const states = el ? sectionStates(el, elementStartStation(track, picked.elIdx)) : []
 
   return (
     <>
@@ -127,48 +169,30 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
               <label>{t('cross_section_element')}</label>
               <input type="text" readOnly value={elementLabel(el, picked.elIdx)} />
             </div>
-            {states.map((s) => (
-              <div className="form-field" key={s.id}>
-                <label>
-                  {t('cant')}
-                  {s.id !== 'const' ? ` · ${t(s.id === 'start' ? 'cross_section_at_start' : 'cross_section_at_end')}` : ''}
-                </label>
-                <input type="text" readOnly
-                  value={`${s.cant} mm${s.radius != null ? ` · R ${Math.round(Math.abs(s.radius))} m` : ` · ${t('table_type_straight')}`}`} />
-              </div>
-            ))}
+            {states.map((s) => {
+              const built = superstructureAt(track, s.station)
+              return (
+                <div className="form-field" key={s.id}>
+                  <label>
+                    {`${t('cant')} · ${s.station.toFixed(1)} m`}
+                    {s.id !== 'const' ? ` · ${t(s.id === 'start' ? 'cross_section_at_start' : 'cross_section_at_end')}` : ''}
+                  </label>
+                  <input type="text" readOnly
+                    value={`${s.cant} mm · ${s.radius != null ? `R ${Math.round(Math.abs(s.radius))} m` : t('table_type_straight')}`
+                      + ` · ${RAILS[built.rail].label} · ${SLEEPERS[built.sleeper].label}`} />
+                </div>
+              )
+            })}
           </div>
 
           <div className="element-form">
-            <span className="create-element-section">{t('cross_section_superstructure')}</span>
-            <div className="form-field">
-              <label>{t('cross_section_rail_track')}</label>
-              <select value={track.rail ?? ''} onChange={(e) => setTrackField('rail', e.target.value)}>
-                <option value="">–</option>
-                {RAIL_TYPES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div className="form-field">
-              <label>{t('cross_section_sleeper_track')}</label>
-              <select value={track.sleeper ?? ''} onChange={(e) => setTrackField('sleeper', e.target.value)}>
-                <option value="">–</option>
-                {SLEEPER_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="form-field">
-              <label>{t('cross_section_rail_element')}</label>
-              <select value={el.rail ?? ''} onChange={(e) => setElementField('rail', e.target.value)}>
-                <option value="">{`${t('cross_section_from_track')}${inherited.rail ? ` (${inherited.rail})` : ''}`}</option>
-                {RAIL_TYPES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
-            <div className="form-field">
-              <label>{t('cross_section_sleeper_element')}</label>
-              <select value={el.sleeper ?? ''} onChange={(e) => setElementField('sleeper', e.target.value)}>
-                <option value="">{`${t('cross_section_from_track')}${inherited.sleeper ? ` (${inherited.sleeper})` : ''}`}</option>
-                {SLEEPER_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
+            <span className="create-element-section">{t('cross_section_rails')}</span>
+            {rangeEditor('rails', RAILS, DEFAULT_RAIL)}
+          </div>
+
+          <div className="element-form">
+            <span className="create-element-section">{t('cross_section_sleepers')}</span>
+            {rangeEditor('sleepers', SLEEPERS, DEFAULT_SLEEPER)}
           </div>
 
           {!shown && (

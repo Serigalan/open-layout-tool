@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadTracks } from '../storage'
-import { crossSection, fitSection, resolveSuperstructure, sectionStates } from '../utils/crossSectionUtils'
+import {
+  crossSection, fitSection, superstructureAt, sectionStates, elementStartStation, RAILS, SLEEPERS,
+} from '../utils/crossSectionUtils'
 import { gaugeProfile, gaugeProfileRing, DEFAULT_GAUGE_PROFILE } from '../utils/gaugeProfiles'
 
 const MARGIN = 28
@@ -49,16 +51,17 @@ export default function CrossSectionOverlay({ at, project, onClose, t }) {
 
   if (!track || !el) return null
 
-  const states = sectionStates(el)
+  const states = sectionStates(el, elementStartStation(track, at.elIdx))
   const state  = states.find(s => s.id === stateId) ?? states[0]
-  const { rail, sleeper } = resolveSuperstructure(track, el)
-  const profileKey = project.gaugeProfile ?? DEFAULT_GAUGE_PROFILE
-  const profile = gaugeProfile(profileKey)
-  const section = crossSection({ cant: state.cant, gaugeRing: gaugeProfileRing(profile.points) })
+  const { rail, sleeper } = superstructureAt(track, state.station)
+  const profile = gaugeProfile(project.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
+  const section = crossSection({
+    cant: state.cant, gaugeRing: gaugeProfileRing(profile.points), rail, sleeper,
+  })
 
   const drawing = () => {
     if (!size || size.w < 40 || size.h < 40) return null
-    const all = [...section.gauge, ...section.runningCircles]
+    const all = [...section.gauge, ...section.runningCircles, ...section.sleeper]
     const { k, cx, cy, bounds } = fitSection(all, size, MARGIN)
     const { zMax } = bounds
     const X = (y) => cx + y * k
@@ -73,6 +76,13 @@ export default function CrossSectionOverlay({ at, project, onClose, t }) {
         <line x1={MARGIN / 2} x2={size.w - MARGIN / 2} y1={Y(0)} y2={Y(0)} stroke="#e4e4ec" strokeDasharray="6 4" />
         {/* the clearance contour */}
         <path d={`${path(section.gauge)} Z`} fill="rgba(108,92,231,0.07)" stroke="var(--color-primary)" strokeWidth="1.5" />
+        {/* the superstructure carrying it */}
+        {section.sleeper.length > 0 && (
+          <path d={`${path(section.sleeper)} Z`} fill="#d9d4cc" stroke="#8d867a" strokeWidth="1" />
+        )}
+        {section.rails.map((r, i) => (
+          <path key={`r${i}`} d={`${path(r)} Z`} fill="#6b6b6b" stroke="#333" strokeWidth="1" />
+        ))}
         {/* the running plane between the running circles */}
         <line x1={X(leftCircle[0])} y1={Y(leftCircle[1])} x2={X(rightCircle[0])} y2={Y(rightCircle[1])}
           stroke="#333" strokeWidth="2" />
@@ -103,7 +113,7 @@ export default function CrossSectionOverlay({ at, project, onClose, t }) {
           <span className="profile-hint">
             {`${t('cant')} ${state.cant} mm`}
             {state.radius != null ? ` · R ${Math.round(Math.abs(state.radius))} m` : ` · ${t('table_type_straight')}`}
-            {rail ? ` · ${rail}` : ''}{sleeper ? ` · ${sleeper}` : ''}
+            {` · ${RAILS[rail]?.label ?? rail} · ${SLEEPERS[sleeper]?.label ?? sleeper}`}
           </span>
           {states.length > 1 && (
             <label className="profile-edit">
