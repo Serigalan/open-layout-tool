@@ -475,6 +475,18 @@
   color: #888;
 }
 
+/* A proposed value the user has overridden: says so, and offers it back. */
+.field-override {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  color: #6c5ce7;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
 .uic-suggestions {
   position: absolute;
   top: 100%;

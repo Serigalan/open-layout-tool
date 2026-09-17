@@ -7,8 +7,9 @@ import { trackLength } from '../../utils/heightUtils'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack } from '../../utils/mapConstants'
 import { PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY } from '../../utils/mapRenderUtils'
 import {
-  PLATFORM_FRONT_OFFSET, PLATFORM_BACK_OFFSET, PLATFORM_CODE_MAX,
-  platformRing, pointAtStation, stationFromClick, platformLength,
+  PLATFORM_FRONT_OFFSET, PLATFORM_WIDTH, PLATFORM_CODE_MAX,
+  PLATFORM_HEIGHTS, DEFAULT_PLATFORM_HEIGHT,
+  platformRing, pointAtStation, stationFromClick, platformLength, platformEdgeElevation,
 } from '../../utils/platformUtils'
 import useTrackHover from '../../hooks/useTrackHover'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
@@ -52,12 +53,16 @@ const fmt = (v) => String(Math.round(v * 1000) / 1000)
  * Create platforms along a track: pick the track, then the two points that
  * bound the platform on it. Both are stations along the track, so the platform
  * follows whatever the track does between them — the edges are offsets of its
- * centreline, the front edge (Bahnsteigkante) 1.67 m from the axis and the back
- * edge 4.67 m, on the side the form selects.
+ * centreline, the front edge (Bahnsteigkante) at the standard distance from the
+ * axis and the back edge a platform width behind it, on the side the form
+ * selects.
+ *
+ * The height is stated over top of rail; what the form shows absolutely is read
+ * off the track's own gradient at the platform's ends and never stored.
  *
  * An existing platform can be picked from the list to be edited or deleted; the
- * record keeps only its plane data (track, stations, side), and the polygon on
- * the map is derived from it.
+ * record keeps only its plane data (track, stations, side, height), and the
+ * polygon on the map is derived from it.
  */
 export default function PlatformPanel({ t, map, project, onTrackSaved }) {
   const [phase, setPhase]     = useState('select')   // 'select' | 'edit'
@@ -67,8 +72,15 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
   const [end, setEnd]         = useState('')
   const [picking, setPicking] = useState(null)       // 'start' | 'end' | null
   const [side, setSide]       = useState('right')
+  const [height, setHeight]   = useState(DEFAULT_PLATFORM_HEIGHT)   // mm over top of rail
+  const [freeHeight, setFreeHeight] = useState(false)               // a height outside the standard ones
   const [stationName, setStationName] = useState('')
   const [code, setCode]       = useState('')
+
+  // The edge distance is proposed, not fixed: one value for every height and
+  // cant at this design stage, and overridable where the site demands it.
+  const [frontOffset, setFrontOffset] = useState(PLATFORM_FRONT_OFFSET)
+  const offsetIsManual = Number(frontOffset) !== PLATFORM_FRONT_OFFSET
 
   useTrackHover(map, phase, 'select', project, true)
 
@@ -139,17 +151,21 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
   const s2 = Number(end)
   const inRange = [s1, s2].every(s => Number.isFinite(s) && s >= 0 && s <= total + 1e-6)
   const valid   = !!track && inRange && Math.abs(s2 - s1) >= MIN_LENGTH
+    && Number(frontOffset) > 0
+    && height !== '' && Number(height) >= 0
 
+  const front = Number(frontOffset)
   const draft = useMemo(() => ({
     trackId,
     startStation: Math.min(s1, s2),
     endStation:   Math.max(s1, s2),
     side,
-    frontOffset:  PLATFORM_FRONT_OFFSET,
-    backOffset:   PLATFORM_BACK_OFFSET,
+    frontOffset:  front,
+    backOffset:   front + PLATFORM_WIDTH,
+    height,
     stationName,
     code,
-  }), [trackId, s1, s2, side, stationName, code])
+  }), [trackId, s1, s2, side, front, height, stationName, code])
 
   const ring = valid ? platformRing(draft, track) : null
 
@@ -173,6 +189,7 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
     setPhase('select'); setEditingId(null); setTrackId(null)
     setStart(''); setEnd(''); setPicking(null)
     setSide('right'); setStationName(''); setCode('')
+    setHeight(DEFAULT_PLATFORM_HEIGHT); setFreeHeight(false); setFrontOffset(PLATFORM_FRONT_OFFSET)
   }
 
   const loadForEdit = (platform) => {
@@ -184,6 +201,14 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
     setSide(platform.side ?? 'right')
     setStationName(platform.stationName ?? '')
     setCode(platform.code ?? '')
+    // A record from before the height was modelled has none; it is shown the
+    // default rather than an empty field, and says so as soon as it is seen.
+    const h = Number(platform.height)
+    const stated = Number.isFinite(h) ? h : DEFAULT_PLATFORM_HEIGHT
+    setHeight(stated)
+    setFreeHeight(!PLATFORM_HEIGHTS.includes(stated))
+    const offset = Number(platform.frontOffset)
+    setFrontOffset(Number.isFinite(offset) ? offset : PLATFORM_FRONT_OFFSET)
     setPicking(null)
     setPhase('edit')
   }
@@ -208,6 +233,9 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
 
   const startPoint = valid ? pointAtStation(track, draft.startStation) : null
   const endPoint   = valid ? pointAtStation(track, draft.endStation)   : null
+  // The edge is only located vertically where the track carries heights.
+  const edgeStart  = valid ? platformEdgeElevation(draft, track, draft.startStation) : null
+  const edgeEnd    = valid ? platformEdgeElevation(draft, track, draft.endStation)   : null
   const trackLabel = (tr) => tr?.name || tr?.id?.slice(0, 8) || '–'
 
   if (phase === 'select') {
@@ -267,13 +295,44 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
           </select>
         </div>
         <div className="form-field">
+          <label>{t('platform_height')}</label>
+          <select value={freeHeight ? 'free' : String(height)}
+            onChange={(e) => {
+              if (e.target.value === 'free') { setFreeHeight(true); return }
+              setFreeHeight(false); setHeight(Number(e.target.value))
+            }}>
+            {PLATFORM_HEIGHTS.map(h => <option key={h} value={String(h)}>{`${h} mm`}</option>)}
+            <option value="free">{t('platform_height_free')}</option>
+          </select>
+        </div>
+        {freeHeight && (
+          <div className="form-field">
+            <label>{t('platform_height_value')}</label>
+            <input type="number" step="10" min="0" value={height}
+              onChange={e => setHeight(e.target.value === '' ? '' : Number(e.target.value))} />
+          </div>
+        )}
+        <div className="form-field">
           <label>{t('platform_front_edge')}</label>
-          <input type="text" readOnly value={`${PLATFORM_FRONT_OFFSET.toFixed(2)} m`} />
+          <input type="number" step="0.01" min="0" value={frontOffset}
+            onChange={e => setFrontOffset(e.target.value === '' ? '' : Number(e.target.value))} />
+          {offsetIsManual && (
+            <button type="button" className="field-override" onClick={() => setFrontOffset(PLATFORM_FRONT_OFFSET)}>
+              {`${t('platform_front_edge_manual')} (${PLATFORM_FRONT_OFFSET.toFixed(2)} m)`}
+            </button>
+          )}
         </div>
         <div className="form-field">
           <label>{t('platform_back_edge')}</label>
-          <input type="text" readOnly value={`${PLATFORM_BACK_OFFSET.toFixed(2)} m`} />
+          <input type="text" readOnly
+            value={valid ? `${draft.backOffset.toFixed(2)} m` : '–'} />
         </div>
+        {edgeStart != null && (
+          <div className="form-field">
+            <label>{t('platform_edge_elevation')}</label>
+            <input type="text" readOnly value={`${edgeStart.toFixed(3)} m … ${edgeEnd.toFixed(3)} m`} />
+          </div>
+        )}
         {startPoint && (
           <UtmCoordFields label={t('platform_point_start')} zone={track.epsg} readOnly
             easting={startPoint.utm.easting.toFixed(2)} northing={startPoint.utm.northing.toFixed(2)} />

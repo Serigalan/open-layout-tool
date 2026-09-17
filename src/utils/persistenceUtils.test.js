@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { dehydrateProjects, hydrateProjects, parseProjectsPayload, PayloadError, SCHEMA_VERSION } from './persistenceUtils'
 import { SWITCH_TYPES, computeSwitchGeometryUtm, switchArcLength, switchStraightLength } from './switchUtils'
 import { DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION } from './switchModel'
-import goldenElements from '../../track_optimized.json'
+import goldenElements from '../test/fixtures/track_optimized.json'
 
 const EPSG = goldenElements[0].epsg
 

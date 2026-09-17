@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { optimizeTrack, parseTrackForOptimization } from './optimizeUtils'
 import { MAX_SWITCH_CANT } from './mapConstants'
-import golden from '../../track_optimized.json'
+import golden from '../test/fixtures/track_optimized.json'
 
 // One curve group out of the golden track: straight – clothoid – arc – clothoid
 // – straight, the shape the JS parser accepts. Transitions on both sides, so the

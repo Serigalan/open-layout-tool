@@ -3,15 +3,22 @@ import {
   nodeUtm, endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm, projectOnArcUtm,
 } from './elementUtils'
 import { transitionPointAtUtm, transitionBearingAtUtm } from './clothoidUtils'
+import { heightAt } from './heightUtils'
 import { SAGITTA_ELEMENT, STRAIGHT_VERTEX_SPACING } from './mapConstants'
 
 /**
  * A platform is anchored to one track: the two picked points are stations along
  * it (m from the track's BEGIN), and its edges are perpendicular offsets of the
  * track's centreline between them — the front edge (the platform edge trains
- * stop at) at FRONT_OFFSET, the back edge at BACK_OFFSET. Everything is derived
- * in the track's own plane and only turned into WGS84 for the drawn polygon,
- * which is stripped on persist and rebuilt on load like the switch symbols.
+ * stop at) at FRONT_OFFSET, the back edge a platform width behind it.
+ * Everything is derived in the track's own plane and only turned into WGS84 for
+ * the drawn polygon, which is stripped on persist and rebuilt on load like the
+ * switch symbols.
+ *
+ * Vertically the platform is stated over top of rail (`height`, mm), so the
+ * edge stays tied to the track: its absolute elevation is the track's gradient
+ * at that station plus that height (see platformEdgeElevation), and the two
+ * are never maintained side by side.
  *
  * A track that is split (a switch placed on it) becomes two new tracks: a
  * platform on it keeps its record but can no longer resolve its host, so its
@@ -20,9 +27,18 @@ import { SAGITTA_ELEMENT, STRAIGHT_VERTEX_SPACING } from './mapConstants'
 
 const DEG = Math.PI / 180
 
-/** Distance of the platform edges from the track axis [m]. */
-export const PLATFORM_FRONT_OFFSET = 1.67
-export const PLATFORM_BACK_OFFSET  = 4.67
+/**
+ * Distance of the front edge from the track axis [m], and the platform's width
+ * behind it. One value for every platform height and cant — the graded tables
+ * belong to a later design stage, and this is the value an early one works with.
+ */
+export const PLATFORM_FRONT_OFFSET = 1.68
+export const PLATFORM_WIDTH        = 3.00
+export const PLATFORM_BACK_OFFSET  = PLATFORM_FRONT_OFFSET + PLATFORM_WIDTH
+
+/** Platform heights over top of rail [mm]: the standard ones, and the default. */
+export const PLATFORM_HEIGHTS       = [380, 550, 760]
+export const DEFAULT_PLATFORM_HEIGHT = 550
 
 /** Longest station code (DS100-style abbreviation) accepted. */
 export const PLATFORM_CODE_MAX = 4
@@ -131,8 +147,23 @@ export function offsetEdgeCoords(track, from, to, dist) {
 export function edgeOffsets(platform) {
   const sign  = platform.side === 'left' ? -1 : 1
   const front = platform.frontOffset ?? PLATFORM_FRONT_OFFSET
-  const back  = platform.backOffset  ?? PLATFORM_BACK_OFFSET
+  // The back edge follows the front one: moving the edge shifts the platform,
+  // it does not make it narrower.
+  const back  = platform.backOffset ?? (front + PLATFORM_WIDTH)
   return { front: sign * front, back: sign * back }
+}
+
+/**
+ * Absolute elevation of the platform edge at a station [m], in the track's own
+ * height datum: the track's gradient there plus the platform height over top of
+ * rail. Null where the track has no heights yet or the platform no height —
+ * the edge is then simply not located vertically, which is not an error in an
+ * early design stage.
+ */
+export function platformEdgeElevation(platform, track, station) {
+  const z = heightAt(track?.heights, station)
+  const height = Number(platform?.height)
+  return z == null || !Number.isFinite(height) ? null : z + height / 1000
 }
 
 /** Closed ring (WGS84) of a platform: front edge out, back edge back. */

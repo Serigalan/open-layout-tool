@@ -1,7 +1,7 @@
-import { loadTracks, loadSwitches, loadProjects } from '../storage'
+import { loadTracks, loadSwitches, loadPlatforms, loadProjects } from '../storage'
 import {
   exact, round3, round4, buildCoords, totalLength,
-  horizontalElements, startAnchor, endAnchor, switchesToPorts,
+  horizontalElements, startAnchor, endAnchor, switchesToPorts, platformsToOperationalPoints,
 } from './alignmentCodec'
 import { tangentLength } from './heightUtils'
 import { DEFAULT_HEIGHT_EPSG } from './mapConstants'
@@ -11,9 +11,10 @@ import { TYPE_NAMES, SIDE_NAMES } from './identifierUtils'
 // version, track_sections and the infra-level object lists — where a track
 // section carries the design data itself: the horizontal alignment as the
 // element chain from a native-CRS anchor, and the vertical alignment as the
-// height points along the track. Only track_sections and switches are written
-// by the app; the other lists are placeholders for later work and for other
-// programs, and hand back what an imported file carried in them.
+// height points along the track. Track_sections, switches and the platforms as
+// operational points are written by the app; the other lists are placeholders
+// for later work and for other programs, and hand back what an imported file
+// carried in them.
 //
 // This is not OSRD's RailJSON — OSRD's own derived fields (curves, slopes) are
 // not in it, and it will not load there. Writing that is what osrdExport is for.
@@ -83,11 +84,11 @@ function oltExtension(track) {
 }
 
 /**
- * The exchange file for `tracks` and `switches`. `foreign` is what an imported
- * file carried at the infra level (see osrdImport) and is handed back
- * unchanged, apart from the objects regenerated here.
+ * The exchange file for `tracks`, `switches` and `platforms`. `foreign` is what
+ * an imported file carried at the infra level (see osrdImport) and is handed
+ * back unchanged, apart from the objects regenerated here.
  */
-export function buildInfra(tracks, switches, foreign = {}) {
+export function buildInfra(tracks, switches, platforms = [], foreign = {}) {
   const trackMap = Object.fromEntries(tracks.map(t => [t.id, t]))
 
   // ── track_sections ──────────────────────────────────────────────────────
@@ -124,16 +125,17 @@ export function buildInfra(tracks, switches, foreign = {}) {
   // ── the file, lists in their fixed order ────────────────────────────────
   const { version: _v, track_sections: _t, ...rest } = foreign
   const out = { version: FORMAT_VERSION, track_sections: trackSections }
-  for (const key of INFRA_LISTS) {
-    out[key] = key === 'switches'
-      ? switchesToPorts(switches, trackMap, rest.switches ?? [])
-      : (rest[key] ?? [])
+  const generated = {
+    switches: () => switchesToPorts(switches, trackMap, rest.switches ?? []),
+    operational_points: () => platformsToOperationalPoints(platforms, trackMap, rest.operational_points ?? []),
   }
+  for (const key of INFRA_LISTS) out[key] = generated[key] ? generated[key]() : (rest[key] ?? [])
   for (const [key, value] of Object.entries(rest)) if (!(key in out)) out[key] = value
   return out
 }
 
 export function exportExchange(projectId) {
   const project = loadProjects().find(p => p.id === projectId)
-  return buildInfra(loadTracks(projectId), loadSwitches(projectId), project?.osrd ?? {})
+  return buildInfra(
+    loadTracks(projectId), loadSwitches(projectId), loadPlatforms(projectId), project?.osrd ?? {})
 }

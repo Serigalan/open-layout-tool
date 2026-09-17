@@ -127,12 +127,30 @@ const slug = (s) => String(s).trim().toLowerCase()
  * four parts. Positions need no conversion: a platform's stations and a part's
  * `position` are both metres along the track from its BEGIN.
  *
- * The mapping is lossy on purpose — a platform has an extent and a side, a
- * part is a point — so it is written, never read back (see osrdImport, which
- * keeps a file's own operational points in the passthrough instead). What the
- * app does not model on the platform is taken from its track: the UIC number
- * and the country of the infrastructure owner.
+ * What OSRD's own fields lose — the extent, the side, the edge distances and
+ * the height over top of rail — rides along in the part's `olt` extension, so
+ * the app's own exchange file states the platform fully while the RailJSON
+ * fields stay what OSRD expects. It is still written and never read back (see
+ * osrdImport, which keeps a file's own operational points in the passthrough
+ * instead). What the app does not model on the platform is taken from its
+ * track: the UIC number and the country of the infrastructure owner.
  */
+/**
+ * What a platform is beyond the point OSRD models: its extent along the track,
+ * the side it lies on, the distances of its two edges from the axis and its
+ * height over top of rail. Only what the record states — the absolute level of
+ * the edge follows from the track's own heights and is derived where it is
+ * needed, never written.
+ */
+const platformExtension = (p) => ({
+  start_station_m: round3(p.startStation),
+  end_station_m:   round3(p.endStation),
+  side:            p.side ?? null,
+  front_offset_m:  round3(p.frontOffset),
+  back_offset_m:   round3(p.backOffset),
+  height_mm:       round3(p.height),
+})
+
 export function platformsToOperationalPoints(platforms, trackMap, foreign = []) {
   const groups = new Map()
   for (const p of platforms ?? []) {
@@ -150,7 +168,7 @@ export function platformsToOperationalPoints(platforms, trackMap, foreign = []) 
     group.parts.push({
       track: p.trackId,
       position: round3((p.startStation + p.endStation) / 2),
-      extensions: { sncf: null },
+      extensions: { sncf: null, olt: platformExtension(p) },
       local_track_name: String(track.name ?? '').trim() || track.id,
       uic: Number(track.uicStation) || null,
       owner: track.owner,
