@@ -2,7 +2,7 @@ import {
   SCHEMA_VERSION, extractImages, hydrateProjects, dehydrateProjects,
 } from './utils/persistenceUtils'
 import { reverseElement } from './utils/elementUtils'
-import { elementBelongsToSwitch, SWITCH_PORTS } from './utils/switchModel'
+import { elementBelongsToSwitch, portsOf } from './utils/switchModel'
 import { rebuildSwitchSymbol } from './utils/switchUtils'
 import { joinHeights, reverseHeights, splitHeights, trackLength } from './utils/heightUtils'
 import * as idb from './utils/idbStorage'
@@ -244,7 +244,7 @@ export function loadTracks(projectId) {
 
 /** Switches that reference `trackId` on any of their three ports. */
 export function switchesOnTrack(projectId, trackId) {
-  return loadSwitches(projectId).filter(sw => PORT_IDS.some(k => sw[k] === trackId))
+  return loadSwitches(projectId).filter(sw => referencesTrack(sw, trackId))
 }
 
 /**
@@ -270,9 +270,9 @@ export function deleteTrack(projectId, trackId) {
     return els.length > 0 && els.every(el => el.switchBranch && elementBelongsToSwitch(el, sw))
   }
 
-  const doomed  = new Set(switches.filter(sw => PORT_IDS.some(k => sw[k] === trackId)))
+  const doomed  = new Set(switches.filter(sw => referencesTrack(sw, trackId)))
   const removed = new Set([trackId])
-  doomed.forEach(sw => PORT_IDS.forEach(k => { if (sw[k] && isBranchTrack(sw[k], sw)) removed.add(sw[k]) }))
+  doomed.forEach(sw => portTracks(sw).forEach(id => { if (isBranchTrack(id, sw)) removed.add(id) }))
 
   project.tracks   = tracks.filter(t => !removed.has(t.id))
   project.switches = switches.filter(sw => !doomed.has(sw))
@@ -301,9 +301,11 @@ export function updateTrack(projectId, track) {
 
 // A switch port names a track plus which end of it the switch sits at. The end
 // is the track's own BEGIN (elements[0].startNode) or END (last endNode) — the
-// axis that OSRD's track_section arrow and all length offsets refer to.
-const PORT_IDS  = SWITCH_PORTS.map(p => p.trackKey)
-const PORT_ENDS = SWITCH_PORTS.map(p => p.endKey)
+// axis that OSRD's track_section arrow and all length offsets refer to. How
+// many ports a record has is its kind's business (switchModel.portsOf), so
+// everything here walks the record rather than a fixed three.
+const portTracks    = (sw) => portsOf(sw).map(p => sw[p.trackKey]).filter(Boolean)
+const referencesTrack = (sw, trackId) => portsOf(sw).some(p => sw[p.trackKey] === trackId)
 
 const flipEndpoint = (e) => (e === 'BEGIN' ? 'END' : e === 'END' ? 'BEGIN' : e)
 
@@ -314,14 +316,14 @@ export function remapSwitches(switches, remap) {
   //   flip – the track was folded into the new one backwards, so BEGIN/END swap.
   return (switches ?? []).map(sw => {
     const updated = { ...sw }
-    PORT_IDS.forEach((idKey, i) => {
-      const entry = remap.find(r => r.oldId === sw[idKey])
+    portsOf(sw).forEach(({ trackKey, endKey }) => {
+      const entry = remap.find(r => r.oldId === sw[trackKey])
       if (!entry) return
       if (Array.isArray(entry.newId)) {
-        updated[idKey] = sw[PORT_ENDS[i]] === 'BEGIN' ? entry.newId[0] : entry.newId[1]
+        updated[trackKey] = sw[endKey] === 'BEGIN' ? entry.newId[0] : entry.newId[1]
       } else {
-        updated[idKey] = entry.newId
-        if (entry.flip) updated[PORT_ENDS[i]] = flipEndpoint(sw[PORT_ENDS[i]])
+        updated[trackKey] = entry.newId
+        if (entry.flip) updated[endKey] = flipEndpoint(sw[endKey])
       }
     })
     return updated
@@ -331,10 +333,10 @@ export function remapSwitches(switches, remap) {
 /** Flip BEGIN/END on every switch port that references `trackId`. */
 function flipSwitchEndpoints(switches, trackId) {
   return (switches ?? []).map(sw => {
-    if (!PORT_IDS.some(k => sw[k] === trackId)) return sw
+    if (!referencesTrack(sw, trackId)) return sw
     const updated = { ...sw }
-    PORT_IDS.forEach((idKey, i) => {
-      if (sw[idKey] === trackId) updated[PORT_ENDS[i]] = flipEndpoint(sw[PORT_ENDS[i]])
+    portsOf(sw).forEach(({ trackKey, endKey }) => {
+      if (sw[trackKey] === trackId) updated[endKey] = flipEndpoint(sw[endKey])
     })
     return updated
   })

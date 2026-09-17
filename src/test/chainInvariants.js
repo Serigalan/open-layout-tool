@@ -97,19 +97,29 @@ export function expectSwitchCantAdmissible(elements) {
 }
 
 /**
- * Both ends of a turnout are element boundaries: each of its two routes is made
- * of whole elements of its own, beginning at the port's node and ending where
- * the turnout ends. A route with no elements is the failure this guards against
- * — the record would carry a port and nothing else, the symbol would fall back
- * on the stem radii, and the delete rules would find a route that is not there.
+ * Every end of a switch is an element boundary: each of its routes is made of
+ * whole elements of its own, beginning at the port's node and ending where the
+ * switch ends. A route with no elements is the failure this guards against —
+ * the record would carry a port and nothing else, the symbol would fall back on
+ * the stem radii, and the delete rules would find a route that is not there.
+ *
+ * A turnout owns elements at both of its B ports and none at its toe, which is
+ * a node; the crossing kinds own them at all four. Which those are is the
+ * kind's own business (switchModel.portsOf), so this reads the ports that carry
+ * elements rather than naming B1 and B2.
  *
  * The far boundary needs no assertion of its own: the elements are whole, so
  * where the last of them ends, the next element begins.
  */
 export function expectSwitchRoutesCarved(sw, tracks) {
-  const { byPort } = switchParts(sw, tracks)
-  expect(byPort.B1.mine.length, `branch elements of ${sw.name ?? sw.switchId}`).toBeGreaterThan(0)
-  expect(byPort.B2.mine.length, `through route elements of ${sw.name ?? sw.switchId}`).toBeGreaterThan(0)
+  const { ports } = switchParts(sw, tracks)
+  // The toe carries no elements of its own — the route parts there.
+  const carrying = ports.filter(p => p.port !== 'A')
+  expect(carrying.length, `ports carrying elements of ${sw.name ?? sw.switchId}`).toBeGreaterThan(0)
+  for (const port of carrying) {
+    expect(port.mine.length,
+      `${port.route} elements at port ${port.port} of ${sw.name ?? sw.switchId}`).toBeGreaterThan(0)
+  }
 }
 
 /** Shortest distance from a plane point to a plane polyline. */

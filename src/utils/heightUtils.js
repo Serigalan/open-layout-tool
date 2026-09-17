@@ -1,4 +1,5 @@
 import { nodeUtm, endPointStraightUtm, endPointCurvedUtm } from './elementUtils'
+import { portsOf } from './switchModel'
 import { transitionPointAtUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { HEIGHT_POINT_SPACING, HEIGHT_SPLIT_MIN } from './mapConstants'
@@ -157,11 +158,13 @@ export function adjacentTracks(tracks, switches, track, end) {
     const other = id !== track.id && tracks.find(t => t.id === id)
     if (other && !found.has(id)) found.set(id, { track: other, endpoint })
   }
-  const PORTS = ['portA', 'portB1', 'portB2']
   for (const sw of switches ?? []) {
-    const here = PORTS.some(p => sw[`${p}_trackId`] === track.id && sw[`${p}_endpoint`] === end)
+    const ports = portsOf(sw)
+    const here = ports.some(p => sw[p.trackKey] === track.id && sw[p.endKey] === end)
     if (!here) continue
-    for (const p of PORTS) if (sw[`${p}_trackId`] && sw[`${p}_trackId`] !== track.id) add(sw[`${p}_trackId`], sw[`${p}_endpoint`])
+    for (const p of ports) {
+      if (sw[p.trackKey] && sw[p.trackKey] !== track.id) add(sw[p.trackKey], sw[p.endKey])
+    }
   }
   const els = track.elements ?? []
   const node = end === 'BEGIN' ? els[0]?.startNode : els[els.length - 1]?.endNode

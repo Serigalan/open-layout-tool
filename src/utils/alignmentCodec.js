@@ -5,6 +5,7 @@
 // what surrounds it. The import (osrdImport) reads either.
 
 import { transitionCantEnds } from './clothoidUtils'
+import { portsOf } from './switchModel'
 
 export const DEG2GON = 10 / 9
 export const GON2DEG = 9 / 10
@@ -202,19 +203,33 @@ export function platformsToOperationalPoints(platforms, trackMap, foreign = []) 
   return [...out, ...foreign.filter(op => !generatedIds.has(op.id))]
 }
 
+/**
+ * What each kind is called in RailJSON. OSRD models the crossings as their own
+ * switch types, so the discriminator maps straight onto them — which is the
+ * whole reason the record carries a `kind` rather than counting its ports.
+ */
+export const OSRD_SWITCH_TYPES = {
+  turnout:     'point_switch',
+  crossing:    'crossing',
+  single_slip: 'single_slip_switch',
+  double_slip: 'double_slip_switch',
+}
+
+/** The kind a RailJSON switch type names, or null for one the app does not model. */
+export const kindForOsrdType = (type) =>
+  Object.keys(OSRD_SWITCH_TYPES).find(kind => OSRD_SWITCH_TYPES[kind] === type) ?? null
+
 export function switchesToPorts(switches, trackMap, foreign = []) {
   const out = switches.map((sw, i) => {
     const ports = {}
-    const addPort = (name, trackId, endpoint) => {
-      if (trackId && endpoint && trackMap[trackId]) ports[name] = { track: trackId, endpoint }
+    for (const { port, trackKey, endKey } of portsOf(sw)) {
+      const trackId = sw[trackKey], endpoint = sw[endKey]
+      if (trackId && endpoint && trackMap[trackId]) ports[port] = { track: trackId, endpoint }
     }
-    addPort('A',  sw.portA_trackId,  sw.portA_endpoint)
-    addPort('B1', sw.portB1_trackId, sw.portB1_endpoint)
-    addPort('B2', sw.portB2_trackId, sw.portB2_endpoint)
 
     return {
       id: sw.name ?? `switch_${i}`,
-      switch_type: 'point_switch',
+      switch_type: OSRD_SWITCH_TYPES[sw.kind] ?? OSRD_SWITCH_TYPES.turnout,
       group_change_delay: 0,
       ports,
       extensions: sw.name ? { sncf: { label: sw.name } } : null,

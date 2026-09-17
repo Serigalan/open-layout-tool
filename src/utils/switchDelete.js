@@ -1,6 +1,6 @@
 import { joinTracks, rebuildCoords, recalcAbsLengths, reverseTrack } from '../storage'
 import {
-  SWITCH_PORTS, elementBelongsToSwitch, elementOnSwitchRoute, unmarkSwitchElement,
+  portsOf, switchRoutePorts, elementBelongsToSwitch, elementOnSwitchRoute, unmarkSwitchElement,
 } from './switchModel'
 import {
   computeCurvedValuesUtm, computeStraightValuesUtm, resolveEndBearing,
@@ -8,6 +8,32 @@ import {
 import { curvatureOf } from './clothoidUtils'
 import { reconstructElements } from './elementReconstruct'
 import { splitHeights, trackLength } from './heightUtils'
+
+/**
+ * The routes that stay as ordinary track when the switch goes: a route both of
+ * whose ports carry track beyond the switch is a line running over it, and a
+ * line is not deleted because a switch on it was.
+ *
+ * Routes are taken in the kind's own order, and one is only kept where none of
+ * its ports is already claimed by a route before it. That single condition is
+ * what tells the kinds apart: a turnout's two routes share the toe, so at most
+ * one of them can stay, and the through route — first in the table — is the one
+ * that does. A crossing's two routes share no port, so both stay where both are
+ * lines; a slip's connecting curve shares its ports with both through routes
+ * and therefore only stays where neither of them does, which is right — it is
+ * the switch's own geometry, not a line.
+ */
+export function keptRoutes(sw, byPort) {
+  const claimed = new Set()
+  const kept = []
+  for (const [route, ports] of Object.entries(switchRoutePorts(sw?.kind))) {
+    if (ports.some(port => claimed.has(port))) continue
+    if (!ports.every(port => byPort[port]?.occupied)) continue
+    ports.forEach(port => claimed.add(port))
+    kept.push(route)
+  }
+  return kept
+}
 
 /**
  * Deleting a turnout.
@@ -19,7 +45,7 @@ import { splitHeights, trackLength } from './heightUtils'
  * longer exists; deleting everything it touches would tear a hole in a running
  * line. Which of the two routes is a line and which is the switch's own
  * geometry cannot be read off the record — it follows from what still hangs on
- * the ports:
+ * the ports (see keptRoutes):
  *
  * | occupied ports        | what stays                                        |
  * |-----------------------|---------------------------------------------------|
@@ -216,7 +242,7 @@ export function mergeChain(elements, epsg) {
  */
 export function switchParts(sw, tracks) {
   const byId = tracks instanceof Map ? tracks : new Map((tracks ?? []).map(t => [t.id, t]))
-  const ports = SWITCH_PORTS.map(({ port, trackKey, endKey, route }) => {
+  const ports = portsOf(sw).map(({ port, trackKey, endKey, route }) => {
     const trackId  = sw?.[trackKey] ?? null
     const endpoint = sw?.[endKey] ?? null
     const track    = trackId ? byId.get(trackId) ?? null : null
@@ -288,12 +314,18 @@ function unmarkOn(track, sw) {
  */
 export function planSwitchDeletion(sw, tracks) {
   if (!sw?.switchId) return null
+  // The crossing kinds part no track at a toe and may keep both of their
+  // routes; planning that belongs with the geometry that builds them, and
+  // until it exists a plan for one would be a guess. keptRoutes above already
+  // answers for them.
+  if (sw.kind && sw.kind !== 'turnout') return null
   const { byPort } = switchParts(sw, tracks)
   const { A, B1, B2 } = byPort
 
   // Which route is a line, and which is the switch's own geometry.
-  const keepThrough = A.occupied && B2.occupied
-  const keepBranch  = A.occupied && B1.occupied && !B2.occupied
+  const routes      = keptRoutes(sw, byPort)
+  const keepThrough = routes.includes('main')
+  const keepBranch  = routes.includes('branch')
   const kept    = keepThrough ? B2 : keepBranch ? B1 : null
   const reason  = keepThrough ? 'through' : keepBranch ? 'branch' : 'all'
 

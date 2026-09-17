@@ -15,7 +15,9 @@ import {
   SCHEMA_VERSION, dehydrateProjects, hydrateProjects, parseProjectsPayload,
 } from './persistenceUtils'
 import { joinHeights, splitHeights } from './heightUtils'
-import { switchParts, planSwitchDeletion, mergeableRun, mergeChain } from './switchDelete'
+import {
+  switchParts, planSwitchDeletion, keptRoutes, mergeableRun, mergeChain,
+} from './switchDelete'
 import {
   expectValidTrack, expectNodesJoin, expectAbsLengthsRunning, expectLengthsTrue,
   expectSwitchRoutesCarved,
@@ -529,5 +531,77 @@ describe('a switch further along the same track', () => {
     expect(reloaded.switches).toHaveLength(1)
     expect(reloaded.switches[0].fillCoords?.length).toBeGreaterThan(0)
     reloaded.tracks.forEach(track => { if (track.elements.length) expectValidTrack(track) })
+  })
+})
+
+/**
+ * AP 3.2 — which routes outlive the switch, stated once for every kind. The
+ * rule reads the ports, so it is checked against ports alone: what a route is
+ * carved into is the turnout tests above.
+ */
+describe('keptRoutes', () => {
+  const at = (...occupied) => Object.fromEntries(
+    ['A', 'B1', 'B2', 'B', 'C', 'D'].map(port => [port, { occupied: occupied.includes(port) }]))
+
+  describe('a turnout', () => {
+    const sw = { kind: 'turnout' }
+
+    it('keeps the through route where a line runs over it', () => {
+      expect(keptRoutes(sw, at('A', 'B2'))).toEqual(['main'])
+    })
+
+    it('keeps the branch where the through route is a stub', () => {
+      expect(keptRoutes(sw, at('A', 'B1'))).toEqual(['branch'])
+    })
+
+    it('keeps only the through route where all three ports are occupied', () => {
+      // Both routes meet at the toe, so both cannot stay — and the line does.
+      expect(keptRoutes(sw, at('A', 'B1', 'B2'))).toEqual(['main'])
+    })
+
+    it('keeps neither without the toe, whatever hangs on the other two', () => {
+      expect(keptRoutes(sw, at('B1', 'B2'))).toEqual([])
+      expect(keptRoutes(sw, at('A'))).toEqual([])
+      expect(keptRoutes(sw, at())).toEqual([])
+    })
+  })
+
+  describe('a crossing', () => {
+    const sw = { kind: 'crossing' }
+
+    it('keeps both routes — they cross, they do not part', () => {
+      expect(keptRoutes(sw, at('A', 'B', 'C', 'D'))).toEqual(['main', 'cross'])
+    })
+
+    it('keeps the one route that is a line', () => {
+      expect(keptRoutes(sw, at('A', 'C', 'B'))).toEqual(['main'])
+      expect(keptRoutes(sw, at('B', 'D'))).toEqual(['cross'])
+    })
+
+    it('keeps neither where both are stubs', () => {
+      expect(keptRoutes(sw, at('A', 'B'))).toEqual([])
+    })
+  })
+
+  describe('a double slip', () => {
+    const sw = { kind: 'double_slip' }
+
+    it('keeps the two through routes and neither connecting curve', () => {
+      // The curves are the switch's own geometry, and they share their ports
+      // with the routes that are lines.
+      expect(keptRoutes(sw, at('A', 'B', 'C', 'D'))).toEqual(['main', 'cross'])
+    })
+
+    it('keeps a connecting curve only where no through route is a line', () => {
+      expect(keptRoutes(sw, at('A', 'D'))).toEqual(['slip1'])
+      expect(keptRoutes(sw, at('B', 'C'))).toEqual(['slip2'])
+    })
+  })
+})
+
+describe('planSwitchDeletion', () => {
+  it('plans nothing for a kind whose geometry does not exist yet', () => {
+    expect(planSwitchDeletion({ switchId: 'x', kind: 'crossing' }, [])).toBe(null)
+    expect(planSwitchDeletion({ switchId: 'x', kind: 'double_slip' }, [])).toBe(null)
   })
 })

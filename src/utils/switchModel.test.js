@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
-  DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION, SWITCH_KINDS, SWITCH_ROUTES,
+  DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION, SWITCH_KINDS, SWITCH_ROUTES, SWITCH_PORTS,
   elementBelongsToSwitch, isModelledSwitch, newSwitchFields, switchElementMark,
+  switchPorts, portsOf, switchRoutes, switchRoutePorts,
 } from './switchModel'
 
 describe('the model’s vocabulary', () => {
@@ -77,3 +78,56 @@ describe('newSwitchFields', () => {
   })
 })
 
+
+describe('the ports and routes each kind has', () => {
+  it('gives the turnout three ports and the crossing kinds four', () => {
+    expect(switchPorts('turnout').map(p => p.port)).toEqual(['A', 'B1', 'B2'])
+    for (const kind of ['crossing', 'single_slip', 'double_slip']) {
+      expect(switchPorts(kind).map(p => p.port)).toEqual(['A', 'B', 'C', 'D'])
+    }
+  })
+
+  it('pairs every port with the two field names a record carries it in', () => {
+    for (const kind of SWITCH_KINDS) {
+      for (const { port, trackKey, endKey } of switchPorts(kind)) {
+        expect(trackKey).toBe(`port${port}_trackId`)
+        expect(endKey).toBe(`port${port}_endpoint`)
+      }
+    }
+  })
+
+  it('reads the ports off the record’s own kind', () => {
+    expect(portsOf({ kind: 'crossing' })).toHaveLength(4)
+    expect(portsOf({ kind: 'turnout' })).toHaveLength(3)
+    // A record from before the kinds existed is a turnout, and so is nonsense.
+    expect(portsOf({})).toEqual(SWITCH_PORTS)
+    expect(portsOf({ kind: 'no_such_kind' })).toEqual(SWITCH_PORTS)
+  })
+
+  it('names the routes of each kind, the turnout’s pair first', () => {
+    expect(switchRoutes('turnout')).toEqual(['main', 'branch'])
+    expect(switchRoutes('crossing')).toEqual(['main', 'cross'])
+    expect(switchRoutes('single_slip')).toEqual(['main', 'cross', 'slip'])
+    expect(switchRoutes('double_slip')).toEqual(['main', 'cross', 'slip1', 'slip2'])
+    expect(SWITCH_ROUTES).toEqual(switchRoutes(DEFAULT_SWITCH_KIND))
+  })
+
+  it('runs every route between two ports the kind has', () => {
+    for (const kind of SWITCH_KINDS) {
+      const ports = new Set(switchPorts(kind).map(p => p.port))
+      for (const [route, ends] of Object.entries(switchRoutePorts(kind))) {
+        expect(ends, `${kind}.${route}`).toHaveLength(2)
+        for (const end of ends) expect(ports.has(end), `${kind}.${route} → ${end}`).toBe(true)
+      }
+    }
+  })
+
+  it('parts the turnout’s routes at the toe and lets a crossing’s cross', () => {
+    const shared = (kind, a, b) => {
+      const ports = switchRoutePorts(kind)
+      return ports[a].filter(p => ports[b].includes(p))
+    }
+    expect(shared('turnout', 'main', 'branch')).toEqual(['A'])
+    expect(shared('crossing', 'main', 'cross')).toEqual([])
+  })
+})

@@ -31,11 +31,32 @@ export const DEFAULT_SWITCH_KIND = 'turnout'
 export const SWITCH_FORM_VERSION = 1
 
 /**
- * The routes a turnout has, as its elements mark themselves. A crossing has more
- * than two; generalising the route set belongs with the port model that has to
- * carry it, so this stays the turnout's pair for now.
+ * The routes each kind has, as its elements mark themselves, with the ports each
+ * route runs between.
+ *
+ * A turnout's two routes share the toe: they part there, which is what makes it
+ * a turnout. The crossing kinds instead have four ports and routes that cross
+ * without sharing an end — `main` from A to C, `cross` from B to D — and a slip
+ * adds the connecting curves between them, one for the single slip and two for
+ * the double. That the routes of a crossing share no port is why both of them
+ * can outlive it as ordinary track, which the turnout's pair never can (see
+ * switchDelete).
  */
-export const SWITCH_ROUTES = ['main', 'branch']
+const ROUTE_PORTS = {
+  turnout:     { main: ['A', 'B2'], branch: ['A', 'B1'] },
+  crossing:    { main: ['A', 'C'],  cross: ['B', 'D'] },
+  single_slip: { main: ['A', 'C'],  cross: ['B', 'D'], slip: ['A', 'D'] },
+  double_slip: { main: ['A', 'C'],  cross: ['B', 'D'], slip1: ['A', 'D'], slip2: ['B', 'C'] },
+}
+
+/** The ports each route of this kind runs between, as { route: [port, port] }. */
+export const switchRoutePorts = (kind) => ROUTE_PORTS[kind] ?? ROUTE_PORTS[DEFAULT_SWITCH_KIND]
+
+/** The routes of a kind, in the order a shared port is claimed (see switchDelete). */
+export const switchRoutes = (kind) => Object.keys(switchRoutePorts(kind))
+
+/** The routes a turnout has — the pair everything built so far marks itself with. */
+export const SWITCH_ROUTES = switchRoutes(DEFAULT_SWITCH_KIND)
 
 export const newSwitchId = () => crypto.randomUUID()
 
@@ -76,23 +97,44 @@ export function isModelledSwitch(sw) {
 }
 
 /**
- * The ports of a turnout: the track each names, which end of that track the
- * switch sits at, and which of the switch's routes runs into it. A port is a
- * pair of fields on the record rather than a record of its own — that is the
- * shape the store, the exchange format and the OSRD codec all read, and the
- * one place that pairs the two field names is here. (AP 3.2 replaces this with
- * the general port model a crossing needs; until then everything that walks the
- * ports walks this list.)
+ * The ports of each kind: the track each names, which end of that track the
+ * switch sits at, and which of the switch's routes carries the elements marked
+ * there. A port is a pair of fields on the record rather than a record of its
+ * own — that is the shape the store, the exchange format and the OSRD codec all
+ * read, and the one place that pairs the two field names is here.
  *
- * Port A is the toe. The switch owns no elements there — the toe is a node, not
- * a stretch — so `route` says which route *would* run into it, not what is
- * marked on its track.
+ * A turnout has three, and port A is its toe: the switch owns no elements there
+ * — the toe is a node, not a stretch — so `route` says which route *would* run
+ * into it. The crossing kinds have four, one per end of the two crossing
+ * routes, and every one of them carries elements.
+ *
+ * Everything that walks a record's ports walks the list for its kind, so a kind
+ * with more of them is a further entry here and nothing else.
  */
-export const SWITCH_PORTS = [
-  { port: 'A',  trackKey: 'portA_trackId',  endKey: 'portA_endpoint',  route: 'main' },
-  { port: 'B1', trackKey: 'portB1_trackId', endKey: 'portB1_endpoint', route: 'branch' },
-  { port: 'B2', trackKey: 'portB2_trackId', endKey: 'portB2_endpoint', route: 'main' },
-]
+const PORTS_BY_KIND = {
+  turnout: [
+    { port: 'A',  trackKey: 'portA_trackId',  endKey: 'portA_endpoint',  route: 'main' },
+    { port: 'B1', trackKey: 'portB1_trackId', endKey: 'portB1_endpoint', route: 'branch' },
+    { port: 'B2', trackKey: 'portB2_trackId', endKey: 'portB2_endpoint', route: 'main' },
+  ],
+  crossing: [
+    { port: 'A', trackKey: 'portA_trackId', endKey: 'portA_endpoint', route: 'main' },
+    { port: 'B', trackKey: 'portB_trackId', endKey: 'portB_endpoint', route: 'cross' },
+    { port: 'C', trackKey: 'portC_trackId', endKey: 'portC_endpoint', route: 'main' },
+    { port: 'D', trackKey: 'portD_trackId', endKey: 'portD_endpoint', route: 'cross' },
+  ],
+}
+PORTS_BY_KIND.single_slip = PORTS_BY_KIND.crossing
+PORTS_BY_KIND.double_slip = PORTS_BY_KIND.crossing
+
+/** The ports of a kind, as the field pairs a record carries them in. */
+export const switchPorts = (kind) => PORTS_BY_KIND[kind] ?? PORTS_BY_KIND[DEFAULT_SWITCH_KIND]
+
+/** The ports of this record, by its own kind. */
+export const portsOf = (sw) => switchPorts(sw?.kind)
+
+/** The ports of a turnout — what every record built so far carries. */
+export const SWITCH_PORTS = switchPorts(DEFAULT_SWITCH_KIND)
 
 /** Does this element carry `sw`'s mark for `route`? */
 export const elementOnSwitchRoute = (el, sw, route) => Boolean(el?.switchBranch)

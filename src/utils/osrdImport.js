@@ -9,6 +9,7 @@ import {
   switchLabelGeometry, bauform,
 } from './switchUtils'
 import { newSwitchFields, switchElementMark } from './switchModel'
+import { kindForOsrdType } from './alignmentCodec'
 import { computeClothoidUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT } from './mapConstants'
@@ -70,6 +71,11 @@ const portElementIndex = (els, endpoint) => (endpoint === 'END' ? els.length - 1
 function rebuildSwitch(sw, trackById) {
   const ports = sw?.ports ?? {}
   if (typeof sw?.id !== 'string' || !ports.B1?.track) return null
+  // Only the turnout is rebuilt as a body: the crossing kinds have four ports
+  // and no branch arc to read, and one built from this construction would be a
+  // turnout wearing their name. They stay in the passthrough until the geometry
+  // that draws them exists.
+  if (sw.switch_type && kindForOsrdType(sw.switch_type) !== 'turnout') return null
 
   const branchTrack = trackById[ports.B1.track]
   const branchEls   = branchTrack?.elements ?? []
