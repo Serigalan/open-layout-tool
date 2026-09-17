@@ -19,7 +19,7 @@ export const GAUGE_PROFILES = {
     // same way as the contour and mirrored with it.
     guides: [
       [[1275, 0], [2500, 0], [2500, 760]],
-      [[2200, 1200], [2200, 3900]],
+      [[2200, 760], [2200, 3900]],
     ],
   },
 }
