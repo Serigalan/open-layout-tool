@@ -1422,6 +1422,23 @@
   background: #f0f0f8;
 }
 
+/* What the last edit reached, and why it was refused (AP 5.1). */
+.track-table-reach,
+.track-table-reach-error {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.track-table-reach {
+  color: #6c5ce7;
+}
+
+.track-table-reach-error {
+  color: #c0392b;
+  font-weight: 600;
+}
+
 .track-table-save-btn {
   padding: 4px 12px;
   background: var(--color-primary);

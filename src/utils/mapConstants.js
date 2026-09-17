@@ -147,6 +147,18 @@ export const MAX_SWITCH_CANT           = 100  // maximum cant on a switch route 
 export const MAX_SWITCH_CANT_EXCEPTION = 120  // …raised to this by a written justification
 export const MAX_SWITCH_CANT_DEF       = 110  // maximum cant deficiency for switches (mm)
 
+/**
+ * How far a single change in the track editor may reach before it is refused
+ * (AP 5.1, Entscheidung 3). A geometry edit re-shapes everything hanging off the
+ * element's end, across track and project boundaries, and that is the point of
+ * it — but past a certain reach nobody can hold in their head what a typed
+ * number is about to move. Both limits are exclusive and joined by OR: a change
+ * that rebuilds five tracks without touching a switch is as hard to oversee as
+ * one that moves two switches.
+ */
+export const MAX_EDIT_SWITCHES = 1
+export const MAX_EDIT_TRACKS   = 3
+
 /** The justification an element carries, trimmed — '' when it carries none. */
 export const cantExceptionOf = (el) =>
   (typeof el?.cantException === 'string' ? el.cantException.trim() : '')

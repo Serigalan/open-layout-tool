@@ -304,6 +304,8 @@
   "table_cant_exception": "Cant exception (reason)",
   "table_cant_over_limit": "Cant exceeds the admissible {{mm}} mm",
   "table_cant_exception_note": "Cant exception: {{text}}",
+  "table_edit_too_wide": "This change reaches too far: it would rebuild more than one switch or more than three tracks.",
+  "table_edit_reach": "reaches {{tracks}} tracks, {{switches}} switches",
   "table_cant_def": "Cant deficiency u_f",
   "table_max_speed": "V_max",
   "table_speed_cap": "Max V",

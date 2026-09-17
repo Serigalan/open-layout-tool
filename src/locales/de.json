@@ -304,6 +304,8 @@
   "table_cant_exception": "Ausnahme u (Begründung)",
   "table_cant_over_limit": "Überhöhung überschreitet die zulässigen {{mm}} mm",
   "table_cant_exception_note": "Überhöhungsausnahme: {{text}}",
+  "table_edit_too_wide": "Diese Änderung greift zu weit: sie würde mehr als eine Weiche oder mehr als drei Gleise umbauen.",
+  "table_edit_reach": "betrifft {{tracks}} Gleise, {{switches}} Weichen",
   "table_cant_def": "Fehlbetrag u_f",
   "table_max_speed": "V_max",
   "table_speed_cap": "max. V",

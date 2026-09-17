@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { loadTracks, replaceAllTracks } from '../storage'
-import { applyElementChange } from './panels/EditElementPanel/editGeometry'
+import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
+import { planElementChange } from './panels/EditElementPanel/editGeometry'
 import { transitionCantEnds } from '../utils/clothoidUtils'
 import {
   cantSign, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned, computeMaxSpeed,
@@ -99,11 +99,17 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
   // while this stays mounted. A half-typed cell of the previous track must not
   // carry over into the same row/column of the new one, and the highlight moves
   // to the new track's first element.
+  // What the edits made so far have reached, and why the last one was refused.
+  // Both are the editor's own reach (AP 5.1), not the table's content.
+  const [reached, setReached] = useState({ trackIds: [], switchIds: [] })
+  const [reachError, setReachError] = useState(null)
+
   const [draftTrackId, setDraftTrackId] = useState(track.id)
   if (draftTrackId !== track.id) {
     setDraftTrackId(track.id)
     setDraft(null)
     setActiveRow(0)
+    setReachError(null)
   }
 
   // Draw the active row's element in red on the map — the tracks-selected-layer
@@ -165,7 +171,18 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
         if (!Number.isFinite(value)) return
         if (key === 'length' && value <= 0) return
       }
-      setTracks(prev => applyElementChange(prev, track.id, row, { [key]: value }))
+      // A geometry edit reaches past its own element; how far is worked out
+      // first, and a change that reaches too far is refused rather than written
+      // (AP 5.1). The cell falls back to the stored value on its own, since the
+      // tracks it reads from are the ones that did not change.
+      const plan = planElementChange(tracks, loadSwitches(project.id), track.id, row, { [key]: value })
+      if (plan.error) { setReachError(plan.error); return }
+      setReachError(null)
+      setReached(prev => ({
+        trackIds:  [...new Set([...prev.trackIds, ...plan.touchedTrackIds])],
+        switchIds: [...new Set([...prev.switchIds, ...plan.touchedSwitchIds])],
+      }))
+      setTracks(plan.tracks)
     } else if (key === 'cantException') {
       // The justification is a free text, and the text *is* the exception:
       // emptying the field takes the limit straight back to 100 mm, and the cant
@@ -227,8 +244,11 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
     // Write back only the tracks this table holds, onto the store as it stands
     // now: other edit forms stay open alongside the table, so tracks added or
     // deleted meanwhile must not be resurrected or wiped by a stale snapshot.
+    // The switches the edits reached get their symbols rebuilt in the same step
+    // — they are derived from these very tracks.
     const edited = new Map(tracks.map(tr => [tr.id, tr]))
-    replaceAllTracks(project.id, loadTracks(project.id).map(tr => edited.get(tr.id) ?? tr))
+    commitTrackEdit(project.id, loadTracks(project.id).map(tr => edited.get(tr.id) ?? tr), reached.switchIds)
+    setReached({ trackIds: [], switchIds: [] })
     onSaved?.()
   }
 
@@ -293,6 +313,14 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
           </label>
           <button className="track-table-vmax-btn" onClick={handleMaxSpeeds}
             title={t('table_set_max_speeds_hint')}>{t('table_set_max_speeds')}</button>
+          {reachError && <span className="track-table-reach-error">{t(reachError)}</span>}
+          {!reachError && reached.trackIds.length > 1 && (
+            <span className="track-table-reach">
+              {t('table_edit_reach')
+                .replace('{{tracks}}', String(reached.trackIds.length))
+                .replace('{{switches}}', String(reached.switchIds.length))}
+            </span>
+          )}
           <button className="track-table-save-btn" onClick={handleSave}>{t('btn_save')}</button>
           <button className="track-table-close" onClick={onClose}>✕</button>
         </div>

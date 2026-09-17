@@ -8,6 +8,8 @@ import { computeClothoidUtm } from '../../../utils/clothoidUtils'
 import { utmToWgs84 } from '../../../utils/coordinateUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
 import { truncateHeights } from '../../../utils/heightUtils'
+import { switchParts } from '../../../utils/switchDelete'
+import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../../../utils/mapConstants'
 
 export const EDIT_MARKER_SOURCE = 'edit-length-markers-source'
 export const EDIT_MARKER_LAYER  = 'edit-length-markers-layer'
@@ -82,8 +84,9 @@ const endUtmOf = (el, epsg) => ({ easting: el.endNode[0], northing: el.endNode[1
 
 // Move every element that started at `oldNode` onto the new end (start point
 // and tangent), and on down the chain. Nodes are plane coordinates, so only
-// tracks in the same plane can share one.
-function propagate(tracks, epsg, oldNode, fromEl) {
+// tracks in the same plane can share one. Every track and every switch route it
+// reaches is recorded in `touched` — that reach is what AP 5.1 bounds.
+function propagate(tracks, epsg, oldNode, fromEl, touched) {
   const queue = [{ oldNode, start: endUtmOf(fromEl, epsg), bearing: fromEl.endBearing ?? fromEl.bearing }]
   while (queue.length > 0) {
     const { oldNode: node, start, bearing } = queue.shift()
@@ -95,6 +98,8 @@ function propagate(tracks, epsg, oldNode, fromEl) {
         const shifted = buildElement(e, start, { bearing })
         queue.push({ oldNode: e.endNode, start: endUtmOf(shifted, epsg), bearing: shifted.endBearing ?? shifted.bearing })
         t.elements[i] = shifted
+        touched.trackIds.add(t.id)
+        if (e.switchId) touched.switchIds.add(e.switchId)
       }
     }
   }
@@ -106,19 +111,33 @@ const finish = (tracks) => tracks.map(t => {
 })
 
 /**
- * Change an element's length, bearing and/or radius (radius null = straight).
- * The element is rebuilt from its start node in the track's plane; everything
- * connected to its end follows. Returns the new track array.
+ * What changing an element's length, bearing and/or radius would do — worked out
+ * without writing anything (AP 5.1). The element is rebuilt from its start node
+ * in the track's plane and everything hanging off its end follows, across track
+ * and project boundaries, which is the point of the edit and also its danger:
+ * `project.switches` is not carried along, so a change that walks over a
+ * turnout's own elements takes its geometry apart while the record still claims
+ * the old one.
  *
- * A new length re-stations the track from that element on, so the vertical
- * alignment is cut there — what lies before it keeps its height points, the
- * rest is read from the terrain again (see elevationFill).
+ * So the reach is measured and, past the limits in mapConstants, refused:
+ *
+ *   tracks            the new track array — always built, so a preview can show
+ *                     what the change would do even where it is refused
+ *   touchedTrackIds   every track whose elements it re-shaped, the edited one included
+ *   touchedSwitchIds  every switch it reaches: those whose own route elements
+ *                     moved, and those standing with a port on a moved track
+ *   error             the locale key of the refusal, or null
+ *
+ * `switches` may be left empty where the caller only wants the geometry (see
+ * applyElementChange) — then there is nothing to count and nothing to protect.
  */
-export function applyElementChange(tracks, trackId, elIdx, { length, bearing, radius }) {
+export function planElementChange(tracks, switches, trackId, elIdx, { length, bearing, radius }) {
   const newTracks = tracks.map(t => ({ ...t, elements: (t.elements ?? []).map(e => ({ ...e })) }))
+  const touched = { trackIds: new Set(), switchIds: new Set() }
   const track = newTracks.find(t => t.id === trackId)
   const el    = track?.elements?.[elIdx]
-  if (!el) return newTracks
+  if (!el) return { tracks: newTracks, touchedTrackIds: [], touchedSwitchIds: [], error: null }
+
   const epsg     = track.epsg
   const startUtm = nodeUtm(el.startNode, el.geometry?.coordinates?.[0], epsg)
   const newEl = buildElement(el, startUtm, {
@@ -126,14 +145,43 @@ export function applyElementChange(tracks, trackId, elIdx, { length, bearing, ra
     length:  length  !== undefined ? length  : el.length,
     radius:  radius  !== undefined ? radius  : el.radius,
   })
+  // A new length re-stations the track from that element on, so the vertical
+  // alignment is cut there — what lies before it keeps its height points, the
+  // rest is read from the terrain again (see elevationFill).
   if (newEl.length !== el.length && track.heights) {
     const cutAt = track.elements.slice(0, elIdx).reduce((sum, e) => sum + (e.length ?? 0), 0)
     const kept  = truncateHeights(track.heights, cutAt)
     if (kept) track.heights = kept; else delete track.heights
   }
   track.elements[elIdx] = newEl
-  propagate(newTracks, epsg, el.endNode, newEl)
-  return finish(newTracks)
+  touched.trackIds.add(track.id)
+  if (el.switchId) touched.switchIds.add(el.switchId)
+
+  propagate(newTracks, epsg, el.endNode, newEl, touched)
+
+  // A switch also stands on the tracks its ports name, even where none of its
+  // own elements moved: the track it was laid into was re-stationed under it.
+  const byId = new Map(newTracks.map(t => [t.id, t]))
+  for (const sw of switches ?? []) {
+    if (!sw?.switchId || touched.switchIds.has(sw.switchId)) continue
+    const { ports } = switchParts(sw, byId)
+    if (ports.some(p => p.trackId && touched.trackIds.has(p.trackId))) touched.switchIds.add(sw.switchId)
+  }
+
+  const touchedTrackIds  = [...touched.trackIds]
+  const touchedSwitchIds = [...touched.switchIds]
+  const error = touchedSwitchIds.length > MAX_EDIT_SWITCHES || touchedTrackIds.length > MAX_EDIT_TRACKS
+    ? 'table_edit_too_wide' : null
+
+  return { tracks: finish(newTracks), touchedTrackIds, touchedSwitchIds, error }
+}
+
+/**
+ * The same change, as the track array alone — for the callers that only draw a
+ * preview from it and do not decide anything.
+ */
+export function applyElementChange(tracks, trackId, elIdx, patch) {
+  return planElementChange(tracks, [], trackId, elIdx, patch).tracks
 }
 
 /** Change only the length (interactive length edit). */

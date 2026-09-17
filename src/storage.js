@@ -3,6 +3,7 @@ import {
 } from './utils/persistenceUtils'
 import { reverseElement } from './utils/elementUtils'
 import { elementBelongsToSwitch, SWITCH_PORTS } from './utils/switchModel'
+import { rebuildSwitchSymbol } from './utils/switchUtils'
 import { joinHeights, reverseHeights, splitHeights, trackLength } from './utils/heightUtils'
 import * as idb from './utils/idbStorage'
 
@@ -536,6 +537,30 @@ export function replaceAllTracks(projectId, tracks) {
   const project = getCache().find((p) => p.id === projectId)
   if (!project) return
   project.tracks = tracks
+  persist(projectId)
+}
+
+/**
+ * Write back an edited track set and rebuild the symbols of the switches the
+ * edit reached (AP 5.1) — in one undo step, because they are one change.
+ *
+ * A switch symbol is derived from the tracks its routes lie on
+ * (rebuildSwitchSymbol), and until now only a reload rebuilt it. An edit that
+ * re-shaped a turnout's own elements therefore left the symbol standing on the
+ * geometry it used to have, which is precisely the case the editor's reach
+ * limit exists for: what still gets through has to be drawn as it now is.
+ */
+export function commitTrackEdit(projectId, tracks, switchIds = []) {
+  pushUndo()
+  const project = getCache().find((p) => p.id === projectId)
+  if (!project) return
+  project.tracks = tracks
+  const rebuild = new Set(switchIds)
+  if (rebuild.size && project.switches?.length) {
+    const byId = Object.fromEntries((project.tracks ?? []).map(t => [t.id, t]))
+    project.switches = project.switches.map(sw => (
+      rebuild.has(sw.switchId) ? rebuildSwitchSymbol(sw, byId) : sw))
+  }
   persist(projectId)
 }
 
