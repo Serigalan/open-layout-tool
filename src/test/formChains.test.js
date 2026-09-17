@@ -187,7 +187,7 @@ describe('the branch a switch dialog commits', () => {
   // SwitchOnTrackForm builds one element per piece of the branch chain. A
   // turnout laid across several elements of its host track gets several, and
   // that is the chain the invariants have to hold for.
-  const form = SWITCH_TYPES[3]                     // 760 – 1:14
+  const form = SWITCH_TYPES.find(f => f.label === '760 – 1:14')
 
   const branchElements = (stem) => {
     const g = computeSwitchGeometryUtm(START, 30, form, 'right', false, null, stem)
@@ -214,7 +214,7 @@ describe('the branch a switch dialog commits', () => {
   })
 
   it('across a straight running into a clothoid and on into an arc: one element per piece', () => {
-    const straightLen = switchStraightLength(form.R, form.ratio)
+    const straightLen = switchStraightLength(form)
     const { elements } = branchElements([
       { length: straightLen * 0.3, r1: null, r2: null },
       { length: straightLen * 0.4, r1: null, r2: -900 },
@@ -256,7 +256,7 @@ describe('the branch a switch dialog commits', () => {
   })
 
   it('the branch runs the form’s own length however the stem is made up', () => {
-    const straightLen = switchStraightLength(form.R, form.ratio)
+    const straightLen = switchStraightLength(form)
     const { g, elements } = branchElements([
       { length: straightLen * 0.5, r1: null, r2: null },
       { length: straightLen * 0.9, r1: null, r2: -900 },

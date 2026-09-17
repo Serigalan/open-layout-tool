@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
-  SWITCH_TYPES, solveSwitchConnection, computeSwitchConnections, buildConnectionElements,
+  SWITCH_TYPES, CONNECTION_SPEEDS, solveSwitchConnection, computeSwitchConnections,
+  buildConnectionElements,
 } from './switchConnectionUtils'
-import { switchArcLength, switchStraightLength, branchRadius } from './switchUtils'
+import {
+  switchArcLength, switchStraightLength, switchBranchLength, branchRadius,
+} from './switchUtils'
 import {
   arcCoordsFromRadiusUtm, computeCurvedValuesUtm, endPointCurvedUtm, endPointStraightUtm,
 } from './elementUtils'
@@ -26,7 +29,7 @@ import { expectValidTrack, expectSwitchRoutesCarved } from '../test/chainInvaria
 const EPSG  = 25832
 const P     = (e, n) => ({ easting: e, northing: n, zone: EPSG })
 const ORIGIN = P(500000, 5600000)
-const FORM  = SWITCH_TYPES[2]          // 500 – 1:12, speed 60, minl 6
+const FORM  = SWITCH_TYPES.find(f => f.label === '500 – 1:12')   // speed 60, minl 6
 const SPEED = FORM.speed
 
 
@@ -102,7 +105,7 @@ describe('two straight tracks', () => {
     const res = solveSwitchConnection(g1, g2, SPEED)
     expect(res.signedR1).toBe(-FORM.R)                 // track 2 to the left
     expect(res.signedR2).toBe(FORM.R)
-    expect(res.L1).toBeCloseTo(switchArcLength(FORM.R, FORM.ratio), 12)
+    expect(res.L1).toBeCloseTo(switchArcLength(FORM.R, FORM.ratio), 12)   // one arc, no end piece
   })
 
   it('slides with the shift and keeps the same shape', () => {
@@ -115,7 +118,9 @@ describe('two straight tracks', () => {
   })
 
   it('converging tracks give a middle arc that turns by the angle between them', () => {
-    const skew = stem(P(ORIGIN.easting - GAP, ORIGIN.northing), 1.5, null)
+    // Wider than GAP: converging tracks close some of the gap over the length of
+    // the connection, and the forms are their full built length (AP 3.1).
+    const skew = stem(P(ORIGIN.easting - 7, ORIGIN.northing), 1.5, null)
     const res = solveSwitchConnection(g1, skew, SPEED)
     expect(res.valid).toBe(true)
     expect(res.delta).toBeCloseTo(-1.5 * Math.PI / 180, 9)   // bearing grows clockwise
@@ -248,8 +253,8 @@ describe('one straight track and one curved', () => {
 
 describe('the three elements of a connection', () => {
   const asTrack = (res) => {
-    const { arc1El, midEl, arc2El } = buildConnectionElements(res, SPEED)
-    const elements = recalcAbsLengths([arc1El, midEl, arc2El])
+    const { branch1, midEl, branch2 } = buildConnectionElements(res, SPEED)
+    const elements = recalcAbsLengths([...branch1, midEl, ...branch2])
     return { id: 't', epsg: EPSG, elements }
   }
 
@@ -274,18 +279,20 @@ describe('the three elements of a connection', () => {
   it('the through length a turnout of the connection needs comes back with it', () => {
     const res = solveSwitchConnection(
       stem(ORIGIN, 0, null), stem(P(ORIGIN.easting - 4.5, ORIGIN.northing), 0, null), SPEED)
-    expect(res.throughLength).toBeCloseTo(switchStraightLength(FORM.R, FORM.ratio), 12)
+    expect(res.throughLength).toBeCloseTo(switchStraightLength(FORM), 12)
   })
 })
 
 // ── the speed table the dropdown reads ──────────────────────────────────────
 
 describe('computeSwitchConnections', () => {
-  it('reports one entry per primary form', () => {
+  it('reports every speed once, however many forms it has', () => {
     const list = computeSwitchConnections(
       stem(ORIGIN, 0, null), stem(P(ORIGIN.easting - 4.5, ORIGIN.northing), 0, null))
-    expect(list).toHaveLength(SWITCH_TYPES.length)
-    expect(list.map(e => e.speed)).toEqual(SWITCH_TYPES.map(s => s.speed))
+    expect(list.map(e => e.speed)).toEqual(CONNECTION_SPEEDS)
+    expect(new Set(list.map(e => e.speed)).size).toBe(list.length)
+    // 40 km/h has two forms in the table and is still one entry here.
+    expect(SWITCH_TYPES.filter(f => f.speed === 40).length).toBe(2)
     expect(list.some(e => e.valid)).toBe(true)
   })
 })
@@ -345,11 +352,11 @@ describe('committing a connection in a curve', () => {
     const end2 = alongStem(res.TP2, res.bearing2, res.throughLength,
       res.stemR2 == null ? null : -res.stemR2)
 
-    const { arc1El, midEl, arc2El } = buildConnectionElements(res, SPEED)
+    const { branch1, midEl, branch2 } = buildConnectionElements(res, SPEED)
     const connElements = recalcAbsLengths([
-      { ...arc1El, ...switchElementMark(id1, 'branch') },
+      ...branch1.map(el => ({ ...el, ...switchElementMark(id1, 'branch') })),
       midEl,
-      { ...arc2El, ...switchElementMark(id2, 'branch') },
+      ...branch2.map(el => ({ ...el, ...switchElementMark(id2, 'branch') })),
     ])
     const connTrack = { id: 'conn', name: 'connection.001', epsg: EPSG, elements: connElements }
 
@@ -435,17 +442,17 @@ describe('the two tracks need not be the same kind of element', () => {
     // Curvature runs under the first turnout, so its branch is a clothoid of the
     // stem's own parameter (switchBranchRoute) rather than an arc.
     const clothoid = stem(ORIGIN, 0, null, 0, { length: 300, r2: -2000, along: 100 })
-    const res = solveSwitchConnection(clothoid, stem(at(ORIGIN, -4.5), 0, null), SPEED)
+    const res = solveSwitchConnection(clothoid, stem(at(ORIGIN, -7), 0, null), SPEED)
     expect(res.valid).toBe(true)
-    expect(res.route1.r1).not.toBe(res.route1.r2)
-    expect(res.route2.r1).toBe(res.route2.r2)          // track 2 is straight
+    expect(res.chain1[0].r1).not.toBe(res.chain1[0].r2)
+    expect(res.chain2[0].r1).toBe(res.chain2[0].r2)    // track 2 is straight
 
-    const { arc1El, midEl, arc2El } = buildConnectionElements(res, SPEED)
-    expect(arc1El.elementType).toBe(2)
-    expect(arc1El.transitionType).toBe('clothoid')
+    const { branch1, midEl, branch2 } = buildConnectionElements(res, SPEED)
+    expect(branch1[0].elementType).toBe(2)
+    expect(branch1[0].transitionType).toBe('clothoid')
     expect(midEl.elementType).toBeLessThan(2)
-    expect(arc2El.elementType).toBe(1)
-    expectValidTrack({ id: 't', epsg: EPSG, elements: recalcAbsLengths([arc1El, midEl, arc2El]) })
+    expect(branch2[branch2.length - 1].elementType).toBe(1)
+    expectValidTrack({ id: 't', epsg: EPSG, elements: recalcAbsLengths([...branch1, midEl, ...branch2]) })
   })
 
   it('…and refuses one whose cant ramps across the connection', () => {
@@ -453,7 +460,7 @@ describe('the two tracks need not be the same kind of element', () => {
     // not agree on it. That needs a ramp on an element this construction does
     // not build (AP 4.1).
     const ramping = stem(ORIGIN, 0, null, 0, { length: 300, r2: -2000, along: 100, cantEnd: 60 })
-    const res = solveSwitchConnection(ramping, stem(at(ORIGIN, -4.5), 0, null, 0), SPEED)
+    const res = solveSwitchConnection(ramping, stem(at(ORIGIN, -7), 0, null, 0), SPEED)
     expect(res.valid).toBe(false)
     expect(res.reason).toBe('cant_mismatch')
   })
@@ -463,10 +470,64 @@ describe('the two tracks need not be the same kind of element', () => {
     // which is what a transition element is for (AP 1.1's rule for a turnout in
     // a cant ramp).
     const ramping = stem(ORIGIN, 0, null, 20, { length: 300, r2: -2000, along: 100, cantEnd: 60 })
-    const res = solveSwitchConnection(ramping, stem(at(ORIGIN, -4.5), 0, null, 0), SPEED)
+    const res = solveSwitchConnection(ramping, stem(at(ORIGIN, -7), 0, null, 0), SPEED)
     expect(res.cant1Start).not.toBe(res.cant1End)
-    const { arc1El } = buildConnectionElements(res, SPEED)
-    expect(arc1El.cantStart).toBe(res.cant1Start)
-    expect(arc1El.cantEnd).toBe(res.cant1End)
+    const { branch1 } = buildConnectionElements(res, SPEED)
+    expect(branch1[0].cantStart).toBe(res.cant1Start)
+    expect(branch1[branch1.length - 1].cantEnd).toBe(res.cant1End)
+  })
+})
+
+/**
+ * AP 3.1 — a form whose branch ends in a straight piece. The connection is two
+ * turnouts of one form, so the end piece is part of what it builds: the branch
+ * is no longer one element, and the middle element starts where the straight
+ * end stops, not where the arc does.
+ */
+describe('a connection built from a form with a straight end piece', () => {
+  const FORM_40 = SWITCH_TYPES.find(f => f.label === '190 – 1:9')
+  const g1 = stem(ORIGIN, 0, null)
+  const g2 = stem(P(ORIGIN.easting - 4.5, ORIGIN.northing), 0, null)
+  const res = solveSwitchConnection(g1, g2, 40)
+
+  it('settles on the flatter of the two forms that speed offers', () => {
+    expect(res.valid).toBe(true)
+    expect(res.switchType.label).toBe('190 – 1:9')
+  })
+
+  it('runs the branch the form’s whole length, arc and end piece', () => {
+    expect(res.L1).toBeCloseTo(switchBranchLength(FORM_40), 12)
+    expect(res.L1).toBeCloseTo(switchArcLength(FORM_40.R, FORM_40.ratio) + 6.092, 12)
+  })
+
+  it('needs the form’s whole building length of through route', () => {
+    expect(res.throughLength).toBeCloseTo(switchStraightLength(FORM_40), 12)
+    expect(res.throughLength).toBeCloseTo(27.14, 2)      // the DB building length
+  })
+
+  it('builds the branch as two elements — the form’s arc, then its straight end', () => {
+    const { branch1, midEl, branch2 } = buildConnectionElements(res, 40)
+    expect(branch1).toHaveLength(2)
+    expect(branch1[0].radius).toBe(res.signedR1)
+    expect(branch1[0].length).toBeCloseTo(switchArcLength(FORM_40.R, FORM_40.ratio), 9)
+    expect(branch1[1].elementType).toBe(0)               // the end piece, on a straight stem
+    expect(branch1[1].length).toBeCloseTo(6.092, 9)
+    // Turnout 2 opens against the connection, so its branch runs end piece first.
+    expect(branch2).toHaveLength(2)
+    expect(branch2[0].elementType).toBe(0)
+    expect(branch2[1].radius).toBe(res.signedR2)
+    expect(midEl.length).toBeCloseTo(res.Lg, 6)
+  })
+
+  it('gives a chain that joins, runs tangentially and adds up', () => {
+    const { branch1, midEl, branch2 } = buildConnectionElements(res, 40)
+    const elements = recalcAbsLengths([...branch1, midEl, ...branch2])
+    expectValidTrack({ id: 'conn', epsg: EPSG, elements })
+    expect(elements).toHaveLength(5)
+  })
+
+  it('falls back to the sharper form where the flatter one has no room', () => {
+    const tight = solveSwitchConnection(g1, stem(P(ORIGIN.easting - 4, ORIGIN.northing), 0, null), 40)
+    expect(tight.switchType.label).toBe('190 – 1:7.5')
   })
 })

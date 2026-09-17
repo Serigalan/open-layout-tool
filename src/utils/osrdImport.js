@@ -4,7 +4,8 @@ import {
   reverseElement,
 } from './elementUtils'
 import {
-  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, switchArcLength, lcsLine, switchFillRing,
+  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, switchBranchSections, switchStraightLength,
+  lcsLine, switchFillRing,
   switchLabelGeometry, bauform,
 } from './switchUtils'
 import { newSwitchFields, switchElementMark } from './switchModel'
@@ -32,13 +33,26 @@ const BEARING_TOL  = 1e-4    // degrees
 
 const ARC_TOL = 0.01   // 1 cm of arc length when identifying the switch type
 
-/** Switch type matching a branch arc of radius `absR` and length `arcLen`. */
-function matchSwitchType(absR, arcLen) {
+/**
+ * Switch form matching a branch of radius `absR` whose arc is `arcLen` long and
+ * which ends in a straight piece of `endLen` (0 where it has none).
+ *
+ * A form that ends in a straight piece is only matched when that piece is there
+ * too, and one that does not only when it is not: the end piece is as much a
+ * part of the form as the arc, and a 190 – 1:9 recognised as a bare arc would
+ * be drawn 6 m too short.
+ */
+function matchSwitchType(absR, arcLen, endLen = 0) {
   let best = null
   let bestErr = Infinity
   for (const type of [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2]) {
     if (Math.abs(type.R - absR) > 1e-6) continue
-    const err = Math.abs(switchArcLength(type.R, type.ratio) - arcLen)
+    const sections = switchBranchSections(type)
+    const arcs = sections.filter(section => section.R != null)
+    if (arcs.length !== 1) continue
+    const ends = sections.filter(section => section.R == null)
+      .reduce((sum, section) => sum + section.length, 0)
+    const err = Math.abs(arcs[0].length - arcLen) + Math.abs(ends - endLen)
     if (err < bestErr) { best = type; bestErr = err }
   }
   return bestErr <= ARC_TOL ? best : null
@@ -71,9 +85,29 @@ function rebuildSwitch(sw, trackById) {
   const absR   = Math.abs(arcEl.radius)
   const arcLen = arcEl.length
   const epsg   = branchTrack.epsg
-  const type   = matchSwitchType(absR, arcLen)
 
-  const straightLen = 2 * absR * Math.tan(arcLen / (2 * absR))
+  // The branch may be more than the arc: a form that ends in a straight piece
+  // was written as two elements, the straight one following the arc away from
+  // the node. It counts as part of the branch only where it makes a form whole.
+  const step      = ports.B1.endpoint === 'END' ? -1 : 1
+  const endStored = branchEls[branchIdx + step]
+  const endCand   = endStored && endStored.radius == null && endStored.length > 0
+    ? (step < 0 ? reverseElement(endStored) : endStored)
+    : null
+  const typeWithEnd = endCand ? matchSwitchType(absR, arcLen, endCand.length) : null
+  const type        = typeWithEnd ?? matchSwitchType(absR, arcLen, 0)
+  const endEl       = typeWithEnd ? endCand : null
+  const branchCoords = endEl
+    ? [...arc, ...(endEl.geometry?.coordinates ?? []).slice(1)]
+    : arc
+  const branchEndNode = endEl ? endEl.endNode : arcEl.endNode
+  const branchChain = [
+    { length: arcLen, radius: arcEl.radius ?? null },
+    ...(endEl ? [{ length: endEl.length, radius: null }] : []),
+  ]
+
+  // The through route runs the form's whole building length, end piece included.
+  const straightLen = type ? switchStraightLength(type) : 2 * absR * Math.tan(arcLen / (2 * absR))
   const nodeUtm     = { easting: arcEl.startNode[0], northing: arcEl.startNode[1], zone: epsg }
   const straightUtm = endPointStraightUtm(nodeUtm, arcEl.bearing, straightLen)
   const straightEnd = utmToWgs84(straightUtm.easting, straightUtm.northing, epsg)
@@ -86,6 +120,7 @@ function rebuildSwitch(sw, trackById) {
   const identity = { ...newSwitchFields(), name, ...(label ? { label } : {}) }
   const mark     = (el, route) => Object.assign(el, switchElementMark(identity, route))
   mark(stored, 'branch')
+  if (endEl) mark(endStored, 'branch')
 
   // The straight side is its own track when the switch was built onto a track
   // end: one straight element of exactly that length. Then it belongs to the
@@ -97,8 +132,10 @@ function rebuildSwitch(sw, trackById) {
     mark(straightEls[0], 'main')
   }
 
+  // The mark is measured off the two switch ends, so it follows the form's own
+  // dimensions — with an end piece both ends move, and the mark moves with them.
   const lcsCoords = type
-    ? lcsLine([nodeUtm.easting, nodeUtm.northing], arcEl.endNode,
+    ? lcsLine([nodeUtm.easting, nodeUtm.northing], branchEndNode,
       [straightUtm.easting, straightUtm.northing], type.dLcs, epsg)
     : null
 
@@ -108,10 +145,9 @@ function rebuildSwitch(sw, trackById) {
     portA_trackId:  ports.A?.track     ?? null, portA_endpoint:  ports.A?.endpoint  ?? null,
     portB1_trackId: ports.B1.track,             portB1_endpoint: ports.B1.endpoint,
     portB2_trackId: ports.B2?.track    ?? null, portB2_endpoint: ports.B2?.endpoint ?? null,
-    fillCoords: switchFillRing([node, straightEnd], arc),
+    fillCoords: switchFillRing([node, straightEnd], branchCoords),
     ...switchLabelGeometry(nodeUtm, arcEl.bearing,
-      { length: straightLen, radius: null },
-      { length: arcLen, radius: arcEl.radius ?? null }, epsg),
+      { length: straightLen, radius: null }, branchChain, epsg),
     bauform: bauform(null, arcEl.radius ?? null),
     ...(lcsCoords ? { lcsCoords } : {}),
   }

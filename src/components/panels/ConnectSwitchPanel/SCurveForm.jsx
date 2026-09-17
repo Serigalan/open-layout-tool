@@ -10,7 +10,8 @@ import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { switchDesignation, nextSwitchNumber } from '../../../utils/identifierUtils'
 import { splitElementAt, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
-  SWITCH_TYPES, computeSwitchConnections, solveSwitchConnection, buildConnectionElements,
+  SWITCH_TYPES, CONNECTION_SPEEDS, computeSwitchConnections, solveSwitchConnection,
+  buildConnectionElements,
   orientStemToward,
 } from '../../../utils/switchConnectionUtils'
 import { HIT_TOLERANCE, ZOOM_LINE_WIDTH } from '../../../utils/mapConstants'
@@ -48,8 +49,9 @@ const SCURVE_PREVIEW_LAYERS = [
 const RAD2DEG = 180 / Math.PI
 const DEG2RAD = Math.PI / 180
 
-// Default speed/switch (R = 1200 if present).
-const DEFAULT_TYPE = Math.max(0, SWITCH_TYPES.findIndex(s => s.R === 1200))
+// Default speed — the one the R = 1200 form is built for, if it is in the table.
+const DEFAULT_TYPE = Math.max(0,
+  CONNECTION_SPEEDS.indexOf(SWITCH_TYPES.find(s => s.R === 1200)?.speed))
 
 // ── Commit helpers (split lines + build junction switches) ──────────────────
 
@@ -253,7 +255,7 @@ function buildPointsGeoJSON(result) {
 export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted }) {
   const [phase, setPhase]   = useState('select_first')  // select_first | select_second | config
   const [picks, setPicks]   = useState([])
-  const [speedIdx, setSpeedIdx] = useState(DEFAULT_TYPE)   // selected design speed (index into SWITCH_TYPES)
+  const [speedIdx, setSpeedIdx] = useState(DEFAULT_TYPE)   // selected design speed (index into CONNECTION_SPEEDS)
   const [shiftRaw, setShift] = useState(0)              // start-point offset along line 1 [m]
   const [pickStatus, setPickStatus] = useState(null)    // { msg, error } — selection phases only
   // Straight the turnouts' through routes need beside the junction [m], set
@@ -261,7 +263,7 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
   const [carveError, setCarveError] = useState(null)
 
   const picksRef = useRef(picks)
-  const speed    = SWITCH_TYPES[speedIdx]?.speed ?? 0
+  const speed    = CONNECTION_SPEEDS[speedIdx] ?? 0
 
   useEffect(() => { picksRef.current = picks }, [picks])
 
@@ -430,14 +432,16 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
     const id1 = { ...newSwitchFields(), name: switchDesignation(no1), label: swType.label }
     const id2 = { ...newSwitchFields(), name: switchDesignation(no2), label: swType.label }
 
-    // Connection track (S1 → S2): branch arc + middle element + branch arc. The
-    // two arcs are the turnouts' own branches — fixed length, marked as such —
-    // while the element between them is ordinary track.
-    const { arc1El, midEl, arc2El } = buildConnectionElements(res, speed)
+    // Connection track (S1 → S2): branch + middle element + branch. The two
+    // branches are the turnouts' own — fixed length, marked as such — while the
+    // element between them is ordinary track. A branch is more than one element
+    // where the form ends in a straight piece or the turnout lies across
+    // several elements of its host track.
+    const { branch1, midEl, branch2 } = buildConnectionElements(res, speed)
     const connElements = recalcAbsLengths([
-      { ...arc1El, ...switchElementMark(id1, 'branch') },
+      ...branch1.map(el => ({ ...el, ...switchElementMark(id1, 'branch') })),
       midEl,
-      { ...arc2El, ...switchElementMark(id2, 'branch') },
+      ...branch2.map(el => ({ ...el, ...switchElementMark(id2, 'branch') })),
     ])
     const connTrack = {
       id:          generateId(),
@@ -508,9 +512,9 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
           <div className="form-field">
             <label>{t('field_speed')}</label>
             <select value={speedIdx} onChange={e => { setCarveError(null); handleSpeedChange(Number(e.target.value)) }}>
-              {SWITCH_TYPES.map((s, i) => (
-                <option key={i} value={i} disabled={connections[i] && !connections[i].valid}>
-                  {s.speed} km/h
+              {CONNECTION_SPEEDS.map((sp, i) => (
+                <option key={sp} value={i} disabled={connections[i] && !connections[i].valid}>
+                  {sp} km/h
                 </option>
               ))}
             </select>

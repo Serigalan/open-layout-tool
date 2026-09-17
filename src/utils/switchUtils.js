@@ -7,9 +7,18 @@ import {
 import { elementBelongsToSwitch } from './switchModel'
 
 // minl = minimum intermediate straight between two turnouts in a crossover [m].
-// Primary table — checked first by the switch-connection calculation.
+// `branch` states a form whose branch is more than the one arc: the sections it
+// is built from, in order from the toe (see switchBranchSections). A form
+// without one is that single arc, which is what most of them are.
+//
+// Primary table — checked first by the switch-connection calculation. Within a
+// speed the flatter form comes first: the sharper one is what the connection
+// falls back to when the flatter one cannot reach its minl.
 export const SWITCH_TYPES = [
-  { label: '185 – 1:7',     R: 185,  ratio: 7,    speed: 40,  dLcs: 2.7,  minl: 6  },
+  { label: '190 – 1:9',     R: 190,  ratio: 9,    speed: 40,  dLcs: 3.9,  minl: 6,
+    branch: [{ type: 'arc' }, { type: 'straight', length: 6.092 }] },
+  { label: '190 – 1:7.5',   R: 190,  ratio: 7.5,  speed: 40,  dLcs: 0.30, minl: 6,
+    branch: [{ type: 'arc' }, { type: 'straight', length: 0.640 }] },
   { label: '300 – 1:9',     R: 300,  ratio: 9,    speed: 50,  dLcs: 3.9,  minl: 5  },
   { label: '500 – 1:12',    R: 500,  ratio: 12,   speed: 60,  dLcs: 6.3,  minl: 6  },
   { label: '760 – 1:14',    R: 760,  ratio: 14,   speed: 80,  dLcs: 9.9,  minl: 12 },
@@ -20,14 +29,17 @@ export const SWITCH_TYPES = [
 // First fallback — used when a primary type cannot reach its minl for the spacing.
 export const SWITCH_TYPES_ALT1 = [
   { label: '300 – 1:9.4',     R: 300,  ratio: 9.4,    speed: 50,  dLcs: 3.9,  minl: 5  },
-  { label: '500 – 1:14',      R: 500,  ratio: 14,     speed: 60,  dLcs: 6.3,  minl: 6  },
-  { label: '760 – 1:15',      R: 760,  ratio: 15,     speed: 80,  dLcs: 9.9,  minl: 12 },
+  { label: '500 – 1:14',      R: 500,  ratio: 14,     speed: 60,  dLcs: 6.3,  minl: 6,
+    branch: [{ type: 'arc' }, { type: 'straight', length: 9.274 }] },
+  { label: '760 – 1:15',      R: 760,  ratio: 15,     speed: 80,  dLcs: 9.9,  minl: 12,
+    branch: [{ type: 'arc' }, { type: 'straight', length: 3.606 }] },
   { label: '1200 – 1:19.277', R: 1200, ratio: 19.277, speed: 100, dLcs: 11,   minl: 15 },
 ]
 
 // Second fallback — used when both the primary and ALT1 type fail.
 export const SWITCH_TYPES_ALT2 = [
-  { label: '760 – 1:18.5', R: 760, ratio: 18.5, speed: 80, dLcs: 9.9, minl: 12 },
+  { label: '760 – 1:18.5', R: 760, ratio: 18.5, speed: 80, dLcs: 9.9, minl: 12,
+    branch: [{ type: 'arc' }, { type: 'straight', length: 11.883 }] },
 ]
 
 /** Any switch form, primary table or fallback, looked up by its label. */
@@ -41,19 +53,25 @@ export function switchArcLength(R, ratio) {
 }
 
 /**
- * Length of the through route of a switch form — the tangent polygon from the
- * toe to the switch end. A bent switch keeps it: bending moves no sleeper, it
- * only lays the same length on the stem's curvature instead of on a straight.
+ * Length of the through route of a switch form — the tangent polygon of its
+ * branch, from the toe to the switch end. A bent switch keeps it: bending moves
+ * no sleeper, it only lays the same length on the stem's curvature instead of
+ * on a straight.
  *
- * This is the symmetric tangent construction, and it is the through length of a
- * branch that is a single arc — every form the tables above hold. A form whose
- * branch ends in a straight piece does not close on that construction, so its
- * through length has to be taken from the form's own drawing instead of derived
- * here; adding the first such form means answering that question first.
+ * Every arc section contributes the symmetric tangent construction
+ * `2R·tan(α/2)` over the angle it turns through, and every straight section its
+ * own length — the branch leaves the through route at the frog angle and runs
+ * parallel to nothing, so a straight end piece pushes the switch end that much
+ * further along. For a branch that is one arc this is the construction that was
+ * here before, to the last digit; with the end pieces it gives the DB building
+ * lengths (190 – 1:9 = 27.14 m, 500 – 1:14 = 44.94 m, 190 – 1:7.5 = 25.86 m).
  */
-export function switchStraightLength(R, ratio) {
-  const arcLen = switchArcLength(R, ratio)
-  return 2 * R * Math.tan(arcLen / (2 * R))
+export function switchStraightLength(type) {
+  return switchBranchSections(type).reduce((sum, section) => (
+    sum + (section.R == null
+      ? section.length
+      : 2 * section.R * Math.tan(section.length / (2 * section.R)))
+  ), 0)
 }
 
 /**
@@ -772,7 +790,7 @@ export function switchRoutesFromTracks(sw, trackById) {
   // Through route length: the form's, so a bent switch (whose branch element
   // carries the *combined* radius) still gets its own dimension.
   const absR    = Math.abs(first.radius ?? 0)
-  const mainLen = type ? switchStraightLength(type.R, type.ratio)
+  const mainLen = type ? switchStraightLength(type)
     : absR > 0 ? 2 * absR * Math.tan(first.length / (2 * absR))
       : null
   if (mainLen == null) return null
@@ -882,7 +900,7 @@ export function computeSwitchGeometry(startWgs, bearing, sw, side, trailing, crs
 export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, startWgs = null, mainR = null) {
   const formChain   = switchFormChain(sw, side)
   const arcLen      = switchBranchLength(sw)
-  const straightLen = switchStraightLength(sw.R, sw.ratio)
+  const straightLen = switchStraightLength(sw)
   // The through route along `bearing`: straight, an arc, a piece of clothoid or
   // a chain of such pieces.
   const stem = Array.isArray(mainR)

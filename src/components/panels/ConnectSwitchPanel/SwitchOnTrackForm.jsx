@@ -153,7 +153,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
   const track = pick ? loadTracks(project.id).find(tr => tr.id === pick.trackId) : null
   const sw    = SWITCH_TYPES[switchTypeIdx]
   const toeStation  = Number(station)
-  const straightLen = switchStraightLength(sw.R, sw.ratio)
+  const straightLen = switchStraightLength(sw)
   const arcLen      = switchBranchLength(sw)
 
   // Where the turnout lies and the geometry it produces — derived, so the

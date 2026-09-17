@@ -7,8 +7,9 @@ import {
 } from './mapConstants'
 import {
   SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, STRAIGHT_CURVATURE,
-  switchArcLength, switchStraightLength, switchBranchRoute, switchRouteVaries,
-  switchRoutePointUtm, switchRouteBearingAt, switchRouteRadiusAt, switchRouteSlice,
+  switchStraightLength, switchBranchLength, switchBranchSections, switchBranchChain,
+  switchRouteVaries, switchRoutePointUtm, switchRouteBearingAt, switchRouteRadiusAt,
+  switchRouteSlice, switchChainPointUtm, switchChainBearingAt, switchChainSegmentsUtm,
 } from './switchUtils'
 import { computeClothoidUtm } from './clothoidUtils'
 
@@ -97,9 +98,11 @@ const negR = (r) => (r == null ? null : -r)
 
 // Fallback chain for a speed: primary type → ALT1 → ALT2.
 function fallbackChain(speed) {
+  // Every form of that speed, primary table first and within a table in its own
+  // order — a speed may have more than one form, and then the flatter one is
+  // tried before the sharper one it falls back to.
   return [SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2]
-    .map(table => table.find(s => s.speed === speed))
-    .filter(Boolean)
+    .flatMap(table => table.filter(s => s.speed === speed))
 }
 
 /**
@@ -240,16 +243,23 @@ const SOLVE_STEPS = 40
 function buildConnection(sw, frame, speed) {
   const { toe1, psiToe1, stem1, stem2, s1, side } = frame
   const w   = Math.atan(1 / sw.ratio)
-  const Lb  = switchArcLength(sw.R, sw.ratio)     // the form's branch, bent or not
+  const Lb  = switchBranchLength(sw)              // the form's branch, bent or not
   const Rf  = -side * sw.R                        // the form's radius, project-signed
+  // The form as its own chain, signed the way this connection turns: one entry
+  // per section, so a form that ends in a straight piece has two (AP 3.1).
+  const formChain = switchBranchSections(sw).map(section => ({
+    length:  section.length,
+    signedR: section.R == null ? null : Math.sign(Rf) * section.R,
+  }))
 
   // Branch 1: the form laid on the stretch of stem it covers, so on a straight
   // it is the form's arc, in a curve the bent one, and on a transition a
-  // clothoid of the stem's own parameter. It does not depend on s₂.
-  const route1  = switchBranchRoute(Rf, stemUnder(stem1, s1, Lb), Lb)
+  // clothoid of the stem's own parameter. It parts where the form's sections
+  // part and where the elements under the turnout do. It does not depend on s₂.
+  const chain1  = switchBranchChain(formChain, stemUnder(stem1, s1, Lb))
   const bear1   = stemBearing(stem1, s1)
-  const B1E     = switchRoutePointUtm(toe1, bear1, route1)
-  const t1      = psiOf(switchRouteBearingAt(bear1, route1))
+  const B1E     = switchChainPointUtm(toe1, bear1, chain1)
+  const t1      = psiOf(switchChainBearingAt(bear1, chain1))
   const b1E = B1E.easting, b1N = B1E.northing
 
   // Turnout 2 opens against the way the connection runs, so its own stem is
@@ -262,16 +272,16 @@ function buildConnection(sw, frame, speed) {
     const TP2 = stemPoint(stem2, s2)
     // In turnout 2's own frame the toe sits at −s₂ from the pick.
     const bearOwn = stemBearing(back2, -s2)
-    const route2own = switchBranchRoute(Rf, stemUnder(back2, -s2, Lb), Lb)
-    const B2A = switchRoutePointUtm(TP2, bearOwn, route2own)
-    const t2  = psiOf(switchRouteBearingAt(bearOwn, route2own)) + Math.PI
+    const chain2own = switchBranchChain(formChain, stemUnder(back2, -s2, Lb))
+    const B2A = switchChainPointUtm(TP2, bearOwn, chain2own)
+    const t2  = psiOf(switchChainBearingAt(bearOwn, chain2own)) + Math.PI
 
     const delta = normalizeAngle(t2 - t1)
     const half  = delta / 2
     const uE = Math.cos(t1 + half), uN = Math.sin(t1 + half)
     const dE = B2A.easting - b1E, dN = B2A.northing - b1N
     return {
-      TP2, B2A, t2, delta, route2own, bearOwn,
+      TP2, B2A, t2, delta, chain2own, bearOwn,
       // Signed distance of B2A from the ray the middle element's end runs along.
       residual: dE * -uN + dN * uE,
       // …and how far along that ray it lies, which is the middle element's length.
@@ -288,7 +298,7 @@ function buildConnection(sw, frame, speed) {
     return { sw, valid: false, reason: 'no_solution', Lg: NaN, s2: null }
   }
 
-  const { TP2, B2A, t2, delta, Lg, route2own, bearOwn } = hit
+  const { TP2, B2A, t2, delta, Lg, chain2own, bearOwn } = hit
 
   // Middle radius, signed the project's way: a left turn (δ > 0) runs on a
   // negative radius. Below the project's straight threshold it is a straight —
@@ -297,8 +307,9 @@ function buildConnection(sw, frame, speed) {
   const curvature = Lg > 0 ? delta / Lg : 0
   const signedRg = Math.abs(curvature) < STRAIGHT_CURVATURE ? null : -1 / curvature
 
-  // Branch 2 as the connection runs it, B2A → TP2: the same route backwards.
-  const route2 = { length: route2own.length, r1: negR(route2own.r2), r2: negR(route2own.r1) }
+  // Branch 2 as the connection runs it, B2A → TP2: the same chain backwards.
+  const chain2 = [...chain2own].reverse()
+    .map(piece => ({ length: piece.length, r1: negR(piece.r2), r2: negR(piece.r1) }))
 
   // The cant the connection carries is the cant of the tracks it joins: each
   // branch takes its own stem's, as a turnout laid into a track does
@@ -313,13 +324,16 @@ function buildConnection(sw, frame, speed) {
   const cantMid = cant1End
 
   const worst = (a, b) => (Math.abs(a) >= Math.abs(b) ? a : b)
-  const defOf = (route, uA, uB) => {
-    const r = worst(route.r1, route.r2)
+  // The worst deficiency anywhere along a branch: the pieces of a chain are not
+  // alike — the form's arc is sharp where a straight end piece is not — so each
+  // is asked and the worst answer counts.
+  const defOf = (chain, uA, uB) => Math.max(0, ...chain.map((piece) => {
+    const r = worst(piece.r1, piece.r2)
     return r ? computeCantDefSigned(speed, r, worst(uA, uB)) : 0
-  }
+  }))
   const defMid = signedRg ? computeCantDefSigned(speed, signedRg, cantMid) : 0
-  const defB1  = defOf(route1, cant1Start, cant1End)
-  const defB2  = defOf(route2, cant2Start, cant2End)
+  const defB1  = defOf(chain1, cant1Start, cant1End)
+  const defB2  = defOf(chain2, cant2Start, cant2End)
   const worstCant = Math.max(
     Math.abs(cant1Start), Math.abs(cant1End), Math.abs(cant2Start), Math.abs(cant2End))
 
@@ -336,8 +350,10 @@ function buildConnection(sw, frame, speed) {
     sw, R: sw.R, w, side, delta, s2,
     TP1: toe1, B1E, B2A, TP2,
     Lg, signedRg,
-    route1, route2,
-    signedR1: route1.r1, signedR2: route2.r1,
+    chain1, chain2,
+    // The branch radius each turnout is built with: the form's own arc, which
+    // is the piece at the toe. A straight end piece says nothing about the form.
+    signedR1: chain1[0].r1, signedR2: negR(chain2own[0].r1),
     L1: Lb, L2: Lb,
     cant1Start, cant1End, cant2Start, cant2End, cantMid,
     cantDef: defMid, branchCantDef: Math.max(defB1, defB2),
@@ -397,15 +413,22 @@ function solveStation(at, step, span = Math.max(50 * step, 500)) {
 }
 
 /**
- * Which primary speeds this pair of tracks can be connected with at the given
- * shift — drives the dropdown's disabled state. A speed counts as available
- * when any form in its fallback chain builds a valid connection.
+ * The design speeds a connection can be built for, each once — the primary
+ * table may hold more than one form for a speed (AP 3.1), and they are the same
+ * choice to whoever picks one.
+ */
+export const CONNECTION_SPEEDS = [...new Set(SWITCH_TYPES.map(type => type.speed))]
+
+/**
+ * Which speeds this pair of tracks can be connected with at the given shift —
+ * drives the dropdown's disabled state. A speed counts as available when any
+ * form in its fallback chain builds a valid connection.
  */
 export function computeSwitchConnections(g1, g2, s = 0) {
   const frame = connectionFrame(g1, g2, s)
-  return SWITCH_TYPES.map(p => ({
-    speed: p.speed,
-    valid: fallbackChain(p.speed).some(sw => buildConnection(sw, frame, p.speed).valid),
+  return CONNECTION_SPEEDS.map(speed => ({
+    speed,
+    valid: fallbackChain(speed).some(sw => buildConnection(sw, frame, speed).valid),
   }))
 }
 
@@ -435,7 +458,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
   if (!c) return null
 
   const gap = trackGap(frame)
-  const throughLength = switchStraightLength(c.sw.R, c.sw.ratio)
+  const throughLength = switchStraightLength(c.sw)
 
   // A pick the construction has no answer for comes back before anything is
   // derived from a point that does not exist.
@@ -443,6 +466,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
     return {
       TP1: frame.toe1, R: c.sw.R, w: Math.atan(1 / c.sw.ratio), delta: 0, Lg: NaN, signedRg: null,
       arc1Coords: null, arc2Coords: null, midCoords: [], allCoords: [],
+      branch1: [], branch2: [],
       valid: false, reason: c.reason, zone, gap, switchType: c.sw, throughLength,
       s2: null, flipped2: frame.flipped2,
       cant1Start: 0, cant1End: 0, cant2Start: 0, cant2End: 0, cantMid: 0,
@@ -456,10 +480,17 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
   const b2aWgs = utmToWgs84(B2A.easting, B2A.northing, zone)
   const tp2Wgs = utmToWgs84(TP2.easting, TP2.northing, zone)
 
-  const arc1Coords       = c.valid ? routeCoords(TP1, c.bearing1, c.route1, SAGITTA_ELEMENT, tp1Wgs, b1eWgs) : null
-  const arc1CoordsRender = c.valid ? routeCoords(TP1, c.bearing1, c.route1, SAGITTA_TRACK,   tp1Wgs, b1eWgs) : null
-  const arc2Coords       = c.valid ? routeCoords(B2A, c.bearing2A, c.route2, SAGITTA_ELEMENT, b2aWgs, tp2Wgs) : null
-  const arc2CoordsRender = c.valid ? routeCoords(B2A, c.bearing2A, c.route2, SAGITTA_TRACK,   b2aWgs, tp2Wgs) : null
+  // Each branch as the pieces one element is built from, and as the one
+  // polyline the preview draws. The pieces are built whatever the verdict —
+  // a connection refused for its cant or its middle element still has the
+  // geometry a caller may want to look at; only the drawn polyline waits for
+  // a valid one, as it always has.
+  const branch1 = chainPieces(TP1, c.bearing1,  c.chain1, zone, tp1Wgs, b1eWgs)
+  const branch2 = chainPieces(B2A, c.bearing2A, c.chain2, zone, b2aWgs, tp2Wgs)
+  const arc1Coords       = c.valid ? joinCoords(branch1.map(p => p.coords)) : null
+  const arc1CoordsRender = c.valid ? joinCoords(branch1.map(p => p.renderCoords)) : null
+  const arc2Coords       = c.valid ? joinCoords(branch2.map(p => p.coords)) : null
+  const arc2CoordsRender = c.valid ? joinCoords(branch2.map(p => p.renderCoords)) : null
 
   // The middle element's polyline: its two ends when straight, an arc otherwise.
   // Both keep the neighbours' own WGS84 points, so the joins stay exact.
@@ -484,7 +515,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
     delta: c.delta, s2: c.s2, flipped2: frame.flipped2,
     R: c.R, w: c.w, L1: c.L1, L2: c.L2, Lg: c.Lg,
     signedR1, signedR2, signedRg,
-    route1: c.route1, route2: c.route2, bearing2A: c.bearing2A,
+    chain1: c.chain1, chain2: c.chain2, branch1, branch2, bearing2A: c.bearing2A,
     stemR1: stemRadius(frame.stem1, frame.s1),
     stemR2: stemRadius(frame.stem2, c.s2),
     cant1Start: c.cant1Start, cant1End: c.cant1End,
@@ -498,6 +529,35 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
     zone,
     gap, laenge, switchType: c.sw, throughLength,
   }
+}
+
+/** Polylines laid end to end, the shared point kept once. */
+const joinCoords = (parts) => parts.reduce(
+  (out, part) => (out.length ? [...out, ...part.slice(1)] : [...part]), [])
+
+/**
+ * A branch chain placed in the plane: one piece per element the connection will
+ * build, each with its own polyline. The two ends of the whole branch keep the
+ * WGS84 points the solution settled on, so the joins with the track and the
+ * middle element stay exact; the points between the pieces are the chain's own.
+ */
+function chainPieces(startUtm, bearing, chain, zone, startWgs, endWgs) {
+  const segments = switchChainSegmentsUtm(startUtm, bearing, chain)
+  return segments.map((seg, i) => {
+    const aWgs = i === 0 ? startWgs : utmToWgs84(seg.startUtm.easting, seg.startUtm.northing, zone)
+    const bWgs = i === segments.length - 1
+      ? endWgs
+      : utmToWgs84(seg.endUtm.easting, seg.endUtm.northing, zone)
+    return {
+      startUtm: seg.startUtm,
+      endUtm:   seg.endUtm,
+      bearing:  seg.bearing,
+      route:    { length: seg.length, r1: seg.r1, r2: seg.r2 },
+      s0:       seg.s0,
+      coords:       routeCoords(seg.startUtm, seg.bearing, seg, SAGITTA_ELEMENT, aWgs, bWgs),
+      renderCoords: routeCoords(seg.startUtm, seg.bearing, seg, SAGITTA_TRACK,   aWgs, bWgs),
+    }
+  })
 }
 
 /**
@@ -561,24 +621,33 @@ function connectionElement(a, b, bearing, route, speed, cantA, cantB, coords, re
 }
 
 /**
- * The three track elements of a solved connection — branch, middle element,
- * branch — ready to go into a track. Each is a straight, an arc or a transition
- * exactly as the solution made it, and each carries the cant the solution read
- * off the tracks it joins.
+ * The track elements of a solved connection — branch, middle element, branch —
+ * ready to go into a track. Each is a straight, an arc or a transition exactly
+ * as the solution made it, and each carries the cant the solution read off the
+ * tracks it joins.
+ *
+ * A branch is a list, not one element: a form that ends in a straight piece
+ * builds two, and a turnout lying across several elements of its host track
+ * builds one per piece. The cant runs along the branch, so a piece takes it at
+ * its own two ends.
  */
 export function buildConnectionElements(result, speed) {
-  const { TP1, B1E, B2A, TP2, signedRg, route1, route2, bearing1, bearing2A,
-          arc1Coords, arc1CoordsRender, arc2Coords, arc2CoordsRender,
-          midCoords, midCoordsRender,
+  const { B1E, B2A, signedRg, branch1, branch2, midCoords, midCoordsRender,
           cant1Start, cant1End, cant2Start, cant2End, cantMid } = result
   const mid = { length: 0, r1: signedRg, r2: signedRg }
 
+  const branchEls = (pieces, cantA, cantB) => {
+    const total = pieces.reduce((sum, p) => sum + p.route.length, 0)
+    const cantAt = (s) => (total > 0 ? cantA + (cantB - cantA) * s / total : cantA)
+    return pieces.map(p => connectionElement(
+      p.startUtm, p.endUtm, p.bearing, p.route, speed,
+      cantAt(p.s0), cantAt(p.s0 + p.route.length), p.coords, p.renderCoords))
+  }
+
   return {
-    arc1El: connectionElement(TP1, B1E, bearing1, route1, speed,
-      cant1Start, cant1End, arc1Coords, arc1CoordsRender),
-    midEl:  connectionElement(B1E, B2A, null, mid, speed,
+    branch1: branchEls(branch1, cant1Start, cant1End),
+    midEl:   connectionElement(B1E, B2A, null, mid, speed,
       cantMid, cantMid, midCoords, midCoordsRender),
-    arc2El: connectionElement(B2A, TP2, bearing2A, route2, speed,
-      cant2Start, cant2End, arc2Coords, arc2CoordsRender),
+    branch2: branchEls(branch2, cant2Start, cant2End),
   }
 }
