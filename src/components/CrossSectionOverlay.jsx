@@ -3,7 +3,9 @@ import { loadTracks } from '../storage'
 import {
   crossSection, fitSection, superstructureAt, sectionStates, elementStartStation, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
-import { gaugeProfile, gaugeProfileRing, DEFAULT_GAUGE_PROFILE } from '../utils/gaugeProfiles'
+import {
+  gaugeProfile, gaugeProfileRing, gaugeProfileGuides, DEFAULT_GAUGE_PROFILE,
+} from '../utils/gaugeProfiles'
 
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
@@ -56,12 +58,16 @@ export default function CrossSectionOverlay({ at, project, onClose, t }) {
   const { rail, sleeper } = superstructureAt(track, state.station)
   const profile = gaugeProfile(project.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
   const section = crossSection({
-    cant: state.cant, gaugeRing: gaugeProfileRing(profile.points), rail, sleeper,
+    cant: state.cant,
+    gaugeRing: gaugeProfileRing(profile.points),
+    gaugeGuides: gaugeProfileGuides(profile.guides),
+    rail,
+    sleeper,
   })
 
   const drawing = () => {
     if (!size || size.w < 40 || size.h < 40) return null
-    const all = [...section.gauge, ...section.runningCircles, ...section.sleeper]
+    const all = [...section.gauge, ...section.runningCircles, ...section.sleeper, ...section.guides.flat()]
     const { k, cx, cy, bounds } = fitSection(all, size, MARGIN)
     const { zMax } = bounds
     const X = (y) => cx + y * k
@@ -74,8 +80,12 @@ export default function CrossSectionOverlay({ at, project, onClose, t }) {
       <svg width={size.w} height={size.h} className="cross-section-svg">
         {/* the horizontal, so the cant is visible as the angle it is */}
         <line x1={MARGIN / 2} x2={size.w - MARGIN / 2} y1={Y(0)} y2={Y(0)} stroke="#e4e4ec" strokeDasharray="6 4" />
-        {/* the clearance contour */}
+        {/* the clearance contour, and the lines it is read against */}
         <path d={`${path(section.gauge)} Z`} fill="rgba(108,92,231,0.07)" stroke="var(--color-primary)" strokeWidth="1.5" />
+        {section.guides.map((g, i) => (
+          <path key={`g${i}`} d={path(g)} fill="none" stroke="var(--color-primary)"
+            strokeWidth="1" strokeDasharray="5 4" opacity="0.7" />
+        ))}
         {/* the superstructure carrying it */}
         {section.sleeper.length > 0 && (
           <path d={`${path(section.sleeper)} Z`} fill="#d9d4cc" stroke="#8d867a" strokeWidth="1" />

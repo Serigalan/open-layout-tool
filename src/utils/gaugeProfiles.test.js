@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfile, gaugeProfileRing,
+  GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfile, gaugeProfileRing, gaugeProfileGuides,
 } from './gaugeProfiles'
 
 describe('the profile table', () => {
@@ -48,5 +48,22 @@ describe('gaugeProfileRing', () => {
 
   it('answers with nothing for a profile that states no points', () => {
     expect(gaugeProfileRing([])).toEqual([])
+  })
+})
+
+describe('gaugeProfileGuides', () => {
+  it('draws each reference line on both sides of the track', () => {
+    expect(gaugeProfileGuides([[[1275, 0], [2500, 0], [2500, 760]]])).toEqual([
+      [[1275, 0], [2500, 0], [2500, 760]],
+      [[-1275, 0], [-2500, 0], [-2500, 760]],
+    ])
+  })
+
+  it('keeps a line on the centre line once — it is its own mirror image', () => {
+    expect(gaugeProfileGuides([[[0, 0], [0, 4900]]])).toEqual([[[0, 0], [0, 4900]]])
+  })
+
+  it('answers with nothing where a profile states no reference lines', () => {
+    expect(gaugeProfileGuides(undefined)).toEqual([])
   })
 })

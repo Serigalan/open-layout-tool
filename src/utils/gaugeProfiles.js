@@ -15,6 +15,12 @@ export const GAUGE_PROFILES = {
     label: 'EN 15273-1 · GC',
     points: [[0, 0], [1275, 0], [1680, 380], [1680, 760], [2500, 760], [2500, 3050],
       [1860, 4900], [0, 4900]],
+    // Reference lines the profile is read against — drawn dashed, stated the
+    // same way as the contour and mirrored with it.
+    guides: [
+      [[1275, 0], [2500, 0], [2500, 760]],
+      [[2200, 1200], [2200, 3900]],
+    ],
   },
 }
 
@@ -32,6 +38,21 @@ const mirror = ([y, z]) => [onAxis([y]) ? 0 : -y, z]
  * to the start. A point on the centre line is its own mirror image and is kept
  * once, so the ring has no doubled vertex where the halves meet.
  */
+/**
+ * The reference lines of a profile, each polyline once as stated and once
+ * mirrored — they belong to both halves, like the contour they are read against.
+ * A line lying on the centre line would be its own mirror image and is kept once.
+ */
+export function gaugeProfileGuides(guides) {
+  const out = []
+  for (const line of guides ?? []) {
+    out.push(line)
+    const flipped = line.map(mirror)
+    if (!line.every(onAxis)) out.push(flipped)
+  }
+  return out
+}
+
 export function gaugeProfileRing(points) {
   if (!points?.length) return []
   const back = [...points].reverse().map(mirror)
