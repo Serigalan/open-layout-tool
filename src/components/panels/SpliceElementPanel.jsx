@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, replaceAllTracks, remapSwitchTrackIds, generateId, rebuildCoords, recalcAbsLengths } from '../../storage'
 import { computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, reverseElement, nodeUtm } from '../../utils/elementUtils'
-import { computeSpliceWithClothoids, computeArcSpliceWithClothoids, validateSpliceTangents } from '../../utils/spliceUtils'
+import {
+  computeSpliceWithClothoids, computeArcSpliceWithClothoids, computeArcArcTransition,
+  computeArcStraightSplice, validateSpliceTangents,
+} from '../../utils/spliceUtils'
 import {
   HIT_TOLERANCE, ZOOM_LINE_WIDTH, cantSign, computeAutoC, computeCantDef, roundCant, CANT_STEP,
   MAX_CANT, MAX_CANT_DEF,
@@ -65,6 +68,9 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
   const [cant, setCant] = useDerivedField(`${speed}|${radius}`, Math.abs(computeAutoC(speed, Math.abs(Number(radius)))))
   const [clothoidEnabled, setClothoidEnabled] = useState(false)
   const [transitionType, setTransitionType] = useState('clothoid')  // 'clothoid' | 'bloss'
+  // Two arcs can be joined either by a straight between them or by a single
+  // transition curve straight from one to the other (AP 4.1).
+  const [arcJoin, setArcJoin] = useState('straight')   // 'straight' | 'transition'
   const [clothoidDep, setClothoidDep] = useState(60)
   const [clothoidArr, setClothoidArr] = useState(60)
   // Feedback from picking the two elements; the config phase has its own,
@@ -127,11 +133,6 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
           setStatus({ msg: t('splice_error_same_track'), error: true })
           return
         }
-        // Both elements must be the same kind (two straights, or two arcs)
-        if (first && (first.signedR == null) !== (signedR == null)) {
-          setStatus({ msg: t('splice_error_mixed'), error: true })
-          return
-        }
         // Splicing merges both tracks into one, and a track has exactly one
         // CRS. Carrying the arrival track's nodes over unchanged would put
         // them in the wrong plane; reprojecting them would preserve the ground
@@ -159,12 +160,27 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
     if (phase !== 'config' || !dep || !arr) return null
     const Ld = clothoidEnabled ? clothoidDep : 0
     const La = clothoidEnabled ? clothoidArr : 0
-    const arcMode = dep.signedR != null && arr.signedR != null   // two arcs → straight connector
+    const bothArcs = dep.signedR != null && arr.signedR != null
+    const mixed    = (dep.signedR == null) !== (arr.signedR == null)
+    // Two arcs joined directly need no radius and no lengths: the transition's
+    // own length is what closes the construction, so it is solved, not typed.
+    const arcMode  = bothArcs || mixed
 
     // Solved in the shared native plane — the select phase rejects picks whose
     // tracks differ in CRS, so both picks' points and bearings are in this plane.
     let result, validationErr = null
-    if (arcMode) {
+    if (bothArcs && arcJoin === 'transition') {
+      result = computeArcArcTransition(
+        dep.endUtm, dep.bearing, dep.signedR, arr.endUtm, arr.bearing, arr.signedR,
+        dep.startUtm, arr.startUtm, transitionType,
+      )
+    } else if (mixed) {
+      result = computeArcStraightSplice(
+        { pointUtm: dep.endUtm, bearing: dep.bearing, signedR: dep.signedR, farUtm: dep.startUtm },
+        { pointUtm: arr.endUtm, bearing: arr.bearing, signedR: arr.signedR, farUtm: arr.startUtm },
+        radius, Ld, La, transitionType,
+      )
+    } else if (bothArcs) {
       result = computeArcSpliceWithClothoids(
         dep.endUtm, dep.bearing, dep.signedR, arr.endUtm, arr.bearing, arr.signedR,
         dep.startUtm, arr.startUtm, Ld, La, transitionType,
@@ -181,7 +197,7 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
       return { error: result?.error ?? validationErr ?? 'splice_error_parallel' }
     }
     return { result, arcMode, Ld, La }
-  }, [phase, picks, radius, clothoidEnabled, clothoidDep, clothoidArr, transitionType])
+  }, [phase, picks, radius, clothoidEnabled, clothoidDep, clothoidArr, transitionType, arcJoin])
 
   // What the panel reports about it — the picking phases have their own message.
   const configStatus = useMemo(() => {
@@ -189,8 +205,15 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
     if (splice.error) return { msg: t(splice.error), error: true }
     const { result, arcMode, Ld, La } = splice
     const tr = (Ld > 0 || La > 0) ? ` | ${t('transition_curve')}: ${Ld}+${La} m` : ''
-    if (arcMode) {
+    if (result.transitionLength != null) {
+      const kind = result.compound ? 'splice_compound' : 'splice_reverse'
+      return { msg: `${t(kind)}: ${t('transition_curve')} ~${result.transitionLength.toFixed(1)} m`, error: false }
+    }
+    if (result.straightLength != null) {
       return { msg: `${t('splice_arrival')} ↔ ${t('splice_departure')}: ~${result.straightLength.toFixed(1)} m${tr}`, error: false }
+    }
+    if (arcMode) {
+      return { msg: `${t('splice_arc_length')}: ~${result.arcLength.toFixed(1)} m${tr}`, error: false }
     }
     return { msg: `${t('splice_arc_length')}: ~${result.arcLength.toFixed(1)} m${tr} | ${result.curveSide}`, error: false }
   }, [splice, t])
@@ -227,8 +250,8 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
     const arrTrack = tracks.find(t => t.id === arr.trackId)
     if (!depTrack || !arrTrack) return
 
-    // ── Arc + arc → straight connector ────────────────────────────────────
-    if (dep.signedR != null && arr.signedR != null) {
+    // ── Chains the solver hands over ready (arc↔arc, arc↔straight) ───────
+    if (arc.elements) {
       // Reshaped arcs keep their original speed; the new straight + clothoids
       // take the panel's speed.
       const depOrig   = depTrack.elements[dep.elIdx]
@@ -409,6 +432,9 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
   if (phase === 'config') {
     const [departure, arrival] = picks
     const bothArcs = departure?.signedR != null && arrival?.signedR != null
+    // Joined straight from one arc to the other, the transition's length is the
+    // answer rather than an input — there is nothing to type and nothing to switch on.
+    const directTransition = bothArcs && arcJoin === 'transition'
     // Only the inserted arc takes a cant; an arc+arc splice re-shapes the two
     // existing arcs, which keep theirs.
     const cantDef = computeCantDef(speed, radius, cant)
@@ -425,6 +451,15 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
             <label>{t('splice_arrival')}</label>
             <input type="text" readOnly value={arrival?.label ?? ''} />
           </div>
+          {bothArcs && (
+            <div className="form-field">
+              <label>{t('splice_arc_join')}</label>
+              <select value={arcJoin} onChange={e => setArcJoin(e.target.value)}>
+                <option value="straight">{t('splice_arc_join_straight')}</option>
+                <option value="transition">{t('splice_arc_join_transition')}</option>
+              </select>
+            </div>
+          )}
           {!bothArcs && (
             <div className="form-field">
               <label>{t('field_radius')}</label>
@@ -456,14 +491,16 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
               </div>
             </>
           )}
-          <label className="transition-curve-row">
-            <input
-              type="checkbox" checked={clothoidEnabled}
-              onChange={e => setClothoidEnabled(e.target.checked)}
-            />
-            <span>{t('transition_curve')}</span>
-          </label>
-          {clothoidEnabled && (
+          {!directTransition && (
+            <label className="transition-curve-row">
+              <input
+                type="checkbox" checked={clothoidEnabled}
+                onChange={e => setClothoidEnabled(e.target.checked)}
+              />
+              <span>{t('transition_curve')}</span>
+            </label>
+          )}
+          {(clothoidEnabled || directTransition) && (
             <>
               <div className="form-field">
                 <label>{t('type')}</label>
@@ -472,20 +509,31 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
                   <option value="bloss">{t('transition_type_bloss')}</option>
                 </select>
               </div>
-              <div className="form-field">
-                <label>{t('splice_departure')} – {t('field_length')}</label>
-                <input
-                  type="number" min="1" step="10" value={clothoidDep}
-                  onChange={e => setClothoidDep(Math.max(1, Number(e.target.value) || 1))}
-                />
-              </div>
-              <div className="form-field">
-                <label>{t('splice_arrival')} – {t('field_length')}</label>
-                <input
-                  type="number" min="1" step="10" value={clothoidArr}
-                  onChange={e => setClothoidArr(Math.max(1, Number(e.target.value) || 1))}
-                />
-              </div>
+              {!directTransition && (
+                <>
+                  <div className="form-field">
+                    <label>{t('splice_departure')} – {t('field_length')}</label>
+                    <input
+                      type="number" min="1" step="10" value={clothoidDep}
+                      onChange={e => setClothoidDep(Math.max(1, Number(e.target.value) || 1))}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>{t('splice_arrival')} – {t('field_length')}</label>
+                    <input
+                      type="number" min="1" step="10" value={clothoidArr}
+                      onChange={e => setClothoidArr(Math.max(1, Number(e.target.value) || 1))}
+                    />
+                  </div>
+                </>
+              )}
+              {directTransition && (
+                <div className="form-field">
+                  <label>{t('field_length')}</label>
+                  <input type="text" readOnly value={splice?.result?.transitionLength != null
+                    ? `${splice.result.transitionLength.toFixed(1)} m` : ''} />
+                </div>
+              )}
             </>
           )}
         </div>

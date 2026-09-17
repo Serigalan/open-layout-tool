@@ -1,10 +1,18 @@
 import { utmToWgs84 } from './coordinateUtils'
-import { computeClothoidUtm, transitionShift } from './clothoidUtils'
-import { computeCurvedValuesUtm, computeStraightValuesUtm, arcCoordsFromRadiusUtm } from './elementUtils'
+import {
+  computeClothoidUtm, transitionShift, transitionPointAtUtm, transitionBearingAtUtm,
+} from './clothoidUtils'
+import {
+  computeCurvedValuesUtm, computeStraightValuesUtm, arcCoordsFromRadiusUtm,
+  endPointCurvedUtm, bearingAfterUtm, reverseElement,
+} from './elementUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
 
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI
+
+/** Beyond this a transition curve is not a design any more [m]. */
+const MAX_TRANSITION_LENGTH = 5000
 
 /**
  * Validate that the tangent points stay on the elements' lines without flipping
@@ -393,5 +401,371 @@ export function computeArcSpliceWithClothoids(
     clothoidDepLength: L1,
     clothoidArrLength: L2,
     zone,
+  }
+}
+
+/**
+ * Two arcs joined **directly** by one transition curve — no straight between
+ * them (AP 4.1). Same sense gives a compound curve (Korbbogen), opposite sense
+ * a reverse curve (S-Bogen) whose transition passes through R = ∞ on its way
+ * from one sign to the other. `computeClothoidUtm` runs r₁ → r₂ either way, so
+ * the curve itself was never the missing piece; placing it was.
+ *
+ * **What determines it.** The transition leaves the departure circle
+ * tangentially and arrives with curvature 1/r₂, so the circle it osculates at
+ * its end has radius r₂ — and the construction closes exactly when that circle
+ * *is* the arrival circle, i.e. when its centre falls on O₂. Tangency and
+ * position both follow from that one statement, which is what makes this
+ * solvable at all.
+ *
+ * **And it reduces to one scalar.** Where the transition starts on circle 1 only
+ * rotates the whole figure about O₁, so the distance from O₁ to that end centre
+ * does not depend on it — it depends on the length alone. So the length solves
+ *
+ *     d(L) = |O₁O₂|
+ *
+ * on its own, and the start station follows by rotating the figure until the two
+ * centres line up. d(0) = |r₁ − r₂| is the two circles touching (nested for one
+ * sense, side by side for the other) and d grows with L, so there is one root
+ * and it exists exactly when the circles are further apart than touching.
+ *
+ * Returns { error } or { elements, previewCoords, transitionLength, … }, the
+ * elements being dep arc → transition → reversed arr arc, ready except for
+ * speed/absLength.
+ */
+export function computeArcArcTransition(
+  depEnd, depBearing, depSignedR,
+  arrEnd, arrBearing, arrSignedR,
+  depStart, arrStart, transitionType = 'clothoid',
+) {
+  if (!depSignedR || !arrSignedR) return { error: 'splice_error_parallel' }
+  const zone = depEnd.zone
+
+  // Travel runs forward on the departure arc and backwards on the arrival one,
+  // so the arrival radius changes sign while its centre stays where it is.
+  const r1 = depSignedR
+  const r2 = -arrSignedR
+
+  const centreOf = (p, bearing, signedR) => {
+    const rad = bearing * DEG2RAD
+    return { e: p.easting + signedR * Math.cos(rad), n: p.northing - signedR * Math.sin(rad) }
+  }
+  const O1 = centreOf(depEnd, depBearing, depSignedR)
+  const O2 = centreOf(arrEnd, arrBearing, arrSignedR)
+  const target = Math.hypot(O2.e - O1.e, O2.n - O1.n)
+
+  // The figure in its own frame: it starts at the origin heading north, so its
+  // circle-1 centre sits at (r₁, 0).
+  const ORIGIN = { easting: 0, northing: 0, zone }
+  const canon = (L) => {
+    const end = L > 0
+      ? transitionPointAtUtm(ORIGIN, 0, L, r1, r2, transitionType, L)
+      : { easting: 0, northing: 0 }
+    const b = L > 0 ? transitionBearingAtUtm(0, L, r1, r2, transitionType, L) : 0
+    const rad = b * DEG2RAD
+    // The circle the curve osculates where it ends.
+    const c = { e: end.easting + r2 * Math.cos(rad), n: end.northing - r2 * Math.sin(rad) }
+    return { end, b, c, d: Math.hypot(c.e - r1, c.n - 0) }
+  }
+
+  // Two arcs of the same radius are one circle's worth of curvature: there is no
+  // transition from a curvature to itself, only an arc.
+  if (Math.abs(r1 - r2) < 1e-9) return { error: 'splice_error_arcs_no_fit' }
+
+  // d(0) is the two circles touching. Which way d then runs depends on the pair:
+  // a compound curve draws the inner circle *in*, so the centres come closer,
+  // while a reverse curve pushes them apart. Rather than case-split on that, the
+  // direction is read off the function itself — it is monotone either way.
+  const d0  = canon(0).d
+  const dir = Math.sign(canon(1e-3).d - d0) || 1
+  if ((target - d0) * dir < -1e-6) return { error: 'splice_error_arcs_no_fit' }
+
+  // Bracket the length in the direction d actually runs, then halve it down.
+  const reach = (L) => (canon(L).d - target) * dir
+  let hi = Math.max(20, Math.abs(r1 - r2))
+  for (let i = 0; i < 40 && reach(hi) < 0 && hi < MAX_TRANSITION_LENGTH; i++) hi *= 2
+  if (reach(hi) < 0) return { error: 'splice_error_arcs_too_far' }
+  let lo = 0
+  for (let i = 0; i < 80 && hi - lo > 1e-9; i++) {
+    const mid = (lo + hi) / 2
+    if (reach(mid) < 0) lo = mid; else hi = mid
+  }
+  const L = (lo + hi) / 2
+  const shape = canon(L)
+  if (!(L > 0)) return { error: 'splice_error_arcs_no_fit' }
+
+  // Turn the figure about O₁ until its end centre falls on O₂, then read the two
+  // junctions off it.
+  const theta = Math.atan2(O2.n - O1.n, O2.e - O1.e) - Math.atan2(shape.c.n - 0, shape.c.e - r1)
+  const cosT = Math.cos(theta), sinT = Math.sin(theta)
+  const place = (e, n) => ({
+    easting:  O1.e + (e - r1) * cosT - (n - 0) * sinT,
+    northing: O1.n + (e - r1) * sinT + (n - 0) * cosT,
+    zone,
+  })
+  // A turn of the plane counter-clockwise is a bearing turned the other way.
+  const turned = (b) => ((b - theta * RAD2DEG) % 360 + 360) % 360
+
+  const J1 = place(0, 0)
+  const J2 = place(shape.end.easting, shape.end.northing)
+  const bJ1 = turned(0)
+  const bJ2 = turned(shape.b)
+
+  const j1Wgs = utmToWgs84(J1.easting, J1.northing, zone)
+  const j2Wgs = utmToWgs84(J2.easting, J2.northing, zone)
+  const depStartWgs = utmToWgs84(depStart.easting, depStart.northing, zone)
+  const arrStartWgs = utmToWgs84(arrStart.easting, arrStart.northing, zone)
+
+  // ── Re-shaped departure arc (orig start → J1) ─────────────────────────────
+  const cvDep = computeCurvedValuesUtm(depStart, J1, depSignedR)
+  if (cvDep.length > Math.PI * Math.abs(r1)) return { error: 'splice_error_dep_too_large' }
+  const depArcEl = {
+    elementType: 1,
+    startNode: cvDep.startNode, endNode: cvDep.endNode,
+    bearing: cvDep.bearing, length: cvDep.length, endBearing: cvDep.endBearing,
+    radius: depSignedR,
+    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(depStart, J1, depSignedR, SAGITTA_ELEMENT) || [depStartWgs, j1Wgs] },
+    renderCoords: arcCoordsFromRadiusUtm(depStart, J1, depSignedR, SAGITTA_TRACK) || [depStartWgs, j1Wgs],
+  }
+
+  // ── The transition itself (J1 → J2) ───────────────────────────────────────
+  const cl  = computeClothoidUtm(J1, bJ1, L, r1, r2, SAGITTA_ELEMENT, transitionType)
+  const clR = computeClothoidUtm(J1, bJ1, L, r1, r2, SAGITTA_TRACK, transitionType)
+  const transitionEl = {
+    elementType: 2, transitionType,
+    r1, r2,
+    bearing: bJ1, endBearing: bJ2, length: L,
+    startNode: [J1.easting, J1.northing], endNode: [J2.easting, J2.northing],
+    geometry:     { type: 'LineString', coordinates: [...cl.coords.slice(0, -1),  j2Wgs] },
+    renderCoords: [...clR.coords.slice(0, -1), j2Wgs],
+  }
+
+  // ── Re-shaped, reversed arrival arc (J2 → orig start) ─────────────────────
+  const cvArr = computeCurvedValuesUtm(J2, arrStart, r2)
+  if (cvArr.length > Math.PI * Math.abs(r2)) return { error: 'splice_error_arr_too_large' }
+  const arrArcEl = {
+    elementType: 1,
+    startNode: cvArr.startNode, endNode: cvArr.endNode,
+    bearing: cvArr.bearing, length: cvArr.length, endBearing: cvArr.endBearing,
+    radius: r2,
+    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(J2, arrStart, r2, SAGITTA_ELEMENT) || [j2Wgs, arrStartWgs] },
+    renderCoords: arcCoordsFromRadiusUtm(J2, arrStart, r2, SAGITTA_TRACK) || [j2Wgs, arrStartWgs],
+  }
+
+  const elements = [depArcEl, transitionEl, arrArcEl]
+  const previewCoords = elements.reduce((acc, el, i) => {
+    const c = el.renderCoords ?? el.geometry.coordinates
+    return i === 0 ? [...c] : [...acc, ...c.slice(1)]
+  }, [])
+
+  return {
+    elements, previewCoords,
+    transitionLength: L,
+    depArcLength: cvDep.length,
+    arrArcLength: cvArr.length,
+    transitionType,
+    compound: Math.sign(r1) === Math.sign(r2),
+    zone,
+  }
+}
+
+// ── Arc against straight, joined by a new arc ────────────────────────────────
+
+/** Signed turn a bearing makes over a transition, 0 for one of no length [deg]. */
+function transitionTurn(length, r1, r2, type) {
+  if (!(length > 0)) return 0
+  const b = transitionBearingAtUtm(0, length, r1, r2, type, length)
+  return ((b + 180) % 360 + 360) % 360 - 180
+}
+
+/** The same for a bearing delta in general. */
+const turnBetween = (from, to) => ((to - from + 180) % 360 + 360) % 360 - 180
+
+/**
+ * Splice an **arc** and a **straight** with a new arc of the given radius, with
+ * optional transitions on both sides (AP 4.1's second case). The panel refused
+ * this pairing until now: `computeSpliceWithClothoids` rounds the corner between
+ * two tangent *lines*, and a curved element has no tangent line to round against
+ * — its curvature is what the shift parameters would have to be measured from.
+ *
+ * Rather than extend that closed form to a circle-and-line case with its four
+ * tangency signs, the chain is built forwards and one number is solved for: the
+ * station `s` on the arc where it leaves. Everything else follows from it.
+ * The straight's direction is fixed, so the *total* turn from the arc's tangent
+ * at `s` to the exit is known, and the two transitions take a known share of it
+ * — which leaves the new arc's sweep, and with it the whole chain. What is left
+ * over is one condition: the far end has to land on the straight.
+ *
+ *     r(s) = signed distance of the chain's end from the straight   →   0
+ *
+ * Both hands of the new arc are tried; the one that turns the way its own sign
+ * says, and that leaves both original elements a sane length, wins.
+ *
+ * `dep` and `arr` are `{ pointUtm, bearing, signedR, farUtm }` — the picked end
+ * with its tangent in the element's own direction, its curvature (null on a
+ * straight) and its other end, which the re-shaped element runs to.
+ */
+export function computeArcStraightSplice(dep, arr, radius, clothoidDep = 0, clothoidArr = 0, transitionType = 'clothoid') {
+  if (!(radius > 0)) return { error: 'splice_error_parallel' }
+  const arcIsDeparture = dep.signedR != null
+  if (arcIsDeparture === (arr.signedR != null)) return { error: 'splice_error_mixed' }
+
+  // Always solve with the arc leading. Where it is the arrival, the same chain
+  // read backwards *is* that problem — the arrival element is traversed against
+  // its own direction, so reading the whole thing the other way round traverses
+  // it with its direction, which is what a departure is. Only the finished chain
+  // has to be turned round again.
+  const a = arcIsDeparture ? dep : arr
+  const b = arcIsDeparture ? arr : dep
+  const Ld = Math.max(0, (arcIsDeparture ? clothoidDep : clothoidArr) || 0)
+  const La = Math.max(0, (arcIsDeparture ? clothoidArr : clothoidDep) || 0)
+  const zone = a.pointUtm.zone
+
+  // The straight is met against its own direction: the chain runs into its far
+  // end, which is where the merged track carries on.
+  const exitBearing = (b.bearing + 180) % 360
+  const exitDir = { e: Math.sin(exitBearing * DEG2RAD), n: Math.cos(exitBearing * DEG2RAD) }
+  const lineNormal = { e: -exitDir.n, n: exitDir.e }
+
+  /** The chain from station `s` on the arc, for one hand of the new arc. */
+  const build = (s, Rn) => {
+    const J1 = endPointCurvedUtm(a.pointUtm, a.bearing, s, a.signedR)
+    const b1 = bearingAfterUtm(a.bearing, s, a.signedR)
+    const tIn  = transitionTurn(Ld, a.signedR, Rn, transitionType)
+    const tOut = transitionTurn(La, Rn, null, transitionType)
+    const arcTurn = turnBetween(b1 + tIn + tOut, exitBearing)
+    if (Math.sign(arcTurn) !== Math.sign(Rn)) return null
+    // The turns above are bearings, in degrees; an arc length is not.
+    const arcLength = Math.abs(arcTurn) * DEG2RAD * radius
+
+    const A1 = Ld > 0 ? transitionPointAtUtm(J1, b1, Ld, a.signedR, Rn, transitionType, Ld) : J1
+    const bA1 = b1 + tIn
+    const A2 = endPointCurvedUtm(A1, bA1, arcLength, Rn)
+    const bA2 = bA1 + arcTurn
+    const E  = La > 0 ? transitionPointAtUtm(A2, bA2, La, Rn, null, transitionType, La) : A2
+
+    const residual = (E.easting - b.pointUtm.easting) * lineNormal.e
+                   + (E.northing - b.pointUtm.northing) * lineNormal.n
+    return { J1, b1, A1, bA1, A2, bA2, E, arcLength, arcTurn, residual }
+  }
+
+  /** The station nearest the picked end where the chain closes — or null. */
+  const solveStation = (Rn) => {
+    const f = (s) => build(s, Rn)?.residual ?? NaN
+    const f0 = f(0)
+    if (Number.isFinite(f0) && Math.abs(f0) < 1e-6) return 0
+
+    const bisect = (lo, hi, flo) => {
+      for (let k = 0; k < 80 && Math.abs(hi - lo) > 1e-9; k++) {
+        const mid = (lo + hi) / 2
+        const fm = f(mid)
+        if (!Number.isFinite(fm)) break
+        if (flo * fm < 0) hi = mid; else { lo = mid; flo = fm }
+      }
+      return (lo + hi) / 2
+    }
+
+    // Walk out from the picked end, each way on its own, and keep the root that
+    // moves the junction least — the pick is where the user wants the splice.
+    const step = Math.max(1, radius / 100)
+    let best = null
+    for (const way of [1, -1]) {
+      let prev = 0, fprev = f0
+      for (let i = 1; i <= 500; i++) {
+        const s = way * i * step
+        const fs = f(s)
+        if (Number.isFinite(fprev) && Number.isFinite(fs) && fprev * fs < 0) {
+          const root = bisect(prev, s, fprev)
+          if (best == null || Math.abs(root) < Math.abs(best)) best = root
+          break
+        }
+        prev = s; fprev = fs
+      }
+    }
+    return best
+  }
+
+  // Both hands, best effort; the one that leaves both originals a sane length wins.
+  let chosen = null
+  for (const Rn of [radius, -radius]) {
+    const s = solveStation(Rn)
+    if (s == null) continue
+    const built = build(s, Rn)
+    if (!built) continue
+    const cvA = computeCurvedValuesUtm(a.farUtm, built.J1, a.signedR)
+    if (!(cvA.length > 0) || cvA.length > Math.PI * Math.abs(a.signedR)) continue
+    const along = (built.E.easting - b.farUtm.easting) * exitDir.e
+                + (built.E.northing - b.farUtm.northing) * exitDir.n
+    if (along > 0.01) continue          // the chain would overshoot the straight's far end
+    // Both hands can close, on quite different loops. The one that belongs to
+    // the picked ends is the one that barely moves the junction off them.
+    if (!chosen || Math.abs(s) < Math.abs(chosen.s)) chosen = { Rn, s, built, cvA }
+  }
+  if (!chosen) return { error: 'splice_error_no_fit' }
+
+  const { Rn, built, cvA } = chosen
+  const { J1, b1, A1, A2, bA2, E, arcLength } = built
+  const wgs = (p) => utmToWgs84(p.easting, p.northing, zone)
+  const node = (p) => [p.easting, p.northing]
+
+  const elements = []
+
+  // ── Re-shaped arc side (its far end → J1) ────────────────────────────────
+  elements.push({
+    elementType: 1,
+    startNode: cvA.startNode, endNode: cvA.endNode,
+    bearing: cvA.bearing, length: cvA.length, endBearing: cvA.endBearing,
+    radius: a.signedR,
+    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(a.farUtm, J1, a.signedR, SAGITTA_ELEMENT) || [wgs(a.farUtm), wgs(J1)] },
+    renderCoords: arcCoordsFromRadiusUtm(a.farUtm, J1, a.signedR, SAGITTA_TRACK) || [wgs(a.farUtm), wgs(J1)],
+  })
+
+  const transition = (from, fromBearing, to, length, r1, r2) => {
+    const cl  = computeClothoidUtm(from, fromBearing, length, r1, r2, SAGITTA_ELEMENT, transitionType)
+    const clR = computeClothoidUtm(from, fromBearing, length, r1, r2, SAGITTA_TRACK, transitionType)
+    return {
+      elementType: 2, transitionType, r1, r2,
+      bearing: fromBearing, endBearing: cl.endBearing,
+      length,
+      startNode: node(from), endNode: node(to),
+      geometry:     { type: 'LineString', coordinates: [...cl.coords.slice(0, -1),  wgs(to)] },
+      renderCoords: [...clR.coords.slice(0, -1), wgs(to)],
+    }
+  }
+
+  if (Ld > 0) elements.push(transition(J1, b1, A1, Ld, a.signedR, Rn))
+
+  const cvNew = computeCurvedValuesUtm(A1, A2, Rn)
+  elements.push({
+    elementType: 1,
+    startNode: cvNew.startNode, endNode: cvNew.endNode,
+    bearing: cvNew.bearing, length: arcLength, endBearing: cvNew.endBearing,
+    radius: Rn,
+    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(A1, A2, Rn, SAGITTA_ELEMENT) || [wgs(A1), wgs(A2)] },
+    renderCoords: arcCoordsFromRadiusUtm(A1, A2, Rn, SAGITTA_TRACK) || [wgs(A1), wgs(A2)],
+  })
+
+  if (La > 0) elements.push(transition(A2, bA2, E, La, Rn, null))
+
+  // ── Re-shaped straight side (E → its far end) ────────────────────────────
+  const svB = computeStraightValuesUtm(E, b.farUtm)
+  elements.push({
+    elementType: 0,
+    startNode: svB.startNode, endNode: svB.endNode,
+    bearing: svB.bearing, length: svB.length,
+    geometry: { type: 'LineString', coordinates: [wgs(E), wgs(b.farUtm)] },
+  })
+
+  const ordered = arcIsDeparture ? elements : [...elements].reverse().map(reverseElement)
+  const previewCoords = ordered.reduce((acc, el, i) => {
+    const c = el.renderCoords ?? el.geometry.coordinates
+    return i === 0 ? [...c] : [...acc, ...c.slice(1)]
+  }, [])
+
+  return {
+    elements: ordered, previewCoords,
+    arcLength, signedR: Rn,
+    clothoidDepLength: clothoidDep, clothoidArrLength: clothoidArr,
+    transitionType, zone,
   }
 }
