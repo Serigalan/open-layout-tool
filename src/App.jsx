@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { translations } from './locales/i18n'
 import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
 import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_ICON_SIZE, GEOJSON_MAXZOOM } from './utils/mapConstants'
-import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectElementIcon, ConnectSwitchIcon, SpliceElementIcon, OptimizeTrackIcon, UndoIcon, PlanExportIcon, ElevationIcon, PlatformIcon } from './components/icons'
+import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectElementIcon, ConnectSwitchIcon, SpliceElementIcon, OptimizeTrackIcon, UndoIcon, PlanExportIcon, ElevationIcon, PlatformIcon, CrossSectionIcon } from './components/icons'
 import { loadTracks, loadSwitches, loadPlatforms, loadSettings, saveSettings, canUndo, undo } from './storage'
 import { resolveEndBearing, displayCoords } from './utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from './utils/mapRenderUtils'
@@ -27,9 +27,11 @@ import OptimizeTrackPanel from './components/panels/OptimizeTrackPanel'
 import PlanExportPanel from './components/panels/PlanExportPanel'
 import ElevationPanel from './components/panels/ElevationPanel'
 import PlatformPanel from './components/panels/PlatformPanel'
+import CrossSectionPanel from './components/panels/CrossSectionPanel'
 import TrackTableOverlay from './components/TrackTableOverlay'
 import PlanPreviewOverlay from './components/PlanPreviewOverlay'
 import ElevationOverlay from './components/ElevationOverlay'
+import CrossSectionOverlay from './components/CrossSectionOverlay'
 import { fillMissingHeights } from './utils/elevationFill'
 import ElevationLegend from './components/ElevationLegend'
 import './App.css'
@@ -280,7 +282,7 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
 }
 
 
-function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, onShowTrackTable, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview }) {
+function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, onShowTrackTable, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
   if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
   if (view === 'places')   return <CreateElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'settings') return <SettingsPanel language={language} onLanguageChange={onLanguageChange} color={color} onColorChange={onColorChange} t={t} />
@@ -293,6 +295,7 @@ function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOv
   if (view === 'plan')     return <PlanExportPanel t={t} project={project} language={language} onShowPlanPreview={onShowPlanPreview} />
   if (view === 'elevation') return <ElevationPanel t={t} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
   if (view === 'platform') return <PlatformPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
+  if (view === 'cross_section') return <CrossSectionPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
   if (view === 'info')     return <InfoPanel t={t} />
   return null
 }
@@ -318,6 +321,7 @@ export default function App() {
   const [trackTable, setTrackTable] = useState(null)
   const [profileTrackId, setProfileTrackId] = useState(null)   // track shown in the profile overlay
   const [planPreview, setPlanPreview] = useState(null)         // { plan, filenameBase } shown as a sheet preview
+  const [crossSectionAt, setCrossSectionAt] = useState(null)   // { trackId, elIdx } drawn in the cross-section overlay
   // Bumped after every write of height points, so the profile re-reads them.
   const [heightsVersion, setHeightsVersion] = useState(0)
   // [min, max] the elevation colour scale is fitted to — drives the legend.
@@ -591,6 +595,13 @@ export default function App() {
             <PlatformIcon />
           </button>
           <button
+            className={`sidebar-icon-btn ${activeView === 'cross_section' ? 'active' : ''}`}
+            onClick={() => handleIconClick('cross_section')}
+            title={t('cross_section_title')}
+          >
+            <CrossSectionIcon />
+          </button>
+          <button
             className={`sidebar-icon-btn ${activeView === 'data' ? 'active' : ''}`}
             onClick={() => handleIconClick('data')}
             title={t('data_exchange')}
@@ -661,6 +672,8 @@ export default function App() {
             profileTrackId={profileTrackId}
             onShowProfile={setProfileTrackId}
             onShowPlanPreview={setPlanPreview}
+            crossSectionAt={crossSectionAt}
+            onShowCrossSection={setCrossSectionAt}
           />
         </aside>
       )}
@@ -670,6 +683,7 @@ export default function App() {
         {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} t={t} />}
         {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map} onClose={() => setTrackTable(null)} onSaved={handleTrackSaved} t={t} />}
         {profileTrackId && <ElevationOverlay trackId={profileTrackId} project={project} map={map} version={heightsVersion} onClose={() => setProfileTrackId(null)} onSaved={handleTrackSaved} t={t} />}
+        {crossSectionAt && <CrossSectionOverlay at={crossSectionAt} project={project} onClose={() => setCrossSectionAt(null)} t={t} />}
         {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
       </div>
     </div>

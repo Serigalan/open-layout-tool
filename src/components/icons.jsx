@@ -130,6 +130,14 @@ export const PlatformIcon = () => (
   </svg>
 )
 
+export const CrossSectionIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+    <path d="M12 3 L20 8 V16 L12 21 L4 16 V8 Z" stroke="white" strokeWidth="1.6" strokeLinejoin="round" opacity="0.85"/>
+    <path d="M3 17 H21" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+    <path d="M8 17 V14 M16 17 V14" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+)
+
 export const ElevationIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
     <path d="M3 20 H21" stroke="white" strokeWidth="2" strokeLinecap="round"/>

@@ -1636,6 +1636,11 @@
   cursor: grabbing;
 }
 
+.cross-section-svg {
+  display: block;
+  user-select: none;
+}
+
 .profile-empty {
   position: absolute;
   inset: 0;
