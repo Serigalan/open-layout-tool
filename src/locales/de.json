@@ -345,7 +345,7 @@
   "scurve_no_solution": "Keine Lösung: die Gleise treffen sich zu spitz.",
   "scurve_too_short": "Zwischenelement kürzer als das Mindestmaß der Weichenform.",
   "scurve_too_sharp": "Gleise laufen zu stark zusammen: Zwischenbogen zu eng für diese Geschwindigkeit.",
-  "scurve_hint_no_transition": "Auf einem Übergangsbogen kann keine Weichenverbindung liegen – bitte eine Gerade oder einen Bogen wählen.",
+  "scurve_hint_no_bloss": "Auf einem Bloss-Bogen kann keine Weichenverbindung liegen – seine Stücke sind selbst keine Bloss-Bögen.",
   "scurve_branch_radius": "Radius Zweiggleise",
   "scurve_cant": "Überhöhung",
   "scurve_branch_too_sharp": "Die in den Bogen gelegte Weiche wird zu eng für diese Geschwindigkeit.",

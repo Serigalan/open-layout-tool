@@ -4,8 +4,7 @@ import {
 } from './switchConnectionUtils'
 import { switchArcLength, switchStraightLength, branchRadius } from './switchUtils'
 import {
-  arcCoordsFromRadiusUtm, bearingAfterUtm, computeCurvedValuesUtm, endPointCurvedUtm,
-  endPointStraightUtm,
+  arcCoordsFromRadiusUtm, computeCurvedValuesUtm, endPointCurvedUtm, endPointStraightUtm,
 } from './elementUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
 import { newSwitchFields, switchElementMark } from './switchModel'
@@ -29,6 +28,21 @@ const P     = (e, n) => ({ easting: e, northing: n, zone: EPSG })
 const ORIGIN = P(500000, 5600000)
 const FORM  = SWITCH_TYPES[2]          // 500 – 1:12, speed 60, minl 6
 const SPEED = FORM.speed
+
+
+/**
+ * A stem as the dialog hands one over: the element's start node and tangent, the
+ * route it describes, and the station the pick sits at. The tests pick at the
+ * element's start unless they say otherwise, so `startUtm` is the pick.
+ */
+const stem = (point, bearing, radius, cant = 0, extra = {}) => ({
+  startUtm: point,
+  bearing,
+  route: { length: extra.length ?? 2000, r1: radius ?? null, r2: (extra.r2 ?? radius) ?? null },
+  along: extra.along ?? 0,
+  cantStart: cant,
+  cantEnd: extra.cantEnd ?? cant,
+})
 
 /** Centre of a track's arc at a point: 90° right of the bearing for a positive radius. */
 function centreOf(point, bearing, radius) {
@@ -56,8 +70,8 @@ function tangentAt(point, centre, radius) {
 
 describe('two straight tracks', () => {
   const GAP = 4.5
-  const g1 = { pointUtm: ORIGIN, bearing: 0, radius: null, cant: 0 }
-  const g2 = { pointUtm: P(ORIGIN.easting - GAP, ORIGIN.northing), bearing: 0, radius: null, cant: 0 }
+  const g1 = stem(ORIGIN, 0, null)
+  const g2 = stem(P(ORIGIN.easting - GAP, ORIGIN.northing), 0, null)
 
   it('builds the classical crossover: two form arcs and a straight between them', () => {
     const res = solveSwitchConnection(g1, g2, SPEED)
@@ -79,8 +93,8 @@ describe('two straight tracks', () => {
 
   it('lands on track 2, running the way track 2 runs', () => {
     const res = solveSwitchConnection(g1, g2, SPEED)
-    expect(res.TP2.easting).toBeCloseTo(g2.pointUtm.easting, 6)
-    expect(res.TP1.easting).toBeCloseTo(g1.pointUtm.easting, 9)
+    expect(res.TP2.easting).toBeCloseTo(g2.startUtm.easting, 6)
+    expect(res.TP1.easting).toBeCloseTo(g1.startUtm.easting, 9)
     expect(res.bearing2).toBeCloseTo(180, 9)           // from TP2 back towards B2A
   })
 
@@ -101,7 +115,7 @@ describe('two straight tracks', () => {
   })
 
   it('converging tracks give a middle arc that turns by the angle between them', () => {
-    const skew = { ...g2, bearing: 1.5 }
+    const skew = stem(P(ORIGIN.easting - GAP, ORIGIN.northing), 1.5, null)
     const res = solveSwitchConnection(g1, skew, SPEED)
     expect(res.valid).toBe(true)
     expect(res.delta).toBeCloseTo(-1.5 * Math.PI / 180, 9)   // bearing grows clockwise
@@ -111,7 +125,7 @@ describe('two straight tracks', () => {
   it('refuses tracks too close for any form the speed offers', () => {
     // 2 m apart: even the flattest fallback form (1:14) needs more than that for
     // its two branch arcs alone, so no middle element is left.
-    const tight = { ...g2, pointUtm: P(ORIGIN.easting - 2.0, ORIGIN.northing) }
+    const tight = stem(P(ORIGIN.easting - 2.0, ORIGIN.northing), 0, null)
     const res = solveSwitchConnection(g1, tight, SPEED)
     expect(res.valid).toBe(false)
     expect(res.reason).toBe('too_short')
@@ -127,8 +141,8 @@ describe('two tracks in a curve', () => {
   const p2 = P(ORIGIN.easting - GAP, ORIGIN.northing)
   const CANT = 40
 
-  const g1 = { pointUtm: ORIGIN, bearing: 0, radius: R1,  cant: CANT }
-  const g2 = { pointUtm: p2,     bearing: 0, radius: R2,  cant: CANT }
+  const g1 = stem(ORIGIN, 0, R1, CANT)
+  const g2 = stem(p2,      0, R2, CANT)
 
   it('closes: both toes on their tracks, both ends tangential to them', () => {
     const res = solveSwitchConnection(g1, g2, SPEED)
@@ -157,8 +171,10 @@ describe('two tracks in a curve', () => {
 
   it('carries the cant of the tracks it joins', () => {
     const res = solveSwitchConnection(g1, g2, SPEED)
-    expect(res.cant1).toBe(CANT)
-    expect(res.cant2).toBe(CANT)
+    expect(res.cant1Start).toBe(CANT)
+    expect(res.cant1End).toBe(CANT)
+    expect(res.cant2Start).toBe(CANT)
+    expect(res.cant2End).toBe(CANT)
     expect(res.cantMid).toBe(CANT)
     // The check that used to read a bare 0 there now reads the real value: the
     // branch curving against the cant is the one that binds.
@@ -166,20 +182,20 @@ describe('two tracks in a curve', () => {
   })
 
   it('refuses two tracks whose cant differs — that needs a ramp, not an arc', () => {
-    const res = solveSwitchConnection(g1, { ...g2, cant: CANT + 5 }, SPEED)
+    const res = solveSwitchConnection(g1, stem(p2, 0, R2, CANT + 5), SPEED)
     expect(res.valid).toBe(false)
     expect(res.reason).toBe('cant_mismatch')
   })
 
   it('refuses a cant a turnout may not carry (AP 1.1)', () => {
-    const res = solveSwitchConnection({ ...g1, cant: 120 }, { ...g2, cant: 120 }, SPEED)
+    const res = solveSwitchConnection(stem(ORIGIN, 0, R1, 120), stem(p2, 0, R2, 120), SPEED)
     expect(res.valid).toBe(false)
     expect(res.reason).toBe('cant_over')
   })
 
   it('refuses where the bent branch is too sharp for the speed', () => {
     // The same curve without any cant: the drawn-in branch runs out of deficiency.
-    const res = solveSwitchConnection({ ...g1, cant: 0 }, { ...g2, cant: 0 }, SPEED)
+    const res = solveSwitchConnection(stem(ORIGIN, 0, R1, 0), stem(p2, 0, R2, 0), SPEED)
     expect(res.valid).toBe(false)
     expect(res.reason).toBe('branch_too_sharp')
   })
@@ -204,7 +220,7 @@ describe('two tracks in a curve', () => {
   })
 
   it('takes a track digitised against the other', () => {
-    const backwards = { ...g2, bearing: 180, radius: -R2, cant: -CANT }
+    const backwards = stem(p2, 180, -R2, -CANT)
     const res = solveSwitchConnection(g1, backwards, SPEED)
     expect(res.valid).toBe(true)
     expect(distTo(res.TP2, CENTRE)).toBeCloseTo(R2, 5)
@@ -218,8 +234,8 @@ describe('one straight track and one curved', () => {
     const R2 = 4000
     const p2 = P(ORIGIN.easting - 4.5, ORIGIN.northing)
     const centre = centreOf(p2, 0, R2)
-    const g1 = { pointUtm: ORIGIN, bearing: 0, radius: null, cant: 0 }
-    const g2 = { pointUtm: p2, bearing: 0, radius: R2, cant: 0 }
+    const g1 = stem(ORIGIN, 0, null)
+    const g2 = stem(p2, 0, R2)
     const res = solveSwitchConnection(g1, g2, SPEED)
     expect(res.valid).toBe(true)
     expect(distTo(res.TP2, centre)).toBeCloseTo(R2, 5)
@@ -238,9 +254,8 @@ describe('the three elements of a connection', () => {
   }
 
   it('join and run tangentially on two straights', () => {
-    const g1 = { pointUtm: ORIGIN, bearing: 0, radius: null, cant: 0 }
-    const g2 = { pointUtm: P(ORIGIN.easting - 4.5, ORIGIN.northing), bearing: 0, radius: null, cant: 0 }
-    const track = asTrack(solveSwitchConnection(g1, g2, SPEED))
+    const track = asTrack(solveSwitchConnection(
+      stem(ORIGIN, 0, null), stem(P(ORIGIN.easting - 4.5, ORIGIN.northing), 0, null), SPEED))
     expectValidTrack(track)
     expect(track.elements.map(el => el.elementType)).toEqual([1, 0, 1])
     expect(track.elements.every(el => el.cant === undefined)).toBe(true)
@@ -248,9 +263,8 @@ describe('the three elements of a connection', () => {
 
   it('join and run tangentially in a curve, carrying the cant', () => {
     const R1 = 1000
-    const g1 = { pointUtm: ORIGIN, bearing: 0, radius: R1, cant: 40 }
-    const g2 = { pointUtm: P(ORIGIN.easting - 4.5, ORIGIN.northing), bearing: 0, radius: R1 + 4.5, cant: 40 }
-    const res = solveSwitchConnection(g1, g2, SPEED)
+    const res = solveSwitchConnection(
+      stem(ORIGIN, 0, R1, 40), stem(P(ORIGIN.easting - 4.5, ORIGIN.northing), 0, R1 + 4.5, 40), SPEED)
     expect(res.valid).toBe(true)
     const track = asTrack(res)
     expectValidTrack(track)
@@ -258,9 +272,8 @@ describe('the three elements of a connection', () => {
   })
 
   it('the through length a turnout of the connection needs comes back with it', () => {
-    const g1 = { pointUtm: ORIGIN, bearing: 0, radius: null, cant: 0 }
-    const g2 = { pointUtm: P(ORIGIN.easting - 4.5, ORIGIN.northing), bearing: 0, radius: null, cant: 0 }
-    const res = solveSwitchConnection(g1, g2, SPEED)
+    const res = solveSwitchConnection(
+      stem(ORIGIN, 0, null), stem(P(ORIGIN.easting - 4.5, ORIGIN.northing), 0, null), SPEED)
     expect(res.throughLength).toBeCloseTo(switchStraightLength(FORM.R, FORM.ratio), 12)
   })
 })
@@ -269,9 +282,8 @@ describe('the three elements of a connection', () => {
 
 describe('computeSwitchConnections', () => {
   it('reports one entry per primary form', () => {
-    const g1 = { pointUtm: ORIGIN, bearing: 0, radius: null, cant: 0 }
-    const g2 = { pointUtm: P(ORIGIN.easting - 4.5, ORIGIN.northing), bearing: 0, radius: null, cant: 0 }
-    const list = computeSwitchConnections(g1, g2)
+    const list = computeSwitchConnections(
+      stem(ORIGIN, 0, null), stem(P(ORIGIN.easting - 4.5, ORIGIN.northing), 0, null))
     expect(list).toHaveLength(SWITCH_TYPES.length)
     expect(list.map(e => e.speed)).toEqual(SWITCH_TYPES.map(s => s.speed))
     expect(list.some(e => e.valid)).toBe(true)
@@ -305,11 +317,7 @@ describe('committing a connection in a curve', () => {
   const pickAt = (track, along) => {
     const el = track.elements[0]
     const start = { easting: el.startNode[0], northing: el.startNode[1], zone: EPSG }
-    return {
-      pointUtm: endPointCurvedUtm(start, el.bearing, along, el.radius),
-      bearing: bearingAfterUtm(el.bearing, along, el.radius),
-      radius: el.radius, cant: el.cant,
-    }
+    return stem(start, el.bearing, el.radius, el.cant, { length: el.length, along })
   }
 
   /** What SCurveForm.handleCommit builds, without the store or React. */
@@ -393,5 +401,72 @@ describe('committing a connection in a curve', () => {
     const first = conn.elements[0], last = conn.elements[conn.elements.length - 1]
     expect(distTo(P(first.startNode[0], first.startNode[1]), CENTRE)).toBeCloseTo(R1, 5)
     expect(distTo(P(last.endNode[0], last.endNode[1]), CENTRE)).toBeCloseTo(R2, 5)
+  })
+})
+
+// ── AP 2.2: the combinations of base elements the ToDo lists ────────────────
+
+describe('the two tracks need not be the same kind of element', () => {
+  const at = (p, dE) => P(p.easting + dE, p.northing)
+
+  it('arc against arc, same sense, different radii', () => {
+    const res = solveSwitchConnection(
+      stem(ORIGIN, 0, 1000, 40), stem(at(ORIGIN, -4.5), 0, 1200, 40), SPEED)
+    expect(res.valid).toBe(true)
+    expect(res.signedR1).not.toBeCloseTo(res.signedR2, 3)   // one bent each way
+  })
+
+  it('arc against arc, opposite sense', () => {
+    const res = solveSwitchConnection(
+      stem(ORIGIN, 0, 3000, 0), stem(at(ORIGIN, -4.5), 0, -3000, 0), SPEED)
+    expect(res.valid).toBe(true)
+    // The tracks bend apart, so the element between the branches has to turn.
+    expect(Math.abs(res.delta)).toBeGreaterThan(0)
+  })
+
+  it('arc against straight, either way round', () => {
+    const a = solveSwitchConnection(stem(ORIGIN, 0, 2500, 0), stem(at(ORIGIN, -4.5), 0, null), SPEED)
+    const b = solveSwitchConnection(stem(ORIGIN, 0, null), stem(at(ORIGIN, -4.5), 0, 2500, 0), SPEED)
+    expect(a.valid).toBe(true)
+    expect(b.valid).toBe(true)
+  })
+
+  it('a transition curve carries a turnout, and its branch is one too', () => {
+    // Curvature runs under the first turnout, so its branch is a clothoid of the
+    // stem's own parameter (switchBranchRoute) rather than an arc.
+    const clothoid = stem(ORIGIN, 0, null, 0, { length: 300, r2: -2000, along: 100 })
+    const res = solveSwitchConnection(clothoid, stem(at(ORIGIN, -4.5), 0, null), SPEED)
+    expect(res.valid).toBe(true)
+    expect(res.route1.r1).not.toBe(res.route1.r2)
+    expect(res.route2.r1).toBe(res.route2.r2)          // track 2 is straight
+
+    const { arc1El, midEl, arc2El } = buildConnectionElements(res, SPEED)
+    expect(arc1El.elementType).toBe(2)
+    expect(arc1El.transitionType).toBe('clothoid')
+    expect(midEl.elementType).toBeLessThan(2)
+    expect(arc2El.elementType).toBe(1)
+    expectValidTrack({ id: 't', epsg: EPSG, elements: recalcAbsLengths([arc1El, midEl, arc2El]) })
+  })
+
+  it('…and refuses one whose cant ramps across the connection', () => {
+    // The middle element can carry one cant, and here the two ends it joins do
+    // not agree on it. That needs a ramp on an element this construction does
+    // not build (AP 4.1).
+    const ramping = stem(ORIGIN, 0, null, 0, { length: 300, r2: -2000, along: 100, cantEnd: 60 })
+    const res = solveSwitchConnection(ramping, stem(at(ORIGIN, -4.5), 0, null, 0), SPEED)
+    expect(res.valid).toBe(false)
+    expect(res.reason).toBe('cant_mismatch')
+  })
+
+  it('the branch over a ramp carries the ramp, not one value', () => {
+    // Where the cant does run under a turnout, the branch states both ends —
+    // which is what a transition element is for (AP 1.1's rule for a turnout in
+    // a cant ramp).
+    const ramping = stem(ORIGIN, 0, null, 20, { length: 300, r2: -2000, along: 100, cantEnd: 60 })
+    const res = solveSwitchConnection(ramping, stem(at(ORIGIN, -4.5), 0, null, 0), SPEED)
+    expect(res.cant1Start).not.toBe(res.cant1End)
+    const { arc1El } = buildConnectionElements(res, SPEED)
+    expect(arc1El.cantStart).toBe(res.cant1Start)
+    expect(arc1El.cantEnd).toBe(res.cant1End)
   })
 })

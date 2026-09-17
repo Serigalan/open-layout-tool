@@ -7,8 +7,10 @@ import {
 } from './mapConstants'
 import {
   SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, STRAIGHT_CURVATURE,
-  switchArcLength, switchStraightLength, branchRadius, asRadius,
+  switchArcLength, switchStraightLength, switchBranchRoute, switchRouteVaries,
+  switchRoutePointUtm, switchRouteBearingAt, switchRouteRadiusAt, switchRouteSlice,
 } from './switchUtils'
+import { computeClothoidUtm } from './clothoidUtils'
 
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI
@@ -39,6 +41,16 @@ export { SWITCH_TYPES }
  * turnout sits, so the middle element's turn is not known before the position
  * is. The construction has to be solved rather than written down.
  *
+ * **The stem is a route, not a radius** (AP 2.2). Everything below reads the
+ * track through switchElementRoute — `{ length, r1, r2 }` — so a straight, an
+ * arc and a transition curve are one case and not three. On a transition the
+ * rule is unchanged, κ_branch = κ_stem + κ_form at every station
+ * (switchBranchRoute), and since the stem's curvature runs linearly so does the
+ * branch's: the branch is then a clothoid of the stem's own parameter, and the
+ * element built from it is a transition. That is what makes the ToDo's list of
+ * combinations — straight against arc, arc against arc either sense, a
+ * transition involved — one construction rather than a table of cases.
+ *
  * What it is solved over: the two toe stations s₁ and s₂. s₁ is the freedom the
  * dialog's slider offers; s₂ is the unknown. The middle element is *defined* as
  * the arc that leaves the first branch's end on its tangent and turns by
@@ -56,11 +68,17 @@ export { SWITCH_TYPES }
  * not a curved one beside a straight one.
  *
  * The construction stops being a switch connection when the middle element gets
- * too short to lie between two reverse curves (Lg < minl), when its curve or a
- * bent branch exceeds the cant deficiency the design speed allows, or when the
- * cant the two tracks carry is not the same — a crossover between tracks at
- * different cant needs a ramp on the middle element, which is a transition and
- * not the single arc this builds (AP 2.2).
+ * too short to lie between two reverse curves (Lg < minl), or when its curve or
+ * a bent branch exceeds the cant deficiency the design speed allows.
+ *
+ * It also stops where **the cant at the two ends of the middle element does not
+ * agree**. A branch may ramp — it is a transition element there, which is the
+ * one kind this model lets state a cant at each end — but the element between
+ * the two branches carries a single value, so the ends it joins have to state
+ * the same one. Anything else would leave a cant step in the track, which is a
+ * ramp of no length. Giving that element a ramp means giving an arc or a
+ * straight two cant values, which the model ties to transitions today; that is
+ * the shared piece AP 4.1 has to settle.
  */
 
 /** Signed turn from a1 to a2, in (−π, π]. */
@@ -77,27 +95,6 @@ const bearingOf = (psi) => ((Math.atan2(Math.cos(psi), Math.sin(psi)) * RAD2DEG)
 
 const negR = (r) => (r == null ? null : -r)
 
-/** From (E, N) heading psi, turn by the signed angle d on radius r → [E, N, heading]. */
-function arcStep(E, N, psi, d, r) {
-  const sg = Math.sign(d) || 1
-  const psiE = psi + d
-  return [
-    E + sg * r * (Math.sin(psiE) - Math.sin(psi)),
-    N - sg * r * (Math.cos(psiE) - Math.cos(psi)),
-    psiE,
-  ]
-}
-
-/**
- * Travel `L` from (E, N) heading `psi` on the project's signed radius `Rp`
- * (positive = right-hand curve, null = straight) → [E, N, heading]. A negative
- * `L` runs the same route backwards.
- */
-function stepOn(E, N, psi, L, Rp) {
-  if (!Rp) return [E + L * Math.cos(psi), N + L * Math.sin(psi), psi]
-  return arcStep(E, N, psi, -L / Rp, Math.abs(Rp))
-}
-
 // Fallback chain for a speed: primary type → ALT1 → ALT2.
 function fallbackChain(speed) {
   return [SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2]
@@ -105,13 +102,58 @@ function fallbackChain(speed) {
     .filter(Boolean)
 }
 
-/** A stem run the other way: same line, opposite direction, so radius and cant turn with it. */
-export const reverseStem = (g) => ({
-  pointUtm: g.pointUtm,
-  bearing: (g.bearing + 180) % 360,
-  radius: negR(asRadius(g.radius)),
-  cant: -(g.cant ?? 0),
-})
+/**
+ * A stem is the element a turnout of the connection sits on, as the route it is
+ * — `{ length, r1, r2 }`, so a straight, an arc and a transition are one thing
+ * (switchElementRoute). It is read from the element's own start, which is where
+ * its route is stationed from:
+ *
+ *   startUtm, bearing   the element's start node and the tangent there
+ *   route               its route, in the element's own direction
+ *   along               the station the pick sits at
+ *   cantStart, cantEnd  the cant at the element's two ends, its own direction
+ *                       (the same value twice on anything but a transition)
+ *   dir                 +1 where the connection runs with the element, −1 against
+ *
+ * Everything below is stated as a station `s` measured from the pick in the
+ * direction the connection runs, which `dir` turns back into a station along the
+ * element. Running a stem the other way is that flag and nothing else — the
+ * route stays as it is and its radii and cant are turned where they are read.
+ */
+export const reverseStem = (g) => ({ ...g, dir: -(g.dir ?? 1) })
+
+/** Station along the element, `s` metres from the pick in the running direction. */
+const stemStation = (g, s) => g.along + (g.dir ?? 1) * s
+
+/** The point `s` from the pick, in the plane. */
+const stemPoint = (g, s) => switchRoutePointUtm(g.startUtm, g.bearing, g.route, stemStation(g, s))
+
+/** The tangent bearing `s` from the pick, in the running direction. */
+function stemBearing(g, s) {
+  const b = switchRouteBearingAt(g.bearing, g.route, stemStation(g, s))
+  return (g.dir ?? 1) > 0 ? b : (b + 180) % 360
+}
+
+/** The signed radius `s` from the pick, in the running direction. */
+function stemRadius(g, s) {
+  const r = switchRouteRadiusAt(g.route, stemStation(g, s))
+  return (g.dir ?? 1) > 0 ? r : negR(r)
+}
+
+/** The cant `s` from the pick, in the running direction — a transition ramps. */
+function stemCant(g, s) {
+  const L = g.route.length
+  const a = g.cantStart ?? 0, b = g.cantEnd ?? a
+  const u = L > 0 ? a + (b - a) * Math.min(L, Math.max(0, stemStation(g, s))) / L : a
+  return (g.dir ?? 1) > 0 ? u : -u
+}
+
+/** The stretch of stem a turnout covers: from `s` forward by `length`, running direction. */
+function stemUnder(g, s, length) {
+  const a = stemStation(g, s), b = stemStation(g, s + length)
+  const slice = switchRouteSlice(g.route, Math.min(a, b), Math.max(a, b))
+  return (g.dir ?? 1) > 0 ? slice : { length: slice.length, r1: negR(slice.r2), r2: negR(slice.r1) }
+}
 
 /**
  * The stem oriented towards `target` — the direction the connection leaves it
@@ -119,9 +161,10 @@ export const reverseStem = (g) => ({
  * must not do this by adding 180° to a bearing.
  */
 export function orientStemToward(g, target) {
-  const rad = g.bearing * DEG2RAD
-  const toward = (target.easting - g.pointUtm.easting) * Math.sin(rad)
-             + (target.northing - g.pointUtm.northing) * Math.cos(rad)
+  const rad = stemBearing(g, 0) * DEG2RAD
+  const from = stemPoint(g, 0)
+  const toward = (target.easting - from.easting) * Math.sin(rad)
+             + (target.northing - from.northing) * Math.cos(rad)
   return toward < 0 ? reverseStem(g) : g
 }
 
@@ -132,43 +175,43 @@ export function orientStemToward(g, target) {
  * reversing a track turns both, which is what reverseStem is for.
  */
 function connectionFrame(g1, g2, s) {
-  const t1 = g1
-  const psi1Pick = psiOf(t1.bearing)
+  const psi1Pick = psiOf(stemBearing(g1, 0))
   const u1E = Math.cos(psi1Pick), u1N = Math.sin(psi1Pick)
 
   // Track 2 may be digitised against track 1; the line is what counts, not the
   // direction it was drawn in.
-  const psi2Raw = psiOf(g2.bearing)
+  const psi2Raw = psiOf(stemBearing(g2, 0))
   const flipped2 = (Math.cos(psi2Raw) * u1E + Math.sin(psi2Raw) * u1N) < 0
   const t2 = flipped2 ? reverseStem(g2) : g2
 
-  // The toe of turnout 1: the pick slid `s` along track 1 — along its arc where
-  // it has one, not along its tangent.
-  const Rs1 = asRadius(t1.radius)
-  const [toeE, toeN, psiToe1] = stepOn(
-    t1.pointUtm.easting, t1.pointUtm.northing, psi1Pick, s, Rs1)
-  const toe1 = { easting: toeE, northing: toeN, zone: t1.pointUtm.zone }
+  // The toe of turnout 1: the pick slid `s` along track 1 — along its own
+  // geometry, be that a straight, an arc or a transition.
+  const toe1 = stemPoint(g1, s)
+  const psiToe1 = psiOf(stemBearing(g1, s))
 
   // Which side track 2 is on, seen from the toe: the left normal of track 1 there.
   const n1E = -Math.sin(psiToe1), n1N = Math.cos(psiToe1)
-  const dE = t2.pointUtm.easting - toeE, dN = t2.pointUtm.northing - toeN
+  const p2 = stemPoint(t2, 0)
+  const dE = p2.easting - toe1.easting, dN = p2.northing - toe1.northing
   const side = Math.sign(dE * n1E + dN * n1N) || 1
 
-  return { stem1: t1, stem2: t2, toe1, psiToe1, Rs1, Rs2: asRadius(t2.radius), side, flipped2 }
+  return { stem1: g1, stem2: t2, s1: s, toe1, psiToe1, side, flipped2 }
 }
 
 /** Track spacing at the toe: the distance from it to track 2, straight or arc. */
 function trackGap(frame) {
-  const { toe1, stem2, Rs2 } = frame
-  const psi = psiOf(stem2.bearing)
+  const { toe1, stem2 } = frame
+  const p2 = stemPoint(stem2, 0)
+  const psi = psiOf(stemBearing(stem2, 0))
+  const Rs2 = stemRadius(stem2, 0)
   if (!Rs2) {
-    const dE = stem2.pointUtm.easting - toe1.easting, dN = stem2.pointUtm.northing - toe1.northing
+    const dE = p2.easting - toe1.easting, dN = p2.northing - toe1.northing
     return Math.abs(dE * -Math.sin(psi) + dN * Math.cos(psi))
   }
-  // Centre of track 2's arc, then the distance from the toe to the circle.
+  // Centre of track 2's curvature there, then the distance from the toe to it.
   const sg  = Rs2 >= 0 ? -1 : 1
-  const cE  = stem2.pointUtm.easting  + sg * Math.abs(Rs2) * -Math.sin(psi)
-  const cN  = stem2.pointUtm.northing + sg * Math.abs(Rs2) *  Math.cos(psi)
+  const cE  = p2.easting  + sg * Math.abs(Rs2) * -Math.sin(psi)
+  const cN  = p2.northing + sg * Math.abs(Rs2) *  Math.cos(psi)
   return Math.abs(Math.hypot(toe1.easting - cE, toe1.northing - cN) - Math.abs(Rs2))
 }
 
@@ -195,36 +238,40 @@ const SOLVE_STEPS = 40
  * branch ends; its length follows from where they are.
  */
 function buildConnection(sw, frame, speed) {
-  const { toe1, psiToe1, Rs1, Rs2, stem2, side } = frame
+  const { toe1, psiToe1, stem1, stem2, s1, side } = frame
   const w   = Math.atan(1 / sw.ratio)
   const Lb  = switchArcLength(sw.R, sw.ratio)     // the form's branch, bent or not
   const Rf  = -side * sw.R                        // the form's radius, project-signed
-  const Rb1 = branchRadius(Rf, Rs1)               // branch 1, in the travel direction
-  // Turnout 2 faces the other way, so its stem runs the other way under it; its
-  // branch turns the same way in the plane, which is the same form side again.
-  const Rb2 = negR(branchRadius(Rf, negR(Rs2)))   // branch 2, in the travel direction
 
-  // Branch 1: from the toe, once — it does not depend on s₂.
-  const [b1E, b1N, t1] = stepOn(toe1.easting, toe1.northing, psiToe1, Lb, Rb1)
+  // Branch 1: the form laid on the stretch of stem it covers, so on a straight
+  // it is the form's arc, in a curve the bent one, and on a transition a
+  // clothoid of the stem's own parameter. It does not depend on s₂.
+  const route1  = switchBranchRoute(Rf, stemUnder(stem1, s1, Lb), Lb)
+  const bear1   = stemBearing(stem1, s1)
+  const B1E     = switchRoutePointUtm(toe1, bear1, route1)
+  const t1      = psiOf(switchRouteBearingAt(bear1, route1))
+  const b1E = B1E.easting, b1N = B1E.northing
 
-  const psi2Pick = psiOf(stem2.bearing)
+  // Turnout 2 opens against the way the connection runs, so its own stem is
+  // track 2 read backwards; its branch turns the same way in the plane, which
+  // is the same form side again.
+  const back2 = reverseStem(stem2)
 
   /** Everything that depends on where turnout 2 sits. */
   const at = (s2) => {
-    const [p2E, p2N, psiToe2] = stepOn(
-      stem2.pointUtm.easting, stem2.pointUtm.northing, psi2Pick, s2, Rs2)
-    // Back up along branch 2 from its toe: the same arc run the other way.
-    const [aE, aN, psiBack] = stepOn(p2E, p2N, psiToe2 + Math.PI, Lb, negR(Rb2))
-    const t2 = psiBack + Math.PI
+    const TP2 = stemPoint(stem2, s2)
+    // In turnout 2's own frame the toe sits at −s₂ from the pick.
+    const bearOwn = stemBearing(back2, -s2)
+    const route2own = switchBranchRoute(Rf, stemUnder(back2, -s2, Lb), Lb)
+    const B2A = switchRoutePointUtm(TP2, bearOwn, route2own)
+    const t2  = psiOf(switchRouteBearingAt(bearOwn, route2own)) + Math.PI
+
     const delta = normalizeAngle(t2 - t1)
     const half  = delta / 2
     const uE = Math.cos(t1 + half), uN = Math.sin(t1 + half)
-    const dE = aE - b1E, dN = aN - b1N
+    const dE = B2A.easting - b1E, dN = B2A.northing - b1N
     return {
-      TP2: { easting: p2E, northing: p2N, zone: toe1.zone },
-      psiToe2,
-      B2A: { easting: aE, northing: aN, zone: toe1.zone },
-      t2, delta,
+      TP2, B2A, t2, delta, route2own, bearOwn,
       // Signed distance of B2A from the ray the middle element's end runs along.
       residual: dE * -uN + dN * uE,
       // …and how far along that ray it lies, which is the middle element's length.
@@ -232,15 +279,16 @@ function buildConnection(sw, frame, speed) {
     }
   }
 
-  const s2 = solveStation(at, Lb)
+  // The search stays on the element the second turnout was picked on: outside it
+  // there is no stem to lay a turnout in, and the shift bounds refuse it anyway.
+  const s2 = solveStation(at, Lb, stem2.route.length + 2 * Lb)
   const hit = s2 == null ? null : at(s2)
 
   if (!hit || !Number.isFinite(hit.Lg)) {
     return { sw, valid: false, reason: 'no_solution', Lg: NaN, s2: null }
   }
 
-  const { TP2, B2A, delta, Lg, psiToe2 } = hit
-  const B1E = { easting: b1E, northing: b1N, zone: toe1.zone }
+  const { TP2, B2A, t2, delta, Lg, route2own, bearOwn } = hit
 
   // Middle radius, signed the project's way: a left turn (δ > 0) runs on a
   // negative radius. Below the project's straight threshold it is a straight —
@@ -249,25 +297,37 @@ function buildConnection(sw, frame, speed) {
   const curvature = Lg > 0 ? delta / Lg : 0
   const signedRg = Math.abs(curvature) < STRAIGHT_CURVATURE ? null : -1 / curvature
 
+  // Branch 2 as the connection runs it, B2A → TP2: the same route backwards.
+  const route2 = { length: route2own.length, r1: negR(route2own.r2), r2: negR(route2own.r1) }
+
   // The cant the connection carries is the cant of the tracks it joins: each
   // branch takes its own stem's, as a turnout laid into a track does
-  // (SwitchOnTrackForm), and the element between them can only carry one value.
-  // Both are stated in the travel direction, which is the direction the three
-  // elements are built in — turnout 2 opens against it, but the element that
-  // carries its branch does not, so its stem's cant goes in as it stands.
-  const cant1 = frame.stem1.cant ?? 0
-  const cant2 = stem2.cant ?? 0
-  const cantMid = cant1
+  // (SwitchOnTrackForm), read at the station of the branch it belongs to. All
+  // of it in the direction the three elements are built in.
+  const cant1Start = stemCant(stem1, s1)
+  const cant1End   = stemCant(stem1, s1 + Lb)
+  const cant2Start = stemCant(stem2, s2 - Lb)      // at B2A
+  const cant2End   = stemCant(stem2, s2)           // at TP2
+  // The element between them can only carry one value, so the two ends it joins
+  // have to agree on it.
+  const cantMid = cant1End
 
+  const worst = (a, b) => (Math.abs(a) >= Math.abs(b) ? a : b)
+  const defOf = (route, uA, uB) => {
+    const r = worst(route.r1, route.r2)
+    return r ? computeCantDefSigned(speed, r, worst(uA, uB)) : 0
+  }
   const defMid = signedRg ? computeCantDefSigned(speed, signedRg, cantMid) : 0
-  const defB1  = Rb1 ? computeCantDefSigned(speed, Rb1, cant1) : 0
-  const defB2  = Rb2 ? computeCantDefSigned(speed, Rb2, cant2) : 0
+  const defB1  = defOf(route1, cant1Start, cant1End)
+  const defB2  = defOf(route2, cant2Start, cant2End)
+  const worstCant = Math.max(
+    Math.abs(cant1Start), Math.abs(cant1End), Math.abs(cant2Start), Math.abs(cant2End))
 
   const reason =
     !Number.isFinite(Lg)                                  ? 'no_solution'
       : Lg < sw.minl                                      ? 'too_short'
-        : cant1 !== cant2                                 ? 'cant_mismatch'
-          : Math.max(Math.abs(cant1), Math.abs(cant2)) > MAX_SWITCH_CANT ? 'cant_over'
+        : cant1End !== cant2Start                         ? 'cant_mismatch'
+          : worstCant > MAX_SWITCH_CANT                   ? 'cant_over'
             : Math.max(defB1, defB2) > MAX_SWITCH_CANT_DEF ? 'branch_too_sharp'
               : defMid > MAX_SWITCH_CANT_DEF              ? 'too_sharp'
                 : null
@@ -276,12 +336,14 @@ function buildConnection(sw, frame, speed) {
     sw, R: sw.R, w, side, delta, s2,
     TP1: toe1, B1E, B2A, TP2,
     Lg, signedRg,
-    signedR1: Rb1, signedR2: Rb2,
+    route1, route2,
+    signedR1: route1.r1, signedR2: route2.r1,
     L1: Lb, L2: Lb,
-    cant1, cant2, cantMid,
+    cant1Start, cant1End, cant2Start, cant2End, cantMid,
     cantDef: defMid, branchCantDef: Math.max(defB1, defB2),
     bearing1: bearingOf(psiToe1),
-    bearing2: bearingOf(psiToe2 + Math.PI),   // from TP2 towards B2A
+    bearing2:  bearOwn,                       // at TP2, towards B2A — where the split parts
+    bearing2A: bearingOf(t2),                 // at B2A, the way the connection runs
     valid: reason === null, reason,
   }
 }
@@ -293,7 +355,7 @@ function buildConnection(sw, frame, speed) {
  * change where that wanders off. Where track 2 is straight the residual is
  * linear and the first secant step is already exact.
  */
-function solveStation(at, step) {
+function solveStation(at, step, span = Math.max(50 * step, 500)) {
   let a = 0, fa = at(0).residual
   if (Math.abs(fa) < SOLVE_TOL) return 0
   let b = step, fb = at(b).residual
@@ -313,7 +375,6 @@ function solveStation(at, step) {
 
   // Secant lost it: look for a sign change over a stretch of track 2 and halve
   // it down. The residual is smooth, so one crossing is one solution.
-  const span = Math.max(50 * step, 500)
   const n = 96
   let prevS = -span, prevF = at(prevS).residual
   for (let i = 1; i <= n; i++) {
@@ -354,16 +415,15 @@ export function computeSwitchConnections(g1, g2, s = 0) {
  * a valid connection; the last one tried when none does, so the caller can say
  * why). Result plugs into buildConnectionElements + the preview helpers.
  *
- * `g1` and `g2` are the two picks, each `{ pointUtm, bearing, radius, cant }` in
- * the track's own plane and direction — `g1.bearing` oriented towards `g2`, the
- * radius of the track at that point (null on a straight) and the cant it carries
- * there. Both must be in the same CRS plane; the caller converts.
+ * `g1` and `g2` are the two stems (see above), both in the same CRS plane and
+ * `g1` already oriented towards `g2` (orientStemToward). The caller converts a
+ * second track that lives in another plane.
  *
  * @param {number} speed selected design speed [km/h]
  * @param {number} s     shift of the first toe along track 1 [m]
  */
 export function solveSwitchConnection(g1, g2, speed, s = 0) {
-  const zone  = g1.pointUtm.zone
+  const zone  = g1.startUtm.zone
   const frame = connectionFrame(g1, g2, s)
 
   const chain = fallbackChain(speed)
@@ -384,27 +444,22 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
       TP1: frame.toe1, R: c.sw.R, w: Math.atan(1 / c.sw.ratio), delta: 0, Lg: NaN, signedRg: null,
       arc1Coords: null, arc2Coords: null, midCoords: [], allCoords: [],
       valid: false, reason: c.reason, zone, gap, switchType: c.sw, throughLength,
-      s2: null, flipped2: frame.flipped2, cant1: 0, cant2: 0, cantMid: 0,
+      s2: null, flipped2: frame.flipped2,
+      cant1Start: 0, cant1End: 0, cant2Start: 0, cant2End: 0, cantMid: 0,
     }
   }
 
   const { TP1, B1E, B2A, TP2, signedR1, signedR2, signedRg } = c
-
-  // A branch that comes out straight (the outer-bent form's limiting case) is
-  // drawn as the two points it runs between, like any straight.
-  const arcLine = (a, b, signedR, sagitta, aWgs, bWgs) => (signedR
-    ? arcCoordsFromRadiusUtm(a, b, signedR, sagitta)
-    : [aWgs, bWgs])
 
   const tp1Wgs = utmToWgs84(TP1.easting, TP1.northing, zone)
   const b1eWgs = utmToWgs84(B1E.easting, B1E.northing, zone)
   const b2aWgs = utmToWgs84(B2A.easting, B2A.northing, zone)
   const tp2Wgs = utmToWgs84(TP2.easting, TP2.northing, zone)
 
-  const arc1Coords       = c.valid ? arcLine(TP1, B1E, signedR1, SAGITTA_ELEMENT, tp1Wgs, b1eWgs) : null
-  const arc1CoordsRender = c.valid ? arcLine(TP1, B1E, signedR1, SAGITTA_TRACK,   tp1Wgs, b1eWgs) : null
-  const arc2Coords       = c.valid ? arcLine(B2A, TP2, signedR2, SAGITTA_ELEMENT, b2aWgs, tp2Wgs) : null
-  const arc2CoordsRender = c.valid ? arcLine(B2A, TP2, signedR2, SAGITTA_TRACK,   b2aWgs, tp2Wgs) : null
+  const arc1Coords       = c.valid ? routeCoords(TP1, c.bearing1, c.route1, SAGITTA_ELEMENT, tp1Wgs, b1eWgs) : null
+  const arc1CoordsRender = c.valid ? routeCoords(TP1, c.bearing1, c.route1, SAGITTA_TRACK,   tp1Wgs, b1eWgs) : null
+  const arc2Coords       = c.valid ? routeCoords(B2A, c.bearing2A, c.route2, SAGITTA_ELEMENT, b2aWgs, tp2Wgs) : null
+  const arc2CoordsRender = c.valid ? routeCoords(B2A, c.bearing2A, c.route2, SAGITTA_TRACK,   b2aWgs, tp2Wgs) : null
 
   // The middle element's polyline: its two ends when straight, an arc otherwise.
   // Both keep the neighbours' own WGS84 points, so the joins stay exact.
@@ -421,7 +476,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
   // Construction length: the stretch of track 1 the connection takes up — the
   // station of TP2's foot on track 1, measured along the track and not along a
   // tangent it leaves.
-  const laenge = projectOnArcUtm(TP1, TP2, c.bearing1, frame.Rs1).along
+  const laenge = projectOnArcUtm(TP1, TP2, c.bearing1, stemRadius(frame.stem1, frame.s1)).along
 
   return {
     TP1, B1E, B2A, TP2,
@@ -429,8 +484,11 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
     delta: c.delta, s2: c.s2, flipped2: frame.flipped2,
     R: c.R, w: c.w, L1: c.L1, L2: c.L2, Lg: c.Lg,
     signedR1, signedR2, signedRg,
-    stemR1: frame.Rs1, stemR2: frame.Rs2,
-    cant1: c.cant1, cant2: c.cant2, cantMid: c.cantMid,
+    route1: c.route1, route2: c.route2, bearing2A: c.bearing2A,
+    stemR1: stemRadius(frame.stem1, frame.s1),
+    stemR2: stemRadius(frame.stem2, c.s2),
+    cant1Start: c.cant1Start, cant1End: c.cant1End,
+    cant2Start: c.cant2Start, cant2End: c.cant2End, cantMid: c.cantMid,
     cantDef: c.cantDef, branchCantDef: c.branchCantDef,
     bearing1: c.bearing1, bearing2: c.bearing2,
     arc1Coords, arc1CoordsRender, arc2Coords, arc2CoordsRender,
@@ -442,8 +500,51 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
   }
 }
 
-/** One element of a solved connection: an arc where it curves, a straight where it does not. */
-function connectionElement(a, b, signedR, speed, cant, coords, renderCoords) {
+/**
+ * The polyline of a route laid from `startUtm` on `bearing`: two points for a
+ * straight, an arc where the curvature is constant, and the integrated curve
+ * where it runs. The stored end points are kept as they are, so the joins with
+ * the neighbours are exact — the same rule reconstructElements follows.
+ */
+function routeCoords(startUtm, bearing, route, sagitta, startWgs, endWgs) {
+  if (switchRouteVaries(route)) {
+    const cl = computeClothoidUtm(startUtm, bearing, route.length, route.r1, route.r2, sagitta)
+    return [startWgs, ...cl.coords.slice(1, -1), endWgs]
+  }
+  if (!route.r1) return [startWgs, endWgs]
+  const a = arcCoordsFromRadiusUtm(
+    startUtm,
+    switchRoutePointUtm(startUtm, bearing, route),
+    route.r1, sagitta)
+  return a ? [startWgs, ...a.slice(1, -1), endWgs] : [startWgs, endWgs]
+}
+
+/**
+ * One element of a solved connection, as the route made it: a straight, an arc,
+ * or the transition a turnout laid into a transition curve produces. `cant` is
+ * the value at its two ends — one number on anything that carries one value, a
+ * ramp on a transition, which is the only kind of element this model lets carry
+ * two.
+ */
+function connectionElement(a, b, bearing, route, speed, cantA, cantB, coords, renderCoords) {
+  const varies = switchRouteVaries(route)
+  if (varies) {
+    return {
+      elementType: 2, transitionType: 'clothoid',
+      r1: route.r1, r2: route.r2,
+      startNode: [a.easting, a.northing],
+      endNode:   [b.easting, b.northing],
+      bearing,
+      endBearing: switchRouteBearingAt(bearing, route),
+      length:    route.length,
+      absLength: route.length,
+      speed,
+      ...(cantA || cantB ? { cantStart: cantA, cantEnd: cantB } : {}),
+      geometry: { type: 'LineString', coordinates: coords },
+      renderCoords,
+    }
+  }
+  const signedR = route.r1
   const v = signedR ? computeCurvedValuesUtm(a, b, signedR) : computeStraightValuesUtm(a, b)
   return {
     elementType: signedR ? 1 : 0,
@@ -454,25 +555,30 @@ function connectionElement(a, b, signedR, speed, cant, coords, renderCoords) {
     absLength: v.length,
     speed,
     ...(signedR ? { endBearing: v.endBearing, radius: signedR, renderCoords } : {}),
-    ...(cant ? { cant } : {}),
+    ...(cantA ? { cant: cantA } : {}),
     geometry: { type: 'LineString', coordinates: coords },
   }
 }
 
 /**
- * The three track elements of a solved connection — branch arc, middle element,
- * branch arc — ready to go into a track. Each is a straight or an arc exactly as
- * the solution made it, and each carries the cant the solution read off the
- * tracks it joins.
+ * The three track elements of a solved connection — branch, middle element,
+ * branch — ready to go into a track. Each is a straight, an arc or a transition
+ * exactly as the solution made it, and each carries the cant the solution read
+ * off the tracks it joins.
  */
 export function buildConnectionElements(result, speed) {
-  const { TP1, B1E, B2A, TP2, signedR1, signedR2, signedRg,
+  const { TP1, B1E, B2A, TP2, signedRg, route1, route2, bearing1, bearing2A,
           arc1Coords, arc1CoordsRender, arc2Coords, arc2CoordsRender,
-          midCoords, midCoordsRender, cant1, cant2, cantMid } = result
+          midCoords, midCoordsRender,
+          cant1Start, cant1End, cant2Start, cant2End, cantMid } = result
+  const mid = { length: 0, r1: signedRg, r2: signedRg }
 
   return {
-    arc1El: connectionElement(TP1, B1E, signedR1, speed, cant1, arc1Coords, arc1CoordsRender),
-    midEl:  connectionElement(B1E, B2A, signedRg, speed, cantMid, midCoords, midCoordsRender),
-    arc2El: connectionElement(B2A, TP2, signedR2, speed, cant2, arc2Coords, arc2CoordsRender),
+    arc1El: connectionElement(TP1, B1E, bearing1, route1, speed,
+      cant1Start, cant1End, arc1Coords, arc1CoordsRender),
+    midEl:  connectionElement(B1E, B2A, null, mid, speed,
+      cantMid, cantMid, midCoords, midCoordsRender),
+    arc2El: connectionElement(B2A, TP2, bearing2A, route2, speed,
+      cant2Start, cant2End, arc2Coords, arc2CoordsRender),
   }
 }

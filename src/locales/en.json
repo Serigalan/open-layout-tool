@@ -345,7 +345,7 @@
   "scurve_no_solution": "No solution: the tracks meet at too sharp an angle.",
   "scurve_too_short": "Intermediate element shorter than the switch form's minimum.",
   "scurve_too_sharp": "Tracks converge too much: the intermediate curve is too sharp for this speed.",
-  "scurve_hint_no_transition": "A switch connection cannot lie on a transition curve – pick a straight or an arc.",
+  "scurve_hint_no_bloss": "A switch connection cannot lie on a Bloss curve – its pieces are no Bloss curves.",
   "scurve_branch_radius": "Branch radii",
   "scurve_cant": "Cant",
   "scurve_branch_too_sharp": "The turnout bent into the curve gets too sharp for this speed.",

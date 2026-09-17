@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitSwitchConnection, generateId, nextTrackName, rebuildCoords, recalcAbsLengths } from '../../../storage'
-import {
-  nodeUtm, projectOnArcUtm, bearingAfterUtm, endPointStraightUtm, endPointCurvedUtm,
-} from '../../../utils/elementUtils'
+import { nodeUtm } from '../../../utils/elementUtils'
+import { switchElementRoute } from '../../../utils/switchUtils'
+import { transitionCantEnds } from '../../../utils/clothoidUtils'
+import { stationFromClick } from '../../../utils/platformUtils'
 import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../../../utils/coordinateUtils'
 import { computeSwitchGeometryUtm } from '../../../utils/switchUtils'
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
@@ -91,11 +92,14 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, branchUtm, sw,
   }
 }
 
-// A turnout of the connection is laid into one element of its track — straight
-// or curved, the construction bends it either way (AP 2.1). A transition is not
-// one: its curvature runs, so the turnout over it has no single stem radius and
-// its branch would be a clothoid rather than the arc this builds (AP 2.2).
-const isPlainElement = (el) => el.elementType !== 2
+// A turnout of the connection is laid into one element of its track. Straight,
+// curved or a transition curve — the construction lays the form on whatever
+// route the element is (AP 2.1, AP 2.2), and over a transition the branch comes
+// out a clothoid of the stem's own parameter. A Bloss curve is the exception:
+// its pieces are no Bloss curves, so neither the branch nor the carve can be
+// taken from it.
+const isUsableStem = (el) => el.elementType !== 2
+  || (el.transitionType !== 'bloss' && el.r1 !== undefined)
 
 // Put the switch's through route into its own elements in the half-track it runs
 // into, and hand back the split's tracks with that one replaced — same id, so
@@ -108,7 +112,7 @@ const isPlainElement = (el) => el.elementType !== 2
 // symbol would fall back on the stem radii and the delete rules would find a
 // route with no elements. The caller refuses the connection instead.
 function carveThrough(split, cutUtm, mark, length) {
-  const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, cutUtm, mark, length, { accepts: isPlainElement })
+  const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, cutUtm, mark, length, { accepts: isUsableStem })
   return carved ? split.tracks.map(tr => (tr.id === carved.id ? carved : tr)) : null
 }
 
@@ -123,12 +127,12 @@ function toPlane(p, crs) {
 // converted. The radius is carried across as it stands — the two grids differ in
 // scale by parts in ten thousand, which over a turnout is microns.
 function stemInPlane(g, crs) {
-  if (Number(g.zone) === Number(crs)) return { pointUtm: g.pointUtm, bearing: g.bearing, radius: g.radius, cant: g.cant }
+  const { startUtm, bearing, route, along, cantStart, cantEnd } = g
+  if (Number(g.zone) === Number(crs)) return { startUtm, bearing, route, along, cantStart, cantEnd }
   return {
-    pointUtm: toPlane(g.pointUtm, crs),
-    bearing: transformGridBearing(g.pointUtm.easting, g.pointUtm.northing, g.bearing, g.zone, crs),
-    radius: g.radius,
-    cant: g.cant,
+    startUtm: toPlane(startUtm, crs),
+    bearing: transformGridBearing(startUtm.easting, startUtm.northing, bearing, g.zone, crs),
+    route, along, cantStart, cantEnd,
   }
 }
 
@@ -138,7 +142,7 @@ function stems(picks) {
   const [g1, g2] = picks
   const zone = g1.zone
   const s2 = stemInPlane(g2, zone)
-  return { g1: orientStemToward(stemInPlane(g1, zone), s2.pointUtm), g2: s2 }
+  return { g1: orientStemToward(stemInPlane(g1, zone), s2.startUtm), g2: s2 }
 }
 
 // Solve the connection geometry for a given shift (pure — no React state).
@@ -175,14 +179,11 @@ const FIT_TOL = 1e-6
  */
 function turnoutOnElement(pick, toe, dir, opening, throughLength) {
   const far = toe + dir * opening * throughLength
-  return Math.min(toe, far) >= -FIT_TOL && Math.max(toe, far) <= pick.elLength + FIT_TOL
+  return Math.min(toe, far) >= -FIT_TOL && Math.max(toe, far) <= pick.route.length + FIT_TOL
 }
 
 /** Which way the connection runs along the first picked element (+1 with it, −1 against). */
-function direction1(picks) {
-  const { g1 } = stems(picks)
-  return Math.abs(((g1.bearing - picks[0].bearing + 540) % 360) - 180) < 90 ? 1 : -1
-}
+const direction1 = (picks) => stems(picks).g1.dir ?? 1
 
 /**
  * Shift range [min, max] (metres) over which the connection stands: the first
@@ -302,29 +303,26 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
       const el     = track?.elements?.[elIdx]
       if (!el) return
 
-      // A straight or a curve carries a turnout of the connection; a transition
-      // does not — see isPlainElement.
-      if (!isPlainElement(el)) {
-        setPickStatus({ msg: t('scurve_hint_no_transition'), error: true })
+      if (!isUsableStem(el)) {
+        setPickStatus({ msg: t('scurve_hint_no_bloss'), error: true })
         return
       }
 
       const coords   = el.geometry.coordinates
       const startUtm = nodeUtm(el.startNode, coords[0], track.epsg)
       const endUtm   = nodeUtm(el.endNode, coords[coords.length - 1], track.epsg)
-      const radius   = el.radius ?? null
-      // The clicked point as a station along the element in the track's own
-      // plane — along its arc where it has one — with the tangent there.
+      // The clicked point as a station along the element — along its own curve,
+      // whatever kind it is.
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
-      const raw      = projectOnArcUtm(startUtm, clickUtm, el.bearing, radius).along
-      const along    = Math.min(el.length, Math.max(0, raw))
-      const pointUtm = radius
-        ? endPointCurvedUtm(startUtm, el.bearing, along, radius)
-        : endPointStraightUtm(startUtm, el.bearing, along)
-      const bearing  = bearingAfterUtm(el.bearing, along, radius)
+      const along    = Math.min(el.length, Math.max(0, stationFromClick(track, elIdx, clickUtm) ?? 0))
+      // A transition carries no cant of its own; what runs over it is the ramp
+      // its neighbours state (transitionCantEnds).
+      const ramp     = el.elementType === 2 ? transitionCantEnds(track.elements, elIdx) : null
       const pick     = {
-        trackId, elIdx, startUtm, endUtm, pointUtm, bearing,
-        radius, cant: el.cant ?? 0, along, elLength: el.length,
+        trackId, elIdx, startUtm, endUtm, bearing: el.bearing,
+        route: switchElementRoute(el), along,
+        cantStart: ramp ? ramp.start : (el.cant ?? 0),
+        cantEnd:   ramp ? ramp.end   : (el.cant ?? 0),
         zone: track.epsg, label: trackLabel(track),
       }
 
