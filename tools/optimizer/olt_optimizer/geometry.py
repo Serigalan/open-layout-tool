@@ -1,6 +1,10 @@
-"""Port of the app's geometry kernel (src/utils/clothoidUtils.js, optimizeUtils.js).
+"""The geometry kernel of the optimizer.
 
-Conventions — identical to the JS side, verified against reference values:
+Originally a port of the app's own (src/utils/clothoidUtils.js and the since
+removed optimizeUtils.js); since AP 7.1 this is the only implementation, and
+the reference values in tests/verify.py are what keeps it honest.
+
+Conventions — the app's, so an element chain crosses unchanged:
   * plane coordinates (easting e, northing n) in the track's native CRS
   * compass bearings in degrees (0 = grid north, clockwise)
   * curvature kappa = -1/r; signed radius r > 0 = right-hand curve
@@ -154,7 +158,7 @@ def fit_curve_group(p1, d1, p2, d2, radius, l1, l2, type1="clothoid", type2="clo
 
     p1/d1: point on + direction of the entry line (outer end of entry straight),
     p2/d2: point on + direction of the exit line (outer end of exit straight).
-    Port of optimizeUtils.fitCurveGroup; returns None when no valid fit exists.
+    Returns None when no valid fit exists.
     """
     cross = d1[0] * d2[1] - d1[1] * d2[0]
     dot = d1[0] * d2[0] + d1[1] * d2[1]

@@ -1,5 +1,5 @@
-"""Shared optimization entry point — used by the CLI and by the browser
-(Pyodide loads these sources unchanged and calls optimize_payload).
+"""Shared optimization entry point — used by the CLI and by the HTTP service
+(olt_optimizer/service.py), which is how the app reaches it.
 """
 
 from .geometry import permissible_speed

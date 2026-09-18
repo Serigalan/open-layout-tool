@@ -5,9 +5,9 @@ Engpass-Geschwindigkeit `v = √(R·(u + u_f)/11,8)` über Radius, Überhöhung 
 seitliche Verschiebung der Zwischengeraden — innerhalb eines Abrückungs-Korridors
 zur Bestandsachse.
 
-Der Geometrie-Kernel (`geometry.py`) ist ein 1:1-Port der App-Implementierung
-(`src/utils/clothoidUtils.js`, `optimizeUtils.js`) und wird in `tests/verify.py`
-gegen dort erzeugte Referenzwerte kreuzvalidiert.
+Der Geometrie-Kernel (`geometry.py`) war ursprünglich ein 1:1-Port der
+App-Implementierung; seit AP 7.1 ist er die einzige. `tests/verify.py` prüft ihn
+gegen die damals erzeugten Referenzwerte.
 
 ## Setup
 

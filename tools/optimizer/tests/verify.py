@@ -1,7 +1,7 @@
 """Verification harness (run: python tests/verify.py from tools/optimizer).
 
-1. Geometry kernel cross-validated against the JS implementation (reference
-   values generated with src/utils/optimizeUtils.js / clothoidUtils.js).
+1. Geometry kernel against the reference values it was built to reproduce
+   (generated with the app's JS kernel before AP 7.1 removed the JS optimizer).
 2. n = 1 equivalence of the compound solver with the exact simple solver.
 3. End-to-end: two-curve track and a compound curve (Korbbogen) → baseline →
    joint optimization; continuity, fixed end points, corridor, ramp rules,

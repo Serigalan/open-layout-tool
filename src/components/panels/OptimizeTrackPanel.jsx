@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { loadTracks, updateTrack, recalcAbsLengths, rebuildCoords } from '../../storage'
-import { optimizeTrack } from '../../utils/optimizeUtils'
-import { optimizeWithPython } from '../../utils/pyodideOptimizer'
+import { optimizeOnServer, optimizerReachable, OptimizerError } from '../../utils/optimizerService'
 import { reconstructElements } from '../../utils/elementReconstruct'
 import { HIT_TOLERANCE, ZOOM_LINE_WIDTH } from '../../utils/mapConstants'
 import useTrackHover from '../../hooks/useTrackHover'
@@ -64,14 +63,15 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
   const [corridorCm, setCorridorCm] = useState(50)
   const [uf, setUf]               = useState('130')
   const [selectHint, setSelectHint] = useState(null)
-  const [pyStage, setPyStage]     = useState(null)    // 'runtime' | 'packages' | 'running'
-  const [pyRun, setPyRun]         = useState(null)    // { key, result? , error? }
+  const [running, setRunning]     = useState(false)
+  const [run, setRun]             = useState(null)    // { key, result? , error? }
+  const [reachable, setReachable] = useState(null)    // null → not asked yet
 
-  // Ein Python-Ergebnis gilt nur für die Parameter, mit denen es gerechnet
-  // wurde — abgeleitet über den Parameter-Schlüssel statt Invalidierungs-Effect.
-  const pyKey = [mode, trackId, elementIdx, corridorCm, uf, phase].join('|')
-  const pyResult = pyRun?.key === pyKey ? pyRun.result ?? null : null
-  const pyError  = pyRun?.key === pyKey ? pyRun.error ?? null : null
+  // A result only counts for the parameters it was computed with — derived
+  // from the parameter key rather than through an invalidation effect.
+  const runKey = [mode, trackId, elementIdx, corridorCm, uf, phase].join('|')
+  const result = run?.key === runKey ? run.result ?? null : null
+  const runError = run?.key === runKey ? run.error ?? null : null
 
   useTrackHover(map, page === 'menu' ? 'menu' : phase, 'select', project)
   usePreviewLayers(map, OPTIMIZE_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
@@ -110,29 +110,21 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
     return () => m.off('click', onClick)
   }, [page, phase, mode, map, project.id, t])
 
-  // Optimization result derived from the parameters (pure + fast).
-  const result = useMemo(() => {
-    if (phase !== 'config' || !trackId) return null
-    const track = loadTracks(project.id).find(tr => tr.id === trackId)
-    if (!track) return null
-    return optimizeTrack(track, { corridor: corridorCm / 100, uf: Number(uf) },
-      mode === 'element' ? elementIdx : null)
-  }, [phase, mode, trackId, elementIdx, corridorCm, uf, project.id])
+  // The service is asked once when the panel opens, so the panel can say there
+  // is no server instead of offering a run that cannot happen.
+  useEffect(() => {
+    if (page === 'menu') return
+    let cancelled = false
+    optimizerReachable().then(ok => { if (!cancelled) setReachable(ok) })
+    return () => { cancelled = true }
+  }, [page])
 
-  const changedCount = result && !result.error ? result.results.filter(r => r.changed).length : 0
-  const status = !result ? null
-    : result.error ? { msg: t(result.error), error: true }
-    : changedCount ? { msg: `${changedCount}/${result.results.length} ${t('optimize_curves_improved')}`, error: false }
-    : { msg: t('optimize_nothing'), error: true }
-
-  // Sync the map preview (external system) with the current result — a Python
-  // result (explicitly computed) takes precedence over the live JS preview.
+  // Sync the map preview (external system) with the current result.
   useEffect(() => {
     const src = map?.current?.getSource(OPTIMIZE_PREVIEW_SOURCE)
     if (!src) return
-    const elements = pyResult?.elements ?? (result && !result.error ? result.elements : null)
-    src.setData(elements ? previewGeoJSON(elements) : EMPTY_FC)
-  }, [result, pyResult, map])
+    src.setData(result ? previewGeoJSON(result.elements) : EMPTY_FC)
+  }, [result, map])
 
   const handleCancel = () => {
     if (map?.current) map.current.getSource(OPTIMIZE_PREVIEW_SOURCE)?.setData(EMPTY_FC)
@@ -151,40 +143,40 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
     </button>
   )
 
-  const runPython = () => {
+  const handleRun = () => {
     const track = loadTracks(project.id).find(tr => tr.id === trackId)
-    if (!track || pyStage) return
-    const key = pyKey
-    setPyRun(null)
-    setPyStage('runtime')
-    optimizeWithPython(
-      {
-        track, corridorCm, uf: Number(uf), uebergang: 'auto', maxiter: 100,
-        ...(mode === 'element' ? { targetElementIdx: elementIdx } : {}),
-      },
-      (stage) => setPyStage(stage),
-    )
+    if (!track || running) return
+    const key = runKey
+    setRun(null)
+    setRunning(true)
+    optimizeOnServer({
+      track, corridorCm, uf: Number(uf), uebergang: 'auto', maxiter: 100,
+      ...(mode === 'element' ? { targetElementIdx: elementIdx } : {}),
+    })
       .then(res => {
-        setPyRun({ key, result: { ...res, elements: reconstructElements(res.elements, track.epsg) } })
-        setPyStage(null)
+        setRun({ key, result: { ...res, elements: reconstructElements(res.elements, track.epsg) } })
+        setReachable(true)
       })
       .catch(err => {
-        setPyRun({ key, error: err.message })
-        setPyStage(null)
+        const code = err instanceof OptimizerError ? err.code : 'unavailable'
+        // A topology the optimizer will not take comes back with its own
+        // sentence — that names the actual element sequence, which no generic
+        // key can. Everything else is translated from the key.
+        const translated = t(`optimize_err_${code}`)
+        setRun({
+          key,
+          error: err.detail
+            || (translated === `optimize_err_${code}` ? t('optimize_err_internal') : translated),
+        })
+        if (code === 'unavailable') setReachable(false)
       })
+      .finally(() => setRunning(false))
   }
 
   const handleCommit = () => {
     const track = loadTracks(project.id).find(tr => tr.id === trackId)
-    if (!track) return
-    let newElements = null
-    if (pyResult && pyResult.report.some(r => r.changed)) {
-      newElements = pyResult.elements
-    } else if (result && !result.error && result.results.some(r => r.changed)) {
-      newElements = result.elements
-    }
-    if (!newElements) return
-    const elements = recalcAbsLengths(newElements)
+    if (!track || !result?.report.some(r => r.changed)) return
+    const elements = recalcAbsLengths(result.elements)
     updateTrack(project.id, {
       ...track, elements, coordinates: rebuildCoords(elements),
       heights: reshapedHeights(track, elements),
@@ -234,8 +226,8 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
     )
   }
 
-  const canCommit = (pyResult && pyResult.report.some(r => r.changed))
-    || (result && !result.error && result.results.some(r => r.changed))
+  const changed = result?.report.filter(r => r.changed).length ?? 0
+  const canCommit = changed > 0
   return (
     <>
       {backButton}
@@ -260,50 +252,30 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
         </div>
       </div>
 
-      {result && !result.error && (
-        <div className="element-form" style={{ marginTop: 8 }}>
-          {result.results.map((r, i) => (
-            <div key={i} style={{ fontSize: 12, fontFamily: 'system-ui, sans-serif', padding: '4px 0', borderBottom: '1px solid #eee' }}>
-              <strong>{t('optimize_curve')} {i + 1}</strong>{' '}
-              {r.changed ? (
-                <>
-                  r {Math.round(r.rAlt)} → {Math.round(r.rNeu)} m · u {r.uAlt} → {r.uNeu} mm<br />
-                  v {r.vAlt.toFixed(0)} → {r.vNeu.toFixed(0)} km/h · {t('optimize_offset_used')} {(r.offset * 100).toFixed(0)} cm
-                </>
-              ) : (
-                <span style={{ color: '#888' }}>{t('optimize_unchanged')}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {status && (
-        <p style={{ color: status.error ? '#e74c3c' : '#5b9bd5', fontSize: 12, marginTop: 4 }}>
-          {status.msg}
-        </p>
-      )}
-
       <div className="element-form" style={{ marginTop: 8 }}>
-        <button
-          className="panel-btn panel-btn-full"
-          onClick={runPython}
-          disabled={!!pyStage || !trackId}
-          style={{ opacity: pyStage ? 0.5 : 1 }}
-        >
-          {t('optimize_py_run')}
-        </button>
-        {pyStage && (
-          <p style={{ color: '#5b9bd5', fontSize: 12, marginTop: 4 }}>
-            {t(`optimize_py_${pyStage}`)}
-          </p>
+        {reachable === false ? (
+          // The run happens on the server and nowhere else; without one the
+          // panel says so rather than offering a button that cannot work.
+          <p style={{ color: '#e74c3c', fontSize: 12 }}>{t('optimize_err_unavailable')}</p>
+        ) : (
+          <button
+            className="panel-btn panel-btn-full"
+            onClick={handleRun}
+            disabled={running || !trackId}
+            style={{ opacity: running ? 0.5 : 1 }}
+          >
+            {t('optimize_run')}
+          </button>
         )}
-        {pyError && (
-          <p style={{ color: '#e74c3c', fontSize: 12, marginTop: 4 }}>{pyError}</p>
+        {running && (
+          <p style={{ color: '#5b9bd5', fontSize: 12, marginTop: 4 }}>{t('optimize_running')}</p>
         )}
-        {pyResult && (
+        {runError && (
+          <p style={{ color: '#e74c3c', fontSize: 12, marginTop: 4 }}>{runError}</p>
+        )}
+        {result && (
           <div style={{ marginTop: 4 }}>
-            {pyResult.report.map((r, i) => (
+            {result.report.map((r, i) => (
               <div key={i} style={{ fontSize: 12, fontFamily: 'system-ui, sans-serif', padding: '4px 0', borderBottom: '1px solid #eee' }}>
                 <strong>{t('optimize_curve')} {r.group}{r.arcs > 1 ? `.${r.arc}` : ''}{r.target ? ` (${t('optimize_target')})` : ''}</strong>{' '}
                 {r.changed ? (
@@ -316,9 +288,11 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
                 )}
               </div>
             ))}
-            <p style={{ fontSize: 12, color: '#5b9bd5', marginTop: 4 }}>
-              {t('optimize_py_done')}: v {pyResult.vBestand.toFixed(0)} → {pyResult.vNeu.toFixed(0)} km/h
-              {' · '}{t('optimize_py_variant')}: {pyResult.variant}
+            <p style={{ fontSize: 12, color: changed ? '#5b9bd5' : '#e74c3c', marginTop: 4 }}>
+              {changed
+                ? <>{t('optimize_done')}: v {result.vBestand.toFixed(0)} → {result.vNeu.toFixed(0)} km/h
+                    {' · '}{t('optimize_variant')}: {result.variant}</>
+                : t('optimize_nothing')}
             </p>
           </div>
         )}

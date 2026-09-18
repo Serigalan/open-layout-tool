@@ -7,6 +7,7 @@ dependencies = ["numpy>=1.24", "scipy>=1.10"]
 
 [project.scripts]
 olt-optimize = "olt_optimizer.cli:main"
+olt-optimizer-serve = "olt_optimizer.service:main"
 
 [build-system]
 requires = ["setuptools>=68"]
