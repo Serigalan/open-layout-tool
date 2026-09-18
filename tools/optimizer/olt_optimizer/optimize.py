@@ -83,22 +83,32 @@ def fit_offset(g, fit, p1, p2):
     )
 
 
-def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None):
-    """Feasibility evaluation of one group; returns a solution dict or None."""
+def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=None):
+    """Feasibility evaluation of one group; returns a solution dict or None.
+
+    trans_l: the ramp lengths to fit with. Passing the existing ones reproduces
+    the group as it lies, and then the ramp and minimum-length rules are not
+    applied to it: an existing alignment is a fact to start from, not a
+    proposal to judge. Everything the run proposes leaves this at None and is
+    held to both rules.
+    """
     p1 = p1 or g["p1"]
     p2 = p2 or g["p2"]
     v_arcs = [permissible_speed(r, u, uf_for(g, params)) for r, u in zip(radii, us)]
     v = min(v_arcs)
-    trans_l, min_len = ramp_lengths(g, v, us)
+    proposed = trans_l is None
+    if proposed:
+        trans_l, min_len = ramp_lengths(g, v, us)
     fit = fit_compound_group(p1, g["d1"], g["b1"], p2, g["d2"], g["b2"],
                              radii, thetas_free, trans_l, g["types"])
     if fit is None:
         return None
-    if fit["entry_len"] < min_len or fit["exit_len"] < min_len:
-        return None
-    for seg in fit["segments"]:
-        if seg["kind"] == "arc" and abs(seg["sweep"] * seg["signed_r"]) < min_len:
+    if proposed:
+        if fit["entry_len"] < min_len or fit["exit_len"] < min_len:
             return None
+        for seg in fit["segments"]:
+            if seg["kind"] == "arc" and abs(seg["sweep"] * seg["signed_r"]) < min_len:
+                return None
     offset = fit_offset(g, fit, p1, p2)
     if offset > params["corridor"]:
         return None
@@ -145,11 +155,17 @@ def _max_radius_for(g, u, params):
 
 
 def _bestand_solution(g, params):
-    """Re-fit a group at its existing parameters (compound baseline / lock check)."""
+    """Re-fit a group at its existing parameters (compound baseline / lock check).
+
+    With the existing ramps, so this lands back on the existing alignment — the
+    ramp rule would hand out different lengths and move the curve off it, which
+    on a compound curve is enough to fail the corridor and lock a group that is
+    simply what is already built.
+    """
     radii = [a["r_alt"] for a in g["arcs"]]
     us = [a["u_alt"] for a in g["arcs"]]
     thetas = [a["sweep_alt"] for a in g["arcs"][:-1]]
-    return evaluate_group(g, radii, us, thetas, params)
+    return evaluate_group(g, radii, us, thetas, params, trans_l=g["t_len"])
 
 
 def window_for(groups, target_gi):

@@ -159,6 +159,10 @@ def _build_group(els, entry_idx, arc_idxs, t_idxs, exit_idx):
         } for k in arc_idxs],
         "types": ["bloss" if (t or {}).get("transitionType") == "bloss" else "clothoid" for t in trans],
         "has_t": [t is not None for t in trans],
+        # The ramps as they lie. Reproducing the group means re-fitting it with
+        # these, not with the lengths the ramp rule would ask for — otherwise
+        # the "existing" state comes out somewhere the existing track is not.
+        "t_len": [float((t or {}).get("length") or 0.0) for t in trans],
         # The curve part is what the run re-cants; the bounding straights carry
         # no cant of their own and are shared with the neighbouring groups, so a
         # turnout on one of them is not this group's business.

@@ -24,7 +24,7 @@ from olt_optimizer.track_io import (          # noqa: E402
     _arc_element_seg, _element_ref_points,
 )
 from olt_optimizer.optimize import (        # noqa: E402
-    baseline, joint_optimize, u_max_for, uf_for, window_for,
+    baseline, joint_optimize, u_max_for, uf_for, window_for, _bestand_solution,
 )
 from olt_optimizer.api import optimize_payload                # noqa: E402
 
@@ -220,6 +220,69 @@ k_measured = independent_offset(k_els, k_new)
 ok(f"Korbbogen: unabhängige Abrückung ≤ 51 cm ({k_measured * 100:.1f} cm)", k_measured <= 0.51)
 ok("Korbbogen: beide Bögen gleiche Richtung",
    all(seg["signed_r"] * k_new[2]["radius"] > 0 for seg in k_sol["fit"]["segments"] if seg["kind"] == "arc"))
+
+# ── 4b) Korbbogen ohne Zwischen-ÜB: Bogen stößt direkt an Bogen ─────────────
+# Ohne Rampe zwischen den Bögen gibt es keinen Weg, die Überhöhung zu ändern —
+# ein Sprung ohne Rampe wäre ein Fehler im Gleis, kein Optimierungsergebnis.
+nfit = fit_compound_group(P1, D1, B1, KP2, DK2, KB2, [900, 600], [0.10], [60, 0, 60],
+                          ["clothoid", "clothoid", "clothoid"])
+ok("Direkt-Korbbogen: Fit ohne Zwischen-ÜB existiert",
+   nfit is not None and [s["kind"] for s in nfit["segments"]]
+   == ["transition", "arc", "arc", "transition"])
+n_els = build_from_fit(nfit, [80, 80], P1, KP2)
+n_track = {"id": "py2b", "name": "korb_direkt.001", "epsg": EPSG, "elements": n_els}
+check_chain(n_els, "Direkt-Korbbogen-Seed")
+n_groups = parse_groups(n_track)
+ok("Direkt-Korbbogen: eine Gruppe, zwei Bögen, mittlere Rampe fehlt",
+   len(n_groups) == 1 and len(n_groups[0]["arcs"]) == 2
+   and n_groups[0]["has_t"] == [True, False, True])
+n_sols, n_shifts, _ = joint_optimize(n_groups, len(n_els), params, maxiter=25, seed=1)
+ok("Direkt-Korbbogen: Gruppe wird nicht gesperrt", n_sols[0] is not None)
+ok("Direkt-Korbbogen: Überhöhung bleibt, wo keine Rampe sie tragen kann",
+   n_sols[0]["us"] == [80.0, 80.0])
+n_new = build_elements(n_track, n_groups, n_sols, n_shifts)
+check_chain(n_new, "Direkt-Korbbogen optimiert")
+n_cants = [el["cant"] for el in n_new if el["elementType"] == 1]
+ok("Direkt-Korbbogen: kein Überhöhungssprung zwischen den Bögen",
+   len(n_cants) == 2 and abs(n_cants[0] - n_cants[1]) < 1e-9)
+
+# ── 4c) Dreibogiger Korbbogen — der Bestand muss reproduzierbar bleiben ──────
+# Ein Bestandslauf fittet mit den Rampen, die daliegen. Würde er sie aus der
+# Rampenregel neu bestimmen, läge die „Bestands"-Lage nicht mehr dort, wo das
+# Gleis liegt — bei drei Bögen reichte das, um den Korridor zu reißen und die
+# Gruppe zu sperren. Gesperrt heißt: sie fällt aus der Optimierung und nagelt
+# obendrein die Geraden neben sich fest.
+TB3 = 75.0
+TD3 = dir_of(TB3)
+TP3 = (VERTEX[0] + 1100 * TD3[0], VERTEX[1] + 1100 * TD3[1])
+tfit = fit_compound_group(P1, D1, B1, TP3, TD3, TB3, [1000, 700, 500], [0.10, 0.12],
+                          [60, 40, 40, 60], ["clothoid"] * 4)
+ok("Dreibogen: Seed-Fit existiert",
+   tfit is not None and sum(1 for s in tfit["segments"] if s["kind"] == "arc") == 3)
+t_els = build_from_fit(tfit, [50, 70, 100], P1, TP3)
+t_track = {"id": "py2c", "name": "korb3.001", "epsg": EPSG, "elements": t_els}
+check_chain(t_els, "Dreibogen-Seed")
+t_groups = parse_groups(t_track)
+ok("Dreibogen: eine Gruppe mit drei Bögen",
+   len(t_groups) == 1 and len(t_groups[0]["arcs"]) == 3)
+t_bestand = _bestand_solution(t_groups[0], params)
+ok("Dreibogen: Bestand ist reproduzierbar", t_bestand is not None)
+ok(f"Dreibogen: Bestandslage trifft das Gleis ({(t_bestand or {}).get('offset', 9) * 100:.3f} cm)",
+   t_bestand is not None and t_bestand["offset"] < 1e-4)
+t_sols, t_shifts, _ = joint_optimize(t_groups, len(t_els), params, maxiter=25, seed=1)
+ok("Dreibogen: Gruppe wird nicht gesperrt", t_sols[0] is not None)
+v_t_alt = min(permissible_speed(a["r_alt"], a["u_alt"], params["uf"]) for a in t_groups[0]["arcs"])
+ok("Dreibogen: nie schlechter als der Bestand", t_sols[0]["v"] >= v_t_alt - 1e-6)
+t_new = build_elements(t_track, t_groups, t_sols, t_shifts)
+check_chain(t_new, "Dreibogen optimiert")
+ok("Dreibogen: alle drei Bögen gleiche Richtung",
+   len({el["radius"] > 0 for el in t_new if el["elementType"] == 1}) == 1)
+# Im weiteren Korridor bewegt sich die Gruppe auch wirklich — sonst sagte der
+# Test oben nur, dass nichts passiert.
+t_wide, _, _ = joint_optimize(parse_groups(t_track), len(t_els),
+                              {"corridor": 5.0, "uf": 130.0}, maxiter=40, seed=1)
+print(f"   Dreibogen: Bestand {v_t_alt:.1f} → 50 cm {t_sols[0]['v']:.1f} → 5 m {t_wide[0]['v']:.1f} km/h")
+ok("Dreibogen: im weiten Korridor wird er schneller", t_wide[0]["v"] > v_t_alt + 1)
 
 # ── 5) Element-Modus: Fenster um den gewählten Bogen ─────────────────────────
 # Track mit drei Bögen; Ziel = erster Bogen → Fenster {Gruppe 1, 2}, Gruppe 3
