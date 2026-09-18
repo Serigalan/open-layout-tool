@@ -5,7 +5,7 @@
 // the panel has to say out loud, which is what `code` is for: the service names
 // what went wrong, the UI translates the name.
 
-const SERVICE = import.meta.env.VITE_OLT_OPTIMIZER ?? 'https://online.open-layout-tool.org'
+const SERVICE = import.meta.env.VITE_OLT_OPTIMIZER ?? 'https://online.open-layout-tool.org/optimizer'
 
 /** A failed run, `code` being the service's error key for the UI to translate. */
 export class OptimizerError extends Error {
