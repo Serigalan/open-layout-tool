@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { loadProjects, saveProject, deleteProject, readImageAsBase64, generateId, importProjects, loadProjectImage, saveProjectImage, exportProjectsPayload } from '../storage'
 import { parseProjectsPayload } from '../utils/persistenceUtils'
 import { languageLabels } from '../locales/i18n'
 import ConfirmModal from './ConfirmModal'
 import { LogoIcon } from './icons'
 import { downloadJSON } from '../utils/fileUtils'
-import { listServerProjects, fetchServerProject } from '../utils/serverStorage'
 
 /**
  * The guideline is a static page of its own per language, served from `public`.
@@ -27,45 +26,9 @@ export default function StartPage({ onOpenProject, t, language, onLanguageChange
   const [importConflicts, setImportConflicts] = useState([])
   const importResolvedRef = useRef([])
   const importInputRef    = useRef(null)
-  const [templates, setTemplates]         = useState([])
-  const [templateBusy, setTemplateBusy]   = useState(null)   // id being fetched
-  const [templateFailed, setTemplateFailed] = useState(null) // id that would not load
   const [importFailed, setImportFailed]     = useState(false) // a file this tool will not take
 
   const guideSrc = GUIDE_PAGES[language] ?? GUIDE_PAGES.de
-
-  // Projects on the server, offered as starting points. The section stays out
-  // of the way when there is nothing to show or no server to ask — the app runs
-  // perfectly well without one.
-  useEffect(() => {
-    let cancelled = false
-    listServerProjects()
-      .then(list => { if (!cancelled) setTemplates(list) })
-      .catch(() => { if (!cancelled) setTemplates([]) })
-    return () => { cancelled = true }
-  }, [])
-
-  // A template is a starting point, not the same project: it comes in under a
-  // fresh id. So picking one can never overwrite a project already here, and
-  // what is built from it is its own project — putting that back on the server
-  // adds an entry rather than writing over the template.
-  const handleUseTemplate = async (entry) => {
-    if (templateBusy) return
-    setTemplateBusy(entry.id)
-    setTemplateFailed(null)
-    try {
-      const [source] = parseProjectsPayload(await fetchServerProject(entry.id)).projects
-      if (!source) throw new Error('empty template')
-      const copy = { ...source, id: generateId(), createdAt: new Date().toISOString() }
-      importProjects([copy])          // hydrates `copy` in place and stores it
-      setProjects(loadProjects())
-      onOpenProject(copy)
-    } catch {
-      setTemplateFailed(entry.id)
-    } finally {
-      setTemplateBusy(null)
-    }
-  }
 
   const handleCreate = async () => {
     if (!title.trim()) return
@@ -287,38 +250,6 @@ export default function StartPage({ onOpenProject, t, language, onLanguageChange
           </div>
         )}
       </div>
-
-      {templates.length > 0 && (
-        <div className="start-section">
-          <div className="start-section-header">
-            <span className="start-section-label">{t('start_templates')}</span>
-            <span className="start-templates-hint">{t('start_templates_hint')}</span>
-          </div>
-          <hr className="start-section-divider" />
-          <div className="start-projects">
-            {templates.map(entry => (
-              <div key={entry.id} className="start-project-tile-wrapper">
-                <button
-                  className="start-project-tile"
-                  disabled={templateBusy !== null}
-                  title={entry.title || entry.id}
-                  onClick={() => handleUseTemplate(entry)}
-                >
-                  <div className="start-project-placeholder" />
-                  <span className="start-project-title">{entry.title || entry.id}</span>
-                  <span className="start-template-meta">
-                    {templateBusy === entry.id
-                      ? t('start_templates_loading')
-                      : templateFailed === entry.id
-                        ? t('start_templates_failed')
-                        : t('start_templates_tracks').replace('{{n}}', entry.tracks ?? 0)}
-                  </span>
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="start-section">
         <div className="start-section-header">

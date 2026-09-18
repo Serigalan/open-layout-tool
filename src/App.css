@@ -847,44 +847,11 @@
   box-sizing: border-box;
 }
 
-/* Server templates — same tile as a project, with what it holds under the
-   name. The listing carries no images, so these tiles always show the
-   placeholder. */
-.start-templates-hint {
-  font-family: system-ui, sans-serif;
-  font-size: 12px;
-  color: #aaa;
-}
-
 .start-import-error {
   margin: 4px 0 0;
   font-family: system-ui, sans-serif;
   font-size: 12px;
   color: #e74c3c;
-}
-
-.start-template-meta {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  padding: 0 6px 4px;
-  background: rgba(0, 0, 0, 0.45);
-  color: rgba(255, 255, 255, 0.7);
-  font-family: system-ui, sans-serif;
-  font-size: 10px;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  box-sizing: border-box;
-}
-
-.start-project-tile:disabled {
-  cursor: default;
-}
-
-.start-project-tile:disabled:hover {
-  border-color: #e0e0e0;
 }
 
 /* Project section header */
@@ -1663,73 +1630,6 @@
   justify-content: center;
   color: #888;
   font-size: 13px;
-}
-
-/* ── Server store (data exchange) ──────────────────────────────────────────
-   One row per project on the server: name, what it holds, and the button that
-   brings it into this browser. */
-.server-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 4px 3px 8px;
-  border-radius: 4px;
-  background: #e8e8f4;
-  font-family: system-ui, sans-serif;
-  font-size: 12px;
-  color: var(--color-primary);
-}
-
-.server-row-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.server-row-meta {
-  flex-shrink: 0;
-  font-size: 11px;
-  color: #777;
-}
-
-.server-row-btn {
-  flex-shrink: 0;
-  padding: 3px 10px;
-  font-size: 12px;
-}
-
-.server-row-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.server-row-delete {
-  flex-shrink: 0;
-  padding: 0 4px;
-  color: #999;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.server-row-delete:hover {
-  color: #e74c3c;
-}
-
-.server-note {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  font-size: 12px;
-  color: #777;
-}
-
-.server-note-error {
-  color: #e74c3c;
-}
-
-.server-note-ok {
-  color: var(--color-primary);
 }
 
 /* ── Plan preview ──────────────────────────────────────────────────────────

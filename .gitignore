@@ -30,9 +30,9 @@ coverage/
 # Scratch dirs for verification harnesses
 .tmp-*/
 
-# Server store — deployed to the server separately, not part of this repo
-api/
-tools/make-api-config.sh
+# Everything reachable from the internet (the Python service, its runtime
+# environment, config) — deployed on this server, not part of this repo
+WEBSITE/
 
 # Roadmap — planning document, not part of the published tool
 ROADMAP.md

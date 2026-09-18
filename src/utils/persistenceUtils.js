@@ -57,8 +57,7 @@ export function extractImages(projects) {
 }
 
 /**
- * A payload this tool will not take, `code` being the key the UI translates —
- * the same shape as serverStorage.ServerError, so one handler covers both.
+ * A payload this tool will not take, `code` being the key the UI translates.
  */
 export class PayloadError extends Error {
   constructor(code) {

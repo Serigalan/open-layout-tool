@@ -13,8 +13,6 @@ import { EPSG_OPTIONS } from '../../utils/coordinateUtils'
 import useTrackHover from '../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
-import { listServerProjects, fetchServerProject, uploadServerProject, deleteServerProject, ServerError } from '../../utils/serverStorage'
-import ConfirmModal from '../ConfirmModal'
 
 /**
  * How long the way to OSRD stays offered after an export [ms]. The file is in
@@ -76,13 +74,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const osrdLinkTimer                   = useRef(null)
   const exchangeInputRef                = useRef(null)
   const [exchangeOpen, setExchangeOpen] = useState(false)
-  const [serverProjects, setServerProjects] = useState(null)   // null → not fetched yet
-  const [serverDown, setServerDown]         = useState(false)
-  const [serverPassword, setServerPassword] = useState('')
-  const [serverBusy, setServerBusy]         = useState(false)
-  const [serverStatus, setServerStatus]     = useState(null)   // { error: bool, text }
   const [importError, setImportError]       = useState(null)   // why a project file was refused
-  const [serverDelete, setServerDelete]     = useState(null)   // entry awaiting confirmation
 
   useTrackHover(map, phase, 'selecting', project)
 
@@ -120,20 +112,16 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     }
   }, [map])
 
-  // The server client and the payload check both carry a `code`, so one lookup
-  // names either. An error without one says as much as the caller knows: a
-  // request that threw was the server being unreachable, a file that threw was
-  // the file. Codes with no text of their own fall back to the generic one.
-  const codedErrorText = (err, fallback = 'unavailable') => {
-    const code = (err instanceof ServerError || err instanceof PayloadError) ? err.code : fallback
-    const key  = `data_exchange_server_err_${code}`
-    const text = t(key)
-    return text === key ? t('data_exchange_server_err_unavailable') : text
+  // The payload check carries a `code`; an error without one says as much as
+  // the caller knows — a broken file.
+  const codedErrorText = (err, fallback) => {
+    const code = err instanceof PayloadError ? err.code : fallback
+    return t(`data_exchange_import_err_${code}`)
   }
 
-  // Take imported projects into the store — from a file or from the server.
-  // Ids that are already here are asked about one by one; nothing is written
-  // until every conflict is answered.
+  // Take imported projects into the store. Ids that are already here are
+  // asked about one by one; nothing is written until every conflict is
+  // answered.
   const ingestProjects = (incoming) => {
     const existing = loadProjects()
     const existingIds = new Set(existing.map(p => p.id))
@@ -186,82 +174,6 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
 
   const handleProjectExport = () => {
     downloadJSON(exportProjectsPayload(), project ? `${project.title}.json` : 'olt_projects.json')
-  }
-
-  // ── Server store ───────────────────────────────────────────────────────────
-  // What lies on the server is public: everyone may list and import, only the
-  // shared password puts something there or takes it away. The list is read
-  // once when the panel opens and re-read after every write.
-
-  useEffect(() => {
-    if (!exchangeOpen || serverProjects !== null) return   // opened once is enough
-    let cancelled = false
-    listServerProjects()
-      .then(list => { if (!cancelled) { setServerProjects(list); setServerDown(false) } })
-      .catch(() => { if (!cancelled) { setServerProjects([]); setServerDown(true) } })
-    return () => { cancelled = true }
-  }, [exchangeOpen, serverProjects])
-
-  const reloadServerList = async () => {
-    try {
-      setServerProjects(await listServerProjects())
-      setServerDown(false)
-    } catch {
-      setServerDown(true)
-    }
-  }
-
-  // Only the open project goes up, and only ever as itself — the plain export
-  // button writes the whole local store into one file, which is not something
-  // to put on a server everyone can read.
-  const handleServerUpload = async () => {
-    if (!project || !serverPassword || serverBusy) return
-    setServerBusy(true)
-    setServerStatus(null)
-    try {
-      await uploadServerProject(project.id, exportProjectsPayload(new Set([project.id])), serverPassword)
-      await reloadServerList()
-      setServerStatus({ error: false, text: t('data_exchange_server_uploaded').replace('{{title}}', project.title ?? '') })
-    } catch (err) {
-      setServerStatus({ error: true, text: codedErrorText(err) })
-    } finally {
-      setServerBusy(false)
-    }
-  }
-
-  const handleServerImport = async (entry) => {
-    if (serverBusy) return
-    setServerBusy(true)
-    setServerStatus(null)
-    try {
-      ingestProjects(parseProjectsPayload(await fetchServerProject(entry.id)).projects)
-    } catch (err) {
-      setServerStatus({ error: true, text: codedErrorText(err) })
-    } finally {
-      setServerBusy(false)
-    }
-  }
-
-  const handleServerDelete = async () => {
-    const entry = serverDelete
-    setServerDelete(null)
-    if (!entry || !serverPassword) return
-    setServerBusy(true)
-    setServerStatus(null)
-    try {
-      await deleteServerProject(entry.id, serverPassword)
-      await reloadServerList()
-    } catch (err) {
-      setServerStatus({ error: true, text: codedErrorText(err) })
-    } finally {
-      setServerBusy(false)
-    }
-  }
-
-  const serverEntryMeta = (entry) => {
-    const tracks = t('data_exchange_server_tracks').replace('{{n}}', entry.tracks ?? 0)
-    const date = entry.updated ? new Date(entry.updated * 1000).toLocaleDateString() : ''
-    return [tracks, date].filter(Boolean).join(' · ')
   }
 
   const handleTracksExport = () => {
@@ -702,74 +614,11 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       </ExchangeSection>
 
       {/* Behind the dot at the bottom: the imports and exports that are needed
-          now and then rather than every session — putting the project on the
-          server, the Gleislage CSV, and the alignment exchange format (the
-          same tracks as the OSRD export, but with the design data itself:
-          element chain and heights). */}
+          now and then rather than every session — the Gleislage CSV and the
+          alignment exchange format (the same tracks as the OSRD export, but
+          with the design data itself: element chain and heights). */}
       {exchangeOpen && (
         <>
-          <ExchangeSection
-            title={t('data_exchange_server')}
-            description={t('data_exchange_server_desc')}
-          >
-            {serverProjects === null ? (
-              <p className="server-note">{t('data_exchange_server_loading')}</p>
-            ) : serverDown ? (
-              <p className="server-note">{t('data_exchange_server_offline')}</p>
-            ) : serverProjects.length === 0 ? (
-              <p className="server-note">{t('data_exchange_server_empty')}</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {serverProjects.map(entry => (
-                  <div key={entry.id} className="server-row">
-                    <span className="server-row-title" title={entry.title || entry.id}>
-                      {entry.title || entry.id}
-                    </span>
-                    <span className="server-row-meta">{serverEntryMeta(entry)}</span>
-                    <button
-                      className="panel-btn server-row-btn"
-                      disabled={serverBusy}
-                      onClick={() => handleServerImport(entry)}
-                    >
-                      {t('data_exchange_import')}
-                    </button>
-                    {serverPassword && (
-                      <span
-                        className="server-row-delete"
-                        title={t('data_exchange_server_delete')}
-                        onClick={() => setServerDelete(entry)}
-                      >
-                        ×
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="form-field" style={{ marginTop: 6 }}>
-              <label>{t('data_exchange_server_password')}</label>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={serverPassword}
-                onChange={e => { setServerPassword(e.target.value); setServerStatus(null) }}
-              />
-            </div>
-            <button
-              className="panel-btn panel-btn-full"
-              style={{ marginTop: 2 }}
-              disabled={!project || !serverPassword || serverBusy}
-              onClick={handleServerUpload}
-            >
-              {t('data_exchange_server_upload')}
-            </button>
-            {serverStatus && (
-              <p className={`server-note${serverStatus.error ? ' server-note-error' : ' server-note-ok'}`}>
-                {serverStatus.text}
-              </p>
-            )}
-          </ExchangeSection>
-
           <ExchangeSection title={t('data_exchange_csv')} description={t('data_exchange_csv_desc')}>
             <input
               ref={csvInputRef}
@@ -862,14 +711,6 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
             </button>
           </ExchangeSection>
         </>
-      )}
-      {serverDelete && (
-        <ConfirmModal
-          t={t}
-          message={t('data_exchange_server_delete_confirm').replace('{{title}}', serverDelete.title || serverDelete.id)}
-          onCancel={() => setServerDelete(null)}
-          onConfirm={handleServerDelete}
-        />
       )}
       <div className="panel-dot-row">
         <button
