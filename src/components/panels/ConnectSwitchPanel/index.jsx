@@ -2,9 +2,16 @@ import { useState } from 'react'
 import ConnectStraightSwitchForm from './ConnectStraightSwitchForm'
 import SCurveForm from './SCurveForm'
 import SwitchOnTrackForm from './SwitchOnTrackForm'
+import CrossingForm from './CrossingForm'
+import CrossingOnTrackForm from './CrossingOnTrackForm'
 import {
   BackIcon, SwitchStraightIcon, SwitchCurvedIcon, SwitchOnTrackIcon, SwitchConnectionIcon,
+  CrossingIcon, CrossingSwitchIcon, CrossingOnTrackIcon,
 } from '../../../components/icons'
+
+// The gray line between the switch tools and the crossing tools, the same
+// separator the layers panel draws between its basemap groups.
+const SEPARATOR = { margin: '2px 0', border: 'none', borderTop: '1px solid #ddd' }
 
 function BackButton({ t, onBack }) {
   return (
@@ -51,6 +58,33 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     </>
   )
 
+  if (page === 'crossing') return (
+    <>
+      <BackButton t={t} onBack={back} />
+      <h2>{t('crossing_title')}</h2>
+      <CrossingForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+        onCommitted={() => setPage('menu')} initialKind="crossing" />
+    </>
+  )
+
+  if (page === 'crossing_switch') return (
+    <>
+      <BackButton t={t} onBack={back} />
+      <h2>{t('crossing_title')}</h2>
+      <CrossingForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+        onCommitted={() => setPage('menu')} initialKind="single_slip" />
+    </>
+  )
+
+  if (page === 'crossing_ontrack') return (
+    <>
+      <BackButton t={t} onBack={back} />
+      <h2>{t('crossing_on_track')}</h2>
+      <CrossingOnTrackForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+        onCommitted={() => setPage('menu')} />
+    </>
+  )
+
   return (
     <>
       <h2>{t('connect_switch')}</h2>
@@ -70,6 +104,19 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
         <button className="create-element-btn" onClick={() => setPage('scurve')}>
           <SwitchConnectionIcon />
           {t('scurve_title')}
+        </button>
+        <hr style={SEPARATOR} />
+        <button className="create-element-btn" onClick={() => setPage('crossing')}>
+          <CrossingIcon />
+          {t('crossing')}
+        </button>
+        <button className="create-element-btn" onClick={() => setPage('crossing_switch')}>
+          <CrossingSwitchIcon />
+          {t('crossing_switch')}
+        </button>
+        <button className="create-element-btn" onClick={() => setPage('crossing_ontrack')}>
+          <CrossingOnTrackIcon />
+          {t('crossing_on_track')}
         </button>
       </div>
     </>

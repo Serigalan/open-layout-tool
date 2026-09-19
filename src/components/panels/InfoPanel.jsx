@@ -1,5 +1,5 @@
 import {
-  LayerIcon, PlaceIcon, ConnectElementIcon, ConnectSwitchIcon, ConnectCrossingIcon,
+  LayerIcon, PlaceIcon, ConnectElementIcon, ConnectSwitchIcon,
   SpliceElementIcon, OptimizeTrackIcon, EditElementIcon, ElevationIcon,
   PlatformIcon, DataExchangeIcon, PlanExportIcon, ExternalLinkIcon,
 } from '../icons'
@@ -26,7 +26,6 @@ const PANELS = [
   { Icon: PlaceIcon,          title: 'create_element', desc: 'info_places' },
   { Icon: ConnectElementIcon, title: 'connect_element', desc: 'info_connect' },
   { Icon: ConnectSwitchIcon,  title: 'connect_switch', desc: 'info_connect_switch' },
-  { Icon: ConnectCrossingIcon, title: 'connect_crossing', desc: 'info_connect_crossing' },
   { Icon: SpliceElementIcon,  title: 'splice_element', desc: 'info_splice' },
   { Icon: OptimizeTrackIcon,  title: 'optimize_track', desc: 'info_optimize' },
   { Icon: EditElementIcon,    title: 'edit', desc: 'info_edit' },

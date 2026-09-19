@@ -340,19 +340,6 @@ export const ConnectSwitchIcon = () => (
   </svg>
 )
 
-// The crossing panel's counterpart: two routes that cross instead of part,
-// one node per port.
-export const ConnectCrossingIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16">
-    <path d="M2 14 L14 2" stroke="white" strokeWidth="1.5"/>
-    <path d="M2 2 L14 14" stroke="white" strokeWidth="1.5"/>
-    <circle cx="2" cy="14" r="2" fill="white"/>
-    <circle cx="14" cy="2" r="2" fill="white"/>
-    <circle cx="2" cy="2" r="2" fill="white"/>
-    <circle cx="14" cy="14" r="2" fill="white"/>
-  </svg>
-)
-
 export const OptimizeTrackIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16">
     <path d="M1 15 Q2 6 8 3 Q12 1 15 1" fill="none" stroke="white" strokeWidth="1.5"/>
