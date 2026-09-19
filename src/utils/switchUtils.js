@@ -42,9 +42,36 @@ export const SWITCH_TYPES_ALT2 = [
     branch: [{ type: 'arc' }, { type: 'straight', length: 11.883 }] },
 ]
 
-/** Any switch form, primary table or fallback, looked up by its label. */
+// ── Crossings and crossing switches (AP 3.2) ─────────────────────────────────
+//
+// The crossing kinds are not turnouts: their two routes cross instead of parting,
+// and their geometry is stated in their own terms. A crossing (Kr) is two
+// straights at the crossing angle; its body reaches from the crossing point to
+// the four ends, each as far as the end distance states — 1.85 m between the two
+// ends on a side, the same measure a turnout's switch end has. A crossing switch
+// (EKW/DKW) adds connecting curves between the ends on each side of the crossing
+// point, tangential to both crossing legs, so its four ends are the tangent
+// points at R·tan(α/2) from the crossing point; the EKW is built like the DKW
+// with one curve left out.
+//
+// `ratio` is the crossing angle as a slope (1:9), `R` the radius of the
+// connecting curves (null for the plain crossing), `endDistance` the distance
+// between the two ends on one side [m] — the measure the crossing's own body is
+// built from. `dLcs` and `minl` were not supplied with the dimensions and stay
+// absent; nothing that builds a crossing reads them.
+export const CROSSING_TYPES = [
+  { kind: 'crossing',     label: 'Kr 1:9',      ratio: 9,   endDistance: 1.85 },
+  { kind: 'crossing',     label: 'Kr 1:7.5',    ratio: 7.5, endDistance: 1.85 },
+  { kind: 'single_slip',  label: 'EKW 1:9 – 190',  ratio: 9, R: 190,  endDistance: 1.85 },
+  { kind: 'single_slip',  label: 'EKW 1:9 – 500',  ratio: 9, R: 500,  endDistance: 1.85 },
+  { kind: 'double_slip',  label: 'DKW 1:9 – 190',  ratio: 9, R: 190,  endDistance: 1.85 },
+  { kind: 'double_slip',  label: 'DKW 1:9 – 500',  ratio: 9, R: 500,  endDistance: 1.85 },
+]
+
+/** Any switch form — turnout table, fallback or crossing — looked up by its label. */
 export function switchTypeByLabel(label) {
-  return [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2].find(t => t.label === label) ?? null
+  return [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2, ...CROSSING_TYPES]
+    .find(t => t.label === label) ?? null
 }
 
 /** Length of the arc a form turns its frog angle through. */
@@ -418,7 +445,7 @@ export function switchChainBauform(stem, branch) {
 
 // ── Pure UTM helpers ────────────────────────────────────────────────────────
 
-function utmEndStraight(utm, bearing, length) {
+export function utmEndStraight(utm, bearing, length) {
   const rad = bearing * Math.PI / 180
   return {
     easting:  utm.easting  + length * Math.sin(rad),
@@ -761,6 +788,43 @@ function routeElements(sw, trackById, port, route, length, { first = false } = {
 }
 
 /**
+ * The routes of a crossing kind as its tracks state them: both legs read from
+ * the port each route ends at — `main` from the elements at C, `cross` from the
+ * ones at D — each as a chain running away from the crossing point, over as
+ * many elements as the form's half-length reaches. The crossing point is the
+ * middle of both: the first elements' start nodes coincide there.
+ *
+ * Returns { type, epsg, centre, mainBearing, crossBearing, main, cross } — the
+ * two chains, each running from the crossing point out to its port — or null
+ * where either leg or the form cannot be resolved.
+ */
+export function crossingRoutesFromTracks(sw, trackById) {
+  const type = switchTypeByLabel(sw.label)
+  if (!type || type.R == null && type.endDistance == null) return null
+  const half = crossingEndDistance(type)
+
+  const mainEls  = routeElements(sw, trackById, 'C', 'main', half)
+  const crossEls = routeElements(sw, trackById, 'D', 'cross', half)
+  const mainFirst = mainEls[0], crossFirst = crossEls[0]
+  if (!mainFirst || !crossFirst || !mainFirst.startNode || !crossFirst.startNode) return null
+  // Both legs begin at the crossing point; a record whose tracks disagree
+  // there by more than a joint is not one the geometry can be read back from.
+  const epsg = trackById[sw.portC_trackId]?.epsg
+  if (epsg == null) return null
+  if (Math.hypot(mainFirst.startNode[0] - crossFirst.startNode[0],
+    mainFirst.startNode[1] - crossFirst.startNode[1]) > SWITCH_CHAIN_TOL) return null
+
+  return {
+    type, epsg,
+    centre: { easting: mainFirst.startNode[0], northing: mainFirst.startNode[1], zone: epsg },
+    mainBearing: mainFirst.bearing,
+    crossBearing: crossFirst.bearing,
+    main:  switchChainTo(mainEls.map(switchElementRoute), half),
+    cross: switchChainTo(crossEls.map(switchElementRoute), half),
+  }
+}
+
+/**
  * The two routes of a switch as its tracks state them, both as chains running
  * from the toe: the branch from the elements at port B1, the through route from
  * the marked elements at port B2 — the stem the turnout lies on, over as many
@@ -821,11 +885,50 @@ export function switchRoutesFromTracks(sw, trackById) {
  * only name, label, trailing, speed and the ports, so the symbol can never
  * disagree with the tracks. Returns the record with the symbol set — or without
  * one when the branch is missing.
+ *
+ * A crossing kind is rebuilt from its own two legs (crossingRoutesFromTracks):
+ * the body is the diamond their four ends span, and the label runs along the
+ * main leg, offset past the body's centre of area the way a turnout's is.
  */
 export function rebuildSwitchSymbol(sw, trackById) {
   const {
     fillCoords: _f, lcsCoords: _l, labelCoords: _lc, bodyCentre: _bc, bauform: _b, ...rest
   } = sw
+  if (sw.kind && sw.kind !== 'turnout') {
+    const routes = crossingRoutesFromTracks(sw, trackById)
+    if (!routes) return rest
+    const { type, epsg, centre, mainBearing, crossBearing, main, cross } = routes
+    // The legs run out to C and D; the body's other two corners lie against
+    // the bearings, the same distance out on the same legs.
+    const t = crossingEndDistance(type)
+    const aUtm = utmEndStraight(centre, (mainBearing + 180) % 360, t)
+    const bUtm = utmEndStraight(centre, (crossBearing + 180) % 360, t)
+    const cUtm = switchChainPointUtm(centre, mainBearing, main)
+    const dUtm = switchChainPointUtm(centre, crossBearing, cross)
+    // The body is the diamond the four ports span — A over D to C and back
+    // over B, closed — the same ring the commit stores (the legs are its
+    // diagonals, not its sides).
+    const ring = [
+      [aUtm.easting, aUtm.northing],
+      [dUtm.easting, dUtm.northing],
+      [cUtm.easting, cUtm.northing],
+      [bUtm.easting, bUtm.northing],
+      [aUtm.easting, aUtm.northing],
+    ]
+    const centreArea = ringCentroid(ring)
+    const centreUtm  = { easting: centreArea[0], northing: centreArea[1], zone: epsg }
+    // The label stands beside the main leg, on the side facing away from the
+    // body — the same rule a turnout's designation follows.
+    const { perp } = projectOnChainUtm(centre, mainBearing, main, centreUtm)
+    const c = -perp
+    const offset = c - Math.sign(c || 1) * SWITCH_LABEL_OFFSET
+    return {
+      ...rest,
+      fillCoords: ring.map(([e, n]) => utmToWgs84(e, n, epsg)),
+      labelCoords: chainOffsetCoords(centre, mainBearing, main, offset, epsg),
+      bodyCentre: utmToWgs84(centreArea[0], centreArea[1], epsg),
+    }
+  }
   const routes = switchRoutesFromTracks(sw, trackById)
   if (!routes || !routes.branchStartWgs || !routes.branchEndWgs) return rest
 
@@ -970,5 +1073,140 @@ export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, 
     branchSegments: branch.segments,
     curveBearing, mainEndBearing, branchEndBearing: switchChainBearingAt(curveBearing, branchChain),
     arcLen, straightLen,
+  }
+}
+
+// ── Crossings and crossing switches (AP 3.2) ────────────────────────────────
+//
+// A crossing is two routes that cross instead of parting, so it has no toe and
+// no branch: its geometry is stated from the crossing point, and both of its
+// routes are straights — the crossing legs. A crossing switch adds connecting
+// curves between the legs, tangential to both, one per slip route.
+
+/** Crossing angle of a form [rad], stated as its slope (1:9). */
+export function crossingAngle(type) {
+  return Math.atan(1 / type.ratio)
+}
+
+/**
+ * How far each of a crossing's four ends lies from the crossing point [m].
+ *
+ * The plain crossing states it through its end distance — the two ends on a
+ * side lie 1.85 m apart, so each sits half of that beyond the point on its leg.
+ * A crossing switch's ends are the tangent points of its connecting curves,
+ * R·tan(α/2) along each leg — the curves are tangential to both, which is what
+ * places them.
+ */
+export function crossingEndDistance(type) {
+  const half = (type.endDistance ?? 1.85) / 2
+  return type.R == null
+    ? half / Math.sin(crossingAngle(type) / 2)
+    : type.R * Math.tan(crossingAngle(type) / 2)
+}
+
+/**
+ * The connecting curve of a slip route, as a route running from one leg to the
+ * other: an arc on the form's radius, tangential to both legs, turning through
+ * the crossing angle. `side` says which pair of ends it joins — 'left' or
+ * 'right' of the main route's running direction.
+ */
+function slipRoute(type, side) {
+  const a = crossingAngle(type)
+  const sign = side === 'left' ? -1 : 1
+  return { length: type.R * a, r1: sign * type.R, r2: sign * type.R }
+}
+
+/**
+ * Geometry of a crossing or crossing switch, in the plane of `epsg`.
+ *
+ * The crossing point is `centreUtm`; the main route (A→C) runs along `bearing`,
+ * the cross route (B→D) at the crossing angle to its right — `crossAngle` signed
+ * in degrees, positive = the cross route turns right off the main one. Both
+ * routes are straights of the form's own length, `2 · crossingEndDistance`, so
+ * the crossing point is their middle and the four ports are their ends:
+ *
+ *   portA  main route, against the bearing   portC  main route, along it
+ *   portB  cross route, against its bearing  portD  cross route, along it
+ *
+ * The slip routes of an EKW/DKW join the ends on each side of the crossing
+ * point: `slip1` (A→D) the pair the main route leaves on one side, `slip2`
+ * (B→C) the pair on the other — which is which follows from the cross route's
+ * side, and both are arcs tangential to the legs at the ports. The single slip
+ * builds only slip1.
+ *
+ * Returns everything the dialogs, the symbol and the plan export read:
+ *   mainCoords, crossCoords   the two legs as WGS84 polylines, A→C and B→D
+ *   slip1Coords, slip2Coords  the connecting curves, or null where the kind has none
+ *   fillCoords                the body: the diamond the two legs span
+ *   portA..portD              the four ends as [easting, northing]
+ *   portA_wgs..portD_wgs      the same as WGS84
+ *   mainEndDistance           how far each end lies from the crossing point [m]
+ *   centreUtm                 the crossing point itself
+ *   mainBearing, crossBearing the legs' bearings
+ */
+export function computeCrossingGeometryUtm(centreUtm, bearing, type, crossAngleDeg, startWgsMain = null, startWgsCross = null, epsg = null) {
+  const zone  = epsg ?? centreUtm.zone
+  const t     = crossingEndDistance(type)
+  const crossBearing = (bearing + crossAngleDeg + 360) % 360
+
+  // The two legs: straights through the crossing point, each reaching t to
+  // either side of it. Their polylines start on the caller's WGS84 twins of the
+  // ports, so the joins with the tracks there are exact.
+  const aUtm = utmEndStraight(centreUtm, (bearing + 180) % 360, t)
+  const cUtm = utmEndStraight(centreUtm, bearing, t)
+  const bUtm = utmEndStraight(centreUtm, (crossBearing + 180) % 360, t)
+  const dUtm = utmEndStraight(centreUtm, crossBearing, t)
+  const aWgs = startWgsMain ?? utmToWgs84(aUtm.easting, aUtm.northing, zone)
+  const cWgs = utmToWgs84(cUtm.easting, cUtm.northing, zone)
+  const bWgs = startWgsCross ?? utmToWgs84(bUtm.easting, bUtm.northing, zone)
+  const dWgs = utmToWgs84(dUtm.easting, dUtm.northing, zone)
+  const mainCoords = [aWgs, cWgs]
+  const crossCoords = [bWgs, dWgs]
+
+  // The slip routes. Each joins two ends on opposite sides of the crossing
+  // point: slip1 the pair A–D, slip2 the pair B–C. The arc leaves each leg
+  // tangentially, running *towards* the crossing point at its start port and
+  // away from it at its end port, turning through the crossing angle — so its
+  // centre lies in the wedge between the two legs, and its tangent points sit
+  // at R·tan(α/2) from the crossing point, which is where the ports are.
+  const crossRight = crossAngleDeg >= 0
+  const slip1Side = crossRight ? 'right' : 'left'
+  const slip2Side = crossRight ? 'left' : 'right'
+  const buildSlip = (side, fromUtm, fromWgs, toUtm, toWgs, legBearing) => {
+    const route = slipRoute(type, side)
+    const segs = switchChainSegmentsUtm(fromUtm, legBearing, [route])
+    const coords = routeCoords(fromUtm, fromWgs, legBearing, route, toWgs)
+    return { coords, route, segments: segs }
+  }
+  // The leg bearing at a start port is the one running towards the crossing
+  // point: slip1 leaves A along the main leg, slip2 leaves B along the cross.
+  const slip1 = type.kind === 'single_slip' || type.kind === 'double_slip'
+    ? buildSlip(slip1Side, aUtm, aWgs, dUtm, dWgs, bearing)
+    : null
+  const slip2 = type.kind === 'double_slip'
+    ? buildSlip(slip2Side, bUtm, bWgs, cUtm, cWgs, crossBearing)
+    : null
+
+  // The body: the diamond the two legs span, from A over D to C and back over
+  // B — a closed ring of the four ports, the crossing kinds' counterpart of a
+  // turnout's switchFillRing.
+  const fillCoords = [aWgs, dWgs, cWgs, bWgs, aWgs]
+
+  return {
+    kind: type.kind, label: type.label,
+    mainCoords, crossCoords,
+    slip1Coords: slip1?.coords ?? null,
+    slip2Coords: slip2?.coords ?? null,
+    slip1Route: slip1?.route ?? null,
+    slip2Route: slip2?.route ?? null,
+    fillCoords,
+    portA: [aUtm.easting, aUtm.northing], portB: [bUtm.easting, bUtm.northing],
+    portC: [cUtm.easting, cUtm.northing], portD: [dUtm.easting, dUtm.northing],
+    portA_wgs: aWgs, portB_wgs: bWgs, portC_wgs: cWgs, portD_wgs: dWgs,
+    portA_utm: aUtm, portB_utm: bUtm, portC_utm: cUtm, portD_utm: dUtm,
+    mainEndDistance: t,
+    centreUtm,
+    mainBearing: bearing,
+    crossBearing,
   }
 }

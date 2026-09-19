@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BASEMAPS, LANDESVERMESSUNG_STATES } from '../../basemaps'
 import { KM_COLOR, KM_OTHER_COLOR, KM_JUMP_COLOR } from '../../utils/kmLineLayer'
+import { OverlayThumbnail } from '../icons'
 
 const THUMBNAIL = {
   liberty:    '/liberty.webp',
@@ -24,24 +25,6 @@ const GROUP_LABEL = {
 }
 
 const SEPARATOR = { margin: '10px 0', border: 'none', borderTop: '1px solid #ddd' }
-
-/**
- * Stand-in for a basemap preview on the overlays tile: the overlays themselves,
- * a line of the DB network with its hectometre points and one kilometrage jump
- * among them, and a dashed one outside it — in the colours they are drawn in on
- * the map.
- */
-const OverlayThumbnail = () => (
-  <svg className="basemap-thumbnail" viewBox="0 0 60 45" aria-hidden="true">
-    <rect width="60" height="45" fill="#f4f4f6" />
-    <line x1="5" y1="41" x2="55" y2="23" stroke={KM_OTHER_COLOR} strokeWidth="1.4" strokeDasharray="3 2" />
-    <line x1="5" y1="29" x2="55" y2="9" stroke={KM_COLOR} strokeWidth="1.6" />
-    {[[5, 29], [17.5, 24], [42.5, 14], [55, 9]].map(([x, y]) => (
-      <circle key={x} cx={x} cy={y} r="1.9" fill={KM_COLOR} stroke="#fff" strokeWidth="0.7" />
-    ))}
-    <circle cx="30" cy="19" r="2.4" fill={KM_JUMP_COLOR} stroke="#fff" strokeWidth="0.8" />
-  </svg>
-)
 
 /** The overlays the list offers, in its order: key into `kmOverlays` and label. */
 const KM_OVERLAY_ENTRIES = [
@@ -117,7 +100,7 @@ export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays
           onClick={() => setOverlaysExpanded((v) => !v)}
           title={t('layers_overlays')}
         >
-          <OverlayThumbnail />
+          <OverlayThumbnail kmColor={KM_COLOR} kmOtherColor={KM_OTHER_COLOR} kmJumpColor={KM_JUMP_COLOR} />
           <span className="basemap-label">{t('layers_overlays')}</span>
         </button>
       </div>

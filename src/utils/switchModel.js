@@ -45,7 +45,7 @@ export const SWITCH_FORM_VERSION = 1
 const ROUTE_PORTS = {
   turnout:     { main: ['A', 'B2'], branch: ['A', 'B1'] },
   crossing:    { main: ['A', 'C'],  cross: ['B', 'D'] },
-  single_slip: { main: ['A', 'C'],  cross: ['B', 'D'], slip: ['A', 'D'] },
+  single_slip: { main: ['A', 'C'],  cross: ['B', 'D'], slip1: ['A', 'D'] },
   double_slip: { main: ['A', 'C'],  cross: ['B', 'D'], slip1: ['A', 'D'], slip2: ['B', 'C'] },
 }
 

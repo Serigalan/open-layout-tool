@@ -294,6 +294,94 @@ function unmarkOn(track, sw) {
 }
 
 /**
+ * What deleting a crossing or crossing switch does — the same dry-run contract
+ * as the turnout's plan below it (planSwitchDeletion), read over the kind's
+ * own four ports.
+ *
+ * A crossing's two routes share no port, so both stay where both carry a line
+ * (keptRoutes); what stays is unmarked and is ordinary track again. There is no
+ * toe to join back together — the routes cross, they never parted — so `joined`
+ * is always false and no merge runs: the legs meet at the crossing point at the
+ * crossing angle, which is a kink, not a cut.
+ *
+ * A through route runs over its own legs — they are part of the line that stays.
+ * A slip arcs between two ports without touching the crossing point, so where a
+ * slip is the line, its legs are dead stubs into the point and go with the
+ * switch; the curve itself stays, unmarked, as the line it turned out to be.
+ * The slip tracks hang on none of the ports, so no port's `mine` reaches them:
+ * they are collected by their mark instead, over every track that is not one
+ * of the legs.
+ */
+function planCrossingDeletion(sw, tracks) {
+  const { byPort } = switchParts(sw, tracks)
+  const routes = keptRoutes(sw, byPort)
+  const keptSlips = new Set(routes.filter(r => r !== 'main' && r !== 'cross'))
+  const keptPorts = new Set(
+    routes.filter(r => r === 'main' || r === 'cross')
+      .flatMap(route => switchRoutePorts(sw.kind)[route]))
+
+  const updates = new Map()
+  const removeTrackIds = []
+  const removedTracks = []
+  let removedElements = 0
+  const current = (port) => (port.trackId ? updates.get(port.trackId) ?? port.track : null)
+
+  for (const port of Object.values(byPort)) {
+    if (!port.track || port.mine.length === 0) continue
+    if (keptPorts.has(port.port)) {
+      // What stays is ordinary track again.
+      updates.set(port.trackId, unmarkOn(current(port), sw))
+      continue
+    }
+    removedElements += port.mine.length
+    if (port.beyond.length === 0) {
+      removeTrackIds.push(port.trackId)
+      removedTracks.push(port.track.name ?? port.trackId)
+    } else {
+      updates.set(port.trackId, trimTrack(current(port), port.endpoint, port.mine))
+    }
+  }
+
+  // The slip curves: tracks of this switch marked 'slip1'/'slip2' that no port
+  // names. A kept one is unmarked and stays as the line it carries; the rest
+  // go with the switch.
+  const legTrackIds = new Set(Object.values(byPort).map(p => p.trackId))
+  const byId = tracks instanceof Map ? tracks : new Map((tracks ?? []).map(t => [t.id, t]))
+  for (const track of byId.values()) {
+    if (legTrackIds.has(track.id) || removeTrackIds.includes(track.id)) continue
+    const mine = (track.elements ?? []).filter(el => elementBelongsToSwitch(el, sw)
+      && (el.switchRoute === 'slip1' || el.switchRoute === 'slip2'))
+    if (!mine.length) continue
+    if (keptSlips.has(mine[0].switchRoute)) {
+      updates.set(track.id, unmarkOn(track, sw))
+      continue
+    }
+    removedElements += mine.length
+    if (mine.length === (track.elements ?? []).length) {
+      removeTrackIds.push(track.id)
+      removedTracks.push(track.name ?? track.id)
+    } else {
+      updates.set(track.id, {
+        ...track,
+        elements: (track.elements ?? []).filter(el => !mine.includes(el)),
+      })
+    }
+  }
+
+  return {
+    switchId: sw.switchId,
+    reason: keptSlips.size > 0 ? 'crossing_slip'
+      : routes.length === 2 ? 'crossing_both' : routes.length === 1 ? 'crossing_one' : 'all',
+    removeTrackIds,
+    updateTracks: [...updates.values()].filter(t => !removeTrackIds.includes(t.id)),
+    remap: [],
+    removedElements,
+    removedTracks,
+    mergedElements: 0, mergedInto: 0, joined: false,
+  }
+}
+
+/**
  * What deleting this switch would do, without doing it — the dry run the dialog
  * previews and storage.commitSwitchDeletion carries out.
  *
@@ -315,10 +403,9 @@ function unmarkOn(track, sw) {
 export function planSwitchDeletion(sw, tracks) {
   if (!sw?.switchId) return null
   // The crossing kinds part no track at a toe and may keep both of their
-  // routes; planning that belongs with the geometry that builds them, and
-  // until it exists a plan for one would be a guess. keptRoutes above already
-  // answers for them.
-  if (sw.kind && sw.kind !== 'turnout') return null
+  // routes; their plan follows the same rule as the turnout's, read over the
+  // kind's own ports (keptRoutes).
+  if (sw.kind && sw.kind !== 'turnout') return planCrossingDeletion(sw, tracks)
   const { byPort } = switchParts(sw, tracks)
   const { A, B1, B2 } = byPort
 

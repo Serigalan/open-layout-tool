@@ -1,3 +1,258 @@
+// ── Panel menu icons ────────────────────────────────────────────────────────
+//
+// One rule for every icon a panel button carries (AP 4.3): 16 × 16, currentColor,
+// one stroke width (1.5), one node radius (1.5) — and a drawing that stays
+// inside the box, nodes fully visible. The rule lives on the svg root and in
+// IconNode, not in each drawing: a drawing states its geometry and nothing
+// else. The sidebar icons below are white on the primary colour and keep their
+// own sizes; these follow the button wherever it renders them. The rule is
+// enforced by icons.test.js over every icon named there.
+
+const MENU_ICON_SIZE = 16
+const MENU_ICON_STROKE = 1.5
+const MENU_ICON_NODE = 1.5
+
+// A filled node — the endpoint of a route. No stroke of its own: the stroke
+// width belongs to the line that ends here, not to the dot marking it. A
+// secondary route (a parallel being created) keeps the same radius and says
+// so with opacity alone.
+const IconNode = ({ cx, cy, opacity }) => (
+  <circle cx={cx} cy={cy} r={MENU_ICON_NODE} fill="currentColor" opacity={opacity} />
+)
+
+const MenuIcon = ({ children }) => (
+  <svg width={MENU_ICON_SIZE} height={MENU_ICON_SIZE} viewBox={`0 0 ${MENU_ICON_SIZE} ${MENU_ICON_SIZE}`}
+    fill="none" stroke="currentColor" strokeWidth={MENU_ICON_STROKE} strokeLinecap="round" strokeLinejoin="round"
+  >
+    {children}
+  </svg>
+)
+
+// The back button every panel carries — one drawing instead of five copies of
+// the same one.
+export const BackIcon = () => (
+  <MenuIcon>
+    <path d="M10 3 L5 8 L10 13" />
+  </MenuIcon>
+)
+
+// Create element panel
+export const CreateLineIcon = () => (
+  <MenuIcon>
+    <path d="M8 14 V2" />
+    <IconNode cx={8} cy={14} />
+    <IconNode cx={8} cy={2} />
+  </MenuIcon>
+)
+
+export const CreateArcIcon = () => (
+  <MenuIcon>
+    <path d="M2 14 A12 12 0 0 1 14 2" />
+    <IconNode cx={2} cy={14} />
+    <IconNode cx={14} cy={2} />
+  </MenuIcon>
+)
+
+// A parallel element: the existing one solid, the one being created as the
+// ghost below it.
+export const CreateParallelIcon = () => (
+  <MenuIcon>
+    <path d="M2 5 H14" />
+    <path d="M2 11 H14" opacity="0.55" />
+    <IconNode cx={2} cy={5} />
+    <IconNode cx={14} cy={5} />
+    <IconNode cx={2} cy={11} opacity="0.55" />
+    <IconNode cx={14} cy={11} opacity="0.55" />
+  </MenuIcon>
+)
+
+// A parallel track: a chain of elements (the joint is a node) and its ghost.
+export const CreateParallelTrackIcon = () => (
+  <MenuIcon>
+    <path d="M2 5 L8 5 L14 3.5" />
+    <path d="M2 11 L8 11 L14 9.5" opacity="0.55" />
+    <IconNode cx={2} cy={5} />
+    <IconNode cx={8} cy={5} />
+    <IconNode cx={14} cy={3.5} />
+    <IconNode cx={2} cy={11} opacity="0.55" />
+    <IconNode cx={8} cy={11} opacity="0.55" />
+    <IconNode cx={14} cy={9.5} opacity="0.55" />
+  </MenuIcon>
+)
+
+// Connect element panel — the piece that joins two existing ends.
+export const ConnectStraightIcon = () => (
+  <MenuIcon>
+    <path d="M8 14 V2" />
+    <IconNode cx={8} cy={14} />
+    <IconNode cx={8} cy={2} />
+  </MenuIcon>
+)
+
+export const ConnectCurvedIcon = () => (
+  <MenuIcon>
+    <path d="M2 14 A10 10 0 0 1 11 5" />
+    <IconNode cx={2} cy={14} />
+    <IconNode cx={11} cy={5} />
+  </MenuIcon>
+)
+
+// Connect switch panel
+export const SwitchStraightIcon = () => (
+  <MenuIcon>
+    <path d="M4 14 V2" />
+    <path d="M4 14 A10 10 0 0 1 12 4" />
+    <IconNode cx={4} cy={14} />
+    <IconNode cx={4} cy={2} />
+    <IconNode cx={12} cy={4} />
+  </MenuIcon>
+)
+
+// A curved turnout: both routes leave curved, into opposite directions.
+export const SwitchCurvedIcon = () => (
+  <MenuIcon>
+    <path d="M6 14c.134-4.828 1.5-7.665 6-10" />
+    <path d="M6 14C5.374 8.763 4.261 5.673 2 2" />
+    <IconNode cx={6} cy={14} />
+    <IconNode cx={12} cy={4} />
+    <IconNode cx={2} cy={2} />
+  </MenuIcon>
+)
+
+// A turnout laid into an existing track: the track runs through, the branch
+// leaves it.
+export const SwitchOnTrackIcon = () => (
+  <MenuIcon>
+    <path d="M1 11 H15" />
+    <path d="M6 11 L14.475 4.265" />
+    <IconNode cx={6} cy={11} />
+  </MenuIcon>
+)
+
+// A switch connection: two branches, joined by a middle element — the S.
+export const SwitchConnectionIcon = () => (
+  <MenuIcon>
+    <path d="M2 13 A6 6 0 0 1 8 8 A6 6 0 0 0 14 3" />
+    <IconNode cx={2} cy={13} />
+    <IconNode cx={14} cy={3} />
+  </MenuIcon>
+)
+
+// Edit element panel
+export const EditLengthIcon = () => (
+  <MenuIcon>
+    <path d="M8 2 V14 M5 2 H11 M5 14 H11" />
+  </MenuIcon>
+)
+
+export const DeleteElementIcon = () => (
+  <MenuIcon>
+    <path d="M3 4 H13 M6 4 V2 H10 V4 M5 4 V13 H11 V4" />
+  </MenuIcon>
+)
+
+export const EditTracksIcon = () => (
+  <MenuIcon>
+    <path d="M2 4 Q5 2 8 4 Q11 6 14 4" />
+    <path d="M2 9 Q5 7 8 9 Q11 11 14 9" />
+  </MenuIcon>
+)
+
+// The only shapes in the set that fill instead of stroke: bars read as rows
+// of properties, and a stroked bar at this size is a hollow box.
+export const EditPropertiesIcon = () => (
+  <MenuIcon>
+    <rect x="2" y="4" width="12" height="2" rx="1" fill="currentColor" stroke="none" />
+    <rect x="2" y="8" width="8" height="2" rx="1" fill="currentColor" stroke="none" />
+    <rect x="2" y="12" width="10" height="2" rx="1" fill="currentColor" stroke="none" />
+  </MenuIcon>
+)
+
+export const ChangeDirectionIcon = () => (
+  <MenuIcon>
+    <path d="M2 5 H11 M8 2 L11 5 L8 8" />
+    <path d="M14 11 H5 M8 8 L5 11 L8 14" />
+  </MenuIcon>
+)
+
+export const DeleteTrackIcon = () => (
+  <MenuIcon>
+    <path d="M3 4 H13 M6 4 V2 H10 V4 M5 4 V13 H11 V4" />
+  </MenuIcon>
+)
+
+// A switch being deleted: the route that stays, the branch that goes, and the
+// cross that says so.
+export const DeleteSwitchIcon = () => (
+  <MenuIcon>
+    <path d="M2 12 H14 M6 12 Q10 12 14 6" />
+    <path d="M3 3 L7 7 M7 3 L3 7" />
+  </MenuIcon>
+)
+
+// Optimize track panel — the alignment as it is, and the optimized variant as
+// the dashed ghost of it.
+export const OptimizeTrackModeIcon = () => (
+  <MenuIcon>
+    <path d="M1 15 Q2 6 8 3 Q12 1 15 1" />
+    <path d="M3.5 15 Q4.5 8.5 9 5.5 Q12 3.8 15 3.8" strokeDasharray="2.5 1.5" opacity="0.6" />
+  </MenuIcon>
+)
+
+export const OptimizeElementModeIcon = () => (
+  <MenuIcon>
+    <path d="M2 14 A12 12 0 0 1 14 2" />
+    <path d="M4.5 13 A10.5 10.5 0 0 1 13 4.5" strokeDasharray="2 1.5" opacity="0.6" />
+    <IconNode cx={2} cy={14} />
+    <IconNode cx={14} cy={2} />
+  </MenuIcon>
+)
+
+// The two crossing kinds AP 3.2/3.3 will place — drawn ahead of the geometry,
+// so the panels that place them reach for an icon instead of a placeholder.
+// A crossing is two routes that cross, one node per port. A crossing switch is
+// that crossing with a slip route joining the two ends on each side of it —
+// the double-slip drawing; the single slip is it with one bow left out.
+export const CrossingIcon = () => (
+  <MenuIcon>
+    <path d="M2 2 L14 14" />
+    <path d="M14 2 L2 14" />
+    <IconNode cx={2} cy={2} />
+    <IconNode cx={14} cy={14} />
+    <IconNode cx={14} cy={2} />
+    <IconNode cx={2} cy={14} />
+  </MenuIcon>
+)
+
+export const CrossingSwitchIcon = () => (
+  <MenuIcon>
+    <path d="M2 2 L14 14" />
+    <path d="M14 2 L2 14" />
+    <path d="M2 2 Q8 6 14 2" />
+    <path d="M2 14 Q8 10 14 14" />
+    <IconNode cx={2} cy={2} />
+    <IconNode cx={14} cy={14} />
+    <IconNode cx={14} cy={2} />
+    <IconNode cx={2} cy={14} />
+  </MenuIcon>
+)
+
+// A basemap preview, not a menu icon: it shows the overlays in the colours
+// they are drawn in on the map, so it carries those colours instead of
+// currentColor and its own frame. It lives here for the same reason as every
+// other drawing — the panels compose, they do not draw.
+export const OverlayThumbnail = ({ kmColor, kmOtherColor, kmJumpColor }) => (
+  <svg className="basemap-thumbnail" viewBox="0 0 60 45" aria-hidden="true">
+    <rect width="60" height="45" fill="#f4f4f6" />
+    <line x1="5" y1="41" x2="55" y2="23" stroke={kmOtherColor ?? '#78716c'} strokeWidth="1.4" strokeDasharray="3 2" />
+    <line x1="5" y1="29" x2="55" y2="9" stroke={kmColor ?? '#0f766e'} strokeWidth="1.6" />
+    {[[5, 29], [17.5, 24], [42.5, 14], [55, 9]].map(([x, y]) => (
+      <circle key={x} cx={x} cy={y} r="1.9" fill={kmColor ?? '#0f766e'} stroke="#fff" strokeWidth="0.7" />
+    ))}
+    <circle cx="30" cy="19" r="2.4" fill={kmJumpColor ?? '#b3261e'} stroke="#fff" strokeWidth="0.8" />
+  </svg>
+)
+
 export const LayerIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
     <path d="M12 2L2 7l10 5 10-5-10-5z" fill="white" opacity="0.9"/>

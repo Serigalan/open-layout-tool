@@ -5,6 +5,7 @@ import {
 } from './elementUtils'
 import {
   SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, switchBranchSections, switchStraightLength,
+  CROSSING_TYPES, crossingAngle, crossingEndDistance, computeCrossingGeometryUtm,
   lcsLine, switchFillRing,
   switchLabelGeometry, bauform,
 } from './switchUtils'
@@ -63,6 +64,90 @@ function matchSwitchType(absR, arcLen, endLen = 0) {
 const portElementIndex = (els, endpoint) => (endpoint === 'END' ? els.length - 1 : 0)
 
 /**
+ * Rebuild one crossing-kind record from an OSRD switch. The four ports name
+ * the four legs; the legs are the tracks' own elements, so the crossing point
+ * and both bearings are read off them, and the form is matched by the angle
+ * between the legs and — for a slip — the radius of the connecting curve at
+ * one of the slip ports. Returns null when the legs or the form do not resolve.
+ */
+function rebuildCrossing(sw, trackById) {
+  const ports = sw?.ports ?? {}
+  const kind  = kindForOsrdType(sw.switch_type)
+  const legAt = (port) => {
+    const track = trackById[ports[port]?.track]
+    const els   = track?.elements ?? []
+    if (!els.length) return null
+    const idx = portElementIndex(els, ports[port].endpoint)
+    const el  = els[idx]
+    if (!el || el.length <= 0 || !el.startNode || !el.endNode) return null
+    // Oriented away from the crossing point, whichever end it sits at.
+    const oriented = ports[port].endpoint === 'END' ? reverseElement(el) : el
+    return { track, el: oriented }
+  }
+  const a = legAt('A'), b = legAt('B'), c = legAt('C'), d = legAt('D')
+  if (!a || !b || !c || !d) return null
+
+  // The crossing point: where the A and B legs begin (their start nodes).
+  const centre = a.el.startNode
+  if (Math.hypot(b.el.startNode[0] - centre[0], b.el.startNode[1] - centre[1]) > 0.001) return null
+  const epsg = a.track.epsg
+  const centreUtm = { easting: centre[0], northing: centre[1], zone: epsg }
+
+  // The crossing angle between the legs, signed the way the geometry wants it:
+  // positive where the cross route (B→D) turns right off the main one (A→C).
+  const bearingDelta = (from, to) => ((to - from + 540) % 360) - 180
+  const crossAngle = bearingDelta(c.el.bearing, d.el.bearing)
+  const absAngle = Math.abs(bearingDelta(a.el.bearing, c.el.bearing === a.el.bearing
+    ? d.el.bearing : c.el.bearing)) || Math.abs(crossAngle)
+  // The form: the crossing angle as a slope, and for a slip the curve radius.
+  const legLen = a.el.length
+  const slipR = kind === 'crossing' ? null
+    : Math.abs(trackById[ports.A?.track]?.elements?.[0]?.radius ?? 0) || null
+  const type = matchCrossingType(absAngle, legLen, slipR, kind)
+  if (!type) return null
+
+  const g = computeCrossingGeometryUtm(centreUtm, c.el.bearing, type, crossAngle)
+  const name = sw.extensions?.sncf?.label ?? sw.id
+  const identity = { ...newSwitchFields(kind), name, label: type.label }
+  const mark = (port) => {
+    const track = trackById[ports[port].track]
+    const idx = portElementIndex(track.elements, ports[port].endpoint)
+    Object.assign(track.elements[idx], switchElementMark(identity,
+      port === 'A' || port === 'C' ? 'main' : 'cross'))
+  }
+  ;['A', 'B', 'C', 'D'].forEach(mark)
+
+  return {
+    ...identity,
+    portA_trackId: ports.A.track,  portA_endpoint: ports.A.endpoint,
+    portB_trackId: ports.B.track,  portB_endpoint: ports.B.endpoint,
+    portC_trackId: ports.C.track,  portC_endpoint: ports.C.endpoint,
+    portD_trackId: ports.D.track,  portD_endpoint: ports.D.endpoint,
+    fillCoords: g.fillCoords,
+  }
+}
+
+/**
+ * The crossing form whose angle and slip radius the imported legs state. The
+ * angle is matched through the slope it implies (1:9, 1:7.5) and the leg length
+ * through the end distance it builds; a slip kind additionally has to name the
+ * radius its curve runs on.
+ */
+function matchCrossingType(absAngleDeg, legLen, slipR, kind) {
+  let best = null
+  let bestErr = Infinity
+  for (const type of CROSSING_TYPES) {
+    if (type.kind !== kind) continue
+    const angle = crossingAngle(type) * 180 / Math.PI
+    const err = Math.abs(angle - absAngleDeg)
+      + Math.abs(crossingEndDistance(type) - legLen)
+      + (type.R == null || slipR == null ? 0 : Math.abs(type.R - slipR))
+    if (err < bestErr) { best = type; bestErr = err }
+  }
+  return bestErr <= 0.05 ? best : null
+}
+
+/**
  * Rebuild one app switch record from an OSRD switch, and mark the elements that
  * make up its body so they render as switch geometry rather than as ordinary
  * track. The parsed elements are this module's own fresh objects, so they are
@@ -71,11 +156,12 @@ const portElementIndex = (els, endpoint) => (endpoint === 'END' ? els.length - 1
 function rebuildSwitch(sw, trackById) {
   const ports = sw?.ports ?? {}
   if (typeof sw?.id !== 'string' || !ports.B1?.track) return null
-  // Only the turnout is rebuilt as a body: the crossing kinds have four ports
-  // and no branch arc to read, and one built from this construction would be a
-  // turnout wearing their name. They stay in the passthrough until the geometry
-  // that draws them exists.
-  if (sw.switch_type && kindForOsrdType(sw.switch_type) !== 'turnout') return null
+  // The crossing kinds have four ports and a geometry of their own — they are
+  // rebuilt as the crossing they are (rebuildCrossing below) rather than as a
+  // turnout wearing their name.
+  if (sw.switch_type && kindForOsrdType(sw.switch_type) !== 'turnout') {
+    return rebuildCrossing(sw, trackById)
+  }
 
   const branchTrack = trackById[ports.B1.track]
   const branchEls   = branchTrack?.elements ?? []

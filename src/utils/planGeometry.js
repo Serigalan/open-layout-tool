@@ -5,6 +5,7 @@ import { sampleTransitionUtm, transitionBearingAtUtm } from './clothoidUtils'
 import { elementAtStation, pointAtStationUtm, trackLength } from './heightUtils'
 import {
   lcsLineUtm, switchFillRing, switchRoutePointsUtm, switchRoutesFromTracks,
+  crossingRoutesFromTracks, crossingEndDistance,
   switchChainPointUtm, switchChainBearingAt, switchChainBauform,
 } from './switchUtils'
 import { switchNumberOf } from './identifierUtils'
@@ -219,6 +220,43 @@ export function trackPointAt(track, station) {
  * Returns null for a switch whose branch or form cannot be resolved.
  */
 export function switchSymbolUtm(sw, trackById) {
+  // A crossing kind is drawn from its own two legs: the diamond they span, the
+  // crossing point as its node, and the main leg's middle as where the label
+  // belongs. There is no branch and no toe, so branchTurn is 0 and the LCS
+  // mark is absent — the forms carry no dLcs.
+  if (sw.kind && sw.kind !== 'turnout') {
+    const routes = crossingRoutesFromTracks(sw, trackById)
+    if (!routes) return null
+    const { type, centre, mainBearing, crossBearing, main, cross } = routes
+    const t = crossingEndDistance(type)
+    const aUtm = { easting: centre.easting - t * Math.sin(mainBearing * Math.PI / 180),
+      northing: centre.northing - t * Math.cos(mainBearing * Math.PI / 180) }
+    const bUtm = { easting: centre.easting - t * Math.sin(crossBearing * Math.PI / 180),
+      northing: centre.northing - t * Math.cos(crossBearing * Math.PI / 180) }
+    const cUtm = switchChainPointUtm(centre, mainBearing, main)
+    const dUtm = switchChainPointUtm(centre, crossBearing, cross)
+    const mid = switchChainPointUtm(centre, mainBearing, main, t / 2)
+    return {
+      node: [centre.easting, centre.northing],
+      bearing: mainBearing,
+      number: switchNumberOf(sw),
+      station: 0,
+      mid: [mid.easting, mid.northing],
+      midBearing: mainBearing,
+      branchTurn: 0,
+      // The diamond the four ports span, closed — the legs are its diagonals.
+      fill: [
+        [aUtm.easting, aUtm.northing],
+        [dUtm.easting, dUtm.northing],
+        [cUtm.easting, cUtm.northing],
+        [bUtm.easting, bUtm.northing],
+        [aUtm.easting, aUtm.northing],
+      ],
+      lcs: null,
+      label: sw.label ?? null,
+      bauform: 'plain',
+    }
+  }
   const routes = switchRoutesFromTracks(sw, trackById)
   if (!routes) return null
   const { type, node, bearing, mainLen, stem, branch } = routes

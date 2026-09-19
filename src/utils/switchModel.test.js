@@ -107,7 +107,7 @@ describe('the ports and routes each kind has', () => {
   it('names the routes of each kind, the turnout’s pair first', () => {
     expect(switchRoutes('turnout')).toEqual(['main', 'branch'])
     expect(switchRoutes('crossing')).toEqual(['main', 'cross'])
-    expect(switchRoutes('single_slip')).toEqual(['main', 'cross', 'slip'])
+    expect(switchRoutes('single_slip')).toEqual(['main', 'cross', 'slip1'])
     expect(switchRoutes('double_slip')).toEqual(['main', 'cross', 'slip1', 'slip2'])
     expect(SWITCH_ROUTES).toEqual(switchRoutes(DEFAULT_SWITCH_KIND))
   })

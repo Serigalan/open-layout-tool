@@ -6,6 +6,7 @@ import { HIT_TOLERANCE, ZOOM_LINE_WIDTH } from '../../utils/mapConstants'
 import useTrackHover from '../../hooks/useTrackHover'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
 import { truncateHeights } from '../../utils/heightUtils'
+import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../icons'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
 const OPTIMIZE_PREVIEW_LAYER  = 'optimize-preview-layer'
@@ -136,9 +137,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
 
   const backButton = (
     <button className="back-btn" onClick={() => { handleCancel(); setPage('menu') }}>
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-        <path d="M10 3 L5 8 L10 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
+      <BackIcon />
       {t('btn_back')}
     </button>
   )
@@ -191,19 +190,11 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
         <h2>{t('optimize_track')}</h2>
         <div className="create-element-options">
           <button className="create-element-btn" onClick={() => setPage('track')}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M1 15 Q2 6 8 3 Q12 1 15 1" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-              <path d="M3.5 15 Q4.5 8.5 9 5.5 Q12 3.8 15 3.8" stroke="currentColor" strokeWidth="1.2" strokeDasharray="2.5 1.5" fill="none" opacity="0.6"/>
-            </svg>
+            <OptimizeTrackModeIcon />
             {t('optimize_mode_track')}
           </button>
           <button className="create-element-btn" onClick={() => setPage('element')}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="2" cy="14" r="2" fill="currentColor"/>
-              <path d="M2 14 A12 12 0 0 1 14 2" stroke="currentColor" fill="none"/>
-              <circle cx="14" cy="2" r="2" fill="currentColor"/>
-              <path d="M4.5 13 A10.5 10.5 0 0 1 13 4.5" stroke="currentColor" strokeDasharray="2 1.5" fill="none" opacity="0.6"/>
-            </svg>
+            <OptimizeElementModeIcon />
             {t('optimize_mode_element')}
           </button>
         </div>

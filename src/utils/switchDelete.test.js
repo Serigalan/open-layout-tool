@@ -600,8 +600,12 @@ describe('keptRoutes', () => {
 })
 
 describe('planSwitchDeletion', () => {
-  it('plans nothing for a kind whose geometry does not exist yet', () => {
-    expect(planSwitchDeletion({ switchId: 'x', kind: 'crossing' }, [])).toBe(null)
-    expect(planSwitchDeletion({ switchId: 'x', kind: 'double_slip' }, [])).toBe(null)
+  it('plans the crossing kinds over their own four ports', () => {
+    // A crossing whose tracks carry nothing beyond its legs goes with all of
+    // them; the plan names the reason and counts the elements.
+    const plan = planSwitchDeletion({ switchId: 'x', kind: 'crossing' }, [])
+    expect(plan).not.toBe(null)
+    expect(plan.reason).toBe('all')
+    expect(plan.joined).toBe(false)
   })
 })

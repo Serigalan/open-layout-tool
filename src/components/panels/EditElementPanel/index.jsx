@@ -6,15 +6,17 @@ import ChangeDirectionForm from './ChangeDirectionForm'
 import DeleteForm from './DeleteForm'
 import DeleteTrackForm from './DeleteTrackForm'
 import DeleteSwitchForm from './DeleteSwitchForm'
+import {
+  BackIcon, EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
+  ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon,
+} from '../../../components/icons'
 
 export default function EditElementPanel({ t, map, project, onTrackSaved, onShowTrackTable }) {
   const [page, setPage] = useState('menu')
 
   const backButton = (onBack) => (
     <button className="back-btn" onClick={() => { setPage('menu'); onBack?.() }}>
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-        <path d="M10 3 L5 8 L10 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
+      <BackIcon />
       {t('btn_back')}
     </button>
   )
@@ -96,52 +98,33 @@ export default function EditElementPanel({ t, map, project, onTrackSaved, onShow
       <div className="create-element-options">
         <span className="create-element-section">{t('edit_element')}</span>
         <button className="create-element-btn" onClick={() => setPage('edit_length')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M8 2 V14 M5 2 H11 M5 14 H11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
+          <EditLengthIcon />
           {t('edit_element_edit_length')}
         </button>
         <button className="create-element-btn" onClick={() => setPage('delete')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 4 H13 M6 4 V2 H10 V4 M5 4 V13 H11 V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <DeleteElementIcon />
           {t('edit_element_delete')}
         </button>
         <span className="create-element-section">{t('edit_track')}</span>
         <button className="create-element-btn" onClick={() => setPage('edit_tracks')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 4 Q5 2 8 4 Q11 6 14 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-            <path d="M2 9 Q5 7 8 9 Q11 11 14 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-          </svg>
+          <EditTracksIcon />
           {t('edit_element_edit_tracks')}
         </button>
         <button className="create-element-btn" onClick={() => setPage('edit_properties')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <rect x="2" y="4" width="12" height="2" rx="1" fill="currentColor"/>
-            <rect x="2" y="8" width="8" height="2" rx="1" fill="currentColor"/>
-            <rect x="2" y="12" width="10" height="2" rx="1" fill="currentColor"/>
-          </svg>
+          <EditPropertiesIcon />
           {t('edit_track_properties')}
         </button>
         <button className="create-element-btn" onClick={() => setPage('change_direction')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 5 H11 M8 2 L11 5 L8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            <path d="M14 11 H5 M8 8 L5 11 L8 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-          </svg>
+          <ChangeDirectionIcon />
           {t('edit_change_direction')}
         </button>
         <button className="create-element-btn" onClick={() => setPage('delete_track')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 4 H13 M6 4 V2 H10 V4 M5 4 V13 H11 V4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <DeleteTrackIcon />
           {t('edit_track_delete')}
         </button>
         <span className="create-element-section">{t('edit_switch')}</span>
         <button className="create-element-btn" onClick={() => setPage('delete_switch')}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 12 H14 M6 12 Q10 12 14 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/>
-            <path d="M3 3 L7 7 M7 3 L3 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
+          <DeleteSwitchIcon />
           {t('switch_delete')}
         </button>
       </div>
