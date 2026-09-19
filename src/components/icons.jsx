@@ -237,6 +237,16 @@ export const CrossingSwitchIcon = () => (
   </MenuIcon>
 )
 
+// A crossing laid into an existing track: the track runs through it, the cross
+// route crosses it — the crossing kinds' counterpart of the turnout on a track.
+export const CrossingOnTrackIcon = () => (
+  <MenuIcon>
+    <path d="M1 8 H15" />
+    <path d="M4 2 L12 14" />
+    <IconNode cx={8} cy={8} />
+  </MenuIcon>
+)
+
 // A basemap preview, not a menu icon: it shows the overlays in the colours
 // they are drawn in on the map, so it carries those colours instead of
 // currentColor and its own frame. It lives here for the same reason as every
@@ -327,6 +337,19 @@ export const ConnectSwitchIcon = () => (
     <circle cx="4" cy="2" r="2" fill="white"/>
     <path d="M4 14 A10 10 0 0 1 12 4" fill="none" stroke="white" strokeWidth="1.5"/>
     <circle cx="12" cy="4" r="2" fill="white"/>
+  </svg>
+)
+
+// The crossing panel's counterpart: two routes that cross instead of part,
+// one node per port.
+export const ConnectCrossingIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16">
+    <path d="M2 14 L14 2" stroke="white" strokeWidth="1.5"/>
+    <path d="M2 2 L14 14" stroke="white" strokeWidth="1.5"/>
+    <circle cx="2" cy="14" r="2" fill="white"/>
+    <circle cx="14" cy="2" r="2" fill="white"/>
+    <circle cx="2" cy="2" r="2" fill="white"/>
+    <circle cx="14" cy="14" r="2" fill="white"/>
   </svg>
 )
 

@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { translations } from './locales/i18n'
 import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
 import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_ICON_SIZE, GEOJSON_MAXZOOM } from './utils/mapConstants'
-import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectElementIcon, ConnectSwitchIcon, SpliceElementIcon, OptimizeTrackIcon, UndoIcon, PlanExportIcon, ElevationIcon, PlatformIcon, CrossSectionIcon } from './components/icons'
+import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectElementIcon, ConnectSwitchIcon, ConnectCrossingIcon, SpliceElementIcon, OptimizeTrackIcon, UndoIcon, PlanExportIcon, ElevationIcon, PlatformIcon, CrossSectionIcon } from './components/icons'
 import { loadTracks, loadSwitches, loadPlatforms, loadSettings, saveSettings, canUndo, undo } from './storage'
 import { resolveEndBearing, displayCoords } from './utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from './utils/mapRenderUtils'
@@ -22,6 +22,7 @@ import DataExchangePanel from './components/panels/DataExchangePanel'
 import EditElementPanel from './components/panels/EditElementPanel'
 import ConnectElementPanel from './components/panels/ConnectElementPanel'
 import ConnectSwitchPanel from './components/panels/ConnectSwitchPanel'
+import ConnectCrossingPanel from './components/panels/ConnectCrossingPanel'
 import SpliceElementPanel from './components/panels/SpliceElementPanel'
 import OptimizeTrackPanel from './components/panels/OptimizeTrackPanel'
 import PlanExportPanel from './components/panels/PlanExportPanel'
@@ -293,6 +294,7 @@ function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOv
   if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowTrackTable={onShowTrackTable} />
   if (view === 'connect') return <ConnectElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'connect_switch') return <ConnectSwitchPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
+  if (view === 'connect_crossing') return <ConnectCrossingPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'splice') return <SpliceElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'optimize') return <OptimizeTrackPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onProjectImported={onProjectImported} onTrackSaved={onTrackSaved} />
@@ -562,6 +564,13 @@ export default function App() {
             title={t('connect_switch')}
           >
             <ConnectSwitchIcon />
+          </button>
+          <button
+            className={`sidebar-icon-btn ${activeView === 'connect_crossing' ? 'active' : ''}`}
+            onClick={() => handleIconClick('connect_crossing')}
+            title={t('connect_crossing')}
+          >
+            <ConnectCrossingIcon />
           </button>
           <button
             className={`sidebar-icon-btn ${activeView === 'splice' ? 'active' : ''}`}

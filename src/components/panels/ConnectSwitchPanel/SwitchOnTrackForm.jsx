@@ -3,16 +3,15 @@ import {
   loadTracks, commitSwitchConnection, generateId, recalcAbsLengths,
 } from '../../../storage'
 import {
-  computeCurvedValuesUtm, computeStraightValuesUtm, projectOnArcUtm, nodeUtm,
+  computeCurvedValuesUtm, computeStraightValuesUtm,
 } from '../../../utils/elementUtils'
 import { wgs84ToUTM, utmToWgs84 } from '../../../utils/coordinateUtils'
-import { projectOnTransitionUtm } from '../../../utils/clothoidUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
-  SWITCH_TYPES, switchBranchLength, switchStraightLength, computeSwitchGeometryUtm, asRadius, switchRouteVaries,
+  SWITCH_TYPES, switchBranchLength, switchStraightLength, computeSwitchGeometryUtm, switchRouteVaries,
 } from '../../../utils/switchUtils'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../../../utils/switchModel'
-import { placeSwitchOnTrack } from '../../../utils/switchPlacement'
+import { placeSwitchOnTrack, clickStation } from '../../../utils/switchPlacement'
 import { trackLength } from '../../../utils/heightUtils'
 import { buildTypeFields } from '../../../utils/identifierUtils'
 import {
@@ -25,14 +24,14 @@ import useTrackName from '../../../hooks/useTrackName'
 import useTrackHover from '../../../hooks/useTrackHover'
 import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
-import SwitchNumberField from './SwitchNumberField'
+import SwitchNumberField from '../SwitchNumberField'
 import SwitchCantField from './SwitchCantField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
 import {
   SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
   EMPTY_FC, buildLinesGeoJSON, buildFillGeoJSON,
-} from './switchPreview'
+} from '../switchPreview'
 
 /** Track the toe must leave behind it, or the split would part off next to nothing [m]. */
 const MIN_BEHIND = 0.5
@@ -40,18 +39,6 @@ const MIN_BEHIND = 0.5
 // Display only — the stored values keep their full precision.
 const fmtR    = (r) => (r == null ? '∞' : `${Math.round(r)} m`)
 const fmtCant = (u) => String(Math.round(u))
-
-/** Station along the whole track of a point clicked beside its element `elIdx`. */
-function clickStation(track, elIdx, clickUtm) {
-  const el = track.elements[elIdx]
-  const startUtm = nodeUtm(el.startNode, el.geometry.coordinates[0], track.epsg)
-  const { along } = el.elementType === 2
-    ? projectOnTransitionUtm(startUtm, clickUtm, el.bearing, el.length, el.r1 ?? null, el.r2 ?? null,
-      el.transitionType === 'bloss' ? 'bloss' : 'clothoid')
-    : projectOnArcUtm(startUtm, clickUtm, el.bearing, asRadius(el.radius))
-  const before = track.elements.slice(0, elIdx).reduce((sum, e) => sum + (e.length ?? 0), 0)
-  return before + Math.min(el.length, Math.max(0, along))
-}
 
 /**
  * Radius of a route as a turnout states it: the one it keeps throughout, or

@@ -22,7 +22,7 @@ const MENU_ICONS = [
   'EditLengthIcon', 'DeleteElementIcon', 'EditTracksIcon', 'EditPropertiesIcon',
   'ChangeDirectionIcon', 'DeleteTrackIcon', 'DeleteSwitchIcon',
   'OptimizeTrackModeIcon', 'OptimizeElementModeIcon',
-  'CrossingIcon', 'CrossingSwitchIcon',
+  'CrossingIcon', 'CrossingSwitchIcon', 'CrossingOnTrackIcon',
 ]
 
 // Walk a path the way a renderer does and state every absolute position it

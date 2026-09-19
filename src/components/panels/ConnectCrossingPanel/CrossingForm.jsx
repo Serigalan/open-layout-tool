@@ -20,12 +20,12 @@ import useTrackHover from '../../../hooks/useTrackHover'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
-import SwitchNumberField from './SwitchNumberField'
+import SwitchNumberField from '../SwitchNumberField'
 import HeightDatumField from '../HeightDatumField'
 import {
   SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
-  EMPTY_FC,
-} from './switchPreview'
+  EMPTY_FC, buildCrossingPreview,
+} from '../switchPreview'
 
 /**
  * A crossing or crossing switch (AP 3.2), connected to the end of an existing
@@ -44,24 +44,6 @@ import {
  * own, one arc element each, marked 'slip1'/'slip2'. The record names the four
  * ports.
  */
-
-/** The preview draws the same body the commit stores — legs, slips and wedges. */
-function previewFeatures(g) {
-  const lines = [g.mainCoords, g.crossCoords]
-  if (g.slip1Coords) lines.push(g.slip1Coords)
-  if (g.slip2Coords) lines.push(g.slip2Coords)
-  return {
-    lines: { type: 'FeatureCollection', features: lines.map(coordinates => ({
-      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
-    })) },
-    // The body is the two wedges between the legs at the acute angle — a pair
-    // of rings, so a MultiPolygon.
-    fill: { type: 'FeatureCollection', features: [{
-      type: 'Feature', properties: {},
-      geometry: { type: 'MultiPolygon', coordinates: g.fillCoords.map(r => [r]) },
-    }] },
-  }
-}
 
 export default function CrossingForm({ t, map, project, onTrackSaved, onCommitted, initialKind = 'crossing' }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -119,7 +101,7 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
       const brg    = resolveEndBearing(el, track.epsg)
       const centre = utmEndStraight(endUtm, brg, crossingEndDistance(form))
       const gg     = computeCrossingGeometryUtm(centre, brg, form, crossAngle, endWgs)
-      const pv     = previewFeatures(gg)
+      const pv     = buildCrossingPreview(gg)
       m.getSource(SWITCH_LINES_SOURCE)?.setData(pv.lines)
       m.getSource(SWITCH_FILL_SOURCE)?.setData(pv.fill)
     }
@@ -182,7 +164,7 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
       m.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
       return
     }
-    const pv = previewFeatures(g)
+    const pv = buildCrossingPreview(g)
     m.getSource(SWITCH_LINES_SOURCE)?.setData(pv.lines)
     m.getSource(SWITCH_FILL_SOURCE)?.setData(pv.fill)
   }, [phase, g, map])

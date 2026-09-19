@@ -2,10 +2,8 @@ import { useState } from 'react'
 import ConnectStraightSwitchForm from './ConnectStraightSwitchForm'
 import SCurveForm from './SCurveForm'
 import SwitchOnTrackForm from './SwitchOnTrackForm'
-import CrossingForm from './CrossingForm'
 import {
   BackIcon, SwitchStraightIcon, SwitchCurvedIcon, SwitchOnTrackIcon, SwitchConnectionIcon,
-  CrossingIcon, CrossingSwitchIcon,
 } from '../../../components/icons'
 
 function BackButton({ t, onBack }) {
@@ -53,24 +51,6 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     </>
   )
 
-  if (page === 'crossing') return (
-    <>
-      <BackButton t={t} onBack={back} />
-      <h2>{t('crossing_title')}</h2>
-      <CrossingForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
-        onCommitted={() => setPage('menu')} initialKind="crossing" />
-    </>
-  )
-
-  if (page === 'crossing_switch') return (
-    <>
-      <BackButton t={t} onBack={back} />
-      <h2>{t('crossing_title')}</h2>
-      <CrossingForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
-        onCommitted={() => setPage('menu')} initialKind="single_slip" />
-    </>
-  )
-
   return (
     <>
       <h2>{t('connect_switch')}</h2>
@@ -90,14 +70,6 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
         <button className="create-element-btn" onClick={() => setPage('scurve')}>
           <SwitchConnectionIcon />
           {t('scurve_title')}
-        </button>
-        <button className="create-element-btn" onClick={() => setPage('crossing')}>
-          <CrossingIcon />
-          {t('crossing')}
-        </button>
-        <button className="create-element-btn" onClick={() => setPage('crossing_switch')}>
-          <CrossingSwitchIcon />
-          {t('crossing_switch')}
         </button>
       </div>
     </>

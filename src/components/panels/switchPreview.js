@@ -1,4 +1,4 @@
-import { ZOOM_LINE_WIDTH } from '../../../utils/mapConstants'
+import { ZOOM_LINE_WIDTH } from '../../utils/mapConstants'
 
 export const SWITCH_LINES_SOURCE = 'switch-preview-lines-source'
 export const SWITCH_LINES_LAYER  = 'switch-preview-lines-layer'
@@ -26,6 +26,24 @@ export function buildFillGeoJSON({ fillCoords }) {
       properties: {},
       geometry: { type: 'Polygon', coordinates: [fillCoords] },
     }],
+  }
+}
+
+// The same for a crossing kind's geometry: the legs and slip curves as lines,
+// the body as the pair of wedges between them — the same rings the commit
+// stores, so a MultiPolygon.
+export function buildCrossingPreview(g) {
+  const lines = [g.mainCoords, g.crossCoords]
+  if (g.slip1Coords) lines.push(g.slip1Coords)
+  if (g.slip2Coords) lines.push(g.slip2Coords)
+  return {
+    lines: { type: 'FeatureCollection', features: lines.map(coordinates => ({
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
+    })) },
+    fill: { type: 'FeatureCollection', features: [{
+      type: 'Feature', properties: {},
+      geometry: { type: 'MultiPolygon', coordinates: g.fillCoords.map(r => [r]) },
+    }] },
   }
 }
 

@@ -11,7 +11,7 @@ import useDerivedField from '../../../hooks/useDerivedField'
 import useTrackHover from '../../../hooks/useTrackHover'
 import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
-import SwitchNumberField from './SwitchNumberField'
+import SwitchNumberField from '../SwitchNumberField'
 import SwitchCantField from './SwitchCantField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
@@ -27,7 +27,7 @@ import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
 import {
   SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
   EMPTY_FC, buildLinesGeoJSON, buildFillGeoJSON,
-} from './switchPreview'
+} from '../switchPreview'
 
 /**
  * Radius an element ends on, in its running direction — the curvature a switch

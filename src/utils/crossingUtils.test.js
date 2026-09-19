@@ -4,11 +4,17 @@ import {
   crossingRoutesFromTracks, rebuildSwitchSymbol, switchTypeByLabel,
 } from './switchUtils'
 import { newSwitchFields, switchElementMark, portsOf } from './switchModel'
-import { planSwitchDeletion, keptRoutes } from './switchDelete'
+import { planSwitchDeletion, keptRoutes, switchParts } from './switchDelete'
 import { switchDesignation, switchNumberOf } from './identifierUtils'
 import { switchesToPorts } from './alignmentCodec'
-import { wgs84ToUTM } from './coordinateUtils'
-import { computeStraightValuesUtm } from './elementUtils'
+import { wgs84ToUTM, utmToWgs84 } from './coordinateUtils'
+import {
+  computeStraightValuesUtm, computeCurvedValuesUtm, endPointStraightUtm, endPointCurvedUtm,
+} from './elementUtils'
+import { recalcAbsLengths, rebuildCoords } from '../storage'
+import { placeSwitchOnTrack } from './switchPlacement'
+import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from './trackSplitUtils'
+import { expectValidTrack } from '../test/chainInvariants'
 
 /**
  * AP 3.2 — crossings and crossing switches. The dimensions are the ones the
@@ -418,5 +424,192 @@ describe('the OSRD export of a crossing', () => {
     const [out] = switchesToPorts([sw], {})
     expect(out.switch_type).toBe('crossing')
     expect(out.ports).toEqual({})
+  })
+})
+
+// ── AP 3.3 — the crossing laid into a track ─────────────────────────────────
+
+/**
+ * The commit CrossingOnTrackForm makes, built the way the form builds it: the
+ * host track parted at the crossing point, its halves carrying the main legs
+ * as carved, marked elements, the cross route as two tracks of its own — the
+ * same port shape the end-anchored crossing commits, so everything that reads
+ * a crossing back (the symbol, the deletion, the OSRD codec) reads this one the
+ * same way.
+ */
+const HOST_START   = { easting: 480000, northing: 5620000, zone: EPSG }
+const HOST_BEARING = 30
+
+const toWgs = (u) => utmToWgs84(u.easting, u.northing, u.zone)
+
+function straightElement(startUtm, bearing, length) {
+  const endUtm = endPointStraightUtm(startUtm, bearing, length)
+  const v = computeStraightValuesUtm(startUtm, endUtm)
+  return {
+    elementType: 0,
+    startNode: v.startNode, endNode: v.endNode,
+    bearing: v.bearing, length: v.length, absLength: v.length,
+    geometry: { type: 'LineString', coordinates: [toWgs(startUtm), toWgs(endUtm)] },
+  }
+}
+
+function arcElement(startUtm, bearing, signedR, length) {
+  const endUtm = endPointCurvedUtm(startUtm, bearing, length, signedR)
+  const v = computeCurvedValuesUtm(startUtm, endUtm, signedR)
+  return {
+    elementType: 1,
+    startNode: v.startNode, endNode: v.endNode,
+    bearing: v.bearing, endBearing: v.endBearing,
+    length: v.length, absLength: v.length, radius: signedR,
+    geometry: { type: 'LineString', coordinates: [toWgs(startUtm), toWgs(endUtm)] },
+  }
+}
+
+const trackOf = (id, elements) => {
+  const els = recalcAbsLengths(elements)
+  return { id, epsg: EPSG, elements: els, coordinates: rebuildCoords(els) }
+}
+
+/** A host line of two 60 m straights — the body spans their joint or not. */
+function hostTrack() {
+  const mid = endPointStraightUtm(HOST_START, HOST_BEARING, 60)
+  return trackOf('host', [
+    straightElement(HOST_START, HOST_BEARING, 60),
+    straightElement(mid, HOST_BEARING, 60),
+  ])
+}
+
+/**
+ * The form's commit as a function: placement both ways, the part at the point,
+ * the carved legs, the cross route — `crossBeyond` appends ordinary track past
+ * the cross legs' ports, the line a deletion decides by.
+ */
+function commitCrossingOnTrack(host, station, type, crossAngleDeg, crossBeyond = 0) {
+  const t = crossingEndDistance(type)
+  const ahead = placeSwitchOnTrack(host, station, false, t)
+  if (ahead.error) return { error: ahead.error }
+  const back = placeSwitchOnTrack(host, station, true, t)
+  if (back.error) return { error: back.error }
+  const straight = [...ahead.pieces, ...back.pieces].every(p => p.r1 == null && p.r2 == null)
+  if (!straight) return { error: 'crossing_on_track_straight_only' }
+
+  const g = computeCrossingGeometryUtm(ahead.toeUtm, ahead.bearing, type, crossAngleDeg)
+  const identity = { ...newSwitchFields(type.kind), name: 'crossing.001', label: type.label }
+  const mainMark = switchElementMark(identity, 'main')
+  const split = ahead.joint != null
+    ? splitTrackAtJoint(host, ahead.joint, ahead.bearing, new Set())
+    : splitElementAt(host, ahead.elIdx, ahead.toeUtm, ahead.bearing, new Set())
+  const carvedAhead  = carveSwitchRoute(split.ahead, split.aheadEndpoint, g.portC_utm, mainMark, t)
+  const carvedBehind = carveSwitchRoute(split.behind, split.behindEndpoint, g.portA_utm, mainMark, t)
+  if (!carvedAhead || !carvedBehind) return { error: 'carve' }
+
+  const marked = (el, route) => ({ ...el, ...switchElementMark(identity, route) })
+  const legBEls = [marked(straightElement(g.portB_utm, (g.crossBearing + 180) % 360, t), 'cross')]
+  const legDEls = [marked(straightElement(g.centreUtm, g.crossBearing, t), 'cross')]
+  if (crossBeyond > 0) {
+    legBEls.unshift(straightElement(
+      endPointStraightUtm(g.portB_utm, (g.crossBearing + 180) % 360, crossBeyond),
+      g.crossBearing, crossBeyond))
+    legDEls.push(straightElement(g.portD_utm, g.crossBearing, crossBeyond))
+  }
+  const legB = trackOf('b', legBEls)
+  const legD = trackOf('d', legDEls)
+
+  const sw = {
+    ...identity, number: 1,
+    portA_trackId: carvedBehind.id, portA_endpoint: split.behindEndpoint,
+    portB_trackId: 'b', portB_endpoint: 'END',
+    portC_trackId: carvedAhead.id, portC_endpoint: split.aheadEndpoint,
+    portD_trackId: 'd', portD_endpoint: 'BEGIN',
+    fillCoords: g.fillCoords,
+  }
+  const tracks = [
+    ...split.tracks.map(tr => (
+      tr.id === carvedAhead.id ? carvedAhead : tr.id === carvedBehind.id ? carvedBehind : tr)),
+    legB, legD,
+  ]
+  return { sw, tracks, g }
+}
+
+describe('the crossing laid into a track (AP 3.3)', () => {
+  const alpha = crossingAngle(kr9) * 180 / Math.PI
+
+  it('places both halves and refuses what does not fit', () => {
+    const host = hostTrack()
+    expect(commitCrossingOnTrack(host, 50, kr9, alpha).error).toBeUndefined()
+    expect(commitCrossingOnTrack(host, 60, kr9, alpha).error).toBeUndefined()
+    // The body needs its end distance on each side of the point.
+    expect(commitCrossingOnTrack(host, 10, kr9, alpha).error).toBe('switch_on_track_no_room')
+    expect(commitCrossingOnTrack(host, 110, kr9, alpha).error).toBe('switch_on_track_no_room')
+    // Curved track under the body: the placement walks it — the straight-only
+    // guard is what refuses it, not the placement.
+    const arcHost = trackOf('arc', [arcElement(HOST_START, HOST_BEARING, 500, 120)])
+    const place = placeSwitchOnTrack(arcHost, 50, false, crossingEndDistance(kr9))
+    expect(place.error).toBeUndefined()
+    expect(place.pieces.some(p => p.r1 != null)).toBe(true)
+    expect(commitCrossingOnTrack(arcHost, 50, kr9, alpha).error).toBe('crossing_on_track_straight_only')
+  })
+
+  it('reads back as a crossing: point, bearings, legs — on the parted halves', () => {
+    const { sw, tracks } = commitCrossingOnTrack(hostTrack(), 50, kr9, alpha)
+    for (const tr of tracks) expectValidTrack(tr)
+    // Every port carries the crossing's own elements, its leg the end
+    // distance long.
+    const { ports, byPort } = switchParts(sw, tracks)
+    for (const p of ports) {
+      expect(p.mine.length, `port ${p.port}`).toBeGreaterThan(0)
+      expect(p.mine.reduce((s, el) => s + el.length, 0), `leg at port ${p.port}`)
+        .toBeCloseTo(crossingEndDistance(kr9), 3)
+    }
+    const byId = Object.fromEntries(tracks.map(tr => [tr.id, tr]))
+    const routes = crossingRoutesFromTracks(sw, byId)
+    expect(routes).not.toBeNull()
+    // The crossing point is where the click put it: station 50 along the host.
+    const expected = endPointStraightUtm(HOST_START, HOST_BEARING, 50)
+    expect(routes.centre.easting).toBeCloseTo(expected.easting, 6)
+    expect(routes.centre.northing).toBeCloseTo(expected.northing, 6)
+    expect(routes.mainBearing).toBeCloseTo(HOST_BEARING, 6)
+    expect(routes.crossBearing).toBeCloseTo((HOST_BEARING + alpha) % 360, 6)
+    expect(routes.main.reduce((s, r) => s + r.length, 0)).toBeCloseTo(crossingEndDistance(kr9), 3)
+    expect(routes.cross.reduce((s, r) => s + r.length, 0)).toBeCloseTo(crossingEndDistance(kr9), 3)
+    // The symbol rebuilds from the tracks alone.
+    expect(rebuildSwitchSymbol(sw, byId).fillCoords).toHaveLength(2)
+    expect(byPort.A.trackId).not.toBe(byPort.C.trackId)
+  })
+
+  it('places on a joint between two elements the same way', () => {
+    const { sw, tracks } = commitCrossingOnTrack(hostTrack(), 60, kr9, alpha)
+    const byId = Object.fromEntries(tracks.map(tr => [tr.id, tr]))
+    const routes = crossingRoutesFromTracks(sw, byId)
+    expect(routes).not.toBeNull()
+    const expected = endPointStraightUtm(HOST_START, HOST_BEARING, 60)
+    expect(routes.centre.easting).toBeCloseTo(expected.easting, 6)
+    expect(routes.centre.northing).toBeCloseTo(expected.northing, 6)
+  })
+
+  it('deleting it: both routes carry a line — both stay, unmarked', () => {
+    const { sw, tracks } = commitCrossingOnTrack(hostTrack(), 50, kr9, alpha, 20)
+    const plan = planSwitchDeletion(sw, tracks)
+    expect(plan.reason).toBe('crossing_both')
+    expect(plan.removeTrackIds).toEqual([])
+    expect(plan.removedElements).toBe(0)
+    expect(plan.updateTracks.map(tr => tr.id).sort())
+      .toEqual([sw.portA_trackId, 'b', sw.portC_trackId, 'd'].sort())
+    for (const tr of plan.updateTracks) {
+      expect(tr.elements.some(el => el.switchBranch)).toBe(false)
+    }
+  })
+
+  it('deleting it: bare cross legs go, the main line runs on', () => {
+    const { sw, tracks } = commitCrossingOnTrack(hostTrack(), 50, kr9, alpha)
+    const plan = planSwitchDeletion(sw, tracks)
+    expect(plan.reason).toBe('crossing_one')
+    expect(plan.removeTrackIds.sort()).toEqual(['b', 'd'].sort())
+    // The main legs stay as ordinary track — the line runs on through the point.
+    expect(plan.updateTracks.map(tr => tr.id).sort())
+      .toEqual([sw.portA_trackId, sw.portC_trackId].sort())
+    for (const tr of plan.updateTracks) {
+      expect(tr.elements.some(el => el.switchBranch)).toBe(false)
+    }
   })
 })

@@ -1,7 +1,7 @@
-import { nodeUtm, reverseElement, resolveEndBearing } from './elementUtils'
-import { transitionCantEnds } from './clothoidUtils'
+import { nodeUtm, reverseElement, resolveEndBearing, projectOnArcUtm } from './elementUtils'
+import { transitionCantEnds, projectOnTransitionUtm } from './clothoidUtils'
 import { elementAtStation, pointAtStationUtm } from './heightUtils'
-import { switchElementRoute, switchRouteSlice, switchRouteBearingAt } from './switchUtils'
+import { switchElementRoute, switchRouteSlice, switchRouteBearingAt, asRadius } from './switchUtils'
 
 /**
  * A toe this close to an element's end sits on the joint, and a route that ends
@@ -25,6 +25,22 @@ function refusal(el) {
   if (el.elementType !== 2 && el.radius == null && el.endBearing != null
       && angleBetween(el.endBearing, el.bearing) > KINK_TOL) return 'switch_on_track_kink'
   return null
+}
+
+/**
+ * Station along the whole track of a point clicked beside its element `elIdx` —
+ * the position a click states for everything that is placed onto a track: a
+ * turnout's toe, a crossing's crossing point.
+ */
+export function clickStation(track, elIdx, clickUtm) {
+  const el = track.elements[elIdx]
+  const startUtm = nodeUtm(el.startNode, el.geometry.coordinates[0], track.epsg)
+  const { along } = el.elementType === 2
+    ? projectOnTransitionUtm(startUtm, clickUtm, el.bearing, el.length, el.r1 ?? null, el.r2 ?? null,
+      el.transitionType === 'bloss' ? 'bloss' : 'clothoid')
+    : projectOnArcUtm(startUtm, clickUtm, el.bearing, asRadius(el.radius))
+  const before = track.elements.slice(0, elIdx).reduce((sum, e) => sum + (e.length ?? 0), 0)
+  return before + Math.min(el.length, Math.max(0, along))
 }
 
 /**
