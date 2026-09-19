@@ -219,22 +219,41 @@ export const OSRD_SWITCH_TYPES = {
 export const kindForOsrdType = (type) =>
   Object.keys(OSRD_SWITCH_TYPES).find(kind => OSRD_SWITCH_TYPES[kind] === type) ?? null
 
+/**
+ * What OSRD calls each of a kind's ports. Its node types name their own: a
+ * point switch's A, B1, B2 are the app's, but the crossing kinds' four ends
+ * are A1/A2 on one side and B1/B2 on the other — the app's A and C are the
+ * main route's ends (OSRD's line 1, A1–B1), its B and D the cross route's
+ * (line 2, A2–B2).
+ */
+const OSRD_PORT_NAMES = {
+  turnout:  { A: 'A', B1: 'B1', B2: 'B2' },
+  crossing: { A: 'A1', B: 'A2', C: 'B1', D: 'B2' },
+}
+OSRD_PORT_NAMES.single_slip = OSRD_PORT_NAMES.crossing
+OSRD_PORT_NAMES.double_slip = OSRD_PORT_NAMES.crossing
+
 export function switchesToPorts(switches, trackMap, foreign = []) {
   const out = switches.map((sw, i) => {
+    const names = OSRD_PORT_NAMES[sw.kind] ?? OSRD_PORT_NAMES.turnout
     const ports = {}
     for (const { port, trackKey, endKey } of portsOf(sw)) {
       const trackId = sw[trackKey], endpoint = sw[endKey]
-      if (trackId && endpoint && trackMap[trackId]) ports[port] = { track: trackId, endpoint }
+      if (trackId && endpoint && trackMap[trackId]) ports[names[port]] = { track: trackId, endpoint }
     }
 
     return {
-      id: sw.name ?? `switch_${i}`,
-      switch_type: OSRD_SWITCH_TYPES[sw.kind] ?? OSRD_SWITCH_TYPES.turnout,
-      group_change_delay: 0,
+      id: sw.switchId ?? sw.name ?? `switch_${i}`,
       ports,
       extensions: sw.name ? { sncf: { label: sw.name } } : null,
+      switch_type: OSRD_SWITCH_TYPES[sw.kind] ?? OSRD_SWITCH_TYPES.turnout,
+      group_change_delay: 0,
     }
   })
-  const generatedIds = new Set(out.map(s => s.id))
-  return [...out, ...foreign.filter(s => !generatedIds.has(s.id))]
+  // A switch an import brought along is the same physical one as the record it
+  // became — told apart by its id, or by the label that record took its name
+  // from, so it is not written out twice.
+  const generated = new Set(out.flatMap(s => [s.id, s.extensions?.sncf?.label].filter(Boolean)))
+  return [...out, ...foreign.filter(s =>
+    !generated.has(s.id) && !generated.has(s.extensions?.sncf?.label))]
 }

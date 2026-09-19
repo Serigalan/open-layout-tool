@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  addElementToTrack, loadTracks, saveTrack, saveSwitch, generateId,
+  addElementToTrack, loadTracks, saveTrack, saveSwitch, generateId, withUndo,
 } from '../../../storage'
 import { elementPath } from '../../../utils/lineLookup'
 import { computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, nodeUtm } from '../../../utils/elementUtils'
@@ -274,48 +274,52 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
       elements:    [curvedEl],
     }
 
-    let portA_trackId, portB2_trackId
+    // One undo step for the whole switch: appended or new straight, branch
+    // track and record together.
+    withUndo(() => {
+      let portA_trackId, portB2_trackId
 
-    if (trailing) {
-      addElementToTrack(project.id, selectedTrackIdRef.current, straightEl)
-      portA_trackId  = null
-      portB2_trackId = selectedTrackIdRef.current
-    } else {
-      const straightId    = generateId()
-      const straightTrack = {
-        id:          straightId,
-        name:        mainName,
-        owner:       mainFields.owner,
-        ...buildTypeFields(mainFields),
-        epsg:     sv.epsg,
-        coordinates: straightCoords,
-        elements:    [straightEl],
+      if (trailing) {
+        addElementToTrack(project.id, selectedTrackIdRef.current, straightEl)
+        portA_trackId  = null
+        portB2_trackId = selectedTrackIdRef.current
+      } else {
+        const straightId    = generateId()
+        const straightTrack = {
+          id:          straightId,
+          name:        mainName,
+          owner:       mainFields.owner,
+          ...buildTypeFields(mainFields),
+          epsg:     sv.epsg,
+          coordinates: straightCoords,
+          elements:    [straightEl],
+        }
+        saveTrack(project.id, straightTrack)
+        portA_trackId  = sourceTrack.id
+        portB2_trackId = straightId
       }
-      saveTrack(project.id, straightTrack)
-      portA_trackId  = sourceTrack.id
-      portB2_trackId = straightId
-    }
 
-    saveTrack(project.id, curvedTrack)
+      saveTrack(project.id, curvedTrack)
 
-    saveSwitch(project.id, {
-      ...identity,
-      number:         switchNo.number,
-      trailing,
-      speed,
-      // Node position: the toe (facing) resp. the far end of the appended
-      // straight (trailing). The source track ends there; both new branch
-      // tracks start there.
-      portA_trackId,
-      portA_endpoint:  trailing ? null : 'END',
-      portB1_trackId: curvedId,
-      portB1_endpoint: 'BEGIN',
-      portB2_trackId,
-      portB2_endpoint: trailing ? 'END' : 'BEGIN',
-      fillCoords,
-      labelCoords,
-      bauform: geom.bauform,
-      lcsCoords,
+      saveSwitch(project.id, {
+        ...identity,
+        number:         switchNo.number,
+        trailing,
+        speed,
+        // Node position: the toe (facing) resp. the far end of the appended
+        // straight (trailing). The source track ends there; both new branch
+        // tracks start there.
+        portA_trackId,
+        portA_endpoint:  trailing ? null : 'END',
+        portB1_trackId: curvedId,
+        portB1_endpoint: 'BEGIN',
+        portB2_trackId,
+        portB2_endpoint: trailing ? 'END' : 'BEGIN',
+        fillCoords,
+        labelCoords,
+        bauform: geom.bauform,
+        lcsCoords,
+      })
     })
 
     resetName()

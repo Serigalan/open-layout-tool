@@ -35,11 +35,20 @@ export function buildTypeFields(fields) {
 
 // ── Switch numbering ────────────────────────────────────────────────────────
 
-/** Designations are composed from the number: 8 → `switch.008`. */
-const SWITCH_PREFIX = 'switch'
+/**
+ * Designations are composed from the number: 8 → `switch.008`. A crossing is
+ * no switch — its kinds carry the crossing prefix, so the plan and the OSRD
+ * label name it for what it is.
+ */
+const SWITCH_PREFIX   = 'switch'
+const CROSSING_PREFIX = 'crossing'
 
-export const switchDesignation = (number) =>
-  `${SWITCH_PREFIX}.${String(number).padStart(3, '0')}`
+/** The prefix a kind's designation carries. */
+export const switchPrefix = (kind) =>
+  (kind && kind !== 'turnout' ? CROSSING_PREFIX : SWITCH_PREFIX)
+
+export const switchDesignation = (number, kind = null) =>
+  `${switchPrefix(kind)}.${String(number).padStart(3, '0')}`
 
 /**
  * The number a switch carries. Records written before numbering existed have
@@ -47,7 +56,7 @@ export const switchDesignation = (number) =>
  */
 export function switchNumberOf(sw) {
   if (Number.isFinite(sw?.number)) return sw.number
-  const match = /^switch\.(\d+)$/.exec(sw?.name ?? '')
+  const match = /^(?:switch|crossing)\.(\d+)$/.exec(sw?.name ?? '')
   return match ? Number(match[1]) : null
 }
 

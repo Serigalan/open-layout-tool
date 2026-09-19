@@ -65,23 +65,28 @@ const portElementIndex = (els, endpoint) => (endpoint === 'END' ? els.length - 1
 
 /**
  * Rebuild one crossing-kind record from an OSRD switch. The four ports name
- * the four legs; the legs are the tracks' own elements, so the crossing point
- * and both bearings are read off them, and the form is matched by the angle
- * between the legs and — for a slip — the radius of the connecting curve at
- * one of the slip ports. Returns null when the legs or the form do not resolve.
+ * the four legs, in the OSRD node types' own terms: A1/A2 on one side and
+ * B1/B2 on the other — the app's A and C are the main route's ends (OSRD's
+ * line 1, A1–B1), its B and D the cross route's (line 2, A2–B2). The legs are
+ * the tracks' own elements, so the crossing point and both bearings are read
+ * off them, and the form is matched by the angle between the legs and — for a
+ * slip — the radius of the connecting curve at one of the slip ports.
+ * Returns null when the legs or the form do not resolve.
  */
 function rebuildCrossing(sw, trackById) {
   const ports = sw?.ports ?? {}
   const kind  = kindForOsrdType(sw.switch_type)
+  const P     = { A: 'A1', B: 'A2', C: 'B1', D: 'B2' }
   const legAt = (port) => {
-    const track = trackById[ports[port]?.track]
+    const at    = ports[P[port]]
+    const track = trackById[at?.track]
     const els   = track?.elements ?? []
     if (!els.length) return null
-    const idx = portElementIndex(els, ports[port].endpoint)
+    const idx = portElementIndex(els, at.endpoint)
     const el  = els[idx]
     if (!el || el.length <= 0 || !el.startNode || !el.endNode) return null
     // Oriented away from the crossing point, whichever end it sits at.
-    const oriented = ports[port].endpoint === 'END' ? reverseElement(el) : el
+    const oriented = at.endpoint === 'END' ? reverseElement(el) : el
     return { track, el: oriented }
   }
   const a = legAt('A'), b = legAt('B'), c = legAt('C'), d = legAt('D')
@@ -102,7 +107,7 @@ function rebuildCrossing(sw, trackById) {
   // The form: the crossing angle as a slope, and for a slip the curve radius.
   const legLen = a.el.length
   const slipR = kind === 'crossing' ? null
-    : Math.abs(trackById[ports.A?.track]?.elements?.[0]?.radius ?? 0) || null
+    : Math.abs(a.el.radius ?? 0) || null
   const type = matchCrossingType(absAngle, legLen, slipR, kind)
   if (!type) return null
 
@@ -110,8 +115,9 @@ function rebuildCrossing(sw, trackById) {
   const name = sw.extensions?.sncf?.label ?? sw.id
   const identity = { ...newSwitchFields(kind), name, label: type.label }
   const mark = (port) => {
-    const track = trackById[ports[port].track]
-    const idx = portElementIndex(track.elements, ports[port].endpoint)
+    const at    = ports[P[port]]
+    const track = trackById[at.track]
+    const idx = portElementIndex(track.elements, at.endpoint)
     Object.assign(track.elements[idx], switchElementMark(identity,
       port === 'A' || port === 'C' ? 'main' : 'cross'))
   }
@@ -119,10 +125,10 @@ function rebuildCrossing(sw, trackById) {
 
   return {
     ...identity,
-    portA_trackId: ports.A.track,  portA_endpoint: ports.A.endpoint,
-    portB_trackId: ports.B.track,  portB_endpoint: ports.B.endpoint,
-    portC_trackId: ports.C.track,  portC_endpoint: ports.C.endpoint,
-    portD_trackId: ports.D.track,  portD_endpoint: ports.D.endpoint,
+    portA_trackId: ports.A1.track,  portA_endpoint: ports.A1.endpoint,
+    portB_trackId: ports.A2.track,  portB_endpoint: ports.A2.endpoint,
+    portC_trackId: ports.B1.track,  portC_endpoint: ports.B1.endpoint,
+    portD_trackId: ports.B2.track,  portD_endpoint: ports.B2.endpoint,
     fillCoords: g.fillCoords,
   }
 }

@@ -244,13 +244,15 @@ export function switchSymbolUtm(sw, trackById) {
       mid: [mid.easting, mid.northing],
       midBearing: mainBearing,
       branchTurn: 0,
-      // The diamond the four ports span, closed — the legs are its diagonals.
+      // The two wedges between the legs at the acute crossing angle — each a
+      // triangle from the crossing point out to the two ends on a side, the
+      // same pair of rings the map's fill draws. The obtuse wedges carry no
+      // body.
       fill: [
-        [aUtm.easting, aUtm.northing],
-        [dUtm.easting, dUtm.northing],
-        [cUtm.easting, cUtm.northing],
-        [bUtm.easting, bUtm.northing],
-        [aUtm.easting, aUtm.northing],
+        [[aUtm.easting, aUtm.northing], [bUtm.easting, bUtm.northing],
+          [centre.easting, centre.northing], [aUtm.easting, aUtm.northing]],
+        [[cUtm.easting, cUtm.northing], [dUtm.easting, dUtm.northing],
+          [centre.easting, centre.northing], [cUtm.easting, cUtm.northing]],
       ],
       lcs: null,
       label: sw.label ?? null,

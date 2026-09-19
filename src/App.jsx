@@ -148,7 +148,11 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
       // DeleteSwitchForm) — it is the one part of the map that is the switch
       // itself rather than one of its routes.
       properties: { switchId: sw.switchId ?? '' },
-      geometry: { type: 'Polygon', coordinates: [sw.fillCoords] },
+      // A crossing's body is two wedges, a pair of rings where a turnout's
+      // body is one.
+      geometry: Array.isArray(sw.fillCoords[0][0])
+        ? { type: 'MultiPolygon', coordinates: sw.fillCoords.map(r => [r]) }
+        : { type: 'Polygon', coordinates: [sw.fillCoords] },
     }))
   const switchFillGeoJSON = { type: 'FeatureCollection', features: switchFillFeatures }
 

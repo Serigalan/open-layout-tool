@@ -905,18 +905,17 @@ export function rebuildSwitchSymbol(sw, trackById) {
     const bUtm = utmEndStraight(centre, (crossBearing + 180) % 360, t)
     const cUtm = switchChainPointUtm(centre, mainBearing, main)
     const dUtm = switchChainPointUtm(centre, crossBearing, cross)
-    // The body is the diamond the four ports span — A over D to C and back
-    // over B, closed — the same ring the commit stores (the legs are its
-    // diagonals, not its sides).
-    const ring = [
-      [aUtm.easting, aUtm.northing],
-      [dUtm.easting, dUtm.northing],
-      [cUtm.easting, cUtm.northing],
-      [bUtm.easting, bUtm.northing],
-      [aUtm.easting, aUtm.northing],
-    ]
-    const centreArea = ringCentroid(ring)
-    const centreUtm  = { easting: centreArea[0], northing: centreArea[1], zone: epsg }
+    // The body is the two wedges between the legs at the acute crossing angle —
+    // each a triangle from the crossing point out to the two ends on a side,
+    // closed by the chord that spans them — the same pair of rings the commit
+    // stores. The obtuse wedges carry no body.
+    const wedge = (p, q) => [
+      [p.easting, p.northing], [q.easting, q.northing],
+      [centre.easting, centre.northing], [p.easting, p.northing],
+    ].map(([e, n]) => utmToWgs84(e, n, epsg))
+    // The wedges lie mirror-symmetric about the crossing point, so their
+    // combined centre of area is the point itself.
+    const centreUtm = { easting: centre.easting, northing: centre.northing, zone: epsg }
     // The label stands beside the main leg, on the side facing away from the
     // body — the same rule a turnout's designation follows.
     const { perp } = projectOnChainUtm(centre, mainBearing, main, centreUtm)
@@ -924,9 +923,9 @@ export function rebuildSwitchSymbol(sw, trackById) {
     const offset = c - Math.sign(c || 1) * SWITCH_LABEL_OFFSET
     return {
       ...rest,
-      fillCoords: ring.map(([e, n]) => utmToWgs84(e, n, epsg)),
+      fillCoords: [wedge(aUtm, bUtm), wedge(cUtm, dUtm)],
       labelCoords: chainOffsetCoords(centre, mainBearing, main, offset, epsg),
-      bodyCentre: utmToWgs84(centreArea[0], centreArea[1], epsg),
+      bodyCentre: utmToWgs84(centre.easting, centre.northing, epsg),
     }
   }
   const routes = switchRoutesFromTracks(sw, trackById)
@@ -1137,7 +1136,8 @@ function slipRoute(type, side) {
  * Returns everything the dialogs, the symbol and the plan export read:
  *   mainCoords, crossCoords   the two legs as WGS84 polylines, A→C and B→D
  *   slip1Coords, slip2Coords  the connecting curves, or null where the kind has none
- *   fillCoords                the body: the diamond the two legs span
+ *   fillCoords                the body: the two wedges between the legs at the acute
+ *                              crossing angle, as a pair of closed rings
  *   portA..portD              the four ends as [easting, northing]
  *   portA_wgs..portD_wgs      the same as WGS84
  *   mainEndDistance           how far each end lies from the crossing point [m]
@@ -1187,10 +1187,17 @@ export function computeCrossingGeometryUtm(centreUtm, bearing, type, crossAngleD
     ? buildSlip(slip2Side, bUtm, bWgs, cUtm, cWgs, crossBearing)
     : null
 
-  // The body: the diamond the two legs span, from A over D to C and back over
-  // B — a closed ring of the four ports, the crossing kinds' counterpart of a
-  // turnout's switchFillRing.
-  const fillCoords = [aWgs, dWgs, cWgs, bWgs, aWgs]
+  // The body: the two wedges between the legs at the acute crossing angle —
+  // each a triangle from the crossing point out to the two ends on a side,
+  // closed by the chord that spans them (which is the form's own end distance,
+  // the 1.85 m the two ends on a side lie apart). The crossing kinds'
+  // counterpart of a turnout's switchFillRing, as a pair of rings; the obtuse
+  // wedges carry no body.
+  const oWgs = utmToWgs84(centreUtm.easting, centreUtm.northing, zone)
+  const fillCoords = [
+    [aWgs, bWgs, oWgs, aWgs],
+    [cWgs, dWgs, oWgs, cWgs],
+  ]
 
   return {
     kind: type.kind, label: type.label,

@@ -5,6 +5,8 @@ import {
 } from './switchUtils'
 import { newSwitchFields, switchElementMark, portsOf } from './switchModel'
 import { planSwitchDeletion, keptRoutes } from './switchDelete'
+import { switchDesignation, switchNumberOf } from './identifierUtils'
+import { switchesToPorts } from './alignmentCodec'
 import { wgs84ToUTM } from './coordinateUtils'
 import { computeStraightValuesUtm } from './elementUtils'
 
@@ -92,10 +94,22 @@ describe('computeCrossingGeometryUtm', () => {
     }
   })
 
-  it('body: the diamond the four ports span, closed', () => {
+  it('body: the two wedges between the legs at the acute angle, closed', () => {
     const g = computeCrossingGeometryUtm(CENTRE, BEARING, kr9, alphaOf(kr9))
-    expect(g.fillCoords).toHaveLength(5)
-    expect(g.fillCoords[0]).toEqual(g.fillCoords[4])
+    expect(g.fillCoords).toHaveLength(2)
+    for (const ring of g.fillCoords) {
+      expect(ring).toHaveLength(4)
+      expect(ring[0]).toEqual(ring[3])
+    }
+    // Each wedge runs from the crossing point out to the two ends on a side.
+    const wedges = g.fillCoords.map(r => r.map(c => wgs84ToUTM(c, EPSG)))
+    const at = (w, i) => [wedges[w][i].easting, wedges[w][i].northing]
+    expect(dist(at(0, 0), g.portA)).toBeLessThan(1e-6)
+    expect(dist(at(0, 1), g.portB)).toBeLessThan(1e-6)
+    expect(dist(at(0, 2), [CENTRE.easting, CENTRE.northing])).toBeLessThan(1e-6)
+    expect(dist(at(1, 0), g.portC)).toBeLessThan(1e-6)
+    expect(dist(at(1, 1), g.portD)).toBeLessThan(1e-6)
+    expect(dist(at(1, 2), [CENTRE.easting, CENTRE.northing])).toBeLessThan(1e-6)
   })
 
   it('a crossing has no slip routes; an EKW one; a DKW two', () => {
@@ -201,7 +215,7 @@ describe('crossingRoutesFromTracks — the legs read back', () => {
   })
 })
 
-describe('rebuildSwitchSymbol — the diamond comes back', () => {
+describe('rebuildSwitchSymbol — the wedges come back', () => {
   it('rebuilds the body from the legs alone', () => {
     const type = dkw190
     const g = computeCrossingGeometryUtm(CENTRE, BEARING, type, crossingAngle(type) * 180 / Math.PI)
@@ -226,13 +240,16 @@ describe('rebuildSwitchSymbol — the diamond comes back', () => {
       portD_trackId: 'd', portD_endpoint: 'BEGIN',
     }
     const rebuilt = rebuildSwitchSymbol(sw, { a: legA, b: legB, c: legC, d: legD })
-    expect(rebuilt.fillCoords).toHaveLength(5)
-    // The ring's corners are the four ports.
-    const corners = rebuilt.fillCoords.slice(0, 4).map(c => wgs84ToUTM(c, EPSG))
-    expect(dist([corners[0].easting, corners[0].northing], g.portA)).toBeLessThan(1e-6)
-    expect(dist([corners[1].easting, corners[1].northing], g.portD)).toBeLessThan(1e-6)
-    expect(dist([corners[2].easting, corners[2].northing], g.portC)).toBeLessThan(1e-6)
-    expect(dist([corners[3].easting, corners[3].northing], g.portB)).toBeLessThan(1e-6)
+    expect(rebuilt.fillCoords).toHaveLength(2)
+    // Each wedge runs from the crossing point out to the two ends on a side.
+    const wedges = rebuilt.fillCoords.map(r => r.map(c => wgs84ToUTM(c, EPSG)))
+    const at = (w, i) => [wedges[w][i].easting, wedges[w][i].northing]
+    expect(dist(at(0, 0), g.portA)).toBeLessThan(1e-6)
+    expect(dist(at(0, 1), g.portB)).toBeLessThan(1e-6)
+    expect(dist(at(0, 2), [g.centreUtm.easting, g.centreUtm.northing])).toBeLessThan(1e-6)
+    expect(dist(at(1, 0), g.portC)).toBeLessThan(1e-6)
+    expect(dist(at(1, 1), g.portD)).toBeLessThan(1e-6)
+    expect(dist(at(1, 2), [g.centreUtm.easting, g.centreUtm.northing])).toBeLessThan(1e-6)
     expect(rebuilt.labelCoords.length).toBeGreaterThanOrEqual(2)
     expect(rebuilt.bodyCentre).toBeDefined()
   })
@@ -355,5 +372,51 @@ describe('the record and its ports', () => {
     expect(portsOf(sw).map(p => p.port)).toEqual(['A', 'B', 'C', 'D'])
     expect(portsOf({ ...newSwitchFields('double_slip') }).map(p => p.port))
       .toEqual(['A', 'B', 'C', 'D'])
+  })
+})
+
+describe('the designation of a crossing', () => {
+  it('names a crossing for what it is, not a switch', () => {
+    expect(switchDesignation(8, 'crossing')).toBe('crossing.008')
+    expect(switchDesignation(8, 'single_slip')).toBe('crossing.008')
+    expect(switchDesignation(8, 'double_slip')).toBe('crossing.008')
+    expect(switchDesignation(8)).toBe('switch.008')
+    expect(switchDesignation(8, 'turnout')).toBe('switch.008')
+  })
+
+  it('reads the number back out of either prefix', () => {
+    expect(switchNumberOf({ name: 'crossing.008' })).toBe(8)
+    expect(switchNumberOf({ name: 'switch.008' })).toBe(8)
+    expect(switchNumberOf({ number: 8 })).toBe(8)
+  })
+})
+
+describe('the OSRD export of a crossing', () => {
+  it('names the ports and the type the OSRD node types do', () => {
+    const sw = {
+      ...newSwitchFields('double_slip'), name: 'crossing.001', number: 1,
+      portA_trackId: 'a', portA_endpoint: 'END',
+      portB_trackId: 'b', portB_endpoint: 'END',
+      portC_trackId: 'c', portC_endpoint: 'BEGIN',
+      portD_trackId: 'd', portD_endpoint: 'BEGIN',
+    }
+    const [out] = switchesToPorts([sw], { a: {}, b: {}, c: {}, d: {} })
+    expect(out.id).toBe(sw.switchId)
+    expect(out.ports).toEqual({
+      A1: { track: 'a', endpoint: 'END' },
+      A2: { track: 'b', endpoint: 'END' },
+      B1: { track: 'c', endpoint: 'BEGIN' },
+      B2: { track: 'd', endpoint: 'BEGIN' },
+    })
+    expect(out.switch_type).toBe('double_slip_switch')
+    expect(out.extensions).toEqual({ sncf: { label: 'crossing.001' } })
+    expect(out.group_change_delay).toBe(0)
+  })
+
+  it('a plain crossing is a crossing, not a switch type', () => {
+    const sw = { ...newSwitchFields('crossing'), name: 'crossing.002', number: 2 }
+    const [out] = switchesToPorts([sw], {})
+    expect(out.switch_type).toBe('crossing')
+    expect(out.ports).toEqual({})
   })
 })

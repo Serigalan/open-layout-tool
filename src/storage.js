@@ -32,6 +32,7 @@ let _images = new Map()      // projectId → data-URL string
 let _backend = 'idb'         // 'idb' | 'ls'
 const MAX_UNDO = 20
 let _undoStack = []
+let _undoDepth = 0
 
 // Write-behind state (idb backend)
 let _dirty = new Set()       // project ids to (re)write
@@ -93,8 +94,26 @@ function getCache() {
 }
 
 function pushUndo() {
+  if (_undoDepth > 0) return
   _undoStack.push(JSON.stringify(getCache()))
   if (_undoStack.length > MAX_UNDO) _undoStack.shift()
+}
+
+/**
+ * Run several storage mutations as one undo step: the snapshot is taken once,
+ * before the first mutation, and the mutations' own pushUndo calls pass while
+ * the batch runs. A form that commits a switch piece by piece (appended leg,
+ * branch tracks, the record) becomes one Ctrl+Z, the way the commitSwitch*
+ * functions already are.
+ */
+export function withUndo(fn) {
+  pushUndo()
+  _undoDepth++
+  try {
+    return fn()
+  } finally {
+    _undoDepth--
+  }
 }
 
 // Mark a project dirty (or, without id, everything incl. deletion re-sync) and

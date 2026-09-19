@@ -471,8 +471,13 @@ function trackItems(sheet, ctx) {
     for (const sw of switches) {
       const sym = switchSymbolUtm(sw, trackById)
       if (!sym) continue
-      items.push(path(mapPath(polyPath(sym.fill), transform),
-        { fill: STYLE.switchFill, stroke: null }))
+      // A crossing's body is two wedges, a pair of rings where a turnout's is
+      // one — each becomes its own path, so each is clipped to its sheet alone.
+      const fillRings = Array.isArray(sym.fill[0][0]) ? sym.fill : [sym.fill]
+      for (const ring of fillRings) {
+        items.push(path(mapPath(polyPath(ring), transform),
+          { fill: STYLE.switchFill, stroke: null }))
+      }
       if (sym.lcs) {
         items.push(path(mapPath([['M', ...sym.lcs[0]], ['L', ...sym.lcs[1]]], transform),
           { width: STYLE.switchLcs }))

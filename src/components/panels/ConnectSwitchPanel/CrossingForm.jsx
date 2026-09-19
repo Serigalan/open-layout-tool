@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  loadTracks, saveTrack, saveSwitch, addElementToTrack, generateId, recalcAbsLengths,
+  loadTracks, saveTrack, saveSwitch, addElementToTrack, generateId, recalcAbsLengths, withUndo,
 } from '../../../storage'
 import {
   computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, nodeUtm,
@@ -45,7 +45,7 @@ import {
  * ports.
  */
 
-/** The preview draws the same body the commit stores — legs, slips and ring. */
+/** The preview draws the same body the commit stores — legs, slips and wedges. */
 function previewFeatures(g) {
   const lines = [g.mainCoords, g.crossCoords]
   if (g.slip1Coords) lines.push(g.slip1Coords)
@@ -54,8 +54,11 @@ function previewFeatures(g) {
     lines: { type: 'FeatureCollection', features: lines.map(coordinates => ({
       type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
     })) },
+    // The body is the two wedges between the legs at the acute angle — a pair
+    // of rings, so a MultiPolygon.
     fill: { type: 'FeatureCollection', features: [{
-      type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [g.fillCoords] },
+      type: 'Feature', properties: {},
+      geometry: { type: 'MultiPolygon', coordinates: g.fillCoords.map(r => [r]) },
     }] },
   }
 }
@@ -70,12 +73,14 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
   const [crossSide, setCrossSide] = useState('right')  // which side the cross route leaves on
   const [formIdx, setFormIdx]     = useState(() =>
     Math.max(0, CROSSING_TYPES.findIndex(f => f.kind === initialKind)))
-  const switchNo = useSwitchNumber(project.id)
 
   const forms      = CROSSING_TYPES
   const form      = forms[formIdx]
   const alpha     = crossingAngle(form) * 180 / Math.PI
   const crossAngle = (crossSide === 'right' ? alpha : -alpha)
+
+  // The designation names a crossing, not a switch — it follows the form's kind.
+  const switchNo = useSwitchNumber(project.id, form.kind)
 
   useTrackHover(map, phase, 'select', project)
   usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
@@ -247,42 +252,46 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
 
     const centreWgs = utmToWgs84(g.centreUtm.easting, g.centreUtm.northing, anchor.epsg)
 
-    // The main route's first leg is the picked track's own now: appended as its
-    // last element, from port A to the crossing point, so the join at the port
-    // is the joint the track already had.
-    addElementToTrack(project.id, anchor.trackId,
-      leg(anchor.startUtm, g.centreUtm, 'main', [anchor.startWgs, centreWgs]))
+    // One undo step for the whole crossing: appended leg, the three new legs,
+    // the slip tracks and the record together.
+    withUndo(() => {
+      // The main route's first leg is the picked track's own now: appended as its
+      // last element, from port A to the crossing point, so the join at the port
+      // is the joint the track already had.
+      addElementToTrack(project.id, anchor.trackId,
+        leg(anchor.startUtm, g.centreUtm, 'main', [anchor.startWgs, centreWgs]))
 
-    const legC = tracksOf([leg(g.centreUtm, g.portC_utm, 'main', [centreWgs, g.portC_wgs])],
-      [centreWgs, g.portC_wgs], name)
-    const legB = tracksOf([leg(g.portB_utm, g.centreUtm, 'cross', [g.portB_wgs, centreWgs])],
-      [g.portB_wgs, centreWgs])
-    const legD = tracksOf([leg(g.centreUtm, g.portD_utm, 'cross', [centreWgs, g.portD_wgs])],
-      [centreWgs, g.portD_wgs])
-    const slipTracks = []
-    if (g.slip1Coords) {
-      slipTracks.push(tracksOf(
-        [slip(g.portA_utm, g.portD_utm, 'slip1', g.slip1Coords, g.slip1Route.r1)],
-        g.slip1Coords))
-    }
-    if (g.slip2Coords) {
-      slipTracks.push(tracksOf(
-        [slip(g.portB_utm, g.portC_utm, 'slip2', g.slip2Coords, g.slip2Route.r1)],
-        g.slip2Coords))
-    }
+      const legC = tracksOf([leg(g.centreUtm, g.portC_utm, 'main', [centreWgs, g.portC_wgs])],
+        [centreWgs, g.portC_wgs], name)
+      const legB = tracksOf([leg(g.portB_utm, g.centreUtm, 'cross', [g.portB_wgs, centreWgs])],
+        [g.portB_wgs, centreWgs])
+      const legD = tracksOf([leg(g.centreUtm, g.portD_utm, 'cross', [centreWgs, g.portD_wgs])],
+        [centreWgs, g.portD_wgs])
+      const slipTracks = []
+      if (g.slip1Coords) {
+        slipTracks.push(tracksOf(
+          [slip(g.portA_utm, g.portD_utm, 'slip1', g.slip1Coords, g.slip1Route.r1)],
+          g.slip1Coords))
+      }
+      if (g.slip2Coords) {
+        slipTracks.push(tracksOf(
+          [slip(g.portB_utm, g.portC_utm, 'slip2', g.slip2Coords, g.slip2Route.r1)],
+          g.slip2Coords))
+      }
 
-    for (const tr of [legC, legB, legD, ...slipTracks]) saveTrack(project.id, tr)
+      for (const tr of [legC, legB, legD, ...slipTracks]) saveTrack(project.id, tr)
 
-    saveSwitch(project.id, {
-      ...identity,
-      number: switchNo.number,
-      // Port A names the track the crossing is connected to: its end node is
-      // the port, and the appended leg is the switch's own element there.
-      portA_trackId: anchor.trackId, portA_endpoint: 'END',
-      portB_trackId: legB.id, portB_endpoint: 'END',
-      portC_trackId: legC.id, portC_endpoint: 'BEGIN',
-      portD_trackId: legD.id, portD_endpoint: 'BEGIN',
-      fillCoords: g.fillCoords,
+      saveSwitch(project.id, {
+        ...identity,
+        number: switchNo.number,
+        // Port A names the track the crossing is connected to: its end node is
+        // the port, and the appended leg is the switch's own element there.
+        portA_trackId: anchor.trackId, portA_endpoint: 'END',
+        portB_trackId: legB.id, portB_endpoint: 'END',
+        portC_trackId: legC.id, portC_endpoint: 'BEGIN',
+        portD_trackId: legD.id, portD_endpoint: 'BEGIN',
+        fillCoords: g.fillCoords,
+      })
     })
 
     resetName()
