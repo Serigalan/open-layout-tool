@@ -54,8 +54,11 @@ function reshapedHeights(track, elements) {
   return truncateHeights(track.heights, cutAt)
 }
 
-export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
-  const [page, setPage]           = useState('menu')    // 'menu' | 'track' | 'element'
+// `initialPage`/`onExit` are what the merged splice-and-optimize panel passes:
+// it opens the panel straight in a mode and takes the back button back to its
+// own menu. Standalone, the panel starts in its own menu as before.
+export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, initialPage = 'menu', onExit }) {
+  const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element'
   const mode = page
   const [phase, setPhase]         = useState('select')
   const [trackId, setTrackId]     = useState(null)
@@ -136,7 +139,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved }) {
   }
 
   const backButton = (
-    <button className="back-btn" onClick={() => { handleCancel(); setPage('menu') }}>
+    <button className="back-btn" onClick={() => { handleCancel(); onExit ? onExit() : setPage('menu') }}>
       <BackIcon />
       {t('btn_back')}
     </button>

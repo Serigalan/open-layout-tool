@@ -1,7 +1,7 @@
 import {
-  LayerIcon, PlaceIcon, ConnectElementIcon, ConnectSwitchIcon,
-  SpliceElementIcon, OptimizeTrackIcon, EditElementIcon, ElevationIcon,
-  PlatformIcon, DataExchangeIcon, PlanExportIcon, ExternalLinkIcon,
+  LayerIcon, PlaceIcon, ConnectSwitchIcon, SpliceElementIcon,
+  EditElementIcon, ElevationIcon, StationIcon, DataExchangeIcon,
+  PlanExportIcon, ExternalLinkIcon,
 } from '../icons'
 import { OSRD_URL } from '../../utils/osrdExport'
 
@@ -19,18 +19,17 @@ function withOsrdLink(text) {
   )
 }
 
-// One entry per panel reachable from the sidebar (in sidebar order).
-// `title` reuses the panel's existing label key; `desc` is the new explanation.
+// One entry per sidebar button, in sidebar order. A merged panel keeps one
+// entry — its icon and label — with the descriptions of both of its groups,
+// one paragraph each: `desc` is a key, or several keys for those panels.
 const PANELS = [
   { Icon: LayerIcon,          title: 'tooltip_layers', desc: 'info_layers' },
-  { Icon: PlaceIcon,          title: 'create_element', desc: 'info_places' },
-  { Icon: ConnectElementIcon, title: 'connect_element', desc: 'info_connect' },
+  { Icon: PlaceIcon,          title: 'create_element', desc: ['info_places', 'info_connect'] },
   { Icon: ConnectSwitchIcon,  title: 'connect_switch', desc: 'info_connect_switch' },
-  { Icon: SpliceElementIcon,  title: 'splice_element', desc: 'info_splice' },
-  { Icon: OptimizeTrackIcon,  title: 'optimize_track', desc: 'info_optimize' },
-  { Icon: EditElementIcon,    title: 'edit', desc: 'info_edit' },
+  { Icon: SpliceElementIcon,  title: 'splice_element', desc: ['info_splice', 'info_optimize'] },
   { Icon: ElevationIcon,      title: 'tooltip_elevation', desc: 'info_elevation' },
-  { Icon: PlatformIcon,       title: 'platform_title', desc: 'info_platform' },
+  { Icon: StationIcon,        title: 'platform_cross_section', desc: ['info_platform', 'info_cross_section'] },
+  { Icon: EditElementIcon,    title: 'edit', desc: 'info_edit' },
   { Icon: DataExchangeIcon,   title: 'data_exchange', desc: 'info_data' },
   { Icon: PlanExportIcon,     title: 'plan_title', desc: 'info_plan' },
 ]
@@ -46,7 +45,9 @@ export default function InfoPanel({ t }) {
             <div className="info-panel-icon"><panel.Icon /></div>
             <div className="info-panel-text">
               <h3 className="create-element-section">{t(panel.title)}</h3>
-              <p>{withOsrdLink(t(panel.desc))}</p>
+              {[].concat(panel.desc).map((key) => (
+                <p key={key}>{withOsrdLink(t(key))}</p>
+              ))}
             </div>
           </div>
         ))}

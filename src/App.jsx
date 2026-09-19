@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { translations } from './locales/i18n'
 import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
 import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_ICON_SIZE, GEOJSON_MAXZOOM } from './utils/mapConstants'
-import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectElementIcon, ConnectSwitchIcon, SpliceElementIcon, OptimizeTrackIcon, UndoIcon, PlanExportIcon, ElevationIcon, PlatformIcon, CrossSectionIcon } from './components/icons'
+import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
 import { loadTracks, loadSwitches, loadPlatforms, loadSettings, saveSettings, canUndo, undo } from './storage'
 import { resolveEndBearing, displayCoords } from './utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from './utils/mapRenderUtils'
@@ -15,19 +15,16 @@ import { ensureKmLines } from './utils/kmLineSource'
 import useKmLineHover from './hooks/useKmLineHover'
 import StartPage from './components/StartPage'
 import LayersPanel from './components/panels/LayersPanel'
-import CreateElementPanel from './components/panels/CreateElementPanel'
+import CreateConnectPanel from './components/panels/CreateConnectPanel'
+import ConnectSwitchPanel from './components/panels/ConnectSwitchPanel'
+import SpliceOptimizePanel from './components/panels/SpliceOptimizePanel'
+import ElevationPanel from './components/panels/ElevationPanel'
+import PlatformCrossSectionPanel from './components/panels/PlatformCrossSectionPanel'
+import EditElementPanel from './components/panels/EditElementPanel'
 import SettingsPanel from './components/panels/SettingsPanel'
 import InfoPanel from './components/panels/InfoPanel'
 import DataExchangePanel from './components/panels/DataExchangePanel'
-import EditElementPanel from './components/panels/EditElementPanel'
-import ConnectElementPanel from './components/panels/ConnectElementPanel'
-import ConnectSwitchPanel from './components/panels/ConnectSwitchPanel'
-import SpliceElementPanel from './components/panels/SpliceElementPanel'
-import OptimizeTrackPanel from './components/panels/OptimizeTrackPanel'
 import PlanExportPanel from './components/panels/PlanExportPanel'
-import ElevationPanel from './components/panels/ElevationPanel'
-import PlatformPanel from './components/panels/PlatformPanel'
-import CrossSectionPanel from './components/panels/CrossSectionPanel'
 import TrackTableOverlay from './components/TrackTableOverlay'
 import PlanPreviewOverlay from './components/PlanPreviewOverlay'
 import ElevationOverlay from './components/ElevationOverlay'
@@ -288,18 +285,15 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
 
 function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, onShowTrackTable, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
   if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
-  if (view === 'places')   return <CreateElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
+  if (view === 'places')   return <CreateConnectPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'settings') return <SettingsPanel language={language} onLanguageChange={onLanguageChange} color={color} onColorChange={onColorChange} t={t} />
   if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowTrackTable={onShowTrackTable} />
-  if (view === 'connect') return <ConnectElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'connect_switch') return <ConnectSwitchPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
-  if (view === 'splice') return <SpliceElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
-  if (view === 'optimize') return <OptimizeTrackPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
+  if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
+  if (view === 'elevation') return <ElevationPanel t={t} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
+  if (view === 'platform') return <PlatformCrossSectionPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
   if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onProjectImported={onProjectImported} onTrackSaved={onTrackSaved} />
   if (view === 'plan')     return <PlanExportPanel t={t} project={project} language={language} onShowPlanPreview={onShowPlanPreview} />
-  if (view === 'elevation') return <ElevationPanel t={t} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
-  if (view === 'platform') return <PlatformPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
-  if (view === 'cross_section') return <CrossSectionPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
   if (view === 'info')     return <InfoPanel t={t} />
   return null
 }
@@ -550,13 +544,6 @@ export default function App() {
             <PlaceIcon />
           </button>
           <button
-            className={`sidebar-icon-btn ${activeView === 'connect' ? 'active' : ''}`}
-            onClick={() => handleIconClick('connect')}
-            title={t('connect_element')}
-          >
-            <ConnectElementIcon />
-          </button>
-          <button
             className={`sidebar-icon-btn ${activeView === 'connect_switch' ? 'active' : ''}`}
             onClick={() => handleIconClick('connect_switch')}
             title={t('connect_switch')}
@@ -571,20 +558,6 @@ export default function App() {
             <SpliceElementIcon />
           </button>
           <button
-            className={`sidebar-icon-btn ${activeView === 'optimize' ? 'active' : ''}`}
-            onClick={() => handleIconClick('optimize')}
-            title={t('optimize_track')}
-          >
-            <OptimizeTrackIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'edit' ? 'active' : ''}`}
-            onClick={() => handleIconClick('edit')}
-            title={t('edit')}
-          >
-            <EditElementIcon />
-          </button>
-          <button
             className={`sidebar-icon-btn ${activeView === 'elevation' ? 'active' : ''}`}
             onClick={() => handleIconClick('elevation')}
             title={t('tooltip_elevation')}
@@ -594,16 +567,16 @@ export default function App() {
           <button
             className={`sidebar-icon-btn ${activeView === 'platform' ? 'active' : ''}`}
             onClick={() => handleIconClick('platform')}
-            title={t('platform_title')}
+            title={t('platform_cross_section')}
           >
-            <PlatformIcon />
+            <StationIcon />
           </button>
           <button
-            className={`sidebar-icon-btn ${activeView === 'cross_section' ? 'active' : ''}`}
-            onClick={() => handleIconClick('cross_section')}
-            title={t('cross_section_title')}
+            className={`sidebar-icon-btn ${activeView === 'edit' ? 'active' : ''}`}
+            onClick={() => handleIconClick('edit')}
+            title={t('edit')}
           >
-            <CrossSectionIcon />
+            <EditElementIcon />
           </button>
           <button
             className={`sidebar-icon-btn ${activeView === 'data' ? 'active' : ''}`}

@@ -247,6 +247,32 @@ export const CrossingOnTrackIcon = () => (
   </MenuIcon>
 )
 
+// Two elements joined by an arc — the splice tool's menu button, the menu
+// counterpart of the sidebar's SpliceElementIcon.
+export const SpliceJoinIcon = () => (
+  <MenuIcon>
+    <path d="M4 15 V11 A7 7 0 0 1 11 4 H15" />
+    <IconNode cx={4} cy={11} />
+    <IconNode cx={11} cy={4} />
+  </MenuIcon>
+)
+
+// A platform beside its track: the track above, the slab below.
+export const NewPlatformIcon = () => (
+  <MenuIcon>
+    <path d="M1 4 H15" />
+    <rect x="3" y="8" width="10" height="4" rx="1" fill="currentColor" stroke="none" />
+  </MenuIcon>
+)
+
+// Where the cross section is taken: the track, and the dashed cut through it.
+export const CrossSectionCutIcon = () => (
+  <MenuIcon>
+    <path d="M1 8 H15" />
+    <path d="M8 2 V14" strokeDasharray="2.5 2" />
+  </MenuIcon>
+)
+
 // A basemap preview, not a menu icon: it shows the overlays in the colours
 // they are drawn in on the map, so it carries those colours instead of
 // currentColor and its own frame. It lives here for the same reason as every
@@ -309,15 +335,6 @@ export const DataExchangeIcon = () => (
   </svg>
 )
 
-export const ConnectElementIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16">
-    <circle cx="8" cy="14" r="2" fill="white"/>
-    <path d="M8 14 V8" stroke="white" strokeWidth="1.5"/>
-    <circle cx="8" cy="5" r="0.5" fill="white"/>
-    <circle cx="8" cy="2" r="0.5" fill="white"/>
-  </svg>
-)
-
 export const LogoIcon = ({ className }) => (
   <svg xmlns="http://www.w3.org/2000/svg" xmlSpace="preserve" viewBox="0 0 135.65 136.98" className={className}>
     <defs>
@@ -337,13 +354,6 @@ export const ConnectSwitchIcon = () => (
     <circle cx="4" cy="2" r="2" fill="white"/>
     <path d="M4 14 A10 10 0 0 1 12 4" fill="none" stroke="white" strokeWidth="1.5"/>
     <circle cx="12" cy="4" r="2" fill="white"/>
-  </svg>
-)
-
-export const OptimizeTrackIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16">
-    <path d="M1 15 Q2 6 8 3 Q12 1 15 1" fill="none" stroke="white" strokeWidth="1.5"/>
-    <path d="M3.5 15 Q4.5 8.5 9 5.5 Q12 3.8 15 3.8" fill="none" stroke="white" strokeWidth="1.2" strokeDasharray="2.5 1.5" opacity="0.85"/>
   </svg>
 )
 
@@ -387,19 +397,13 @@ export const PlanExportIcon = () => (
   </svg>
 )
 
-export const PlatformIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <rect x="3" y="3" width="18" height="8" rx="1" stroke="white" strokeWidth="2"/>
-    <path d="M8 3 L4 11 M13 3 L9 11 M18 3 L14 11" stroke="white" strokeWidth="1.2" opacity="0.85"/>
-    <path d="M2 16 H22 M2 20 H22" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-  </svg>
-)
-
-export const CrossSectionIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <path d="M12 3 L20 8 V16 L12 21 L4 16 V8 Z" stroke="white" strokeWidth="1.6" strokeLinejoin="round" opacity="0.85"/>
-    <path d="M3 17 H21" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-    <path d="M8 17 V14 M16 17 V14" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+// The merged platform and cross section panel: a station — the building its
+// platforms belong to, with the track and its section running through it.
+export const StationIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23.5 19.5V6L18 .5H6L.5 6v13.5m3.5 4 2-3m14 3-2-3" />
+    <path d="M20.5 20.5h-17V8L7 4.5h10L20.5 8z" />
+    <path d="M9.5 8.5h5v12h-5zm0 5h5m-8-4v4m11-4v4M3 22.5h18M6.5 17v.5m11-.5v.5" />
   </svg>
 )
 
