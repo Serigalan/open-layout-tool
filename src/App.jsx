@@ -319,7 +319,7 @@ export default function App() {
   const [trackTable, setTrackTable] = useState(null)
   const [profileTrackId, setProfileTrackId] = useState(null)   // track shown in the profile overlay
   const [planPreview, setPlanPreview] = useState(null)         // { plan, filenameBase } shown as a sheet preview
-  const [crossSectionAt, setCrossSectionAt] = useState(null)   // { trackId, elIdx } drawn in the cross-section overlay
+  const [crossSectionAt, setCrossSectionAt] = useState(null)   // { trackId, station } drawn in the cross-section overlay
   // Bumped after every write of height points, so the profile re-reads them.
   const [heightsVersion, setHeightsVersion] = useState(0)
   // [min, max] the elevation colour scale is fitted to — drives the legend.
@@ -660,7 +660,8 @@ export default function App() {
         {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} t={t} />}
         {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map} onClose={() => setTrackTable(null)} onSaved={handleTrackSaved} t={t} />}
         {profileTrackId && <ElevationOverlay trackId={profileTrackId} project={project} map={map} version={heightsVersion} onClose={() => setProfileTrackId(null)} onSaved={handleTrackSaved} t={t} />}
-        {crossSectionAt && <CrossSectionOverlay at={crossSectionAt} project={project} onClose={() => setCrossSectionAt(null)} t={t} />}
+        {crossSectionAt && <CrossSectionOverlay at={crossSectionAt} project={project} map={map}
+          onAtChange={setCrossSectionAt} onClose={() => setCrossSectionAt(null)} t={t} />}
         {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
       </div>
     </div>

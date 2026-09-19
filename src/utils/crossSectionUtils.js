@@ -10,6 +10,9 @@
  * the track — so a section can never disagree with the alignment it belongs to.
  */
 
+import { transitionCantEnds } from './clothoidUtils'
+import { edgeOffsets, DEFAULT_PLATFORM_HEIGHT } from './platformUtils'
+
 /** Distance between the two running circles, and between the rail inner faces [mm]. */
 export const RUNNING_CIRCLE_DISTANCE = 1500
 export const TRACK_GAUGE             = 1435
@@ -117,20 +120,49 @@ export function fitSection(points, { w, h }, margin = 0) {
 }
 
 /**
- * The states a cross section can be taken in along one element, each with the
- * station it is taken at. An arc or a straight has one; a transition ramps
- * between two, and both ends are read — a section at the middle of a ramp would
- * answer for neither.
+ * The state of the alignment at any station of a track: the element the station
+ * lies in, with cant and radius as they hold right there. A straight or arc
+ * keeps its one value throughout; a transition ramps between its two ends, and
+ * the cant is read linearly in between — the ramp is what the element is. The
+ * radius follows the curvature, linearly as a clothoid has it, so the figure
+ * shown halfway is the one that holds halfway.
+ *
+ * A station at a joint belongs to the element that begins there: the state
+ * that holds from the joint on is the one a section at it answers with.
  */
-export function sectionStates(el, startStation = 0) {
-  const end = startStation + (el?.length ?? 0)
-  if (el?.elementType === 2) {
-    return [
-      { id: 'start', cant: el.cantStart ?? 0, radius: el.r1 ?? null, station: startStation },
-      { id: 'end',   cant: el.cantEnd   ?? 0, radius: el.r2 ?? null, station: end },
-    ]
+export function sectionAtStation(track, station) {
+  const els = track?.elements ?? []
+  let start = 0
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i]
+    const len = el.length ?? 0
+    const last = i === els.length - 1
+    if (!last && station >= start + len - 1e-9) {
+      start += len
+      continue
+    }
+    const s = clamp(station - start, 0, len)
+    if (el.elementType === 2) {
+      const t = len > 0 ? s / len : 0
+      // A transition carries no cant of its own: it ramps between the
+      // elements it joins, each end taking the neighbour's cant there (a cut
+      // transition keeps its pieces' cantStart / cantEnd, which win).
+      const { start: c1, end: c2 } = transitionCantEnds(els, i)
+      const r1 = el.r1 ?? null,  r2 = el.r2 ?? null
+      // Curvature, not radius: that is the quantity a transition ramps.
+      const k1 = r1 != null ? 1 / r1 : 0
+      const k2 = r2 != null ? 1 / r2 : 0
+      const k = k1 + t * (k2 - k1)
+      return {
+        elIdx: i,
+        station: start + s,
+        cant: c1 + t * (c2 - c1),
+        radius: Math.abs(k) > 1e-9 ? 1 / k : null,
+      }
+    }
+    return { elIdx: i, station: start + s, cant: el.cant ?? 0, radius: el.radius ?? null }
   }
-  return [{ id: 'const', cant: el?.cant ?? 0, radius: el?.radius ?? null, station: startStation }]
+  return null
 }
 
 const HALF_RUNNING = RUNNING_CIRCLE_DISTANCE / 2
@@ -195,4 +227,22 @@ export function crossSection({ cant = 0, gaugeRing = [], gaugeGuides = [], rail 
       ? rotatePoints(sleeperOutline(sleeperProfile, railProfile.height), angle)
       : [],
   }
+}
+
+/**
+ * Outline of a platform in the frame the section is drawn in — the untilted
+ * one, because a platform is laid level: the cant tilts the track under it,
+ * not the platform with it. Its top sits the stated height over top of rail at
+ * the track's centre (the origin the cant turns about), between the two edge
+ * offsets; it reaches down to the underside of the superstructure.
+ */
+export function platformSection(platform, { rail = DEFAULT_RAIL, sleeper = DEFAULT_SLEEPER } = {}) {
+  const { front, back } = edgeOffsets(platform ?? {})
+  const height = Number(platform?.height)
+  const top = Number.isFinite(height) ? height : DEFAULT_PLATFORM_HEIGHT
+  const railProfile    = RAILS[rail] ?? RAILS[DEFAULT_RAIL]
+  const sleeperProfile = SLEEPERS[sleeper] ?? SLEEPERS[DEFAULT_SLEEPER]
+  const bottom = -(railProfile.height + sleeperProfile.height)
+  const f = front * 1000, b = back * 1000
+  return [[f, top], [b, top], [b, bottom], [f, bottom], [f, top]]
 }

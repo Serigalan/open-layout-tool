@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadTracks } from '../storage'
+import { loadTracks, loadPlatforms } from '../storage'
+import { trackLength } from '../utils/heightUtils'
+import { utmToWgs84 } from '../utils/coordinateUtils'
+import { pointAtStation } from '../utils/platformUtils'
+import { PLATFORM_FILL_COLOR, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderUtils'
 import {
-  crossSection, fitSection, superstructureAt, sectionStates, elementStartStation, RAILS, SLEEPERS,
+  crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
 import {
   gaugeProfile, gaugeProfileRing, gaugeProfileGuides, DEFAULT_GAUGE_PROFILE,
 } from '../utils/gaugeProfiles'
+import usePreviewLayers from '../hooks/usePreviewLayers'
 
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
@@ -13,23 +18,55 @@ const FACE_TICK = 250
 const MIN_OVERLAY_PX = 160
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
+// Where the section is taken: a dot on the track at the slider's station, so
+// the drawing and the map say the same thing.
+const MARKER_SOURCE = 'cross-section-marker-source'
+const MARKER_LAYERS = [{
+  sourceId: MARKER_SOURCE,
+  layer: {
+    id: 'cross-section-marker-layer', type: 'circle',
+    paint: {
+      'circle-radius': 6,
+      'circle-color': '#a52a1f',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#ffffff',
+    },
+  },
+}]
+
 /**
- * The cross section of one element, drawn to scale: the running plane with its
- * two running circles, the rail inner faces, and the clearance contour over
- * them — all turned by the element's cant, because the contour is fixed to the
- * track and leans with it.
+ * The cross section of a track at a station, drawn to scale: the running plane
+ * with its two running circles, the rail inner faces, and the clearance
+ * contour over them — all turned by the cant that holds at that station,
+ * because the contour is fixed to the track and leans with it.
  *
- * Nothing here is editable. The section is a view of the alignment; what it
- * shows is changed by changing the element (see CrossSectionPanel).
+ * The slider walks the station along the whole track; nothing here is
+ * editable. The section is a view of the alignment; what it shows is changed
+ * by changing the track (see CrossSectionPanel).
  */
-export default function CrossSectionOverlay({ at, project, onClose, t }) {
+export default function CrossSectionOverlay({ at, project, map, onAtChange, onClose, t }) {
   const [size, setSize] = useState(null)
   const [heightPx, setHeightPx] = useState(null)
-  const [stateId, setStateId] = useState(null)
   const bodyRef = useRef(null)
 
   const track = loadTracks(project.id).find(tr => tr.id === at.trackId)
-  const el    = track?.elements?.[at.elIdx]
+  const total = track ? Math.round(trackLength(track) * 10) / 10 : 0
+  const station = track ? clamp(at.station ?? 0, 0, total) : 0
+
+  usePreviewLayers(map, MARKER_LAYERS, { resetCursor: true })
+
+  // The marker follows the station, on the track's own geometry.
+  useEffect(() => {
+    const src = map?.current?.getSource(MARKER_SOURCE)
+    if (!src || !track) return
+    const point = pointAtStation(track, station)
+    if (!point) return
+    const [lng, lat] = utmToWgs84(point.utm.easting, point.utm.northing, track.epsg)
+    src.setData({
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lng, lat] } }],
+    })
+  }, [map, track, station])
 
   useEffect(() => {
     const node = bodyRef.current
@@ -51,14 +88,18 @@ export default function CrossSectionOverlay({ at, project, onClose, t }) {
     e.preventDefault()
   }
 
-  if (!track || !el) return null
+  if (!track) return null
 
-  const states = sectionStates(el, elementStartStation(track, at.elIdx))
-  const state  = states.find(s => s.id === stateId) ?? states[0]
-  const { rail, sleeper } = superstructureAt(track, state.station)
+  const state   = sectionAtStation(track, station)
+  const { rail, sleeper } = superstructureAt(track, station)
+  // The platforms laid along the track here, level beside it as they are built.
+  const platforms = loadPlatforms(project.id)
+    .filter(p => p.trackId === at.trackId
+      && station >= (p.startStation ?? 0) && station <= (p.endStation ?? Infinity))
+    .map(p => platformSection(p, { rail, sleeper }))
   const profile = gaugeProfile(project.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
   const section = crossSection({
-    cant: state.cant,
+    cant: state?.cant ?? 0,
     gaugeRing: gaugeProfileRing(profile.points),
     gaugeGuides: gaugeProfileGuides(profile.guides),
     rail,
@@ -67,7 +108,9 @@ export default function CrossSectionOverlay({ at, project, onClose, t }) {
 
   const drawing = () => {
     if (!size || size.w < 40 || size.h < 40) return null
-    const all = [...section.gauge, ...section.runningCircles, ...section.sleeper, ...section.guides.flat()]
+    // Everything handed to fitSection is a point — the platform outlines are
+    // arrays of points, so they are flattened in with the rest.
+    const all = [...section.gauge, ...section.runningCircles, ...section.sleeper, ...section.guides.flat(), ...platforms.flat()]
     const { k, cx, cy, bounds } = fitSection(all, size, MARGIN)
     const { zMax } = bounds
     const X = (y) => cx + y * k
@@ -85,6 +128,10 @@ export default function CrossSectionOverlay({ at, project, onClose, t }) {
         {section.guides.map((g, i) => (
           <path key={`g${i}`} d={path(g)} fill="none" stroke="var(--color-primary)"
             strokeWidth="1" strokeDasharray="5 4" opacity="0.7" />
+        ))}
+        {/* the platforms beside the track, level while the track leans */}
+        {platforms.map((p, i) => (
+          <path key={`p${i}`} d={`${path(p)} Z`} fill={PLATFORM_FILL_COLOR} stroke={PLATFORM_OUTLINE_COLOR} strokeWidth="1" />
         ))}
         {/* the superstructure carrying it */}
         {section.sleeper.length > 0 && (
@@ -110,32 +157,30 @@ export default function CrossSectionOverlay({ at, project, onClose, t }) {
     )
   }
 
-  const stateLabel = (s) => t(s.id === 'start' ? 'cross_section_at_start' : 'cross_section_at_end')
-
   return (
     <div className="profile-overlay" style={heightPx ? { height: heightPx } : undefined}>
       <div className="profile-resize" onPointerDown={onResizeStart} />
       <div className="track-table-header">
         <span className="track-table-title">
-          {`${track.name || track.id.slice(0, 8)} · ${t('cross_section_element')} ${at.elIdx + 1}`}
+          {`${track.name || track.id.slice(0, 8)} · ${t('cross_section_station')} ${station.toFixed(1)} m`}
         </span>
         <div className="profile-controls">
           <span className="profile-hint">
-            {`${t('cant')} ${state.cant} mm`}
-            {state.radius != null ? ` · R ${Math.round(Math.abs(state.radius))} m` : ` · ${t('table_type_straight')}`}
+            {`${t('cant')} ${Math.round(state?.cant ?? 0)} mm`}
+            {state?.radius != null ? ` · R ${Math.round(Math.abs(state.radius))} m` : ` · ${t('table_type_straight')}`}
             {` · ${RAILS[rail]?.label ?? rail} · ${SLEEPERS[sleeper]?.label ?? sleeper}`}
           </span>
-          {states.length > 1 && (
-            <label className="profile-edit">
-              <select className="settings-select" value={state.id} onChange={e => setStateId(e.target.value)}>
-                {states.map(s => <option key={s.id} value={s.id}>{stateLabel(s)}</option>)}
-              </select>
-            </label>
-          )}
           <button className="track-table-close" onClick={onClose}>✕</button>
         </div>
       </div>
       <div className="profile-body" ref={bodyRef}>{drawing()}</div>
+      <div className="cross-section-slider">
+        <input
+          type="range" min={0} max={total} step={0.1} value={station}
+          onChange={e => onAtChange?.({ ...at, station: Number(e.target.value) })}
+        />
+        <span className="cross-section-slider-label">{`${station.toFixed(1)} / ${total.toFixed(1)} m`}</span>
+      </div>
     </div>
   )
 }

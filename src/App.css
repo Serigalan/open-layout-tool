@@ -1608,6 +1608,27 @@
   user-select: none;
 }
 
+/* The station the section is taken at — walked with the slider, stated beside
+   it, and marked on the map by the overlay's dot. */
+.cross-section-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid #eee;
+}
+
+.cross-section-slider input[type="range"] {
+  flex: 1;
+  accent-color: var(--color-primary);
+}
+
+.cross-section-slider-label {
+  font-size: 12px;
+  color: #555;
+  white-space: nowrap;
+}
+
 /* One superstructure stretch: type, from, to and the button that drops it. */
 .range-row {
   display: grid;

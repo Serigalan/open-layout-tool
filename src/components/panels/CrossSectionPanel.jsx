@@ -1,46 +1,36 @@
 import { useEffect, useState } from 'react'
 import { loadTracks, updateTrack, updateProject } from '../../storage'
 import { trackLength } from '../../utils/heightUtils'
-import { FILTER_NONE, HIT_TOLERANCE, filterForElement, mapIsLive } from '../../utils/mapConstants'
+import { wgs84ToUTM } from '../../utils/coordinateUtils'
+import { stationFromClick } from '../../utils/platformUtils'
+import { HIT_TOLERANCE } from '../../utils/mapConstants'
 import {
   RAILS, SLEEPERS, DEFAULT_RAIL, DEFAULT_SLEEPER,
-  superstructureAt, sectionStates, elementStartStation,
 } from '../../utils/crossSectionUtils'
 import { GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE } from '../../utils/gaugeProfiles'
 import useTrackHover from '../../hooks/useTrackHover'
 
 /**
- * Cross section of one element: the clearance profile the project is designed
- * against, the superstructure of the track it sits on, and the drawing of both
- * in the overlay.
+ * The cross section of a track, at a station of it: the clearance profile the
+ * project is designed against, the superstructure of the track, and the
+ * drawing of both in the overlay — where a slider walks the station along the
+ * track, and the cant is read as it holds right there (interpolated inside a
+ * transition, constant elsewhere).
  *
- * The section is taken at an element, and that is the whole point — the cant
- * turns it and the curvature decides what a clearance check even means, and
- * both belong to the element. The superstructure belongs to the track instead,
- * as stretches along it (Entscheidung 18): every track is 54 E 4 on B70 from
- * begin to end, and only an adjustment is written down.
+ * The superstructure belongs to the track as stretches along it (Entscheidung
+ * 18): every track is 54 E 4 on B70 from begin to end, and only an adjustment
+ * is written down.
  */
 export default function CrossSectionPanel({ t, map, project, onTrackSaved, onShowCrossSection, crossSectionAt }) {
-  const [picked, setPicked] = useState(null)   // { trackId, elIdx }
+  const [trackId, setTrackId] = useState(null)
 
   const tracks = loadTracks(project.id)
-  const track  = picked ? tracks.find(tr => tr.id === picked.trackId) : null
-  const el     = track?.elements?.[picked?.elIdx]
-  const shown  = crossSectionAt && picked
-    && crossSectionAt.trackId === picked.trackId && crossSectionAt.elIdx === picked.elIdx
+  const track  = tracks.find(tr => tr.id === trackId) ?? null
+  const shown  = crossSectionAt != null && crossSectionAt.trackId === trackId
 
-  useTrackHover(map, picked ? 'editing' : 'select', 'select', project, true)
+  useTrackHover(map, trackId ? 'editing' : 'select', 'select', project, true)
 
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!mapIsLive(map, m)) return
-      m.setFilter('tracks-selected-layer', FILTER_NONE)
-      m.getCanvas().style.cursor = ''
-    }
-  }, [map])
-
-  // ── Pick the element the section is taken at ──────────────────────────────
+  // ── Pick the track — and with the click, the station ──────────────────────
   useEffect(() => {
     if (!map?.current) return
     const m = map.current
@@ -53,12 +43,13 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
       ]
       const feature = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })[0]
       if (!feature) return
-      const { trackId, elementIndex } = feature.properties
-      const elIdx = Number(elementIndex)
-      if (!loadTracks(project.id).some(tr => tr.id === trackId)) return
-      m.setFilter('tracks-selected-layer', filterForElement(trackId, elIdx))
-      setPicked({ trackId, elIdx })
-      onShowCrossSection?.({ trackId, elIdx })
+      const { trackId: clickedId, elementIndex } = feature.properties
+      const clicked = loadTracks(project.id).find(tr => tr.id === clickedId)
+      if (!clicked) return
+      const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], clicked.epsg)
+      const station   = stationFromClick(clicked, Number(elementIndex), clickUtm)
+      setTrackId(clicked.id)
+      onShowCrossSection?.({ trackId: clicked.id, station: station ?? 0 })
     }
 
     m.on('click', onClick)
@@ -85,19 +76,7 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
     writeRanges(field, (track?.[field] ?? []).filter((_, i) => i !== index))
   }
 
-  const clear = () => {
-    map?.current?.setFilter('tracks-selected-layer', FILTER_NONE)
-    setPicked(null)
-    onShowCrossSection?.(null)
-  }
-
-  const elementLabel = (element, index) => {
-    if (element?.elementType === 2) {
-      return `${index + 1} · ${t(element.transitionType === 'bloss' ? 'table_type_bloss' : 'table_type_transition')}`
-    }
-    if (element?.radius != null) return `${index + 1} · R ${Math.round(Math.abs(element.radius))} m`
-    return `${index + 1} · ${t('table_type_straight')}`
-  }
+  const clear = () => setTrackId(null)
 
   /** The stretches of one kind, as rows that can be edited and removed. */
   const rangeEditor = (field, table, defaultType) => {
@@ -137,12 +116,24 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
     )
   }
 
-  const states = el ? sectionStates(el, elementStartStation(track, picked.elIdx)) : []
-
   return (
     <>
       <h2>{t('cross_section_title')}</h2>
-      {!picked && <p>{t('cross_section_hint')}</p>}
+      {!track && <p>{t('cross_section_hint')}</p>}
+
+      {tracks.length > 0 && (
+        <div className="create-element-options">
+          {tracks.map((tr) => (
+            <button
+              key={tr.id}
+              className={`create-element-btn${trackId === tr.id ? ' active' : ''}`}
+              onClick={() => setTrackId(tr.id)}
+            >
+              {tr.name || tr.id.slice(0, 8)}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="element-form">
         <span className="create-element-section">{t('cross_section_profile_section')}</span>
@@ -157,34 +148,8 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
         </div>
       </div>
 
-      {picked && el && (
+      {track && (
         <>
-          <div className="element-form">
-            <span className="create-element-section">{t('cross_section_alignment')}</span>
-            <div className="form-field">
-              <label>{t('platform_track')}</label>
-              <input type="text" readOnly value={track.name || track.id.slice(0, 8)} />
-            </div>
-            <div className="form-field">
-              <label>{t('cross_section_element')}</label>
-              <input type="text" readOnly value={elementLabel(el, picked.elIdx)} />
-            </div>
-            {states.map((s) => {
-              const built = superstructureAt(track, s.station)
-              return (
-                <div className="form-field" key={s.id}>
-                  <label>
-                    {`${t('cant')} · ${s.station.toFixed(1)} m`}
-                    {s.id !== 'const' ? ` · ${t(s.id === 'start' ? 'cross_section_at_start' : 'cross_section_at_end')}` : ''}
-                  </label>
-                  <input type="text" readOnly
-                    value={`${s.cant} mm · ${s.radius != null ? `R ${Math.round(Math.abs(s.radius))} m` : t('table_type_straight')}`
-                      + ` · ${RAILS[built.rail].label} · ${SLEEPERS[built.sleeper].label}`} />
-                </div>
-              )
-            })}
-          </div>
-
           <div className="element-form">
             <span className="create-element-section">{t('cross_section_rails')}</span>
             {rangeEditor('rails', RAILS, DEFAULT_RAIL)}
@@ -197,7 +162,7 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
 
           {!shown && (
             <button className="panel-btn panel-btn-full" style={{ marginTop: 8 }}
-              onClick={() => onShowCrossSection?.(picked)}>
+              onClick={() => onShowCrossSection?.({ trackId, station: crossSectionAt?.station ?? 0 })}>
               {t('cross_section_show')}
             </button>
           )}
