@@ -1,4 +1,6 @@
-// Client for the optimizer service (tools/optimizer, olt_optimizer/service.py).
+// Client for the server service (tools/optimizer, olt_optimizer/service.py) —
+// the optimizer and, on a second endpoint, the Access-file conversion for the
+// MDB import.
 //
 // The optimizer runs on the server and nowhere else — there is no second
 // implementation in this bundle to fall back on. So every failure here is one
@@ -51,6 +53,40 @@ export async function optimizeOnServer(payload, { signal } = {}) {
     data = await res.json()
   } catch {
     data = null                               // not JSON — the host's own error page
+  }
+  if (!res.ok) throw new OptimizerError(data?.error ?? 'unavailable', data?.message)
+  if (data === null) throw new OptimizerError('unavailable')
+  return data
+}
+
+/**
+ * Convert an Access file (MDB) into the Satzarten the MDB import reads.
+ *
+ * The file is sent as it is, not as a form upload — the service takes the raw
+ * body, writes it to a temp file, converts and deletes it again. It is a whole
+ * database and can be tens of megabytes, so the caller is expected to say so in
+ * the UI before this runs: the file leaves the user's machine.
+ *
+ * Resolves with { points, elements, cants, tracks, nodes, counts }.
+ */
+export async function convertMdbOnServer(file, { signal } = {}) {
+  let res
+  try {
+    res = await fetch(`${SERVICE}/mdb`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: file,
+      signal,
+    })
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err
+    throw new OptimizerError('unavailable')
+  }
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
   }
   if (!res.ok) throw new OptimizerError(data?.error ?? 'unavailable', data?.message)
   if (data === null) throw new OptimizerError('unavailable')

@@ -1,6 +1,7 @@
 """HTTP service around `optimize_payload` — the optimizer as it runs on the server.
 
     POST /optimize   body: the panel's payload, answer: optimize_payload's result
+    POST /mdb        body: an Access file, answer: its Satzarten as JSON
     GET  /health     so the panel can say "no server" before the user clicks
 
 Failures travel as `{"error": <key>}` with an HTTP status; the client turns the
@@ -13,11 +14,13 @@ and `joint_optimize` with a high `maxiter` runs for minutes.
 import json
 import multiprocessing
 import os
+import tempfile
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .api import optimize_payload
+from .mdb import MdbError, convert as mdb_convert
 
 HOST = os.environ.get("OLT_OPTIMIZER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("OLT_OPTIMIZER_PORT", "8099"))
@@ -31,6 +34,9 @@ ORIGINS = tuple(o.strip() for o in os.environ.get(
 TIMEOUT = float(os.environ.get("OLT_OPTIMIZER_TIMEOUT", "120"))
 MAX_BODY = int(os.environ.get("OLT_OPTIMIZER_MAX_BODY", str(4 * 1024 * 1024)))
 MAX_CONCURRENT = int(os.environ.get("OLT_OPTIMIZER_WORKERS", "2"))
+# An Access file is a whole database, not a payload — the delivered test file is
+# 33 MB, so this limit is its own and much larger than the optimizer's.
+MAX_MDB_BODY = int(os.environ.get("OLT_MDB_MAX_BODY", str(128 * 1024 * 1024)))
 
 MAX_ITER = 150
 MAX_ELEMENTS = 2000
@@ -153,8 +159,65 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._respond(404, {"error": "not_found"})
 
+    def _read_body(self, limit):
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise ServiceError(400, "invalid_payload") from None
+        if length > limit:
+            raise ServiceError(413, "too_large")
+        return self.rfile.read(length)
+
+    def _do_mdb(self):
+        """An uploaded Access file, converted and then removed again.
+
+        The file leaves the user's machine to get here, so it lives exactly as
+        long as the conversion does — written to a private temp file, deleted in
+        `finally` whatever happens.
+        """
+        body = self._read_body(MAX_MDB_BODY)
+        if not body:
+            raise ServiceError(400, "invalid_payload")
+        fd, path = tempfile.mkstemp(prefix="olt-mdb-", suffix=".mdb")
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(body)
+            if not _slots.acquire(timeout=TIMEOUT):
+                raise ServiceError(503, "busy")
+            try:
+                started = time.monotonic()
+                result = mdb_convert(path)
+            finally:
+                _slots.release()
+        except MdbError as exc:
+            status = {"not_a_database": 400, "no_records": 422, "timeout": 504}.get(exc.code, 500)
+            if exc.code == "internal":
+                self.log_message("mdb failure: %s", exc.message or "?")
+                raise ServiceError(500, "internal", exc.message) from None
+            raise ServiceError(status, exc.code, exc.message) from None
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        self.log_message("mdb %d bytes → %s in %.1fs",
+                         len(body), result["counts"], time.monotonic() - started)
+        self._respond(200, result)
+
     def do_POST(self):                                         # noqa: N802
-        if self.path.rstrip("/") != "/optimize":
+        route = self.path.rstrip("/")
+        if route == "/mdb":
+            try:
+                self._do_mdb()
+            except ServiceError as exc:
+                answer = {"error": exc.code}
+                if exc.message and exc.code != "internal":
+                    answer["message"] = exc.message
+                self._respond(exc.status, answer)
+            except Exception:                                  # noqa: BLE001
+                self._respond(500, {"error": "internal"})
+            return
+        if route != "/optimize":
             self._respond(404, {"error": "not_found"})
             return
         try:

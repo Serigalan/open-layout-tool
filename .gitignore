@@ -36,3 +36,8 @@ WEBSITE/
 
 # Roadmap — planning document, not part of the published tool
 ROADMAP.md
+
+# Test-MDB — 33 MB Bestandsauszug, Zuarbeit von außen, nicht ins Repo
+Testdaten.MDB
+*.MDB
+*.mdb

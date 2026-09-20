@@ -13,6 +13,8 @@ import { EPSG_OPTIONS } from '../../utils/coordinateUtils'
 import useTrackHover from '../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
+import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, mdbSwitchInventory } from '../../utils/mdbImport'
+import { convertMdbOnServer, OptimizerError } from '../../utils/optimizerService'
 
 /**
  * How long the way to OSRD stays offered after an export [ms]. The file is in
@@ -68,6 +70,13 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const [csvTargetEpsg, setCsvTargetEpsg] = useState(String(CSV_EPSG))
   const [csvErrors, setCsvErrors]       = useState([])
   const [csvBusy, setCsvBusy]           = useState(false)
+  const mdbInputRef                     = useRef(null)
+  const mdbPayloadRef                   = useRef(null)   // converted Satzarten, kept out of state
+  const [mdbStrecken, setMdbStrecken]   = useState([])
+  const [mdbStrecke, setMdbStrecke]     = useState('')
+  const [mdbCounts, setMdbCounts]       = useState(null)
+  const [mdbErrors, setMdbErrors]       = useState([])
+  const [mdbBusy, setMdbBusy]           = useState(false)
   const osrdInputRef                    = useRef(null)
   const [osrdErrors, setOsrdErrors]     = useState([])
   const [osrdExported, setOsrdExported] = useState(false)
@@ -307,6 +316,55 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       csvRowsRef.current, csvStrecke, cantRowsRef.current,
       { sourceEpsg: Number(csvSourceEpsg), targetEpsg: Number(csvTargetEpsg) })
     setCsvErrors(errors)
+    if (!parsed.length) return
+    const names = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
+    parsed.forEach(tr => {
+      const elements = recalcAbsLengths(tr.elements)
+      const name = names.has(tr.name) ? nextTrackName(tr.name.split('.')[0], names) : tr.name
+      names.add(name)
+      saveTrack(project.id, {
+        ...tr, id: generateId(), name, elements, coordinates: rebuildCoords(elements),
+      })
+    })
+    onTrackSaved?.()
+  }
+
+  // ── MDB (Access) ─────────────────────────────────────────────────────────
+  // The browser cannot read an Access file, so it goes to the server, is
+  // converted there and deleted again (ROADMAP decision 11). Everything after
+  // that happens here, on the Satzarten the converter hands back.
+  const handleMdbFile = async (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file || !project) return
+    setMdbErrors([]); setMdbBusy(true); setMdbStrecken([]); setMdbCounts(null)
+    try {
+      const payload = parseMdbPayload(await convertMdbOnServer(file))
+      mdbPayloadRef.current = payload
+      setMdbCounts(payload.elements.length ? {
+        elements: payload.elements.length,
+        tracks: payload.tracks.length,
+        nodes: payload.nodes.length,
+      } : null)
+      const list = listMdbStrecken(payload)
+      setMdbStrecken(list)
+      setMdbStrecke(list.some(x => x.strecke === mdbStrecke) ? mdbStrecke : (list[0]?.strecke ?? ''))
+      if (!list.length) setMdbErrors([t('data_exchange_mdb_err_empty')])
+    } catch (err) {
+      mdbPayloadRef.current = null
+      const code = err instanceof OptimizerError ? err.code : 'internal'
+      setMdbErrors([t(`data_exchange_mdb_err_${code}`) ?? code, ...(err?.detail ? [err.detail] : [])])
+    } finally {
+      setMdbBusy(false)
+    }
+  }
+
+  const handleMdbImport = () => {
+    const payload = mdbPayloadRef.current
+    if (!payload || !mdbStrecke || !project) return
+    const { tracks: parsed, errors } = buildTracksFromMdb(payload, mdbStrecke)
+    const inventory = mdbSwitchInventory(payload)
+    setMdbErrors([...errors, ...inventory.errors])
     if (!parsed.length) return
     const names = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
     parsed.forEach(tr => {
@@ -689,6 +747,56 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
             {csvErrors.length > 0 && (
               <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto' }}>
                 {csvErrors.map((err, i) => (
+                  <p key={i} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+                    {err}
+                  </p>
+                ))}
+              </div>
+            )}
+          </ExchangeSection>
+          <ExchangeSection title={t('data_exchange_mdb')} description={t('data_exchange_mdb_desc')}>
+            <input
+              ref={mdbInputRef}
+              type="file"
+              accept=".mdb,.MDB,application/x-msaccess"
+              style={{ display: 'none' }}
+              onChange={handleMdbFile}
+            />
+            <button
+              className="panel-btn panel-btn-full"
+              disabled={!project || mdbBusy}
+              onClick={() => mdbInputRef.current?.click()}
+            >
+              {mdbBusy ? t('data_exchange_mdb_reading') : t('data_exchange_mdb_choose')}
+            </button>
+            {mdbCounts && (
+              <p className="selecting-hint">
+                {t('data_exchange_mdb_counts')
+                  .replace('{{elements}}', mdbCounts.elements)
+                  .replace('{{tracks}}', mdbCounts.tracks)
+                  .replace('{{nodes}}', mdbCounts.nodes)}
+              </p>
+            )}
+            {mdbStrecken.length > 0 && (
+              <>
+                <div className="form-field" style={{ marginTop: 6 }}>
+                  <label>{t('data_exchange_csv_line')}</label>
+                  <select className="settings-select" value={mdbStrecke}
+                    onChange={e => setMdbStrecke(e.target.value)}>
+                    {mdbStrecken.map(x => (
+                      <option key={x.strecke} value={x.strecke}>{x.strecke} ({x.count})</option>
+                    ))}
+                  </select>
+                </div>
+                <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+                  disabled={!mdbStrecke} onClick={handleMdbImport}>
+                  {t('data_exchange_import')}
+                </button>
+              </>
+            )}
+            {mdbErrors.length > 0 && (
+              <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto' }}>
+                {mdbErrors.map((err, i) => (
                   <p key={i} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
                     {err}
                   </p>

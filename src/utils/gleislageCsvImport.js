@@ -3,7 +3,7 @@ import {
   computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
 } from './elementUtils'
 import { computeClothoidUtm } from './clothoidUtils'
-import { utmToWgs84, transformPlanePoint } from './coordinateUtils'
+import { utmToWgs84, transformPlanePoint, gkZone } from './coordinateUtils'
 import { SAGITTA_ELEMENT, cantSign } from './mapConstants'
 
 const GON2DEG = 0.9
@@ -22,9 +22,9 @@ export const CSV_EPSG = 5683
  * around its false easting (zone·1e6 + 500 km), a UTM zone around its own.
  */
 function boundsFor(epsg) {
-  const code = Number(epsg)
-  if (code >= 5681 && code <= 5685) {
-    const falseEasting = (code - 5680) * 1e6 + 500000
+  const zone = gkZone(epsg)
+  if (zone) {
+    const falseEasting = zone * 1e6 + 500000
     return { easting: [falseEasting - 4e5, falseEasting + 4e5], northing: [5.1e6, 6.2e6] }
   }
   return { easting: [1e5, 9e5], northing: [0, 9.5e6] }
@@ -66,18 +66,18 @@ const CANT_COLUMNS = [
 /** Length agreement between an alignment element and its cant record [m]. */
 const CANT_LENGTH_TOL = 0.05
 
-const CANT_CONSTANT = 'gleichbleibende Überhöhung'
+export const CANT_CONSTANT = 'gleichbleibende Überhöhung'
 
 /** Key linking an alignment element to its cant record. */
 const addrKey = (anf, end) => `${anf}\u0000${end}`
 
 // Element type → what we build. S-shaped transitions reverse curvature within
 // one element and have no equivalent in the app's model.
-const TYPE_STRAIGHT   = 'Gerade'
-const TYPE_KINK       = 'Richtgerade / Knick am Ende +200[gon]'
-const TYPE_ARC        = 'Kreisbogen'
-const TYPE_CLOTHOID   = 'Klothoide'
-const TYPE_BLOSS      = 'Blosskurve'
+export const TYPE_STRAIGHT   = 'Gerade'
+export const TYPE_KINK       = 'Richtgerade / Knick am Ende +200[gon]'
+export const TYPE_ARC        = 'Kreisbogen'
+export const TYPE_CLOTHOID   = 'Klothoide'
+export const TYPE_BLOSS      = 'Blosskurve'
 const UNSUPPORTED = ['Übergangsbogen S-Form', 'S-Form (einfach geschwungen)', 'Bloss (einfach geschwungen)']
 
 /** First vertex of a MULTILINESTRING, given as "northing easting" → [E, N]. */
