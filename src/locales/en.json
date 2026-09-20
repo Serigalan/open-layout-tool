@@ -309,6 +309,7 @@
   "table_radius": "Radius",
   "table_speed": "Speed",
   "table_cant": "Cant",
+  "table_switch_hint": "Switch in the source, not built: {{text}}",
   "table_cant_exception": "Cant exception (reason)",
   "table_cant_over_limit": "Cant exceeds the admissible {{mm}} mm",
   "table_cant_exception_note": "Cant exception: {{text}}",

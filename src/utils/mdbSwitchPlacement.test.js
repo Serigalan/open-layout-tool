@@ -10,6 +10,9 @@ import {
 import { resolveEndBearing } from './elementUtils'
 import { recalcAbsLengths } from '../storage'
 import fixture from '../test/fixtures/mdb_weiche.json'
+import crossingFixture from '../test/fixtures/mdb_kreuzungsweiche.json'
+import { buildAllTracksFromMdb } from './mdbImport'
+import { switchPorts } from './switchModel'
 
 /**
  * AP 6.3 — the inventory put onto the tracks the same import built.
@@ -43,15 +46,15 @@ describe('switchTypeFor', () => {
 describe('locateMdbSwitches', () => {
   it('finds the track running through the point and the one beginning there', () => {
     const found = locateMdbSwitches(payload, built.tracks)(units[0])
-    expect(found.host).toBeTruthy()
-    expect(found.branch).toBeTruthy()
-    expect(found.host.track.name).not.toBe(found.branch.track.name)
-    expect(found.host.station).toBeGreaterThan(0)
+    expect(found.through).toHaveLength(1)
+    expect(found.starting).toHaveLength(1)
+    expect(found.through[0].track.name).not.toBe(found.starting[0].track.name)
+    expect(found.through[0].station).toBeGreaterThan(0)
   })
 
   it('says what it found instead when no track carries the point', () => {
     const found = locateMdbSwitches(payload, [])({ ...units[0] })
-    expect(found.host).toBeUndefined()
+    expect(found.through).toBeUndefined()
     expect(found.reason).toMatch(/kein Gleis/)
   })
 })
@@ -123,17 +126,95 @@ describe('placeMdbSwitches', () => {
     expect(Array.isArray(symbol.fillCoords)).toBe(true)
   })
 
-  it('reports the kinds it does not set rather than setting them wrong', () => {
-    const crossing = { ...units[0], kind: 'crossing', label: 'Kr 54-1:9' }
+  it('will not build a Kreuzung where only one route runs through the point', () => {
+    // The turnout fixture has a branch beginning at the point, not a second
+    // route crossing it — a crossing needs two, and gets reported instead.
+    const crossing = { ...units[0], kind: 'crossing', label: 'Kr 54-1:9', radius: null, slope: 9 }
     const res = placeMdbSwitches(payload, built.tracks, [crossing])
     expect(res.switches).toHaveLength(0)
-    expect(res.errors.join(' ')).toMatch(/nur Weichen/)
+    expect(res.errors.join(' ')).toMatch(/durch den Kreuzungspunkt/)
   })
 
   it('reports a form the table does not carry rather than rounding to the nearest', () => {
     const odd = { ...units[0], radius: 190, slope: 6.3, label: 'EW 54-190-1:6.3' }
     const res = placeMdbSwitches(payload, built.tracks, [odd])
     expect(res.switches).toHaveLength(0)
-    expect(res.errors.join(' ')).toMatch(/keine Form in der Tabelle/)
+    expect(res.errors.join(' ')).toMatch(/keine Form im Weichenkatalog/)
+  })
+
+  it('leaves a note on the elements where it could not build the switch', () => {
+    const odd = { ...units[0], radius: 190, slope: 6.3, label: 'EW 54-190-1:6.3' }
+    const res = placeMdbSwitches(payload, built.tracks, [odd])
+    const noted = res.tracks.flatMap(t => t.elements.filter(el => el.switchHint))
+    expect(noted.length).toBeGreaterThan(0)
+    expect(noted[0].switchHint).toMatch(/EW 54-190-1:6\.3/)
+    expect(noted[0].switchHint).toMatch(/Weichenkatalog/)
+  })
+
+  it('never marks a note as a switch route — that would need a record', () => {
+    const odd = { ...units[0], radius: 190, slope: 6.3, label: 'EW 54-190-1:6.3' }
+    const res = placeMdbSwitches(payload, built.tracks, [odd])
+    // `parseProjectsPayload` refuses an element with switchBranch and no id.
+    const noted = res.tracks.flatMap(t => t.elements.filter(el => el.switchHint))
+    expect(noted.every(el => !el.switchBranch && !el.switchId)).toBe(true)
+  })
+
+  it('tells the branch from a plain continuation by its curvature', () => {
+    // Both leave the point on the track's own tangent — a turnout is tangential
+    // at the toe — so only the radius separates them.
+    const found = locateMdbSwitches(payload, built.tracks)(units[0])
+    const first = found.starting[0]
+    const el = first.endpoint === 'BEGIN'
+      ? first.track.elements[0]
+      : first.track.elements[first.track.elements.length - 1]
+    expect(Math.abs(el.radius ?? 0)).toBeCloseTo(switchTypeFor(units[0]).R, 0)
+  })
+})
+
+describe('placeMdbSwitches — die Kreuzungsbauarten', () => {
+  // A second slice of the file, cut around one doppelte Kreuzungsweiche: the
+  // two crossing routes and the two connecting curves all run through the same
+  // point, which is what makes this kind different from a turnout.
+  const payload2 = parseMdbPayload(crossingFixture)
+  const { units: units2 } = mdbSwitchInventory(payload2)
+  const built2 = buildAllTracksFromMdb(payload2)
+  const placed2 = placeMdbSwitches(payload2, built2.tracks, units2)
+
+  it('builds the Kreuzungsweiche the fixture carries', () => {
+    expect(placed2.switches).toHaveLength(1)
+    expect(placed2.switches[0].kind).toBe('double_slip')
+    expect(placed2.switches[0].label).toBe('DKW 1:9 – 190')
+  })
+
+  it('finds the crossing point from the corners, not from a node', () => {
+    // All four corners are stated; none of them is the crossing point.
+    expect(Object.keys(units2[0].padBySuffix).sort()).toEqual(['A', 'B', 'C', 'D'])
+  })
+
+  it('gives it four ports, every one on a track that is there', () => {
+    const sw = placed2.switches[0]
+    const ids = new Set(placed2.tracks.map(t => t.id))
+    const ports = switchPorts(sw.kind)
+    expect(ports).toHaveLength(4)
+    for (const { trackKey } of ports) expect(ids.has(sw[trackKey]), trackKey).toBe(true)
+  })
+
+  it('marks one route main and the other cross', () => {
+    const sw = placed2.switches[0]
+    const marked = placed2.tracks.flatMap(t => t.elements.filter(el => elementBelongsToSwitch(el, sw)))
+    expect(new Set(marked.map(el => el.switchRoute))).toEqual(new Set(['main', 'cross']))
+  })
+
+  it('yields a body the symbol can be derived from', () => {
+    const byId = Object.fromEntries(placed2.tracks.map(t => [t.id, t]))
+    const symbol = rebuildSwitchSymbol(placed2.switches[0], byId)
+    expect(Array.isArray(symbol.fillCoords)).toBe(true)
+    expect(symbol.fillCoords.length).toBeGreaterThan(0)
+  })
+
+  it('leaves the tracks joined after parting both routes', () => {
+    for (const t of placed2.tracks) {
+      expectNodesJoin(recalcAbsLengths(t.elements))
+    }
   })
 })

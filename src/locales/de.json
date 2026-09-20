@@ -309,6 +309,7 @@
   "table_radius": "Radius",
   "table_speed": "Speed",
   "table_cant": "Überhöhung",
+  "table_switch_hint": "Weiche im Bestand, aber nicht gebaut: {{text}}",
   "table_cant_exception": "Ausnahme u (Begründung)",
   "table_cant_over_limit": "Überhöhung überschreitet die zulässigen {{mm}} mm",
   "table_cant_exception_note": "Überhöhungsausnahme: {{text}}",

@@ -232,6 +232,12 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
   const cantClass = (el) => (cantExceedsLimit(el) ? 'input-error'
     : cantExceptionOf(el) ? 'track-table-input-exception' : '')
 
+  // An element the MDB import found a switch on but could not build into one
+  // says so on its type — the alignment is there, the switch is not, and the
+  // track must not read as plain running line.
+  const hintNote = (el) => (el.switchHint
+    ? t('table_switch_hint').replace('{{text}}', el.switchHint) : undefined)
+
   // Speed column filled with the highest value the geometry allows. Only the
   // metadata changes, so the element chain stands as it is; Save persists it.
   function handleMaxSpeeds() {
@@ -357,7 +363,11 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
                   onClick={() => setActiveRow(i)}
                   onFocus={() => setActiveRow(i)}>
                   <td>{i + 1}</td>
-                  <td>{textCell(typeLabel(el), { wide: true })}</td>
+                  <td>{textCell(typeLabel(el), {
+                    wide: true,
+                    title: hintNote(el),
+                    className: el.switchHint ? 'track-table-input-exception' : '',
+                  })}</td>
                   <td>{editCell(i, 'bearing', el.bearing)}</td>
                   <td>{textCell(el.endBearing != null ? el.endBearing.toFixed(2) : '–')}</td>
                   <td>{editCell(i, 'length', el.length)}</td>

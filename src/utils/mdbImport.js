@@ -396,6 +396,9 @@ export function mdbSwitchInventory(payload) {
       slope: form.n,
       rail: RAIL_NAME[form.rail] ?? null,
       pads: g.members.map(m => m.pad),
+      // Which node is which corner: the crossing kinds run their routes A–C and
+      // B–D (see SWITCH_ROUTES), so the placement needs them apart.
+      padBySuffix: Object.fromEntries(g.members.filter(m => m.suffix).map(m => [m.suffix, m.pad])),
       flagged: g.members.some(m => Number(m.err) !== 0),
     })
   }
