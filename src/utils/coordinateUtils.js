@@ -8,10 +8,36 @@ import proj4 from 'proj4'
 const utmProj = (zoneNumber, south) =>
   `+proj=utm +zone=${zoneNumber}${south ? ' +south' : ''} +datum=WGS84 +units=m +no_defs`
 
-// DB_REF / 3-degree Gauss-Krüger (Bessel ellipsoid, DB_REF datum shift);
-// zone n → central meridian n·3°, false easting n·1e6 + 500000.
+// Bessel-based 3-degree Gauss-Krüger: zone n → central meridian n·3°, false
+// easting n·1e6 + 500000. Only the datum shift differs between the two frames.
+const besselGk = (zone, datum) =>
+  `+proj=tmerc +lat_0=0 +lon_0=${zone * 3} +k=1 +x_0=${zone * 1000000 + 500000} +y_0=0 +ellps=bessel ${datum} +units=m +no_defs`
+
+// DB_REF — the Deutsche-Bahn frame. Parameters are EPSG's "DB_REF to ETRS89 (1)"
+// with the rotations negated, because that operation is stated in the
+// coordinate-frame convention and proj4's +towgs84 expects position-vector.
 const gkProj = (zone) =>
-  `+proj=tmerc +lat_0=0 +lon_0=${zone * 3} +k=1 +x_0=${zone * 1000000 + 500000} +y_0=0 +ellps=bessel +towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7 +units=m +no_defs`
+  besselGk(zone, '+towgs84=584.9636,107.7175,413.8067,1.1155,0.2824,-3.1384,7.9922')
+
+// DHDN — the pre-DB_REF national frame; the MDB import meets it as `EA0`.
+// These 7 parameters are good to about a metre. EPSG's accurate operation needs
+// the NTv2 grid BeTA2007, which stays on the server (the converter applies it
+// where it matters); here WGS84 only ever drives display, never a calculation.
+const dhdnProj = (zone) =>
+  besselGk(zone, '+towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7')
+
+/**
+ * Gauss-Krüger zone of a Bessel-based EPSG code (DB_REF or DHDN), else null.
+ * Both blocks are numbered by their own logic, so nothing derives a zone by
+ * subtracting on its own.
+ */
+export function gkZone(crs) {
+  const code = Number(crs)
+  if (code >= 5681 && code <= 5685) return code - 5680
+  // The DHDN block is not contiguous by zone: 5676→2 … 5679→5, but 5680→1.
+  if (code >= 5676 && code <= 5680) return code === 5680 ? 1 : code - 5674
+  return null
+}
 
 /**
  * proj4 definition for a supported EPSG code (number or numeric string).
@@ -20,7 +46,8 @@ const gkProj = (zone) =>
  */
 export function projStringFor(crs) {
   const code = Number(crs)
-  if (code >= 5681 && code <= 5685) return gkProj(code - 5680)
+  if (code >= 5681 && code <= 5685) return gkProj(gkZone(code))
+  if (code >= 5676 && code <= 5680) return dhdnProj(gkZone(code))
   if (code >= 25828 && code <= 25838) return utmProj(code - 25800, false)
   if (code >= 32601 && code <= 32660) return utmProj(code - 32600, false)
   if (code >= 32701 && code <= 32760) return utmProj(code - 32700, true)
