@@ -213,6 +213,11 @@ export const OSRD_SWITCH_TYPES = {
   crossing:    'crossing',
   single_slip: 'single_slip_switch',
   double_slip: 'double_slip_switch',
+  // Two track ends and a node between them. OSRD needs one wherever a line
+  // runs from one track_section into the next without a turnout; the app
+  // records one where it has to, at a change of coordinate system, because a
+  // track carries one plane and a line does not stop where the plane does.
+  link:        'link',
 }
 
 /** The kind a RailJSON switch type names, or null for one the app does not model. */
@@ -229,6 +234,7 @@ export const kindForOsrdType = (type) =>
 const OSRD_PORT_NAMES = {
   turnout:  { A: 'A', B1: 'B1', B2: 'B2' },
   crossing: { A: 'A1', B: 'A2', C: 'B1', D: 'B2' },
+  link:     { A: 'A', B: 'B' },
 }
 OSRD_PORT_NAMES.single_slip = OSRD_PORT_NAMES.crossing
 OSRD_PORT_NAMES.double_slip = OSRD_PORT_NAMES.crossing

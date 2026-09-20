@@ -1,6 +1,7 @@
 import { joinTracks, rebuildCoords, recalcAbsLengths, reverseTrack } from '../storage'
 import {
   portsOf, switchRoutePorts, elementBelongsToSwitch, elementOnSwitchRoute, unmarkSwitchElement,
+  isLinkSwitch,
 } from './switchModel'
 import {
   computeCurvedValuesUtm, computeStraightValuesUtm, resolveEndBearing,
@@ -402,6 +403,18 @@ function planCrossingDeletion(sw, tracks) {
  */
 export function planSwitchDeletion(sw, tracks) {
   if (!sw?.switchId) return null
+  // A link owns nothing: no elements, no track, no geometry — it is the node
+  // between two track ends and no more (trackLinkUtils). Deleting it takes the
+  // record and leaves both tracks exactly as they are, which is the one plan
+  // that needs no rule to work out.
+  if (isLinkSwitch(sw)) {
+    return {
+      switchId: sw.switchId, reason: 'link',
+      removeTrackIds: [], updateTracks: [], remap: [],
+      removedElements: 0, removedTracks: [],
+      mergedElements: 0, mergedInto: 0, joined: false,
+    }
+  }
   // The crossing kinds part no track at a toe and may keep both of their
   // routes; their plan follows the same rule as the turnout's, read over the
   // kind's own ports (keptRoutes).

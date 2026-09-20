@@ -9,7 +9,7 @@ import {
   lcsLine, switchFillRing,
   switchLabelGeometry, bauform,
 } from './switchUtils'
-import { newSwitchFields, switchElementMark } from './switchModel'
+import { newSwitchFields, switchElementMark, LINK_KIND } from './switchModel'
 import { kindForOsrdType } from './alignmentCodec'
 import { computeClothoidUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
@@ -154,6 +154,25 @@ function matchCrossingType(absAngleDeg, legLen, slipR, kind) {
 }
 
 /**
+ * Rebuild a link — two track ends and the node between them. There is no form
+ * to match and no element to mark: the record is its two ports, and the symbol
+ * is derived from the tracks on load like every other switch's
+ * (switchUtils.rebuildSwitchSymbol). Returns null unless both ports name a
+ * track the file actually brought.
+ */
+function rebuildLink(sw, trackById) {
+  const { A, B } = sw?.ports ?? {}
+  if (!trackById[A?.track] || !trackById[B?.track]) return null
+  if (!A.endpoint || !B.endpoint) return null
+  return {
+    ...newSwitchFields(LINK_KIND),
+    name: sw.extensions?.sncf?.label ?? sw.id,
+    portA_trackId: A.track, portA_endpoint: A.endpoint,
+    portB_trackId: B.track, portB_endpoint: B.endpoint,
+  }
+}
+
+/**
  * Rebuild one app switch record from an OSRD switch, and mark the elements that
  * make up its body so they render as switch geometry rather than as ordinary
  * track. The parsed elements are this module's own fresh objects, so they are
@@ -161,7 +180,11 @@ function matchCrossingType(absAngleDeg, legLen, slipR, kind) {
  */
 function rebuildSwitch(sw, trackById) {
   const ports = sw?.ports ?? {}
-  if (typeof sw?.id !== 'string' || !ports.B1?.track) return null
+  if (typeof sw?.id !== 'string') return null
+  // A link is read before the B1 test below: it has no B1, because it has no
+  // branch — its two ports are A and B.
+  if (kindForOsrdType(sw.switch_type) === LINK_KIND) return rebuildLink(sw, trackById)
+  if (!ports.B1?.track) return null
   // The crossing kinds have four ports and a geometry of their own — they are
   // rebuilt as the crossing they are (rebuildCrossing below) rather than as a
   // turnout wearing their name.

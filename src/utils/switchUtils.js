@@ -4,7 +4,8 @@ import {
   transitionPointAtUtm, transitionBearingAtUtm, sampleTransitionUtm, projectOnTransitionUtm,
   clothoidRadiusAt, curvatureOf, radiusOfCurvature,
 } from './clothoidUtils'
-import { elementBelongsToSwitch } from './switchModel'
+import { elementBelongsToSwitch, isLinkSwitch } from './switchModel'
+import { linkSymbol } from './trackLinkUtils'
 
 // minl = minimum intermediate straight between two turnouts in a crossover [m].
 // `branch` states a form whose branch is more than the one arc: the sections it
@@ -894,6 +895,9 @@ export function rebuildSwitchSymbol(sw, trackById) {
   const {
     fillCoords: _f, lcsCoords: _l, labelCoords: _lc, bodyCentre: _bc, bauform: _b, ...rest
   } = sw
+  // A link has no routes to read a body off — it is a node. Its symbol stands
+  // on the node itself (trackLinkUtils.linkSymbol).
+  if (isLinkSwitch(sw)) return linkSymbol(rest, trackById)
   if (sw.kind && sw.kind !== 'turnout') {
     const routes = crossingRoutesFromTracks(sw, trackById)
     if (!routes) return rest

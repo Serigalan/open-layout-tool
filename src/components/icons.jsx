@@ -247,6 +247,16 @@ export const CrossingOnTrackIcon = () => (
   </MenuIcon>
 )
 
+// A link: two track ends and the node between them. The gap is the drawing —
+// a link has no length, and nothing runs between the ends but the node itself.
+export const SwitchLinkIcon = () => (
+  <MenuIcon>
+    <path d="M1 8 H5" />
+    <path d="M11 8 H15" />
+    <IconNode cx={8} cy={8} />
+  </MenuIcon>
+)
+
 // Two elements joined by an arc — the splice tool's menu button, the menu
 // counterpart of the sidebar's SpliceElementIcon.
 export const SpliceJoinIcon = () => (

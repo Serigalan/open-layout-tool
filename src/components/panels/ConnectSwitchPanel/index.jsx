@@ -4,9 +4,10 @@ import SCurveForm from './SCurveForm'
 import SwitchOnTrackForm from './SwitchOnTrackForm'
 import CrossingForm from './CrossingForm'
 import CrossingOnTrackForm from './CrossingOnTrackForm'
+import TrackLinkForm from './TrackLinkForm'
 import {
   BackIcon, SwitchStraightIcon, SwitchCurvedIcon, SwitchOnTrackIcon, SwitchConnectionIcon,
-  CrossingIcon, CrossingSwitchIcon, CrossingOnTrackIcon,
+  CrossingIcon, CrossingSwitchIcon, CrossingOnTrackIcon, SwitchLinkIcon,
 } from '../../../components/icons'
 
 // The gray line between the switch tools and the crossing tools, the same
@@ -85,6 +86,15 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     </>
   )
 
+  if (page === 'link') return (
+    <>
+      <BackButton t={t} onBack={back} />
+      <h2>{t('switch_link')}</h2>
+      <TrackLinkForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+        onCommitted={() => setPage('menu')} />
+    </>
+  )
+
   return (
     <>
       <h2>{t('connect_switch')}</h2>
@@ -117,6 +127,11 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
         <button className="create-element-btn" onClick={() => setPage('crossing_ontrack')}>
           <CrossingOnTrackIcon />
           {t('crossing_on_track')}
+        </button>
+        <hr style={SEPARATOR} />
+        <button className="create-element-btn" onClick={() => setPage('link')}>
+          <SwitchLinkIcon />
+          {t('switch_link')}
         </button>
       </div>
     </>

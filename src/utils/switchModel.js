@@ -19,8 +19,21 @@
  * against can be read with the table it meant.
  */
 
-/** Discriminator of a switch record. Everything the app builds today is a turnout. */
-export const SWITCH_KINDS = ['turnout', 'crossing', 'single_slip', 'double_slip']
+/**
+ * Discriminator of a switch record. The first four are track shapes; `link` is
+ * not one of them.
+ *
+ * A link is a node between two track ends and nothing else — no form, no
+ * routes, no geometry of its own. It exists because a track carries one plane
+ * (`track.epsg`) and a line does not stop where the plane does: at a change of
+ * coordinate system one chain ends and the next begins, and what joins them
+ * cannot be a stretch of track, because a stretch would have to lie in one of
+ * the two planes. OSRD models exactly this as its `link` node type, and that is
+ * what the export writes (alignmentCodec).
+ */
+export const LINK_KIND = 'link'
+
+export const SWITCH_KINDS = ['turnout', 'crossing', 'single_slip', 'double_slip', LINK_KIND]
 
 export const DEFAULT_SWITCH_KIND = 'turnout'
 
@@ -47,6 +60,10 @@ const ROUTE_PORTS = {
   crossing:    { main: ['A', 'C'],  cross: ['B', 'D'] },
   single_slip: { main: ['A', 'C'],  cross: ['B', 'D'], slip1: ['A', 'D'] },
   double_slip: { main: ['A', 'C'],  cross: ['B', 'D'], slip1: ['A', 'D'], slip2: ['B', 'C'] },
+  // A link has no route because it has no length: both of its ports are the
+  // one node. Everything that walks routes therefore walks nothing here, which
+  // is what makes a link own no elements and take none with it when it goes.
+  link: {},
 }
 
 /** The ports each route of this kind runs between, as { route: [port, port] }. */
@@ -71,6 +88,7 @@ const KIND_LABEL_KEY = {
   crossing:    'table_type_crossing',
   single_slip: 'table_type_crossing_switch',
   double_slip: 'table_type_crossing_switch',
+  link:        'table_type_link',
 }
 
 const ROUTE_LABEL_KEY = {
@@ -84,16 +102,23 @@ export const switchKindLabelKey = (kind) =>
   KIND_LABEL_KEY[kind] ?? KIND_LABEL_KEY[DEFAULT_SWITCH_KIND]
 
 /**
- * Locale key naming one route of this kind — null for a route it does not have.
- * The crossing kinds share their route names: a slip is a crossing with the
- * connecting curves added, so its two crossing roads are called the same.
+ * Locale key naming one route of this kind — null for a route it does not have,
+ * and therefore null throughout for a link, which has none. The crossing kinds
+ * share their route names: a slip is a crossing with the connecting curves
+ * added, so its two crossing roads are called the same.
  */
 export const switchRouteLabelKey = (kind, route) => {
+  // Against the kind's own routes, not against the name table: `main` is a
+  // route of a crossing and of a turnout, and of a link it is neither.
+  if (ROUTE_PORTS[kind] && !ROUTE_PORTS[kind][route]) return null
   const names = kind !== DEFAULT_SWITCH_KIND && ROUTE_PORTS[kind]
     ? ROUTE_LABEL_KEY.crossing
     : ROUTE_LABEL_KEY.turnout
   return names[route] ?? null
 }
+
+/** A node between two track ends rather than a shape of track (see SWITCH_KINDS). */
+export const isLinkSwitch = (sw) => sw?.kind === LINK_KIND
 
 export const newSwitchId = () => crypto.randomUUID()
 
@@ -163,6 +188,13 @@ const PORTS_BY_KIND = {
 }
 PORTS_BY_KIND.single_slip = PORTS_BY_KIND.crossing
 PORTS_BY_KIND.double_slip = PORTS_BY_KIND.crossing
+// A link has two, and neither carries elements: both are the same node, met
+// from opposite sides. `route: null` is not a gap in the table — it says there
+// is no route to look for, which is how switchParts finds none.
+PORTS_BY_KIND.link = [
+  { port: 'A', trackKey: 'portA_trackId', endKey: 'portA_endpoint', route: null },
+  { port: 'B', trackKey: 'portB_trackId', endKey: 'portB_endpoint', route: null },
+]
 
 /** The ports of a kind, as the field pairs a record carries them in. */
 export const switchPorts = (kind) => PORTS_BY_KIND[kind] ?? PORTS_BY_KIND[DEFAULT_SWITCH_KIND]

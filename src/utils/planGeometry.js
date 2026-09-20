@@ -9,6 +9,7 @@ import {
   switchChainPointUtm, switchChainBearingAt, switchChainBauform,
 } from './switchUtils'
 import { switchNumberOf } from './identifierUtils'
+import { isLinkSwitch } from './switchModel'
 
 /**
  * Everything a plan needs to draw, in the track's own projected plane — paths,
@@ -220,6 +221,11 @@ export function trackPointAt(track, station) {
  * Returns null for a switch whose branch or form cannot be resolved.
  */
 export function switchSymbolUtm(sw, trackById) {
+  // A link carries no body on a design plan: it is the node where one
+  // coordinate system hands the line to the next (trackLinkUtils), and nothing
+  // is built there. The map draws a mark so the node can be picked; a plan
+  // sheet has no such need.
+  if (isLinkSwitch(sw)) return null
   // A crossing kind is drawn from its own two legs: the diamond they span, the
   // crossing point as its node, and the main leg's middle as where the label
   // belongs. There is no branch and no toe, so branchTurn is 0 and the LCS

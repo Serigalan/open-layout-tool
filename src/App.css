@@ -1767,3 +1767,26 @@
   background: #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 10px 30px -14px rgba(0, 0, 0, 0.35);
 }
+
+/* A joint in the link list (TrackLinkForm): the two track ends name it, and
+   the name is the control that puts it on the map — a list of a hundred nodes
+   is only checkable if each one can be looked at. */
+.link-joint-btn {
+  font: inherit;
+  color: #6c5ce7;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.link-joint-btn:hover {
+  text-decoration: underline;
+}
+
+/* The joints that have no alternative: their two tracks lie in different
+   planes, so nothing but a node can join them. */
+.link-joint-crs {
+  font-weight: 600;
+}

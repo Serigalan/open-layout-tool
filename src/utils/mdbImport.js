@@ -298,7 +298,8 @@ function oneStrecke({ rows, cantRows }, strecke, opts = {}) {
   if (known.length > 1) {
     errors.push(`Strecke ${strecke} liegt in ${known.length} Lagesystemen `
       + `(${known.map(s => `${s}: ${bySys.get(s).length}`).join(', ')}) `
-      + '– je System eine eigene Kette, Übergänge sind zu prüfen.')
+      + '– je System eine eigene Kette. Die Übergänge dazwischen sind Knoten: '
+      + 'Weichen → Gleisenden verknüpfen.')
   }
 
   const flagged = mine.filter(r => r.flagged).length

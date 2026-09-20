@@ -3,13 +3,14 @@ import {
   DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION, SWITCH_KINDS, SWITCH_ROUTES, SWITCH_PORTS,
   elementBelongsToSwitch, isModelledSwitch, newSwitchFields, switchElementMark,
   switchPorts, portsOf, switchRoutes, switchRoutePorts,
-  switchKindLabelKey, switchRouteLabelKey,
+  switchKindLabelKey, switchRouteLabelKey, LINK_KIND, isLinkSwitch,
 } from './switchModel'
 
 describe('the model’s vocabulary', () => {
   it('names the kinds a record can discriminate on, the turnout first', () => {
-    expect(SWITCH_KINDS).toEqual(['turnout', 'crossing', 'single_slip', 'double_slip'])
+    expect(SWITCH_KINDS).toEqual(['turnout', 'crossing', 'single_slip', 'double_slip', 'link'])
     expect(SWITCH_KINDS).toContain(DEFAULT_SWITCH_KIND)
+    expect(SWITCH_KINDS).toContain(LINK_KIND)
   })
 
   it('names the routes a turnout marks its elements with', () => {
@@ -105,6 +106,13 @@ describe('the ports and routes each kind has', () => {
     expect(portsOf({ kind: 'no_such_kind' })).toEqual(SWITCH_PORTS)
   })
 
+  it('gives the link two ports and no route — it is a node, not a shape', () => {
+    expect(switchPorts(LINK_KIND).map(p => p.port)).toEqual(['A', 'B'])
+    expect(switchPorts(LINK_KIND).every(p => p.route === null)).toBe(true)
+    expect(switchRoutes(LINK_KIND)).toEqual([])
+    expect(switchRoutePorts(LINK_KIND)).toEqual({})
+  })
+
   it('names the routes of each kind, the turnout’s pair first', () => {
     expect(switchRoutes('turnout')).toEqual(['main', 'branch'])
     expect(switchRoutes('crossing')).toEqual(['main', 'cross'])
@@ -154,6 +162,14 @@ describe('how a kind and its routes are named', () => {
         expect(switchRouteLabelKey(kind, route), `${kind}.${route}`).toBeTruthy()
       }
     }
+  })
+
+  it('names the link, and names no route for it', () => {
+    expect(switchKindLabelKey(LINK_KIND)).toBe('table_type_link')
+    expect(switchRouteLabelKey(LINK_KIND, 'main')).toBe(null)
+    expect(isLinkSwitch({ kind: LINK_KIND })).toBe(true)
+    expect(isLinkSwitch({ kind: 'turnout' })).toBe(false)
+    expect(isLinkSwitch(undefined)).toBe(false)
   })
 
   it('names no route a kind does not have', () => {
