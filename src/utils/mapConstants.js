@@ -75,6 +75,29 @@ export const filterForSwitch = (switchId) => ['==', ['get', 'switchId'], switchI
 /** Pixel tolerance for click/hover hit detection */
 export const HIT_TOLERANCE = 10
 
+/** The layer the project's own tracks are drawn on — what a click asks. */
+export const TRACKS_LAYER = 'tracks-layer'
+
+/**
+ * The track element under a point on the map — { trackId, elementIndex } — or
+ * null where nothing of the project is drawn within HIT_TOLERANCE of it.
+ *
+ * `prefer` settles an overlap: where two tracks lie over each other — a
+ * turnout's branch across the route it was laid into — that one is the one
+ * meant, whichever order the renderer happens to return them in.
+ */
+export function elementUnderPoint(map, point, prefer = null) {
+  if (!map?.getLayer?.(TRACKS_LAYER)) return null
+  const hits = map.queryRenderedFeatures([
+    [point.x - HIT_TOLERANCE, point.y - HIT_TOLERANCE],
+    [point.x + HIT_TOLERANCE, point.y + HIT_TOLERANCE],
+  ], { layers: [TRACKS_LAYER] })
+  const hit = hits.find(f => f.properties.trackId === prefer) ?? hits[0]
+  return hit
+    ? { trackId: hit.properties.trackId, elementIndex: Number(hit.properties.elementIndex) }
+    : null
+}
+
 /**
  * Line width by zoom, [zoom, px, …]. The project's tracks are drawn with the
  * same pen as the kilometrage lines — kmLineLayer uses it too — thin while

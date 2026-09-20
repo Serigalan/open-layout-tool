@@ -3,7 +3,7 @@ import {
   MAX_CANT, MAX_CANT_DEF, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION,
   cantExceedsLimit, cantExceptionFields, cantExceptionOf, cantLimit, clampSwitchCant,
   computeMaxSpeed, computeSwitchCant, switchCantError, switchCantLimit, worstCantOf,
-  VMAX_CANT_DEF,
+  VMAX_CANT_DEF, HIT_TOLERANCE, TRACKS_LAYER, elementUnderPoint,
 } from './mapConstants'
 
 // The numbers the whole package turns on. They are asserted by value, so a
@@ -221,5 +221,56 @@ describe('computeMaxSpeed at the deficiency a speed is designed against', () => 
   it('is what a switch route is never measured by — its own limit is lower', () => {
     expect(computeMaxSpeed(500, 0, MAX_SWITCH_CANT_DEF))
       .toBeLessThan(computeMaxSpeed(500, 0, VMAX_CANT_DEF))
+  })
+})
+
+// What a click on the map lands on. The map is faked down to the two calls the
+// hit test makes of it — everything it decides is decided here, not by MapLibre.
+describe('elementUnderPoint', () => {
+  const feature = (trackId, elementIndex) => ({ properties: { trackId, elementIndex } })
+  const fakeMap = (hits, { layer = TRACKS_LAYER } = {}) => {
+    const asked = []
+    return {
+      asked,
+      getLayer: (id) => (id === layer ? {} : undefined),
+      queryRenderedFeatures: (bbox, opts) => { asked.push({ bbox, opts }); return hits },
+    }
+  }
+
+  it('reads the track and the element off what was hit', () => {
+    const m = fakeMap([feature('t1', '3')])
+    expect(elementUnderPoint(m, { x: 100, y: 200 })).toEqual({ trackId: 't1', elementIndex: 3 })
+  })
+
+  it('asks the tracks layer, within the hit tolerance of the point', () => {
+    const m = fakeMap([])
+    elementUnderPoint(m, { x: 100, y: 200 })
+    expect(m.asked[0].bbox).toEqual([
+      [100 - HIT_TOLERANCE, 200 - HIT_TOLERANCE],
+      [100 + HIT_TOLERANCE, 200 + HIT_TOLERANCE],
+    ])
+    expect(m.asked[0].opts).toEqual({ layers: [TRACKS_LAYER] })
+  })
+
+  it('finds nothing where nothing is drawn', () => {
+    expect(elementUnderPoint(fakeMap([]), { x: 0, y: 0 })).toBe(null)
+  })
+
+  it('finds nothing before the tracks are on the map at all', () => {
+    expect(elementUnderPoint(fakeMap([feature('t1', '0')], { layer: 'other' }), { x: 0, y: 0 })).toBe(null)
+    expect(elementUnderPoint(null, { x: 0, y: 0 })).toBe(null)
+  })
+
+  it('takes the first of several, unless one of them is the preferred track', () => {
+    const hits = [feature('branch', '0'), feature('t1', '7')]
+    expect(elementUnderPoint(fakeMap(hits), { x: 0, y: 0 }).trackId).toBe('branch')
+    // A turnout's branch lies across the route it was laid into: the track the
+    // editor already has open is the one that was meant.
+    expect(elementUnderPoint(fakeMap(hits), { x: 0, y: 0 }, 't1'))
+      .toEqual({ trackId: 't1', elementIndex: 7 })
+  })
+
+  it('keeps the first hit when the preferred track is not among them', () => {
+    expect(elementUnderPoint(fakeMap([feature('t2', '1')]), { x: 0, y: 0 }, 't1').trackId).toBe('t2')
   })
 })

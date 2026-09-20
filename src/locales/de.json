@@ -205,6 +205,7 @@
   "switch_delete_merged": "{{n}} Elemente werden zu {{m}} verschmolzen",
   "switch_delete_confirm": "Weiche {{name}} löschen?",
   "edit_element_edit_tracks": "Trackeditor (tabellarisch)",
+  "edit_tracks_hint": "Gleis in der Karte anklicken oder aus der Liste wählen.",
   "data_exchange": "Datenaustausch",
   "data_exchange_project": "Projekt",
   "data_exchange_project_desc": "Das Projekt besteht aus {{tracks}} Tracks",

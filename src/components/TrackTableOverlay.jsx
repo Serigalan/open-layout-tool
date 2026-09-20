@@ -4,9 +4,10 @@ import { planElementChange } from './panels/EditElementPanel/editGeometry'
 import { transitionCantEnds } from '../utils/clothoidUtils'
 import { crsLabel } from '../utils/coordinateUtils'
 import { switchKindLabelKey, switchRouteLabelKey } from '../utils/switchModel'
+import useTrackPick from '../hooks/useTrackPick'
 import {
   cantSign, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned, computeMaxSpeed,
-  roundCant, filterForElement, FILTER_NONE, CANT_STEP, HIT_TOLERANCE, MAX_SWITCH_CANT_DEF,
+  roundCant, filterForElement, FILTER_NONE, CANT_STEP, MAX_SWITCH_CANT_DEF,
   VMAX_CANT_DEF, mapIsLive,
 } from '../utils/mapConstants'
 
@@ -175,52 +176,23 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
     })
   }, [map, project.id, track.id, activeRow])
 
-  // Picking works on the map as well as in the list of tracks behind the
-  // overlay: a click takes the element under it — a row of this table, or, on
-  // another track, that track, which App then swaps the table over to. The
-  // handlers live as long as the table does, so the map stays clickable while
-  // one track after another is looked at.
-  useEffect(() => {
-    const m = map?.current
-    if (!m) return
-
-    const elementAt = (point) => {
-      if (!m.getLayer('tracks-layer')) return null
-      const hits = m.queryRenderedFeatures([
-        [point.x - HIT_TOLERANCE, point.y - HIT_TOLERANCE],
-        [point.x + HIT_TOLERANCE, point.y + HIT_TOLERANCE],
-      ], { layers: ['tracks-layer'] })
-      // Where two tracks lie over each other — a turnout's branch across the
-      // route it was laid into — the one being edited is the one meant.
-      return hits.find(f => f.properties.trackId === track.id) ?? hits[0] ?? null
+  // While the table is up it takes the clicks on the map itself, because it is
+  // the one that can tell a row from a track: a click on the track it shows
+  // activates that element's row, a click on another one hands that track back
+  // to App, which swaps the table over to it — carrying the row that was meant.
+  // The hover layer is left alone here; App draws the whole open track on it.
+  useTrackPick(map, true, ({ trackId, elementIndex }) => {
+    if (trackId === track.id) {
+      pickedOnMap.current = elementIndex
+      setActiveRow(elementIndex)
+      return
     }
-
-    const onClick = (e) => {
-      const hit = elementAt(e.point)
-      if (!hit) return
-      const row = Number(hit.properties.elementIndex)
-      if (hit.properties.trackId === track.id) {
-        pickedOnMap.current = row
-        setActiveRow(row)
-        return
-      }
-      const picked = loadTracks(project.id).find(tr => tr.id === hit.properties.trackId)
-      if (!picked || !onPickTrack) return
-      pickedOnMap.current = row
-      setPendingRow(row)
-      onPickTrack(picked)
-    }
-
-    const onMove = (e) => { m.getCanvas().style.cursor = elementAt(e.point) ? 'pointer' : '' }
-
-    m.on('click', onClick)
-    m.on('mousemove', onMove)
-    return () => {
-      m.off('click', onClick)
-      m.off('mousemove', onMove)
-      if (mapIsLive(map, m)) m.getCanvas().style.cursor = ''
-    }
-  }, [map, project.id, track.id, onPickTrack])
+    const picked = loadTracks(project.id).find(tr => tr.id === trackId)
+    if (!picked || !onPickTrack) return
+    pickedOnMap.current = elementIndex
+    setPendingRow(elementIndex)
+    onPickTrack(picked)
+  }, { prefer: track.id })
 
   const current  = tracks.find(tr => tr.id === track.id) ?? track
   const elements = current.elements ?? []

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { loadTracks } from '../../../storage'
+import useTrackPick from '../../../hooks/useTrackPick'
 import EditLengthForm from './EditLengthForm'
 import EditPropertiesForm from './EditPropertiesForm'
 import ChangeDirectionForm from './ChangeDirectionForm'
@@ -11,8 +12,19 @@ import {
   ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon,
 } from '../../../components/icons'
 
-export default function EditElementPanel({ t, map, project, onTrackSaved, onShowTrackTable }) {
+export default function EditElementPanel({ t, map, project, trackTableId, onTrackSaved, onShowTrackTable }) {
   const [page, setPage] = useState('menu')
+
+  // Which track to edit is picked on the map as readily as from the list: while
+  // the list is up and no table is open yet, a click on a track opens it, and
+  // the track under the cursor is drawn on the hover layer so it is clear which
+  // one that would be. Once a table is open it takes the clicks itself — it can
+  // tell one of its rows from another track, which this cannot, and two
+  // handlers on one click would only fight over it.
+  useTrackPick(map, page === 'edit_tracks' && !trackTableId, ({ trackId }) => {
+    const picked = loadTracks(project?.id ?? '').find(tr => tr.id === trackId)
+    if (picked) onShowTrackTable?.(picked)
+  }, { highlight: true })
 
   const backButton = (onBack) => (
     <button className="back-btn" onClick={() => { setPage('menu'); onBack?.() }}>
@@ -51,6 +63,7 @@ export default function EditElementPanel({ t, map, project, onTrackSaved, onShow
       <>
         {backButton(() => onShowTrackTable?.(null))}
         <h2>{t('edit_element_edit_tracks')}</h2>
+        <p>{t('edit_tracks_hint')}</p>
         <div className="create-element-options">
           {tracks.map((track) => (
             <button

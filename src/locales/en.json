@@ -205,6 +205,7 @@
   "switch_delete_merged": "{{n}} elements will be merged into {{m}}",
   "switch_delete_confirm": "Delete switch {{name}}?",
   "edit_element_edit_tracks": "Trackeditor (tabular)",
+  "edit_tracks_hint": "Click a track on the map, or pick one from the list.",
   "data_exchange": "Data Exchange",
   "data_exchange_project": "Project",
   "data_exchange_project_desc": "The project consists of {{tracks}} tracks",
