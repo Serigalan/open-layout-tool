@@ -2,7 +2,7 @@ import {
   transformPlanePoint, transformGridBearing, utmToWgs84, crsName,
 } from './coordinateUtils'
 import { resolveEndBearing } from './elementUtils'
-import { portsOf, newSwitchFields, LINK_KIND } from './switchModel'
+import { portsOf, newSwitchFields, isLinkSwitch, LINK_KIND } from './switchModel'
 
 /**
  * Links — the node where one track ends and the next begins.
@@ -199,6 +199,33 @@ export function findTrackJoints(tracks, switches, { tol = JOINT_TOL, bearingTol 
 const withoutCell = ({ cx: _x, cy: _y, fit: _f, ...end }) => end
 
 /**
+ * The links a project already has, each measured the way a candidate joint is:
+ * what its two ports name, how far apart the two ends are, and whether it
+ * bridges two planes. That measurement is the reason to list them at all — a
+ * link is the one object whose ends are allowed to disagree about where they
+ * are, and how far they disagree is what says whether the two chains really
+ * belong together.
+ *
+ * `gap` and `bearingOff` are null for a record whose ports no longer resolve to
+ * a track with elements in a plane this tool can read.
+ */
+export function existingLinks(switches, tracks) {
+  const byId = new Map((tracks ?? []).map(tr => [tr.id, tr]))
+  const endOf = (trackId, endpoint) => {
+    const track = byId.get(trackId)
+    return crsName(track?.epsg) == null ? null : trackEndAt(track, endpoint)
+  }
+  return (switches ?? []).filter(isLinkSwitch).map((sw) => {
+    const a = endOf(sw.portA_trackId, sw.portA_endpoint)
+    const b = endOf(sw.portB_trackId, sw.portB_endpoint)
+    if (!a || !b) return { sw, a, b, gap: null, bearingOff: null, crsChange: false }
+    return { sw, a, b, ...jointFit(a, b), crsChange: a.epsg !== b.epsg }
+  // Widest first: a link is only worth looking at where its two ends disagree,
+  // and one whose tracks are gone is worth looking at before any of them.
+  }).sort((x, y) => (x.gap == null ? -1 : y.gap == null ? 1 : y.gap - x.gap))
+}
+
+/**
  * The record for a joint. It carries its two ports and its name and nothing
  * else — no geometry: the symbol is derived from the tracks (linkSymbol), the
  * way every switch's is, so it can never disagree with them.
@@ -210,6 +237,44 @@ export function linkRecord(joint, name) {
     portA_trackId: joint.a.trackId, portA_endpoint: joint.a.endpoint,
     portB_trackId: joint.b.trackId, portB_endpoint: joint.b.endpoint,
   }
+}
+
+/**
+ * The records for a set of joints, named and drawn — what both the MDB import
+ * and the panel commit.
+ *
+ * Numbering runs `link.001`, `link.002`, … past every name already taken. It is
+ * counted here rather than through `storage.nextTrackName`, which does the same
+ * thing: this module is imported by switchUtils, which storage imports, so
+ * reaching back into storage would close a circle.
+ */
+export function linksForJoints(joints, trackById, takenNames = []) {
+  const taken = new Set(takenNames)
+  let n = 0
+  const nextName = () => {
+    let name
+    do { name = `link.${String(++n).padStart(3, '0')}` } while (taken.has(name))
+    taken.add(name)
+    return name
+  }
+  return (joints ?? []).map(joint => linkSymbol(linkRecord(joint, nextName()), trackById))
+}
+
+/**
+ * Every joint among these tracks, as records ready to commit — what an import
+ * writes without asking. An import cuts its chains wherever the Lagesystem
+ * changes; those cuts are joints, and leaving them open would mean handing over
+ * a network that falls apart at every system boundary.
+ *
+ * Takes the tracks and switches as they will be *after* the import, because a
+ * switch port claims an end: what a turnout already holds is not an open joint.
+ * `fanned` comes back with them so the caller can say how many meetings it
+ * stepped over.
+ */
+export function linkAllJoints(tracks, switches, takenNames = []) {
+  const { joints, fanned } = findTrackJoints(tracks, switches)
+  const byId = Object.fromEntries((tracks ?? []).map(tr => [tr.id, tr]))
+  return { links: linksForJoints(joints, byId, takenNames), joints, fanned }
 }
 
 /**

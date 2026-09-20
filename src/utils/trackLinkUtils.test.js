@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   findTrackJoints, jointFit, trackEndAt, linkRecord, linkSymbol, claimedEnds,
-  JOINT_TOL,
+  existingLinks, linksForJoints, linkAllJoints, JOINT_TOL,
 } from './trackLinkUtils'
 import { planSwitchDeletion } from './switchDelete'
 import { buildInfra } from './exchangeExport'
@@ -253,5 +253,80 @@ describe('deleting a link', () => {
     expect(plan.updateTracks).toEqual([])
     expect(plan.removedElements).toBe(0)
     expect(plan.joined).toBe(false)
+  })
+})
+
+describe('the links a project already has', () => {
+  const [a, b] = acrossThePlanes({ gap: 0.4 })
+  const joint = findTrackJoints([a, b], []).joints[0]
+
+  it('measures each one the way a candidate is measured', () => {
+    const [link] = existingLinks([linkRecord(joint, 'link.001')], [a, b])
+    expect(link.sw.name).toBe('link.001')
+    expect(link.crsChange).toBe(true)
+    expect(link.gap).toBeCloseTo(0.4, 2)
+    expect(link.bearingOff).toBeLessThan(1e-6)
+    expect([link.a.endpoint, link.b.endpoint].sort()).toEqual(['BEGIN', 'END'])
+  })
+
+  it('says nothing about a link whose track is gone, and says it first', () => {
+    const wide = linkRecord(joint, 'wide')
+    const broken = { ...linkRecord(joint, 'broken'), portA_trackId: 'no-such-track' }
+    const links = existingLinks([wide, broken], [a, b])
+    expect(links.map(l => l.sw.name)).toEqual(['broken', 'wide'])
+    expect(links[0].gap).toBe(null)
+    expect(links[0].a).toBe(null)
+  })
+
+  it('sorts the widest first — a link is worth looking at where it is wide', () => {
+    const near = straight('c', UTM, E0, N0, 220, 100, 'c')
+    const tight = findTrackJoints([a, near], []).joints[0]
+    const links = existingLinks(
+      [linkRecord(tight, 'tight'), linkRecord(joint, 'wide')], [a, b, near])
+    expect(links.map(l => l.sw.name)).toEqual(['wide', 'tight'])
+  })
+
+  it('leaves everything that is not a link out of the list', () => {
+    const turnout = { ...newSwitchFields(), name: 'W 1', portA_trackId: 'a', portA_endpoint: 'END' }
+    expect(existingLinks([turnout], [a, b])).toEqual([])
+  })
+})
+
+describe('writing the links of a whole import', () => {
+  it('names them in order and steps over a name already taken', () => {
+    const [a, b] = acrossThePlanes()
+    const { links, joints, fanned } = linkAllJoints([a, b], [], ['link.001'])
+    expect(joints).toHaveLength(1)
+    expect(fanned).toBe(0)
+    expect(links).toHaveLength(1)
+    expect(links[0].name).toBe('link.002')
+    expect(links[0].kind).toBe(LINK_KIND)
+    // Ready to commit: the body is on it, not left to a later reload.
+    expect(links[0].fillCoords).toHaveLength(5)
+  })
+
+  it('writes nothing where a switch already holds the ends', () => {
+    const [a, b] = acrossThePlanes()
+    const sw = {
+      ...newSwitchFields(), name: 'W 1',
+      portA_trackId: 'a', portA_endpoint: 'END',
+      portB1_trackId: 'b', portB1_endpoint: 'BEGIN',
+    }
+    expect(linkAllJoints([a, b], [sw]).links).toEqual([])
+  })
+
+  it('numbers a whole set without collisions', () => {
+    const [a, b] = acrossThePlanes()
+    const c = straight('c', UTM, E0, N0, 220, 120, 'c')     // meets a's BEGIN
+    const { links } = linkAllJoints([a, b, c], [])
+    expect(links.map(l => l.name)).toEqual(['link.001', 'link.002'])
+    expect(new Set(links.map(l => l.switchId)).size).toBe(2)
+  })
+
+  it('takes the joints of linksForJoints without a track index it cannot use', () => {
+    const [a, b] = acrossThePlanes()
+    const joints = findTrackJoints([a, b], []).joints
+    // No tracks handed in: the records are still right, they just carry no body.
+    expect(linksForJoints(joints, {})[0].fillCoords).toBe(undefined)
   })
 })

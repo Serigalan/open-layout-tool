@@ -6,6 +6,7 @@ import { endPointStraightUtm } from '../../../utils/elementUtils'
 import {
   transformPlanePoint, transformGridBearing, utmToWgs84,
 } from '../../../utils/coordinateUtils'
+import { findTrackJoints, linkRecord } from '../../../utils/trackLinkUtils'
 import translations from '../../../locales/de.json'
 import TrackLinkForm from './TrackLinkForm'
 
@@ -109,5 +110,25 @@ describe('the link form before it writes anything', () => {
     const { text } = render([a, b, c])
     expect(text).toContain('Übergangen: 1 mit mehr als zwei Gleisenden')
     expect(text).toContain('Keine offenen Gleisenden gefunden')
+  })
+
+  it('lists the links the project already has, with the distance of their ends', () => {
+    const tracks = acrossThePlanes()
+    const joint = findTrackJoints(tracks, []).joints[0]
+    const { text } = render(tracks, [linkRecord(joint, 'link.001')])
+    expect(text).toContain('Verknüpfungen: 1 (davon 1 mit Systemwechsel)')
+    expect(text).toContain('link.001: Gleis A END ↔ Gleis B BEGIN')
+    expect(text).toMatch(/link\.001:[^·]+· [01] mm auseinander/)
+    // Its ends are taken, so it is not offered a second time.
+    expect(text).toContain('Keine offenen Gleisenden gefunden')
+  })
+
+  it('says so where a link points at a track that is gone', () => {
+    const tracks = acrossThePlanes()
+    const joint = findTrackJoints(tracks, []).joints[0]
+    const broken = { ...linkRecord(joint, 'link.009'), portA_trackId: 'weg' }
+    const { text } = render(tracks, [broken])
+    expect(text).toContain('(Gleis fehlt)')
+    expect(text).toContain('Abstand unbekannt')
   })
 })

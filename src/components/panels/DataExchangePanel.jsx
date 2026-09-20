@@ -15,6 +15,7 @@ import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
 import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, buildAllTracksFromMdb, mdbSwitchInventory } from '../../utils/mdbImport'
 import { placeMdbSwitches } from '../../utils/mdbSwitchPlacement'
+import { linkAllJoints } from '../../utils/trackLinkUtils'
 import { convertMdbOnServer, OptimizerError } from '../../utils/optimizerService'
 
 /**
@@ -385,8 +386,8 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       })
       : { tracks: built.tracks, switches: [], errors: [] }
 
-    setMdbErrors([...built.errors, ...inventory.errors, ...placed.errors])
-    if (!placed.tracks.length) { setMdbBusy(false); return }
+    const notes = [...built.errors, ...inventory.errors, ...placed.errors]
+    if (!placed.tracks.length) { setMdbErrors(notes); setMdbBusy(false); return }
 
     const names = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
     const addTracks = placed.tracks.map(tr => {
@@ -397,10 +398,29 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       names.add(name)
       return { ...tr, id: tr.id ?? generateId(), name, elements, coordinates: rebuildCoords(elements) }
     })
+
+    // The chains the import builds are cut wherever the Lagesystem changes, and
+    // those cuts are joints, not ends — so they are linked here rather than
+    // left for someone to find. It runs over the project as it will be, tracks
+    // and switches together: a switch port claims an end, and what a turnout
+    // already holds is not an open joint. Last, because the ids are handed out
+    // above and a port names a track by its id.
+    const afterTracks   = [...loadTracks(project.id), ...addTracks]
+    const afterSwitches = [...loadSwitches(project.id), ...placed.switches]
+    const { links, joints, fanned } = linkAllJoints(afterTracks, afterSwitches,
+      afterSwitches.map(sw => sw.name).filter(Boolean))
+    if (links.length) {
+      notes.push(t('data_exchange_mdb_links')
+        .replace('{{n}}', links.length)
+        .replace('{{crs}}', joints.filter(j => j.crsChange).length))
+    }
+    if (fanned) notes.push(t('data_exchange_mdb_fanned').replace('{{n}}', fanned))
+
+    setMdbErrors(notes)
     // One commit, one undo step — a whole database is thousands of tracks, and
     // saving them one at a time would leave as many steps behind.
     commitSwitchConnection(project.id, {
-      removeTrackIds: [], addTracks, addSwitches: placed.switches, remap: [],
+      removeTrackIds: [], addTracks, addSwitches: [...placed.switches, ...links], remap: [],
     })
     setMdbBusy(false)
     onTrackSaved?.()
