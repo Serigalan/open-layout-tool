@@ -4,6 +4,7 @@ import {
   cantExceedsLimit, cantExceptionFields, cantExceptionOf, cantLimit, clampSwitchCant,
   computeMaxSpeed, computeSwitchCant, switchCantError, switchCantLimit, worstCantOf,
   VMAX_CANT_DEF, HIT_TOLERANCE, TRACKS_LAYER, elementUnderPoint,
+  cantDefLevel, designCantDef, limitCantDef,
 } from './mapConstants'
 
 // The numbers the whole package turns on. They are asserted by value, so a
@@ -272,5 +273,42 @@ describe('elementUnderPoint', () => {
 
   it('keeps the first hit when the preferred track is not among them', () => {
     expect(elementUnderPoint(fakeMap([feature('t2', '1')]), { x: 0, y: 0 }, 't1').trackId).toBe('t2')
+  })
+})
+
+// What a deficiency says about the element carrying it — the two levels the
+// element table marks, and the one limit a switch route knows.
+describe('cantDefLevel', () => {
+  const line = {}
+  const route = { switchBranch: true }
+
+  it('names the two limits a line element stands between', () => {
+    expect(designCantDef(line)).toBe(VMAX_CANT_DEF)
+    expect(limitCantDef(line)).toBe(MAX_CANT_DEF)
+  })
+
+  it('gives a switch route one limit for both', () => {
+    expect(designCantDef(route)).toBe(MAX_SWITCH_CANT_DEF)
+    expect(limitCantDef(route)).toBe(MAX_SWITCH_CANT_DEF)
+  })
+
+  it.each([
+    [0,   null],
+    [130, null],      // at what it is designed against: ordinary
+    [131, 'design'],  // over the design, inside what may be built
+    [150, 'design'],
+    [151, 'over'],    // past what any dialog would accept
+    [236, 'over'],
+  ])('reads %i mm on a line element as %s', (def, level) => {
+    expect(cantDefLevel(line, def)).toBe(level)
+  })
+
+  it('has no middle ground on a switch route — its 110 mm is the limit', () => {
+    expect(cantDefLevel(route, 110)).toBe(null)
+    expect(cantDefLevel(route, 111)).toBe('over')
+  })
+
+  it('says nothing about cant in excess of the speed — that is not a deficiency', () => {
+    expect(cantDefLevel(line, -200)).toBe(null)
   })
 })

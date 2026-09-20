@@ -1433,6 +1433,25 @@
   background: #232660;
 }
 
+/* Nothing is written until Save is pressed, so an idle button is a table with
+   nothing waiting — and a dirty one is the one thing left to do. */
+.track-table-save-btn:disabled {
+  background: #e8e8e8;
+  color: #999;
+  cursor: default;
+}
+
+.track-table-save-btn-dirty {
+  box-shadow: 0 0 0 2px #fbe4e1;
+}
+
+/* The track's length, beside its name in the table's title. */
+.track-table-subtitle {
+  margin-left: 8px;
+  font-weight: 400;
+  color: #888;
+}
+
 .transition-curve-row {
   display: flex;
   align-items: center;

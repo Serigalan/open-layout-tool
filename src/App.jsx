@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import { translations } from './locales/i18n'
 import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
 import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_ICON_SIZE, GEOJSON_MAXZOOM } from './utils/mapConstants'
+import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
 import { loadTracks, loadSwitches, loadPlatforms, loadSettings, saveSettings, canUndo, undo } from './storage'
 import { resolveEndBearing, displayCoords } from './utils/elementUtils'
@@ -317,6 +318,13 @@ export default function App() {
   const [kmLinesError, setKmLinesError] = useState(false)
   const [project, setProject] = useState(null)
   const [trackTable, setTrackTable] = useState(null)
+  // Whether the element table holds edits nobody has written yet, and what to
+  // do once the user has said the word on losing them.
+  const [tableDirty, setTableDirty] = useState(false)
+  const [discardAsk, setDiscardAsk] = useState(null)   // () => void, the way on
+  // Bumped whenever the store is moved under an open overlay — an undo does
+  // that — so it can re-read instead of writing its own stale copy back out.
+  const [storeVersion, setStoreVersion] = useState(0)
   const [profileTrackId, setProfileTrackId] = useState(null)   // track shown in the profile overlay
   const [planPreview, setPlanPreview] = useState(null)         // { plan, filenameBase } shown as a sheet preview
   const [crossSectionAt, setCrossSectionAt] = useState(null)   // { trackId, station } drawn in the cross-section overlay
@@ -457,6 +465,7 @@ export default function App() {
   const handleUndo = useCallback(() => {
     if (!undo()) return
     setUndoAvailable(canUndo())
+    setStoreVersion(v => v + 1)   // whatever is open on it reads the store again
     setHeightsVersion(v => v + 1)   // an undone height edit must leave the profile too
     if (map.current && projectRef.current) {
       renderTracksOnMap(map.current, projectRef.current)
@@ -511,15 +520,37 @@ export default function App() {
     }
   }
 
+  /**
+   * Closing the element table is the one step that can lose work: nothing it
+   * holds is written until Save. Every way out goes through here — its own ✕,
+   * the panel's back button, another icon, the way back to the start page — so
+   * the question is asked once, in one place, and only when there is something
+   * to lose.
+   */
+  const closeTrackTable = useCallback((proceed) => {
+    if (!trackTable || !tableDirty) { proceed(); return }
+    setDiscardAsk(() => proceed)
+  }, [trackTable, tableDirty])
+
   const handleIconClick = (panel) => {
     const next = activeView === panel ? null : panel
-    setActiveView(next)
     // The track table is opened from the edit panel and belongs to it; the
     // profile overlay likewise to the elevation panel.
-    if (next !== 'edit') setTrackTable(null)
-    if (next !== 'elevation') setProfileTrackId(null)
-    if (next !== 'plan') setPlanPreview(null)
+    const go = () => {
+      setActiveView(next)
+      if (next !== 'edit') setTrackTable(null)
+      if (next !== 'elevation') setProfileTrackId(null)
+      if (next !== 'plan') setPlanPreview(null)
+    }
+    if (next !== 'edit') closeTrackTable(go); else go()
   }
+
+  // Picking another track keeps the edits — they are the table's, not one
+  // track's — so only closing it (null) has to be asked about.
+  const handleShowTrackTable = useCallback((tr) => {
+    if (tr) setTrackTable(tr)
+    else closeTrackTable(() => setTrackTable(null))
+  }, [closeTrackTable])
 
   if (view === 'start') {
     return <StartPage onOpenProject={(p) => { setProject(p); setView('map') }} t={t} language={language} onLanguageChange={handleLanguageChange} />
@@ -605,7 +636,7 @@ export default function App() {
           </button>
           <button
             className="sidebar-icon-btn"
-            onClick={() => setView('start')}
+            onClick={() => closeTrackTable(() => setView('start'))}
             title={t('tooltip_home')}
           >
             <HomeIcon />
@@ -645,7 +676,7 @@ export default function App() {
             project={project}
             onTrackSaved={handleTrackSaved}
             trackTableId={trackTable?.id}
-            onShowTrackTable={setTrackTable}
+            onShowTrackTable={handleShowTrackTable}
             onProjectImported={handleProjectImported}
             profileTrackId={profileTrackId}
             onShowProfile={setProfileTrackId}
@@ -659,11 +690,22 @@ export default function App() {
       <div style={{ flex: 1, position: 'relative' }}>
         <div className="map-container" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
         {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} t={t} />}
-        {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map} onPickTrack={setTrackTable} onClose={() => setTrackTable(null)} onSaved={handleTrackSaved} t={t} />}
+        {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map}
+          storeVersion={storeVersion} onPickTrack={setTrackTable} onDirtyChange={setTableDirty}
+          onClose={() => closeTrackTable(() => setTrackTable(null))} onSaved={handleTrackSaved} t={t} />}
         {profileTrackId && <ElevationOverlay trackId={profileTrackId} project={project} map={map} version={heightsVersion} onClose={() => setProfileTrackId(null)} onSaved={handleTrackSaved} t={t} />}
         {crossSectionAt && <CrossSectionOverlay at={crossSectionAt} project={project} map={map}
           onAtChange={setCrossSectionAt} onClose={() => setCrossSectionAt(null)} t={t} />}
         {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
+        {discardAsk && (
+          <ConfirmModal
+            message={t('table_discard_confirm')}
+            confirmLabel={t('table_discard')}
+            onConfirm={() => { const go = discardAsk; setDiscardAsk(null); go() }}
+            onCancel={() => setDiscardAsk(null)}
+            t={t}
+          />
+        )}
       </div>
     </div>
   )

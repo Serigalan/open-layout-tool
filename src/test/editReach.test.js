@@ -7,7 +7,7 @@ import {
 import { utmToWgs84 } from '../utils/coordinateUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK, MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../utils/mapConstants'
 import { newSwitchFields, switchElementMark } from '../utils/switchModel'
-import { planElementChange } from '../components/panels/EditElementPanel/editGeometry'
+import { planElementChange, mergeElementEdits } from '../components/panels/EditElementPanel/editGeometry'
 import { expectValidTrack } from './chainInvariants'
 
 /**
@@ -172,5 +172,78 @@ describe('planElementChange is a dry run', () => {
     const before = structuredClone(tracks)
     planElementChange(tracks, [], 't0', 0, { length: 250 })
     expect(tracks).toEqual(before)
+  })
+})
+
+/**
+ * What Save writes back. The table holds a copy of every track of the project
+ * from the moment it was opened, so this is the difference between writing its
+ * own edits and writing the whole world as it looked back then — an undo, or
+ * the height fill running in the background, must not be taken back out by the
+ * next press of Save.
+ */
+describe('mergeElementEdits', () => {
+  const el = (length) => ({ elementType: 0, length, bearing: 0 })
+  const store = () => ([
+    { id: 't1', name: 'one', epsg: 25832, elements: [el(100)], coordinates: [[1, 1]], heights: [{ station: 0, z: 100 }] },
+    { id: 't2', name: 'two', epsg: 25832, elements: [el(200)], coordinates: [[2, 2]] },
+  ])
+
+  it('leaves a track the table did not change exactly as the store has it', () => {
+    const now = store()
+    const stale = [{ ...now[0], heights: undefined }, { ...now[1], elements: [el(999)] }]
+    const merged = mergeElementEdits(now, stale, { changed: [] })
+    expect(merged).toEqual(now)
+    expect(merged[0]).toBe(now[0])   // not even copied
+  })
+
+  it('lays the edited elements over the record the store has now', () => {
+    const now = store()
+    const edited = [{ ...now[0], name: 'stale name', elements: [el(120)], coordinates: [[9, 9]] }, now[1]]
+    const [t1] = mergeElementEdits(now, edited, { changed: ['t1'] })
+    expect(t1.elements).toEqual([el(120)])
+    expect(t1.coordinates).toEqual([[9, 9]])
+    // Everything else is the store's: the table edits elements, nothing else.
+    expect(t1.name).toBe('one')
+    expect(t1.epsg).toBe(25832)
+  })
+
+  it('keeps heights written under it where it only changed metadata', () => {
+    const now = store()
+    // The working copy predates the height fill; the element lengths are the
+    // same, so its stations still hold and the fresh heights stay.
+    const edited = [{ ...now[0], heights: undefined, elements: [{ ...el(100), speed: 80 }] }, now[1]]
+    const [t1] = mergeElementEdits(now, edited, { changed: ['t1'], reshaped: [] })
+    expect(t1.heights).toEqual([{ station: 0, z: 100 }])
+    expect(t1.elements[0].speed).toBe(80)
+  })
+
+  it('takes the heights of a track it re-shaped, dropped ones included', () => {
+    const now = store()
+    // A new length re-stations the track, so planElementChange cuts the height
+    // points there — that deletion is a result and has to reach the store.
+    const edited = [{ ...now[0], elements: [el(120)], heights: undefined }, now[1]]
+    const [t1] = mergeElementEdits(now, edited, { changed: ['t1'], reshaped: ['t1'] })
+    expect('heights' in t1).toBe(false)
+
+    const trimmed = [{ ...now[0], elements: [el(120)], heights: [{ station: 0, z: 100 }] }, now[1]]
+    const [kept] = mergeElementEdits(now, trimmed, { changed: ['t1'], reshaped: ['t1'] })
+    expect(kept.heights).toEqual([{ station: 0, z: 100 }])
+  })
+
+  it('does not resurrect a track the store no longer has', () => {
+    const now = [store()[1]]
+    const edited = store()
+    expect(mergeElementEdits(now, edited, { changed: ['t1', 't2'] }).map(tr => tr.id)).toEqual(['t2'])
+  })
+
+  it('reaches every track one change re-shaped, not only the edited one', () => {
+    const now = store()
+    const edited = [
+      { ...now[0], elements: [el(120)] },
+      { ...now[1], elements: [el(220)] },
+    ]
+    const merged = mergeElementEdits(now, edited, { changed: ['t1', 't2'], reshaped: ['t1', 't2'] })
+    expect(merged.map(tr => tr.elements[0].length)).toEqual([120, 220])
   })
 })

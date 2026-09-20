@@ -36,6 +36,8 @@ const TRACK = {
     straight({ switchBranch: true, switchId: 'sw1', switchRoute: 'main', switchLabel: '500 – 1:12', speed: 60, length: 33.2000000004 }),
     arc({ radius: -500, cant: -40, switchBranch: true, switchId: 'sw1', switchRoute: 'branch', speed: 60 }),
     straight({ switchHint: 'EW 190-1:9 nicht gebaut' }),
+    // 100 km/h through R 500 with no cant at all: 236 mm, past anything.
+    arc({ radius: 500, cant: 0 }),
   ],
 }
 const SWITCH = { switchId: 'sw1', kind: 'turnout', name: 'W 12', label: '500 – 1:12', formVersion: 1 }
@@ -61,14 +63,19 @@ function renderTable(track = TRACK) {
       // An input cell says its value in the attribute; a plain one is its text.
       const value = /value="([^"]*)"/.exec(inner)
       const title = /title="([^"]*)"/.exec(attrs)
+      // What is left of the input's class beyond the plain one is the mark the
+      // table put on the cell: an error, or a value inside the rules but worth
+      // seeing.
+      const cls = /class="track-table-input([^"]*)"/.exec(inner)
       return {
         text: value ? value[1] : inner.replace(/<[^>]+>/g, ''),
         editable: !inner.includes('disabled=""'),
         note: title ? title[1] : undefined,
+        mark: (cls?.[1] ?? '').replace('track-table-input-wide', '').trim(),
       }
     }))
   const cell = (row, column) => rows[row][columns.findIndex(c => c.startsWith(column))]
-  return { columns, rows, cell }
+  return { columns, rows, cell, html }
 }
 
 describe('what an element is called', () => {
@@ -156,5 +163,67 @@ describe('the CRS column', () => {
     const { cell } = renderTable({ ...TRACK, epsg: 25832 })
     expect(cell(0, 'EPSG').text).toBe('25832')
     expect(cell(0, 'EPSG').note).toBe('EPSG 25832 – ETRS89 / UTM Zone 32N')
+  })
+})
+
+describe('the station column', () => {
+  it('runs the elements out from the start of the track', () => {
+    const { cell } = renderTable()
+    expect([0, 1, 2, 3].map(i => cell(i, 'Station').text)).toEqual(['0', '150', '183.2', '333.2'])
+  })
+
+  it('is read-only — it follows the lengths, it does not set them', () => {
+    expect(renderTable().cell(1, 'Station').editable).toBe(false)
+  })
+
+  it('adds up to the track’s length, which the title carries', () => {
+    const { html } = renderTable()
+    expect(html).toContain('>583.2 m<')
+  })
+})
+
+describe('the radius of a switch route', () => {
+  it('is read like its length — both are the form’s dimensions', () => {
+    const { cell } = renderTable()
+    expect(cell(2, 'Radius').editable).toBe(false)
+    expect(cell(2, 'Radius').text).toBe('-500')
+    expect(cell(2, 'Radius').note).toBe('Von der Bauform der Weiche gesetzt – hier nicht änderbar')
+  })
+
+  it('leaves the radius of plain running line editable', () => {
+    expect(renderTable().cell(0, 'Radius').editable).toBe(true)
+  })
+})
+
+describe('a deficiency the speed is too high for', () => {
+  it('marks the speed and the deficiency it makes, and says what V_max would be', () => {
+    const { cell } = renderTable()
+    // R 500, u 100, v 100 → 136 mm: over the 130 a speed is designed against,
+    // inside the 150 an element may still be built with.
+    expect(cell(0, 'Fehlbetrag').text).toBe('136')
+    expect(cell(0, 'Fehlbetrag').mark).toBe('track-table-input-exception')
+    expect(cell(0, 'Speed').mark).toBe('track-table-input-exception')
+    expect(cell(0, 'Speed').note).toContain('V_max wäre 98 km/h')
+  })
+
+  it('calls a deficiency past the buildable limit an error', () => {
+    const { cell } = renderTable()
+    expect(cell(4, 'Fehlbetrag').text).toBe('236')
+    expect(cell(4, 'Fehlbetrag').mark).toBe('input-error')
+    expect(cell(4, 'Speed').mark).toBe('input-error')
+  })
+
+  it('says nothing where the design holds', () => {
+    const { cell } = renderTable()
+    expect(cell(3, 'Fehlbetrag').mark).toBe('')
+    expect(cell(3, 'Speed').mark).toBe('')
+    expect(cell(3, 'Speed').note).toBe(undefined)
+  })
+})
+
+describe('saving', () => {
+  it('is nothing to press while the table holds no edits', () => {
+    const { html } = renderTable()
+    expect(/class="track-table-save-btn"[^>]*disabled/.test(html)).toBe(true)
   })
 })

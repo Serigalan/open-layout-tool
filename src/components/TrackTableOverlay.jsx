@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
-import { planElementChange } from './panels/EditElementPanel/editGeometry'
+import { planElementChange, mergeElementEdits } from './panels/EditElementPanel/editGeometry'
 import { transitionCantEnds } from '../utils/clothoidUtils'
 import { crsLabel } from '../utils/coordinateUtils'
 import { switchKindLabelKey, switchRouteLabelKey } from '../utils/switchModel'
+import { elementStations } from '../utils/platformUtils'
 import useTrackPick from '../hooks/useTrackPick'
 import {
-  cantSign, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned, computeMaxSpeed,
-  roundCant, filterForElement, FILTER_NONE, CANT_STEP, MAX_SWITCH_CANT_DEF,
-  VMAX_CANT_DEF, mapIsLive,
+  cantSign, cantDefLevel, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned,
+  computeMaxSpeed, designCantDef, limitCantDef, roundCant, filterForElement, FILTER_NONE,
+  CANT_STEP, MAX_SWITCH_CANT_DEF, VMAX_CANT_DEF, mapIsLive,
 } from '../utils/mapConstants'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
@@ -51,13 +52,6 @@ function governing(elements, i) {
 }
 
 /**
- * The cant deficiency this element's V_max is designed against: the line's
- * VMAX_CANT_DEF, or a switch route's own lower ceiling — the stricter of the
- * two, never the more generous one.
- */
-const vmaxCantDef = (el) => (el.switchBranch ? MAX_SWITCH_CANT_DEF : VMAX_CANT_DEF)
-
-/**
  * Every element's speed raised to what its geometry admits. A curved element —
  * an arc, or a transition, where the tighter end governs — is capped by the cant
  * deficiency its radius and cant leave room for, rounded DOWN onto the 5 km/h
@@ -75,7 +69,7 @@ function maxSpeeds(elements, cap) {
   const curved = elements.map((el, i) => {
     const g = governing(elements, i)
     if (!g) return null
-    const v = computeMaxSpeed(g.radius, g.cant, vmaxCantDef(el))
+    const v = computeMaxSpeed(g.radius, g.cant, designCantDef(el))
     return v == null ? null : Math.floor(v / SPEED_STEP) * SPEED_STEP
   })
 
@@ -93,7 +87,9 @@ function maxSpeeds(elements, cap) {
   })
 }
 
-export default function TrackTableOverlay({ track, project, map, onPickTrack, onClose, onSaved, t }) {
+export default function TrackTableOverlay({
+  track, project, map, storeVersion, onPickTrack, onDirtyChange, onClose, onSaved, t,
+}) {
   // Keep the full track set as working state — a geometry edit propagates to
   // connected following elements/tracks, so we edit and persist all of them.
   const [tracks, setTracks] = useState(() => loadTracks(project.id))
@@ -114,6 +110,20 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
   // Both are the editor's own reach (AP 5.1), not the table's content.
   const [reached, setReached] = useState({ trackIds: [], switchIds: [] })
   const [reachError, setReachError] = useState(null)
+  // Every track whose elements the table has changed and not yet written. It is
+  // what Save puts back — the working copy holds all of them, touched or not —
+  // and what makes the table dirty.
+  const [changed, setChanged] = useState([])
+  // A one-off word to the user about something that happened to the table
+  // rather than in it (so far: an undo took its edits away).
+  const [notice, setNotice] = useState(null)
+
+  const dirty = changed.length > 0
+  // The close paths all sit outside this component (the ✕, the panel's back
+  // button, another icon, the start page), so what is at stake there has to be
+  // known there too.
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   const [draftTrackId, setDraftTrackId] = useState(track.id)
   // The row a click on the map asked for. Which track the table shows is App's
@@ -123,6 +133,22 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
   // …and the row it picked, which the fit below reads to tell a row that came
   // off the map from one picked in the table.
   const pickedOnMap = useRef(null)
+
+  // An undo moves the store back under the table. The working copy is a snapshot
+  // of every track (planElementChange rebuilds them all), so it would otherwise
+  // go on showing the state that was just taken back — and write it out again on
+  // the next Save. It is re-read instead, and unsaved edits are gone with the
+  // step they were sitting on, which is said rather than left to be noticed.
+  const [seenVersion, setSeenVersion] = useState(storeVersion)
+  if (seenVersion !== storeVersion) {
+    setSeenVersion(storeVersion)
+    setTracks(loadTracks(project.id))
+    setChanged([])
+    setReached({ trackIds: [], switchIds: [] })
+    setReachError(null)
+    setDraft(null)
+    setNotice(dirty ? 'table_edits_dropped' : null)
+  }
 
   if (draftTrackId !== track.id) {
     setDraftTrackId(track.id)
@@ -196,6 +222,10 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
 
   const current  = tracks.find(tr => tr.id === track.id) ?? track
   const elements = current.elements ?? []
+  // Where each element starts along the track, and how long the whole of it is
+  // — from the working copy, so both follow an unsaved length straight away.
+  const stations = elementStations(current)
+  const trackLength = stations.length ? stations[stations.length - 1].end : 0
 
   // Every switch of the project by its id: an element of a switch route is
   // named by the record, which is where the kind and the form it was built from
@@ -227,10 +257,13 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
       const plan = planElementChange(tracks, loadSwitches(project.id), track.id, row, { [key]: value })
       if (plan.error) { setReachError(plan.error); return }
       setReachError(null)
+      setNotice(null)
       setReached(prev => ({
         trackIds:  [...new Set([...prev.trackIds, ...plan.touchedTrackIds])],
         switchIds: [...new Set([...prev.switchIds, ...plan.touchedSwitchIds])],
       }))
+      // A geometry change re-shapes every track it reaches, not just this one.
+      setChanged(prev => [...new Set([...prev, ...plan.touchedTrackIds])])
       setTracks(plan.tracks)
     } else if (key === 'cantException') {
       // The justification is a free text, and the text *is* the exception:
@@ -246,6 +279,8 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
 
   // Write one metadata field onto one element of the edited track.
   function setMeta(row, key, value) {
+    setNotice(null)
+    setChanged(prev => (prev.includes(track.id) ? prev : [...prev, track.id]))
     setTracks(prev => prev.map(tr => tr.id !== track.id ? tr : {
       ...tr,
       elements: (tr.elements ?? []).map((el, idx) => idx === row ? { ...el, [key]: value } : el),
@@ -290,19 +325,28 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
   // Speed column filled with the highest value the geometry allows. Only the
   // metadata changes, so the element chain stands as it is; Save persists it.
   function handleMaxSpeeds() {
+    setNotice(null)
+    setChanged(prev => (prev.includes(track.id) ? prev : [...prev, track.id]))
     setTracks(prev => prev.map(tr => tr.id !== track.id
       ? tr
       : { ...tr, elements: maxSpeeds(tr.elements ?? [], capValue) }))
   }
 
   function handleSave() {
-    // Write back only the tracks this table holds, onto the store as it stands
-    // now: other edit forms stay open alongside the table, so tracks added or
-    // deleted meanwhile must not be resurrected or wiped by a stale snapshot.
+    if (!dirty) return
+    // Onto the store as it stands now, and only what this table changed —
+    // mergeElementEdits says what that is. The working copy carries every track
+    // of the project, so writing it back whole would take the store with it.
     // The switches the edits reached get their symbols rebuilt in the same step
     // — they are derived from these very tracks.
-    const edited = new Map(tracks.map(tr => [tr.id, tr]))
-    commitTrackEdit(project.id, loadTracks(project.id).map(tr => edited.get(tr.id) ?? tr), reached.switchIds)
+    const next = mergeElementEdits(loadTracks(project.id), tracks,
+      { changed, reshaped: reached.trackIds })
+    commitTrackEdit(project.id, next, reached.switchIds)
+    // Start again from what was written: the working copy is the store's again,
+    // with no old field of a track left over from before it was opened.
+    setTracks(loadTracks(project.id))
+    setChanged([])
+    setNotice(null)
     setReached({ trackIds: [], switchIds: [] })
     onSaved?.()
   }
@@ -337,6 +381,28 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
     const routeKey = switchRouteLabelKey(sw?.kind, el.switchRoute)
     return [sw?.name || el.switchName, routeKey && t(routeKey), geometryLabel(el)]
       .filter(Boolean).join(' · ')
+  }
+
+  /**
+   * What the deficiency of a row says about it, as a cell class and a note:
+   * past the limit the element may be built with it is an error, past what its
+   * speed should have been designed against it is marked but not refused — the
+   * same two levels, and the same colours, the cant column already uses.
+   * Both cells that are about it say it: the deficiency, and the speed that
+   * made it.
+   */
+  const defLevel = (el, cantDef) => cantDefLevel(el, cantDef)
+
+  const defClass = (level) => (level === 'over' ? 'input-error'
+    : level === 'design' ? 'track-table-input-exception' : '')
+
+  const defNote = (el, level, cantDef, vMax) => {
+    if (!level) return undefined
+    const key = level === 'over' ? 'table_cant_def_over' : 'table_cant_def_design'
+    return t(key)
+      .replace('{{mm}}', String(level === 'over' ? limitCantDef(el) : designCantDef(el)))
+      .replace('{{is}}', String(cantDef))
+      .replace('{{v}}', String(vMax ?? '–'))
   }
 
   // A bearing is shown, never typed: an element starts where the one before it
@@ -395,7 +461,10 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
   return (
     <div className="track-table-overlay">
       <div className="track-table-header">
-        <span className="track-table-title">{current.name || current.id.slice(0, 8)}</span>
+        <span className="track-table-title">
+          {current.name || current.id.slice(0, 8)}
+          <span className="track-table-subtitle">{lengthText(trackLength)} m</span>
+        </span>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <label className="track-table-cap" title={t('table_speed_cap_hint')}>
             {t('table_speed_cap')}
@@ -406,14 +475,22 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
           <button className="track-table-vmax-btn" onClick={handleMaxSpeeds}
             title={t('table_set_max_speeds_hint')}>{t('table_set_max_speeds')}</button>
           {reachError && <span className="track-table-reach-error">{t(reachError)}</span>}
-          {!reachError && reached.trackIds.length > 1 && (
+          {!reachError && notice && <span className="track-table-reach">{t(notice)}</span>}
+          {!reachError && !notice && reached.trackIds.length > 1 && (
             <span className="track-table-reach">
               {t('table_edit_reach')
                 .replace('{{tracks}}', String(reached.trackIds.length))
                 .replace('{{switches}}', String(reached.switchIds.length))}
             </span>
           )}
-          <button className="track-table-save-btn" onClick={handleSave}>{t('btn_save')}</button>
+          {/* Nothing here is written until this is pressed, so it says whether
+              anything is waiting — and on how many tracks, since an edit reaches
+              past the one on screen. */}
+          <button className={`track-table-save-btn${dirty ? ' track-table-save-btn-dirty' : ''}`}
+            onClick={handleSave} disabled={!dirty}
+            title={dirty ? t('table_unsaved').replace('{{tracks}}', String(changed.length)) : undefined}>
+            {dirty ? `${t('btn_save')} •` : t('btn_save')}
+          </button>
           <button className="track-table-close" onClick={onClose}>✕</button>
         </div>
       </div>
@@ -422,6 +499,7 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
           <thead>
             <tr>
               <th>#</th>
+              <th title={t('table_station_hint')}>{t('table_station')} (m)</th>
               <th>{t('table_type')}</th>
               <th>{t('table_bearing')} (°)</th>
               <th>{t('table_end_bearing')} (°)</th>
@@ -442,7 +520,9 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
               // Derived, read-only: both follow the speed/cant/radius cells live.
               const g       = governing(elements, i)
               const cantDef = g ? computeCantDefSigned(el.speed ?? 0, g.radius, g.cant) : 0
-              const vMax    = g ? computeMaxSpeed(g.radius, g.cant, vmaxCantDef(el)) : null
+              const vMax    = g ? computeMaxSpeed(g.radius, g.cant, designCantDef(el)) : null
+              const level   = defLevel(el, cantDef)
+              const defTip  = defNote(el, level, cantDef, vMax)
               return (
                 // Clicking anywhere in the row activates it; onFocus covers
                 // tabbing into one of its cells (React focus events bubble).
@@ -451,6 +531,7 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
                   onClick={() => setActiveRow(i)}
                   onFocus={() => setActiveRow(i)}>
                   <td>{i + 1}</td>
+                  <td>{textCell(lengthText(stations[i]?.start))}</td>
                   <td title={hintNote(el) ?? switchNote(el)}>{textCell(typeLabel(el), {
                     wide: true,
                     className: el.switchHint ? 'track-table-input-exception' : '',
@@ -460,17 +541,21 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
                   {/* A switch route's length is its form's dimension: retyping
                       it would move the turnout's ends while the record that
                       states them stands still. */}
-                  <td title={el.switchBranch ? t('table_length_switch') : undefined}>
+                  <td title={el.switchBranch ? t('table_switch_dimension') : undefined}>
                     {el.switchBranch
                       ? textCell(lengthText(el.length))
                       : editCell(i, 'length', el.length)}
                   </td>
-                  <td>
+                  <td title={el.switchBranch && !isTransition(el) && el.radius ? t('table_switch_dimension') : undefined}>
                     {isTransition(el)
                       ? textCell(radiusText(el), { wide: true })
-                      : editCell(i, 'radius', el.radius, { disabled: !el.radius })}
+                      : el.switchBranch
+                        ? textCell(el.radius ? lengthText(el.radius) : '–')
+                        : editCell(i, 'radius', el.radius, { disabled: !el.radius })}
                   </td>
-                  <td>{editCell(i, 'speed', el.speed)}</td>
+                  {/* The speed is the cell to change when the deficiency it
+                      makes is too high, so it carries the same mark. */}
+                  <td title={defTip}>{editCell(i, 'speed', el.speed, { className: defClass(level) })}</td>
                   {/* Cant ramps across a transition — its ends belong to the
                       neighbouring elements, so there is nothing to edit here. */}
                   <td title={cantNote(el)}>{isTransition(el)
@@ -487,7 +572,7 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
                       className: cantClass(el),
                     })
                     : textCell('–')}</td>
-                  <td>{textCell(cantDef)}</td>
+                  <td title={defTip}>{textCell(cantDef, { className: defClass(level) })}</td>
                   <td>{textCell(vMax != null ? vMax : '–')}</td>
                   {/* The plane the whole track is stated in — one code per
                       track, so the column reads the same all the way down and

@@ -177,6 +177,35 @@ export function planElementChange(tracks, switches, trackId, elIdx, { length, be
 }
 
 /**
+ * The track array to commit after edits in the element table: the store as it
+ * stands now, with the edited elements laid over it.
+ *
+ * The table holds a copy of every track from the moment it was opened — the
+ * first geometry change rebuilds them all (see above) — so writing that copy
+ * back whole would also write back every track it never touched, and with it
+ * undo whatever the store has learned since. What the table owns is the
+ * elements and the display geometry derived from them; and, where it re-shaped
+ * a track, that track's height points, because a new length re-stations the
+ * track and the change truncates them on purpose. Heights filled in the
+ * background on a track the table only re-typed a speed on are not its
+ * business and stay.
+ */
+export function mergeElementEdits(storeTracks, edited, { changed = [], reshaped = [] } = {}) {
+  const changedIds  = new Set(changed)
+  const reshapedIds = new Set(reshaped)
+  const byId = new Map((edited ?? []).map(tr => [tr.id, tr]))
+  return (storeTracks ?? []).map(tr => {
+    const edit = changedIds.has(tr.id) ? byId.get(tr.id) : null
+    if (!edit) return tr
+    const merged = { ...tr, elements: edit.elements, coordinates: edit.coordinates ?? tr.coordinates }
+    if (!reshapedIds.has(tr.id)) return merged
+    if (edit.heights) merged.heights = edit.heights
+    else delete merged.heights
+    return merged
+  })
+}
+
+/**
  * The same change, as the track array alone — for the callers that only draw a
  * preview from it and do not decide anything.
  */

@@ -143,6 +143,27 @@ export const CANT_STEP     = 5     // cant is designed in 5 mm steps
  * lower MAX_SWITCH_CANT_DEF — the stricter of the two always governs.
  */
 export const VMAX_CANT_DEF = 130
+
+/** The deficiency this element's speed is designed against. */
+export const designCantDef = (el) => (el?.switchBranch ? MAX_SWITCH_CANT_DEF : VMAX_CANT_DEF)
+
+/** The deficiency it may be built with at all — what the dialogs refuse past. */
+export const limitCantDef = (el) => (el?.switchBranch ? MAX_SWITCH_CANT_DEF : MAX_CANT_DEF)
+
+/**
+ * What a cant deficiency says about the element carrying it: `'over'` — past
+ * the limit it may be built with, so it is not buildable as it stands;
+ * `'design'` — inside that, but past what its speed should have been laid out
+ * against, so it is on the reserve the design is meant to keep; null —
+ * ordinary. A switch route knows only the one limit: its 110 mm is both.
+ *
+ * Only a deficiency counts. A negative value is cant in excess of what the
+ * speed needs, which has its own rules and is not judged here.
+ */
+export const cantDefLevel = (el, cantDef) => (
+  cantDef > limitCantDef(el) ? 'over'
+    : cantDef > designCantDef(el) ? 'design'
+      : null)
 const CANT_COEFF    = 6.5   // C = k·v²/R
 const CANT_DEF_COEFF = 11.8 // D = k·v²/R − C
 
