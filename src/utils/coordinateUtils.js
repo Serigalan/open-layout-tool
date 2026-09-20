@@ -1,4 +1,5 @@
 import proj4 from 'proj4'
+import { ntv2Ready, GRID_KEY } from './ntv2Grid'
 
 // One projected plane per track (`track.epsg`): every calculation in the app
 // runs in that plane on { easting, northing, zone } points. WGS84 is derived
@@ -20,11 +21,14 @@ const gkProj = (zone) =>
   besselGk(zone, '+towgs84=584.9636,107.7175,413.8067,1.1155,0.2824,-3.1384,7.9922')
 
 // DHDN — the pre-DB_REF national frame; the MDB import meets it as `EA0`.
-// These 7 parameters are good to about a metre. EPSG's accurate operation needs
-// the NTv2 grid BeTA2007, which stays on the server (the converter applies it
-// where it matters); here WGS84 only ever drives display, never a calculation.
-const dhdnProj = (zone) =>
-  besselGk(zone, '+towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7')
+// The 7-parameter set is only good to about a metre (p95); the plan view
+// needs about 5 cm, which is what the BeTA2007 grid (ntv2Grid.js) gets to.
+// `+nadgrids` replaces the Helmert shift outright once the grid has loaded —
+// proj4 ignores +towgs84 on a proj string that also names a grid — so this
+// switches the whole proj string, not just an extra parameter.
+const dhdnProj = (zone) => (ntv2Ready()
+  ? besselGk(zone, `+nadgrids=${GRID_KEY}`)
+  : besselGk(zone, '+towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7'))
 
 /**
  * Gauss-Krüger zone of a Bessel-based EPSG code (DB_REF or DHDN), else null.

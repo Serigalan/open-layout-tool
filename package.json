@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "geotiff": "^2.1.3",
     "jspdf": "^4.2.1",
     "maplibre-gl": "^5.21.0",
     "pmtiles": "^4.5.0",
