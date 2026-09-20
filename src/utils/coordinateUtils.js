@@ -26,9 +26,11 @@ const gkProj = (zone) =>
 // `+nadgrids` replaces the Helmert shift outright once the grid has loaded —
 // proj4 ignores +towgs84 on a proj string that also names a grid — so this
 // switches the whole proj string, not just an extra parameter.
+const DHDN_HELMERT = '+towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7'
+
 const dhdnProj = (zone) => (ntv2Ready()
   ? besselGk(zone, `+nadgrids=${GRID_KEY}`)
-  : besselGk(zone, '+towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7'))
+  : besselGk(zone, DHDN_HELMERT))
 
 /**
  * Gauss-Krüger zone of a Bessel-based EPSG code (DB_REF or DHDN), else null.
@@ -102,18 +104,64 @@ export function epsgForLngLat(lngLat) {
 }
 
 /**
+ * The same plane without the grid — what a DHDN point outside BeTA2007's area
+ * is converted on instead. Null for every other code: nothing else here reads
+ * a grid, so nothing else has an edge to fall off.
+ */
+function offGridProjString(crs) {
+  const code = Number(crs)
+  return ntv2Ready() && code >= 5676 && code <= 5680 ? besselGk(gkZone(code), DHDN_HELMERT) : null
+}
+
+/**
+ * proj4, with the one way the grid fails.
+ *
+ * BeTA2007 covers 5.5°–15.83° E, 46.9°–55.3° N — all of Germany and not much
+ * more. A DHDN point outside it comes back as **[NaN, NaN]**: proj4 writes one
+ * line to the console and hands the NaNs on, it does not raise. Unchecked they
+ * reach an element's startNode, its geometry and the track's coordinates, and
+ * only surface much later as a track that will not draw or a length that is
+ * not a number — far from the coordinate that caused it.
+ *
+ * So a non-finite result is converted again without the grid. The 7-parameter
+ * set is defined everywhere and is what the whole app ran on before the grid
+ * existed; a metre of error at a point past the German border is worth having
+ * over no point at all. Only the DHDN block can take this path — for every
+ * other plane the retry would be the same conversion, and the NaN stands.
+ */
+function project(fromDef, toDef, point, fromCrs = null, toCrs = null) {
+  const out = proj4(fromDef, toDef, point)
+  if (Number.isFinite(out[0]) && Number.isFinite(out[1])) return out
+  const from = offGridProjString(fromCrs) ?? fromDef
+  const to   = offGridProjString(toCrs)   ?? toDef
+  return from === fromDef && to === toDef ? out : proj4(from, to, point)
+}
+
+/**
  * Project a WGS84 [lng, lat] into the plane `crs` (required — the track's
  * epsg, or epsgForLngLat for a track that does not exist yet).
  */
 export function wgs84ToUTM(lngLat, crs) {
   if (crs == null || crs === '') throw new Error('wgs84ToUTM: a CRS is required (the track plane decides, never the point)')
   const epsg = Number(crs)
-  const [easting, northing] = proj4('EPSG:4326', projStringFor(epsg), lngLat)
+  const [easting, northing] = project('EPSG:4326', projStringFor(epsg), lngLat, null, epsg)
   return { easting, northing, zone: epsg }
 }
 
 export function utmToWgs84(easting, northing, crs) {
-  return proj4(projStringFor(crs), 'EPSG:4326', [easting, northing])
+  return project(projStringFor(crs), 'EPSG:4326', [easting, northing], crs, null)
+}
+
+/**
+ * A whole polyline out of one plane into WGS84 — the same conversion as
+ * `utmToWgs84`, with the proj string built once instead of per vertex. A
+ * transition curve is sampled into hundreds of points at a time (clothoidUtils),
+ * which is what this exists for.
+ */
+export function planeCoordsToWgs84(points, crs) {
+  const def = projStringFor(crs)
+  return (points ?? []).map(([easting, northing]) =>
+    project(def, 'EPSG:4326', [easting, northing], crs, null))
 }
 
 /**
@@ -128,7 +176,7 @@ export function utmToWgs84(easting, northing, crs) {
  */
 export function transformPlanePoint(easting, northing, fromCrs, toCrs) {
   if (Number(fromCrs) === Number(toCrs)) return [easting, northing]
-  return proj4(projStringFor(fromCrs), projStringFor(toCrs), [easting, northing])
+  return project(projStringFor(fromCrs), projStringFor(toCrs), [easting, northing], fromCrs, toCrs)
 }
 
 /**
@@ -141,7 +189,7 @@ export function transformGridBearing(easting, northing, bearingDeg, fromCrs, toC
   const from = projStringFor(fromCrs)
   const to   = projStringFor(toCrs)
   const rad  = bearingDeg * Math.PI / 180
-  const [e1, n1] = proj4(from, to, [easting, northing])
-  const [e2, n2] = proj4(from, to, [easting + 10 * Math.sin(rad), northing + 10 * Math.cos(rad)])
+  const [e1, n1] = project(from, to, [easting, northing], fromCrs, toCrs)
+  const [e2, n2] = project(from, to, [easting + 10 * Math.sin(rad), northing + 10 * Math.cos(rad)], fromCrs, toCrs)
   return ((Math.atan2(e2 - e1, n2 - n1) * 180 / Math.PI) + 360) % 360
 }

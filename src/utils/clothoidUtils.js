@@ -1,5 +1,4 @@
-import proj4 from 'proj4'
-import { projStringFor } from './coordinateUtils'
+import { planeCoordsToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT } from './mapConstants'
 
 // Heading change Δφ(s) of a transition of length L between curvatures κ1 → κ2.
@@ -33,7 +32,6 @@ function clothoidSteps(kappa1, kappa2, length, maxDeviation) {
   return Math.max(2, Math.min(500, Math.ceil(totalAngle / maxAngle)))
 }
 
-const utmProjStr = (crs) => projStringFor(crs)
 
 /**
  * March a transition of any curvature profile in the track's plane — the single
@@ -108,9 +106,8 @@ export function computeClothoidUtm(startUtm, bearing, length, signedR1, signedR2
 
   const steps = clothoidSteps(kappa1, kappa2, length, maxDeviation)
   const pts   = sampleTransitionUtm(startUtm, bearing, length, signedR1, signedR2, type, { steps, subdiv: SUBDIV })
-  const proj  = utmProjStr(startUtm.zone)
 
-  const coords = pts.map(([x, y]) => proj4(proj, 'EPSG:4326', [x, y]))
+  const coords = planeCoordsToWgs84(pts, startUtm.zone)
   const [endE, endN] = pts[pts.length - 1]
 
   const phi0       = (90 - bearing) * (Math.PI / 180)

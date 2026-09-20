@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import fs from 'node:fs'
+import proj4 from 'proj4'
 import { loadNtv2Grid, ntv2Ready } from './ntv2Grid'
-import { projStringFor, utmToWgs84, wgs84ToUTM } from './coordinateUtils'
+import { projStringFor, utmToWgs84, wgs84ToUTM, transformPlanePoint } from './coordinateUtils'
 
 /**
  * The BeTA2007 grid the plan view needs for DHDN accuracy (~5 cm, not the
@@ -85,6 +86,65 @@ describe('DHDN once the grid has loaded', () => {
     const apart  = Math.hypot(after.easting - before.easting, after.northing - before.northing)
     expect(apart).toBeGreaterThan(0.3)
     expect(apart).toBeLessThan(1.5)
+  })
+})
+
+/**
+ * BeTA2007 covers 5.5°–15.83° E, 46.9°–55.3° N. proj4 does not raise for a
+ * point outside that — it writes one line to the console and returns
+ * [NaN, NaN], which would travel into an element's nodes and its geometry and
+ * only surface far away from the coordinate that caused it.
+ */
+describe('a DHDN point off the edge of the grid', () => {
+  // Vienna, in the DHDN GK5 plane (EPSG 5679) — the frame reaches there, the
+  // grid does not.
+  const OUTSIDE = { e: 5602105.843, n: 5342355.441, crs: 5679 }
+  const INSIDE  = { e: 4500000, n: 5700000, crs: 5678 }
+
+  beforeAll(async () => {
+    await loadNtv2Grid()
+  })
+
+  it('comes back as a coordinate, not as NaN', () => {
+    const [lng, lat] = utmToWgs84(OUTSIDE.e, OUTSIDE.n, OUTSIDE.crs)
+    expect(Number.isFinite(lng)).toBe(true)
+    expect(Number.isFinite(lat)).toBe(true)
+    expect(lng).toBeCloseTo(16.372, 3)
+    expect(lat).toBeCloseTo(48.211, 3)
+  })
+
+  it('falls back to the Helmert set, which is defined everywhere', () => {
+    const viaFallback = utmToWgs84(OUTSIDE.e, OUTSIDE.n, OUTSIDE.crs)
+    // The same conversion stated without a grid at all: what the app used
+    // before BeTA2007 existed, and what the retry lands on.
+    const helmert = proj4(
+      '+proj=tmerc +lat_0=0 +lon_0=15 +k=1 +x_0=5500000 +y_0=0 +ellps=bessel '
+      + '+towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7 +units=m +no_defs',
+      'EPSG:4326', [OUTSIDE.e, OUTSIDE.n])
+    expect(viaFallback[0]).toBeCloseTo(helmert[0], 9)
+    expect(viaFallback[1]).toBeCloseTo(helmert[1], 9)
+  })
+
+  it('carries a point back into the plane the same way', () => {
+    const { easting, northing } = wgs84ToUTM([16.372, 48.211], OUTSIDE.crs)
+    expect(Number.isFinite(easting)).toBe(true)
+    expect(Number.isFinite(northing)).toBe(true)
+    expect(easting).toBeCloseTo(OUTSIDE.e, 2)
+    expect(northing).toBeCloseTo(OUTSIDE.n, 2)
+  })
+
+  it('crosses into another plane without losing the point', () => {
+    const [e, n] = transformPlanePoint(OUTSIDE.e, OUTSIDE.n, OUTSIDE.crs, 25833)
+    expect(Number.isFinite(e)).toBe(true)
+    expect(Number.isFinite(n)).toBe(true)
+  })
+
+  it('leaves a point the grid does cover on the grid', () => {
+    // The fallback may not quietly take over inside Germany: this is still the
+    // grid's answer, to the last digit PROJ itself gives.
+    const [lng, lat] = utmToWgs84(INSIDE.e, INSIDE.n, INSIDE.crs)
+    expect(lng).toBeCloseTo(PYPROJ_WITH_GRID[0], 9)
+    expect(lat).toBeCloseTo(PYPROJ_WITH_GRID[1], 9)
   })
 })
 
