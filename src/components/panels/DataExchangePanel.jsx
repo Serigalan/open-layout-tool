@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { loadTracks, loadProjects, importProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName } from '../../storage'
+import { loadTracks, loadSwitches, loadProjects, importProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection } from '../../storage'
 import { parseProjectsPayload, PayloadError } from '../../utils/persistenceUtils'
 import { parseRecords, buildElements } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'
@@ -376,26 +376,32 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     const inventory = mdbSwitchInventory(payload)
 
     // Switches part the tracks they sit on, so this has to happen before
-    // anything is saved: what comes back are the tracks as they are afterwards.
+    // anything is saved: what comes back are the tracks as they are afterwards,
+    // and records carrying their symbol — the same shape a switch dialog
+    // commits, so an imported switch is stored and drawn like a built one.
     const placed = mdbSwitches
-      ? placeMdbSwitches(payload, built.tracks, inventory.units, { newId: generateId })
+      ? placeMdbSwitches(payload, built.tracks, inventory.units, {
+        newId: generateId, existingSwitches: loadSwitches(project.id),
+      })
       : { tracks: built.tracks, switches: [], errors: [] }
 
     setMdbErrors([...built.errors, ...inventory.errors, ...placed.errors])
     if (!placed.tracks.length) { setMdbBusy(false); return }
 
     const names = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
-    placed.tracks.forEach(tr => {
+    const addTracks = placed.tracks.map(tr => {
       const elements = recalcAbsLengths(tr.elements)
       const name = !tr.name || names.has(tr.name)
         ? nextTrackName((tr.name ?? 'mdb').split('.')[0], names)
         : tr.name
       names.add(name)
-      saveTrack(project.id, {
-        ...tr, id: tr.id ?? generateId(), name, elements, coordinates: rebuildCoords(elements),
-      })
+      return { ...tr, id: tr.id ?? generateId(), name, elements, coordinates: rebuildCoords(elements) }
     })
-    placed.switches.forEach(sw => saveSwitch(project.id, sw))
+    // One commit, one undo step — a whole database is thousands of tracks, and
+    // saving them one at a time would leave as many steps behind.
+    commitSwitchConnection(project.id, {
+      removeTrackIds: [], addTracks, addSwitches: placed.switches, remap: [],
+    })
     setMdbBusy(false)
     onTrackSaved?.()
   }

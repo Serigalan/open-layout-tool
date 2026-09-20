@@ -12,7 +12,9 @@ import { recalcAbsLengths } from '../storage'
 import fixture from '../test/fixtures/mdb_weiche.json'
 import crossingFixture from '../test/fixtures/mdb_kreuzungsweiche.json'
 import { buildAllTracksFromMdb } from './mdbImport'
-import { switchPorts } from './switchModel'
+import { switchPorts, isModelledSwitch } from './switchModel'
+import { parseProjectsPayload, hydrateProjects, dehydrateProjects } from './persistenceUtils'
+import { SCHEMA_VERSION } from './persistenceUtils'
 
 /**
  * AP 6.3 — the inventory put onto the tracks the same import built.
@@ -216,5 +218,44 @@ describe('placeMdbSwitches — die Kreuzungsbauarten', () => {
     for (const t of placed2.tracks) {
       expectNodesJoin(recalcAbsLengths(t.elements))
     }
+  })
+})
+
+describe('an imported switch is stored like a built one', () => {
+  // The claim: a record the import writes carries the same fields a switch
+  // dialog commits, survives the store's round trip and comes back drawable.
+  const sw = placed.switches[0]
+
+  it('carries the symbol the dialog commits, not just the ports', () => {
+    for (const key of ['fillCoords', 'lcsCoords', 'labelCoords', 'bauform']) {
+      expect(sw[key], key).toBeTruthy()
+    }
+  })
+
+  it('is a switch in the model\'s own terms', () => {
+    expect(isModelledSwitch(sw)).toBe(true)
+    expect(sw.formVersion).toBeTruthy()
+    expect(Number.isInteger(sw.number)).toBe(true)
+  })
+
+  it('takes its number from the project, not from the file', () => {
+    const busy = [{ switchId: 'x', kind: 'turnout', formVersion: 1, number: 1 }]
+    const res = placeMdbSwitches(payload, built.tracks, units, { existingSwitches: busy })
+    expect(res.switches[0].number).not.toBe(1)
+  })
+
+  it('passes the payload gate a saved project has to pass', () => {
+    const projects = [{ id: 'p1', name: 'MDB', tracks: placed.tracks, switches: placed.switches }]
+    const payloadOut = { version: SCHEMA_VERSION, projects: dehydrateProjects(projects) }
+    expect(() => parseProjectsPayload(JSON.parse(JSON.stringify(payloadOut)))).not.toThrow()
+  })
+
+  it('comes back drawable after the store has written and read it', () => {
+    const projects = [{ id: 'p1', name: 'MDB', tracks: placed.tracks, switches: placed.switches }]
+    const round = JSON.parse(JSON.stringify(dehydrateProjects(projects)))
+    hydrateProjects(round)
+    const back = round[0].switches.find(x => x.switchId === sw.switchId)
+    expect(Array.isArray(back.fillCoords)).toBe(true)
+    expect(back.fillCoords.length).toBeGreaterThan(0)
   })
 })

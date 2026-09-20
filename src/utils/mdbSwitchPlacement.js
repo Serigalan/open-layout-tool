@@ -1,6 +1,6 @@
 import {
   SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, CROSSING_TYPES,
-  switchStraightLength, switchBranchLength, crossingEndDistance,
+  switchStraightLength, switchBranchLength, crossingEndDistance, rebuildSwitchSymbol,
 } from './switchUtils'
 import { newSwitchFields, switchElementMark } from './switchModel'
 import { splitTrackAtJoint, splitElementAt, carveSwitchRoute } from './trackSplitUtils'
@@ -9,6 +9,7 @@ import { resolveEndBearing } from './elementUtils'
 import { elementAtStation, pointAtStationUtm } from './heightUtils'
 import { SYS_EPSG } from './mdbImport'
 import { generateId, remapSwitches } from '../storage'
+import { nextSwitchNumber } from './identifierUtils'
 
 /**
  * Putting the MDB's switch inventory onto the tracks the same import built.
@@ -218,7 +219,7 @@ function locatorFor(coords, tracks) {
  * one, a doppelte has two); they are told apart by their curvature and left
  * alone, since the symbol is read from the main and cross legs only.
  */
-function placeCrossingUnit(found, unit, type, tracks, number, makeId) {
+function placeCrossingUnit(found, unit, type, tracks, makeId) {
   const half = crossingEndDistance(type)
   // The two crossing routes run through the point; the connecting curves bend
   // on the form's radius. Straightest first, so the two legs come out on top.
@@ -293,7 +294,7 @@ function placeCrossingUnit(found, unit, type, tracks, number, makeId) {
   return {
     tracks: current,
     remaps,
-    record: { ...identity, number, kind: unit.kind, pad: unit.pad, ...ports },
+    record: { ...identity, kind: unit.kind, pad: unit.pad, ...ports },
   }
 }
 
@@ -350,7 +351,7 @@ function noteUnplaced(tracks, coords, unit, reason) {
  * Returns { tracks, switches, errors } — the tracks as they are after every
  * placement, ready to be saved as they are.
  */
-export function placeMdbSwitches(payload, tracks, units, { startNumber = 1, newId } = {}) {
+export function placeMdbSwitches(payload, tracks, units, { existingSwitches = [], newId } = {}) {
   const errors = []
   const switches = []
   const makeId = newId ?? generateId
@@ -358,7 +359,16 @@ export function placeMdbSwitches(payload, tracks, units, { startNumber = 1, newI
   // time. A port names a track by id, so they get one here, before the first
   // switch parts anything.
   let current = tracks.map(t => ({ ...t, id: t.id ?? makeId() }))
-  let number = startNumber
+  // Numbers are the project's, not the file's: the database numbers a switch
+  // within its Betriebsstelle, which collides across them and with whatever the
+  // project already holds. The name keeps the number the file states — that is
+  // the designation on site — and `number` is drawn from the project's sequence.
+  const taken = []
+  const nextNumber = () => {
+    const n = nextSwitchNumber(existingSwitches, taken)
+    taken.push(n)
+    return n
+  }
   const coords = pointIndex(payload)
 
   const give = (unit, reason) => {
@@ -383,11 +393,11 @@ export function placeMdbSwitches(payload, tracks, units, { startNumber = 1, newI
 
     let placed
     if (crossing) {
-      placed = placeCrossingUnit(found, unit, type, current, number, makeId)
+      placed = placeCrossingUnit(found, unit, type, current, makeId)
     } else {
       const shape = chooseShape(found, type)
       if (shape.reason) { give(unit, `${shape.reason} – nicht gesetzt.`); continue }
-      placed = placeOne({ ...found, ...shape }, unit, type, current, number, makeId)
+      placed = placeOne({ ...found, ...shape }, unit, type, current, makeId)
     }
     if (placed.error) { give(unit, placed.error); continue }
     current = placed.tracks
@@ -397,13 +407,28 @@ export function placeMdbSwitches(payload, tracks, units, { startNumber = 1, newI
     for (const remap of placed.remaps ?? []) {
       switches.splice(0, switches.length, ...remapSwitches(switches, [remap]))
     }
-    switches.push(placed.record)
-    number = placed.record.number + 1
+    // Only a switch that was actually built takes a number — a failed one must
+    // not burn one, or 372 refusals would push the sequence past its ceiling.
+    switches.push({ ...placed.record, number: nextNumber() })
   }
-  return { tracks: current, switches, errors }
+
+  // The symbol travels with the record, exactly as a dialog commits it — the
+  // store appends a switch as it is given and only derives the body again when
+  // a project is read back from disk. A record saved without it would stay
+  // invisible until the next reload.
+  const byId = Object.fromEntries(current.map(t => [t.id, t]))
+  const drawn = switches.map(sw => rebuildSwitchSymbol(sw, byId))
+  // A record whose body cannot be read back from its routes would sit in the
+  // project invisible. It is kept — the ports are right and the routes are
+  // marked — but it is named, because nothing on the map would say it is there.
+  for (const sw of drawn) {
+    if (!sw.fillCoords) errors.push(`${sw.name} (${sw.label}): gesetzt, aber der Weichenkörper `
+      + 'lässt sich aus den Routen nicht ableiten – auf der Karte unsichtbar.')
+  }
+  return { tracks: current, switches: drawn, errors }
 }
 
-function placeOne(found, unit, type, tracks, number, makeId) {
+function placeOne(found, unit, type, tracks, makeId) {
   const { host, branch } = found
   const track = tracks.find(t => t.id === host.track.id) ?? host.track
   const straightLen = switchStraightLength(type)
@@ -458,7 +483,7 @@ function placeOne(found, unit, type, tracks, number, makeId) {
     remaps: [{ oldId: track.id, newId: [pieces[0].id, pieces[1].id] }],
     record: {
       ...identity,
-      number, trailing: reversed, speed: type.speed,
+      trailing: reversed, speed: type.speed,
       kind: unit.kind,
       pad: unit.pad,
       portA_trackId: split.behind.id, portA_endpoint: split.behindEndpoint,
