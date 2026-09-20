@@ -33,7 +33,7 @@ const TRACK = {
   id: 't1', name: 'Gleis 1', epsg: 5678,
   elements: [
     arc({ radius: 500, cant: 100 }),
-    straight({ switchBranch: true, switchId: 'sw1', switchRoute: 'main', switchLabel: '500 – 1:12', speed: 60 }),
+    straight({ switchBranch: true, switchId: 'sw1', switchRoute: 'main', switchLabel: '500 – 1:12', speed: 60, length: 33.2000000004 }),
     arc({ radius: -500, cant: -40, switchBranch: true, switchId: 'sw1', switchRoute: 'branch', speed: 60 }),
     straight({ switchHint: 'EW 190-1:9 nicht gebaut' }),
   ],
@@ -108,6 +108,26 @@ describe('the bearings', () => {
     expect(cell(0, 'Länge').editable).toBe(true)
     expect(cell(0, 'Radius').editable).toBe(true)
     expect(cell(0, 'Speed').editable).toBe(true)
+  })
+})
+
+describe('the length of a switch route', () => {
+  it('is read, not typed — the form of the turnout states it', () => {
+    const { cell } = renderTable()
+    expect(cell(1, 'Länge').editable).toBe(false)
+    expect(cell(2, 'Länge').editable).toBe(false)
+    expect(cell(1, 'Länge').note).toBe('Von der Bauform der Weiche gesetzt – hier nicht änderbar')
+  })
+
+  it('is shown to the millimetre, not to the last bit of a float', () => {
+    const { cell } = renderTable()
+    expect(cell(1, 'Länge').text).toBe('33.2')
+  })
+
+  it('leaves plain running line as long as it was editable', () => {
+    const { cell } = renderTable()
+    expect(cell(3, 'Länge').editable).toBe(true)
+    expect(cell(3, 'Länge').note).toBe(undefined)
   })
 })
 

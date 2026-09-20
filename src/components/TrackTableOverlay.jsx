@@ -344,6 +344,10 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
   // cell into a rotation of everything behind it.
   const degText = (deg) => (Number.isFinite(deg) ? deg.toFixed(2) : '–')
 
+  // A length that is read rather than typed is shown to the millimetre — it is
+  // a dimension of the turnout's form, not a number anyone has to match.
+  const lengthText = (m) => (Number.isFinite(m) ? String(Math.round(m * 1000) / 1000) : '–')
+
   // A transition has no single radius: it runs from r1 to r2 (∞ on the straight
   // end), so the column shows that ramp instead of an empty, uneditable cell.
   const radiusText = (el) => {
@@ -453,7 +457,14 @@ export default function TrackTableOverlay({ track, project, map, onPickTrack, on
                   })}</td>
                   <td>{textCell(degText(el.bearing))}</td>
                   <td>{textCell(degText(el.endBearing))}</td>
-                  <td>{editCell(i, 'length', el.length)}</td>
+                  {/* A switch route's length is its form's dimension: retyping
+                      it would move the turnout's ends while the record that
+                      states them stands still. */}
+                  <td title={el.switchBranch ? t('table_length_switch') : undefined}>
+                    {el.switchBranch
+                      ? textCell(lengthText(el.length))
+                      : editCell(i, 'length', el.length)}
+                  </td>
                   <td>
                     {isTransition(el)
                       ? textCell(radiusText(el), { wide: true })

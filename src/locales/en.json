@@ -307,6 +307,7 @@
   "table_bearing": "Bearing",
   "table_end_bearing": "End Bearing",
   "table_length": "Length",
+  "table_length_switch": "Set by the switch’s form – not editable here",
   "table_radius": "Radius",
   "table_speed": "Speed",
   "table_cant": "Cant",
