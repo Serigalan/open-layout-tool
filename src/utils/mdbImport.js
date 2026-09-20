@@ -221,14 +221,17 @@ export function mdbRows(payload) {
   return { rows, cantRows, errors }
 }
 
-/** Line numbers present, with how many elements each carries. */
-export function listMdbStrecken(payload) {
-  const { rows } = mdbRows(payload)
+function streckenOf(rows) {
   const counts = new Map()
   for (const r of rows) counts.set(r.strecke, (counts.get(r.strecke) ?? 0) + 1)
   return [...counts.entries()]
     .map(([strecke, count]) => ({ strecke, count }))
     .sort((a, b) => a.strecke.localeCompare(b.strecke, undefined, { numeric: true }))
+}
+
+/** Line numbers present, with how many elements each carries. */
+export function listMdbStrecken(payload) {
+  return streckenOf(mdbRows(payload).rows)
 }
 
 /**
@@ -243,10 +246,35 @@ export function listMdbStrecken(payload) {
  * Returns { tracks, errors }.
  */
 export function buildTracksFromMdb(payload, strecke, opts = {}) {
-  const { rows, cantRows, errors } = mdbRows(payload)
+  const built = mdbRows(payload)
+  const res = oneStrecke(built, strecke, opts)
+  return { tracks: res.tracks, errors: [...built.errors, ...res.errors] }
+}
+
+/**
+ * Every line number in the file in one go — the whole database as tracks.
+ *
+ * The rows are built once and then cut per line number, which is what makes
+ * this worth having: `buildTracksFromMdb` called in a loop would walk all
+ * 9 218 elements again for each of the ~390 line numbers.
+ */
+export function buildAllTracksFromMdb(payload, opts = {}) {
+  const built = mdbRows(payload)
+  const tracks = []
+  const errors = [...built.errors]
+  for (const { strecke } of streckenOf(built.rows)) {
+    const res = oneStrecke(built, strecke, opts)
+    tracks.push(...res.tracks)
+    errors.push(...res.errors)
+  }
+  return { tracks, errors }
+}
+
+function oneStrecke({ rows, cantRows }, strecke, opts = {}) {
+  const errors = []
   const mine = rows.filter(r => r.strecke === String(strecke))
   if (!mine.length) {
-    return { tracks: [], errors: [...errors, `Keine Elemente für Strecke ${strecke} gefunden.`] }
+    return { tracks: [], errors: [`Keine Elemente für Strecke ${strecke} gefunden.`] }
   }
 
   const bySys = new Map()
@@ -260,7 +288,7 @@ export function buildTracksFromMdb(payload, strecke, opts = {}) {
   for (const s of unknown) {
     errors.push(`Lagesystem ${s} ist nicht zugeordnet – ${bySys.get(s).length} Elemente übersprungen.`)
   }
-  if (!known.length) return { tracks: [], errors }
+  if (!known.length) return { tracks: [], errors }   // nothing placeable in this line
 
   // No explicit target means no transformation: every track keeps the plane its
   // elements were surveyed in. The model holds one plane per track anyway, and
@@ -288,7 +316,12 @@ export function buildTracksFromMdb(payload, strecke, opts = {}) {
     for (const t of res.tracks) tracks.push({ ...t, lagesystem: sys })
     errors.push(...res.errors.map(e => (known.length > 1 ? `[${sys}] ${e}` : e)))
   }
-  return { tracks, errors }
+  // Each system numbers its chains from 1, so a line in two systems would hand
+  // out `5510.001` twice. The number runs across the whole line instead.
+  return {
+    tracks: tracks.map((t, i) => ({ ...t, name: `${strecke}.${String(i + 1).padStart(3, '0')}` })),
+    errors,
+  }
 }
 
 /**

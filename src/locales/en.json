@@ -227,6 +227,8 @@
   "import_keep_imported": "Keep imported",
   "data_exchange_vermesn": "Verm.ESN Import",
   "data_exchange_vermesn_crs": "Coordinate System",
+  "data_exchange_mdb_all": "Everything – all {{n}} lines",
+  "data_exchange_mdb_switches": "Place switches too",
   "data_exchange_mdb": "MDB import (Access)",
   "data_exchange_mdb_desc": "Inventory database of the ASCII interface. The file is sent to the server to be converted and deleted there afterwards. Every track keeps the plane it was surveyed in.",
   "data_exchange_mdb_choose": "Choose MDB",

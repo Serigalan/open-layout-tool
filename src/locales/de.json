@@ -227,6 +227,8 @@
   "import_keep_imported": "Importiertes behalten",
   "data_exchange_vermesn": "Verm.ESN Import",
   "data_exchange_vermesn_crs": "Koordinatensystem",
+  "data_exchange_mdb_all": "Alles – alle {{n}} Strecken",
+  "data_exchange_mdb_switches": "Weichen mitsetzen",
   "data_exchange_mdb": "MDB-Import (Access)",
   "data_exchange_mdb_desc": "Bestandsdatenbank der ASCII-Schnittstelle. Die Datei wird zum Umwandeln an den Server übertragen und dort nach der Umwandlung gelöscht. Jedes Gleis behält die Lage, in der es vermessen wurde.",
   "data_exchange_mdb_choose": "MDB wählen",

@@ -13,7 +13,8 @@ import { EPSG_OPTIONS } from '../../utils/coordinateUtils'
 import useTrackHover from '../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
-import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, mdbSwitchInventory } from '../../utils/mdbImport'
+import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, buildAllTracksFromMdb, mdbSwitchInventory } from '../../utils/mdbImport'
+import { placeMdbSwitches } from '../../utils/mdbSwitchPlacement'
 import { convertMdbOnServer, OptimizerError } from '../../utils/optimizerService'
 
 /**
@@ -24,6 +25,9 @@ import { convertMdbOnServer, OptimizerError } from '../../utils/optimizerService
  * about.
  */
 const OSRD_LINK_TIMEOUT = 30000
+
+/** The line-number picker's entry for „every line in the file“. */
+const ALL_STRECKEN = '*'
 
 function ExchangeSection({ title, description, children }) {
   return (
@@ -76,6 +80,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const [mdbStrecke, setMdbStrecke]     = useState('')
   const [mdbCounts, setMdbCounts]       = useState(null)
   const [mdbErrors, setMdbErrors]       = useState([])
+  const [mdbSwitches, setMdbSwitches]   = useState(true)
   const [mdbBusy, setMdbBusy]           = useState(false)
   const osrdInputRef                    = useRef(null)
   const [osrdErrors, setOsrdErrors]     = useState([])
@@ -348,7 +353,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       } : null)
       const list = listMdbStrecken(payload)
       setMdbStrecken(list)
-      setMdbStrecke(list.some(x => x.strecke === mdbStrecke) ? mdbStrecke : (list[0]?.strecke ?? ''))
+      setMdbStrecke(ALL_STRECKEN)
       if (!list.length) setMdbErrors([t('data_exchange_mdb_err_empty')])
     } catch (err) {
       mdbPayloadRef.current = null
@@ -362,19 +367,36 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const handleMdbImport = () => {
     const payload = mdbPayloadRef.current
     if (!payload || !mdbStrecke || !project) return
-    const { tracks: parsed, errors } = buildTracksFromMdb(payload, mdbStrecke)
+    setMdbBusy(true)
+    // The whole file at once is the common case — a Betriebsstelle's switches
+    // rarely sit on one line number, so picking a single one splits them up.
+    const built = mdbStrecke === ALL_STRECKEN
+      ? buildAllTracksFromMdb(payload)
+      : buildTracksFromMdb(payload, mdbStrecke)
     const inventory = mdbSwitchInventory(payload)
-    setMdbErrors([...errors, ...inventory.errors])
-    if (!parsed.length) return
+
+    // Switches part the tracks they sit on, so this has to happen before
+    // anything is saved: what comes back are the tracks as they are afterwards.
+    const placed = mdbSwitches
+      ? placeMdbSwitches(payload, built.tracks, inventory.units, { newId: generateId })
+      : { tracks: built.tracks, switches: [], errors: [] }
+
+    setMdbErrors([...built.errors, ...inventory.errors, ...placed.errors])
+    if (!placed.tracks.length) { setMdbBusy(false); return }
+
     const names = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
-    parsed.forEach(tr => {
+    placed.tracks.forEach(tr => {
       const elements = recalcAbsLengths(tr.elements)
-      const name = names.has(tr.name) ? nextTrackName(tr.name.split('.')[0], names) : tr.name
+      const name = !tr.name || names.has(tr.name)
+        ? nextTrackName((tr.name ?? 'mdb').split('.')[0], names)
+        : tr.name
       names.add(name)
       saveTrack(project.id, {
-        ...tr, id: generateId(), name, elements, coordinates: rebuildCoords(elements),
+        ...tr, id: tr.id ?? generateId(), name, elements, coordinates: rebuildCoords(elements),
       })
     })
+    placed.switches.forEach(sw => saveSwitch(project.id, sw))
+    setMdbBusy(false)
     onTrackSaved?.()
   }
 
@@ -783,11 +805,19 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
                   <label>{t('data_exchange_csv_line')}</label>
                   <select className="settings-select" value={mdbStrecke}
                     onChange={e => setMdbStrecke(e.target.value)}>
+                    <option value={ALL_STRECKEN}>
+                      {t('data_exchange_mdb_all').replace('{{n}}', mdbStrecken.length)}
+                    </option>
                     {mdbStrecken.map(x => (
                       <option key={x.strecke} value={x.strecke}>{x.strecke} ({x.count})</option>
                     ))}
                   </select>
                 </div>
+                <label className="transition-curve-row">
+                  <input type="checkbox" checked={mdbSwitches}
+                    onChange={e => setMdbSwitches(e.target.checked)} />
+                  {t('data_exchange_mdb_switches')}
+                </label>
                 <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
                   disabled={!mdbStrecke} onClick={handleMdbImport}>
                   {t('data_exchange_import')}
