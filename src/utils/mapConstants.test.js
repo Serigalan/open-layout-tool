@@ -3,6 +3,7 @@ import {
   MAX_CANT, MAX_CANT_DEF, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION,
   cantExceedsLimit, cantExceptionFields, cantExceptionOf, cantLimit, clampSwitchCant,
   computeMaxSpeed, computeSwitchCant, switchCantError, switchCantLimit, worstCantOf,
+  VMAX_CANT_DEF,
 } from './mapConstants'
 
 // The numbers the whole package turns on. They are asserted by value, so a
@@ -17,6 +18,13 @@ describe('the limits themselves', () => {
   it('leaves the line’s own limits where they were', () => {
     expect(MAX_CANT).toBe(170)
     expect(MAX_CANT_DEF).toBe(150)
+  })
+
+  it('designs a speed against 130 mm, inside the 150 mm an element may reach', () => {
+    expect(VMAX_CANT_DEF).toBe(130)
+    expect(VMAX_CANT_DEF).toBeLessThan(MAX_CANT_DEF)
+    // …and a switch route stays stricter still, so the lower one always governs.
+    expect(MAX_SWITCH_CANT_DEF).toBeLessThan(VMAX_CANT_DEF)
   })
 
   it('keeps every switch limit under the line’s — a turnout is never the laxer case', () => {
@@ -189,5 +197,29 @@ describe('computeMaxSpeed under the switch deficiency limit', () => {
         expect(Math.round((11.8 * v * v) / radius - cant)).toBeLessThanOrEqual(MAX_SWITCH_CANT_DEF)
       }
     }
+  })
+})
+
+// V_max is designed against VMAX_CANT_DEF, not against the ceiling an element
+// may reach before a dialog refuses it — the margin between the two is the
+// point of the constant, so it is pinned to the speeds it makes.
+describe('computeMaxSpeed at the deficiency a speed is designed against', () => {
+  it('leaves the deficiency at or under 130 mm at the speed it returns', () => {
+    for (const radius of [300, 500, 760, 1200, 2500]) {
+      for (const cant of [0, 80, MAX_CANT]) {
+        const v = computeMaxSpeed(radius, cant, VMAX_CANT_DEF)
+        expect(Math.round((11.8 * v * v) / radius - cant)).toBeLessThanOrEqual(VMAX_CANT_DEF)
+      }
+    }
+  })
+
+  it('holds a curve slower than the 150 mm ceiling would', () => {
+    expect(computeMaxSpeed(500, 0, VMAX_CANT_DEF)).toBe(74)
+    expect(computeMaxSpeed(500, 0, MAX_CANT_DEF)).toBe(79)
+  })
+
+  it('is what a switch route is never measured by — its own limit is lower', () => {
+    expect(computeMaxSpeed(500, 0, MAX_SWITCH_CANT_DEF))
+      .toBeLessThan(computeMaxSpeed(500, 0, VMAX_CANT_DEF))
   })
 })

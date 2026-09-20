@@ -108,6 +108,18 @@ export const ZOOM_ICON_SIZE = lineWidthTimes(1 / MARKER_STROKE)
 export const MAX_CANT      = 170   // maximum cant (mm)
 export const MAX_CANT_DEF  = 150   // maximum cant deficiency (mm)
 export const CANT_STEP     = 5     // cant is designed in 5 mm steps
+
+/**
+ * The cant deficiency a speed is designed against (mm) — what the element
+ * table's V_max column reads, and what its button sets every speed to.
+ *
+ * It is not MAX_CANT_DEF: 150 mm is the most an element may be built with
+ * before the dialogs refuse it, the ceiling. The layout is drawn to 130, so
+ * the design keeps the margin between the two instead of spending it and
+ * leaving every curve at its limit. A switch route is designed to its own,
+ * lower MAX_SWITCH_CANT_DEF — the stricter of the two always governs.
+ */
+export const VMAX_CANT_DEF = 130
 const CANT_COEFF    = 6.5   // C = k·v²/R
 const CANT_DEF_COEFF = 11.8 // D = k·v²/R − C
 

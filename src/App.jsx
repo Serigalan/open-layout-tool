@@ -658,7 +658,7 @@ export default function App() {
       <div style={{ flex: 1, position: 'relative' }}>
         <div className="map-container" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
         {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} t={t} />}
-        {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map} onClose={() => setTrackTable(null)} onSaved={handleTrackSaved} t={t} />}
+        {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map} onPickTrack={setTrackTable} onClose={() => setTrackTable(null)} onSaved={handleTrackSaved} t={t} />}
         {profileTrackId && <ElevationOverlay trackId={profileTrackId} project={project} map={map} version={heightsVersion} onClose={() => setProfileTrackId(null)} onSaved={handleTrackSaved} t={t} />}
         {crossSectionAt && <CrossSectionOverlay at={crossSectionAt} project={project} map={map}
           onAtChange={setCrossSectionAt} onClose={() => setCrossSectionAt(null)} t={t} />}

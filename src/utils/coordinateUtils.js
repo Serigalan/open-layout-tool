@@ -58,16 +58,37 @@ export function projStringFor(crs) {
   throw new Error(`Unsupported CRS: ${crs}`)
 }
 
-/** Supported EPSG codes for the track-creation CRS picker (auto-suggested, overridable). */
-export const EPSG_OPTIONS = [
-  { code: 25831, label: 'ETRS89 / UTM Zone 31N' },
-  { code: 25832, label: 'ETRS89 / UTM Zone 32N' },
-  { code: 25833, label: 'ETRS89 / UTM Zone 33N' },
-  { code: 5681,  label: 'DB_REF / GK Zone 1' },
-  { code: 5682,  label: 'DB_REF / GK Zone 2' },
-  { code: 5683,  label: 'DB_REF / GK Zone 3' },
-  { code: 5684,  label: 'DB_REF / GK Zone 4' },
-]
+/**
+ * What a supported EPSG code is called, from the same blocks projStringFor
+ * resolves — null for a code this tool has no plane for. Every code it does
+ * support is named, not only the handful the picker offers: the MDB import
+ * brings tracks in DHDN (`EA0`, 5676-5680), and a column or a plan sheet that
+ * showed those as a bare number would leave the reader to look the frame up.
+ */
+export function crsName(crs) {
+  const code = Number(crs)
+  if (code >= 5681 && code <= 5685)   return `DB_REF / GK Zone ${gkZone(code)}`
+  if (code >= 5676 && code <= 5680)   return `DHDN / GK Zone ${gkZone(code)}`
+  if (code >= 25828 && code <= 25838) return `ETRS89 / UTM Zone ${code - 25800}N`
+  if (code >= 32601 && code <= 32660) return `WGS 84 / UTM Zone ${code - 32600}N`
+  if (code >= 32701 && code <= 32760) return `WGS 84 / UTM Zone ${code - 32700}S`
+  return null
+}
+
+/** How a CRS is written out in full — on a plan sheet, in the element table. */
+export function crsLabel(crs) {
+  if (!crs) return ''
+  const name = crsName(crs)
+  return name ? `EPSG ${crs} – ${name}` : `EPSG ${crs}`
+}
+
+/**
+ * Supported EPSG codes for the track-creation CRS picker (auto-suggested,
+ * overridable). The list is the choice on offer — a new track is laid out in a
+ * current frame — while crsName covers every code the tool can read.
+ */
+export const EPSG_OPTIONS = [25831, 25832, 25833, 5681, 5682, 5683, 5684]
+  .map(code => ({ code, label: crsName(code) }))
 
 /**
  * EPSG code of the UTM zone containing a WGS84 coordinate — the suggestion a

@@ -58,6 +58,43 @@ export const switchRoutes = (kind) => Object.keys(switchRoutePorts(kind))
 /** The routes a turnout has — the pair everything built so far marks itself with. */
 export const SWITCH_ROUTES = switchRoutes(DEFAULT_SWITCH_KIND)
 
+/**
+ * What a kind and its routes are called, as locale keys — a turnout is a
+ * Weiche, a crossing a Kreuzung, both slips a Kreuzungsweiche, and each route
+ * carries the name the dialogs give it. The element table reads them so a
+ * turnout's elements say what they are instead of reading as plain running
+ * line; an unknown kind falls back to the turnout's names, the same way
+ * switchRoutePorts does.
+ */
+const KIND_LABEL_KEY = {
+  turnout:     'table_type_switch',
+  crossing:    'table_type_crossing',
+  single_slip: 'table_type_crossing_switch',
+  double_slip: 'table_type_crossing_switch',
+}
+
+const ROUTE_LABEL_KEY = {
+  turnout:  { main: 'table_route_stem',    branch: 'table_route_branch' },
+  crossing: { main: 'table_route_through', cross:  'table_route_cross',
+    slip1: 'table_route_slip', slip2: 'table_route_slip' },
+}
+
+/** Locale key naming this kind of switch. */
+export const switchKindLabelKey = (kind) =>
+  KIND_LABEL_KEY[kind] ?? KIND_LABEL_KEY[DEFAULT_SWITCH_KIND]
+
+/**
+ * Locale key naming one route of this kind — null for a route it does not have.
+ * The crossing kinds share their route names: a slip is a crossing with the
+ * connecting curves added, so its two crossing roads are called the same.
+ */
+export const switchRouteLabelKey = (kind, route) => {
+  const names = kind !== DEFAULT_SWITCH_KIND && ROUTE_PORTS[kind]
+    ? ROUTE_LABEL_KEY.crossing
+    : ROUTE_LABEL_KEY.turnout
+  return names[route] ?? null
+}
+
 export const newSwitchId = () => crypto.randomUUID()
 
 /**

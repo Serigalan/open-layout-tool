@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { loadTracks, loadSwitches, loadKmLines } from '../../storage'
 import { BASEMAPS } from '../../basemaps'
-import { EPSG_OPTIONS } from '../../utils/coordinateUtils'
+import { crsLabel } from '../../utils/coordinateUtils'
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../../utils/mapConstants'
 import { PAPER_FORMATS, SCALES } from '../../utils/planExport'
 import { planSheets } from '../../utils/planLayout'
@@ -28,13 +28,6 @@ const CONTENT_KEYS = [
   ['switches',   'plan_show_switches'],
   ['trackNames', 'plan_show_names'],
 ]
-
-/** How a CRS is named on the sheet. */
-function crsLabel(epsg) {
-  if (!epsg) return ''
-  const known = EPSG_OPTIONS.find(o => String(o.code) === String(epsg))
-  return known ? `EPSG ${known.code} – ${known.label}` : `EPSG ${epsg}`
-}
 
 function heightLabel(epsg) {
   const code = epsg ?? DEFAULT_HEIGHT_EPSG

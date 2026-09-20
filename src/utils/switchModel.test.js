@@ -3,6 +3,7 @@ import {
   DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION, SWITCH_KINDS, SWITCH_ROUTES, SWITCH_PORTS,
   elementBelongsToSwitch, isModelledSwitch, newSwitchFields, switchElementMark,
   switchPorts, portsOf, switchRoutes, switchRoutePorts,
+  switchKindLabelKey, switchRouteLabelKey,
 } from './switchModel'
 
 describe('the model’s vocabulary', () => {
@@ -129,5 +130,40 @@ describe('the ports and routes each kind has', () => {
     }
     expect(shared('turnout', 'main', 'branch')).toEqual(['A'])
     expect(shared('crossing', 'main', 'cross')).toEqual([])
+  })
+})
+
+// What the element table calls a switch that lies in a track: the row is named
+// by the turnout, not by the shape of the alignment underneath it.
+describe('how a kind and its routes are named', () => {
+  it('names each kind, both slips as a crossing switch', () => {
+    expect(switchKindLabelKey('turnout')).toBe('table_type_switch')
+    expect(switchKindLabelKey('crossing')).toBe('table_type_crossing')
+    expect(switchKindLabelKey('single_slip')).toBe('table_type_crossing_switch')
+    expect(switchKindLabelKey('double_slip')).toBe('table_type_crossing_switch')
+  })
+
+  it('falls back to the turnout for a kind it does not know — as the ports do', () => {
+    expect(switchKindLabelKey(undefined)).toBe(switchKindLabelKey(DEFAULT_SWITCH_KIND))
+    expect(switchKindLabelKey('nonesuch')).toBe(switchKindLabelKey(DEFAULT_SWITCH_KIND))
+  })
+
+  it('names every route every kind has', () => {
+    for (const kind of SWITCH_KINDS) {
+      for (const route of switchRoutes(kind)) {
+        expect(switchRouteLabelKey(kind, route), `${kind}.${route}`).toBeTruthy()
+      }
+    }
+  })
+
+  it('names no route a kind does not have', () => {
+    expect(switchRouteLabelKey('turnout', 'cross')).toBe(null)
+    expect(switchRouteLabelKey('crossing', 'branch')).toBe(null)
+  })
+
+  it('tells a turnout’s stem from a crossing’s through route', () => {
+    expect(switchRouteLabelKey('turnout', 'main')).toBe('table_route_stem')
+    expect(switchRouteLabelKey('crossing', 'main')).toBe('table_route_through')
+    expect(switchRouteLabelKey('double_slip', 'slip2')).toBe('table_route_slip')
   })
 })

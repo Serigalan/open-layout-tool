@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
 import { planElementChange } from './panels/EditElementPanel/editGeometry'
 import { transitionCantEnds } from '../utils/clothoidUtils'
+import { crsLabel } from '../utils/coordinateUtils'
+import { switchKindLabelKey, switchRouteLabelKey } from '../utils/switchModel'
 import {
   cantSign, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned, computeMaxSpeed,
-  roundCant, filterForElement, FILTER_NONE, CANT_STEP, MAX_CANT_DEF, MAX_SWITCH_CANT_DEF, mapIsLive,
+  roundCant, filterForElement, FILTER_NONE, CANT_STEP, HIT_TOLERANCE, MAX_SWITCH_CANT_DEF,
+  VMAX_CANT_DEF, mapIsLive,
 } from '../utils/mapConstants'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
@@ -47,6 +50,13 @@ function governing(elements, i) {
 }
 
 /**
+ * The cant deficiency this element's V_max is designed against: the line's
+ * VMAX_CANT_DEF, or a switch route's own lower ceiling — the stricter of the
+ * two, never the more generous one.
+ */
+const vmaxCantDef = (el) => (el.switchBranch ? MAX_SWITCH_CANT_DEF : VMAX_CANT_DEF)
+
+/**
  * Every element's speed raised to what its geometry admits. A curved element —
  * an arc, or a transition, where the tighter end governs — is capped by the cant
  * deficiency its radius and cant leave room for, rounded DOWN onto the 5 km/h
@@ -64,7 +74,7 @@ function maxSpeeds(elements, cap) {
   const curved = elements.map((el, i) => {
     const g = governing(elements, i)
     if (!g) return null
-    const v = computeMaxSpeed(g.radius, g.cant, el.switchBranch ? MAX_SWITCH_CANT_DEF : MAX_CANT_DEF)
+    const v = computeMaxSpeed(g.radius, g.cant, vmaxCantDef(el))
     return v == null ? null : Math.floor(v / SPEED_STEP) * SPEED_STEP
   })
 
@@ -82,7 +92,7 @@ function maxSpeeds(elements, cap) {
   })
 }
 
-export default function TrackTableOverlay({ track, project, map, onClose, onSaved, t }) {
+export default function TrackTableOverlay({ track, project, map, onPickTrack, onClose, onSaved, t }) {
   // Keep the full track set as working state — a geometry edit propagates to
   // connected following elements/tracks, so we edit and persist all of them.
   const [tracks, setTracks] = useState(() => loadTracks(project.id))
@@ -105,10 +115,19 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
   const [reachError, setReachError] = useState(null)
 
   const [draftTrackId, setDraftTrackId] = useState(track.id)
+  // The row a click on the map asked for. Which track the table shows is App's
+  // to decide, so a click on another one leaves through onPickTrack and comes
+  // back as a new `track` prop — the row it meant waits here for it.
+  const [pendingRow, setPendingRow] = useState(null)
+  // …and the row it picked, which the fit below reads to tell a row that came
+  // off the map from one picked in the table.
+  const pickedOnMap = useRef(null)
+
   if (draftTrackId !== track.id) {
     setDraftTrackId(track.id)
     setDraft(null)
-    setActiveRow(0)
+    setActiveRow(pendingRow ?? 0)
+    setPendingRow(null)
     setReachError(null)
   }
 
@@ -129,6 +148,11 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
   useEffect(() => {
     const m = map?.current
     if (!m || activeRow == null) return
+    // Unless the row was picked on the map: the element is under the cursor
+    // already, and flying to it would pull the view out from under the click.
+    const picked = pickedOnMap.current
+    pickedOnMap.current = null
+    if (picked === activeRow) return
     const el = loadTracks(project.id).find(tr => tr.id === track.id)?.elements?.[activeRow]
     const coords = el?.geometry?.coordinates
     if (!coords?.length) return
@@ -151,8 +175,61 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
     })
   }, [map, project.id, track.id, activeRow])
 
+  // Picking works on the map as well as in the list of tracks behind the
+  // overlay: a click takes the element under it — a row of this table, or, on
+  // another track, that track, which App then swaps the table over to. The
+  // handlers live as long as the table does, so the map stays clickable while
+  // one track after another is looked at.
+  useEffect(() => {
+    const m = map?.current
+    if (!m) return
+
+    const elementAt = (point) => {
+      if (!m.getLayer('tracks-layer')) return null
+      const hits = m.queryRenderedFeatures([
+        [point.x - HIT_TOLERANCE, point.y - HIT_TOLERANCE],
+        [point.x + HIT_TOLERANCE, point.y + HIT_TOLERANCE],
+      ], { layers: ['tracks-layer'] })
+      // Where two tracks lie over each other — a turnout's branch across the
+      // route it was laid into — the one being edited is the one meant.
+      return hits.find(f => f.properties.trackId === track.id) ?? hits[0] ?? null
+    }
+
+    const onClick = (e) => {
+      const hit = elementAt(e.point)
+      if (!hit) return
+      const row = Number(hit.properties.elementIndex)
+      if (hit.properties.trackId === track.id) {
+        pickedOnMap.current = row
+        setActiveRow(row)
+        return
+      }
+      const picked = loadTracks(project.id).find(tr => tr.id === hit.properties.trackId)
+      if (!picked || !onPickTrack) return
+      pickedOnMap.current = row
+      setPendingRow(row)
+      onPickTrack(picked)
+    }
+
+    const onMove = (e) => { m.getCanvas().style.cursor = elementAt(e.point) ? 'pointer' : '' }
+
+    m.on('click', onClick)
+    m.on('mousemove', onMove)
+    return () => {
+      m.off('click', onClick)
+      m.off('mousemove', onMove)
+      if (mapIsLive(map, m)) m.getCanvas().style.cursor = ''
+    }
+  }, [map, project.id, track.id, onPickTrack])
+
   const current  = tracks.find(tr => tr.id === track.id) ?? track
   const elements = current.elements ?? []
+
+  // Every switch of the project by its id: an element of a switch route is
+  // named by the record, which is where the kind and the form it was built from
+  // stand. Read on each render rather than held — a name can change under an
+  // open table.
+  const switchById = new Map(loadSwitches(project.id).map(sw => [sw.switchId, sw]))
 
   // Apply one cell edit. Geometry fields go through applyElementChange (which
   // recomputes coordinates/nodes/end bearing and re-chains); speed/cant are plain
@@ -260,9 +337,40 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
 
   // A transition is neither straight nor arc — it is named by its own curvature
   // profile (clothoid or Bloss), which is what the element chain stores.
-  const typeLabel = (el) => isTransition(el)
+  const geometryLabel = (el) => isTransition(el)
     ? t(el.transitionType === 'bloss' ? 'table_type_bloss' : 'table_type_transition')
     : t(el.radius ? 'table_type_arc' : 'table_type_straight')
+
+  /**
+   * What the type column says. An element of a switch route is named by the
+   * switch — a turnout, a crossing or a crossing switch, and the form it was
+   * built to — because that is what lies there: a row reading "straight" over a
+   * turnout's through route says nothing about the turnout. The geometry has
+   * not gone anywhere; it stands in the radius and length columns, and in the
+   * cell's tooltip beside the switch's name and the route this is.
+   */
+  const typeLabel = (el) => {
+    if (!el.switchBranch) return geometryLabel(el)
+    const sw   = switchById.get(el.switchId)
+    const kind = t(switchKindLabelKey(sw?.kind))
+    const form = sw?.label ?? el.switchLabel
+    return form ? `${kind} ${form}` : kind
+  }
+
+  // Which switch this is, which of its routes, and the geometry the switch's
+  // name stands in front of.
+  const switchNote = (el) => {
+    if (!el.switchBranch) return undefined
+    const sw       = switchById.get(el.switchId)
+    const routeKey = switchRouteLabelKey(sw?.kind, el.switchRoute)
+    return [sw?.name || el.switchName, routeKey && t(routeKey), geometryLabel(el)]
+      .filter(Boolean).join(' · ')
+  }
+
+  // A bearing is shown, never typed: an element starts where the one before it
+  // ended, and the chain is what sets that. Typing one here would turn a single
+  // cell into a rotation of everything behind it.
+  const degText = (deg) => (Number.isFinite(deg) ? deg.toFixed(2) : '–')
 
   // A transition has no single radius: it runs from r1 to r2 (∞ on the straight
   // end), so the column shows that ramp instead of an empty, uneditable cell.
@@ -272,16 +380,19 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
   }
 
   // Read-only cell, styled like the editable ones; `wide` for text that does not
-  // fit a number column (type label, radius ramp).
-  const textCell = (value, { wide = false, className = '', title } = {}) => (
+  // fit a number column (type label, radius ramp). What such a cell has to say
+  // about itself is titled on the <td> around it, not here: a disabled input
+  // takes no pointer events (it would swallow the row's click), so a tooltip on
+  // it would never open.
+  const textCell = (value, { wide = false, className = '' } = {}) => (
     <input className={`track-table-input${wide ? ' track-table-input-wide' : ''}${className ? ` ${className}` : ''}`}
-      disabled readOnly title={title} value={value} />
+      disabled readOnly value={value} />
   )
 
   // Editable cell with a typing draft committed on blur / Enter. Numeric unless
   // told otherwise — the justification is the one text column among them.
   const editCell = (i, key, rawValue, {
-    disabled = false, step, type = 'number', wide = false, className = '', placeholder, title,
+    disabled = false, step, type = 'number', wide = false, className = '', placeholder,
   } = {}) => {
     const editing = draft && draft.row === i && draft.key === key
     return (
@@ -291,7 +402,6 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
         disabled={disabled}
         step={step}
         placeholder={placeholder}
-        title={title}
         value={editing ? draft.value : (rawValue ?? '')}
         onFocus={() => setDraft({ row: i, key, value: rawValue == null ? '' : String(rawValue) })}
         onChange={e => setDraft(d => (d ? { ...d, value: e.target.value } : d))}
@@ -345,7 +455,10 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
               <th>{t('table_cant')} (mm)</th>
               <th>{t('table_cant_exception')}</th>
               <th>{t('table_cant_def')} (mm)</th>
-              <th>{t('table_max_speed')} (km/h)</th>
+              <th title={t('table_max_speed_hint')
+                .replace('{{mm}}', String(VMAX_CANT_DEF))
+                .replace('{{sw}}', String(MAX_SWITCH_CANT_DEF))}>{t('table_max_speed')} (km/h)</th>
+              <th title={t('table_crs_hint')}>{t('table_crs')}</th>
             </tr>
           </thead>
           <tbody>
@@ -353,8 +466,7 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
               // Derived, read-only: both follow the speed/cant/radius cells live.
               const g       = governing(elements, i)
               const cantDef = g ? computeCantDefSigned(el.speed ?? 0, g.radius, g.cant) : 0
-              const limit   = el.switchBranch ? MAX_SWITCH_CANT_DEF : MAX_CANT_DEF
-              const vMax    = g ? computeMaxSpeed(g.radius, g.cant, limit) : null
+              const vMax    = g ? computeMaxSpeed(g.radius, g.cant, vmaxCantDef(el)) : null
               return (
                 // Clicking anywhere in the row activates it; onFocus covers
                 // tabbing into one of its cells (React focus events bubble).
@@ -363,13 +475,12 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
                   onClick={() => setActiveRow(i)}
                   onFocus={() => setActiveRow(i)}>
                   <td>{i + 1}</td>
-                  <td>{textCell(typeLabel(el), {
+                  <td title={hintNote(el) ?? switchNote(el)}>{textCell(typeLabel(el), {
                     wide: true,
-                    title: hintNote(el),
                     className: el.switchHint ? 'track-table-input-exception' : '',
                   })}</td>
-                  <td>{editCell(i, 'bearing', el.bearing)}</td>
-                  <td>{textCell(el.endBearing != null ? el.endBearing.toFixed(2) : '–')}</td>
+                  <td>{textCell(degText(el.bearing))}</td>
+                  <td>{textCell(degText(el.endBearing))}</td>
                   <td>{editCell(i, 'length', el.length)}</td>
                   <td>
                     {isTransition(el)
@@ -379,22 +490,26 @@ export default function TrackTableOverlay({ track, project, map, onClose, onSave
                   <td>{editCell(i, 'speed', el.speed)}</td>
                   {/* Cant ramps across a transition — its ends belong to the
                       neighbouring elements, so there is nothing to edit here. */}
-                  <td>{isTransition(el)
-                    ? textCell('–', { className: cantClass(el), title: cantNote(el) })
+                  <td title={cantNote(el)}>{isTransition(el)
+                    ? textCell('–', { className: cantClass(el) })
                     : editCell(i, 'cant', el.cant, {
-                      step: CANT_STEP, className: cantClass(el), title: cantNote(el),
+                      step: CANT_STEP, className: cantClass(el),
                     })}</td>
                   {/* Only a switch route knows the 100 mm limit, so only there is
                       there anything to justify — including a route laid into a
                       cant ramp, whose own cant cell is not editable. */}
-                  <td>{el.switchBranch
+                  <td title={el.switchBranch ? cantNote(el) : undefined}>{el.switchBranch
                     ? editCell(i, 'cantException', el.cantException, {
                       type: 'text', wide: true, placeholder: '–',
-                      className: cantClass(el), title: cantNote(el),
+                      className: cantClass(el),
                     })
                     : textCell('–')}</td>
                   <td>{textCell(cantDef)}</td>
                   <td>{textCell(vMax != null ? vMax : '–')}</td>
+                  {/* The plane the whole track is stated in — one code per
+                      track, so the column reads the same all the way down and
+                      says which frame these eastings and northings are in. */}
+                  <td title={crsLabel(current.epsg)}>{textCell(current.epsg ?? '–')}</td>
                 </tr>
               )
             })}
