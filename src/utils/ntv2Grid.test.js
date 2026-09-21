@@ -7,20 +7,19 @@ import { projStringFor, utmToWgs84, wgs84ToUTM, transformPlanePoint } from './co
 /**
  * The BeTA2007 grid the plan view needs for DHDN accuracy (~5 cm, not the
  * ~1 m the 7-parameter fallback gets to). `fetch` has no relative-URL base in
- * Vitest's node environment, so the one request `loadNtv2Grid` makes is
- * answered from the checked-in file directly — this is the same 24 kB file
- * `public/data/de_adv_BETA2007.tif` symlinks to.
+ * Vitest's node environment, so the requests `loadNtv2Grid` makes are answered
+ * from the checked-in files directly — the same ones `public/data/` symlinks
+ * to.
  */
 
 const realFetch = globalThis.fetch
 
 beforeAll(() => {
   globalThis.fetch = async (url) => {
-    if (String(url).includes('de_adv_BETA2007.tif')) {
-      const buf = fs.readFileSync(new URL('../../grids/de_adv_BETA2007.tif', import.meta.url))
-      return { ok: true, arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) }
-    }
-    return realFetch(url)
+    const file = new URL(`../../grids/${String(url).split('/').pop()}`, import.meta.url)
+    if (!fs.existsSync(file)) return realFetch(url)
+    const buf = fs.readFileSync(file)
+    return { ok: true, arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) }
   }
 })
 

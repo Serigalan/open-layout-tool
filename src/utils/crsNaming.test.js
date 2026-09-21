@@ -4,14 +4,18 @@ import { crsLabel, crsName, projStringFor, EPSG_OPTIONS, gkZone } from './coordi
 /**
  * Every EPSG code this tool has a plane for is also named — the picker offers a
  * handful of them, but a track can carry any of them (the MDB import brings
- * DHDN), and a column or a plan sheet showing a bare number leaves the reader
- * to look the frame up. The naming is therefore tied to projStringFor: what one
- * resolves, the other names.
+ * every Lagesystem of the DB ASCII interface), and a column or a plan sheet
+ * showing a bare number leaves the reader to look the frame up. The naming is
+ * therefore tied to projStringFor: what one resolves, the other names.
  */
 
 const SUPPORTED = [
   ...[5676, 5677, 5678, 5679, 5680],                 // DHDN / GK
   ...[5681, 5682, 5683, 5684, 5685],                 // DB_REF / GK
+  ...[3396, 3397],                                   // PD/83, Thüringen
+  ...[3398, 3399],                                   // RD/83, Sachsen
+  ...[2397, 2398, 2399],                             // 42/83, the eastern states
+  3068,                                              // DHDN / Soldner Berlin
   ...[25828, 25832, 25838],                          // ETRS89 / UTM
   ...[32601, 32632, 32660],                          // WGS 84 / UTM north
   ...[32701, 32732, 32760],                          // WGS 84 / UTM south
@@ -26,7 +30,7 @@ describe('crsName', () => {
   })
 
   it('names nothing projStringFor refuses', () => {
-    for (const code of [0, 4326, 5675, 5686, 25839, 32661, 32700]) {
+    for (const code of [0, 2396, 2400, 3067, 3069, 3395, 3400, 4326, 5675, 5686, 25839, 32661, 32700]) {
       expect(() => projStringFor(code)).toThrow()
       expect(crsName(code), String(code)).toBe(null)
     }
@@ -41,6 +45,24 @@ describe('crsName', () => {
       const zone = gkZone(code)
       if (zone != null) expect(crsName(code).endsWith(` Zone ${zone}`), String(code)).toBe(true)
     }
+  })
+
+  it('tells the Bessel frames apart, which share their coordinates', () => {
+    // 3 591 048 in the 9° strip is the same number in PD/83 and in DB_REF; the
+    // datum is the only thing that says which point on the ground it is.
+    expect(crsName(3396)).toBe('PD/83 / GK Zone 3')
+    expect(crsName(5683)).toBe('DB_REF / GK Zone 3')
+    expect(crsName(5677)).toBe('DHDN / GK Zone 3')
+    expect(crsName(3398)).toBe('RD/83 / GK Zone 4')
+    expect(crsName(2398)).toBe('42/83 / GK Zone 4')
+    expect(projStringFor(2398)).toMatch(/\+ellps=krass/)      // Krassowski, not Bessel
+    expect(projStringFor(3396)).toMatch(/\+ellps=bessel/)
+  })
+
+  it('names Berlin’s Soldner net, the one plane without a strip', () => {
+    expect(crsName(3068)).toBe('DHDN / Soldner Berlin')
+    expect(gkZone(3068)).toBe(null)
+    expect(projStringFor(3068)).toMatch(/\+proj=cass/)
   })
 
   it('keeps the hemisphere of a UTM zone', () => {
@@ -73,7 +95,7 @@ describe('crsLabel', () => {
 
 describe('EPSG_OPTIONS', () => {
   it('offers the current frames a new track is laid out in', () => {
-    expect(EPSG_OPTIONS.map(o => o.code)).toEqual([25831, 25832, 25833, 5681, 5682, 5683, 5684])
+    expect(EPSG_OPTIONS.map(o => o.code)).toEqual([25831, 25832, 25833, 5681, 5682, 5683, 5684, 5685])
   })
 
   it('labels each option the way everything else names that code', () => {

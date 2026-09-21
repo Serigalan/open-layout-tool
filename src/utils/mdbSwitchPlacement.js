@@ -7,7 +7,7 @@ import { splitTrackAtJoint, splitElementAt, carveSwitchRoute } from './trackSpli
 import { placeSwitchOnTrack } from './switchPlacement'
 import { resolveEndBearing } from './elementUtils'
 import { elementAtStation, pointAtStationUtm } from './heightUtils'
-import { SYS_EPSG } from './mdbImport'
+import { epsgForLagesystem } from './mdbImport'
 import { generateId, remapSwitches } from '../storage'
 import { nextSwitchNumber } from './identifierUtils'
 
@@ -172,7 +172,22 @@ function chooseShape(found, type) {
  * a turnout has, otherwise `reason` saying what was found instead.
  */
 export function locateMdbSwitches(payload, tracks) {
-  return locatorFor(pointIndex(payload), tracks)
+  return locatorFor(pointIndex(payload), systemsOf(payload), tracks)
+}
+
+/**
+ * The Lagesysteme this file states points in, each with the plane it names —
+ * read from the points themselves rather than from a fixed list, because the
+ * interface has twenty of them and a file uses two or three.
+ */
+function systemsOf(payload) {
+  const out = new Map()
+  for (const p of payload.points) {
+    if (out.has(p.sys)) continue
+    const epsg = epsgForLagesystem(p.sys)
+    if (epsg) out.set(p.sys, epsg)
+  }
+  return [...out]
 }
 
 /** Switch points by Punktadresse and Lagesystem — built once, it is large. */
@@ -182,7 +197,7 @@ function pointIndex(payload) {
   return coords
 }
 
-function locatorFor(coords, tracks) {
+function locatorFor(coords, systems, tracks) {
   const byEpsg = new Map()
   for (const t of tracks) {
     if (!byEpsg.has(t.epsg)) byEpsg.set(t.epsg, [])
@@ -190,7 +205,7 @@ function locatorFor(coords, tracks) {
   }
 
   return (unit, pointOf, tol = PLACE_TOL) => {
-    for (const [sys, epsg] of Object.entries(SYS_EPSG)) {
+    for (const [sys, epsg] of systems) {
       const pt = pointOf ? pointOf(sys) : coords.get(`${unit.pad}\u0000${sys}`)
       if (!pt) continue
       const through = []
@@ -312,11 +327,11 @@ function placeCrossingUnit(found, unit, type, tracks, makeId) {
  * existing switch record, and an element carrying it without a `switchId` is
  * refused by `parseProjectsPayload`. A note is a note.
  */
-function noteUnplaced(tracks, coords, unit, reason) {
+function noteUnplaced(tracks, coords, systems, unit, reason) {
   const text = `${unit.label || '?'} (${unit.bst}/${unit.name}): ${reason}`
   let touched = false
   const next = tracks.map((track) => {
-    for (const [sys, epsg] of Object.entries(SYS_EPSG)) {
+    for (const [sys, epsg] of systems) {
       if (epsg !== track.epsg) continue
       const pt = coords.get(`${unit.pad}\u0000${sys}`)
       if (!pt) continue
@@ -370,10 +385,11 @@ export function placeMdbSwitches(payload, tracks, units, { existingSwitches = []
     return n
   }
   const coords = pointIndex(payload)
+  const systems = systemsOf(payload)
 
   const give = (unit, reason) => {
     errors.push(`${unit.bst}/${unit.name} (${unit.label}): ${reason}`)
-    current = noteUnplaced(current, coords, unit, reason)
+    current = noteUnplaced(current, coords, systems, unit, reason)
   }
 
   for (const unit of units) {
@@ -386,7 +402,7 @@ export function placeMdbSwitches(payload, tracks, units, { existingSwitches = []
     // its Weichenanfang — the database states the latter, the former follows
     // from the corners.
     const crossing = unit.kind !== 'turnout'
-    const found = locatorFor(coords, current)(unit,
+    const found = locatorFor(coords, systems, current)(unit,
       crossing ? (sys) => crossingCentre(coords, unit, sys) : null,
       crossing ? CROSSING_TOL : PLACE_TOL)
     if (found.reason) { give(unit, `${found.reason} – nicht gesetzt.`); continue }

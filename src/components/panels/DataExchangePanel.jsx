@@ -9,7 +9,7 @@ import { exportExchange, FORMAT_VERSION } from '../../utils/exchangeExport'
 import { parseOsrdRailJson } from '../../utils/osrdImport'
 import { fitToTracks } from '../../utils/mapRenderUtils'
 import { downloadJSON } from '../../utils/fileUtils'
-import { EPSG_OPTIONS, crsLabel } from '../../utils/coordinateUtils'
+import { EPSG_OPTIONS, crsDatum, crsLabel } from '../../utils/coordinateUtils'
 import useTrackHover from '../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
@@ -408,7 +408,10 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       return b
     }, [180, 90, -180, -90])
 
-    const grids = await loadGridsFor(box)
+    // The area alone does not say which grid is worth loading: Hesse's is a
+    // DHDN refinement and does a PD/83 chain in the same rectangle no good.
+    const datums = [...new Set(tracks.map(tr => crsDatum(tr.epsg)).filter(Boolean))]
+    const grids = await loadGridsFor(box, datums)
     notes.push(t(grids.length ? 'data_exchange_mdb_grids' : 'data_exchange_mdb_grid_none')
       .replace('{{names}}', grids.map(g => g.name).join(', ')))
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   parseBauform, parseMdbPayload, splitKnoten, mdbRows,
-  listMdbStrecken, buildTracksFromMdb, mdbSwitchInventory, SYS_EPSG,
+  listMdbStrecken, buildTracksFromMdb, mdbSwitchInventory, epsgForLagesystem,
 } from './mdbImport'
 import { expectValidTrack } from '../test/chainInvariants'
 import { recalcAbsLengths } from '../storage'
@@ -109,7 +109,7 @@ describe('buildTracksFromMdb', () => {
   it('keeps the plane the elements were surveyed in', () => {
     const { tracks } = buildTracksFromMdb(payload, strecke)
     expect(tracks[0].lagesystem).toBe('EA0')
-    expect(tracks[0].epsg).toBe(SYS_EPSG.EA0)
+    expect(tracks[0].epsg).toBe(epsgForLagesystem('EA0'))
   })
 
   it('transforms only when a target plane is asked for', () => {

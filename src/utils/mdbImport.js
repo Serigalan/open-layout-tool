@@ -17,8 +17,51 @@ import {
 
 const GON2DEG = 0.9
 
-/** Lagesystem → EPSG. `ER0` is DB_REF, `EA0` and `DR0` are the older DHDN. */
-export const SYS_EPSG = { ER0: 5684, EA0: 5678, DR0: 5677 }
+/**
+ * Lagesystem → EPSG.
+ *
+ * The interface names a plane with three characters: the meridian strip it is
+ * computed in, the frame, and a serial digit. `ER0` is DB_REF in the 12°
+ * strip, `EA0` the DHDN before it, `DB0` Thüringen's PD/83 in the 9° strip.
+ *
+ *   strip   C 6°E   D 9°E   E 12°E   F 15°E        → Gauss-Krüger zone 2…5
+ *   frame   A  RD/83, Bessel, Rauenberg — the western states and Sachsen
+ *           B  PD/83, Bessel, Potsdam — Thüringen
+ *           C  42/83, Krassowski, Pulkowo — Brandenburg, Mecklenburg,
+ *              Sachsen-Anhalt
+ *           S  Soldner Netz 88, Müggelturm — Berlin, one net without a strip
+ *           R  DB_REF, the railway's own frame
+ *
+ * `A` is the one that is not a single EPSG realisation. The key calls it
+ * RD/83, and EPSG defines RD/83 only over Sachsen (3398/3399) while the same
+ * Rauenberg-based plane in the west is DHDN (5676–5680). Nothing in a file
+ * says which state a chain lies in, so all of `A` is read as DHDN and
+ * converted on BeTA2007, the AdV's nationwide transition — inside Sachsen
+ * that is about half a metre off RD/83's own grid (ntv2Grid).
+ *
+ * A frame is missing from a strip where that combination has no plane: PD/83
+ * is Thüringen and so exists in zones 3 and 4 only, 42/83 in 3 to 5. Such a
+ * code is reported as unassigned rather than bent onto a neighbour.
+ */
+const SYS_ZONE = { C: 2, D: 3, E: 4, F: 5 }
+
+const SYS_CODE = {
+  A: { 2: 5676, 3: 5677, 4: 5678, 5: 5679 },
+  B: { 3: 3396, 4: 3397 },
+  C: { 3: 2397, 4: 2398, 5: 2399 },
+  R: { 2: 5682, 3: 5683, 4: 5684, 5: 5685 },
+}
+
+/** Berlin's Soldner net — the one plane that is not a Gauss-Krüger strip. */
+const SOLDNER_EPSG = 3068
+
+/** EPSG of a Lagesystem code, or null where that combination has no plane. */
+export function epsgForLagesystem(sys) {
+  const code = String(sys ?? '').trim().toUpperCase()
+  if (code[1] === 'S') return SOLDNER_EPSG
+  const zone = SYS_ZONE[code[0]]
+  return (zone && SYS_CODE[code[1]]?.[zone]) ?? null
+}
 
 /**
  * Element type codes of Satzart 21. 3 and 7 are further transition forms with
@@ -283,8 +326,8 @@ function oneStrecke({ rows, cantRows }, strecke, opts = {}) {
     bySys.get(r.lsys).push(r)
   }
 
-  const known = [...bySys.keys()].filter(s => SYS_EPSG[s])
-  const unknown = [...bySys.keys()].filter(s => !SYS_EPSG[s])
+  const known = [...bySys.keys()].filter(s => epsgForLagesystem(s))
+  const unknown = [...bySys.keys()].filter(s => !epsgForLagesystem(s))
   for (const s of unknown) {
     errors.push(`Lagesystem ${s} ist nicht zugeordnet – ${bySys.get(s).length} Elemente übersprungen.`)
   }
@@ -297,7 +340,7 @@ function oneStrecke({ rows, cantRows }, strecke, opts = {}) {
   known.sort((a, b) => bySys.get(b).length - bySys.get(a).length)
   if (known.length > 1) {
     errors.push(`Strecke ${strecke} liegt in ${known.length} Lagesystemen `
-      + `(${known.map(s => `${s}: ${bySys.get(s).length}`).join(', ')}) `
+      + `(${known.map(s => `${s} → EPSG ${epsgForLagesystem(s)}: ${bySys.get(s).length}`).join(', ')}) `
       + '– je System eine eigene Kette. Die Übergänge dazwischen sind Knoten: '
       + 'Weichen → Gleisenden verknüpfen.')
   }
@@ -311,8 +354,8 @@ function oneStrecke({ rows, cantRows }, strecke, opts = {}) {
   const tracks = []
   for (const sys of known) {
     const res = buildTracksFromCsv(bySys.get(sys), strecke, cantRows, {
-      sourceEpsg: SYS_EPSG[sys],
-      targetEpsg: Number(opts.targetEpsg ?? SYS_EPSG[sys]),
+      sourceEpsg: epsgForLagesystem(sys),
+      targetEpsg: Number(opts.targetEpsg ?? epsgForLagesystem(sys)),
     })
     for (const t of res.tracks) tracks.push({ ...t, lagesystem: sys })
     errors.push(...res.errors.map(e => (known.length > 1 ? `[${sys}] ${e}` : e)))

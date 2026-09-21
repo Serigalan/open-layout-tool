@@ -1,5 +1,5 @@
 import proj4 from 'proj4'
-import { ntv2Ready, nadgridsList } from './ntv2Grid'
+import { nadgridsList } from './ntv2Grid'
 
 // One projected plane per track (`track.epsg`): every calculation in the app
 // runs in that plane on { easting, northing, zone } points. WGS84 is derived
@@ -9,42 +9,84 @@ import { ntv2Ready, nadgridsList } from './ntv2Grid'
 const utmProj = (zoneNumber, south) =>
   `+proj=utm +zone=${zoneNumber}${south ? ' +south' : ''} +datum=WGS84 +units=m +no_defs`
 
-// Bessel-based 3-degree Gauss-Krüger: zone n → central meridian n·3°, false
-// easting n·1e6 + 500000. Only the datum shift differs between the two frames.
-const besselGk = (zone, datum) =>
-  `+proj=tmerc +lat_0=0 +lon_0=${zone * 3} +k=1 +x_0=${zone * 1000000 + 500000} +y_0=0 +ellps=bessel ${datum} +units=m +no_defs`
+/**
+ * The datums a plane can be stated in, with the ellipsoid each is computed on
+ * and the 7-parameter shift to WGS84 to use where no grid covers the point.
+ * Every set is EPSG's own, stated in the position-vector convention proj4's
+ * `+towgs84` expects:
+ *
+ * - `DHDN` — the pre-DB_REF national frame, "DHDN to WGS 84 (2)". The MDB
+ *   import meets it as `EA0`, and Berlin's Soldner net is computed on it too.
+ * - `PD83` — Thüringen's own realisation, "PD/83 to ETRS89 (1)". `DB0`.
+ * - `RD83` — Sachsen's, "RD/83 to ETRS89 (1)". Both are Bessel on the same
+ *   fundamental points as DHDN and agree with it to about a metre, which is
+ *   exactly why they need their own numbers.
+ * - `S4283` — 42/83, the Krassowski frame of the eastern states,
+ *   "Pulkovo 1942(83) to ETRS89 (2)", the one EPSG rates at 0.1 m.
+ * - `DBREF` — the Deutsche-Bahn frame, "DB_REF to ETRS89 (1)" with the
+ *   rotations negated, because that operation is stated in the
+ *   coordinate-frame convention and proj4 expects position-vector.
+ *
+ * Only the first three have grids (ntv2Grid); for them the Helmert set is the
+ * fallback, for the other two it is the answer.
+ */
+const DATUM = {
+  DHDN:  { ellps: 'bessel', helmert: '+towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7' },
+  PD83:  { ellps: 'bessel', helmert: '+towgs84=599.4,72.4,419.2,-0.062,-0.022,-2.723,6.46' },
+  RD83:  { ellps: 'bessel', helmert: '+towgs84=612.4,77,440.2,-0.054,0.057,-2.797,2.55' },
+  S4283: { ellps: 'krass',  helmert: '+towgs84=24.9,-126.4,-93.2,-0.063,-0.247,-0.041,1.01' },
+  DBREF: { ellps: 'bessel', helmert: '+towgs84=584.9636,107.7175,413.8067,1.1155,0.2824,-3.1384,7.9922' },
+}
 
-// DB_REF — the Deutsche-Bahn frame. Parameters are EPSG's "DB_REF to ETRS89 (1)"
-// with the rotations negated, because that operation is stated in the
-// coordinate-frame convention and proj4's +towgs84 expects position-vector.
-const gkProj = (zone) =>
-  besselGk(zone, '+towgs84=584.9636,107.7175,413.8067,1.1155,0.2824,-3.1384,7.9922')
-
-// DHDN — the pre-DB_REF national frame; the MDB import meets it as `EA0`.
-// The 7-parameter set is only good to about a metre (p95); the plan view
-// needs about 5 cm, which is what the BeTA2007 grid (ntv2Grid.js) gets to.
-// `+nadgrids` replaces the Helmert shift outright once the grid has loaded —
-// proj4 ignores +towgs84 on a proj string that also names a grid — so this
-// switches the whole proj string, not just an extra parameter.
-const DHDN_HELMERT = '+towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7'
-
-// The grid list, not one grid: a regional grid loaded for an import sits in
-// front of BeTA2007 and is used where it reaches (ntv2Grid.nadgridsList).
-const dhdnProj = (zone) => (ntv2Ready()
-  ? besselGk(zone, `+nadgrids=${nadgridsList()}`)
-  : besselGk(zone, DHDN_HELMERT))
+/** How each datum is written where a CRS is named. */
+const DATUM_NAME = { DHDN: 'DHDN', PD83: 'PD/83', RD83: 'RD/83', S4283: '42/83', DBREF: 'DB_REF' }
 
 /**
- * Gauss-Krüger zone of a Bessel-based EPSG code (DB_REF or DHDN), else null.
- * Both blocks are numbered by their own logic, so nothing derives a zone by
- * subtracting on its own.
+ * The datum and Gauss-Krüger zone an EPSG code stands for, or null for a code
+ * that is not one of the German planes. Each block is numbered by its own
+ * logic, so nothing derives a zone by subtracting on its own.
  */
-export function gkZone(crs) {
+function planeOf(crs) {
   const code = Number(crs)
-  if (code >= 5681 && code <= 5685) return code - 5680
+  if (code >= 5681 && code <= 5685) return { datum: 'DBREF', zone: code - 5680 }
   // The DHDN block is not contiguous by zone: 5676→2 … 5679→5, but 5680→1.
-  if (code >= 5676 && code <= 5680) return code === 5680 ? 1 : code - 5674
+  if (code >= 5676 && code <= 5680) return { datum: 'DHDN', zone: code === 5680 ? 1 : code - 5674 }
+  if (code >= 3396 && code <= 3397) return { datum: 'PD83', zone: code - 3393 }   // Thüringen, zones 3–4
+  if (code >= 3398 && code <= 3399) return { datum: 'RD83', zone: code - 3394 }   // Sachsen, zones 4–5
+  if (code >= 2397 && code <= 2399) return { datum: 'S4283', zone: code - 2394 }  // 42/83, zones 3–5
+  if (code === 3068) return { datum: 'DHDN', soldner: true }
   return null
+}
+
+/** Gauss-Krüger zone of a German plane, else null (Soldner Berlin has none). */
+export const gkZone = (crs) => planeOf(crs)?.zone ?? null
+
+/** Which datum a plane is stated in — what `loadGridsFor` needs to be told. */
+export const crsDatum = (crs) => planeOf(crs)?.datum ?? null
+
+// 3-degree Gauss-Krüger: zone n → central meridian n·3°, false easting
+// n·1e6 + 500000. Only the ellipsoid and the datum shift differ between the
+// frames that use it.
+const gkProj = (plane, shift) =>
+  `+proj=tmerc +lat_0=0 +lon_0=${plane.zone * 3} +k=1 +x_0=${plane.zone * 1000000 + 500000} +y_0=0 `
+  + `+ellps=${DATUM[plane.datum].ellps} ${shift} +units=m +no_defs`
+
+// Berlin's Soldner net: Cassini-Soldner on Bessel about the Müggelberg, the
+// one plane here that is not a Gauss-Krüger strip.
+const soldnerProj = (shift) =>
+  '+proj=cass +lat_0=52.4186482777778 +lon_0=13.6272036666667 +x_0=40000 +y_0=10000 '
+  + `+ellps=bessel ${shift} +units=m +no_defs`
+
+const planeProj = (plane, shift) => (plane.soldner ? soldnerProj(shift) : gkProj(plane, shift))
+
+// The grid list, not one grid: a regional grid loaded for an import sits in
+// front of its datum's base grid and is used where it reaches (ntv2Grid).
+// `+nadgrids` replaces the Helmert shift outright once a grid has loaded —
+// proj4 ignores +towgs84 on a proj string that also names a grid — so this
+// switches the whole proj string, not just an extra parameter.
+const shiftFor = (datum) => {
+  const grids = nadgridsList(datum)
+  return grids ? `+nadgrids=${grids}` : DATUM[datum].helmert
 }
 
 /**
@@ -53,9 +95,9 @@ export function gkZone(crs) {
  * WGS84 are treated as identical here (sub-cm in Europe).
  */
 export function projStringFor(crs) {
+  const plane = planeOf(crs)
+  if (plane) return planeProj(plane, shiftFor(plane.datum))
   const code = Number(crs)
-  if (code >= 5681 && code <= 5685) return gkProj(gkZone(code))
-  if (code >= 5676 && code <= 5680) return dhdnProj(gkZone(code))
   if (code >= 25828 && code <= 25838) return utmProj(code - 25800, false)
   if (code >= 32601 && code <= 32660) return utmProj(code - 32600, false)
   if (code >= 32701 && code <= 32760) return utmProj(code - 32700, true)
@@ -66,13 +108,14 @@ export function projStringFor(crs) {
  * What a supported EPSG code is called, from the same blocks projStringFor
  * resolves — null for a code this tool has no plane for. Every code it does
  * support is named, not only the handful the picker offers: the MDB import
- * brings tracks in DHDN (`EA0`, 5676-5680), and a column or a plan sheet that
- * showed those as a bare number would leave the reader to look the frame up.
+ * brings tracks in every Lagesystem the DB ASCII interface knows, and a column
+ * or a plan sheet that showed those as a bare number would leave the reader to
+ * look the frame up.
  */
 export function crsName(crs) {
+  const plane = planeOf(crs)
+  if (plane) return plane.soldner ? 'DHDN / Soldner Berlin' : `${DATUM_NAME[plane.datum]} / GK Zone ${plane.zone}`
   const code = Number(crs)
-  if (code >= 5681 && code <= 5685)   return `DB_REF / GK Zone ${gkZone(code)}`
-  if (code >= 5676 && code <= 5680)   return `DHDN / GK Zone ${gkZone(code)}`
   if (code >= 25828 && code <= 25838) return `ETRS89 / UTM Zone ${code - 25800}N`
   if (code >= 32601 && code <= 32660) return `WGS 84 / UTM Zone ${code - 32600}N`
   if (code >= 32701 && code <= 32760) return `WGS 84 / UTM Zone ${code - 32700}S`
@@ -91,7 +134,7 @@ export function crsLabel(crs) {
  * overridable). The list is the choice on offer — a new track is laid out in a
  * current frame — while crsName covers every code the tool can read.
  */
-export const EPSG_OPTIONS = [25831, 25832, 25833, 5681, 5682, 5683, 5684]
+export const EPSG_OPTIONS = [25831, 25832, 25833, 5681, 5682, 5683, 5684, 5685]
   .map(code => ({ code, label: crsName(code) }))
 
 /**
@@ -106,30 +149,32 @@ export function epsgForLngLat(lngLat) {
 }
 
 /**
- * The same plane without the grid — what a DHDN point outside BeTA2007's area
- * is converted on instead. Null for every other code: nothing else here reads
- * a grid, so nothing else has an edge to fall off.
+ * The same plane without its grid — what a point outside the grid's area is
+ * converted on instead. Null for a plane that is not on a grid right now: the
+ * retry would be the same conversion.
  */
 function offGridProjString(crs) {
-  const code = Number(crs)
-  return ntv2Ready() && code >= 5676 && code <= 5680 ? besselGk(gkZone(code), DHDN_HELMERT) : null
+  const plane = planeOf(crs)
+  return plane && nadgridsList(plane.datum) ? planeProj(plane, DATUM[plane.datum].helmert) : null
 }
 
 /**
  * proj4, with the one way the grid fails.
  *
- * BeTA2007 covers 5.5°–15.83° E, 46.9°–55.3° N — all of Germany and not much
- * more. A DHDN point outside it comes back as **[NaN, NaN]**: proj4 writes one
- * line to the console and hands the NaNs on, it does not raise. Unchecked they
- * reach an element's startNode, its geometry and the track's coordinates, and
- * only surface much later as a track that will not draw or a length that is
- * not a number — far from the coordinate that caused it.
+ * A grid covers its own area and not a metre more — BeTA2007 is 5.5°–15.83° E,
+ * 46.9°–55.3° N, Thüringen's is the state. A point outside comes back as
+ * **[NaN, NaN]**: proj4 writes one line to the console and hands the NaNs on,
+ * it does not raise. Unchecked they reach an element's startNode, its geometry
+ * and the track's coordinates, and only surface much later as a track that
+ * will not draw or a length that is not a number — far from the coordinate
+ * that caused it.
  *
  * So a non-finite result is converted again without the grid. The 7-parameter
  * set is defined everywhere and is what the whole app ran on before the grid
- * existed; a metre of error at a point past the German border is worth having
- * over no point at all. Only the DHDN block can take this path — for every
- * other plane the retry would be the same conversion, and the NaN stands.
+ * existed; a metre of error at a point past the grid's edge is worth having
+ * over no point at all. Only a plane that is on a grid can take this path —
+ * for every other one the retry would be the same conversion, and the NaN
+ * stands.
  */
 function project(fromDef, toDef, point, fromCrs = null, toCrs = null) {
   const out = proj4(fromDef, toDef, point)
