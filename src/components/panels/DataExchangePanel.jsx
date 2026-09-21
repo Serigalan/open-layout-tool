@@ -84,8 +84,19 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const [mdbCounts, setMdbCounts]       = useState(null)
   const [mdbErrors, setMdbErrors]       = useState([])
   const [mdbSwitches, setMdbSwitches]   = useState(true)
-  const [mdbTarget, setMdbTarget]       = useState('')   // '' = every system keeps its own plane
   const [mdbBusy, setMdbBusy]           = useState(false)
+  // The second MDB importer, the one that writes DB_REF. Its own file and
+  // its own line picker: it is a different question asked of the same kind
+  // of database, and answering it replaces the coordinates for good.
+  const dbrefInputRef                   = useRef(null)
+  const dbrefPayloadRef                 = useRef(null)
+  const [dbrefStrecken, setDbrefStrecken] = useState([])
+  const [dbrefStrecke, setDbrefStrecke] = useState('')
+  const [dbrefCounts, setDbrefCounts]   = useState(null)
+  const [dbrefErrors, setDbrefErrors]   = useState([])
+  const [dbrefSwitches, setDbrefSwitches] = useState(true)
+  const [dbrefBusy, setDbrefBusy]       = useState(false)
+  const [dbrefTarget, setDbrefTarget]   = useState('5684')
   const osrdInputRef                    = useRef(null)
   const [osrdErrors, setOsrdErrors]     = useState([])
   const [osrdExported, setOsrdExported] = useState(false)
@@ -342,31 +353,41 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   // The browser cannot read an Access file, so it goes to the server, is
   // converted there and deleted again (ROADMAP decision 11). Everything after
   // that happens here, on the Satzarten the converter hands back.
-  const handleMdbFile = async (e) => {
+  const readMdbFile = ({ ref, setErrors, setBusy, setStrecken, setStrecke, setCounts }) => async (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !project) return
-    setMdbErrors([]); setMdbBusy(true); setMdbStrecken([]); setMdbCounts(null)
+    setErrors([]); setBusy(true); setStrecken([]); setCounts(null)
     try {
       const payload = parseMdbPayload(await convertMdbOnServer(file))
-      mdbPayloadRef.current = payload
-      setMdbCounts(payload.elements.length ? {
+      ref.current = payload
+      setCounts(payload.elements.length ? {
         elements: payload.elements.length,
         tracks: payload.tracks.length,
         nodes: payload.nodes.length,
       } : null)
       const list = listMdbStrecken(payload)
-      setMdbStrecken(list)
-      setMdbStrecke(ALL_STRECKEN)
-      if (!list.length) setMdbErrors([t('data_exchange_mdb_err_empty')])
+      setStrecken(list)
+      setStrecke(ALL_STRECKEN)
+      if (!list.length) setErrors([t('data_exchange_mdb_err_empty')])
     } catch (err) {
-      mdbPayloadRef.current = null
+      ref.current = null
       const code = err instanceof OptimizerError ? err.code : 'internal'
-      setMdbErrors([t(`data_exchange_mdb_err_${code}`) ?? code, ...(err?.detail ? [err.detail] : [])])
+      setErrors([t(`data_exchange_mdb_err_${code}`) ?? code, ...(err?.detail ? [err.detail] : [])])
     } finally {
-      setMdbBusy(false)
+      setBusy(false)
     }
   }
+
+  const handleMdbFile = readMdbFile({
+    ref: mdbPayloadRef, setErrors: setMdbErrors, setBusy: setMdbBusy,
+    setStrecken: setMdbStrecken, setStrecke: setMdbStrecke, setCounts: setMdbCounts,
+  })
+
+  const handleDbrefFile = readMdbFile({
+    ref: dbrefPayloadRef, setErrors: setDbrefErrors, setBusy: setDbrefBusy,
+    setStrecken: setDbrefStrecken, setStrecke: setDbrefStrecke, setCounts: setDbrefCounts,
+  })
 
   /**
    * Every track into one plane, with the regional grids that cover them loaded
@@ -411,29 +432,28 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     return out
   }
 
-  const handleMdbImport = async () => {
-    const payload = mdbPayloadRef.current
-    if (!payload || !mdbStrecke || !project) return
-    setMdbBusy(true)
+  const runMdbImport = async ({ payload, strecke, withSwitches, target, setErrors, setBusy }) => {
+    if (!payload || !strecke || !project) return
+    setBusy(true)
     // The whole file at once is the common case — a Betriebsstelle's switches
     // rarely sit on one line number, so picking a single one splits them up.
-    const built = mdbStrecke === ALL_STRECKEN
+    const built = strecke === ALL_STRECKEN
       ? buildAllTracksFromMdb(payload)
-      : buildTracksFromMdb(payload, mdbStrecke)
+      : buildTracksFromMdb(payload, strecke)
     const inventory = mdbSwitchInventory(payload)
 
     // Switches part the tracks they sit on, so this has to happen before
     // anything is saved: what comes back are the tracks as they are afterwards,
     // and records carrying their symbol — the same shape a switch dialog
     // commits, so an imported switch is stored and drawn like a built one.
-    const placed = mdbSwitches
+    const placed = withSwitches
       ? placeMdbSwitches(payload, built.tracks, inventory.units, {
         newId: generateId, existingSwitches: loadSwitches(project.id),
       })
       : { tracks: built.tracks, switches: [], errors: [] }
 
     const notes = [...built.errors, ...inventory.errors, ...placed.errors]
-    if (!placed.tracks.length) { setMdbErrors(notes); setMdbBusy(false); return }
+    if (!placed.tracks.length) { setErrors(notes); setBusy(false); return }
 
     const names = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
     const addTracks = placed.tracks.map(tr => {
@@ -445,17 +465,19 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       return { ...tr, id: tr.id ?? generateId(), name, elements, coordinates: rebuildCoords(elements) }
     })
 
-    // Into one plane, where that was asked for. The survey states its
-    // alignment in the Landessystem and the railway works in DB_REF, and a
-    // track carries one plane — so the chains come in as many planes as the
-    // file uses and stay cut at every boundary between them. Carried over,
-    // they are one network in one plane.
+    // Into one plane, for the importer that was asked for that. The survey
+    // states its alignment in the Landessystem and the railway works in
+    // DB_REF, and a track carries one plane — so the chains come in as many
+    // planes as the file uses and stay cut at every boundary between them.
+    // Carried over, they are one network in one plane, and what is written is
+    // DB_REF coordinates: the Landessystem is gone from the project, not
+    // converted again for every draw.
     //
     // The grids come first and only then: a finer regional grid is worth its
     // 80 MB for the one conversion an import is, and which one is worth
     // loading cannot be known before the data says where it lies.
-    if (mdbTarget) {
-      const moved = await toPlane(addTracks, Number(mdbTarget), notes)
+    if (target) {
+      const moved = await toPlane(addTracks, target, notes)
       addTracks.length = 0
       addTracks.push(...moved)
     }
@@ -477,15 +499,31 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     }
     if (fanned) notes.push(t('data_exchange_mdb_fanned').replace('{{n}}', fanned))
 
-    setMdbErrors(notes)
+    setErrors(notes)
     // One commit, one undo step — a whole database is thousands of tracks, and
     // saving them one at a time would leave as many steps behind.
     commitSwitchConnection(project.id, {
       removeTrackIds: [], addTracks, addSwitches: [...placed.switches, ...links], remap: [],
     })
-    setMdbBusy(false)
+    setBusy(false)
     onTrackSaved?.()
   }
+
+  /**
+   * The plain import: every chain keeps the plane it was surveyed in. What is
+   * stored are the file's own coordinates, and the conversion to WGS84 happens
+   * for the map alone.
+   */
+  const handleMdbImport = () => runMdbImport({
+    payload: mdbPayloadRef.current, strecke: mdbStrecke, withSwitches: mdbSwitches,
+    target: null, setErrors: setMdbErrors, setBusy: setMdbBusy,
+  })
+
+  /** The one that writes DB_REF, and writes it for good (planeTransform). */
+  const handleDbrefImport = () => runMdbImport({
+    payload: dbrefPayloadRef.current, strecke: dbrefStrecke, withSwitches: dbrefSwitches,
+    target: Number(dbrefTarget), setErrors: setDbrefErrors, setBusy: setDbrefBusy,
+  })
 
   // Exchange-file import — the geometry comes from horizontal_alignment, the
   // heights from vertical_alignment (see osrdImport); tracks already present
@@ -900,16 +938,6 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
                     ))}
                   </select>
                 </div>
-                <div className="form-field" style={{ marginTop: 6 }}>
-                  <label>{t('data_exchange_mdb_target')}</label>
-                  <select className="settings-select" value={mdbTarget}
-                    onChange={e => setMdbTarget(e.target.value)}>
-                    <option value="">{t('data_exchange_mdb_target_keep')}</option>
-                    {EPSG_OPTIONS.filter(o => o.code >= 5681 && o.code <= 5685).map(o => (
-                      <option key={o.code} value={o.code}>{o.code} – {o.label}</option>
-                    ))}
-                  </select>
-                </div>
                 <label className="transition-curve-row">
                   <input type="checkbox" checked={mdbSwitches}
                     onChange={e => setMdbSwitches(e.target.checked)} />
@@ -924,6 +952,69 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
             {mdbErrors.length > 0 && (
               <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto' }}>
                 {mdbErrors.map((err, i) => (
+                  <p key={i} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+                    {err}
+                  </p>
+                ))}
+              </div>
+            )}
+          </ExchangeSection>
+          <ExchangeSection
+            title={t('data_exchange_dbref')}
+            description={t('data_exchange_dbref_desc')}
+          >
+            <input ref={dbrefInputRef} type="file" accept=".mdb,.accdb,application/x-msaccess"
+              style={{ display: 'none' }} onChange={handleDbrefFile} />
+            <button className="panel-btn panel-btn-full" disabled={!project || dbrefBusy}
+              onClick={() => dbrefInputRef.current?.click()}
+            >
+              {dbrefBusy ? t('data_exchange_mdb_reading') : t('data_exchange_mdb_choose')}
+            </button>
+            {dbrefCounts && (
+              <p className="selecting-hint">
+                {t('data_exchange_mdb_counts')
+                  .replace('{{elements}}', dbrefCounts.elements)
+                  .replace('{{tracks}}', dbrefCounts.tracks)
+                  .replace('{{nodes}}', dbrefCounts.nodes)}
+              </p>
+            )}
+            {dbrefStrecken.length > 0 && (
+              <>
+                <div className="form-field" style={{ marginTop: 6 }}>
+                  <label>{t('data_exchange_csv_line')}</label>
+                  <select className="settings-select" value={dbrefStrecke}
+                    onChange={e => setDbrefStrecke(e.target.value)}>
+                    <option value={ALL_STRECKEN}>
+                      {t('data_exchange_mdb_all').replace('{{n}}', dbrefStrecken.length)}
+                    </option>
+                    {dbrefStrecken.map(x => (
+                      <option key={x.strecke} value={x.strecke}>{x.strecke} ({x.count})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-field" style={{ marginTop: 6 }}>
+                  <label>{t('data_exchange_dbref_target')}</label>
+                  <select className="settings-select" value={dbrefTarget}
+                    onChange={e => setDbrefTarget(e.target.value)}>
+                    {EPSG_OPTIONS.filter(o => o.code >= 5681 && o.code <= 5685).map(o => (
+                      <option key={o.code} value={o.code}>{o.code} – {o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <label className="transition-curve-row">
+                  <input type="checkbox" checked={dbrefSwitches}
+                    onChange={e => setDbrefSwitches(e.target.checked)} />
+                  {t('data_exchange_mdb_switches')}
+                </label>
+                <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+                  disabled={!dbrefStrecke || dbrefBusy} onClick={handleDbrefImport}>
+                  {t('data_exchange_import')}
+                </button>
+              </>
+            )}
+            {dbrefErrors.length > 0 && (
+              <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto' }}>
+                {dbrefErrors.map((err, i) => (
                   <p key={i} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
                     {err}
                   </p>
