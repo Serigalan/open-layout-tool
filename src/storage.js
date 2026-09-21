@@ -10,6 +10,7 @@ import * as idb from './utils/idbStorage'
 export const STORAGE_KEY = 'olt_projects'
 const SETTINGS_KEY = 'olt_settings'
 const IMAGE_KEY_PREFIX = 'olt_image_'
+const REPORT_KEY_PREFIX = 'olt_reports_'
 
 export function loadSettings() {
   try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') } catch { return {} }
@@ -197,6 +198,55 @@ export function updateProject(projectId, patch) {
   persist(projectId)
 }
 
+/**
+ * What an import had to say, kept so it can be read again.
+ *
+ * An import of a whole database writes thousands of lines — what it could not
+ * place, what it had to infer from the alignment because the file does not
+ * state it, where the file disagrees with itself — and until now they were gone
+ * with the next click. They are kept per project, newest first, and outside the
+ * project record: a report is about an import, not about the alignment, so it
+ * has no business riding through every undo snapshot or into the exchange file.
+ *
+ * localStorage is the right place for exactly that reason, and it is also a
+ * small one: a report is cut to REPORT_LINES and only REPORTS_KEPT of them are
+ * held. A store too full to take one must not make the import fail, so a
+ * refused write falls back to keeping the newest report alone.
+ */
+const REPORTS_KEPT = 8
+const REPORT_LINES = 4000
+
+export function loadImportReports(projectId) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(REPORT_KEY_PREFIX + projectId) ?? '[]')
+    return Array.isArray(raw) ? raw : []
+  } catch { return [] }
+}
+
+export function saveImportReport(projectId, report) {
+  const entry = {
+    ...report,
+    at: report.at ?? Date.now(),
+    lines: (report.lines ?? []).slice(0, REPORT_LINES),
+    cut: Math.max(0, (report.lines ?? []).length - REPORT_LINES),
+  }
+  const all = [entry, ...loadImportReports(projectId)].slice(0, REPORTS_KEPT)
+  const write = (list) => localStorage.setItem(REPORT_KEY_PREFIX + projectId, JSON.stringify(list))
+  try {
+    write(all)
+    return all
+  } catch {
+    try {
+      write([{ ...entry, lines: entry.lines.slice(0, 200), cut: entry.lines.length - 200 }])
+    } catch { /* nothing to be done; the import itself stands */ }
+    return loadImportReports(projectId)
+  }
+}
+
+export function clearImportReports(projectId) {
+  try { localStorage.removeItem(REPORT_KEY_PREFIX + projectId) } catch { /* already gone */ }
+}
+
 // Project images live outside the project records so they are not
 // re-serialized on every track mutation and do not ride through the undo
 // snapshots. In-memory map for synchronous reads, persisted per project.
@@ -248,6 +298,7 @@ export function deleteProject(id) {
   pushUndo()
   _cache = getCache().filter((p) => p.id !== id)
   saveProjectImage(id, null)
+  clearImportReports(id)
   if (_backend === 'idb') {
     _deleted.add(id)
     _dirty.delete(id)

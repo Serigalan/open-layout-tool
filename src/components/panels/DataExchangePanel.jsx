@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { loadTracks, loadSwitches, loadProjects, importProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection } from '../../storage'
+import { loadTracks, loadSwitches, loadProjects, importProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports } from '../../storage'
 import { parseProjectsPayload, PayloadError } from '../../utils/persistenceUtils'
 import { parseRecords, buildElements } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'
@@ -8,7 +8,7 @@ import { exportToOsrd, OSRD_URL } from '../../utils/osrdExport'
 import { exportExchange, FORMAT_VERSION } from '../../utils/exchangeExport'
 import { parseOsrdRailJson } from '../../utils/osrdImport'
 import { fitToTracks } from '../../utils/mapRenderUtils'
-import { downloadJSON } from '../../utils/fileUtils'
+import { downloadJSON, downloadText } from '../../utils/fileUtils'
 import { EPSG_OPTIONS, crsDatum, crsLabel } from '../../utils/coordinateUtils'
 import useTrackHover from '../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../utils/mapConstants'
@@ -79,6 +79,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const [csvBusy, setCsvBusy]           = useState(false)
   const mdbInputRef                     = useRef(null)
   const mdbPayloadRef                   = useRef(null)   // converted Satzarten, kept out of state
+  const mdbNameRef                      = useRef('')     // the file the payload came from
   const [mdbStrecken, setMdbStrecken]   = useState([])
   const [mdbStrecke, setMdbStrecke]     = useState('')
   const [mdbCounts, setMdbCounts]       = useState(null)
@@ -90,6 +91,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   // of database, and answering it replaces the coordinates for good.
   const dbrefInputRef                   = useRef(null)
   const dbrefPayloadRef                 = useRef(null)
+  const dbrefNameRef                    = useRef('')
   const [dbrefStrecken, setDbrefStrecken] = useState([])
   const [dbrefStrecke, setDbrefStrecke] = useState('')
   const [dbrefCounts, setDbrefCounts]   = useState(null)
@@ -104,6 +106,16 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const exchangeInputRef                = useRef(null)
   const [exchangeOpen, setExchangeOpen] = useState(false)
   const [importError, setImportError]       = useState(null)   // why a project file was refused
+  // What the imports of this project had to say, kept in the store so it
+  // survives the panel being closed and the page being reloaded.
+  const [reports, setReports]           = useState([])
+  const [openReport, setOpenReport]     = useState(null)
+
+  const projectId = project?.id
+  useEffect(() => {
+    setReports(projectId ? loadImportReports(projectId) : [])
+    setOpenReport(null)
+  }, [projectId])
 
   useTrackHover(map, phase, 'selecting', project)
 
@@ -353,11 +365,12 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   // The browser cannot read an Access file, so it goes to the server, is
   // converted there and deleted again (ROADMAP decision 11). Everything after
   // that happens here, on the Satzarten the converter hands back.
-  const readMdbFile = ({ ref, setErrors, setBusy, setStrecken, setStrecke, setCounts }) => async (e) => {
+  const readMdbFile = ({ ref, nameRef, setErrors, setBusy, setStrecken, setStrecke, setCounts }) => async (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !project) return
     setErrors([]); setBusy(true); setStrecken([]); setCounts(null)
+    nameRef.current = file.name
     try {
       const payload = parseMdbPayload(await convertMdbOnServer(file))
       ref.current = payload
@@ -380,12 +393,12 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   }
 
   const handleMdbFile = readMdbFile({
-    ref: mdbPayloadRef, setErrors: setMdbErrors, setBusy: setMdbBusy,
+    ref: mdbPayloadRef, nameRef: mdbNameRef, setErrors: setMdbErrors, setBusy: setMdbBusy,
     setStrecken: setMdbStrecken, setStrecke: setMdbStrecke, setCounts: setMdbCounts,
   })
 
   const handleDbrefFile = readMdbFile({
-    ref: dbrefPayloadRef, setErrors: setDbrefErrors, setBusy: setDbrefBusy,
+    ref: dbrefPayloadRef, nameRef: dbrefNameRef, setErrors: setDbrefErrors, setBusy: setDbrefBusy,
     setStrecken: setDbrefStrecken, setStrecke: setDbrefStrecke, setCounts: setDbrefCounts,
   })
 
@@ -435,9 +448,20 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     return out
   }
 
-  const runMdbImport = async ({ payload, strecke, withSwitches, target, setErrors, setBusy }) => {
+  const runMdbImport = async ({ payload, source, strecke, withSwitches, target, setErrors, setBusy }) => {
     if (!payload || !strecke || !project) return
     setBusy(true)
+    // Every import leaves its report behind, whether it placed anything or not
+    // — that is the run whose messages someone comes back to.
+    const keep = (lines, counts) => {
+      setErrors(lines)
+      setReports(saveImportReport(project.id, {
+        source: `${source || 'MDB'} · ${strecke === ALL_STRECKEN
+          ? t('data_exchange_reports_all') : strecke}`,
+        ...counts, lines,
+      }))
+      setOpenReport(null)
+    }
     // The whole file at once is the common case — a Betriebsstelle's switches
     // rarely sit on one line number, so picking a single one splits them up.
     const built = strecke === ALL_STRECKEN
@@ -449,14 +473,22 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     // anything is saved: what comes back are the tracks as they are afterwards,
     // and records carrying their symbol — the same shape a switch dialog
     // commits, so an imported switch is stored and drawn like a built one.
+    // `derive` is part of placing switches, not a choice of its own: a track
+    // that ends on another one is a turnout whether or not Satzart 31 says so
+    // (mdbSwitchDerive), and an import that drew the one and left out the other
+    // would hand over a network that is wrong where it is quietest.
     const placed = withSwitches
       ? placeMdbSwitches(payload, built.tracks, inventory.units, {
-        newId: generateId, existingSwitches: loadSwitches(project.id),
+        newId: generateId, existingSwitches: loadSwitches(project.id), derive: true,
       })
       : { tracks: built.tracks, switches: [], errors: [] }
 
     const notes = [...built.errors, ...inventory.errors, ...placed.errors]
-    if (!placed.tracks.length) { setErrors(notes); setBusy(false); return }
+    if (!placed.tracks.length) {
+      keep(notes, { tracks: 0, switches: 0 })
+      setBusy(false)
+      return
+    }
 
     const names = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
     const addTracks = placed.tracks.map(tr => {
@@ -502,7 +534,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     }
     if (fanned) notes.push(t('data_exchange_mdb_fanned').replace('{{n}}', fanned))
 
-    setErrors(notes)
+    keep(notes, { tracks: addTracks.length, switches: placed.switches.length })
     // One commit, one undo step — a whole database is thousands of tracks, and
     // saving them one at a time would leave as many steps behind.
     commitSwitchConnection(project.id, {
@@ -518,13 +550,15 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
    * for the map alone.
    */
   const handleMdbImport = () => runMdbImport({
-    payload: mdbPayloadRef.current, strecke: mdbStrecke, withSwitches: mdbSwitches,
+    payload: mdbPayloadRef.current, source: mdbNameRef.current,
+    strecke: mdbStrecke, withSwitches: mdbSwitches,
     target: null, setErrors: setMdbErrors, setBusy: setMdbBusy,
   })
 
   /** The one that writes DB_REF, and writes it for good (planeTransform). */
   const handleDbrefImport = () => runMdbImport({
-    payload: dbrefPayloadRef.current, strecke: dbrefStrecke, withSwitches: dbrefSwitches,
+    payload: dbrefPayloadRef.current, source: dbrefNameRef.current,
+    strecke: dbrefStrecke, withSwitches: dbrefSwitches,
     target: Number(dbrefTarget), setErrors: setDbrefErrors, setBusy: setDbrefBusy,
   })
 
@@ -1023,6 +1057,59 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
                   </p>
                 ))}
               </div>
+            )}
+          </ExchangeSection>
+          <ExchangeSection
+            title={t('data_exchange_reports')}
+            description={t('data_exchange_reports_desc')}
+          >
+            {reports.length === 0 && (
+              <p className="selecting-hint">{t('data_exchange_reports_none')}</p>
+            )}
+            {reports.map((r, i) => (
+              <div key={r.at}>
+                <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+                  aria-expanded={openReport === i}
+                  onClick={() => setOpenReport(openReport === i ? null : i)}>
+                  {t('data_exchange_reports_entry')
+                    .replace('{{when}}', new Date(r.at).toLocaleString())
+                    .replace('{{source}}', r.source ?? '')
+                    .replace('{{n}}', r.lines?.length ?? 0)}
+                </button>
+                {openReport === i && (
+                  <>
+                    <p className="selecting-hint">
+                      {t('data_exchange_reports_result')
+                        .replace('{{tracks}}', r.tracks ?? 0)
+                        .replace('{{switches}}', r.switches ?? 0)}
+                    </p>
+                    <div style={{ marginTop: 4, maxHeight: 220, overflowY: 'auto' }}>
+                      {(r.lines ?? []).map((line, j) => (
+                        <p key={j} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+                          {line}
+                        </p>
+                      ))}
+                      {r.cut > 0 && (
+                        <p className="selecting-hint">
+                          {t('data_exchange_reports_cut').replace('{{n}}', r.cut)}
+                        </p>
+                      )}
+                    </div>
+                    <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+                      onClick={() => downloadText(
+                        [r.source, new Date(r.at).toISOString(), '', ...(r.lines ?? [])].join('\n'),
+                        `import-${new Date(r.at).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`)}>
+                      {t('data_exchange_reports_save')}
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+            {reports.length > 0 && (
+              <button className="panel-btn panel-btn-full" style={{ marginTop: 6 }}
+                onClick={() => { clearImportReports(project.id); setReports([]); setOpenReport(null) }}>
+                {t('data_exchange_reports_clear')}
+              </button>
             )}
           </ExchangeSection>
           <ExchangeSection

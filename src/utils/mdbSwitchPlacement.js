@@ -8,8 +8,9 @@ import { placeSwitchOnTrack } from './switchPlacement'
 import { resolveEndBearing } from './elementUtils'
 import { elementAtStation, pointAtStationUtm } from './heightUtils'
 import { epsgForLagesystem } from './mdbImport'
+import { deriveMdbTurnouts, offsetOnTrack, AXIS_TOL } from './mdbSwitchDerive'
 import { generateId, remapSwitches } from '../storage'
-import { nextSwitchNumber } from './identifierUtils'
+import { nextSwitchNumber, switchDesignation } from './identifierUtils'
 
 /**
  * Putting the MDB's switch inventory onto the tracks the same import built.
@@ -205,8 +206,10 @@ function locatorFor(coords, systems, tracks) {
   }
 
   return (unit, pointOf, tol = PLACE_TOL) => {
-    for (const [sys, epsg] of systems) {
-      const pt = pointOf ? pointOf(sys) : coords.get(`${unit.pad}\u0000${sys}`)
+    // A derived unit has no Punktadresse: it was read off the alignment and
+    // states the plane it was read in.
+    for (const [sys, epsg] of unit.point ? [[null, unit.epsg]] : systems) {
+      const pt = unit.point ?? (pointOf ? pointOf(sys) : coords.get(`${unit.pad}\u0000${sys}`))
       if (!pt) continue
       const through = []
       const starting = []
@@ -314,6 +317,35 @@ function placeCrossingUnit(found, unit, type, tracks, makeId) {
 }
 
 /**
+ * What a unit is called in a report: the file's Betriebsstelle and number, or —
+ * for one the alignment gave rather than the file — where it was read.
+ */
+const unitLabel = (unit) => (unit.derived
+  ? `Abgeleitet ${unit.where}`
+  : `${unit.bst}/${unit.name}`)
+
+/**
+ * How far the Weichenanfang sits from the two tracks that meet there.
+ *
+ * Both are surveyed and the point is a surveyed point of both, so the three
+ * are one place or the file disagrees with itself. Measured exactly against the
+ * elements' own geometry — a chord could not carry a centimetre — and reported
+ * beyond `AXIS_TOL`. The switch is still set: 5 cm moves no alignment, and the
+ * alignment is what the model holds. What is reported is the disagreement.
+ */
+function axisNote(found, shape) {
+  const host = offsetOnTrack(shape.host.track, found.point)?.dist ?? 0
+  const els = shape.branch.track.elements
+  const node = shape.branch.endpoint === 'BEGIN' ? els[0].startNode : els[els.length - 1].endNode
+  const branch = Math.hypot(node[0] - found.point[0], node[1] - found.point[1])
+  if (host <= AXIS_TOL && branch <= AXIS_TOL) return null
+  const cm = (v) => `${(v * 100).toFixed(1)} cm`
+  return `Weichenanfang ${cm(host)} neben dem Stammgleis ${shape.host.track.name ?? '?'} `
+    + `und ${cm(branch)} neben dem Anfang des Zweiggleises ${shape.branch.track.name ?? '?'} `
+    + `(zulässig ${cm(AXIS_TOL)}) – gesetzt, aber die Vermessung widerspricht sich.`
+}
+
+/**
  * Leave a note on the elements at a switch point the import could not build.
  *
  * The switch is in the database, the alignment carries it, and something about
@@ -328,12 +360,13 @@ function placeCrossingUnit(found, unit, type, tracks, makeId) {
  * refused by `parseProjectsPayload`. A note is a note.
  */
 function noteUnplaced(tracks, coords, systems, unit, reason) {
-  const text = `${unit.label || '?'} (${unit.bst}/${unit.name}): ${reason}`
+  const text = `${unit.label || '?'} (${unitLabel(unit)}): ${reason}`
+  const where = unit.point ? [[unit.epsg, unit.point]] : systems
+    .map(([sys, epsg]) => [epsg, coords.get(`${unit.pad}\u0000${sys}`)])
   let touched = false
   const next = tracks.map((track) => {
-    for (const [sys, epsg] of systems) {
+    for (const [epsg, pt] of where) {
       if (epsg !== track.epsg) continue
-      const pt = coords.get(`${unit.pad}\u0000${sys}`)
       if (!pt) continue
       let bestIdx = -1
       let best = PLACE_TOL
@@ -366,7 +399,8 @@ function noteUnplaced(tracks, coords, systems, unit, reason) {
  * Returns { tracks, switches, errors } — the tracks as they are after every
  * placement, ready to be saved as they are.
  */
-export function placeMdbSwitches(payload, tracks, units, { existingSwitches = [], newId } = {}) {
+export function placeMdbSwitches(payload, tracks, units,
+  { existingSwitches = [], newId, derive = false } = {}) {
   const errors = []
   const switches = []
   const makeId = newId ?? generateId
@@ -388,12 +422,40 @@ export function placeMdbSwitches(payload, tracks, units, { existingSwitches = []
   const systems = systemsOf(payload)
 
   const give = (unit, reason) => {
-    errors.push(`${unit.bst}/${unit.name} (${unit.label}): ${reason}`)
+    errors.push(`${unitLabel(unit)} (${unit.label}): ${reason}`)
     current = noteUnplaced(current, coords, systems, unit, reason)
   }
 
-  for (const unit of units) {
-    const type = switchTypeFor(unit)
+  // The switches the file does not state, read off the alignment itself
+  // (mdbSwitchDerive). This runs on the tracks as they came in, before the
+  // first placement parts any of them, and skips every point Satzart 31
+  // already names — placed or not, a point the file names is the file's.
+  let all = units
+  if (derive) {
+    const stated = []
+    for (const unit of units) {
+      for (const pad of [unit.pad, ...(unit.pads ?? [])]) {
+        if (!pad) continue
+        for (const [sys, epsg] of systems) {
+          const pt = coords.get(`${pad}\u0000${sys}`)
+          if (pt) stated.push({ epsg, point: pt })
+        }
+      }
+    }
+    const found = deriveMdbTurnouts(current, stated)
+    all = [...units, ...found.units]
+    if (found.units.length) {
+      errors.push(`${found.units.length} Weichen ergänzt, die in Satzart 31 fehlen – `
+        + 'ein Gleis endet dort mitten auf einem anderen. Die Bauform ist aus der '
+        + 'Geometrie gelesen, nicht aus der Datei.')
+    }
+    errors.push(...found.errors)
+  }
+
+  for (const unit of all) {
+    // A derived unit brings the form its geometry gave it; a stated one is
+    // looked up by the Bauform the file writes.
+    const type = unit.type ?? switchTypeFor(unit)
     if (!type) {
       give(unit, 'keine Form im Weichenkatalog – nicht gesetzt.')
       continue
@@ -413,6 +475,8 @@ export function placeMdbSwitches(payload, tracks, units, { existingSwitches = []
     } else {
       const shape = chooseShape(found, type)
       if (shape.reason) { give(unit, `${shape.reason} – nicht gesetzt.`); continue }
+      const off = axisNote(found, shape)
+      if (off) errors.push(`${unitLabel(unit)} (${unit.label}): ${off}`)
       placed = placeOne({ ...found, ...shape }, unit, type, current, makeId)
     }
     if (placed.error) { give(unit, placed.error); continue }
@@ -425,7 +489,14 @@ export function placeMdbSwitches(payload, tracks, units, { existingSwitches = []
     }
     // Only a switch that was actually built takes a number — a failed one must
     // not burn one, or 372 refusals would push the sequence past its ceiling.
-    switches.push({ ...placed.record, number: nextNumber() })
+    // A derived switch has no designation from the file either, so it is named
+    // from that number, the way a switch built in the app is.
+    const number = nextNumber()
+    switches.push({
+      ...placed.record,
+      number,
+      name: placed.record.name || switchDesignation(number, placed.record.kind),
+    })
   }
 
   // The symbol travels with the record, exactly as a dialog commits it — the
