@@ -1,5 +1,5 @@
 import proj4 from 'proj4'
-import { ntv2Ready, GRID_KEY } from './ntv2Grid'
+import { ntv2Ready, nadgridsList } from './ntv2Grid'
 
 // One projected plane per track (`track.epsg`): every calculation in the app
 // runs in that plane on { easting, northing, zone } points. WGS84 is derived
@@ -28,8 +28,10 @@ const gkProj = (zone) =>
 // switches the whole proj string, not just an extra parameter.
 const DHDN_HELMERT = '+towgs84=598.1,73.7,418.2,0.202,0.045,-2.455,6.7'
 
+// The grid list, not one grid: a regional grid loaded for an import sits in
+// front of BeTA2007 and is used where it reaches (ntv2Grid.nadgridsList).
 const dhdnProj = (zone) => (ntv2Ready()
-  ? besselGk(zone, `+nadgrids=${GRID_KEY}`)
+  ? besselGk(zone, `+nadgrids=${nadgridsList()}`)
   : besselGk(zone, DHDN_HELMERT))
 
 /**

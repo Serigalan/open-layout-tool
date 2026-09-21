@@ -9,13 +9,15 @@ import { exportExchange, FORMAT_VERSION } from '../../utils/exchangeExport'
 import { parseOsrdRailJson } from '../../utils/osrdImport'
 import { fitToTracks } from '../../utils/mapRenderUtils'
 import { downloadJSON } from '../../utils/fileUtils'
-import { EPSG_OPTIONS } from '../../utils/coordinateUtils'
+import { EPSG_OPTIONS, crsLabel } from '../../utils/coordinateUtils'
 import useTrackHover from '../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
 import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, buildAllTracksFromMdb, mdbSwitchInventory } from '../../utils/mdbImport'
 import { placeMdbSwitches } from '../../utils/mdbSwitchPlacement'
 import { linkAllJoints } from '../../utils/trackLinkUtils'
+import { transformTrackToPlane } from '../../utils/planeTransform'
+import { loadGridsFor } from '../../utils/ntv2Grid'
 import { convertMdbOnServer, OptimizerError } from '../../utils/optimizerService'
 
 /**
@@ -82,6 +84,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const [mdbCounts, setMdbCounts]       = useState(null)
   const [mdbErrors, setMdbErrors]       = useState([])
   const [mdbSwitches, setMdbSwitches]   = useState(true)
+  const [mdbTarget, setMdbTarget]       = useState('')   // '' = every system keeps its own plane
   const [mdbBusy, setMdbBusy]           = useState(false)
   const osrdInputRef                    = useRef(null)
   const [osrdErrors, setOsrdErrors]     = useState([])
@@ -365,7 +368,50 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     }
   }
 
-  const handleMdbImport = () => {
+  /**
+   * Every track into one plane, with the regional grids that cover them loaded
+   * first. Each element is refitted to its own two transformed nodes, so the
+   * nodes stay exactly where the transformation puts them and the lengths and
+   * radii follow (planeTransform). What that cost is reported: how far the
+   * plane stretched, and how far a joint's tangent opened beyond what it
+   * already was.
+   */
+  const toPlane = async (tracks, target, notes) => {
+    const box = tracks.reduce((b, tr) => {
+      const cs = tr.coordinates ?? []
+      for (const c of [cs[0], cs[cs.length - 1]]) {
+        if (!c) continue
+        b[0] = Math.min(b[0], c[0]); b[1] = Math.min(b[1], c[1])
+        b[2] = Math.max(b[2], c[0]); b[3] = Math.max(b[3], c[1])
+      }
+      return b
+    }, [180, 90, -180, -90])
+
+    const grids = await loadGridsFor(box)
+    notes.push(t(grids.length ? 'data_exchange_mdb_grids' : 'data_exchange_mdb_grid_none')
+      .replace('{{names}}', grids.map(g => g.name).join(', ')))
+
+    let moved = 0, gap = 0, lo = Infinity, hi = -Infinity
+    const out = tracks.map(tr => {
+      if (Number(tr.epsg) === target) return tr
+      const res = transformTrackToPlane(tr, target)
+      if (!res) return tr
+      moved += 1
+      gap = Math.max(gap, res.tangentGap)
+      lo = Math.min(lo, res.scale.min); hi = Math.max(hi, res.scale.max)
+      return res.track
+    })
+    if (moved) {
+      notes.push(t('data_exchange_mdb_moved')
+        .replace('{{n}}', moved)
+        .replace('{{crs}}', crsLabel(target))
+        .replace('{{mm}}', (Math.max(Math.abs(lo - 1), Math.abs(hi - 1)) * 1000).toFixed(2))
+        .replace('{{deg}}', gap.toExponential(1)))
+    }
+    return out
+  }
+
+  const handleMdbImport = async () => {
     const payload = mdbPayloadRef.current
     if (!payload || !mdbStrecke || !project) return
     setMdbBusy(true)
@@ -398,6 +444,21 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
       names.add(name)
       return { ...tr, id: tr.id ?? generateId(), name, elements, coordinates: rebuildCoords(elements) }
     })
+
+    // Into one plane, where that was asked for. The survey states its
+    // alignment in the Landessystem and the railway works in DB_REF, and a
+    // track carries one plane — so the chains come in as many planes as the
+    // file uses and stay cut at every boundary between them. Carried over,
+    // they are one network in one plane.
+    //
+    // The grids come first and only then: a finer regional grid is worth its
+    // 80 MB for the one conversion an import is, and which one is worth
+    // loading cannot be known before the data says where it lies.
+    if (mdbTarget) {
+      const moved = await toPlane(addTracks, Number(mdbTarget), notes)
+      addTracks.length = 0
+      addTracks.push(...moved)
+    }
 
     // The chains the import builds are cut wherever the Lagesystem changes, and
     // those cuts are joints, not ends — so they are linked here rather than
@@ -836,6 +897,16 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
                     </option>
                     {mdbStrecken.map(x => (
                       <option key={x.strecke} value={x.strecke}>{x.strecke} ({x.count})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-field" style={{ marginTop: 6 }}>
+                  <label>{t('data_exchange_mdb_target')}</label>
+                  <select className="settings-select" value={mdbTarget}
+                    onChange={e => setMdbTarget(e.target.value)}>
+                    <option value="">{t('data_exchange_mdb_target_keep')}</option>
+                    {EPSG_OPTIONS.filter(o => o.code >= 5681 && o.code <= 5685).map(o => (
+                      <option key={o.code} value={o.code}>{o.code} – {o.label}</option>
                     ))}
                   </select>
                 </div>
