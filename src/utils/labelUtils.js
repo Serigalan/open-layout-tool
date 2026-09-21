@@ -7,7 +7,7 @@
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
 /** Below this zoom no label is drawn, and the type size is measured from it. */
-const MIN_ZOOM = 15
+const MIN_ZOOM = 16
 
 /**
  * A turnout's designation goes earlier than the rest. Every other label is

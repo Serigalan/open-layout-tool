@@ -132,7 +132,7 @@ export const ZOOM_ICON_SIZE = lineWidthTimes(1 / MARKER_STROKE)
  * station run into one another and cover the alignment they mark — an
  * imported Strecke brings thousands of them.
  */
-export const MARKER_MIN_ZOOM = 17
+export const MARKER_MIN_ZOOM = 16
 
 /** Cant physics constants (same as Leaflet prototype) */
 export const MAX_CANT      = 170   // maximum cant (mm)
