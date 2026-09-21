@@ -161,38 +161,51 @@ export function listStrecken(rows) {
     .sort((a, b) => a.strecke.localeCompare(b.strecke, undefined, { numeric: true }))
 }
 
-/** Order rows into chains: each element's end address is the next one's start. */
+/**
+ * Order rows into chains: each element's end address is the next one's start.
+ *
+ * A point address can carry more than one element on its far side — that is a
+ * switch, and both legs are alignment. So the rows at an address are a queue,
+ * not a single entry: the first walk takes one leg, and what is left over is
+ * walked afterwards as chains of its own. Keyed by address alone, the second
+ * leg used to be overwritten before the walk even started and vanished from
+ * the import without a word (23 of 8 693 elements of the test database).
+ */
 function buildChains(rows) {
   const byStart = new Map()
   const ends = new Set()
   for (const r of rows) {
-    byStart.set(r.anf, r)
+    if (!byStart.has(r.anf)) byStart.set(r.anf, [])
+    byStart.get(r.anf).push(r)
     ends.add(r.end)
+  }
+  const take = (pad) => {
+    const list = byStart.get(pad)
+    if (!list?.length) return null
+    const row = list.shift()
+    if (!list.length) byStart.delete(pad)
+    return row
+  }
+  const walk = (start) => {
+    const chain = []
+    for (let cur = start, row = take(cur); row; row = take(cur)) {
+      chain.push(row)
+      cur = row.end
+    }
+    return chain
   }
   const chains = []
   for (const r of rows) {
     if (ends.has(r.anf)) continue            // not a chain start
-    const chain = []
-    let cur = r.anf
-    while (byStart.has(cur)) {
-      const next = byStart.get(cur)
-      byStart.delete(cur)
-      chain.push(next)
-      cur = next.end
-    }
+    const chain = walk(r.anf)
     if (chain.length) chains.push(chain)
   }
-  // Anything left sits in a closed loop — emit it so nothing is silently lost.
+  // What is left begins where something else ends — the second leg of a
+  // switch, or a closed loop. Emitted so nothing is silently lost.
   while (byStart.size) {
     const [key] = byStart.keys()
-    const chain = []
-    let cur = key
-    while (byStart.has(cur)) {
-      const next = byStart.get(cur)
-      byStart.delete(cur)
-      chain.push(next)
-      cur = next.end
-    }
+    const chain = walk(key)
+    if (!chain.length) { byStart.delete(key); continue }
     chains.push(chain)
   }
   return chains

@@ -200,6 +200,29 @@ function streckeByElement(tracks) {
 }
 
 /**
+ * The line number an element without a Gleisabschnitt is filed under.
+ *
+ * Satzart 33 is what gives an element its Streckennummer, and an export can
+ * leave it out altogether: a geometry-only delivery (Satzarten 11–25) carries
+ * the alignment and no sections at all. Those elements used to be counted and
+ * dropped, which makes such a file import as nothing.
+ *
+ * So they are grouped by what the file does say about them — the
+ * Trassenbezeichnung the element carries (`ELTEXT`, written `Trasse:…` by the
+ * planning tool), else the Betriebsstelle its point address begins with. Both
+ * are names where a Streckennummer would be a number, so the line picker shows
+ * at a glance which is which, and the report says how many came in this way.
+ */
+const TRASSE = /^Trasse:\s*(\S.*)$/
+
+function looseStrecke(el) {
+  const named = TRASSE.exec(String(el?.text ?? '').trim())
+  if (named) return new Set([named[1].trim()])
+  const bst = String(el?.pad1 ?? '').slice(0, 4).trim()
+  return new Set([bst ? `Bst ${bst}` : 'ohne Strecke'])
+}
+
+/**
  * Satzarten 21/23 → the row shape `buildTracksFromCsv` consumes.
  *
  * An element that serves two line numbers is emitted once per number; the
@@ -210,18 +233,28 @@ function streckeByElement(tracks) {
 export function mdbRows(payload) {
   const { points, elements, cants, tracks } = payload
   const coords = pointIndex(points)
-  const byPair = streckeByElement(tracks)
+  const sectioned = streckeByElement(tracks)
+  // What the sections do not mention is filed under a name of its own, and
+  // written into the same index — so the cant records at those addresses end
+  // up under the same name as the element they belong to.
+  const byPair = new Map(sectioned)
+  let loose = 0
+  for (const el of elements) {
+    const key = padKey(el?.pad1, el?.pad2)
+    if (sectioned.has(key)) continue
+    loose++
+    if (!byPair.has(key)) byPair.set(key, looseStrecke(el))
+  }
   const errors = []
   const rows = []
   let unplaced = 0
-  let unstreckt = 0
 
   for (const el of elements) {
     const typ = ELTYP_NAME[el?.typ]
     const start = coords.get(padKey(el?.pad1, el?.sys))
     if (!start) { unplaced++; continue }
     const strecken = byPair.get(padKey(el?.pad1, el?.pad2))
-    if (!strecken) { unstreckt++; continue }
+    if (!strecken) continue
     for (const strecke of strecken) {
       rows.push({
         typ: typ ?? `ELTYP ${el?.typ}`,
@@ -257,9 +290,10 @@ export function mdbRows(payload) {
   if (unplaced) {
     errors.push(`${unplaced} Elemente ohne Koordinate im eigenen Lagesystem übersprungen.`)
   }
-  if (unstreckt) {
-    errors.push(`${unstreckt} Elemente gehören zu keinem Gleisabschnitt mit Streckennummer `
-      + '– ohne Streckenzuordnung nicht importierbar.')
+  if (loose) {
+    errors.push(`${loose} Elemente gehören zu keinem Gleisabschnitt (Satzart 33) `
+      + '– gruppiert nach Trassenbezeichnung, sonst nach Betriebsstelle. '
+      + 'Diese Namen stehen mit in der Streckenliste.')
   }
   return { rows, cantRows, errors }
 }

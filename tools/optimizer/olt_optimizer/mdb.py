@@ -91,6 +91,10 @@ def convert(path):
          "sys": _txt(r.get("ELSYS")), "typ": _int(r.get("ELTYP"), -1),
          "p1": _num(r.get("ELPAR1")), "p2": _num(r.get("ELPAR2")),
          "p3": _num(r.get("ELPAR3")), "ariwi": _num(r.get("ELARIWI")),
+         # The alignment designation the planning tool writes ("Trasse:…").
+         # It is the only thing that groups elements in an export without
+         # Satzart 33; mdbImport.js reads it.
+         "text": _txt(r.get("ELTEXT")),
          "err": _int(r.get("ErrStatus"))}
         for r in _rows(path, "X_ASC21_EL")
     ]
