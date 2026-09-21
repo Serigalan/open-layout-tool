@@ -512,7 +512,7 @@
   "platform_existing": "Vorhandene Bahnsteige",
   "platform_unnamed": "Bahnsteig ohne Namen",
   "platform_error_range": "Anfang und Ende müssen auf dem Gleis liegen und mindestens 1 m auseinander.",
-  "elevation_hint": "Gleis wählen, um sein Höhenprofil zu zeigen. Gleise ohne Höhen erhalten sie automatisch aus dem Gelände (DGM5 des BKG, außerhalb Deutschlands MapTiler Terrain); wird ein Gleis verlängert, kommt nur das neue Stück dazu. Von Hand geänderte Höhen bleiben stehen, bis das Gleis neu geladen wird.",
+  "elevation_hint": "Gleis in der Karte anklicken oder aus der Liste wählen, um sein Höhenprofil zu zeigen. Gleise ohne Höhen erhalten sie automatisch aus dem Gelände (DGM5 des BKG, außerhalb Deutschlands MapTiler Terrain); wird ein Gleis verlängert, kommt nur das neue Stück dazu. Von Hand geänderte Höhen bleiben stehen, bis das Gleis neu geladen wird.",
   "elevation_reload_track": "Höhen des Gleises aus dem Gelände neu laden",
   "elevation_load_missing": "Fehlende Höhen laden (alle Gleise)",
   "elevation_loading": "Lade Höhen …",

@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { translations } from './locales/i18n'
 import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
-import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_ICON_SIZE, GEOJSON_MAXZOOM } from './utils/mapConstants'
+import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from './utils/mapConstants'
 import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
 import { loadTracks, loadSwitches, loadPlatforms, loadSettings, saveSettings, canUndo, undo } from './storage'
@@ -239,6 +239,7 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
       id: 'tracks-markers-layer',
       type: 'symbol',
       source: 'tracks-markers-source',
+      minzoom: MARKER_MIN_ZOOM,
       layout: {
         'icon-image': TRACK_MARKER_ICON_IMAGE,
         'icon-rotate': ['get', 'bearing'],
@@ -291,7 +292,7 @@ function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOv
   if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} />
   if (view === 'connect_switch') return <ConnectSwitchPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
-  if (view === 'elevation') return <ElevationPanel t={t} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
+  if (view === 'elevation') return <ElevationPanel t={t} map={map} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
   if (view === 'platform') return <PlatformCrossSectionPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
   if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onProjectImported={onProjectImported} onTrackSaved={onTrackSaved} />
   if (view === 'plan')     return <PlanExportPanel t={t} project={project} language={language} onShowPlanPreview={onShowPlanPreview} />

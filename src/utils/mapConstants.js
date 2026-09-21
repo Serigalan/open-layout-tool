@@ -126,6 +126,15 @@ export const ZOOM_LINE_WIDTH_SELECTED = lineWidthTimes(1.5)
 export const MARKER_STROKE = LINE_WIDTH_STOPS[LINE_WIDTH_STOPS.length - 1]
 /** Marker size by zoom — scaled with the line, so a marker's stroke is always the line's width. */
 export const ZOOM_ICON_SIZE = lineWidthTimes(1 / MARKER_STROKE)
+/**
+ * From this zoom on the element-end markers are drawn, below it not at all.
+ * Zoomed out further they say nothing: a 100 m element is 16 px long here and
+ * 8 px one step out, so the ticks and arrows of a whole station run into one
+ * another and cover the alignment they mark — an imported Strecke brings
+ * thousands of them. It is also the step below the first stated marker size
+ * (markerImages.MARKER_STEPS), where the marker still scales with the line.
+ */
+export const MARKER_MIN_ZOOM = 14
 
 /** Cant physics constants (same as Leaflet prototype) */
 export const MAX_CANT      = 170   // maximum cant (mm)

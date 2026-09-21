@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { loadTracks } from '../../storage'
 import { fillHeights } from '../../utils/elevationFill'
+import useTrackPick from '../../hooks/useTrackPick'
 
 /**
  * Vertical alignment: pick a track to see its profile in the overlay, and
@@ -9,10 +10,17 @@ import { fillHeights } from '../../utils/elevationFill'
  * reading a whole track again (which overwrites edited heights) or retrying
  * the missing ones after a failed fetch.
  */
-export default function ElevationPanel({ t, project, profileTrackId, onShowProfile, onTrackSaved }) {
+export default function ElevationPanel({ t, map, project, profileTrackId, onShowProfile, onTrackSaved }) {
   const tracks = loadTracks(project?.id ?? '') ?? []
   const [busy, setBusy]     = useState(false)
   const [result, setResult] = useState(null)   // { updated, missing } of the last run
+
+  // A track is picked on the map as readily as from the list, and the one under
+  // the cursor is drawn on the hover layer so it is clear which it would be.
+  // Unlike the element table, the profile overlay takes no clicks of its own —
+  // it only marks the elements its selection falls in — so this stays live
+  // while a profile is open, and a click swaps it over to the track clicked.
+  useTrackPick(map, true, ({ trackId }) => onShowProfile?.(trackId), { highlight: true })
 
   const run = async (opts) => {
     setBusy(true)

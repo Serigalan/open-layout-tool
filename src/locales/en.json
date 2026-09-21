@@ -512,7 +512,7 @@
   "platform_existing": "Existing platforms",
   "platform_unnamed": "Unnamed platform",
   "platform_error_range": "Start and end must lie on the track and at least 1 m apart.",
-  "elevation_hint": "Pick a track to see its profile. Tracks without heights get them automatically from the terrain (DGM5 of the BKG, MapTiler Terrain outside Germany); a track that grows only has the new stretch read. Heights edited by hand stay until the track is reloaded.",
+  "elevation_hint": "Click a track on the map, or pick one from the list, to see its profile. Tracks without heights get them automatically from the terrain (DGM5 of the BKG, MapTiler Terrain outside Germany); a track that grows only has the new stretch read. Heights edited by hand stay until the track is reloaded.",
   "elevation_reload_track": "Reload the track’s heights from the terrain",
   "elevation_load_missing": "Load missing heights (all tracks)",
   "elevation_loading": "Loading heights …",
