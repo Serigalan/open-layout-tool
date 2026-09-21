@@ -227,6 +227,44 @@ def baseline(groups, params, window=None, target_gi=None):
 
 
 # ── Joint optimization (shiftable interior straights) ────────────────────────
+#
+# One window at a time. The groups of a track couple only through the straights
+# they share, so a window — a group plus whoever shares a straight with it — is
+# a whole problem on its own; everything outside it is held where it stands.
+# That keeps the search vector at the size of a window however long the track
+# is, instead of growing with it and taking the population and the generations
+# needed along with it.
+
+# What one window's search may spend. Its vector is short — one group or three,
+# plus the straights between them — and it starts from what the sweep already
+# holds, so this refines a solution rather than looking for one from nothing.
+# SciPy's default population of fifteen per dimension is sized for the latter,
+# and on a sweep it is paid again at every window.
+WINDOW_POPSIZE = 8
+# The element mode runs one window and nothing after it, so it keeps SciPy's
+# own population. It needs it: with the vector down to one window's worth of
+# variables, a population of eight per dimension found nothing on a three-group
+# track where ten found 3 km/h.
+SINGLE_POPSIZE = 15
+# Generations for the whole sweep, split over the windows it may run: a short
+# track runs few of them and can give each a long search, a long one has to make
+# the same total stretch further. Below the floor a window is not worth starting
+# — measured on a two-group track, forty generations found nothing at all and
+# sixty found 4 km/h.
+SWEEP_BUDGET = 240
+WINDOW_MIN_MAXITER = 40
+
+# How far the sweep may go. The bottleneck usually settles well inside this and
+# the run stops on its own; the cap is for the track that keeps finding a little
+# more, so that it still answers inside the deadline the service gives it — a
+# track may bring two thousand elements, and that is hundreds of groups.
+# Measured over varied tracks of eight to twenty groups at the widest corridor
+# the panel offers, raising it from six to eight bought 0.4 km/h on one track
+# out of four and cost every one of them another twenty seconds.
+SWEEP_MAX_WINDOWS = 6
+# Steps per variable the local polish after a window's search may take.
+POLISH_STEPS = 200
+
 
 def _interior_straights(groups, n_elements):
     shared = set()
@@ -243,23 +281,29 @@ def _shifted_anchor(point, bearing_dir, s):
     return (point[0] + s * normal[0], point[1] + s * normal[1])
 
 
-def _layout(groups, straight_ids):
-    """Variable layout: shifts, then per group [R_1..R_n, u_1..u_n, th_1..th_{n-1}]."""
+def _layout(ctx):
+    """Variable layout: shifts, then per live group [R_1..R_n, u_1..u_n, th_1..th_{n-1}]."""
     slices = []
-    pos = len(straight_ids)
-    for g in groups:
-        n = len(g["arcs"])
+    pos = len(ctx["straight_ids"])
+    for j in ctx["live"]:
+        n = len(ctx["groups"][j]["arcs"])
         slices.append((pos, n))
         pos += 3 * n - 1
     return slices, pos
 
 
-def _decode(x, groups, straight_ids, params):
-    shifts = {idx: _clamp(x[i], -params["corridor"], params["corridor"])
-              for i, idx in enumerate(straight_ids)}
-    slices, _ = _layout(groups, straight_ids)
+def _decode(x, ctx):
+    params = ctx["params"]
+    # The straights this window does not own keep the offset an earlier window
+    # gave them — the groups beside them are fitted to that line, not to the
+    # original one.
+    shifts = dict(ctx["held_shifts"])
+    for i, idx in enumerate(ctx["straight_ids"]):
+        shifts[idx] = _clamp(x[i], -params["corridor"], params["corridor"])
+    slices, _ = _layout(ctx)
     per_group = []
-    for g, (pos, n) in zip(groups, slices):
+    for j, (pos, n) in zip(ctx["live"], slices):
+        g = ctx["groups"][j]
         radii = [max(25.0, x[pos + i]) for i in range(n)]
         us = []
         for i in range(n):
@@ -276,24 +320,26 @@ def _decode(x, groups, straight_ids, params):
     return shifts, per_group
 
 
-def _evaluate_vector(x, groups, straight_ids, params, locked):
-    shifts, per_group = _decode(x, groups, straight_ids, params)
-    solutions = []
+def _evaluate_vector(x, ctx):
+    """The whole chain: the live groups fitted from `x`, the rest as held."""
+    groups = ctx["groups"]
+    params = ctx["params"]
+    shifts, per_group = _decode(x, ctx)
+    solutions = list(ctx["held"])
     penalty = 0.0
-    for j, g in enumerate(groups):
-        if locked[j]:
-            solutions.append(None)
-            continue
-        radii, us, thetas = per_group[j]
+    for (radii, us, thetas), j in zip(per_group, ctx["live"]):
+        g = groups[j]
         p1 = _shifted_anchor(g["p1"], g["d1"], shifts.get(g["entry_idx"], 0.0))
         p2 = _shifted_anchor(g["p2"], g["d2"], shifts.get(g["exit_idx"], 0.0))
         sol = evaluate_group(g, radii, us, thetas, params, p1, p2)
         if sol is None:
             penalty += 1.0
-        solutions.append(sol)
-    for j in range(len(groups) - 1):
-        a, b = solutions[j], solutions[j + 1]
-        ga, gb = groups[j], groups[j + 1]
+        solutions[j] = sol
+    # Only the joints a live group sits on can have moved; the rest are as the
+    # window that placed them left them.
+    for j, k in ctx["pairs"]:
+        a, b = solutions[j], solutions[k]
+        ga, gb = groups[j], groups[k]
         if a is None or b is None or ga["exit_idx"] != gb["entry_idx"]:
             continue
         d = ga["d2"]
@@ -305,69 +351,130 @@ def _evaluate_vector(x, groups, straight_ids, params, locked):
     return solutions, penalty
 
 
-def _objective(x, groups, straight_ids, params, locked, target_gi=None, v_floors=None):
-    solutions, penalty = _evaluate_vector(x, groups, straight_ids, params, locked)
-    missing = sum(1 for j, s in enumerate(solutions) if not locked[j] and s is None)
+def _objective(x, ctx):
+    solutions, penalty = _evaluate_vector(x, ctx)
+    live = ctx["live"]
+    missing = sum(1 for j in live if solutions[j] is None)
+    target_gi = ctx["target_gi"]
     if target_gi is not None:
         # Element mode: maximize the target's v; neighbours may be re-shaped
         # but must not fall below their existing speed (soft floor).
         t = solutions[target_gi]
         if t is None or missing:
             return PENALTY * (1.0 + penalty + missing)
-        short = sum(max(0.0, v_floors[j] - s["v"])
-                    for j, s in enumerate(solutions) if s is not None and j != target_gi)
+        floors = ctx["v_floors"]
+        short = sum(max(0.0, floors[j] - solutions[j]["v"])
+                    for j in live if j != target_gi and solutions[j] is not None)
         return -t["v"] + PENALTY * (penalty + short)
-    vs = [s["v"] for j, s in enumerate(solutions) if not locked[j] and s is not None]
+    vs = [solutions[j]["v"] for j in live if solutions[j] is not None]
     if missing or not vs:
         return PENALTY * (1.0 + penalty + missing)
     return -min(vs) + PENALTY * penalty
 
 
-def joint_optimize(groups, n_elements, params, maxiter=150, seed=1, target_gi=None):
-    from scipy.optimize import differential_evolution, minimize
+def _window_context(groups, n_elements, params, held, held_shifts, live,
+                    target_gi=None, v_floors=None):
+    """Everything one window's objective needs, plus its start vector and bounds."""
+    # A straight a held group sits on must not move: that group's elements are
+    # fitted to the line where it is.
+    frozen = set()
+    for j, g in enumerate(groups):
+        if j not in live:
+            frozen |= {g["entry_idx"], g["exit_idx"]}
+    straight_ids = [i for i in _interior_straights(groups, n_elements) if i not in frozen]
+    ctx = {
+        "groups": groups, "live": live, "held": held, "held_shifts": held_shifts,
+        "straight_ids": straight_ids, "params": params,
+        "target_gi": target_gi, "v_floors": v_floors,
+        "pairs": sorted({p for j in live for p in ((j - 1, j), (j, j + 1))
+                         if p[0] >= 0 and p[1] < len(groups)}),
+    }
 
-    window = window_for(groups, target_gi) if target_gi is not None else None
-    base = baseline(groups, params, window=window, target_gi=target_gi)
-    locked = [sol is None for sol in base]
-    # Straights next to a locked (unchanged) group must not shift — the locked
-    # group's original elements sit on the unshifted line.
-    locked_adjacent = set()
-    for g, is_locked in zip(groups, locked):
-        if is_locked:
-            locked_adjacent |= {g["entry_idx"], g["exit_idx"]}
-    straight_ids = [i for i in _interior_straights(groups, n_elements) if i not in locked_adjacent]
-
-    x0 = [0.0] * len(straight_ids)
+    x0 = [held_shifts.get(i, 0.0) for i in straight_ids]
     bounds = [(-params["corridor"], params["corridor"])] * len(straight_ids)
-    for g, sol in zip(groups, base):
-        n = len(g["arcs"])
+    for j in live:
+        g, sol = groups[j], held[j]
         radii = sol["radii"] if sol else [a["r_alt"] for a in g["arcs"]]
         us = sol["us"] if sol else [a["u_alt"] for a in g["arcs"]]
         thetas = sol["thetas_free"] if sol else [a["sweep_alt"] for a in g["arcs"][:-1]]
-        x0 += radii + us + thetas
+        x0 += list(radii) + list(us) + list(thetas)
         bounds += [(max(25.0, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
         bounds += [(a["u_alt"], max(a["u_alt"], u_max_for(g))) for a in g["arcs"]]
         bounds += [(max(1e-3, 0.2 * a["sweep_alt"]), min(math.pi, 2.5 * max(a["sweep_alt"], 1e-3)))
                    for a in g["arcs"][:-1]]
+    # The polish at the end of a window is unconstrained, so a held solution can
+    # carry a radius from outside the box it was searched in. It stays — it was
+    # judged on its geometry, not on the box — but the next window may not be
+    # started there: SciPy refuses a start vector outside its bounds.
+    return ctx, [_clamp(v, lo, hi) for v, (lo, hi) in zip(x0, bounds)], bounds
 
-    v_floors = [min(permissible_speed(a["r_alt"], a["u_alt"], uf_for(g, params)) for a in g["arcs"])
-                for g in groups]
-    args = (groups, straight_ids, params, locked, target_gi, v_floors)
-    if all(locked):
-        return base, {}, base
 
-    result = differential_evolution(_objective, bounds, args=args, maxiter=maxiter,
-                                    seed=seed, polish=False, tol=1e-6, x0=x0)
-    polished = minimize(_objective, result.x, args=args, method="Nelder-Mead",
-                        options={"maxiter": 3000, "xatol": 1e-4, "fatol": 1e-6})
+def _run_window(ctx, x0, bounds, maxiter, seed, popsize):
+    """Differential evolution over one window; None when it finds nothing usable.
+
+    The start vector reproduces what is held, so the answer is never worse than
+    what the window was given.
+    """
+    from scipy.optimize import differential_evolution, minimize
+
+    result = differential_evolution(_objective, bounds, args=(ctx,), maxiter=maxiter,
+                                    seed=seed, polish=False, tol=1e-6, x0=x0,
+                                    popsize=popsize)
+    # Both caps, not just the iteration one: given `maxiter` alone SciPy leaves
+    # the evaluation count at infinity, and a simplex that keeps shrinking then
+    # spends longer polishing one window than the search that fed it took.
+    polished = minimize(_objective, result.x, args=(ctx,), method="Nelder-Mead",
+                        options={"maxiter": POLISH_STEPS * len(x0), "xatol": 1e-4,
+                                 "fatol": 1e-6, "maxfev": POLISH_STEPS * len(x0)})
     best_x, best_f = None, math.inf
     for x in (x0, result.x, polished.x):
-        f = _objective(x, *args)
+        f = _objective(x, ctx)
         if f < best_f:
             best_x, best_f = x, f
 
-    solutions, _ = _evaluate_vector(best_x, groups, straight_ids, params, locked)
-    if any(s is None for j, s in enumerate(solutions) if not locked[j]):
+    solutions, _ = _evaluate_vector(best_x, ctx)
+    if any(solutions[j] is None for j in ctx["live"]):
+        return None
+    shifts, _ = _decode(best_x, ctx)
+    return solutions, shifts
+
+
+def joint_optimize(groups, n_elements, params, maxiter=150, seed=1, target_gi=None):
+    window = window_for(groups, target_gi) if target_gi is not None else None
+    base = baseline(groups, params, window=window, target_gi=target_gi)
+    if all(sol is None for sol in base):
         return base, {}, base
-    shifts, _ = _decode(best_x, groups, straight_ids, params)
+
+    v_floors = [min(permissible_speed(a["r_alt"], a["u_alt"], uf_for(g, params)) for a in g["arcs"])
+                for g in groups]
+
+    if target_gi is not None:
+        live = [j for j in sorted(window) if base[j] is not None]
+        out = _run_window(*_window_context(groups, n_elements, params, base, {}, live,
+                                           target_gi=target_gi, v_floors=v_floors),
+                          maxiter, seed, SINGLE_POPSIZE)
+        return (out[0], out[1], base) if out else (base, {}, base)
+
+    # Track mode. What is being maximized is the slowest group, so that is the
+    # group to work on — and its own window is the only one that can raise it:
+    # a group hangs on its two straights, and no other window owns both. Raise
+    # it, then look for whoever is slowest now; stop when the slowest will not
+    # move, because then nothing else will move the bottleneck either.
+    solutions = list(base)
+    shifts = {}
+    reachable = [j for j, sol in enumerate(base) if sol is not None]
+    rounds = min(len(reachable) + 2, SWEEP_MAX_WINDOWS)
+    window_maxiter = max(WINDOW_MIN_MAXITER, min(maxiter, SWEEP_BUDGET // rounds))
+    for _ in range(rounds):
+        target = min(reachable, key=lambda j: solutions[j]["v"])
+        live = [j for j in sorted(window_for(groups, target)) if solutions[j] is not None]
+        before = min(solutions[j]["v"] for j in live)
+        out = _run_window(*_window_context(groups, n_elements, params, solutions, shifts, live),
+                          window_maxiter, seed, WINDOW_POPSIZE)
+        if out is None:
+            break
+        after = min(out[0][j]["v"] for j in live)
+        if after <= before + 1e-9:
+            break
+        solutions, shifts = out
     return solutions, shifts, base
