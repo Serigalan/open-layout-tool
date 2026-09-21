@@ -22,7 +22,8 @@ import math
 
 from .geometry import (
     fit_compound_group, permissible_speed, sample_transition, sample_arc,
-    max_dist_to_polyline, RAMP_FACTOR, U_MAX, U_MAX_SWITCH, UF_MAX_SWITCH, U_STEP,
+    max_dist_to_polyline, snap_down, snap_up, RAMP_FACTOR, U_MAX, U_MAX_SWITCH,
+    UF_MAX_SWITCH, U_STEP, R_STEP, R_MIN, L_STEP,
 )
 
 PENALTY = 1000.0
@@ -48,7 +49,11 @@ def _u_variable(g, i):
 
 
 def ramp_lengths(g, v, us):
-    """Transition lengths per slot for group speed v and per-arc cants."""
+    """Transition lengths per slot for group speed v and per-arc cants.
+
+    Handed out on the length grid, rounded up: a ramp that is a little longer
+    than the rules ask for still satisfies them, one a little shorter does not.
+    """
     min_len = 0.2 * v
     n = len(g["arcs"])
     du = [us[0]] + [abs(us[i + 1] - us[i]) for i in range(n - 1)] + [us[-1]]
@@ -57,7 +62,8 @@ def ramp_lengths(g, v, us):
         if not g["has_t"][i]:
             lengths.append(0.0)
             continue
-        lengths.append(max(min_len, RAMP_FACTOR[g["types"][i]] * v * du[i] / 1000.0))
+        need = max(min_len, RAMP_FACTOR[g["types"][i]] * v * du[i] / 1000.0)
+        lengths.append(snap_up(need, L_STEP))
     return lengths, min_len
 
 
@@ -126,7 +132,13 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=
 def _max_radius_for(g, u, params):
     """Largest feasible R for a simple group at fixed cant (bisection)."""
     r_alt = g["arcs"][0]["r_alt"]
-    feasible = lambda radius: evaluate_group(g, [radius], [u], [], params)   # noqa: E731
+    # Every probe is snapped, so the search runs on the radii a run may hand
+    # out and never converges on something between two metres. It is the
+    # cheaper search too: the bracket closes at one metre instead of one
+    # centimetre, and v goes with the square root of R — those last seven
+    # rounds of the full feasibility check were worth 0.001 km/h.
+    feasible = lambda radius: evaluate_group(                                # noqa: E731
+        g, [max(R_MIN, snap_down(radius, R_STEP))], [u], [], params)
     lo = hi = None
     if feasible(r_alt):
         lo = r_alt
@@ -152,7 +164,7 @@ def _max_radius_for(g, u, params):
         if lo is None:
             return None
         hi = lo / 0.85
-    while hi - lo > 0.01:
+    while hi - lo > R_STEP:
         mid = (lo + hi) / 2
         if feasible(mid):
             lo = mid
@@ -312,7 +324,9 @@ def _decode(x, ctx):
     per_group = []
     for j, (pos, n) in zip(ctx["live"], slices):
         g = ctx["groups"][j]
-        radii = [max(25.0, x[pos + i]) for i in range(n)]
+        # radii live on the metre grid, cants on the 5 mm one — quantized
+        # inside the objective so every evaluated candidate is directly usable
+        radii = [max(R_MIN, snap_down(x[pos + i], R_STEP)) for i in range(n)]
         us = []
         for i in range(n):
             u_alt = g["arcs"][i]["u_alt"]
@@ -320,9 +334,7 @@ def _decode(x, ctx):
             # lo before hi: a group already over its ceiling keeps what it has
             # rather than being pulled down to it.
             u = _clamp(u, u_alt, max(u_alt, u_max_for(g)))
-            # cants live on the 5 mm grid — quantize inside the objective so
-            # every evaluated candidate is directly usable
-            us.append(max(u_alt, math.floor(u / U_STEP) * U_STEP))
+            us.append(max(u_alt, snap_down(u, U_STEP)))
         thetas = [max(1e-4, x[pos + 2 * n + i]) for i in range(n - 1)]
         per_group.append((radii, us, thetas))
     return shifts, per_group
@@ -406,7 +418,7 @@ def _window_context(groups, params, held, held_shifts, live,
         us = sol["us"] if sol else [a["u_alt"] for a in g["arcs"]]
         thetas = sol["thetas_free"] if sol else [a["sweep_alt"] for a in g["arcs"][:-1]]
         x0 += list(radii) + list(us) + list(thetas)
-        bounds += [(max(25.0, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
+        bounds += [(max(R_MIN, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
         bounds += [(a["u_alt"], max(a["u_alt"], u_max_for(g))) for a in g["arcs"]]
         bounds += [(max(1e-3, 0.2 * a["sweep_alt"]), min(math.pi, 2.5 * max(a["sweep_alt"], 1e-3)))
                    for a in g["arcs"][:-1]]

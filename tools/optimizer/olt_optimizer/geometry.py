@@ -22,6 +22,16 @@ RAMP_FACTOR = {"clothoid": 8.0, "bloss": 6.0}
 U_MAX = 160.0   # max cant [mm]
 U_STEP = 5.0    # cant grid step [mm]
 
+# The grid a run hands its numbers out on: radii in whole metres, lengths in
+# ten centimetres, cants in five millimetres. These are the steps a designer
+# works in and the numbers that go on a drawing; a radius of 703.47 m is not an
+# answer anybody builds. Existing values are never snapped to it — what is
+# already built is a fact to start from, not a proposal to round off.
+R_STEP = 1.0    # radius grid step [m]
+R_MIN = 25.0    # smallest radius a run may propose [m]
+L_STEP = 0.1    # length grid step [m]
+
+
 # A curve group running through a turnout is held to the switch's limits rather
 # than the line's — the same pair as src/utils/mapConstants.js (MAX_SWITCH_CANT,
 # MAX_SWITCH_CANT_DEF). The 120 mm exception is deliberately not read here: it is
@@ -29,6 +39,25 @@ U_STEP = 5.0    # cant grid step [mm]
 # run may help itself to.
 U_MAX_SWITCH = 100.0    # max cant on a switch route [mm]
 UF_MAX_SWITCH = 110.0   # max cant deficiency on a switch route [mm]
+
+
+def _slack(quotient):
+    """A hair of tolerance, so that a value already on the grid stays where it
+    is instead of being pushed a whole step by the last bit of its binary
+    representation — 60.0 / 0.1 is 600.0000000000001."""
+    return 1e-9 * max(1.0, abs(quotient))
+
+
+def snap_down(value, step):
+    """Largest multiple of `step` that is not above `value`."""
+    q = value / step
+    return round(math.floor(q + _slack(q)) * step, 9)
+
+
+def snap_up(value, step):
+    """Smallest multiple of `step` that is not below `value`."""
+    q = value / step
+    return round(math.ceil(q - _slack(q)) * step, 9)
 
 
 def permissible_speed(radius, u, uf):

@@ -17,7 +17,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from olt_optimizer.geometry import (          # noqa: E402
     transition_shift, fit_curve_group, fit_compound_group, dir_of,
-    permissible_speed, max_dist_to_polyline, RAMP_FACTOR,
+    permissible_speed, max_dist_to_polyline, snap_down, snap_up,
+    RAMP_FACTOR, R_STEP, L_STEP,
 )
 from olt_optimizer.track_io import (          # noqa: E402
     parse_groups, build_elements, is_straight, _straight_element,
@@ -40,6 +41,7 @@ def ok(label, cond):
 
 
 close_pt = lambda a, b, tol=1e-6: math.hypot(a[0] - b[0], a[1] - b[1]) < tol   # noqa: E731
+on_grid = lambda v, step: abs(v / step - round(v / step)) < 1e-6              # noqa: E731
 
 
 def check_chain(els, label):
@@ -158,9 +160,17 @@ ok("Joint: Korridor eingehalten", all(s["offset"] <= 0.5 + 1e-6 for s in solutio
 ok("Joint: u ≤ 160 im 5-mm-Raster", all(
     u <= 160 and (abs(u / 5 - round(u / 5)) < 1e-9 or u == a["u_alt"])
     for g, s in zip(groups, solutions) for a, u in zip(g["arcs"], s["us"])))
+ok("Joint: Radien in ganzen Metern", all(
+    on_grid(r, R_STEP) for s in solutions for r in s["radii"]))
+ok("Joint: Rampenlängen im 10-cm-Raster", all(
+    on_grid(length, L_STEP) for s in solutions for length in s["trans_l"]))
 
 new_els = build_elements(track, groups, solutions, shifts)
 check_chain(new_els, "Optimierter Track")
+ok("Optimierter Track: Radien ganze Meter", all(
+    on_grid(abs(el["radius"]), R_STEP) for el in new_els if el["elementType"] == 1))
+ok("Optimierter Track: Übergangsbogenlängen im 10-cm-Raster", all(
+    on_grid(el["length"], L_STEP) for el in new_els if el["elementType"] == 2))
 ok("Endpunkte fix", tuple(new_els[0]["startNode"]) == P1
    and math.hypot(new_els[-1]["endNode"][0] - P3[0], new_els[-1]["endNode"][1] - P3[1]) < 1e-9)
 ok("Mindestlängen 0,2·v", all(el["length"] >= 0.2 * el.get("speed", 0) - 1e-6 for el in new_els))
@@ -452,6 +462,53 @@ for label, els_bad in (("nur eine Gerade", [dict(full[0])]),
         ok(f"{label} → abgelehnt", False)
     except SystemExit as exc:
         ok(f"{label} → abgelehnt mit lesbarem Satz", "Geraden" in str(exc))
+
+
+# ── 8) Das Raster: was ein Lauf vorschlägt, ist baubar ───────────────────────
+# Radien in ganzen Metern, Längen in 10 cm — die Schritte, in denen entworfen
+# wird. Der Bestand wird davon nicht angefasst: er ist eine Tatsache, kein
+# Vorschlag, und eine krumme Bestandszahl bleibt krumm.
+ok("snap_down/snap_up lassen Rasterwerte liegen",
+   snap_up(60.0, L_STEP) == 60.0 and snap_down(60.0, L_STEP) == 60.0
+   and snap_down(700.0, R_STEP) == 700.0)
+ok("snap_up rundet auf, snap_down ab",
+   snap_up(60.01, L_STEP) == 60.1 and snap_down(60.09, L_STEP) == 60.0
+   and snap_down(712.34, R_STEP) == 712.0 and snap_up(712.01, R_STEP) == 713.0)
+
+# Ein Bogen mit krummem Bestandsradius und krummer Rampe.
+ODD_R, ODD_L = 712.34, 63.27
+odd_fit = fit_compound_group(P1, D1, B1, V2, D2, B2, [ODD_R], [], [ODD_L, ODD_L],
+                             ["clothoid", "clothoid"])
+# Die Schlussgerade läuft auf der Ausgangstangente weiter, sonst knickt sie.
+odd_end = (odd_fit["cl_end"][0] + 400 * D2[0], odd_fit["cl_end"][1] + 400 * D2[1])
+odd_els = build_from_fit(odd_fit, [77.0], P1, odd_end)
+odd_track = {"id": "py-raster", "name": "raster.001", "epsg": EPSG, "elements": odd_els}
+odd_groups = parse_groups(odd_track)
+ok("krummer Bestand wird eingelesen, wie er ist",
+   abs(odd_groups[0]["arcs"][0]["r_alt"] - ODD_R) < 1e-9
+   and abs(odd_groups[0]["t_len"][0] - ODD_L) < 1e-6)
+odd_bestand = _bestand_solution(odd_groups[0], params)
+ok("Bestandslösung rundet den krummen Radius nicht",
+   odd_bestand is not None and abs(odd_bestand["radii"][0] - ODD_R) < 1e-9)
+ok("Bestandslösung rundet die krumme Rampe nicht",
+   odd_bestand is not None and abs(odd_bestand["trans_l"][0] - ODD_L) < 1e-6)
+
+odd_res = optimize_payload(odd_track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+                           maxiter=25, seed=1)
+odd_new = odd_res["elements"]
+ok("Vorschlag aus krummem Bestand: Radien wieder ganze Meter", all(
+    on_grid(abs(el["radius"]), R_STEP) for el in odd_new if el["elementType"] == 1))
+ok("Vorschlag aus krummem Bestand: Rampen wieder im 10-cm-Raster", all(
+    on_grid(el["length"], L_STEP) for el in odd_new if el["elementType"] == 2))
+check_chain(odd_new, "Raster-Track")
+
+# Die Rampenregel darf am Raster nicht zerbrechen: aufgerundet erfüllt sie sich
+# weiter, abgerundet nicht.
+odd_base = baseline(odd_groups, params)
+ok("Rampenregel hält trotz Rasterung", all(
+    s["trans_l"][0] >= RAMP_FACTOR[g["types"][0]] * s["v"] * s["us"][0] / 1000 - 1e-9
+    and s["trans_l"][0] >= 0.2 * s["v"] - 1e-9
+    for g, s in zip(odd_groups, odd_base) if s))
 
 
 print()
