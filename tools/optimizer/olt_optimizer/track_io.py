@@ -85,19 +85,72 @@ def _arc_sweep_mag(el):
     return abs(arc_sweep(s_e, s_n, e_e, e_n, ac[0], ac[1], el["radius"]))
 
 
-def parse_groups(track):
-    """Split a track into curve groups: straight – [T] – arc (– [T] – arc)* – [T] – straight.
+class _Unreadable(Exception):
+    """A stretch that cannot be fitted between two tangents, and why not."""
+
+
+def _next_straight(els, i, last):
+    """Index of the first straight at or after `i` (at most `last`, a straight)."""
+    while i <= last and not is_straight(els[i]):
+        i += 1
+    return i
+
+
+def _read_group(els, entry_idx, i, last):
+    """Read straight - [T] - arc (- [T] - arc)* - [T] - straight starting at `i`.
+
+    Returns (group, exit_idx). Raises `_Unreadable` with a sentence for the user
+    when the sequence is not one that can be fitted between two tangents.
+    """
+    arc_idxs = []
+    t_idxs = []
+    if is_transition(els[i]):
+        t_idxs.append(i)
+        i += 1
+    else:
+        t_idxs.append(None)
+    while True:
+        if i > last or not is_arc(els[i]):
+            raise _Unreadable("Ein Übergangsbogen muss in einen Bogen laufen.")
+        arc_idxs.append(i)
+        i += 1
+        if i <= last and is_transition(els[i]):
+            t_idxs.append(i)
+            i += 1
+            if i <= last and is_arc(els[i]):
+                continue
+            break
+        t_idxs.append(None)
+        if i <= last and is_arc(els[i]):
+            continue
+        break
+    if i > last or not is_straight(els[i]):
+        raise _Unreadable("Bögen müssen zwischen Geraden liegen.")
+    if len({els[k]["radius"] > 0 for k in arc_idxs}) > 1:
+        raise _Unreadable("S-Bögen ohne Zwischengerade werden nicht unterstützt.")
+    return _build_group(els, entry_idx, arc_idxs, t_idxs, i), i
+
+
+def parse_groups(track, skipped=None):
+    """Split a track into curve groups: straight - [T] - arc (- [T] - arc)* - [T] - straight.
 
     Compound curves (Korbbögen: several same-side arcs, optionally with
     transitions between them) form one group.
 
-    Read is the stretch between the first straight and the last. A track may
-    well begin or end in a curve — that curve has no straight on its outer side
-    to run out on, so there is nothing to fit it between; it stays as it lies
-    and the optimizable stretch starts at the straight behind it.
+    Read is the stretch between the first straight and the last, and within it
+    only what fits the shape above. A track may begin or end in a curve, or
+    carry an S-curve, a reversing transition or a lone transition between two
+    straights somewhere in the middle — none of those has two tangents to be
+    fitted between. What cannot be read is stepped over to the next straight and
+    stays exactly as it lies, while the curves around it are optimized as usual.
+    One unreadable stretch used to throw the whole track away, and on an
+    imported Strecke that is most of them.
 
-    Raises SystemExit with a readable message on unsupported topologies (e.g.
-    S-curves without an intermediate straight).
+    skipped: an optional list, filled with (from, to, why) for each stretch
+    stepped over — so the caller can say that part of the track was left alone
+    instead of quietly handing back half an answer.
+
+    Raises SystemExit only when nothing at all can be read.
     """
     els = track.get("elements") or []
     straights = [i for i, el in enumerate(els) if is_straight(el)]
@@ -106,6 +159,7 @@ def parse_groups(track):
     first, last = straights[0], straights[-1]
 
     groups = []
+    gaps = []
     entry_idx = first
     i = first + 1
     while i <= last:
@@ -113,39 +167,25 @@ def parse_groups(track):
             entry_idx = i
             i += 1
             continue
-        arc_idxs = []
-        t_idxs = []
-        if is_transition(els[i]):
-            t_idxs.append(i)
-            i += 1
-        else:
-            t_idxs.append(None)
-        while True:
-            if i > last or not is_arc(els[i]):
-                raise SystemExit("Nicht unterstützte Elementfolge (Bögen müssen zwischen Geraden liegen).")
-            arc_idxs.append(i)
-            i += 1
-            if i <= last and is_transition(els[i]):
-                t_idxs.append(i)
-                i += 1
-                if i <= last and is_arc(els[i]):
-                    continue
-                break
-            t_idxs.append(None)
-            if i <= last and is_arc(els[i]):
-                continue
-            break
-        if i > last or not is_straight(els[i]):
-            raise SystemExit("Nicht unterstützte Elementfolge (Bögen müssen zwischen Geraden liegen).")
-        signs = {els[k]["radius"] > 0 for k in arc_idxs}
-        if len(signs) > 1:
-            raise SystemExit("S-Bögen ohne Zwischengerade werden nicht unterstützt.")
-        groups.append(_build_group(els, entry_idx, arc_idxs, t_idxs, i))
-        entry_idx = i
-        i += 1
+        try:
+            group, exit_idx = _read_group(els, entry_idx, i, last)
+        except _Unreadable as why:
+            # On to the next straight; that one starts the next group, and what
+            # was stepped over keeps its geometry.
+            nxt = _next_straight(els, i, last)
+            gaps.append((i, nxt - 1, str(why)))
+            entry_idx = nxt
+            i = nxt + 1
+            continue
+        groups.append(group)
+        entry_idx = exit_idx
+        i = exit_idx + 1
 
+    if skipped is not None:
+        skipped.extend(gaps)
     if not groups:
-        raise SystemExit("Keine optimierbaren Bögen gefunden.")
+        raise SystemExit("Keine optimierbaren Bögen gefunden."
+                         + (f" {gaps[0][2]}" if gaps else ""))
     return groups
 
 

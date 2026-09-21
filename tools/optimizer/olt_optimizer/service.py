@@ -146,6 +146,7 @@ def _as_payload(body):
             "maxiter": max(1, min(MAX_ITER, int(data.get("maxiter", 100)))),
             "seed": int(data.get("seed", 1)),
             "target_element_idx": data.get("targetElementIdx"),
+            "v_max": float(data["vMax"]) if data.get("vMax") else None,
         }
     except (TypeError, ValueError):
         raise ServiceError(400, "invalid_payload") from None

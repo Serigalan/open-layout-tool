@@ -65,6 +65,13 @@ def permissible_speed(radius, u, uf):
     return math.sqrt(abs(radius) * (u + uf) / 11.8)
 
 
+def radius_for_speed(v, u, uf):
+    """The radius at which a curve with this cant runs at v — the inverse of
+    `permissible_speed`, so a target speed can be turned into the radius that
+    reaches it instead of being searched for."""
+    return 11.8 * v * v / (u + uf) if u + uf > 0 else math.inf
+
+
 def dir_of(bearing_deg):
     b = bearing_deg * DEG2RAD
     return (math.sin(b), math.cos(b))

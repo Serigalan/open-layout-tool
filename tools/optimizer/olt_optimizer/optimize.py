@@ -22,8 +22,8 @@ import math
 
 from .geometry import (
     fit_compound_group, permissible_speed, sample_transition, sample_arc,
-    max_dist_to_polyline, snap_down, snap_up, RAMP_FACTOR, U_MAX, U_MAX_SWITCH,
-    UF_MAX_SWITCH, U_STEP, R_STEP, R_MIN, L_STEP,
+    max_dist_to_polyline, radius_for_speed, snap_down, snap_up, RAMP_FACTOR,
+    U_MAX, U_MAX_SWITCH, UF_MAX_SWITCH, U_STEP, R_STEP, R_MIN, L_STEP,
 )
 
 PENALTY = 1000.0
@@ -41,6 +41,28 @@ def uf_for(g, params):
 
 def _clamp(value, lo, hi):
     return max(lo, min(hi, value))
+
+
+def capped(v, params):
+    """Speed as the objective counts it.
+
+    Above the target speed there is nothing left to win, so everything above it
+    counts the same. The run then stops trading the existing alignment away for
+    speed nobody asked for, and stops altogether once its slowest curve has
+    arrived — which is most of what makes a target worth giving.
+    """
+    v_max = params.get("v_max")
+    return min(v, v_max) if v_max else v
+
+
+def _radius_cap(g, u, params, r_alt):
+    """The radius past which a run has nothing to gain at this cant: the one
+    that reaches the target speed. Never below what is already built — a run
+    improves an alignment, it does not flatten one that is fast enough."""
+    v_max = params.get("v_max")
+    if not v_max:
+        return math.inf
+    return max(r_alt, radius_for_speed(v_max, u, uf_for(g, params)))
 
 
 def _u_variable(g, i):
@@ -130,8 +152,13 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=
 
 
 def _max_radius_for(g, u, params):
-    """Largest feasible R for a simple group at fixed cant (bisection)."""
+    """Largest useful R for a simple group at fixed cant (bisection).
+
+    Useful, not largest: past the radius that reaches the target speed the
+    curve only moves further off the existing alignment for nothing.
+    """
     r_alt = g["arcs"][0]["r_alt"]
+    cap = _radius_cap(g, u, params, r_alt)
     # Every probe is snapped, so the search runs on the radii a run may hand
     # out and never converges on something between two metres. It is the
     # cheaper search too: the bracket closes at one metre instead of one
@@ -145,6 +172,12 @@ def _max_radius_for(g, u, params):
         radius = r_alt
         for _ in range(60):
             radius *= 1.5
+            if radius >= cap:
+                at_cap = feasible(cap)
+                if at_cap:
+                    return at_cap           # exactly the target speed, no further
+                hi = cap
+                break
             if radius > 1e6:
                 break
             if feasible(radius):
@@ -233,7 +266,10 @@ def baseline(groups, params, window=None, target_gi=None):
         best = None
         for u in u_values:
             cand = _max_radius_for(g, u, params)
-            if cand and (best is None or cand["v"] > best["v"]):
+            # Judged by the capped speed, so the first cant that reaches the
+            # target keeps the group: the ones above it buy nothing and only
+            # ask for more re-canting.
+            if cand and (best is None or capped(cand["v"], params) > capped(best["v"], params)):
                 best = cand
         solutions.append(best)
     return solutions
@@ -280,20 +316,15 @@ POLISH_STEPS = 200
 
 
 def _interior_straights(groups):
-    """The straights a run may move sideways: the ones between two groups.
+    """The straights a run may move sideways: the ones two groups share.
 
-    Not the two at the ends of the read stretch. They hold it where it was —
-    against the rest of the track, which is not read at all where it begins or
-    ends in a curve, and against the track's own end points otherwise.
+    A straight only one group reaches holds whatever lies beyond it, and that
+    does not move along: the track's own end point, a stretch the parser could
+    not read, or simply the next straight. Only where a group is fitted on both
+    sides does moving the line between them keep the chain closed.
     """
-    first, last = groups[0]["entry_idx"], groups[-1]["exit_idx"]
-    shared = set()
-    for g in groups:
-        if g["entry_idx"] != first:
-            shared.add(g["entry_idx"])
-        if g["exit_idx"] != last:
-            shared.add(g["exit_idx"])
-    return sorted(shared)
+    entries = {g["entry_idx"] for g in groups}
+    return sorted(g["exit_idx"] for g in groups if g["exit_idx"] in entries)
 
 
 def _shifted_anchor(point, bearing_dir, s):
@@ -373,7 +404,7 @@ def _evaluate_vector(x, ctx):
 
 def _objective(x, ctx):
     solutions, penalty = _evaluate_vector(x, ctx)
-    live = ctx["live"]
+    live, params = ctx["live"], ctx["params"]
     missing = sum(1 for j in live if solutions[j] is None)
     target_gi = ctx["target_gi"]
     if target_gi is not None:
@@ -385,8 +416,8 @@ def _objective(x, ctx):
         floors = ctx["v_floors"]
         short = sum(max(0.0, floors[j] - solutions[j]["v"])
                     for j in live if j != target_gi and solutions[j] is not None)
-        return -t["v"] + PENALTY * (penalty + short)
-    vs = [solutions[j]["v"] for j in live if solutions[j] is not None]
+        return -capped(t["v"], params) + PENALTY * (penalty + short)
+    vs = [capped(solutions[j]["v"], params) for j in live if solutions[j] is not None]
     if missing or not vs:
         return PENALTY * (1.0 + penalty + missing)
     return -min(vs) + PENALTY * penalty
@@ -485,15 +516,18 @@ def joint_optimize(groups, params, maxiter=150, seed=1, target_gi=None):
     reachable = [j for j, sol in enumerate(base) if sol is not None]
     rounds = min(len(reachable) + 2, SWEEP_MAX_WINDOWS)
     window_maxiter = max(WINDOW_MIN_MAXITER, min(maxiter, SWEEP_BUDGET // rounds))
+    v_max = params.get("v_max")
     for _ in range(rounds):
-        target = min(reachable, key=lambda j: solutions[j]["v"])
+        target = min(reachable, key=lambda j: capped(solutions[j]["v"], params))
+        if v_max and capped(solutions[target]["v"], params) >= v_max:
+            break                       # the slowest curve is already fast enough
         live = [j for j in sorted(window_for(groups, target)) if solutions[j] is not None]
-        before = min(solutions[j]["v"] for j in live)
+        before = min(capped(solutions[j]["v"], params) for j in live)
         out = _run_window(*_window_context(groups, params, solutions, shifts, live),
                           window_maxiter, seed, WINDOW_POPSIZE)
         if out is None:
             break
-        after = min(out[0][j]["v"] for j in live)
+        after = min(capped(out[0][j]["v"], params) for j in live)
         if after <= before + 1e-9:
             break
         solutions, shifts = out

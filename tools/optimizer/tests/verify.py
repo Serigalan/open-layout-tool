@@ -17,7 +17,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from olt_optimizer.geometry import (          # noqa: E402
     transition_shift, fit_curve_group, fit_compound_group, dir_of,
-    permissible_speed, max_dist_to_polyline, snap_down, snap_up,
+    permissible_speed, radius_for_speed, max_dist_to_polyline, snap_down, snap_up,
     RAMP_FACTOR, R_STEP, L_STEP,
 )
 from olt_optimizer.track_io import (          # noqa: E402
@@ -25,8 +25,8 @@ from olt_optimizer.track_io import (          # noqa: E402
     _transition_element, _arc_element_seg, _element_ref_points,
 )
 from olt_optimizer.optimize import (        # noqa: E402
-    baseline, joint_optimize, u_max_for, uf_for, window_for, _bestand_solution,
-    _interior_straights,
+    baseline, capped, joint_optimize, u_max_for, uf_for, window_for,
+    _bestand_solution, _interior_straights,
 )
 from olt_optimizer.api import optimize_payload                # noqa: E402
 
@@ -509,6 +509,104 @@ ok("Rampenregel hält trotz Rasterung", all(
     s["trans_l"][0] >= RAMP_FACTOR[g["types"][0]] * s["v"] * s["us"][0] / 1000 - 1e-9
     and s["trans_l"][0] >= 0.2 * s["v"] - 1e-9
     for g, s in zip(odd_groups, odd_base) if s))
+
+
+# ── 9) Zielgeschwindigkeit: oberhalb davon ist nichts mehr zu holen ──────────
+ok("radius_for_speed kehrt permissible_speed um", all(
+    abs(permissible_speed(radius_for_speed(v, u, 130.0), u, 130.0) - v) < 1e-9
+    for v in (100.0, 160.0, 230.0) for u in (0.0, 60.0, 150.0)))
+
+v_free = optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+                          maxiter=40, seed=1)
+V_TARGET = 115.0
+v_cap = optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+                         maxiter=40, seed=1, v_max=V_TARGET)
+off_free = max(r["offsetCm"] for r in v_free["report"] if r["changed"])
+off_cap = max(r["offsetCm"] for r in v_cap["report"] if r["changed"])
+print(f"   Ziel {V_TARGET:.0f}: ohne Deckel {v_free['vNeu']:.1f} km/h bei {off_free:.1f} cm, "
+      f"mit Deckel {v_cap['vNeu']:.1f} km/h bei {off_cap:.1f} cm")
+ok("Ziel wird erreicht", v_cap["vNeu"] >= V_TARGET - 1e-6)
+ok("und nicht nennenswert überschritten", v_cap["vNeu"] < V_TARGET + 2.0)
+ok("der Deckel rückt das Gleis weniger ab", off_cap < off_free - 1.0)
+
+# Ein Bogen, der den Bestand schon schneller macht als das Ziel, wird in Ruhe
+# gelassen — ein Lauf verbessert eine Trasse, er flacht keine ab.
+v_below = optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+                           maxiter=40, seed=1, v_max=100.0)
+ok("Ziel unter dem Bestand ändert nichts an den Radien",
+   all(abs(r["rNeu"] - r["rAlt"]) < 1e-9 for r in v_below["report"] if r["changed"]))
+ok("Ziel unter dem Bestand ändert nichts an den Überhöhungen",
+   all(abs(r["uNeu"] - r["uAlt"]) < 1e-9 for r in v_below["report"] if r["changed"]))
+ok("Ziel unter dem Bestand: v bleibt der Bestandswert",
+   abs(v_below["vNeu"] - v_below["vBestand"]) < 1e-6)
+ok("ohne Ziel bleibt alles wie bisher", v_free["vNeu"] >= v_cap["vNeu"] - 1e-9)
+
+cap_params = {"corridor": 0.5, "uf": 130.0, "v_max": V_TARGET}
+ok("capped deckelt nur nach oben",
+   capped(200.0, cap_params) == V_TARGET and capped(80.0, cap_params) == 80.0
+   and capped(200.0, params) == 200.0)
+
+
+# ── 10) Unlesbare Abschnitte werden übersprungen, nicht abgelehnt ────────────
+# In die Zwischengerade der Dreibogen-Strecke wird ein Übergangsbogen ohne
+# Krümmung eingesetzt — geometrisch dieselbe Linie, für den Parser aber eine
+# Rampe, die in keinen Bogen läuft. Früher war damit der ganze Track hin.
+GAP_AT = w_groups[0]["exit_idx"]
+gap_straight = elements3[GAP_AT]
+g_from, g_to = tuple(gap_straight["startNode"]), tuple(gap_straight["endNode"])
+g_dir = dir_of(gap_straight["bearing"])
+g_len = gap_straight["length"]
+g_a = (g_from[0] + g_len / 3 * g_dir[0], g_from[1] + g_len / 3 * g_dir[1])
+gap_els = (elements3[:GAP_AT]
+           + [_straight_element(g_from, g_a, EPSG, 100),
+              _transition_element(g_a, gap_straight["bearing"], g_len / 3,
+                                  None, None, "clothoid", EPSG, 100)]
+           + [_straight_element((g_from[0] + 2 * g_len / 3 * g_dir[0],
+                                 g_from[1] + 2 * g_len / 3 * g_dir[1]), g_to, EPSG, 100)]
+           + elements3[GAP_AT + 1:])
+gap_track = {**track3, "id": "py-luecke", "elements": gap_els}
+check_chain(gap_els, "Track mit unlesbarer Stelle")
+
+gaps = []
+gap_groups = parse_groups(gap_track, skipped=gaps)
+ok("Track mit unlesbarer Stelle wird angenommen", len(gap_groups) == 3)
+ok("die Stelle wird gemeldet, mit Grund",
+   len(gaps) == 1 and gaps[0][0] == gaps[0][1] == GAP_AT + 1
+   and "Bogen" in gaps[0][2])
+print(f"   übersprungen: Element {gaps[0][0]} — {gaps[0][2]}")
+ok("die Geraden um die Lücke dürfen nicht wandern",
+   GAP_AT not in _interior_straights(gap_groups)
+   and GAP_AT + 2 not in _interior_straights(gap_groups))
+
+gap_res = optimize_payload(gap_track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+                           maxiter=25, seed=1)
+ok("das Ergebnis nennt die übersprungene Stelle",
+   len(gap_res["skipped"]) == 1 and gap_res["skipped"][0]["from"] == GAP_AT + 1)
+ok("kein Element geht verloren", len(gap_res["elements"]) == len(gap_els))
+check_chain(gap_res["elements"], "Track mit Lücke, optimiert")
+ok("die unlesbare Stelle bleibt, wie sie liegt",
+   close_pt(gap_res["elements"][GAP_AT + 1]["startNode"], gap_els[GAP_AT + 1]["startNode"])
+   and close_pt(gap_res["elements"][GAP_AT + 1]["endNode"], gap_els[GAP_AT + 1]["endNode"]))
+ok("die Bögen drumherum werden trotzdem schneller",
+   gap_res["vNeu"] > gap_res["vBestand"] + 1)
+
+# Erst wenn gar nichts lesbar ist, wird abgelehnt — und dann mit dem Grund.
+for label, kinds in (("nur eine Rampe zwischen Geraden", "GUG"),
+                     ("S-Bogen ohne Zwischengerade", "GBbG")):
+    plain = [{"elementType": 0, "startNode": [0, 0], "endNode": [1, 1], "length": 1.0},
+             {"elementType": 2, "startNode": [1, 1], "endNode": [2, 2], "length": 1.0},
+             {"elementType": 0, "startNode": [2, 2], "endNode": [3, 3], "length": 1.0}]
+    if kinds == "GBbG":
+        plain = [plain[0],
+                 {"elementType": 1, "radius": 700.0, "startNode": [1, 1], "endNode": [2, 2], "length": 1.0},
+                 {"elementType": 1, "radius": -700.0, "startNode": [2, 2], "endNode": [3, 3], "length": 1.0},
+                 plain[2]]
+    try:
+        parse_groups({**track3, "elements": plain})
+        ok(f"{label} → abgelehnt", False)
+    except SystemExit as exc:
+        ok(f"{label} → abgelehnt und begründet",
+           "Keine optimierbaren Bögen" in str(exc) and len(str(exc).split(".")) > 2)
 
 
 print()

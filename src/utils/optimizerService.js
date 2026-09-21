@@ -32,8 +32,12 @@ export async function optimizerReachable() {
 
 /**
  * Optimize one track.
- * payload: { track, corridorCm, uf, uebergang?, maxiter?, seed?, targetElementIdx? }
- * Resolves with { elements, report, variant, vBestand, vBaseline, vNeu, shifts }.
+ * payload: { track, corridorCm, uf, uebergang?, maxiter?, seed?, targetElementIdx?,
+ *            vMax? }  — vMax is the line's design speed; above it there is
+ *            nothing to optimize, so the run neither pushes past it nor moves
+ *            the alignment for speed nobody asked for.
+ * Resolves with { elements, report, variant, vBestand, vBaseline, vNeu, shifts,
+ * skipped }, `skipped` naming the stretches the parser could not read.
  */
 export async function optimizeOnServer(payload, { signal } = {}) {
   let res

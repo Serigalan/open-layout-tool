@@ -66,6 +66,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
   const [label, setLabel]         = useState('')
   const [corridorCm, setCorridorCm] = useState(50)
   const [uf, setUf]               = useState('130')
+  const [vMax, setVMax]           = useState('')     // '' → kein Ziel, offen nach oben
   const [selectHint, setSelectHint] = useState(null)
   const [running, setRunning]     = useState(false)
   const [run, setRun]             = useState(null)    // { key, result? , error? }
@@ -73,7 +74,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
 
   // A result only counts for the parameters it was computed with — derived
   // from the parameter key rather than through an invalidation effect.
-  const runKey = [mode, trackId, elementIdx, corridorCm, uf, phase].join('|')
+  const runKey = [mode, trackId, elementIdx, corridorCm, uf, vMax, phase].join('|')
   const result = run?.key === runKey ? run.result ?? null : null
   const runError = run?.key === runKey ? run.error ?? null : null
 
@@ -153,6 +154,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
     setRunning(true)
     optimizeOnServer({
       track, corridorCm, uf: Number(uf), uebergang: 'auto', maxiter: 100,
+      ...(Number(vMax) > 0 ? { vMax: Number(vMax) } : {}),
       ...(mode === 'element' ? { targetElementIdx: elementIdx } : {}),
     })
       .then(res => {
@@ -237,6 +239,11 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
             onChange={e => setCorridorCm(Number(e.target.value))} />
         </div>
         <div className="form-field">
+          <label>{t('optimize_vmax')}</label>
+          <input type="number" min="0" step="10" placeholder={t('optimize_vmax_open')}
+            value={vMax} onChange={e => setVMax(e.target.value)} />
+        </div>
+        <div className="form-field">
           <label>{t('optimize_uf')}</label>
           <select value={uf} onChange={e => setUf(e.target.value)}>
             <option value="110">110 mm ({t('optimize_uf_switches')})</option>
@@ -282,6 +289,18 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
                 )}
               </div>
             ))}
+            {result.skipped?.length > 0 && (
+              // Part of the track was left alone. Saying so beats handing back
+              // half an answer in silence — and beats the refusal it used to be.
+              <p style={{ fontSize: 12, color: '#c8860d', marginTop: 4 }}>
+                {t('optimize_skipped')
+                  .replace('{{count}}', result.skipped.length)
+                  .replace('{{where}}', result.skipped
+                    .map(s => s.from === s.to ? `#${s.from + 1}` : `#${s.from + 1}–${s.to + 1}`)
+                    .join(', '))}
+                {' '}{result.skipped[0].why}
+              </p>
+            )}
             <p style={{ fontSize: 12, color: changed ? '#5b9bd5' : '#e74c3c', marginTop: 4 }}>
               {changed
                 ? <>{t('optimize_done')}: v {result.vBestand.toFixed(0)} → {result.vNeu.toFixed(0)} km/h

@@ -3,27 +3,36 @@
 """
 
 from .geometry import permissible_speed
-from .optimize import baseline, joint_optimize, uf_for, window_for
+from .optimize import baseline, capped, joint_optimize, uf_for, window_for
 from .track_io import parse_groups, build_elements
 
 
 def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
-                     per_curve=False, maxiter=150, seed=1, target_element_idx=None):
+                     per_curve=False, maxiter=150, seed=1, target_element_idx=None,
+                     v_max=None):
     """Optimize one track (dict in the tracks-export shape, scalar elements).
+
+    v_max: the line's design speed [km/h], or None. A curve that reaches it is
+    done — nothing above it counts, so the run neither trades the existing
+    alignment away for speed nobody asked for nor keeps searching once its
+    slowest curve has arrived.
 
     target_element_idx (element mode): index of an ARC element — only the
     window around its curve group is optimized (neighbour curves may be
     re-shaped so the shared straights can shift; they must not fall below
     their existing speed). Everything else keeps its geometry.
 
-    Returns { elements, report, variant, vBestand, vBaseline, vNeu, shifts }.
+    Returns { elements, report, variant, vBestand, vBaseline, vNeu, shifts,
+    skipped }.
     report: one row per arc with alt/neu values (radii m, cants mm, v km/h,
     offset cm). Raises ValueError with a readable message on unsupported
     topologies.
     """
-    params = {"corridor": corridor_cm / 100.0, "uf": float(uf)}
+    params = {"corridor": corridor_cm / 100.0, "uf": float(uf),
+              "v_max": float(v_max) if v_max else None}
+    skipped = []
     try:
-        groups = parse_groups(track)
+        groups = parse_groups(track, skipped=skipped)
     except SystemExit as exc:                      # parse errors are user errors
         raise ValueError(str(exc)) from None
 
@@ -53,8 +62,8 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
         # Element mode: variants and headline numbers are judged by the target
         # group alone — the window neighbours are constraints, not objectives.
         if target_gi is not None:
-            return sols[target_gi]["v"] if sols[target_gi] else float("-inf")
-        return min((s["v"] for s in sols if s), default=float("-inf"))
+            return capped(sols[target_gi]["v"], params) if sols[target_gi] else float("-inf")
+        return min((capped(s["v"], params) for s in sols if s), default=float("-inf"))
 
     best = None
     for name, grps in variants:
@@ -99,4 +108,8 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
         "vBaseline": v_base,
         "vNeu": v_neu,
         "shifts": {str(k): v for k, v in shifts.items()},
+        # Stretches the parser stepped over. They keep their geometry, and the
+        # panel says so — half an answer handed back in silence is worse than
+        # the refusal this used to be.
+        "skipped": [{"from": a, "to": b, "why": why} for a, b, why in skipped],
     }
