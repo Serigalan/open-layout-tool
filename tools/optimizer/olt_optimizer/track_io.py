@@ -10,7 +10,7 @@ import json
 import math
 
 from .geometry import (
-    dir_of, sample_transition, sample_arc, transition_end,
+    dir_of, sample_transition, sample_arc, transition_end, as_points,
     arc_center, arc_sweep, arc_bearing_at, RAD2DEG,
 )
 
@@ -175,8 +175,10 @@ def _build_group(els, entry_idx, arc_idxs, t_idxs, exit_idx):
         # no cant of their own and are shared with the neighbouring groups, so a
         # turnout on one of them is not this group's business.
         "on_switch": any(is_switch_element(el) for el in els[entry_idx + 1:exit_idx]),
-        "ref_poly": _ref_polyline(els, entry_idx, exit_idx),
-        "ref_curve_pts": _ref_polyline(els, entry_idx + 1, exit_idx - 1),
+        # Both are measured against every candidate the run tries, so they are
+        # put into their measuring form here, once, and not there, every time.
+        "ref_poly": as_points(_ref_polyline(els, entry_idx, exit_idx)),
+        "ref_curve_pts": as_points(_ref_polyline(els, entry_idx + 1, exit_idx - 1)),
     }
 
 

@@ -33,6 +33,8 @@ ORIGINS = tuple(o.strip() for o in os.environ.get(
 ).split(",") if o.strip())
 TIMEOUT = float(os.environ.get("OLT_OPTIMIZER_TIMEOUT", "120"))
 MAX_BODY = int(os.environ.get("OLT_OPTIMIZER_MAX_BODY", str(4 * 1024 * 1024)))
+# Requests at a time, not processes: an `auto` run forks one child per profile
+# variant and so occupies two cores while it lasts.
 MAX_CONCURRENT = int(os.environ.get("OLT_OPTIMIZER_WORKERS", "2"))
 # An Access file is a whole database, not a payload — the delivered test file is
 # 33 MB, so this limit is its own and much larger than the optimizer's.
@@ -65,36 +67,60 @@ def _child(pipe, payload):
         pipe.close()
 
 
-def run_isolated(payload, timeout=TIMEOUT):
-    """Run one optimization under a deadline, in a process that can be killed.
-
-    fork keeps this cheap: numpy and scipy are already imported in the parent,
-    so the child starts with them in place instead of loading them again.
-    """
-    ctx = multiprocessing.get_context("fork")
+def _spawn(ctx, load):
+    """Start one run in its own process; returns (process, receiving end)."""
     rx, tx = ctx.Pipe(duplex=False)
-    proc = ctx.Process(target=_child, args=(tx, payload), daemon=True)
+    proc = ctx.Process(target=_child, args=(tx, load), daemon=True)
     proc.start()
     tx.close()                      # the parent's copy, or poll() never ends
+    return proc, rx
+
+
+def run_isolated(payload, timeout=TIMEOUT):
+    """Run one optimization under a deadline, in processes that can be killed.
+
+    `uebergang: 'auto'` is two runs that know nothing of each other — the ramps
+    as they lie, and all of them Bloss — of which the faster wins. They go side
+    by side, one process each: the same answer for half the wait. fork keeps
+    that cheap, numpy and scipy being already imported in the parent, so a
+    child starts with them in place instead of loading them again.
+    """
+    ctx = multiprocessing.get_context("fork")
+    uebergang = payload.get("uebergang", "auto")
+    variants = ["bestand", "bloss"] if uebergang == "auto" else [uebergang]
+    running = [_spawn(ctx, {**payload, "uebergang": name}) for name in variants]
+
+    deadline = time.monotonic() + timeout
+    answers = []
     try:
-        # Read before join: a large result fills the pipe buffer and the child
-        # blocks in send() until it is drained.
-        if not rx.poll(timeout):
-            raise ServiceError(504, "timeout")
-        try:
-            ok, value = rx.recv()
-        except EOFError:
-            raise ServiceError(500, "internal") from None
+        for _, rx in running:
+            # Read before join: a large result fills the pipe buffer and the
+            # child blocks in send() until it is drained.
+            if not rx.poll(max(0.0, deadline - time.monotonic())):
+                raise ServiceError(504, "timeout")
+            try:
+                answers.append(rx.recv())
+            except EOFError:
+                raise ServiceError(500, "internal") from None
     finally:
-        if proc.is_alive():
-            proc.terminate()
-        proc.join(5)
-        rx.close()
-    if ok:
-        return value
-    if value.startswith("__internal__"):
-        raise ServiceError(500, "internal", value[len("__internal__"):])
-    raise ServiceError(422, "unsupported_topology", value)
+        for proc, rx in running:
+            if proc.is_alive():
+                proc.terminate()
+            proc.join(5)
+            rx.close()
+
+    for ok, value in answers:
+        if not ok:
+            if value.startswith("__internal__"):
+                raise ServiceError(500, "internal", value[len("__internal__"):])
+            raise ServiceError(422, "unsupported_topology", value)
+    # The faster variant wins and the first one holds a tie — `vNeu` is what
+    # `optimize_payload` scores its own variants by, so this is its choice.
+    best = answers[0][1]
+    for _, value in answers[1:]:
+        if value["vNeu"] > best["vNeu"] + 1e-9:
+            best = value
+    return best
 
 
 def _as_payload(body):

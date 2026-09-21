@@ -74,12 +74,25 @@ def _kappa(r):
     return -1.0 / r if r not in (None, 0) else 0.0
 
 
-def heading_at(profile, k1, k2, length, s):
-    """Heading change (math angle) at arc position s of a transition."""
+def heading_coeffs(profile, k1, k2, length):
+    """The heading polynomial of a transition as coefficients of
+
+        h(s) = a1 s + a2 s^2 + a3 s^3 + a4 s^4
+
+    so that a sampling loop can evaluate it inline instead of calling a
+    function per node. Three calls per Simpson step over sixteen steps, on
+    every candidate the optimizer tries, is what that costs otherwise.
+    """
     dk = k2 - k1
     if profile == "bloss":
-        return k1 * s + dk * (s ** 3 / (length * length) - s ** 4 / (2 * length ** 3))
-    return k1 * s + dk * s * s / (2 * length)
+        return k1, 0.0, dk / (length * length), -dk / (2 * length ** 3)
+    return k1, dk / (2 * length), 0.0, 0.0
+
+
+def heading_at(profile, k1, k2, length, s):
+    """Heading change (math angle) at arc position s of a transition."""
+    a1, a2, a3, a4 = heading_coeffs(profile, k1, k2, length)
+    return s * (a1 + s * (a2 + s * (a3 + s * a4)))
 
 
 def transition_shift(length, radius, profile="clothoid"):
@@ -108,19 +121,22 @@ def transition_shift(length, radius, profile="clothoid"):
 
 def sample_transition(e, n, bearing_deg, length, r1, r2, profile="clothoid", steps=16):
     """Points along a transition (composite Simpson per step, on-curve vertices)."""
-    k1 = _kappa(r1)
-    k2 = _kappa(r2)
+    a1, a2, a3, a4 = heading_coeffs(profile, _kappa(r1), _kappa(r2), length)
     phi0 = (90.0 - bearing_deg) * DEG2RAD
+    cos, sin = math.cos, math.sin
     pts = [(e, n)]
     x, y = e, n
     h = length / steps
+    w = h / 6
     for i in range(steps):
-        a = i * h
-        pa = phi0 + heading_at(profile, k1, k2, length, a)
-        pm = phi0 + heading_at(profile, k1, k2, length, a + h / 2)
-        pb = phi0 + heading_at(profile, k1, k2, length, a + h)
-        x += h / 6 * (math.cos(pa) + 4 * math.cos(pm) + math.cos(pb))
-        y += h / 6 * (math.sin(pa) + 4 * math.sin(pm) + math.sin(pb))
+        sa = i * h
+        sm = sa + h / 2
+        sb = sa + h
+        pa = phi0 + sa * (a1 + sa * (a2 + sa * (a3 + sa * a4)))
+        pm = phi0 + sm * (a1 + sm * (a2 + sm * (a3 + sm * a4)))
+        pb = phi0 + sb * (a1 + sb * (a2 + sb * (a3 + sb * a4)))
+        x += w * (cos(pa) + 4 * cos(pm) + cos(pb))
+        y += w * (sin(pa) + 4 * sin(pm) + sin(pb))
         pts.append((x, y))
     return pts
 
@@ -151,11 +167,13 @@ def transition_end(e, n, bearing_deg, length, r1, r2, profile="clothoid"):
     """
     k1 = _kappa(r1)
     k2 = _kappa(r2)
+    a1, a2, a3, a4 = heading_coeffs(profile, k1, k2, length)
     phi0 = (90.0 - bearing_deg) * DEG2RAD
     x = 0.0
     y = 0.0
     for u, w in _GL_NODES:
-        p = phi0 + heading_at(profile, k1, k2, length, u * length)
+        s = u * length
+        p = phi0 + s * (a1 + s * (a2 + s * (a3 + s * a4)))
         x += w * math.cos(p)
         y += w * math.sin(p)
     dphi_end = (k1 + k2) * length / 2
@@ -387,6 +405,16 @@ try:
     import numpy as _np
 except ImportError:                                   # pragma: no cover
     _np = None
+
+
+def as_points(points):
+    """Points in the shape `max_dist_to_polyline` wants them.
+
+    A polyline that is measured against thousands of candidates is converted
+    once this way instead of once per measurement — turning a fifty-point list
+    of tuples into an array costs a sixth of what the measurement itself does.
+    """
+    return _np.asarray(points, dtype=float) if _np is not None else points
 
 
 def max_dist_to_polyline(points, poly):

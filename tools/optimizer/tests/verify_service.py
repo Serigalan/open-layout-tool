@@ -147,6 +147,25 @@ try:
                       body["elements"][-1]["endNode"][1] - KP2[1]) < 1e-6)
     print(f"   Lauf über HTTP: {took:.1f}s, {len(body['elements'])} Elemente")
 
+    # `auto` läuft als zwei Kindprozesse nebeneinander. Es muss dasselbe
+    # herauskommen wie aus der besseren der beiden einzeln gerechneten Varianten
+    # — sonst wäre die Parallelität nicht bloß schneller, sondern eine andere
+    # Rechnung.
+    singles = {}
+    for name in ("bestand", "bloss"):
+        st, bd, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 50, "uf": 130,
+                                             "uebergang": name, "maxiter": 40})
+        singles[name] = bd if st == 200 else None
+    better = max((b for b in singles.values() if b), key=lambda b: b["vNeu"], default=None)
+    ok("auto liefert genau die bessere Einzelvariante",
+       better is not None and body["variant"] == better["variant"]
+       and abs(body["vNeu"] - better["vNeu"]) < 1e-12
+       and json.dumps(body["elements"]) == json.dumps(better["elements"])
+       and json.dumps(body["report"]) == json.dumps(better["report"]))
+    print("   Varianten einzeln: "
+          + ", ".join(f"{k} {v['vNeu']:.2f}" for k, v in singles.items() if v)
+          + f" | auto wählt {body['variant']} ({body['vNeu']:.2f})")
+
     # ── 3) Die Fehlerschlüssel, die das Panel übersetzt ──────────────────────
     status, body, _ = call(BASE, "/optimize", raw=b"{nicht json")
     ok("kaputter Body → 400 invalid_payload",
