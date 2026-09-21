@@ -29,12 +29,14 @@ export const SWITCH_TYPES = [
 
 // First fallback — used when a primary type cannot reach its minl for the spacing.
 export const SWITCH_TYPES_ALT1 = [
-  { label: '300 – 1:9.4',     R: 300,  ratio: 9.4,    speed: 50,  dLcs: 3.9,  minl: 5  },
+  { label: '300 – 1:9.4',     R: 300,  ratio: 9.4,    speed: 50,  dLcs: 3.90, minl: 5,
+    branch: [{ type: 'arc' }, { type: 'straight', length: 1.4060 }] },
   { label: '500 – 1:14',      R: 500,  ratio: 14,     speed: 60,  dLcs: 6.3,  minl: 6,
     branch: [{ type: 'arc' }, { type: 'straight', length: 9.274 }] },
-  { label: '760 – 1:15',      R: 760,  ratio: 15,     speed: 80,  dLcs: 9.9,  minl: 12,
-    branch: [{ type: 'arc' }, { type: 'straight', length: 3.606 }] },
-  { label: '1200 – 1:19.277', R: 1200, ratio: 19.277, speed: 100, dLcs: 11,   minl: 15 },
+  { label: '760 – 1:15',      R: 760,  ratio: 15,     speed: 80,  dLcs: 5.10, minl: 12,
+    branch: [{ type: 'arc' }, { type: 'straight', length: 3.6062 }] },
+  { label: '1200 – 1:19.277', R: 1200, ratio: 19.277, speed: 100, dLcs: 9.96, minl: 15,
+    branch: [{ type: 'arc' }, { type: 'straight', length: 2.6090 }] },
 ]
 
 // Second fallback — used when both the primary and ALT1 type fail.
@@ -69,28 +71,38 @@ export const SWITCH_TYPES_INVENTORY = [
 ]
 
 /**
- * Distance from a form's switch end to its Weichenmarke [m] — the point where
- * the two routes stand 2.272 m apart, rounded onto the table's own grid of
- * 0.30 + k · 0.60 m.
+ * Distance from a form's switch end to its Weichenmarke [m], rounded onto the
+ * table's own grid of 0.30 + k · 0.60 m.
  *
- *   w = atan(1/n),  sG1 = R · tan(w/2),  d = 2.272 / atan(w) − sG1
+ *   d = 2.272 · n − (l_t + g),   l_t = R · tan(w/2),  w = atan(1/n)
  *
- * The rule the Weichentabelle follows, handed over on 2026-09-21. It
- * reproduces 185 – 1:7 (2.70), 300 – 1:9 (3.90), 500 – 1:12 (6.30) and
- * 2500 – 1:26.5 (12.90) exactly. It does **not** reproduce three of the stored
- * values: 190 – 1:9 (gives 9.90, table 3.90) and 190 – 1:7.5 (4.50, table
- * 0.30) because it takes the branch for one arc and both of those carry a
- * straight end piece that moves the switch end; and 760 – 1:14 (5.10, table
- * 9.90) and 1200 – 1:18.5 (9.90, table 11), which are unexplained — the stored
- * values stand until they are confirmed or corrected.
+ * `l_t` is the tangent — the delivered tables name the pair `l_t` and `l_t2`,
+ * and `l_t2` is that tangent plus the straight piece the branch ends in, which
+ * is what the switch end is measured from. The rule as it was handed over
+ * (2026-09-21) subtracts the tangent alone: the same thing for a form whose
+ * branch is one arc, and 6 m out for the 190 – 1:9. With `l_t2` it reproduces
+ * ten of the fifteen stored values — 185 – 1:7 (2.70, the form AP 3.1 dropped),
+ * 190 – 1:9, 300 – 1:9 and 300 – 1:9.4 (3.90), 500 – 1:12 (6.30), 760 – 1:15
+ * (5.10), 760 – 1:18.5 (9.90), 2500 – 1:26.5 (12.90) and both inventory forms
+ * (0.30).
+ *
+ * Five it does not reach, and there the delivered value stands: 190 – 1:7.5
+ * (0.30, confirmed as an outlier — Entscheidung 20), 500 – 1:14 (6.30 against
+ * 4.50), 760 – 1:14 (9.90 against 4.50), 1200 – 1:18.5 (11 against 9.90) and
+ * 1200 – 1:19.277 (9.96 against 9.90, and 9.96 is not on the grid at all). The
+ * first four look like a value copied from the primary form of the same radius
+ * — which is exactly what the 2026-09-21 delivery corrected for 760 – 1:15 and
+ * 1200 – 1:19.277.
  *
  * Below the grid's first step the result is that step: a mark that would sit
  * inside the switch is put as close to B1–B2 as the grid allows.
  */
-export function switchMarkDistance(R, ratio) {
-  const w = Math.atan(1 / ratio)
-  const sG1 = R * Math.tan(w / 2)
-  const d = 2.272 / Math.atan(w) - sG1
+export function switchMarkDistance(type) {
+  const w = Math.atan(1 / type.ratio)
+  const straight = (type.branch ?? [])
+    .filter(section => section.type === 'straight')
+    .reduce((sum, section) => sum + section.length, 0)
+  const d = 2.272 * type.ratio - (type.R * Math.tan(w / 2) + straight)
   return Math.max(0.30, Math.round((d - 0.30) / 0.60) * 0.60 + 0.30)
 }
 
@@ -98,27 +110,42 @@ export function switchMarkDistance(R, ratio) {
 //
 // The crossing kinds are not turnouts: their two routes cross instead of parting,
 // and their geometry is stated in their own terms. A crossing (Kr) is two
-// straights at the crossing angle; its body reaches from the crossing point to
-// the four ends, each as far as the end distance states — 1.85 m between the two
-// ends on a side, the same measure a turnout's switch end has. A crossing switch
-// (EKW/DKW) adds connecting curves between the ends on each side of the crossing
-// point, tangential to both crossing legs, so its four ends are the tangent
-// points at R·tan(α/2) from the crossing point; the EKW is built like the DKW
-// with one curve left out.
+// straights at the crossing angle, and its body reaches from the crossing point
+// to each of its four ends — that reach is the **tangent** `lt`, which the form
+// states outright. A crossing switch (EKW/DKW) adds connecting curves between
+// the ends on each side of the crossing point, tangential to both crossing legs,
+// so its four ends are the tangent points at R·tan(α/2) instead; the EKW is
+// built like the DKW with one curve left out.
 //
 // `ratio` is the crossing angle as a slope (1:9), `R` the radius of the
-// connecting curves (null for the plain crossing), `endDistance` the distance
-// between the two ends on one side [m] — the measure the crossing's own body is
-// built from. `dLcs` and `minl` were not supplied with the dimensions and stay
-// absent; nothing that builds a crossing reads them.
+// connecting curves (absent for the plain crossing), `lt` the tangent [m],
+// `speed` the permitted speed over it and `dLcs` the Weichenmarke — which for a
+// crossing can be negative, because the two routes stand 2.272 m apart before
+// the body ends. `minl` has no meaning here and stays absent.
+//
+// The nine plain crossings were delivered on 2026-09-21 as a table of tangents,
+// which replaced the 1.85 m end distance the first two had been carried with:
+// measured, `Kr 1:9` reaches 16.6155 m rather than 16.727 and `Kr 1:7.5`
+// 13.2510 rather than 13.964. The end distance follows from the tangent —
+// c = 2·lt·sin(α/2) — and reproduces every delivered c to half a millimetre,
+// which is what says the table and this construction mean the same thing.
+// Several of them are the crossing that two turnouts of one form make:
+// 1:4.444 = 2 × 1:9, 1:3.683 = 2 × 1:7.5, 1:6.964 = 2 × 1:14,
+// 1:3.224 = 2 × 1:6.6, 1:2.9 = 3 × 1:9.
 export const CROSSING_TYPES = [
-  { kind: 'crossing',     label: 'Kr 1:9',      ratio: 9,   endDistance: 1.85 },
-  { kind: 'crossing',     label: 'Kr 1:4.444',  ratio: 4.444, endDistance: 1.85 },
-  { kind: 'crossing',     label: 'Kr 1:7.5',    ratio: 7.5, endDistance: 1.85 },
-  { kind: 'single_slip',  label: 'EKW 1:9 – 190',  ratio: 9, R: 190,  endDistance: 1.85 },
-  { kind: 'single_slip',  label: 'EKW 1:9 – 500',  ratio: 9, R: 500,  endDistance: 1.85 },
-  { kind: 'double_slip',  label: 'DKW 1:9 – 190',  ratio: 9, R: 190,  endDistance: 1.85 },
-  { kind: 'double_slip',  label: 'DKW 1:9 – 500',  ratio: 9, R: 500,  endDistance: 1.85 },
+  { kind: 'crossing', label: 'Kr 1:2.9',   ratio: 2.9,   lt: 6.9040,  speed: 40 },
+  { kind: 'crossing', label: 'Kr 1:3.224', ratio: 3.224, lt: 7.9200,  speed: 80 },
+  { kind: 'crossing', label: 'Kr 1:3.683', ratio: 3.683, lt: 9.4480,  speed: 80,  dLcs: -0.87 },
+  { kind: 'crossing', label: 'Kr 1:4.444', ratio: 4.444, lt: 10.9035, speed: 80,  dLcs: -1.48 },
+  { kind: 'crossing', label: 'Kr 1:5.5',   ratio: 5.5,   lt: 10.7000, speed: 80,  dLcs: 1.50 },
+  { kind: 'crossing', label: 'Kr 1:6.6',   ratio: 6.6,   lt: 12.2390, speed: 80,  dLcs: 2.65 },
+  { kind: 'crossing', label: 'Kr 1:6.964', ratio: 6.964, lt: 12.6900, speed: 80,  dLcs: 3.30 },
+  { kind: 'crossing', label: 'Kr 1:7.5',   ratio: 7.5,   lt: 13.2510, speed: 80,  dLcs: 3.30 },
+  { kind: 'crossing', label: 'Kr 1:9',     ratio: 9,     lt: 16.6155, speed: 100, dLcs: 3.90 },
+  { kind: 'single_slip',  label: 'EKW 1:9 – 190',  ratio: 9, R: 190 },
+  { kind: 'single_slip',  label: 'EKW 1:9 – 500',  ratio: 9, R: 500 },
+  { kind: 'double_slip',  label: 'DKW 1:9 – 190',  ratio: 9, R: 190 },
+  { kind: 'double_slip',  label: 'DKW 1:9 – 500',  ratio: 9, R: 500 },
 ]
 
 /** Any switch form — turnout table, fallback or crossing — looked up by its label. */
@@ -859,7 +886,10 @@ function routeElements(sw, trackById, port, route, length, { first = false } = {
  */
 export function crossingRoutesFromTracks(sw, trackById) {
   const type = switchTypeByLabel(sw.label)
-  if (!type || type.R == null && type.endDistance == null) return null
+  // A crossing form is one that says how far its ends lie from the crossing
+  // point: a plain one through its tangent, a crossing switch through the
+  // radius of its connecting curves.
+  if (!type || (type.lt == null && type.R == null)) return null
   const half = crossingEndDistance(type)
 
   const mainEls  = routeElements(sw, trackById, 'C', 'main', half)
@@ -1152,17 +1182,16 @@ export function crossingAngle(type) {
 /**
  * How far each of a crossing's four ends lies from the crossing point [m].
  *
- * The plain crossing states it through its end distance — the two ends on a
- * side lie 1.85 m apart, so each sits half of that beyond the point on its leg.
+ * The plain crossing states it outright: `lt`, its tangent, is this distance.
  * A crossing switch's ends are the tangent points of its connecting curves,
  * R·tan(α/2) along each leg — the curves are tangential to both, which is what
  * places them.
  */
 export function crossingEndDistance(type) {
-  const half = (type.endDistance ?? 1.85) / 2
-  return type.R == null
-    ? half / Math.sin(crossingAngle(type) / 2)
-    : type.R * Math.tan(crossingAngle(type) / 2)
+  // A plain crossing states this measure itself — the tangent. A crossing
+  // switch does not: its ends are wherever its connecting curves touch the
+  // legs, which the curve radius decides.
+  return type.lt ?? type.R * Math.tan(crossingAngle(type) / 2)
 }
 
 /**

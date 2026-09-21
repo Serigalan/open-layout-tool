@@ -66,9 +66,36 @@ describe('switchBranchSections — a form that ends in a straight piece', () => 
     }
   })
 
-  it('the five forms AP 3.1 brought are the ones that have one', () => {
-    expect(END_PIECE_FORMS.map(f => f.label)).toEqual(
-      ['190 – 1:9', '190 – 1:7.5', '500 – 1:14', '760 – 1:15', '760 – 1:18.5'])
+  it('names the forms that have one, with the length each states', () => {
+    // The five of AP 3.1, and the two the 2026-09-21 tangent table added: their
+    // `l_t2 − l_t` is the straight the branch ends in, and without it their
+    // Weichenlänge came out 1.4 m and 2.6 m short.
+    expect(END_PIECE_FORMS.map(f => f.label)).toEqual([
+      '190 – 1:9', '190 – 1:7.5',
+      '300 – 1:9.4', '500 – 1:14', '760 – 1:15', '1200 – 1:19.277',
+      '760 – 1:18.5',
+    ])
+    expect(endPiece(ALL_FORMS.find(f => f.label === '300 – 1:9.4'))).toBeCloseTo(1.4060, 4)
+    expect(endPiece(ALL_FORMS.find(f => f.label === '1200 – 1:19.277'))).toBeCloseTo(2.6090, 4)
+  })
+
+  it('reproduces the Weichenlänge and the Endmaß the tangent table states', () => {
+    // l_w = 2·l_t + d, and c is the straight line between the two switch ends.
+    // Both come out of the model's own construction — which is the check that
+    // the delivered numbers and `switchStraightLength` mean the same thing.
+    const c = (f) => {
+      const a = Math.atan(1 / f.ratio)
+      const d = endPiece(f)
+      const lw = switchStraightLength(f)
+      return Math.hypot(lw - (f.R * Math.sin(a) + d * Math.cos(a)),
+        f.R * (1 - Math.cos(a)) + d * Math.sin(a))
+    }
+    for (const [label, lw, cc] of [['300 – 1:9.4', 33.2311, 1.8346],
+      ['760 – 1:15', 54.2167, 1.9242], ['1200 – 1:19.277', 64.8176, 1.7471]]) {
+      const form = ALL_FORMS.find(f => f.label === label)
+      expect(switchStraightLength(form), label).toBeCloseTo(lw, 3)
+      expect(c(form), label).toBeCloseTo(cc, 3)
+    }
   })
 
   it('185 – 1:7 is gone — the 190s replace it (Entscheidung 12)', () => {
@@ -264,26 +291,33 @@ describe('the mark distance the form table is built on', () => {
   const at = (label) => [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2]
     .find(f => f.label === label)
 
-  it('gives the stored value for every form whose branch is the one arc', () => {
-    // `d = 2.272/atan(w) − R·tan(w/2)` on the table's 0.30 + k · 0.60 grid.
-    expect(switchMarkDistance(185, 7)).toBeCloseTo(2.70, 9)     // the form AP 3.1 dropped
-    expect(switchMarkDistance(300, 9)).toBeCloseTo(at('300 – 1:9').dLcs, 9)
-    expect(switchMarkDistance(500, 12)).toBeCloseTo(at('500 – 1:12').dLcs, 9)
-    expect(switchMarkDistance(2500, 26.5)).toBeCloseTo(at('2500 – 1:26.5').dLcs, 9)
+  it('gives the stored value for ten of the fifteen forms', () => {
+    // `d = 2.272 · n − (l_t + g)` on the table's 0.30 + k · 0.60 grid.
+    expect(switchMarkDistance({ R: 185, ratio: 7 })).toBeCloseTo(2.70, 9)  // AP 3.1 dropped it
+    for (const label of ['190 – 1:9', '300 – 1:9', '300 – 1:9.4', '500 – 1:12',
+      '760 – 1:15', '760 – 1:18.5', '2500 – 1:26.5']) {
+      expect(switchMarkDistance(at(label)), label).toBeCloseTo(at(label).dLcs, 9)
+    }
+    for (const form of SWITCH_TYPES_INVENTORY) {
+      expect(switchMarkDistance(form), form.label).toBeCloseTo(form.dLcs, 9)
+    }
   })
 
-  it('does not reach the ones that carry a straight end piece', () => {
-    // The rule takes the branch for one arc, and an end piece moves the switch
-    // end the mark is measured from — so these stay the delivered values.
-    expect(switchMarkDistance(190, 9)).not.toBeCloseTo(at('190 – 1:9').dLcs, 9)
-    expect(switchMarkDistance(190, 7.5)).not.toBeCloseTo(at('190 – 1:7.5').dLcs, 9)
+  it('does not reach five, where the delivered value stands', () => {
+    // Four of them look like a value copied from the primary form of the same
+    // radius; the 190 – 1:7.5 is a confirmed outlier (Entscheidung 20).
+    for (const label of ['190 – 1:7.5', '500 – 1:14', '760 – 1:14',
+      '1200 – 1:18.5', '1200 – 1:19.277']) {
+      expect(switchMarkDistance(at(label)), label).not.toBeCloseTo(at(label).dLcs, 9)
+    }
   })
 
   it('puts a mark that would sit inside the switch on the first step', () => {
-    // 190 – 1:6,3 diverges fast enough to stand 2,272 m apart before it ends:
-    // the rule gives −0,30, and the grid's floor is where the mark goes, which
-    // is where the confirmed 190 – 1:7,5 sits for the same reason.
-    expect(switchMarkDistance(190, 6.3)).toBe(0.30)
-    expect(switchMarkDistance(107.5, 4.8)).toBe(0.30)   // the symmetrical 215
+    // Both inventory forms diverge fast enough to stand 2.272 m apart before
+    // they end: the rule gives a negative distance, and the grid's floor is
+    // where the mark goes — where the confirmed 190 – 1:7.5 sits for the same
+    // reason.
+    expect(switchMarkDistance({ R: 190, ratio: 6.3 })).toBe(0.30)
+    expect(switchMarkDistance({ R: 215, ratio: 4.8 })).toBe(0.30)
   })
 })

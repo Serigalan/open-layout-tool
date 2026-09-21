@@ -36,14 +36,29 @@ const dkw190 = CROSSING_TYPES.find(f => f.label === 'DKW 1:9 – 190')
 const dkw500 = CROSSING_TYPES.find(f => f.label === 'DKW 1:9 – 500')
 
 describe('the crossing form table', () => {
-  it('holds the forms the dimensions name, and the one the inventory adds', () => {
+  it('holds nine plain crossings and the four crossing switches', () => {
     expect(CROSSING_TYPES.map(f => f.label)).toEqual([
-      // Kr 1:4.444 came from the delivered databases (fourteen of them), on the
-      // same end distance the other plain crossings are built with.
-      'Kr 1:9', 'Kr 1:4.444', 'Kr 1:7.5',
+      'Kr 1:2.9', 'Kr 1:3.224', 'Kr 1:3.683', 'Kr 1:4.444',
+      'Kr 1:5.5', 'Kr 1:6.6', 'Kr 1:6.964', 'Kr 1:7.5', 'Kr 1:9',
       'EKW 1:9 – 190', 'EKW 1:9 – 500',
       'DKW 1:9 – 190', 'DKW 1:9 – 500',
     ])
+  })
+
+  it('states the tangent of the forms that were delivered as tangents', () => {
+    // `lt` is the measure itself — the distance from the crossing point to each
+    // of the four ends. The end distance follows from it, c = 2·lt·sin(α/2),
+    // and it reproduces the delivered c to half a millimetre, which is what
+    // says the table and the construction mean the same thing.
+    for (const [label, lt, c] of [['Kr 1:2.9', 6.9040, 2.2815],
+      ['Kr 1:3.224', 7.9200, 2.3731], ['Kr 1:3.683', 9.4480, 2.4976],
+      ['Kr 1:4.444', 10.9035, 2.4082], ['Kr 1:5.5', 10.7000, 1.9226],
+      ['Kr 1:6.6', 12.2390, 1.8387], ['Kr 1:6.964', 12.6900, 1.8083],
+      ['Kr 1:7.5', 13.2510, 1.7552], ['Kr 1:9', 16.6155, 1.8377]]) {
+      const form = CROSSING_TYPES.find(f => f.label === label)
+      expect(crossingEndDistance(form), label).toBeCloseTo(lt, 9)
+      expect(2 * lt * Math.sin(crossingAngle(form) / 2), label).toBeCloseTo(c, 2)
+    }
   })
 
   it('states the kinds the record discriminates on', () => {
@@ -58,11 +73,11 @@ describe('the crossing form table', () => {
 })
 
 describe('crossingEndDistance — where the four ends lie', () => {
-  it('a crossing: half the end distance beyond the crossing point, on its leg', () => {
-    // The two ends on a side are 1.85 m apart; each sits half of that beyond
-    // the point, measured along its leg.
-    expect(crossingEndDistance(kr9)).toBeCloseTo(16.727, 2)
-    expect(crossingEndDistance(kr75)).toBeCloseTo(13.967, 2)
+  it('a crossing: the tangent the form states, along each leg', () => {
+    // Measured, not derived. Carried with an assumed end distance of 1.85 m
+    // these two reached 16.727 m and 13.967 m — 11 cm and 71 cm too far.
+    expect(crossingEndDistance(kr9)).toBe(16.6155)
+    expect(crossingEndDistance(kr75)).toBe(13.2510)
   })
 
   it('a crossing switch: the tangent points of its connecting curves', () => {
@@ -94,11 +109,13 @@ describe('computeCrossingGeometryUtm', () => {
     expect(left.crossBearing).toBeCloseTo(BEARING - alphaOf(kr9), 9)
   })
 
-  it('a crossing: the two ends on a side lie 1.85 m apart', () => {
-    for (const type of [kr9, kr75]) {
+  it('a crossing: the two ends on a side lie the delivered c apart', () => {
+    // c = 2·lt·sin(α/2) — the body's own construction reproduces the measure
+    // the table states beside the tangent.
+    for (const [type, c] of [[kr9, 1.8377], [kr75, 1.7552]]) {
       const g = computeCrossingGeometryUtm(CENTRE, BEARING, type, alphaOf(type))
-      expect(dist(g.portA, g.portB), type.label).toBeCloseTo(1.85, 6)
-      expect(dist(g.portC, g.portD), type.label).toBeCloseTo(1.85, 6)
+      expect(dist(g.portA, g.portB), type.label).toBeCloseTo(c, 3)
+      expect(dist(g.portC, g.portD), type.label).toBeCloseTo(c, 3)
     }
   })
 
