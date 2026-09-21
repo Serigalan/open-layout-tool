@@ -978,7 +978,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
                 <label className="transition-curve-row">
                   <input type="checkbox" checked={mdbSwitches}
                     onChange={e => setMdbSwitches(e.target.checked)} />
-                  {t('data_exchange_mdb_switches')}
+                  <span>{t('data_exchange_mdb_switches')}</span>
                 </label>
                 <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
                   disabled={!mdbStrecke} onClick={handleMdbImport}>
@@ -1041,7 +1041,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
                 <label className="transition-curve-row">
                   <input type="checkbox" checked={dbrefSwitches}
                     onChange={e => setDbrefSwitches(e.target.checked)} />
-                  {t('data_exchange_mdb_switches')}
+                  <span>{t('data_exchange_mdb_switches')}</span>
                 </label>
                 <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
                   disabled={!dbrefStrecke || dbrefBusy} onClick={handleDbrefImport}>
