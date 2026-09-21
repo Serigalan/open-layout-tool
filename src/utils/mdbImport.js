@@ -1,4 +1,7 @@
 import {
+  mdbGradientChains, stationIndex, gradientForTrack, stationsAlong, bstOf,
+} from './mdbGradient'
+import {
   buildTracksFromCsv,
   TYPE_STRAIGHT, TYPE_KINK, TYPE_ARC, TYPE_CLOTHOID, TYPE_BLOSS,
   CANT_CONSTANT,
@@ -162,6 +165,11 @@ export function parseMdbPayload(json) {
     cants:    arr(json?.cants),
     tracks:   arr(json?.tracks),
     nodes:    arr(json?.nodes),
+    // The vertical alignment: where a point is stationed (Satzart 11), how
+    // high it is (13) and the gradient between them (22) — mdbGradient.
+    stations:  arr(json?.stations),
+    heights:   arr(json?.heights),
+    gradients: arr(json?.gradients),
   }
 }
 
@@ -324,8 +332,72 @@ export function listMdbStrecken(payload) {
  */
 export function buildTracksFromMdb(payload, strecke, opts = {}) {
   const built = mdbRows(payload)
-  const res = oneStrecke(built, strecke, opts)
-  return { tracks: res.tracks, errors: [...built.errors, ...res.errors] }
+  const vertical = verticalFor(payload)
+  const res = oneStrecke({ ...built, vertical }, strecke, opts)
+  return {
+    tracks: res.tracks,
+    errors: [...built.errors, ...res.errors, ...gradientNotes(vertical, res.tracks)],
+  }
+}
+
+/**
+ * The gradient of the file, ready to be cut for a track: every chain Satzart
+ * 22 states, and where each point address is stationed.
+ *
+ * Built once per import rather than per line number — a database states one
+ * gradient for the whole network, and reading it again for each of four
+ * hundred line numbers would be the same work four hundred times.
+ */
+function verticalFor(payload) {
+  const { station, line } = stationIndex(payload)
+  const { chains, refused } = mdbGradientChains(payload)
+  return { station, line, chains, refused, drift: 0 }
+}
+
+/**
+ * The heights of the track a chain of rows becomes, or null where none fit.
+ *
+ * Where the track sits on the line is read from its own point addresses the
+ * same way the gradient is read: the stations the file states, and the element
+ * lengths between them where it states none.
+ */
+function heightsForChain(chain, elements, vertical) {
+  if (!vertical?.chains?.length || !chain?.length) return null
+  const pads = [chain[0].anf, ...chain.map(r => r.end)]
+  const cum = [0]
+  for (const r of chain) cum.push(cum[cum.length - 1] + (r.length ?? 0))
+  const at = stationsAlong(pads, cum, vertical.station)
+  const line = pads.map(pad => vertical.line.get(pad)).find(Boolean)
+  if (!at || !line) return null
+  const begin = at[0]
+  const end = at[at.length - 1]
+  const length = elements.reduce((n, el) => n + (el.length ?? 0), 0)
+  const points = gradientForTrack(vertical.chains,
+    { line, bst: new Set(pads.map(bstOf)), begin, end, length })
+  if (points) {
+    // How far the line's stationing and the track's own geometry disagree over
+    // this track — reported, because it is a property of the file.
+    vertical.drift = Math.max(vertical.drift, Math.abs(Math.abs(end - begin) - length))
+  }
+  return points
+}
+
+function gradientNotes(vertical, tracks) {
+  const notes = []
+  if (!vertical.chains.length && !vertical.refused) return notes
+  const withHeights = tracks.filter(t => t.heights?.length).length
+  notes.push(`Gradiente: ${vertical.chains.length} Höhenketten in der Datei, `
+    + `${withHeights} von ${tracks.length} Gleisen bekommen eine. `
+    + 'Ein Gleis bleibt ohne, wenn keine Kette seiner Strecke über seine ganze Länge reicht.')
+  if (vertical.refused) {
+    notes.push(`${vertical.refused} Höhenketten übersprungen – kein Punkt der Kette `
+      + 'ist stationiert oder keiner trägt eine Höhe im eigenen Höhensystem.')
+  }
+  if (vertical.drift > 0.1) {
+    notes.push(`Stationierung und Geometrie weichen um bis zu ${vertical.drift.toFixed(2)} m `
+      + 'je Gleis voneinander ab – die Gradiente ist auf die Gleislänge gezogen.')
+  }
+  return notes
 }
 
 /**
@@ -337,17 +409,18 @@ export function buildTracksFromMdb(payload, strecke, opts = {}) {
  */
 export function buildAllTracksFromMdb(payload, opts = {}) {
   const built = mdbRows(payload)
+  const vertical = verticalFor(payload)
   const tracks = []
   const errors = [...built.errors]
   for (const { strecke } of streckenOf(built.rows)) {
-    const res = oneStrecke(built, strecke, opts)
+    const res = oneStrecke({ ...built, vertical }, strecke, opts)
     tracks.push(...res.tracks)
     errors.push(...res.errors)
   }
-  return { tracks, errors }
+  return { tracks, errors: [...errors, ...gradientNotes(vertical, tracks)] }
 }
 
-function oneStrecke({ rows, cantRows }, strecke, opts = {}) {
+function oneStrecke({ rows, cantRows, vertical }, strecke, opts = {}) {
   const errors = []
   const mine = rows.filter(r => r.strecke === String(strecke))
   if (!mine.length) {
@@ -390,6 +463,9 @@ function oneStrecke({ rows, cantRows }, strecke, opts = {}) {
     const res = buildTracksFromCsv(bySys.get(sys), strecke, cantRows, {
       sourceEpsg: epsgForLagesystem(sys),
       targetEpsg: Number(opts.targetEpsg ?? epsgForLagesystem(sys)),
+      // The vertical alignment is stated over the line, not over this chain:
+      // it is cut to the piece the chain runs over once the chain is known.
+      heightsFor: (chain, elements) => heightsForChain(chain, elements, vertical),
     })
     for (const t of res.tracks) tracks.push({ ...t, lagesystem: sys })
     errors.push(...res.errors.map(e => (known.length > 1 ? `[${sys}] ${e}` : e)))

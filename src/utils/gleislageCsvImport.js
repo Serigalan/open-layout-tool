@@ -423,11 +423,16 @@ export function buildTracksFromCsv(rows, strecke, cantRows = null, opts = {}) {
         cantMatched += applyCants(chain, elements, cantByAddress, errors,
           `Strecke ${strecke}, Gleis ${ci + 1}`)
       }
+      // A vertical alignment, where the caller can state one for this chain.
+      // The MDB import reads it from the file's own gradient (mdbGradient);
+      // the CSV export carries none.
+      const heights = opts.heightsFor?.(chain, elements)
       tracks.push({
         name: `${strecke}.${String(ci + 1).padStart(3, '0')}`,
         lineNumber: String(strecke),
         epsg: crs,
         elements,
+        ...(heights?.length ? { heights } : {}),
       })
     }
   })

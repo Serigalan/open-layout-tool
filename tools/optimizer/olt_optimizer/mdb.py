@@ -126,6 +126,32 @@ def convert(path):
             "err": _int(r.get("ErrStatus")),
         })
 
+    # Satzart 11: what a point address is stationed at, and on which line.
+    # The field is packed (mdbGradient.mdbStation reads it); it is carried
+    # through as it stands, like everything else here.
+    stations = [
+        {"pad": _txt(r.get("PAD")), "station": _num(r.get("STATION")),
+         "strecke": _txt(r.get("PSTRECKE"))}
+        for r in _rows(path, "X_ASC11_PP")
+    ]
+    stations = [s for s in stations if s["pad"] and s["station"]]
+
+    # Satzart 13: the height of a point, one record per height system.
+    heights = [
+        {"pad": _txt(r.get("PAD")), "sys": _txt(r.get("HSYS")), "h": _num(r.get("H"))}
+        for r in _rows(path, "X_ASC13_PH")
+    ]
+    heights = [h for h in heights if h["pad"] and h["h"] is not None]
+
+    # Satzart 22: the gradient, as a chain between point addresses.
+    gradients = [
+        {"pad1": _txt(r.get("PAD1")), "pad2": _txt(r.get("PAD2")),
+         "sys": _txt(r.get("EHSYS")), "typ": _int(r.get("EHTYP"), -1),
+         "p1": _num(r.get("EHPAR1")), "p2": _num(r.get("EHPAR2")),
+         "p3": _num(r.get("EHPAR3")), "err": _int(r.get("ErrStatus"))}
+        for r in _rows(path, "X_ASC22_EH")
+    ]
+
     nodes = [
         {"knoten": r.get("KNOTEN") or "", "typ": _int(r.get("KNTYP"), -1),
          "pad": _txt(r.get("PAD")), "form": _txt(r.get("KNBE")),
@@ -143,8 +169,13 @@ def convert(path):
         "cants": cants,
         "tracks": tracks,
         "nodes": nodes,
+        "stations": stations,
+        "heights": heights,
+        "gradients": gradients,
         "counts": {
             "points": len(points), "elements": len(elements), "cants": len(cants),
             "tracks": len(tracks), "nodes": len(nodes),
+            "stations": len(stations), "heights": len(heights),
+            "gradients": len(gradients),
         },
     }
