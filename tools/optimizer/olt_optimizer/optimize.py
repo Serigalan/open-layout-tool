@@ -73,14 +73,20 @@ def _sample_fit(fit):
     return pts
 
 
-def fit_offset(g, fit, p1, p2):
-    """Max lateral deviation of the fitted curve zone vs. the original alignment."""
+def fit_offset(g, fit, p1, p2, limit=None):
+    """Max lateral deviation of the fitted curve zone vs. the original alignment.
+
+    `limit` is the corridor the answer is about to be compared against. The two
+    sweeps are measured in turn and the second is skipped once the first has
+    already left the corridor — which is what most of the candidates the search
+    puts through here do.
+    """
     new_pts = _sample_fit(fit)
+    offset = max_dist_to_polyline(new_pts, g["ref_poly"])
+    if limit is not None and offset > limit:
+        return offset
     new_poly = [p1] + new_pts + [p2]
-    return max(
-        max_dist_to_polyline(new_pts, g["ref_poly"]),
-        max_dist_to_polyline(g["ref_curve_pts"], new_poly),
-    )
+    return max(offset, max_dist_to_polyline(g["ref_curve_pts"], new_poly))
 
 
 def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=None):
@@ -109,7 +115,7 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=
         for seg in fit["segments"]:
             if seg["kind"] == "arc" and abs(seg["sweep"] * seg["signed_r"]) < min_len:
                 return None
-    offset = fit_offset(g, fit, p1, p2)
+    offset = fit_offset(g, fit, p1, p2, params["corridor"])
     if offset > params["corridor"]:
         return None
     return {"radii": list(radii), "us": list(us), "thetas_free": list(thetas_free),

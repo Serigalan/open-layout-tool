@@ -96,14 +96,42 @@ def sample_transition(e, n, bearing_deg, length, r1, r2, profile="clothoid", ste
     return pts
 
 
-def transition_end(e, n, bearing_deg, length, r1, r2, profile="clothoid", steps=64):
-    """End point and end bearing of a transition."""
-    pts = sample_transition(e, n, bearing_deg, length, r1, r2, profile, steps)
+# Gauss-Legendre nodes and weights on [0, 1] for the forward march below.
+_GL_NODES = (
+    (0.01985507175123191, 0.05061426814518834),
+    (0.10166676129318664, 0.11119051722668717),
+    (0.23723379504183550, 0.15685332293894352),
+    (0.40828267875217511, 0.18134189168918088),
+    (0.59171732124782483, 0.18134189168918088),
+    (0.76276620495816450, 0.15685332293894352),
+    (0.89833323870681336, 0.11119051722668717),
+    (0.98014492824876809, 0.05061426814518834),
+)
+
+
+def transition_end(e, n, bearing_deg, length, r1, r2, profile="clothoid"):
+    """End point and end bearing of a transition.
+
+    Only the end matters here, so the offset is integrated directly instead of
+    being walked out point by point as `sample_transition` does. The heading of
+    a railway transition turns by a few hundredths of a radian over its whole
+    length, so eight Gauss-Legendre nodes place the end to about 1e-12 m —
+    better than the 129 Simpson evaluations this replaces, and a ninth of the
+    work. That pays: the fit marches through here on every candidate the
+    optimizer tries.
+    """
     k1 = _kappa(r1)
     k2 = _kappa(r2)
+    phi0 = (90.0 - bearing_deg) * DEG2RAD
+    x = 0.0
+    y = 0.0
+    for u, w in _GL_NODES:
+        p = phi0 + heading_at(profile, k1, k2, length, u * length)
+        x += w * math.cos(p)
+        y += w * math.sin(p)
     dphi_end = (k1 + k2) * length / 2
     end_bearing = (bearing_deg - dphi_end * RAD2DEG) % 360.0
-    return pts[-1][0], pts[-1][1], end_bearing
+    return e + length * x, n + length * y, end_bearing
 
 
 def arc_center(s_e, s_n, e_e, e_n, signed_r):
@@ -337,17 +365,22 @@ def max_dist_to_polyline(points, poly):
     if len(points) == 0 or len(poly) < 2:
         return 0.0
     if _np is not None:
+        # Per coordinate rather than per point: the (n, m-1, 2) blocks the
+        # paired form builds are the cost here, not the arithmetic, and the
+        # square root is worth taking once at the end instead of n*m times.
         pts = _np.asarray(points)                     # (n, 2)
         seg = _np.asarray(poly)                       # (m, 2)
-        a, b = seg[:-1], seg[1:]                      # (m-1, 2)
-        ab = b - a
-        den = (ab ** 2).sum(axis=1)
+        a = seg[:-1]
+        ab = seg[1:] - a                              # (m-1, 2)
+        den = (ab * ab).sum(axis=1)
         den[den == 0] = 1.0
-        ap = pts[:, None, :] - a[None, :, :]          # (n, m-1, 2)
-        t = _np.clip((ap * ab[None, :, :]).sum(axis=2) / den[None, :], 0.0, 1.0)
-        q = a[None, :, :] + t[:, :, None] * ab[None, :, :]
-        d = _np.sqrt(((pts[:, None, :] - q) ** 2).sum(axis=2))
-        return float(d.min(axis=1).max())
+        apx = pts[:, 0, None] - a[None, :, 0]         # (n, m-1)
+        apy = pts[:, 1, None] - a[None, :, 1]
+        t = (apx * ab[None, :, 0] + apy * ab[None, :, 1]) / den[None, :]
+        _np.clip(t, 0.0, 1.0, out=t)
+        dx = apx - t * ab[None, :, 0]
+        dy = apy - t * ab[None, :, 1]
+        return math.sqrt(float((dx * dx + dy * dy).min(axis=1).max()))
     best_max = 0.0
     for px, py in points:
         best = math.inf
