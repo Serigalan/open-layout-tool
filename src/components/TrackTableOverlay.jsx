@@ -88,14 +88,15 @@ function maxSpeeds(elements, cap) {
 }
 
 export default function TrackTableOverlay({
-  track, project, map, storeVersion, onPickTrack, onDirtyChange, onClose, onSaved, t,
+  track, project, map, storeVersion, initialRow, onPickTrack, onDirtyChange, onClose, onSaved, t,
 }) {
   // Keep the full track set as working state — a geometry edit propagates to
   // connected following elements/tracks, so we edit and persist all of them.
   const [tracks, setTracks] = useState(() => loadTracks(project.id))
   const [draft, setDraft]   = useState(null)   // { row, key, value } – the cell being typed in
-  // Row whose element the map highlights — picking a track starts on its first.
-  const [activeRow, setActiveRow] = useState(0)
+  // Row whose element the map highlights — picking a track starts on its first,
+  // unless the pick itself named one (a click on the map): initialRow.
+  const [activeRow, setActiveRow] = useState(() => initialRow ?? 0)
   // Line speed: the ceiling no element may exceed, kept as typed text so a
   // half-entered number does not read as a cap of 1. Empty = geometry only;
   // it starts at the 160 km/h most of the network is built for.
@@ -131,8 +132,9 @@ export default function TrackTableOverlay({
   // back as a new `track` prop — the row it meant waits here for it.
   const [pendingRow, setPendingRow] = useState(null)
   // …and the row it picked, which the fit below reads to tell a row that came
-  // off the map from one picked in the table.
-  const pickedOnMap = useRef(null)
+  // off the map from one picked in the table. Opening the table itself from a
+  // map click is the same case, so it starts out already holding that row.
+  const pickedOnMap = useRef(initialRow ?? null)
 
   // An undo moves the store back under the table. The working copy is a snapshot
   // of every track (planElementChange rebuilds them all), so it would otherwise

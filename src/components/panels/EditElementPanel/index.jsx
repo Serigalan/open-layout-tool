@@ -21,9 +21,9 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
   // one that would be. Once a table is open it takes the clicks itself — it can
   // tell one of its rows from another track, which this cannot, and two
   // handlers on one click would only fight over it.
-  useTrackPick(map, page === 'edit_tracks' && !trackTableId, ({ trackId }) => {
+  useTrackPick(map, page === 'edit_tracks' && !trackTableId, ({ trackId, elementIndex }) => {
     const picked = loadTracks(project?.id ?? '').find(tr => tr.id === trackId)
-    if (picked) onShowTrackTable?.(picked)
+    if (picked) onShowTrackTable?.(picked, elementIndex)
   }, { highlight: true })
 
   const backButton = (onBack) => (

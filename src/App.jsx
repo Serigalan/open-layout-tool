@@ -318,6 +318,10 @@ export default function App() {
   const [kmLinesError, setKmLinesError] = useState(false)
   const [project, setProject] = useState(null)
   const [trackTable, setTrackTable] = useState(null)
+  // The element a map click picked when the table was opened — the table
+  // starts framed on it already, so it skips the fly-to that a list pick
+  // still gets, which has no such clue where the track sits.
+  const [trackTableInitialRow, setTrackTableInitialRow] = useState(null)
   // Whether the element table holds edits nobody has written yet, and what to
   // do once the user has said the word on losing them.
   const [tableDirty, setTableDirty] = useState(false)
@@ -547,8 +551,8 @@ export default function App() {
 
   // Picking another track keeps the edits — they are the table's, not one
   // track's — so only closing it (null) has to be asked about.
-  const handleShowTrackTable = useCallback((tr) => {
-    if (tr) setTrackTable(tr)
+  const handleShowTrackTable = useCallback((tr, row) => {
+    if (tr) { setTrackTable(tr); setTrackTableInitialRow(row ?? null) }
     else closeTrackTable(() => setTrackTable(null))
   }, [closeTrackTable])
 
@@ -691,7 +695,7 @@ export default function App() {
         <div className="map-container" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
         {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} t={t} />}
         {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map}
-          storeVersion={storeVersion} onPickTrack={setTrackTable} onDirtyChange={setTableDirty}
+          storeVersion={storeVersion} initialRow={trackTableInitialRow} onPickTrack={setTrackTable} onDirtyChange={setTableDirty}
           onClose={() => closeTrackTable(() => setTrackTable(null))} onSaved={handleTrackSaved} t={t} />}
         {profileTrackId && <ElevationOverlay trackId={profileTrackId} project={project} map={map} version={heightsVersion} onClose={() => setProfileTrackId(null)} onSaved={handleTrackSaved} t={t} />}
         {crossSectionAt && <CrossSectionOverlay at={crossSectionAt} project={project} map={map}
