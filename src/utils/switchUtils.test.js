@@ -3,7 +3,7 @@ import {
   SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2,
   switchArcLength, switchStraightLength, switchBranchSections, switchBranchLength,
   switchFormChain, switchBranchChain, switchBranchRoute, switchChainTo, switchChainSlice,
-  computeSwitchGeometryUtm, branchRadius,
+  computeSwitchGeometryUtm, branchRadius, SWITCH_TYPES_INVENTORY, switchMarkDistance,
 } from './switchUtils'
 
 const ALL_FORMS = [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2]
@@ -208,5 +208,82 @@ describe('computeSwitchGeometryUtm still builds the same turnout', () => {
     const g = computeSwitchGeometryUtm(start, 30, form, 'right', false, null, 900)
     expect(g.mainSignedR).toBe(900)
     expect(g.branchChain[0].r1).toBeCloseTo(branchRadius(form.R, 900), 9)
+  })
+})
+
+/**
+ * The forms that exist in the Bestand and in no connection: the symmetrical
+ * turnout and the 190 carried on to 1:6,3 (geliefert am 2026-09-21).
+ */
+describe('the inventory forms', () => {
+  const sym = SWITCH_TYPES_INVENTORY.find(f => f.label === '215 – 1:4.8')
+  const sharp = SWITCH_TYPES_INVENTORY.find(f => f.label === '190 – 1:6.3')
+
+  it('are out of the tables a connection and a dialog read', () => {
+    // They are Regelweichen and they are still not connection forms: the
+    // solver's chain and the „Weiche aufs Gleis" picker keep what they had.
+    for (const f of SWITCH_TYPES_INVENTORY) {
+      expect(ALL_FORMS.some(t => t.label === f.label), f.label).toBe(false)
+    }
+  })
+
+  it('part the symmetrical turnout into two arcs of its own radius', () => {
+    // 1:4,8 is the angle between the two routes, so each of them turns half of
+    // it — on R = 215, which is what makes it symmetrical and what makes it
+    // unbendable: at any other stem radius the two would differ.
+    const half = 215 * Math.atan(1 / 4.8) / 2
+    expect(switchBranchLength(sym)).toBeCloseTo(half, 9)
+    expect(switchBranchLength(sym)).toBeCloseTo(22.080, 3)
+    expect(switchBranchSections(sym)).toEqual([{ type: 'arc', R: 215, length: half }])
+    // Both routes are that same arc, so the through route is as long as the
+    // branch — a symmetrical turnout has no side that runs on.
+    expect(switchStraightLength(sym)).toBeCloseTo(22.0994, 3)
+  })
+
+  it('carry the 190 on to 1:6,3 as the one arc it is', () => {
+    // „Letztlich eine 190 – 1:7,5, wo der Bogen einfach weitergeführt wird" —
+    // so no straight end piece, and the branch is longer than the 1:7,5's.
+    expect(sharp.branch).toBeUndefined()
+    expect(switchBranchLength(sharp)).toBeCloseTo(190 * Math.atan(1 / 6.3), 9)
+    expect(switchBranchLength(sharp)).toBeCloseTo(29.909, 3)
+    const flatter = SWITCH_TYPES.find(f => f.label === '190 – 1:7.5')
+    expect(switchBranchLength(sharp)).toBeGreaterThan(switchBranchLength(flatter))
+    expect(sharp.R).toBe(flatter.R)
+  })
+
+  it('run at the speed and the spacing the form table states', () => {
+    for (const f of SWITCH_TYPES_INVENTORY) {
+      expect(f.speed, f.label).toBe(40)
+      expect(f.minl, f.label).toBe(6)
+      expect(f.dLcs, f.label).toBe(0.30)
+    }
+  })
+})
+
+describe('the mark distance the form table is built on', () => {
+  const at = (label) => [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2]
+    .find(f => f.label === label)
+
+  it('gives the stored value for every form whose branch is the one arc', () => {
+    // `d = 2.272/atan(w) − R·tan(w/2)` on the table's 0.30 + k · 0.60 grid.
+    expect(switchMarkDistance(185, 7)).toBeCloseTo(2.70, 9)     // the form AP 3.1 dropped
+    expect(switchMarkDistance(300, 9)).toBeCloseTo(at('300 – 1:9').dLcs, 9)
+    expect(switchMarkDistance(500, 12)).toBeCloseTo(at('500 – 1:12').dLcs, 9)
+    expect(switchMarkDistance(2500, 26.5)).toBeCloseTo(at('2500 – 1:26.5').dLcs, 9)
+  })
+
+  it('does not reach the ones that carry a straight end piece', () => {
+    // The rule takes the branch for one arc, and an end piece moves the switch
+    // end the mark is measured from — so these stay the delivered values.
+    expect(switchMarkDistance(190, 9)).not.toBeCloseTo(at('190 – 1:9').dLcs, 9)
+    expect(switchMarkDistance(190, 7.5)).not.toBeCloseTo(at('190 – 1:7.5').dLcs, 9)
+  })
+
+  it('puts a mark that would sit inside the switch on the first step', () => {
+    // 190 – 1:6,3 diverges fast enough to stand 2,272 m apart before it ends:
+    // the rule gives −0,30, and the grid's floor is where the mark goes, which
+    // is where the confirmed 190 – 1:7,5 sits for the same reason.
+    expect(switchMarkDistance(190, 6.3)).toBe(0.30)
+    expect(switchMarkDistance(107.5, 4.8)).toBe(0.30)   // the symmetrical 215
   })
 })

@@ -33,14 +33,17 @@ const built = buildTracksFromMdb(payload, STRECKE)
 const placed = placeMdbSwitches(payload, built.tracks, units)
 
 describe('switchTypeFor', () => {
-  it('finds the form by radius and slope, across all three tables', () => {
+  it('finds the form by radius and slope, across all four tables', () => {
     expect(switchTypeFor({ radius: 190, slope: 9 })?.label).toBe('190 – 1:9')
-    expect(switchTypeFor({ radius: 500, slope: 14 })?.label).toBe('500 – 1:14')   // ALT1
+    expect(switchTypeFor({ radius: 500, slope: 14 })?.label).toBe('500 – 1:14')     // ALT1
     expect(switchTypeFor({ radius: 760, slope: 18.5 })?.label).toBe('760 – 1:18.5') // ALT2
+    // The inventory table: forms the network carries that no connection builds.
+    expect(switchTypeFor({ radius: 190, slope: 6.3 })?.label).toBe('190 – 1:6.3')
+    expect(switchTypeFor({ radius: 215, slope: 4.8 })?.label).toBe('215 – 1:4.8')
   })
 
   it('has none for a form the table does not carry', () => {
-    expect(switchTypeFor({ radius: 190, slope: 6.3 })).toBeNull()
+    expect(switchTypeFor({ radius: 300, slope: 14 })).toBeNull()
     expect(switchTypeFor({ radius: null, slope: 9 })).toBeNull()
   })
 })
@@ -138,23 +141,23 @@ describe('placeMdbSwitches', () => {
   })
 
   it('reports a form the table does not carry rather than rounding to the nearest', () => {
-    const odd = { ...units[0], radius: 190, slope: 6.3, label: 'EW 54-190-1:6.3' }
+    const odd = { ...units[0], radius: 300, slope: 14, label: 'EW 54-300-1:14' }
     const res = placeMdbSwitches(payload, built.tracks, [odd])
     expect(res.switches).toHaveLength(0)
     expect(res.errors.join(' ')).toMatch(/keine Form im Weichenkatalog/)
   })
 
   it('leaves a note on the elements where it could not build the switch', () => {
-    const odd = { ...units[0], radius: 190, slope: 6.3, label: 'EW 54-190-1:6.3' }
+    const odd = { ...units[0], radius: 300, slope: 14, label: 'EW 54-300-1:14' }
     const res = placeMdbSwitches(payload, built.tracks, [odd])
     const noted = res.tracks.flatMap(t => t.elements.filter(el => el.switchHint))
     expect(noted.length).toBeGreaterThan(0)
-    expect(noted[0].switchHint).toMatch(/EW 54-190-1:6\.3/)
+    expect(noted[0].switchHint).toMatch(/EW 54-300-1:14/)
     expect(noted[0].switchHint).toMatch(/Weichenkatalog/)
   })
 
   it('never marks a note as a switch route — that would need a record', () => {
-    const odd = { ...units[0], radius: 190, slope: 6.3, label: 'EW 54-190-1:6.3' }
+    const odd = { ...units[0], radius: 300, slope: 14, label: 'EW 54-300-1:14' }
     const res = placeMdbSwitches(payload, built.tracks, [odd])
     // `parseProjectsPayload` refuses an element with switchBranch and no id.
     const noted = res.tracks.flatMap(t => t.elements.filter(el => el.switchHint))

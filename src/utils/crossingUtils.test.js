@@ -36,9 +36,11 @@ const dkw190 = CROSSING_TYPES.find(f => f.label === 'DKW 1:9 – 190')
 const dkw500 = CROSSING_TYPES.find(f => f.label === 'DKW 1:9 – 500')
 
 describe('the crossing form table', () => {
-  it('holds the six forms the dimensions name', () => {
+  it('holds the forms the dimensions name, and the one the inventory adds', () => {
     expect(CROSSING_TYPES.map(f => f.label)).toEqual([
-      'Kr 1:9', 'Kr 1:7.5',
+      // Kr 1:4.444 came from the delivered databases (fourteen of them), on the
+      // same end distance the other plain crossings are built with.
+      'Kr 1:9', 'Kr 1:4.444', 'Kr 1:7.5',
       'EKW 1:9 – 190', 'EKW 1:9 – 500',
       'DKW 1:9 – 190', 'DKW 1:9 – 500',
     ])

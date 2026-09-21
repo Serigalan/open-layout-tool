@@ -43,6 +43,57 @@ export const SWITCH_TYPES_ALT2 = [
     branch: [{ type: 'arc' }, { type: 'straight', length: 11.883 }] },
 ]
 
+// Forms the network carries that no connection proposes and no dialog offers:
+// they are here so an import can recognise what a database states, and they
+// stay out of SWITCH_TYPES so the connection solver's fallback chain and the
+// „Weiche aufs Gleis" picker keep the forms they were given.
+//
+// `215 – 1:4.8` is the symmetrical turnout (SYM): it does not have a through
+// route that runs on — **both** routes leave the toe on R = 215, one to each
+// side, each through half the frog angle. That is why it cannot be bent: the
+// form exists at that one stem radius and nowhere else, and laying it into any
+// other curve would make the two radii differ. Its geometry is therefore only
+// ever *read* here, never generated — which is exactly what an import does.
+//
+// `190 – 1:6.3` is the 190 – 1:7.5 with its arc carried on until the gradient
+// reaches 1:6.3, so it is that one arc and no straight end piece.
+//
+// Both: v = 40 km/h, minl = 6 m, `dLcs` = 0.30 m. The mark distance comes out
+// below the table's 0.30 + k · 0.60 grid for either — the formula gives −0.30
+// for the 1:6.3 and the 2.272 m spacing is reached 3 cm past the switch end of
+// the symmetrical one — so both sit on the grid's floor, where the confirmed
+// 190 – 1:7.5 sits for the same reason (Entscheidung 20).
+export const SWITCH_TYPES_INVENTORY = [
+  { label: '215 – 1:4.8', R: 215, ratio: 4.8, speed: 40, dLcs: 0.30, minl: 6, symmetric: true },
+  { label: '190 – 1:6.3', R: 190, ratio: 6.3, speed: 40, dLcs: 0.30, minl: 6 },
+]
+
+/**
+ * Distance from a form's switch end to its Weichenmarke [m] — the point where
+ * the two routes stand 2.272 m apart, rounded onto the table's own grid of
+ * 0.30 + k · 0.60 m.
+ *
+ *   w = atan(1/n),  sG1 = R · tan(w/2),  d = 2.272 / atan(w) − sG1
+ *
+ * The rule the Weichentabelle follows, handed over on 2026-09-21. It
+ * reproduces 185 – 1:7 (2.70), 300 – 1:9 (3.90), 500 – 1:12 (6.30) and
+ * 2500 – 1:26.5 (12.90) exactly. It does **not** reproduce three of the stored
+ * values: 190 – 1:9 (gives 9.90, table 3.90) and 190 – 1:7.5 (4.50, table
+ * 0.30) because it takes the branch for one arc and both of those carry a
+ * straight end piece that moves the switch end; and 760 – 1:14 (5.10, table
+ * 9.90) and 1200 – 1:18.5 (9.90, table 11), which are unexplained — the stored
+ * values stand until they are confirmed or corrected.
+ *
+ * Below the grid's first step the result is that step: a mark that would sit
+ * inside the switch is put as close to B1–B2 as the grid allows.
+ */
+export function switchMarkDistance(R, ratio) {
+  const w = Math.atan(1 / ratio)
+  const sG1 = R * Math.tan(w / 2)
+  const d = 2.272 / Math.atan(w) - sG1
+  return Math.max(0.30, Math.round((d - 0.30) / 0.60) * 0.60 + 0.30)
+}
+
 // ── Crossings and crossing switches (AP 3.2) ─────────────────────────────────
 //
 // The crossing kinds are not turnouts: their two routes cross instead of parting,
@@ -62,6 +113,7 @@ export const SWITCH_TYPES_ALT2 = [
 // absent; nothing that builds a crossing reads them.
 export const CROSSING_TYPES = [
   { kind: 'crossing',     label: 'Kr 1:9',      ratio: 9,   endDistance: 1.85 },
+  { kind: 'crossing',     label: 'Kr 1:4.444',  ratio: 4.444, endDistance: 1.85 },
   { kind: 'crossing',     label: 'Kr 1:7.5',    ratio: 7.5, endDistance: 1.85 },
   { kind: 'single_slip',  label: 'EKW 1:9 – 190',  ratio: 9, R: 190,  endDistance: 1.85 },
   { kind: 'single_slip',  label: 'EKW 1:9 – 500',  ratio: 9, R: 500,  endDistance: 1.85 },
@@ -71,7 +123,8 @@ export const CROSSING_TYPES = [
 
 /** Any switch form — turnout table, fallback or crossing — looked up by its label. */
 export function switchTypeByLabel(label) {
-  return [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2, ...CROSSING_TYPES]
+  return [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2,
+    ...SWITCH_TYPES_INVENTORY, ...CROSSING_TYPES]
     .find(t => t.label === label) ?? null
 }
 
@@ -114,7 +167,12 @@ export function switchStraightLength(type) {
  */
 export function switchBranchSections(type) {
   if (!type.branch) {
-    return [{ type: 'arc', R: type.R, length: switchArcLength(type.R, type.ratio) }]
+    // A symmetrical turnout parts into two arcs of the same radius, one to
+    // each side, and the frog angle is what they make *between them* — so each
+    // of them turns half of it. Its through route is that mirror image, not a
+    // straight, which is why `symmetric` shortens both.
+    const length = switchArcLength(type.R, type.ratio) / (type.symmetric ? 2 : 1)
+    return [{ type: 'arc', R: type.R, length }]
   }
   return type.branch.map((section) => {
     if (section.type === 'straight') return { type: 'straight', R: null, length: section.length }
