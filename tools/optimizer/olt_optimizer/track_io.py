@@ -89,18 +89,26 @@ def parse_groups(track):
     """Split a track into curve groups: straight – [T] – arc (– [T] – arc)* – [T] – straight.
 
     Compound curves (Korbbögen: several same-side arcs, optionally with
-    transitions between them) form one group. Raises SystemExit with a
-    readable message on unsupported topologies (e.g. S-curves without an
-    intermediate straight).
+    transitions between them) form one group.
+
+    Read is the stretch between the first straight and the last. A track may
+    well begin or end in a curve — that curve has no straight on its outer side
+    to run out on, so there is nothing to fit it between; it stays as it lies
+    and the optimizable stretch starts at the straight behind it.
+
+    Raises SystemExit with a readable message on unsupported topologies (e.g.
+    S-curves without an intermediate straight).
     """
     els = track.get("elements") or []
-    if len(els) < 3 or not is_straight(els[0]) or not is_straight(els[-1]):
-        raise SystemExit("Track muss mit Geraden beginnen und enden und Bögen enthalten.")
+    straights = [i for i, el in enumerate(els) if is_straight(el)]
+    if len(straights) < 2:
+        raise SystemExit("Track braucht mindestens zwei Geraden mit einem Bogen dazwischen.")
+    first, last = straights[0], straights[-1]
 
     groups = []
-    entry_idx = 0
-    i = 1
-    while i < len(els):
+    entry_idx = first
+    i = first + 1
+    while i <= last:
         if is_straight(els[i]):
             entry_idx = i
             i += 1
@@ -113,21 +121,21 @@ def parse_groups(track):
         else:
             t_idxs.append(None)
         while True:
-            if i >= len(els) or not is_arc(els[i]):
+            if i > last or not is_arc(els[i]):
                 raise SystemExit("Nicht unterstützte Elementfolge (Bögen müssen zwischen Geraden liegen).")
             arc_idxs.append(i)
             i += 1
-            if i < len(els) and is_transition(els[i]):
+            if i <= last and is_transition(els[i]):
                 t_idxs.append(i)
                 i += 1
-                if i < len(els) and is_arc(els[i]):
+                if i <= last and is_arc(els[i]):
                     continue
                 break
             t_idxs.append(None)
-            if i < len(els) and is_arc(els[i]):
+            if i <= last and is_arc(els[i]):
                 continue
             break
-        if i >= len(els) or not is_straight(els[i]):
+        if i > last or not is_straight(els[i]):
             raise SystemExit("Nicht unterstützte Elementfolge (Bögen müssen zwischen Geraden liegen).")
         signs = {els[k]["radius"] > 0 for k in arc_idxs}
         if len(signs) > 1:
@@ -222,10 +230,12 @@ def build_elements(track, groups, solutions, shifts):
     cuts = {}
     group_first = {}
     group_members = {}
+    in_group = set()
     for gi, (g, sol) in enumerate(zip(groups, solutions)):
         members = set(g["arc_idxs"]) | {k for k in g["t_idxs"] if k is not None}
         group_first[min(members)] = gi
         group_members[gi] = members
+        in_group |= members
         if sol is None:
             continue
         cuts.setdefault(g["entry_idx"], {})["end"] = sol["fit"]["cl_start"]
@@ -248,7 +258,10 @@ def build_elements(track, groups, solutions, shifts):
             continue
         gi = group_first.get(i)
         if gi is None:
-            continue   # non-first member of a group, emitted at its first index
+            if i in in_group:
+                continue         # emitted at its group's first index
+            out.append(dict(el))  # before the first straight or after the last
+            continue
         g, sol = groups[gi], solutions[gi]
         if sol is None:                        # unchanged group: copy originals
             for k in sorted(group_members[gi]):

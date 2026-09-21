@@ -12,7 +12,8 @@ Model:
 
 `baseline` reproduces the in-app per-curve search for simple groups (s = 0,
 u grid + R bisection); compound groups enter at their existing geometry.
-`joint_optimize` runs scipy differential_evolution over the full vector,
+`joint_optimize` sweeps windows along the track — a group plus whoever
+shares a straight with it — running scipy differential_evolution over each,
 warm-started and guarded so it never falls below the baseline. A cant u_i may
 only rise when the ramps on both sides of arc i exist.
 """
@@ -266,12 +267,19 @@ SWEEP_MAX_WINDOWS = 6
 POLISH_STEPS = 200
 
 
-def _interior_straights(groups, n_elements):
+def _interior_straights(groups):
+    """The straights a run may move sideways: the ones between two groups.
+
+    Not the two at the ends of the read stretch. They hold it where it was —
+    against the rest of the track, which is not read at all where it begins or
+    ends in a curve, and against the track's own end points otherwise.
+    """
+    first, last = groups[0]["entry_idx"], groups[-1]["exit_idx"]
     shared = set()
     for g in groups:
-        if g["entry_idx"] != 0:
+        if g["entry_idx"] != first:
             shared.add(g["entry_idx"])
-        if g["exit_idx"] != n_elements - 1:
+        if g["exit_idx"] != last:
             shared.add(g["exit_idx"])
     return sorted(shared)
 
@@ -372,7 +380,7 @@ def _objective(x, ctx):
     return -min(vs) + PENALTY * penalty
 
 
-def _window_context(groups, n_elements, params, held, held_shifts, live,
+def _window_context(groups, params, held, held_shifts, live,
                     target_gi=None, v_floors=None):
     """Everything one window's objective needs, plus its start vector and bounds."""
     # A straight a held group sits on must not move: that group's elements are
@@ -381,7 +389,7 @@ def _window_context(groups, n_elements, params, held, held_shifts, live,
     for j, g in enumerate(groups):
         if j not in live:
             frozen |= {g["entry_idx"], g["exit_idx"]}
-    straight_ids = [i for i in _interior_straights(groups, n_elements) if i not in frozen]
+    straight_ids = [i for i in _interior_straights(groups) if i not in frozen]
     ctx = {
         "groups": groups, "live": live, "held": held, "held_shifts": held_shifts,
         "straight_ids": straight_ids, "params": params,
@@ -439,7 +447,7 @@ def _run_window(ctx, x0, bounds, maxiter, seed, popsize):
     return solutions, shifts
 
 
-def joint_optimize(groups, n_elements, params, maxiter=150, seed=1, target_gi=None):
+def joint_optimize(groups, params, maxiter=150, seed=1, target_gi=None):
     window = window_for(groups, target_gi) if target_gi is not None else None
     base = baseline(groups, params, window=window, target_gi=target_gi)
     if all(sol is None for sol in base):
@@ -450,7 +458,7 @@ def joint_optimize(groups, n_elements, params, maxiter=150, seed=1, target_gi=No
 
     if target_gi is not None:
         live = [j for j in sorted(window) if base[j] is not None]
-        out = _run_window(*_window_context(groups, n_elements, params, base, {}, live,
+        out = _run_window(*_window_context(groups, params, base, {}, live,
                                            target_gi=target_gi, v_floors=v_floors),
                           maxiter, seed, SINGLE_POPSIZE)
         return (out[0], out[1], base) if out else (base, {}, base)
@@ -469,7 +477,7 @@ def joint_optimize(groups, n_elements, params, maxiter=150, seed=1, target_gi=No
         target = min(reachable, key=lambda j: solutions[j]["v"])
         live = [j for j in sorted(window_for(groups, target)) if solutions[j] is not None]
         before = min(solutions[j]["v"] for j in live)
-        out = _run_window(*_window_context(groups, n_elements, params, solutions, shifts, live),
+        out = _run_window(*_window_context(groups, params, solutions, shifts, live),
                           window_maxiter, seed, WINDOW_POPSIZE)
         if out is None:
             break

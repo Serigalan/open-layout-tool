@@ -39,8 +39,7 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
             window = window_for(grps, target_gi) if target_gi is not None else None
             sols = bas = baseline(grps, params, window=window, target_gi=target_gi)
             return sols, {}, bas
-        return joint_optimize(grps, len(track["elements"]), params,
-                              maxiter=maxiter, seed=seed, target_gi=target_gi)
+        return joint_optimize(grps, params, maxiter=maxiter, seed=seed, target_gi=target_gi)
 
     variants = []
     if uebergang in ("bestand", "auto"):

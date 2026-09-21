@@ -20,11 +20,12 @@ from olt_optimizer.geometry import (          # noqa: E402
     permissible_speed, max_dist_to_polyline, RAMP_FACTOR,
 )
 from olt_optimizer.track_io import (          # noqa: E402
-    parse_groups, build_elements, _straight_element, _transition_element,
-    _arc_element_seg, _element_ref_points,
+    parse_groups, build_elements, is_straight, _straight_element,
+    _transition_element, _arc_element_seg, _element_ref_points,
 )
 from olt_optimizer.optimize import (        # noqa: E402
     baseline, joint_optimize, u_max_for, uf_for, window_for, _bestand_solution,
+    _interior_straights,
 )
 from olt_optimizer.api import optimize_payload                # noqa: E402
 
@@ -148,7 +149,7 @@ ok("Baseline: Rampenregeln", all(
     s["trans_l"][0] >= RAMP_FACTOR[g["types"][0]] * s["v"] * s["us"][0] / 1000 - 1e-9
     for g, s in zip(groups, base)))
 
-solutions, shifts, _ = joint_optimize(groups, len(elements), params, maxiter=40, seed=1)
+solutions, shifts, _ = joint_optimize(groups, params, maxiter=40, seed=1)
 v_joint = min(s["v"] for s in solutions)
 print(f"   Joint {v_joint:.1f} km/h | Verschiebungen: "
       + (", ".join(f"#{k}: {v * 100:+.1f} cm" for k, v in shifts.items()) or "keine"))
@@ -198,7 +199,7 @@ ok("Sweeps aus Bestand rekonstruiert",
    abs(k_groups[0]["arcs"][0]["sweep_alt"] - 0.10) < 1e-6
    and abs(k_groups[0]["arcs"][1]["sweep_alt"] - kfit["thetas"][1]) < 1e-6)
 
-k_sols, k_shifts, k_base = joint_optimize(k_groups, len(k_els), params, maxiter=60, seed=1)
+k_sols, k_shifts, k_base = joint_optimize(k_groups, params, maxiter=60, seed=1)
 k_sol = k_sols[0]
 v_k_alt = min(permissible_speed(a["r_alt"], a["u_alt"], params["uf"]) for a in k_groups[0]["arcs"])
 print(f"   Korbbogen: Bestand {v_k_alt:.1f} → Joint {k_sol['v']:.1f} km/h | "
@@ -236,7 +237,7 @@ n_groups = parse_groups(n_track)
 ok("Direkt-Korbbogen: eine Gruppe, zwei Bögen, mittlere Rampe fehlt",
    len(n_groups) == 1 and len(n_groups[0]["arcs"]) == 2
    and n_groups[0]["has_t"] == [True, False, True])
-n_sols, n_shifts, _ = joint_optimize(n_groups, len(n_els), params, maxiter=25, seed=1)
+n_sols, n_shifts, _ = joint_optimize(n_groups, params, maxiter=25, seed=1)
 ok("Direkt-Korbbogen: Gruppe wird nicht gesperrt", n_sols[0] is not None)
 ok("Direkt-Korbbogen: Überhöhung bleibt, wo keine Rampe sie tragen kann",
    n_sols[0]["us"] == [80.0, 80.0])
@@ -269,7 +270,7 @@ t_bestand = _bestand_solution(t_groups[0], params)
 ok("Dreibogen: Bestand ist reproduzierbar", t_bestand is not None)
 ok(f"Dreibogen: Bestandslage trifft das Gleis ({(t_bestand or {}).get('offset', 9) * 100:.3f} cm)",
    t_bestand is not None and t_bestand["offset"] < 1e-4)
-t_sols, t_shifts, _ = joint_optimize(t_groups, len(t_els), params, maxiter=25, seed=1)
+t_sols, t_shifts, _ = joint_optimize(t_groups, params, maxiter=25, seed=1)
 ok("Dreibogen: Gruppe wird nicht gesperrt", t_sols[0] is not None)
 v_t_alt = min(permissible_speed(a["r_alt"], a["u_alt"], params["uf"]) for a in t_groups[0]["arcs"])
 ok("Dreibogen: nie schlechter als der Bestand", t_sols[0]["v"] >= v_t_alt - 1e-6)
@@ -279,7 +280,7 @@ ok("Dreibogen: alle drei Bögen gleiche Richtung",
    len({el["radius"] > 0 for el in t_new if el["elementType"] == 1}) == 1)
 # Im weiteren Korridor bewegt sich die Gruppe auch wirklich — sonst sagte der
 # Test oben nur, dass nichts passiert.
-t_wide, _, _ = joint_optimize(parse_groups(t_track), len(t_els),
+t_wide, _, _ = joint_optimize(parse_groups(t_track),
                               {"corridor": 5.0, "uf": 130.0}, maxiter=40, seed=1)
 print(f"   Dreibogen: Bestand {v_t_alt:.1f} → 50 cm {t_sols[0]['v']:.1f} → 5 m {t_wide[0]['v']:.1f} km/h")
 ok("Dreibogen: im weiten Korridor wird er schneller", t_wide[0]["v"] > v_t_alt + 1)
@@ -386,7 +387,7 @@ ok("Weiche: Baseline überhöht höchstens 100 mm", all(u <= 100.0 for u in sw_b
 ok("Weiche: gleiche Geometrie, aber weniger v als die Streckengruppe",
    sw_base[0]["v"] < base[0]["v"])
 
-sw_sols, _, _ = joint_optimize(sw_groups, len(sw_elements), params, maxiter=40, seed=1)
+sw_sols, _, _ = joint_optimize(sw_groups, params, maxiter=40, seed=1)
 ok("Weiche: auch die Joint-Optimierung bleibt unter 100 mm",
    all(u <= 100.0 for u in sw_sols[0]["us"]))
 
@@ -399,6 +400,59 @@ over_base = baseline(over_groups, params)
 ok("Weiche: Bestandsüberhöhung über der Grenze bleibt unverändert stehen",
    over_groups[0]["arcs"][0]["u_alt"] == 120.0
    and (over_base[0] is None or over_base[0]["us"] == [120.0]))
+
+# ── 7) Track, der im Bogen beginnt oder endet ────────────────────────────────
+# Gelesen wird die Strecke zwischen der ersten und der letzten Geraden. Ein
+# Randbogen hat außen keine Gerade, zwischen die er zu passen wäre — er bleibt
+# liegen, und die Optimierung fängt an der Geraden dahinter an.
+full = elements3                      # G ÜB B ÜB G ÜB B ÜB G ÜB B ÜB G (3 Bögen)
+EDGE = {
+    "beginnt im Bogen": full[1:],
+    "endet im Bogen": full[:-1],
+    "beidseitig im Bogen": full[1:-1],
+}
+for label, sub in EDGE.items():
+    e_track = {**track3, "id": f"py-rand-{label}", "elements": [dict(el) for el in sub]}
+    e_groups = parse_groups(e_track)
+    ok(f"{label}: wird angenommen", len(e_groups) >= 1)
+    ok(f"{label}: liest erst ab der ersten Geraden",
+       is_straight(sub[e_groups[0]["entry_idx"]]) and is_straight(sub[e_groups[-1]["exit_idx"]])
+       and all(not is_straight(el) for el in sub[:e_groups[0]["entry_idx"]])
+       and all(not is_straight(el) for el in sub[e_groups[-1]["exit_idx"] + 1:]))
+    e_res = optimize_payload(e_track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+                             maxiter=25, seed=1)
+    e_new = e_res["elements"]
+    ok(f"{label}: kein Element geht verloren", len(e_new) == len(sub))
+    check_chain(e_new, label)
+    ok(f"{label}: Endpunkte fix",
+       close_pt(e_new[0]["startNode"], sub[0]["startNode"])
+       and close_pt(e_new[-1]["endNode"], sub[-1]["endNode"]))
+    # Der ungelesene Randbogen ist nicht nur angeschlossen, er ist derselbe.
+    head, tail = e_groups[0]["entry_idx"], e_groups[-1]["exit_idx"]
+    ok(f"{label}: der Randbogen bleibt, wie er liegt",
+       all(close_pt(a["startNode"], b["startNode"]) and close_pt(a["endNode"], b["endNode"])
+           for a, b in zip(e_new[:head], sub[:head]))
+       and all(close_pt(a["startNode"], b["startNode"]) and close_pt(a["endNode"], b["endNode"])
+               for a, b in zip(e_new[tail + 1:], sub[tail + 1:])))
+    ok(f"{label}: die gelesene Strecke wird schneller",
+       e_res["vNeu"] > e_res["vBestand"] + 1)
+
+# Die Randgeraden der gelesenen Strecke dürfen nicht wandern — an ihnen hängt,
+# was nicht gelesen wurde.
+head_track = {**track3, "id": "py-rand-fest", "elements": [dict(el) for el in full[1:]]}
+head_groups = parse_groups(head_track)
+ok("Randgerade der gelesenen Strecke ist keine Verschiebegerade",
+   head_groups[0]["entry_idx"] not in _interior_straights(head_groups)
+   and head_groups[-1]["exit_idx"] not in _interior_straights(head_groups))
+
+for label, els_bad in (("nur eine Gerade", [dict(full[0])]),
+                       ("gar keine Gerade", [dict(el) for el in full[1:4]])):
+    try:
+        parse_groups({**track3, "elements": els_bad})
+        ok(f"{label} → abgelehnt", False)
+    except SystemExit as exc:
+        ok(f"{label} → abgelehnt mit lesbarem Satz", "Geraden" in str(exc))
+
 
 print()
 sys.exit(1 if FAILED else 0)
