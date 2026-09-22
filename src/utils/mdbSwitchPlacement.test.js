@@ -43,7 +43,9 @@ describe('switchTypeFor', () => {
   })
 
   it('has none for a form the table does not carry', () => {
-    expect(switchTypeFor({ radius: 300, slope: 14 })).toBeNull()
+    // 300 – 1:14 used to be the example here and is a Sonderbauform of the
+    // catalogue since 2026-09-22 — 400 – 1:11 is in no table of the Ril.
+    expect(switchTypeFor({ radius: 400, slope: 11 })).toBeNull()
     expect(switchTypeFor({ radius: null, slope: 9 })).toBeNull()
   })
 })
@@ -141,23 +143,23 @@ describe('placeMdbSwitches', () => {
   })
 
   it('reports a form the table does not carry rather than rounding to the nearest', () => {
-    const odd = { ...units[0], radius: 300, slope: 14, label: 'EW 54-300-1:14' }
+    const odd = { ...units[0], radius: 400, slope: 11, label: 'EW 54-400-1:11' }
     const res = placeMdbSwitches(payload, built.tracks, [odd])
     expect(res.switches).toHaveLength(0)
     expect(res.errors.join(' ')).toMatch(/keine Form im Weichenkatalog/)
   })
 
   it('leaves a note on the elements where it could not build the switch', () => {
-    const odd = { ...units[0], radius: 300, slope: 14, label: 'EW 54-300-1:14' }
+    const odd = { ...units[0], radius: 400, slope: 11, label: 'EW 54-400-1:11' }
     const res = placeMdbSwitches(payload, built.tracks, [odd])
     const noted = res.tracks.flatMap(t => t.elements.filter(el => el.switchHint))
     expect(noted.length).toBeGreaterThan(0)
-    expect(noted[0].switchHint).toMatch(/EW 54-300-1:14/)
+    expect(noted[0].switchHint).toMatch(/EW 54-400-1:11/)
     expect(noted[0].switchHint).toMatch(/Weichenkatalog/)
   })
 
   it('never marks a note as a switch route — that would need a record', () => {
-    const odd = { ...units[0], radius: 300, slope: 14, label: 'EW 54-300-1:14' }
+    const odd = { ...units[0], radius: 400, slope: 11, label: 'EW 54-400-1:11' }
     const res = placeMdbSwitches(payload, built.tracks, [odd])
     // `parseProjectsPayload` refuses an element with switchBranch and no id.
     const noted = res.tracks.flatMap(t => t.elements.filter(el => el.switchHint))

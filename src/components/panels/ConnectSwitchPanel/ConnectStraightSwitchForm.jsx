@@ -13,6 +13,7 @@ import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
 import SwitchNumberField from '../SwitchNumberField'
 import SwitchCantField from './SwitchCantField'
+import SwitchFormField from './SwitchFormField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
 import {
@@ -20,7 +21,7 @@ import {
   switchCantError, MAX_SWITCH_CANT_DEF,
 } from '../../../utils/mapConstants'
 import {
-  SWITCH_TYPES, switchBranchLength, computeSwitchGeometryUtm, asRadius, branchRadius, bauform,
+  SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, computeSwitchGeometryUtm, asRadius, branchRadius, bauform,
 } from '../../../utils/switchUtils'
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
@@ -57,16 +58,16 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
   const switchName                      = switchNo.name
   const [phase, setPhase]               = useState('select')
   const [anchor, setAnchor]             = useState(null)   // { startUtm, bearing, startWgs } of the picked element end
-  const [switchTypeIdx, setSwitchTypeIdx] = useState(2)
+  const [switchTypeIdx, setSwitchTypeIdx] = useState(DEFAULT_SWITCH_TYPE_IDX)
   const [side, setSide]                 = useState('left')
   const [trailing, setTrailing]         = useState(false)
-  const [speed, setSpeed]               = useState(SWITCH_TYPES[2].speed)
+  const [speed, setSpeed]               = useState(SWITCH_PICK_TYPES[DEFAULT_SWITCH_TYPE_IDX].speed)
   const [stemInput, setStemInput]       = useState('')   // stem radius of a bent switch [m], signed
 
   // Bending the switch decides its radii before anything else can be said about
   // it: the branch takes the stem's curvature on top of the form's, so it comes
   // out tighter (inner-bent), wider or even straight (outer-bent).
-  const currentSw     = SWITCH_TYPES[switchTypeIdx]
+  const currentSw     = SWITCH_PICK_TYPES[switchTypeIdx]
   const stemSigned    = curved ? asRadius(Number(stemInput)) : null
   const stemAtToe     = stemSigned == null ? null : (trailing ? -stemSigned : stemSigned)
   const formSignedR   = side === 'left' ? -currentSw.R : currentSw.R
@@ -153,7 +154,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
       // Before a pick there is no entered stem radius yet, so the hover shows
       // the switch bent into the element it would sit on.
       const stem   = curved ? endRadiusOf(el) : null
-      const geom   = computeSwitchGeometryUtm(endUtm, brg, SWITCH_TYPES[switchTypeIdxRef.current], sideRef.current, trailingRef.current, endWgs, stem)
+      const geom   = computeSwitchGeometryUtm(endUtm, brg, SWITCH_PICK_TYPES[switchTypeIdxRef.current], sideRef.current, trailingRef.current, endWgs, stem)
       m.getSource(SWITCH_LINES_SOURCE)?.setData(buildLinesGeoJSON(geom))
       m.getSource(SWITCH_FILL_SOURCE)?.setData(buildFillGeoJSON(geom))
     }
@@ -230,14 +231,14 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
   useEffect(() => {
     if (phase !== 'editing' || !map?.current || !startWgsRef.current) return
     const m    = map.current
-    const geom = computeSwitchGeometryUtm(startUtmRef.current, bearingRef.current, SWITCH_TYPES[switchTypeIdx], side, trailing, startWgsRef.current, stemSigned)
+    const geom = computeSwitchGeometryUtm(startUtmRef.current, bearingRef.current, SWITCH_PICK_TYPES[switchTypeIdx], side, trailing, startWgsRef.current, stemSigned)
     m.getSource(SWITCH_LINES_SOURCE)?.setData(buildLinesGeoJSON(geom))
     m.getSource(SWITCH_FILL_SOURCE)?.setData(buildFillGeoJSON(geom))
   }, [phase, switchTypeIdx, side, trailing, stemSigned, map])
 
   const handleSwitchTypeChange = (idx) => {
     setSwitchTypeIdx(idx)
-    setSpeed(SWITCH_TYPES[idx].speed)
+    setSpeed(SWITCH_PICK_TYPES[idx].speed)
   }
 
   const clearPreview = () => {
@@ -274,7 +275,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
     if (!switchNo.claim()) hasError = true
     if (hasError) return
 
-    const sw          = SWITCH_TYPES[switchTypeIdx]
+    const sw          = SWITCH_PICK_TYPES[switchTypeIdx]
     const sourceTrack = sourceTrackRef.current
     if (!sourceTrack || !startWgsRef.current) return
 
@@ -426,14 +427,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
 
       <div className="element-form">
         <span className="create-element-section">Geometry Data</span>
-        <div className="form-field">
-          <label>{t('switch_form')}</label>
-          <select value={switchTypeIdx} onChange={e => handleSwitchTypeChange(Number(e.target.value))}>
-            {SWITCH_TYPES.map((sw, i) => (
-              <option key={i} value={i}>{sw.label}</option>
-            ))}
-          </select>
-        </div>
+        <SwitchFormField t={t} value={switchTypeIdx} onChange={handleSwitchTypeChange} />
         <div className="form-field">
           <label>{t('switch_side')}</label>
           <select value={side} onChange={e => setSide(e.target.value)}>

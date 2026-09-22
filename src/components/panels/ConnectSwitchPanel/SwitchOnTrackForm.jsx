@@ -8,7 +8,7 @@ import {
 import { wgs84ToUTM, utmToWgs84 } from '../../../utils/coordinateUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
-  SWITCH_TYPES, switchBranchLength, switchStraightLength, computeSwitchGeometryUtm, switchRouteVaries,
+  SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, switchStraightLength, computeSwitchGeometryUtm, switchRouteVaries,
 } from '../../../utils/switchUtils'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { placeSwitchOnTrack, clickStation } from '../../../utils/switchPlacement'
@@ -26,6 +26,7 @@ import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
 import SwitchNumberField from '../SwitchNumberField'
 import SwitchCantField from './SwitchCantField'
+import SwitchFormField from './SwitchFormField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
 import {
@@ -90,10 +91,10 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
   const [phase, setPhase]           = useState('select')
   const [pick, setPick]             = useState(null)   // { trackId }
   const [station, setStation]       = useState('')     // toe position along the track [m]
-  const [switchTypeIdx, setTypeIdx] = useState(2)
+  const [switchTypeIdx, setTypeIdx] = useState(DEFAULT_SWITCH_TYPE_IDX)
   const [side, setSide]             = useState('left')
   const [reversed, setReversed]     = useState(false)  // switch opens against the track direction
-  const [speed, setSpeed]           = useState(SWITCH_TYPES[2].speed)
+  const [speed, setSpeed]           = useState(SWITCH_PICK_TYPES[DEFAULT_SWITCH_TYPE_IDX].speed)
   // Cant follows speed/switch type unless the user overrode it for exactly that
   // combination — derived instead of set from an effect.
   const [cantEdit, setCantEdit]     = useState(null)   // { key, value }
@@ -138,7 +139,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
 
   // ── Derived geometry for the current settings ─────────────────────────────
   const track = pick ? loadTracks(project.id).find(tr => tr.id === pick.trackId) : null
-  const sw    = SWITCH_TYPES[switchTypeIdx]
+  const sw    = SWITCH_PICK_TYPES[switchTypeIdx]
   const toeStation  = Number(station)
   const straightLen = switchStraightLength(sw)
   const arcLen      = switchBranchLength(sw)
@@ -374,15 +375,9 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
           <label>{t('switch_on_track_elements')}</label>
           <input type="text" readOnly value={elementsText} />
         </div>
-        <div className="form-field">
-          <label>{t('switch_form')}</label>
-          <select value={switchTypeIdx} onChange={e => {
-            const i = Number(e.target.value)
-            setTypeIdx(i); setSpeed(SWITCH_TYPES[i].speed)
-          }}>
-            {SWITCH_TYPES.map((s, i) => <option key={i} value={i}>{s.label}</option>)}
-          </select>
-        </div>
+        <SwitchFormField t={t} value={switchTypeIdx} onChange={i => {
+          setTypeIdx(i); setSpeed(SWITCH_PICK_TYPES[i].speed)
+        }} />
         <div className="form-field">
           <label>{t('switch_side')}</label>
           <select value={side} onChange={e => setSide(e.target.value)}>

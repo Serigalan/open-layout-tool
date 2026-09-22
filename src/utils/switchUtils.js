@@ -7,72 +7,82 @@ import {
 import { elementBelongsToSwitch, isLinkSwitch } from './switchModel'
 import { linkSymbol } from './trackLinkUtils'
 
-// minl = minimum intermediate straight between two turnouts in a crossover [m].
-// `branch` states a form whose branch is more than the one arc: the sections it
-// is built from, in order from the toe (see switchBranchSections). A form
-// without one is that single arc, which is what most of them are.
+// The form tables are not written here any more: they are this repo's
+// rendering of DB Ril 800.0120 — src/constraints/db-ril-800-0120.json — and
+// this module only picks out of it what the geometry needs. A form *is* its
+// catalogue entry, not a copy shaped for the drawing code, so a measure
+// changed in the file is changed everywhere the form is drawn, listed or
+// exported.
 //
-// Primary table — checked first by the switch-connection calculation. Within a
-// speed the flatter form comes first: the sharper one is what the connection
-// falls back to when the flatter one cannot reach its minl.
-export const SWITCH_TYPES = [
-  { label: '190 – 1:9',     R: 190,  ratio: 9,    speed: 40,  dLcs: 3.9,  minl: 6,
-    branch: [{ type: 'arc' }, { type: 'straight', length: 6.092 }] },
-  { label: '190 – 1:7.5',   R: 190,  ratio: 7.5,  speed: 40,  dLcs: 0.30, minl: 6,
-    branch: [{ type: 'arc' }, { type: 'straight', length: 0.640 }] },
-  { label: '300 – 1:9',     R: 300,  ratio: 9,    speed: 50,  dLcs: 3.9,  minl: 5  },
-  { label: '500 – 1:12',    R: 500,  ratio: 12,   speed: 60,  dLcs: 6.3,  minl: 6  },
-  { label: '760 – 1:14',    R: 760,  ratio: 14,   speed: 80,  dLcs: 9.9,  minl: 12 },
-  { label: '1200 – 1:18.5', R: 1200, ratio: 18.5, speed: 100, dLcs: 11,   minl: 15 },
-  { label: '2500 – 1:26.5', R: 2500, ratio: 26.5, speed: 130, dLcs: 12.9, minl: 26 },
-]
+// What the geometry below reads of an entry: `R` and `ratio` make the body,
+// `branch` states a form whose branch is more than the one arc (its sections in
+// order from the toe, see switchBranchSections), `symmetric` says the form has
+// no through route at all, `dLcs` is the Weichenmarke [m] and `minl` the
+// minimum intermediate straight a connection needs between two turnouts [m].
+import KATALOG from '../constraints/db-ril-800-0120.json'
 
-// First fallback — used when a primary type cannot reach its minl for the spacing.
-export const SWITCH_TYPES_ALT1 = [
-  { label: '300 – 1:9.4',     R: 300,  ratio: 9.4,    speed: 50,  dLcs: 3.90, minl: 5,
-    branch: [{ type: 'arc' }, { type: 'straight', length: 1.4060 }] },
-  { label: '500 – 1:14',      R: 500,  ratio: 14,     speed: 60,  dLcs: 6.3,  minl: 6,
-    branch: [{ type: 'arc' }, { type: 'straight', length: 9.274 }] },
-  { label: '760 – 1:15',      R: 760,  ratio: 15,     speed: 80,  dLcs: 5.10, minl: 12,
-    branch: [{ type: 'arc' }, { type: 'straight', length: 3.6062 }] },
-  { label: '1200 – 1:19.277', R: 1200, ratio: 19.277, speed: 100, dLcs: 9.96, minl: 15,
-    branch: [{ type: 'arc' }, { type: 'straight', length: 2.6090 }] },
-]
+/** The rulebook itself, for a viewer or a test that wants more than the forms. */
+export { KATALOG as WEICHEN_KATALOG }
 
-// Second fallback — used when both the primary and ALT1 type fail.
-export const SWITCH_TYPES_ALT2 = [
-  { label: '760 – 1:18.5', R: 760, ratio: 18.5, speed: 80, dLcs: 9.9, minl: 12,
-    branch: [{ type: 'arc' }, { type: 'straight', length: 11.883 }] },
-]
+const FORMEN = KATALOG.formen
+const turnouts = (klasse) => FORMEN.filter(form => form.art === 'weiche' && form.klasse === klasse)
 
-// Forms the network carries that no connection proposes and no dialog offers:
-// they are here so an import can recognise what a database states, and they
-// stay out of SWITCH_TYPES so the connection solver's fallback chain and the
-// „Weiche aufs Gleis" picker keep the forms they were given.
-//
-// `215 – 1:4.8` is the symmetrical turnout (SYM): it does not have a through
-// route that runs on — **both** routes leave the toe on R = 215, one to each
-// side, each through half the frog angle. That is why it cannot be bent: the
-// form exists at that one stem radius and nowhere else, and laying it into any
-// other curve would make the two radii differ. Its geometry is therefore only
-// ever *read* here, never generated — which is exactly what an import does.
-//
-// `190 – 1:6.3` is the 190 – 1:7.5 with its arc carried on until the gradient
-// reaches 1:6.3, so it is that one arc and no straight end piece.
-//
-// Both: v = 40 km/h, minl = 6 m, `dLcs` = 0.30 m. The mark distance comes out
-// below the table's 0.30 + k · 0.60 grid for either — the formula gives −0.30
-// for the 1:6.3 and the 2.272 m spacing is reached 3 cm past the switch end of
-// the symmetrical one — so both sit on the grid's floor, where the confirmed
-// 190 – 1:7.5 sits for the same reason (Entscheidung 20).
-export const SWITCH_TYPES_INVENTORY = [
-  { label: '215 – 1:4.8', R: 215, ratio: 4.8, speed: 40, dLcs: 0.30, minl: 6, symmetric: true },
-  { label: '190 – 1:6.3', R: 190, ratio: 6.3, speed: 40, dLcs: 0.30, minl: 6 },
-]
+/**
+ * The turnout forms the Ril calls Regelformen (A01) — what a dialog offers
+ * first. `215 – 1:4.8`, the symmetrical turnout, is one of them: the Ril plans
+ * it, so the app does too, and it is no longer a form that is merely
+ * recognised on import.
+ */
+export const SWITCH_TYPES = turnouts('regel')
+
+/**
+ * The Sonderbauformen (A02) — their own group in every picker, beside the
+ * Regelformen rather than hidden behind them.
+ */
+export const SWITCH_TYPES_SPECIAL = turnouts('sonderbauform')
+
+/**
+ * Every turnout form a dialog offers, Regelformen first and the
+ * Sonderbauformen behind them — the list a picker indexes into and the order
+ * it draws them in, in the Ril's own two groups.
+ */
+export const SWITCH_PICK_TYPES = [...SWITCH_TYPES, ...SWITCH_TYPES_SPECIAL]
+
+/**
+ * What a picker starts on: `300 – 1:9`, the form the dialogs have opened with
+ * since they had one table. Found by name, not by position — AP 3.1 dropped a
+ * form and shifted every index behind it once already.
+ */
+export const DEFAULT_SWITCH_TYPE_IDX =
+  SWITCH_PICK_TYPES.findIndex(form => form.label === '300 – 1:9')
+
+/**
+ * The stages a switch connection falls back through, and the order within
+ * each: `verbindung` on the form, which the catalogue marks as this tool's own
+ * decision rather than the Ril's. A form without one is never chosen by a
+ * connection — the symmetrical turnout has no through route, and a crossover
+ * needs one on both sides.
+ */
+const stage = (n) => FORMEN
+  .filter(form => form.verbindung?.stufe === n)
+  .sort((a, b) => a.verbindung.rang - b.verbindung.rang)
+export const SWITCH_CONNECTION_STAGES = [stage(1), stage(2), stage(3)]
+
+/** First and second fallback, under the names the connection calculation knows. */
+export const SWITCH_TYPES_ALT1 = SWITCH_CONNECTION_STAGES[1]
+export const SWITCH_TYPES_ALT2 = SWITCH_CONNECTION_STAGES[2]
+
+/** Every turnout form, whatever its class — what an import matches a record against. */
+export const ALL_SWITCH_TYPES = FORMEN.filter(form => form.art === 'weiche')
 
 /**
  * Distance from a form's switch end to its Weichenmarke [m], rounded onto the
  * table's own grid of 0.30 + k · 0.60 m.
+ *
+ * **The table binds.** Where a form states a `dLcs`, that value is the mark —
+ * this construction is only ever the fallback for a form that states none
+ * (delivered 2026-09-22), which is why nothing in the app calls it for a form
+ * out of the tables above.
  *
  *   d = 2.272 · n − (l_t + g),   l_t = R · tan(w/2),  w = atan(1/n)
  *
@@ -132,27 +142,18 @@ export function switchMarkDistance(type) {
 // Several of them are the crossing that two turnouts of one form make:
 // 1:4.444 = 2 × 1:9, 1:3.683 = 2 × 1:7.5, 1:6.964 = 2 × 1:14,
 // 1:3.224 = 2 × 1:6.6, 1:2.9 = 3 × 1:9.
-export const CROSSING_TYPES = [
-  { kind: 'crossing', label: 'Kr 1:2.9',   ratio: 2.9,   lt: 6.9040,  speed: 40 },
-  { kind: 'crossing', label: 'Kr 1:3.224', ratio: 3.224, lt: 7.9200,  speed: 80 },
-  { kind: 'crossing', label: 'Kr 1:3.683', ratio: 3.683, lt: 9.4480,  speed: 80,  dLcs: -0.87 },
-  { kind: 'crossing', label: 'Kr 1:4.444', ratio: 4.444, lt: 10.9035, speed: 80,  dLcs: -1.48 },
-  { kind: 'crossing', label: 'Kr 1:5.5',   ratio: 5.5,   lt: 10.7000, speed: 80,  dLcs: 1.50 },
-  { kind: 'crossing', label: 'Kr 1:6.6',   ratio: 6.6,   lt: 12.2390, speed: 80,  dLcs: 2.65 },
-  { kind: 'crossing', label: 'Kr 1:6.964', ratio: 6.964, lt: 12.6900, speed: 80,  dLcs: 3.30 },
-  { kind: 'crossing', label: 'Kr 1:7.5',   ratio: 7.5,   lt: 13.2510, speed: 80,  dLcs: 3.30 },
-  { kind: 'crossing', label: 'Kr 1:9',     ratio: 9,     lt: 16.6155, speed: 100, dLcs: 3.90 },
-  { kind: 'single_slip',  label: 'EKW 1:9 – 190',  ratio: 9, R: 190 },
-  { kind: 'single_slip',  label: 'EKW 1:9 – 500',  ratio: 9, R: 500 },
-  { kind: 'double_slip',  label: 'DKW 1:9 – 190',  ratio: 9, R: 190 },
-  { kind: 'double_slip',  label: 'DKW 1:9 – 500',  ratio: 9, R: 500 },
-]
+// Two more were delivered on 2026-09-22 (Kr 1:14 and Kr 1:18.5), and the four
+// crossing switches now state a speed per route (`routen`) instead of none at
+// all: 100 km/h over the through route, 40 or 60 over the connecting curves.
+export const CROSSING_TYPES = FORMEN.filter(form => form.art === 'kreuzung')
 
-/** Any switch form — turnout table, fallback or crossing — looked up by its label. */
+/**
+ * Any form — turnout or crossing, Regelform or Sonderbauform — looked up by its
+ * label. The label is the key a saved project keeps, which is why the
+ * catalogue states outright that a label is never renamed.
+ */
 export function switchTypeByLabel(label) {
-  return [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2,
-    ...SWITCH_TYPES_INVENTORY, ...CROSSING_TYPES]
-    .find(t => t.label === label) ?? null
+  return FORMEN.find(form => form.label === label) ?? null
 }
 
 /** Length of the arc a form turns its frog angle through. */

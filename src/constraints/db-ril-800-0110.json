@@ -2,13 +2,10 @@
   "catalog": {
     "id": "db-ril-800-0110",
     "title": "DB Ril 800.0110 | Linienführung",
-    "version": "3.0",
-    "gueltig_ab": "2021-02-01",
-    "katalog_version": "0.2.0",
+    "katalog_version": "0.3.0",
     "status": "draft",
     "date": "2026-09-22",
     "language": "de",
-    "based_on": "Leitfaden Trassierung (Jonathan Wolf)",
     "scope": {
       "included": [
         "Gerade",
@@ -27,6 +24,19 @@
 
   "changelog": [
     {
+      "version": "0.3.0",
+      "date": "2026-09-22",
+      "changes": [
+        "Mindestelementlängen und die 7,2 m Zwischengerade aus der Ril bestätigt (S. 7, Abs. 6 (2)); OP.07 erledigt",
+        "Vergleichsradius bestätigt: wo die Tabelle einen Wert führt, gilt immer der Tabellenwert; OP.01 erledigt",
+        "LP.KB.02: Regelwert ist immer u_f = 130 mm, die 150 mm über 150 km/h sind eine Ermessensgrenze; OP.11 erledigt",
+        "LP.KB.04: Regelüberhöhung als Regelwert bestätigt (S. 10, Abs. 7 (4))",
+        "Leitfaden als Herkunftsangabe entfernt — Quelle ist die Ril selbst",
+        "Fassung und Gültigkeitsdatum der Ril entfallen: versioniert wird diese maschinenlesbare Fassung, nicht die Richtlinie",
+        "LP.KB.03 führt das 5-mm-Raster als benannten Schwellenwert step, damit App und Optimierer es lesen statt es zu kennen"
+      ]
+    },
+    {
       "version": "0.2.0",
       "date": "2026-09-22",
       "changes": [
@@ -43,9 +53,7 @@
   "sources": [
     {
       "id": "RIL_800_0110",
-      "title": "DB Ril 800.0110 Linienführung",
-      "version": "3.0",
-      "gueltig_ab": "2021-02-01"
+      "title": "DB Ril 800.0110 Linienführung"
     }
   ],
 
@@ -198,7 +206,7 @@
         { "key_min_exclusive": 100, "key_max": 300, "expr": "0.2 * v" }
       ],
       "out_of_range": "error",
-      "open_point": "OP.07"
+      "source": { "ref": "RIL_800_0110", "section": "S. 7, Abs. 6 (2)" }
     },
     "comparison_radius": {
       "title": "Mindest-Vergleichsradius bei Krümmungssprüngen",
@@ -223,7 +231,7 @@
         }
       },
       "out_of_range": "error",
-      "open_point": "OP.01",
+      "source": { "ref": "RIL_800_0110", "section": null },
       "rows": [
         { "v": 40, "reg": 220, "discretion": 178 },
         { "v": 50, "reg": 340, "discretion": 278 },
@@ -294,9 +302,8 @@
         { "if": "l >= l_min", "severity": "ok" },
         { "else": "error" }
       ],
-      "source": { "ref": "RIL_800_0110", "section": null },
-      "status": "assumption",
-      "open_point": "OP.07"
+      "source": { "ref": "RIL_800_0110", "section": "S. 7, Abs. 6 (2)" },
+      "status": "confirmed"
     },
     {
       "id": "LP.EL.02",
@@ -316,9 +323,8 @@
         { "else": "error" }
       ],
       "notes": ["Gilt nur bei genau 40 km/h. Für gleichgerichtete Bögen gilt LP.EL.01 (4 m)."],
-      "source": { "ref": "RIL_800_0110", "section": null },
-      "status": "assumption",
-      "open_point": "OP.07"
+      "source": { "ref": "RIL_800_0110", "section": "S. 7, Abs. 6 (2)" },
+      "status": "confirmed"
     },
     {
       "id": "LP.KB.01",
@@ -346,16 +352,20 @@
         "u_f": { "from": "physics.u_f", "unit": "mm" }
       },
       "thresholds": {
-        "max": { "expr": "if(v > 150, 150, 130)", "unit": "mm" }
+        "reg": { "expr": "130", "unit": "mm" },
+        "discretion": { "expr": "if(v > 150, 150, 130)", "unit": "mm" }
       },
       "evaluation": [
-        { "if": "u_f <= max", "severity": "ok" },
+        { "if": "u_f <= reg", "severity": "ok" },
+        { "if": "u_f <= discretion", "severity": "warning" },
         { "else": "error" }
       ],
-      "notes": ["Ersetzt die bisherige Mindestradius-Tabelle; R_min ist daraus ableitbar."],
+      "notes": [
+        "Ersetzt die bisherige Mindestradius-Tabelle; R_min ist daraus ableitbar.",
+        "Der Regelwert ist bei jeder Geschwindigkeit 130 mm. Über 150 km/h dürfen im Ermessen bis zu 150 mm ausgeschöpft werden; bis 150 km/h fallen Regelwert und Ermessensgrenze zusammen, die Warnstufe bleibt dort also leer."
+      ],
       "source": { "ref": "RIL_800_0110", "section": null },
-      "status": "assumption",
-      "open_point": "OP.11"
+      "status": "confirmed"
     },
     {
       "id": "LP.KB.03",
@@ -364,8 +374,11 @@
       "inputs": {
         "u": { "from": "element.cant", "unit": "mm" }
       },
+      "thresholds": {
+        "step": { "expr": "5", "unit": "mm" }
+      },
       "evaluation": [
-        { "if": "u >= 0 and u % 5 == 0", "severity": "ok" },
+        { "if": "u >= 0 and u % step == 0", "severity": "ok" },
         { "else": "error" }
       ],
       "notes": ["u >= 0: negative Überhöhung wird nicht behandelt."],
@@ -389,7 +402,7 @@
         { "else": "hint" }
       ],
       "notes": ["u ist frei wählbar; die Regel meldet nur die Abweichung von u_reg. u_reg wird auf den jeweiligen Regelwert der Überhöhung begrenzt."],
-      "source": { "ref": "RIL_800_0110", "section": null },
+      "source": { "ref": "RIL_800_0110", "section": "S. 10, Abs. 7 (4)" },
       "status": "confirmed"
     },
     {
@@ -627,8 +640,7 @@
       ],
       "notes": ["Über 200 km/h liefert die Tabelle keinen Wert; ein Krümmungssprung ist dann ein Fehler."],
       "source": { "ref": "RIL_800_0110", "section": null },
-      "status": "confirmed",
-      "open_point": "OP.01"
+      "status": "confirmed"
     },
     {
       "id": "LP.KS.02",
@@ -649,34 +661,16 @@
 
   "open_points": [
     {
-      "id": "OP.01",
-      "refs": ["tables.comparison_radius", "LP.KS.01"],
-      "topic": "Vergleichsradius zwischen den Tabellenwerten",
-      "assumption": "Regelwert: nächsthöherer Tabellenwert. Ermessensgrenze bis 100 km/h: ungerundeter Formelwert u0_factor·v²/106,5; an den Tabellenstellen gilt der Tabellenwert, der die Formel leicht übersteigt. Über 100 km/h: nächsthöherer Tabellenwert."
-    },
-    {
-      "id": "OP.07",
-      "refs": ["tables.min_element_length", "LP.EL.01", "LP.EL.02"],
-      "topic": "Mindestelementlänge und 7,2 m bei 40 km/h",
-      "assumption": "Werte aus dem Leitfaden (TSI-Herkunft) übernommen; Bestätigung aus der Ril 800.0110 fehlt."
-    },
-    {
       "id": "OP.09",
-      "refs": ["rules[*].source.section"],
+      "refs": ["rules[*].source.section", "tables.comparison_radius"],
       "topic": "Abschnittsnummern der Ril 800.0110",
-      "assumption": "Werden nachgereicht."
+      "assumption": "Geliefert: LP.EL.01 und LP.EL.02 samt Tabelle min_element_length (S. 7, Abs. 6 (2)), LP.KB.04 (S. 10, Abs. 7 (4)). Die übrigen achtzehn Regeln und die Tabelle comparison_radius werden nachgereicht."
     },
     {
       "id": "OP.10",
       "refs": ["contexts"],
       "topic": "Verkehrsart und Bahnsteigbereich",
       "assumption": "Entfallen, da die Ril 800.0110 dafür keine eigenen Werte vorsieht (bisher Personenverkehr u 180 / u_f 150 mm, Bahnsteig u 110 mm)."
-    },
-    {
-      "id": "OP.11",
-      "refs": ["LP.KB.02"],
-      "topic": "u_f = 150 mm bei v > 150 km/h",
-      "assumption": "Angehobener Grenzwert anstelle von 130 mm, keine Ermessensstufe."
     }
   ]
 }

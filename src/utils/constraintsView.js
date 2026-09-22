@@ -5,14 +5,13 @@
 //
 // The regelwerk itself is not read here: it comes over the wire from the
 // service (GET /regelwerke/<id>) and flattenRegelwerk already turns it into
-// rows. Physics has no such route — physics.json sits in tools/optimizer/,
-// *outside* the olt_optimizer package, so `pip install` never ships it and the
-// service could not serve it without moving the file. It drives nothing at
-// runtime either (see below), so the popup takes it the other way: bundled at
-// build time straight from the one file in the repo. Not a copy — the import
-// is that file, which is why there is nothing here that could drift from it.
+// rows. Physics has no such route and needs none: since the constraints were
+// gathered in src/constraints/ it is one of the repo's own rulebooks, read by
+// the app at build time and by the optimizer's verification straight off
+// disk. Not a copy — the import below is that file, which is why there is
+// nothing here that could drift from it.
 
-import physics from '../../tools/optimizer/physics.json'
+import physics from '../constraints/physics.json'
 import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF } from './regelwerkDefaults'
 
 export const PHYSICS = physics

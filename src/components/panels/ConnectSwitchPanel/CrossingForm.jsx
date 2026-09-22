@@ -58,6 +58,13 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
 
   const forms      = CROSSING_TYPES
   const form      = forms[formIdx]
+  // The two classes the Ril keeps its forms in, as the two groups of the
+  // picker: Regelformen (800.0120A01) first, Sonderbauformen (A02) after.
+  const formOptionen = (klasse) => forms
+    .map((f, i) => ({ f, i }))
+    .filter(entry => entry.f.klasse === klasse)
+    .map(({ f, i }) => <option key={i} value={i}>{f.label}</option>)
+
   const alpha     = crossingAngle(form) * 180 / Math.PI
   const crossAngle = (crossSide === 'right' ? alpha : -alpha)
 
@@ -306,7 +313,8 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
         <div className="form-field">
           <label>{t('crossing_form')}</label>
           <select value={formIdx} onChange={e => setFormIdx(Number(e.target.value))}>
-            {forms.map((f, i) => <option key={i} value={i}>{f.label}</option>)}
+            <optgroup label={t('switch_form_regel')}>{formOptionen('regel')}</optgroup>
+            <optgroup label={t('switch_form_sonder')}>{formOptionen('sonderbauform')}</optgroup>
           </select>
         </div>
         <div className="form-field">

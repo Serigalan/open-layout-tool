@@ -1,6 +1,6 @@
 /**
  * The little expression language the rule catalogue is written in
- * (`expression_language` in src/regelkataloge/*.json): number-value equations
+ * (`expression_language` in src/constraints/*.json): number-value equations
  * over named inputs, with the operators and functions the catalogue lists and
  * nothing else.
  *

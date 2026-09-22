@@ -2,7 +2,7 @@ import { projectOnArcUtm } from './elementUtils'
 import { projectOnTransitionUtm, clothoidRadiusAt } from './clothoidUtils'
 import { pointAtStationUtm } from './heightUtils'
 import {
-  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, SWITCH_TYPES_INVENTORY,
+  ALL_SWITCH_TYPES,
   asRadius, switchBranchLength,
 } from './switchUtils'
 
@@ -62,8 +62,7 @@ const MAX_RATIO = 40
 /** Side of the index grid [m]. */
 const CELL = 100
 
-const ALL_TYPES = [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2,
-  ...SWITCH_TYPES_INVENTORY]
+const ALL_TYPES = ALL_SWITCH_TYPES
 
 export const trackLength = (t) => (t.elements ?? []).reduce((s, e) => s + (e.length ?? 0), 0)
 

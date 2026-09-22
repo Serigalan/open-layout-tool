@@ -1,5 +1,5 @@
 import {
-  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, SWITCH_TYPES_INVENTORY, CROSSING_TYPES,
+  ALL_SWITCH_TYPES, CROSSING_TYPES,
   switchStraightLength, switchBranchLength, crossingEndDistance, rebuildSwitchSymbol,
 } from './switchUtils'
 import { newSwitchFields, switchElementMark } from './switchModel'
@@ -44,12 +44,9 @@ const CROSSING_TOL = 3
 /** A projection this close to a track's end counts as beginning there [m]. */
 const END_TOL = 1.0
 
-/**
- * Every turnout form the catalogue holds — the alternates and the inventory
- * table carry forms this database states that no connection proposes.
- */
-const ALL_TYPES = [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2,
-  ...SWITCH_TYPES_INVENTORY]
+// Every turnout form the catalogue holds, Regelformen and Sonderbauformen
+// alike: this database states forms no connection would ever propose.
+const ALL_TYPES = ALL_SWITCH_TYPES
 
 const trackLength = (t) => t.elements.reduce((s, e) => s + (e.length ?? 0), 0)
 

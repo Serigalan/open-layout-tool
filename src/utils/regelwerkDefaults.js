@@ -30,6 +30,6 @@ export const MAX_SWITCH_CANT = catalogLimit('LP.KB.05', 'reg', { 'element.cant':
 // LP.KB.06 — the deficiency a turnout may carry (weiche.uf_max).
 export const MAX_SWITCH_CANT_DEF = catalogLimit('LP.KB.06', 'max', { 'physics.u_f': 0 }, IN_SWITCH_AREA)
 
-// physics.json, ueberhoehungsfehlbetrag_koeffizient.wert — v = sqrt(R · (u+uf) / coeff).
+// src/constraints/physics.json, ueberhoehungsfehlbetrag_koeffizient.wert — v = sqrt(R · (u+uf) / coeff).
 // Physics, not a regelwerk: no Ril sets it, it follows from the gauge and g.
 export const CANT_DEFICIENCY_COEFF = 11.8

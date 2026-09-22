@@ -5,6 +5,7 @@ import {
 } from './switchConnectionUtils'
 import {
   switchArcLength, switchStraightLength, switchBranchLength, branchRadius,
+  SWITCH_CONNECTION_STAGES,
 } from './switchUtils'
 import {
   arcCoordsFromRadiusUtm, computeCurvedValuesUtm, endPointCurvedUtm, endPointStraightUtm,
@@ -291,8 +292,11 @@ describe('computeSwitchConnections', () => {
       stem(ORIGIN, 0, null), stem(P(ORIGIN.easting - 4.5, ORIGIN.northing), 0, null))
     expect(list.map(e => e.speed)).toEqual(CONNECTION_SPEEDS)
     expect(new Set(list.map(e => e.speed)).size).toBe(list.length)
-    // 40 km/h has two forms in the table and is still one entry here.
-    expect(SWITCH_TYPES.filter(f => f.speed === 40).length).toBe(2)
+    // 40 km/h has two forms in the first stage and is still one entry here.
+    // (A third Regelform runs at 40 — the symmetrical turnout — but no
+    // connection is built from it, so it is not in the stage either.)
+    expect(SWITCH_CONNECTION_STAGES[0].filter(f => f.speed === 40).length).toBe(2)
+    expect(SWITCH_TYPES.filter(f => f.speed === 40).length).toBe(3)
     expect(list.some(e => e.valid)).toBe(true)
   })
 })

@@ -36,12 +36,16 @@ const dkw190 = CROSSING_TYPES.find(f => f.label === 'DKW 1:9 – 190')
 const dkw500 = CROSSING_TYPES.find(f => f.label === 'DKW 1:9 – 500')
 
 describe('the crossing form table', () => {
-  it('holds nine plain crossings and the four crossing switches', () => {
+  // In the order the catalogue states them: the Regelformen of A01 first, the
+  // Sonderbauformen of A02 after — Kr 1:14 and Kr 1:18.5 among them since
+  // 2026-09-22.
+  it('holds eleven plain crossings and the four crossing switches', () => {
     expect(CROSSING_TYPES.map(f => f.label)).toEqual([
-      'Kr 1:2.9', 'Kr 1:3.224', 'Kr 1:3.683', 'Kr 1:4.444',
-      'Kr 1:5.5', 'Kr 1:6.6', 'Kr 1:6.964', 'Kr 1:7.5', 'Kr 1:9',
+      'Kr 1:7.5', 'Kr 1:9',
       'EKW 1:9 – 190', 'EKW 1:9 – 500',
       'DKW 1:9 – 190', 'DKW 1:9 – 500',
+      'Kr 1:2.9', 'Kr 1:3.224', 'Kr 1:3.683', 'Kr 1:4.444',
+      'Kr 1:5.5', 'Kr 1:6.6', 'Kr 1:6.964', 'Kr 1:14', 'Kr 1:18.5',
     ])
   })
 

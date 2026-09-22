@@ -1,36 +1,29 @@
 // The switch form tables as the regelwerk they are: DB Ril 800.0120,
 // „Auswahl der Weichen und Kreuzungen" (AP R.6, named in AP R.8).
 //
-// A form table is a regelwerk in exactly the sense the optimizer's one is:
-// values a railway administration sets, which the app reads and never
-// computes — a radius, a frog gradient, the speed the branch is good for, the
-// distance the Weichenmarke stands at. They live in switchUtils.js because
-// that is where the geometry that draws them lives, and they are read from
-// there rather than copied: a second copy for the viewer would be a second
-// table to keep true.
+// Since the constraints were gathered in src/constraints/, the tables are a
+// file of their own — db-ril-800-0120.json — and this module only groups them
+// for the viewer: the Ril's two classes (Regelformen A01, Sonderbauformen A02)
+// crossed with what a row can state, because a turnout, a crossing and a
+// crossing switch do not answer the same columns.
+//
+// It is not a second copy of anything: switchUtils.js reads the same file for
+// the geometry, and a form here is that file's entry.
 //
 // The difference to the served regelwerk is where it comes from, not what it
 // is: this one is bundled, so it is there whether or not the optimizer service
-// answers, and it has no version or validity date to state — the repo is its
-// version.
+// answers.
 
 import {
-  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, SWITCH_TYPES_INVENTORY,
-  CROSSING_TYPES,
+  SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES, WEICHEN_KATALOG,
 } from './switchUtils'
 
 /**
- * What this rulebook is: DB Ril 800.0120, the Ril that picks the forms —
- * which is what the tables in switchUtils.js are. The id is not one the
- * optimizer service knows, so nothing is ever fetched for it; the repo is
- * where it is maintained and the version it states is the Ril's own.
+ * What this rulebook is, as the catalogue states it about itself. The Ril's
+ * own edition is deliberately not among it: what carries a version here is the
+ * machine-readable rendering.
  */
-export const WEICHEN_REGELWERK = {
-  id: 'db-ril-800-0120',
-  title: 'DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen',
-  version: '1.1',
-  gueltig_ab: '2018-02-15',
-}
+export const WEICHEN_REGELWERK = WEICHEN_KATALOG.katalog
 
 export const WEICHEN_REGELWERK_ID = WEICHEN_REGELWERK.id
 
@@ -62,17 +55,26 @@ const kreuzungRow = (form) => ({
   tangente: form.lt ?? null,
   speed: form.speed ?? null,
   marke: form.dLcs ?? null,
+  // A crossing switch carries more than one route and a speed for each of
+  // them; a plain crossing has the one. Passed on as the catalogue states it,
+  // formatted where it is drawn.
+  routen: form.routen ?? null,
 })
 
+const istKreuzungsweiche = (form) => form.kind !== 'crossing'
+
 /**
- * The tables, in the order the connection calculation reaches for them, each
- * with the locale keys that name it and say what it is for. The keys are
- * returned rather than built at the call site so the viewer and the test that
- * checks both locales answer them cannot drift apart.
+ * The tables, in the order the catalogue states them: the Regelformen of
+ * A01 first, the Sonderbauformen of A02 after, each split by what a row can
+ * say. Each group carries the locale keys that name it and say what it is for,
+ * so the viewer and the test that checks both locales answer them cannot drift
+ * apart.
  *
  * `art` says which columns a group has: a turnout form states a minimum
  * intermediate straight and a straight end piece, a crossing a tangent — and
- * neither has the other's.
+ * neither has the other's. A group with no form in it is left out, which is
+ * what keeps the still missing Bogenkreuzungsweichen (OP.W.02) from showing as
+ * an empty table.
  */
 export function weichenGruppen() {
   const gruppe = (key, art, formen) => ({
@@ -82,11 +84,15 @@ export function weichenGruppen() {
     hintKey: `constraints_weichen_${key}_hint`,
     formen,
   })
+  const kreuzungen = (klasse, slip) => CROSSING_TYPES
+    .filter(form => form.klasse === klasse && istKreuzungsweiche(form) === slip)
+    .map(kreuzungRow)
   return [
-    gruppe('regel', 'weiche', SWITCH_TYPES.map(weicheRow)),
-    gruppe('alt1', 'weiche', SWITCH_TYPES_ALT1.map(weicheRow)),
-    gruppe('alt2', 'weiche', SWITCH_TYPES_ALT2.map(weicheRow)),
-    gruppe('bestand', 'weiche', SWITCH_TYPES_INVENTORY.map(weicheRow)),
-    gruppe('kreuzung', 'kreuzung', CROSSING_TYPES.map(kreuzungRow)),
-  ]
+    gruppe('regel_weichen', 'weiche', SWITCH_TYPES.map(weicheRow)),
+    gruppe('regel_kreuzungen', 'kreuzung', kreuzungen('regel', false)),
+    gruppe('regel_kreuzungsweichen', 'kreuzung', kreuzungen('regel', true)),
+    gruppe('sonder_weichen', 'weiche', SWITCH_TYPES_SPECIAL.map(weicheRow)),
+    gruppe('sonder_kreuzungen', 'kreuzung', kreuzungen('sonderbauform', false)),
+    gruppe('sonder_kreuzungsweichen', 'kreuzung', kreuzungen('sonderbauform', true)),
+  ].filter(gruppe => gruppe.formen.length)
 }

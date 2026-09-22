@@ -4,7 +4,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WEICHEN_REGELWERK, WEICHEN_REGELWERK_ID, weichenGruppen } from './weichenRegelwerk'
 import {
-  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, SWITCH_TYPES_INVENTORY, CROSSING_TYPES,
+  SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES,
 } from './switchUtils'
 import { switchKindLabelKey } from './switchModel'
 import { translations } from '../locales/i18n'
@@ -22,18 +22,31 @@ const byKey = Object.fromEntries(gruppen.map(g => [g.key, g]))
 const form = (key, label) => byKey[key].formen.find(f => f.label === label)
 
 describe('the switch forms as a regelwerk', () => {
-  it('lists every table switchUtils holds, in the order the connection reaches for them', () => {
-    expect(gruppen.map(g => g.key)).toEqual(['regel', 'alt1', 'alt2', 'bestand', 'kreuzung'])
-    expect(gruppen.map(g => g.formen.length)).toEqual([
-      SWITCH_TYPES.length, SWITCH_TYPES_ALT1.length, SWITCH_TYPES_ALT2.length,
-      SWITCH_TYPES_INVENTORY.length, CROSSING_TYPES.length,
+  // The catalogue's own order: the Regelformen of A01 first, the
+  // Sonderbauformen of A02 after, each split by what a row can state.
+  it('groups the forms the way the Ril itself does', () => {
+    expect(gruppen.map(g => g.key)).toEqual([
+      'regel_weichen', 'regel_kreuzungen', 'regel_kreuzungsweichen',
+      'sonder_weichen', 'sonder_kreuzungen',
     ])
-    expect(byKey.regel.formen.map(f => f.label)).toEqual(SWITCH_TYPES.map(f => f.label))
-    expect(byKey.kreuzung.formen.map(f => f.label)).toEqual(CROSSING_TYPES.map(f => f.label))
+    expect(byKey.regel_weichen.formen.map(f => f.label)).toEqual(SWITCH_TYPES.map(f => f.label))
+    expect(byKey.sonder_weichen.formen.map(f => f.label))
+      .toEqual(SWITCH_TYPES_SPECIAL.map(f => f.label))
+    // Every crossing form is in exactly one of the crossing groups.
+    const kreuzungen = gruppen.filter(g => g.art === 'kreuzung').flatMap(g => g.formen)
+    expect(kreuzungen.map(f => f.label).sort())
+      .toEqual(CROSSING_TYPES.map(f => f.label).sort())
+  })
+
+  // The Bogenkreuzungsweichen of A02 are not delivered yet (OP.W.02), and an
+  // empty table would claim the Ril has no such group.
+  it('leaves out a group with no form in it', () => {
+    expect(gruppen.every(g => g.formen.length)).toBe(true)
+    expect(gruppen.map(g => g.key)).not.toContain('sonder_kreuzungsweichen')
   })
 
   it('says of each group whether it has turnout columns or crossing ones', () => {
-    expect(gruppen.map(g => g.art)).toEqual(['weiche', 'weiche', 'weiche', 'weiche', 'kreuzung'])
+    expect(gruppen.map(g => g.art)).toEqual(['weiche', 'kreuzung', 'kreuzung', 'weiche', 'kreuzung'])
   })
 
   // The viewer keys its rows by label; two forms with one label would be one row.
@@ -43,15 +56,15 @@ describe('the switch forms as a regelwerk', () => {
   })
 
   it('reads a turnout form as the table states it', () => {
-    expect(form('regel', '190 – 1:9')).toEqual({
+    expect(form('regel_weichen', '190 – 1:9')).toEqual({
       label: '190 – 1:9', radius: 190, neigung: 9, speed: 40, marke: 3.9, minl: 6,
       gerade: 6.092, symmetrisch: false,
     })
   })
 
   it('gives a branch that is one arc no straight end piece', () => {
-    expect(form('regel', '300 – 1:9').gerade).toBe(0)
-    expect(form('regel', '190 – 1:7.5').gerade).toBeCloseTo(0.640, 6)
+    expect(form('regel_weichen', '300 – 1:9').gerade).toBe(0)
+    expect(form('regel_weichen', '190 – 1:7.5').gerade).toBeCloseTo(0.640, 6)
   })
 
   it('marks the symmetrical turnout, and only it', () => {
@@ -60,21 +73,25 @@ describe('the switch forms as a regelwerk', () => {
   })
 
   it('reads a plain crossing as tangent and angle, with no radius', () => {
-    expect(form('kreuzung', 'Kr 1:9')).toEqual({
+    expect(form('regel_kreuzungen', 'Kr 1:9')).toEqual({
       label: 'Kr 1:9', kind: 'crossing', neigung: 9, radius: null, tangente: 16.6155,
-      speed: 100, marke: 3.9,
+      speed: 100, marke: 3.9, routen: null,
     })
   })
 
-  it('reads a crossing switch as angle and curve radius, with no tangent', () => {
-    expect(form('kreuzung', 'DKW 1:9 – 190')).toEqual({
+  it('reads a crossing switch as angle and curve radius, with a speed per route', () => {
+    expect(form('regel_kreuzungsweichen', 'DKW 1:9 – 190')).toEqual({
       label: 'DKW 1:9 – 190', kind: 'double_slip', neigung: 9, radius: 190, tangente: null,
       speed: null, marke: null,
+      routen: [
+        { id: 'durchgehend', R: null, speed: 100 },
+        { id: 'bogen', R: 190, speed: 40 },
+      ],
     })
   })
 
   it('keeps a Weichenmarke that stands before the body ends', () => {
-    expect(form('kreuzung', 'Kr 1:4.444').marke).toBe(-1.48)
+    expect(form('sonder_kreuzungen', 'Kr 1:4.444').marke).toBe(-1.48)
   })
 })
 
@@ -87,7 +104,7 @@ describe('what the viewer asks the locales for', () => {
   })
 
   it('names every kind of crossing a row carries', () => {
-    for (const f of byKey.kreuzung.formen) {
+    for (const f of gruppen.filter(g => g.art === 'kreuzung').flatMap(g => g.formen)) {
       expect(says(switchKindLabelKey(f.kind)), f.label).toBe(true)
     }
   })
@@ -104,13 +121,16 @@ describe('what the viewer asks the locales for', () => {
 })
 
 describe('what rulebook it is', () => {
-  it('is DB Ril 800.0120, in the version and from the date it holds', () => {
-    expect(WEICHEN_REGELWERK).toEqual({
-      id: 'db-ril-800-0120',
-      title: 'DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen',
-      version: '1.1',
-      gueltig_ab: '2018-02-15',
-    })
+  it('is DB Ril 800.0120, versioned as the rendering it is', () => {
+    // What it says about itself is the catalogue's own head, not a second
+    // statement beside it.
+    expect(WEICHEN_REGELWERK.id).toBe('db-ril-800-0120')
+    expect(WEICHEN_REGELWERK.title).toBe('DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen')
+    expect(WEICHEN_REGELWERK.katalog_version).toBe('0.1.0')
+    expect(WEICHEN_REGELWERK.status).toBe('draft')
+    // The Ril's own edition and validity date are stated nowhere.
+    expect(WEICHEN_REGELWERK.version).toBeUndefined()
+    expect(WEICHEN_REGELWERK.gueltig_ab).toBeUndefined()
     expect(WEICHEN_REGELWERK_ID).toBe(WEICHEN_REGELWERK.id)
   })
 

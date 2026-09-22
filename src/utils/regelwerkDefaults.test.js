@@ -18,8 +18,8 @@ describe('regelwerkDefaults, against the files it is a copy of', () => {
     expect(MAX_SWITCH_CANT_DEF).toBe(rw.weiche.uf_max.wert)
   })
 
-  it('matches tools/optimizer/physics.json', () => {
-    const physics = readJson('tools/optimizer/physics.json')
+  it('matches src/constraints/physics.json', () => {
+    const physics = readJson('src/constraints/physics.json')
     expect(CANT_DEFICIENCY_COEFF).toBe(physics.ueberhoehungsfehlbetrag_koeffizient.wert)
   })
 })

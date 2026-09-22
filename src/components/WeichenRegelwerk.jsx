@@ -18,14 +18,21 @@ import { switchKindLabelKey } from '../utils/switchModel'
 // gets the dash, not a zero: it has none, it is not none.
 const zahl = (v) => (v === null || v === undefined ? '–' : String(v))
 
+// A crossing switch states a speed per route — the through road first, then
+// the curves. Printed as the table reads, "100 / 40", because one number for
+// the whole form would be a claim the form does not make.
+const speedText = (form) => (form.routen
+  ? form.routen.map(route => route.speed).join(' / ')
+  : zahl(form.speed))
+
 export default function WeichenRegelwerk({ t }) {
   const gruppen = weichenGruppen()
 
   return (
     <>
       <p className="constraints-hint">
-        {WEICHEN_REGELWERK.title} · v{WEICHEN_REGELWERK.version} ·{' '}
-        {t('optimize_regelwerk_gueltig_ab')} {WEICHEN_REGELWERK.gueltig_ab}
+        {WEICHEN_REGELWERK.title} · {t('constraints_katalog_revision')}{' '}
+        {WEICHEN_REGELWERK.katalog_version} ({WEICHEN_REGELWERK.status})
       </p>
       <p className="constraints-hint">{t('constraints_weichen_hint')}</p>
       {gruppen.map(gruppe => (
@@ -80,7 +87,7 @@ export default function WeichenRegelwerk({ t }) {
                       <td>1:{form.neigung}</td>
                       <td>{zahl(form.radius)}</td>
                       <td>{zahl(form.tangente)}</td>
-                      <td>{zahl(form.speed)}</td>
+                      <td>{speedText(form)}</td>
                       <td>{zahl(form.marke)}</td>
                     </>
                   )}

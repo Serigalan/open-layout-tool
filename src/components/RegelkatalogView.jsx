@@ -33,11 +33,11 @@ export default function RegelkatalogView({ t }) {
   return (
     <>
       <p className="constraints-hint">
-        {catalog.title} · v{catalog.version} · {t('optimize_regelwerk_gueltig_ab')}{' '}
-        {catalog.gueltig_ab}
-        {/* The Ril has a version and the rendering of it into rules has one of
-            its own — they are different things and are said apart. */}
-        {' — '}{t('constraints_katalog_revision')} {catalog.katalog_version} ({catalog.status})
+        {/* The Ril's own edition is deliberately not stated, here or in any
+            other rulebook of this repo: what is versioned is this
+            machine-readable rendering, and it does not speak for the Ril. */}
+        {catalog.title} · {t('constraints_katalog_revision')} {catalog.katalog_version}
+        {' '}({catalog.status})
       </p>
       <p className="constraints-hint">{t('constraints_katalog_hint')}</p>
 

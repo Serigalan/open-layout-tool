@@ -1,6 +1,6 @@
 /**
  * The rule catalogue — DB Ril 800.0110 Linienführung as the repo holds it
- * (src/regelkataloge/db-ril-800-0110.json), read and applied.
+ * (src/constraints/db-ril-800-0110.json), read and applied.
  *
  * One rulebook, one id: the same `db-ril-800-0110` the optimizer service
  * serves the *values* of. The two are the two faces of one Ril — the rules
@@ -20,7 +20,7 @@
  * trassierungCheck.js is what fills that scope from the app's own elements.
  */
 
-import KATALOG from '../regelkataloge/db-ril-800-0110.json'
+import KATALOG from '../constraints/db-ril-800-0110.json'
 import { evalExpr } from './ruleExpr'
 
 export { KATALOG }

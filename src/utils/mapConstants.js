@@ -149,17 +149,24 @@ export const MARKER_MIN_ZOOM = 16
  */
 export const MAX_CANT = catalogLimit('LP.KB.01', 'max', { 'element.cant': 0 })
 
-export const CANT_STEP = 5     // cant is designed in 5 mm steps — LP.KB.03
+// The step cant is designed in [mm] — LP.KB.03's own threshold, read rather
+// than restated. It was the last number of that rule the app still knew by
+// heart (Entscheidung 51): the rule stated 5 only inside its expression, so
+// the catalogue now names it and nothing has to parse anything to find it.
+export const CANT_STEP = catalogLimit('LP.KB.03', 'step', { 'element.cant': 0 })
 
 /**
- * The cant deficiency a line element may reach at `speed` (mm) — LP.KB.02.
- * It is a **step**, not one number: 130 mm up to 150 km/h, 150 above it. The
- * app used to read those two as "what a design aims at" and "what a dialog
- * still accepts"; they are nothing of the kind, and since AP R.8 there is one
- * limit per speed and no reserve between them.
+ * The cant deficiency a line element may be built with at `speed` (mm) —
+ * LP.KB.02's **Ermessensgrenze**, which is what a dialog refuses past.
+ *
+ * The Regelwert is 130 mm at every speed; above 150 km/h the Ril lets a design
+ * reach 150 mm in its own discretion, so between the two there is now a
+ * warning rather than a pass. Reading the discretion limit here is the same
+ * reading the switch cant already has, where LP.KB.05's exception is the
+ * ceiling and its Regelwert below only marks the finding.
  */
 export const cantDefLimit = (speed) =>
-  catalogLimit('LP.KB.02', 'max', { 'element.design_speed': speed ?? 0, 'physics.u_f': 0 })
+  catalogLimit('LP.KB.02', 'discretion', { 'element.design_speed': speed ?? 0, 'physics.u_f': 0 })
 
 /**
  * Where that step stands, found by asking rather than by reading 150 out of

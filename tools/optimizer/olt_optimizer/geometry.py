@@ -11,7 +11,7 @@ Conventions — the app's, so an element chain crosses unchanged:
   * transition profiles: 'clothoid' (linear curvature), 'bloss' (cubic)
 
 The physical constant below (v = sqrt(R (u+uf) / 11.8)) is derived, with its
-formula, in ../physics.json; the values a run is held to (this section down to
+formula, in src/constraints/physics.json; the values a run is held to (this section down to
 UF_MAX_SWITCH) are the code's copy of ../olt_optimizer/regelwerke/db-ril-800-0110.json
 (AP R.1/R.2, see ROADMAP.md). Both stay literals here — a run does not read
 either file — and tests/verify.py checks that neither has drifted from this
@@ -24,7 +24,7 @@ import math
 DEG2RAD = math.pi / 180.0
 RAD2DEG = 180.0 / math.pi
 
-# v = sqrt(R * (u + uf) / 11.8) — see ../physics.json for the derivation.
+# v = sqrt(R * (u + uf) / 11.8) — see src/constraints/physics.json for the derivation.
 CANT_DEFICIENCY_COEFF = 11.8
 
 # Minimum ramp length factor: l >= k * v * du / 1000  [l m, v km/h, du mm]

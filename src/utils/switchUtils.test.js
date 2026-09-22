@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import {
-  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2,
+  SWITCH_TYPES, SWITCH_TYPES_SPECIAL, SWITCH_CONNECTION_STAGES, switchTypeByLabel,
   switchArcLength, switchStraightLength, switchBranchSections, switchBranchLength,
   switchFormChain, switchBranchChain, switchBranchRoute, switchChainTo, switchChainSlice,
-  computeSwitchGeometryUtm, branchRadius, SWITCH_TYPES_INVENTORY, switchMarkDistance,
+  computeSwitchGeometryUtm, branchRadius, switchMarkDistance,
 } from './switchUtils'
 
-const ALL_FORMS = [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2]
+// The forms a connection may build from — the three stages of the fallback
+// chain. That is the set every generic test here has always run over; the two
+// forms outside it have their own describe below.
+const ALL_FORMS = SWITCH_CONNECTION_STAGES.flat()
 // The forms whose branch is the single arc, and the ones that end in a straight
 // piece — every helper here has to hold for both, and the first group has to
 // give back exactly what it gave before the end pieces existed (AP 3.1).
@@ -217,7 +220,9 @@ describe('computeSwitchGeometryUtm still builds the same turnout', () => {
   const start = { easting: 500000, northing: 5600000, zone: 25832 }
 
   it('the branch ends a form-branch away from the toe, on either side', () => {
-    for (const form of SWITCH_TYPES) {
+    // Every form a connection builds from. The symmetrical turnout is not one:
+    // its two routes each turn half the frog angle, which is its own test above.
+    for (const form of ALL_FORMS) {
       for (const side of ['left', 'right']) {
         const g = computeSwitchGeometryUtm(start, 30, form, side, false)
         expect(g.arcLen).toBeCloseTo(switchArcLength(form.R, form.ratio) + endPiece(form), 12)
@@ -239,17 +244,20 @@ describe('computeSwitchGeometryUtm still builds the same turnout', () => {
 })
 
 /**
- * The forms that exist in the Bestand and in no connection: the symmetrical
- * turnout and the 190 carried on to 1:6,3 (geliefert am 2026-09-21).
+ * The two forms no connection builds from: the symmetrical turnout — a
+ * Regelform since the Ril's own list was delivered (2026-09-22) — and the 190
+ * carried on to 1:6,3, which is a Sonderbauform. Both are planned by hand;
+ * neither has a through route a crossover could use.
  */
-describe('the inventory forms', () => {
-  const sym = SWITCH_TYPES_INVENTORY.find(f => f.label === '215 – 1:4.8')
-  const sharp = SWITCH_TYPES_INVENTORY.find(f => f.label === '190 – 1:6.3')
+describe('the forms outside the connection chain', () => {
+  const sym = switchTypeByLabel('215 – 1:4.8')
+  const sharp = switchTypeByLabel('190 – 1:6.3')
+  const outside = [sym, sharp]
 
-  it('are out of the tables a connection and a dialog read', () => {
-    // They are Regelweichen and they are still not connection forms: the
-    // solver's chain and the „Weiche aufs Gleis" picker keep what they had.
-    for (const f of SWITCH_TYPES_INVENTORY) {
+  it('are offered by the dialogs and still never chosen by a connection', () => {
+    expect(SWITCH_TYPES.some(f => f.label === sym.label)).toBe(true)
+    expect(SWITCH_TYPES_SPECIAL.some(f => f.label === sharp.label)).toBe(true)
+    for (const f of outside) {
       expect(ALL_FORMS.some(t => t.label === f.label), f.label).toBe(false)
     }
   })
@@ -279,7 +287,7 @@ describe('the inventory forms', () => {
   })
 
   it('run at the speed and the spacing the form table states', () => {
-    for (const f of SWITCH_TYPES_INVENTORY) {
+    for (const f of outside) {
       expect(f.speed, f.label).toBe(40)
       expect(f.minl, f.label).toBe(6)
       expect(f.dLcs, f.label).toBe(0.30)
@@ -288,8 +296,7 @@ describe('the inventory forms', () => {
 })
 
 describe('the mark distance the form table is built on', () => {
-  const at = (label) => [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2]
-    .find(f => f.label === label)
+  const at = switchTypeByLabel
 
   it('gives the stored value for ten of the fifteen forms', () => {
     // `d = 2.272 · n − (l_t + g)` on the table's 0.30 + k · 0.60 grid.
@@ -298,8 +305,8 @@ describe('the mark distance the form table is built on', () => {
       '760 – 1:15', '760 – 1:18.5', '2500 – 1:26.5']) {
       expect(switchMarkDistance(at(label)), label).toBeCloseTo(at(label).dLcs, 9)
     }
-    for (const form of SWITCH_TYPES_INVENTORY) {
-      expect(switchMarkDistance(form), form.label).toBeCloseTo(form.dLcs, 9)
+    for (const label of ['215 – 1:4.8', '190 – 1:6.3']) {
+      expect(switchMarkDistance(at(label)), label).toBeCloseTo(at(label).dLcs, 9)
     }
   })
 

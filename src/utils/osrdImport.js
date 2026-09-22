@@ -4,7 +4,7 @@ import {
   reverseElement,
 } from './elementUtils'
 import {
-  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, switchBranchSections, switchStraightLength,
+  SWITCH_CONNECTION_STAGES, switchBranchSections, switchStraightLength,
   CROSSING_TYPES, crossingAngle, crossingEndDistance, computeCrossingGeometryUtm,
   lcsLine, switchFillRing,
   switchLabelGeometry, bauform,
@@ -47,7 +47,7 @@ const ARC_TOL = 0.01   // 1 cm of arc length when identifying the switch type
 function matchSwitchType(absR, arcLen, endLen = 0) {
   let best = null
   let bestErr = Infinity
-  for (const type of [...SWITCH_TYPES, ...SWITCH_TYPES_ALT1, ...SWITCH_TYPES_ALT2]) {
+  for (const type of SWITCH_CONNECTION_STAGES.flat()) {
     if (Math.abs(type.R - absR) > 1e-6) continue
     const sections = switchBranchSections(type)
     const arcs = sections.filter(section => section.R != null)

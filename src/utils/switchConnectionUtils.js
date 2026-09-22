@@ -6,7 +6,7 @@ import {
   SAGITTA_ELEMENT, SAGITTA_TRACK, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, computeCantDefSigned,
 } from './mapConstants'
 import {
-  SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, STRAIGHT_CURVATURE,
+  SWITCH_TYPES, SWITCH_CONNECTION_STAGES, STRAIGHT_CURVATURE,
   switchStraightLength, switchBranchLength, switchBranchSections, switchBranchChain,
   switchRouteVaries, switchRoutePointUtm, switchRouteBearingAt, switchRouteRadiusAt,
   switchRouteSlice, switchChainPointUtm, switchChainBearingAt, switchChainSegmentsUtm,
@@ -101,7 +101,7 @@ function fallbackChain(speed) {
   // Every form of that speed, primary table first and within a table in its own
   // order — a speed may have more than one form, and then the flatter one is
   // tried before the sharper one it falls back to.
-  return [SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2]
+  return SWITCH_CONNECTION_STAGES
     .flatMap(table => table.filter(s => s.speed === speed))
 }
 
@@ -417,7 +417,10 @@ function solveStation(at, step, span = Math.max(50 * step, 500)) {
  * table may hold more than one form for a speed (AP 3.1), and they are the same
  * choice to whoever picks one.
  */
-export const CONNECTION_SPEEDS = [...new Set(SWITCH_TYPES.map(type => type.speed))]
+// The speeds a connection can be asked for: those of the forms it may choose,
+// which is the first stage — not every Regelform. The symmetrical turnout is
+// one of those and has no through route, so no connection is built from it.
+export const CONNECTION_SPEEDS = [...new Set(SWITCH_CONNECTION_STAGES[0].map(type => type.speed))]
 
 /**
  * Which speeds this pair of tracks can be connected with at the given shift —

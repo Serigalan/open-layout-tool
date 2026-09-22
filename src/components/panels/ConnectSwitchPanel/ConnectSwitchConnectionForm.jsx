@@ -19,7 +19,9 @@ import {
   HIT_TOLERANCE, cantExceptionFields, computeSwitchCant, computeCantDef, switchCantError,
   MAX_SWITCH_CANT_DEF,
 } from '../../../utils/mapConstants'
-import { SWITCH_TYPES, switchBranchLength, computeSwitchGeometryUtm } from '../../../utils/switchUtils'
+import {
+  SWITCH_CONNECTION_STAGES, switchBranchLength, computeSwitchGeometryUtm,
+} from '../../../utils/switchUtils'
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
 import {
@@ -30,7 +32,14 @@ import {
 // ── ConnectSwitchConnectionForm ──────────────────────────────────────────────
 
 const CONNECTION_SPEEDS   = [50, 60, 80, 100]
-const SPEED_TO_TYPE_IDX   = { 50: 1, 60: 2, 80: 3, 100: 4 }
+
+// The form a connection of that speed is built from: the one in the first
+// stage of the fallback chain that runs at it. This used to be a map of
+// indexes into SWITCH_TYPES, and AP 3.1 shifted every one of them by dropping
+// `185 – 1:7` from the head of that table — since then the dialog built the
+// next sharper form than the speed asks for (a 300 – 1:9 at 60 km/h). Asking
+// by speed cannot fall out of step with the table again.
+const typeForSpeed = (v) => SWITCH_CONNECTION_STAGES[0].find(form => form.speed === v)
 
 export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSaved, onCommitted }) {
   const { fields, errors, setErrors, setField, lineNumberError }                                              = useTrackFields()
@@ -47,9 +56,9 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
   const [side, setSide]                 = useState('left')
   const [trailing, setTrailing]         = useState(false)
 
-  const switchTypeIdx = SPEED_TO_TYPE_IDX[speed] ?? 2
+  const switchType = typeForSpeed(speed) ?? typeForSpeed(60)
   // Follows speed and switch type unless the user overrode it for that pair.
-  const [cant, setCant] = useDerivedField(`${speed}|${switchTypeIdx}`, computeSwitchCant(speed, SWITCH_TYPES[switchTypeIdx].R))
+  const [cant, setCant] = useDerivedField(`${speed}|${switchType.label}`, computeSwitchCant(speed, switchType.R))
   // Why this turnout may carry more than MAX_SWITCH_CANT. Empty unless the user
   // pushed it there, and the commit stays blocked until it is written.
   const [cantReason, setCantReason] = useState('')
@@ -58,7 +67,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
   // branch always, the through route where it becomes a track of its own
   // (facing — trailing, it extends the picked track instead).
   const switchGeom = phase === 'editing' && anchor
-    ? computeSwitchGeometryUtm(anchor.startUtm, anchor.bearing, SWITCH_TYPES[switchTypeIdx], side, trailing, anchor.startWgs)
+    ? computeSwitchGeometryUtm(anchor.startUtm, anchor.bearing, switchType, side, trailing, anchor.startWgs)
     : null
   const branchGeometry = switchGeom
     ? elementPath(switchGeom.arcOriginUtm, switchGeom.curvedUtm, switchGeom.signedR) : null
@@ -69,7 +78,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
   const { name: mainName, setName: setMainName, reset: resetMainName } = useTrackName(
     project.id, mainFields, { geometry: mainGeometry, setField: setMainField, alsoTaken: [name] })
 
-  const switchTypeIdxRef   = useRef(switchTypeIdx)
+  const switchTypeRef      = useRef(switchType)
   const sideRef            = useRef(side)
   const trailingRef        = useRef(trailing)
   const startWgsRef        = useRef(null)   // WGS84 twin of the start, for the drawn coordinates
@@ -79,7 +88,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
   const selectedTrackIdRef = useRef(null)
   const selectedElIdxRef   = useRef(null)
 
-  useEffect(() => { switchTypeIdxRef.current = switchTypeIdx }, [switchTypeIdx])
+  useEffect(() => { switchTypeRef.current = switchType }, [switchType])
   useEffect(() => { sideRef.current = side },                   [side])
   useEffect(() => { trailingRef.current = trailing },           [trailing])
 
@@ -119,7 +128,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
       const endWgs = el.geometry.coordinates[el.geometry.coordinates.length - 1]
       const endUtm = nodeUtm(el.endNode, endWgs, track.epsg)
       const brg    = resolveEndBearing(el, track.epsg)
-      const geom   = computeSwitchGeometryUtm(endUtm, brg, SWITCH_TYPES[switchTypeIdxRef.current], sideRef.current, trailingRef.current, endWgs)
+      const geom   = computeSwitchGeometryUtm(endUtm, brg, switchTypeRef.current, sideRef.current, trailingRef.current, endWgs)
       m.getSource(SWITCH_LINES_SOURCE)?.setData(buildLinesGeoJSON(geom))
       m.getSource(SWITCH_FILL_SOURCE)?.setData(buildFillGeoJSON(geom))
     }
@@ -190,10 +199,10 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
   useEffect(() => {
     if (phase !== 'editing' || !map?.current || !startWgsRef.current) return
     const m    = map.current
-    const geom = computeSwitchGeometryUtm(startUtmRef.current, bearingRef.current, SWITCH_TYPES[switchTypeIdx], side, trailing, startWgsRef.current)
+    const geom = computeSwitchGeometryUtm(startUtmRef.current, bearingRef.current, switchType, side, trailing, startWgsRef.current)
     m.getSource(SWITCH_LINES_SOURCE)?.setData(buildLinesGeoJSON(geom))
     m.getSource(SWITCH_FILL_SOURCE)?.setData(buildFillGeoJSON(geom))
-  }, [phase, switchTypeIdx, side, trailing, map])
+  }, [phase, switchType, side, trailing, map])
 
   const clearPreview = () => {
     if (!map?.current) return
@@ -224,7 +233,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
     if (!switchNo.claim()) hasError = true
     if (hasError) return
 
-    const sw          = SWITCH_TYPES[switchTypeIdx]
+    const sw          = switchType
     const sourceTrack = sourceTrackRef.current
     if (!sourceTrack || !startWgsRef.current) return
 
@@ -331,7 +340,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
     onCommitted?.()
   }
 
-  const currentSw = SWITCH_TYPES[switchTypeIdx]
+  const currentSw = switchType
   const arcLen    = switchBranchLength(currentSw)
 
   return (
@@ -370,7 +379,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
           reason={cantReason} onReason={setCantReason} />
         <div className="form-field">
           <label>{t('cant_def')}</label>
-          <input type="number" readOnly value={computeCantDef(speed, SWITCH_TYPES[switchTypeIdx].R, cant)} />
+          <input type="number" readOnly value={computeCantDef(speed, switchType.R, cant)} />
         </div>
         <div className="form-field">
           <label>{t('arc_length')}</label>
@@ -417,7 +426,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
       )}
 
       {phase === 'editing' && (() => {
-        const cantDef = computeCantDef(speed, SWITCH_TYPES[switchTypeIdx].R, cant)
+        const cantDef = computeCantDef(speed, switchType.R, cant)
         const cantErr = switchCantError(cant, cantReason)
         const defErr  = cantDef > MAX_SWITCH_CANT_DEF
         return (

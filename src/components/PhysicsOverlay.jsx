@@ -4,9 +4,9 @@ import FormelMathml from './FormelMathml'
 /**
  * The physics beneath the optimizer, read-only, in the same popup shell the
  * track editor uses. Bundled from the repo file at build time (see
- * constraintsView.js) rather than fetched: physics.json sits outside the
- * olt_optimizer package, so the service cannot serve it, and it drives
- * nothing at runtime anyway — there is nothing live to ask for.
+ * constraintsView.js) rather than fetched: physics.json is one of the repo's
+ * own constraint files, and it drives nothing at runtime anyway — there is
+ * nothing live to ask for.
  */
 export default function PhysicsOverlay({ t, onClose }) {
   const { konstanten, profile } = flattenPhysics(PHYSICS)

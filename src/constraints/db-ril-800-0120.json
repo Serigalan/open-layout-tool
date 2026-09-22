@@ -1,0 +1,603 @@
+{
+  "katalog": {
+    "id": "db-ril-800-0120",
+    "title": "DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen",
+    "katalog_version": "0.1.0",
+    "status": "draft",
+    "date": "2026-09-22",
+    "language": "de",
+    "scope": {
+      "included": [
+        "Formen der Weichen, Kreuzungen und Kreuzungsweichen mit ihren Maßen",
+        "Klasse je Form: Regelform (A01) oder Sonderbauform (A02)"
+      ],
+      "excluded": [
+        "Linienführung — eigener Katalog db-ril-800-0110",
+        "Geometrie: wie aus Radius, Neigung und geradem Endstück ein Weichenkörper wird, rechnet switchUtils.js",
+        "Regelteil (Mindestzwischengerade, gebogene Weiche, Krümmungssprung in der Weiche) — folgt, siehe open_points"
+      ]
+    },
+    "label_note": "Die Labels sind Schlüssel: ein gespeichertes Projekt schlägt seine Form darüber nach (switchTypeByLabel, switchModel.SWITCH_FORM_VERSION). Ein Label wird deshalb nicht umbenannt, auch wenn die Ril die Form anders schreibt."
+  },
+  "changelog": [
+    {
+      "version": "0.1.0",
+      "date": "2026-09-22",
+      "changes": [
+        "Erste maschinenlesbare Fassung: die fünf Formentabellen aus switchUtils.js als Datei",
+        "Klasse je Form nach der Einteilung der Ril: Regelform (A01), Sonderbauform (A02) — die frühere App-Einteilung in Regeltabelle, zwei Ausweichtabellen und Bestandsformen entfällt",
+        "Sym. ABW 215 – 1:4,8 ist eine Regelform und wird geplant, nicht nur erkannt; 190 – 1:6,3 ist eine Sonderbauform",
+        "Neu aufgenommen: EW 300 – 1:14, Kr 1:14, Kr 1:18,5 (geliefert 2026-09-22)",
+        "Geschwindigkeit je Fahrweg für die vier Kreuzungsweichen (geliefert 2026-09-22)",
+        "Die Ausweichreihenfolge der Weichenverbindung steht als verbindung.stufe/rang an der Form — Festlegung dieses Werkzeugs, nicht der Ril"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "RIL_800_0120_A01",
+      "title": "DB Ril 800.0120A01 — Regelformen"
+    },
+    {
+      "id": "RIL_800_0120_A02",
+      "title": "DB Ril 800.0120A02 — Sonderbauformen"
+    }
+  ],
+  "klassen": [
+    {
+      "id": "regel",
+      "title": "Regelform",
+      "source": "RIL_800_0120_A01",
+      "meaning": "Es sollen Regelformen verwendet werden."
+    },
+    {
+      "id": "sonderbauform",
+      "title": "Sonderbauform",
+      "source": "RIL_800_0120_A02",
+      "meaning": "Zulässig, aber nicht die Regel — die Stufe, mit der eine Sonderbauform gemeldet wird, steht noch aus (OP.W.05)."
+    }
+  ],
+  "felder": {
+    "label": "Name der Form, zugleich ihr Schlüssel",
+    "art": "weiche oder kreuzung (Kreuzungen und Kreuzungsweichen)",
+    "klasse": "regel oder sonderbauform",
+    "kind": "Bauart einer Kreuzung: crossing, single_slip (EKW), double_slip (DKW)",
+    "R": "Radius [m] — bei einer Weiche der des Bogenstrangs, bei einer Kreuzungsweiche der der Verbindungsbögen",
+    "ratio": "Neigung 1:n als n — bei einer Kreuzung der Kreuzungswinkel",
+    "speed": "zulässige Geschwindigkeit [km/h] über den abzweigenden bzw. den Kreuzungsfahrweg",
+    "routen": "Geschwindigkeit und Radius je Fahrweg, wo eine Form mehrere trägt (Kreuzungsweichen)",
+    "dLcs": "Abstand der Weichenmarke vom Weichen- bzw. Kreuzungsende [m]; bei einer Kreuzung negativ möglich",
+    "minl": "Mindestzwischengerade [m] zwischen zwei Weichen — steht hier noch je Form, gehört aber an v (OP.W.01)",
+    "branch": "Der Zweig als Folge seiner Abschnitte ab der Spitze: arc (Radius R der Form) und straight mit eigener Länge [m]. Fehlt der Eintrag, ist der Zweig genau ein Bogen.",
+    "symmetric": "Beide Fahrwege verlassen die Spitze auf demselben Radius, je durch den halben Winkel — die Form hat keinen durchgehenden Strang",
+    "lt": "Tangente einer Kreuzung [m]: vom Kreuzungspunkt bis zu jedem ihrer vier Enden",
+    "masse": "Die gelieferte Tabellenzeile im Wortlaut der Ril, soweit sie vorliegt. Nichts rechnet damit: sie bindet (B.10) und ist der Prüfstein für die Konstruktion aus R, ratio und branch.",
+    "verbindung": "stufe und rang der Ausweichreihenfolge — Festlegung dieses Werkzeugs, siehe verbindung unten"
+  },
+  "verbindung": {
+    "note": "Festlegung dieses Werkzeugs, nicht der Ril. Die Weichenverbindung versucht die Formen Stufe für Stufe: erreicht keine Form einer Stufe die Mindestzwischengerade für den gegebenen Abstand, geht sie zur nächsten. Innerhalb einer Stufe entscheidet rang — bei gleicher Geschwindigkeit steht die flachere Form voran, weil die schärfere das ist, worauf ausgewichen wird.",
+    "ohne_stufe": "Eine Form ohne verbindung wird nie selbsttätig gewählt. Bei 215 – 1:4,8 folgt das aus der Form selbst: sie hat keinen durchgehenden Strang, ein Gleiswechsel braucht ihn aber beidseitig. Angeboten wird sie trotzdem überall dort, wo eine Weiche von Hand gesetzt wird."
+  },
+  "formen": [
+    {
+      "label": "190 – 1:7.5",
+      "art": "weiche",
+      "klasse": "regel",
+      "R": 190,
+      "ratio": 7.5,
+      "speed": 40,
+      "dLcs": 0.3,
+      "minl": 6,
+      "branch": [
+        {
+          "type": "arc"
+        },
+        {
+          "type": "straight",
+          "length": 0.64
+        }
+      ],
+      "verbindung": {
+        "stufe": 1,
+        "rang": 2
+      }
+    },
+    {
+      "label": "190 – 1:9",
+      "art": "weiche",
+      "klasse": "regel",
+      "R": 190,
+      "ratio": 9,
+      "speed": 40,
+      "dLcs": 3.9,
+      "minl": 6,
+      "branch": [
+        {
+          "type": "arc"
+        },
+        {
+          "type": "straight",
+          "length": 6.092
+        }
+      ],
+      "verbindung": {
+        "stufe": 1,
+        "rang": 1
+      }
+    },
+    {
+      "label": "215 – 1:4.8",
+      "art": "weiche",
+      "klasse": "regel",
+      "R": 215,
+      "ratio": 4.8,
+      "speed": 40,
+      "dLcs": 0.3,
+      "minl": 6,
+      "symmetric": true
+    },
+    {
+      "label": "300 – 1:9",
+      "art": "weiche",
+      "klasse": "regel",
+      "R": 300,
+      "ratio": 9,
+      "speed": 50,
+      "dLcs": 3.9,
+      "minl": 5,
+      "verbindung": {
+        "stufe": 1,
+        "rang": 3
+      }
+    },
+    {
+      "label": "500 – 1:12",
+      "art": "weiche",
+      "klasse": "regel",
+      "R": 500,
+      "ratio": 12,
+      "speed": 60,
+      "dLcs": 6.3,
+      "minl": 6,
+      "verbindung": {
+        "stufe": 1,
+        "rang": 4
+      }
+    },
+    {
+      "label": "760 – 1:14",
+      "art": "weiche",
+      "klasse": "regel",
+      "R": 760,
+      "ratio": 14,
+      "speed": 80,
+      "dLcs": 9.9,
+      "minl": 12,
+      "verbindung": {
+        "stufe": 1,
+        "rang": 5
+      }
+    },
+    {
+      "label": "1200 – 1:18.5",
+      "art": "weiche",
+      "klasse": "regel",
+      "R": 1200,
+      "ratio": 18.5,
+      "speed": 100,
+      "dLcs": 11,
+      "minl": 15,
+      "verbindung": {
+        "stufe": 1,
+        "rang": 6
+      }
+    },
+    {
+      "label": "2500 – 1:26.5",
+      "art": "weiche",
+      "klasse": "regel",
+      "R": 2500,
+      "ratio": 26.5,
+      "speed": 130,
+      "dLcs": 12.9,
+      "minl": 26,
+      "verbindung": {
+        "stufe": 1,
+        "rang": 7
+      }
+    },
+    {
+      "label": "Kr 1:7.5",
+      "art": "kreuzung",
+      "klasse": "regel",
+      "kind": "crossing",
+      "ratio": 7.5,
+      "lt": 13.251,
+      "speed": 80,
+      "dLcs": 3.3
+    },
+    {
+      "label": "Kr 1:9",
+      "art": "kreuzung",
+      "klasse": "regel",
+      "kind": "crossing",
+      "ratio": 9,
+      "lt": 16.6155,
+      "speed": 100,
+      "dLcs": 3.9
+    },
+    {
+      "label": "EKW 1:9 – 190",
+      "art": "kreuzung",
+      "klasse": "regel",
+      "kind": "single_slip",
+      "ratio": 9,
+      "R": 190,
+      "routen": [
+        {
+          "id": "durchgehend",
+          "R": null,
+          "speed": 100
+        },
+        {
+          "id": "bogen",
+          "R": 190,
+          "speed": 40
+        }
+      ]
+    },
+    {
+      "label": "EKW 1:9 – 500",
+      "art": "kreuzung",
+      "klasse": "regel",
+      "kind": "single_slip",
+      "ratio": 9,
+      "R": 500,
+      "routen": [
+        {
+          "id": "durchgehend",
+          "R": null,
+          "speed": 100
+        },
+        {
+          "id": "bogen",
+          "R": 500,
+          "speed": 60
+        }
+      ]
+    },
+    {
+      "label": "DKW 1:9 – 190",
+      "art": "kreuzung",
+      "klasse": "regel",
+      "kind": "double_slip",
+      "ratio": 9,
+      "R": 190,
+      "routen": [
+        {
+          "id": "durchgehend",
+          "R": null,
+          "speed": 100
+        },
+        {
+          "id": "bogen",
+          "R": 190,
+          "speed": 40
+        }
+      ]
+    },
+    {
+      "label": "DKW 1:9 – 500",
+      "art": "kreuzung",
+      "klasse": "regel",
+      "kind": "double_slip",
+      "ratio": 9,
+      "R": 500,
+      "routen": [
+        {
+          "id": "durchgehend",
+          "R": null,
+          "speed": 100
+        },
+        {
+          "id": "bogen",
+          "R": 500,
+          "speed": 60
+        }
+      ]
+    },
+    {
+      "label": "190 – 1:6.3",
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "R": 190,
+      "ratio": 6.3,
+      "speed": 40,
+      "dLcs": 0.3,
+      "minl": 6
+    },
+    {
+      "label": "300 – 1:9.4",
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "R": 300,
+      "ratio": 9.4,
+      "speed": 50,
+      "dLcs": 3.9,
+      "minl": 5,
+      "branch": [
+        {
+          "type": "arc"
+        },
+        {
+          "type": "straight",
+          "length": 1.406
+        }
+      ],
+      "verbindung": {
+        "stufe": 2,
+        "rang": 1
+      }
+    },
+    {
+      "label": "300 – 1:14",
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "R": 300,
+      "ratio": 14,
+      "speed": 50,
+      "dLcs": 5.1,
+      "minl": null,
+      "branch": [
+        {
+          "type": "arc"
+        },
+        {
+          "type": "straight",
+          "length": 16.4077
+        }
+      ],
+      "masse": {
+        "lt": 10.7007,
+        "b": 27.1083,
+        "d": 16.4077,
+        "lw": 37.809,
+        "c": 1.9326
+      }
+    },
+    {
+      "label": "500 – 1:14",
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "R": 500,
+      "ratio": 14,
+      "speed": 60,
+      "dLcs": 6.3,
+      "minl": 6,
+      "branch": [
+        {
+          "type": "arc"
+        },
+        {
+          "type": "straight",
+          "length": 9.274
+        }
+      ],
+      "verbindung": {
+        "stufe": 2,
+        "rang": 2
+      }
+    },
+    {
+      "label": "760 – 1:15",
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "R": 760,
+      "ratio": 15,
+      "speed": 80,
+      "dLcs": 5.1,
+      "minl": 12,
+      "branch": [
+        {
+          "type": "arc"
+        },
+        {
+          "type": "straight",
+          "length": 3.6062
+        }
+      ],
+      "verbindung": {
+        "stufe": 2,
+        "rang": 3
+      }
+    },
+    {
+      "label": "760 – 1:18.5",
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "R": 760,
+      "ratio": 18.5,
+      "speed": 80,
+      "dLcs": 9.9,
+      "minl": 12,
+      "branch": [
+        {
+          "type": "arc"
+        },
+        {
+          "type": "straight",
+          "length": 11.883
+        }
+      ],
+      "verbindung": {
+        "stufe": 3,
+        "rang": 1
+      }
+    },
+    {
+      "label": "1200 – 1:19.277",
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "R": 1200,
+      "ratio": 19.277,
+      "speed": 100,
+      "dLcs": 9.96,
+      "minl": 15,
+      "branch": [
+        {
+          "type": "arc"
+        },
+        {
+          "type": "straight",
+          "length": 2.609
+        }
+      ],
+      "verbindung": {
+        "stufe": 2,
+        "rang": 4
+      }
+    },
+    {
+      "label": "Kr 1:2.9",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "crossing",
+      "ratio": 2.9,
+      "lt": 6.904,
+      "speed": 40
+    },
+    {
+      "label": "Kr 1:3.224",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "crossing",
+      "ratio": 3.224,
+      "lt": 7.92,
+      "speed": 80
+    },
+    {
+      "label": "Kr 1:3.683",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "crossing",
+      "ratio": 3.683,
+      "lt": 9.448,
+      "speed": 80,
+      "dLcs": -0.87
+    },
+    {
+      "label": "Kr 1:4.444",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "crossing",
+      "ratio": 4.444,
+      "lt": 10.9035,
+      "speed": 80,
+      "dLcs": -1.48
+    },
+    {
+      "label": "Kr 1:5.5",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "crossing",
+      "ratio": 5.5,
+      "lt": 10.7,
+      "speed": 80,
+      "dLcs": 1.5
+    },
+    {
+      "label": "Kr 1:6.6",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "crossing",
+      "ratio": 6.6,
+      "lt": 12.239,
+      "speed": 80,
+      "dLcs": 2.65
+    },
+    {
+      "label": "Kr 1:6.964",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "crossing",
+      "ratio": 6.964,
+      "lt": 12.69,
+      "speed": 80,
+      "dLcs": 3.3
+    },
+    {
+      "label": "Kr 1:14",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "crossing",
+      "ratio": 14,
+      "lt": 27.10835,
+      "speed": 160,
+      "dLcs": 5.1,
+      "masse": {
+        "lt": 27.10835,
+        "lKr": 54.2167,
+        "c": 1.9326
+      }
+    },
+    {
+      "label": "Kr 1:18.5",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "crossing",
+      "ratio": 18.5,
+      "lt": 32.4088,
+      "speed": 160,
+      "dLcs": 9.9,
+      "masse": {
+        "lt": 32.4088,
+        "lKr": 64.8176,
+        "c": 1.7499
+      }
+    }
+  ],
+  "open_points": [
+    {
+      "id": "OP.W.01",
+      "refs": [
+        "formen[*].minl"
+      ],
+      "topic": "Mindestzwischengerade hängt an v, nicht an der Form",
+      "assumption": "Bestätigt am 2026-09-22, die Tabelle steht aus. Bis dahin steht der Wert je Form, wie ihn switchUtils.js führte. Er lässt sich nicht als minl(v) lesen: 190 – 1:9 bei 40 km/h trägt 6 m, 300 – 1:9 bei 50 km/h aber 5 m."
+    },
+    {
+      "id": "OP.W.02",
+      "refs": [
+        "formen"
+      ],
+      "topic": "EBKW und DBKW 500,860 – 1:9 fehlen",
+      "assumption": "Drei Fahrwege: gerade Weichenverbindung (R unendlich, 100 km/h), zwei gleichsinnig gekrümmte Kreuzungsgleise (R 500,860, 60 km/h) und — nur bei der DBKW — der innenliegende Bogen (R 249,763, 40 km/h). Geliefert sind l_b 27,6584, l_KW 55,414, c 1,9596 und s 3,40 für die EBKW; offen bleiben die Messstelle von c, die Differenz von 9,7 cm zwischen l_KW und 2·l_b sowie die ganze DBKW-Zeile."
+    },
+    {
+      "id": "OP.W.03",
+      "refs": [
+        "formen[kind=single_slip]",
+        "formen[kind=double_slip]"
+      ],
+      "topic": "Weichenmarke und Mindestzwischengerade der vier Kreuzungsweichen",
+      "assumption": "Seit dem 2026-09-18 offen; die Geschwindigkeiten je Fahrweg sind am 2026-09-22 nachgereicht."
+    },
+    {
+      "id": "OP.W.04",
+      "refs": [
+        "switchUtils.switchMarkDistance"
+      ],
+      "topic": "Herkunft der 2,272 m in der Weichenmarkenformel",
+      "assumption": "Die Formel d = 2,272·n − (l_t + g) ist eine Rekonstruktion; nach B.10 bindet ohnehin der Tabellenwert, wo einer vorliegt."
+    },
+    {
+      "id": "OP.W.05",
+      "refs": [
+        "klassen",
+        "rules"
+      ],
+      "topic": "Regelteil der 0120",
+      "assumption": "„Es sollen Regelformen verwendet werden\" ist eine Regel, ihre Stufe (Hinweis, Warnung, Zustimmung) steht aus. Ebenso die Regeln zu Mindestzwischengerade, gebogener Weiche und Krümmungssprung innerhalb der Weiche, den die 0110 ausdrücklich diesem Katalog überlässt."
+    }
+  ]
+}

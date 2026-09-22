@@ -37,7 +37,13 @@ from olt_optimizer.regelwerk import (                          # noqa: E402
     RegelwerkError, list_regelwerke, load_regelwerk, params_from_regelwerk,
 )
 
+# The constraint files live in the repo's own src/constraints/, not in the
+# package: physics.json is the readable derivation this harness checks the
+# kernel's literals against, and it ships with no install. Reaching for it
+# across the repo root is deliberate — it is the one source, and a copy beside
+# the kernel would be the drift this section exists to catch.
 TOOLS_ROOT = pathlib.Path(__file__).resolve().parents[1]
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
 FAILED = 0
 
@@ -789,7 +795,8 @@ ok(f"S-Bogen: unabhängige Abrückung ≤ 51 cm ({s_measured * 100:.1f} cm)", s_
 # hält beide Seiten gegeneinander ehrlich, statt sie unbeobachtet auseinander-
 # laufen zu lassen.
 
-physics = json.loads((TOOLS_ROOT / "physics.json").read_text(encoding="utf-8"))
+physics = json.loads((REPO_ROOT / "src" / "constraints" / "physics.json")
+                     .read_text(encoding="utf-8"))
 ok("Physik: Überhöhungsfehlbetrag-Koeffizient stimmt mit dem Kernel überein",
    physics["ueberhoehungsfehlbetrag_koeffizient"]["wert"] == CANT_DEFICIENCY_COEFF)
 s_gauge = physics["wirksame_spurweite"]["wert"]

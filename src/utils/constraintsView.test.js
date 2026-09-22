@@ -6,7 +6,7 @@ import { flattenPhysics, appValueFor, evalFormel, PHYSICS } from './constraintsV
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(repoRoot, rel), 'utf-8'))
-const physics = readJson('tools/optimizer/physics.json')
+const physics = readJson('src/constraints/physics.json')
 const dbRil800 = readJson('tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json')
 
 describe('the bundled physics file', () => {

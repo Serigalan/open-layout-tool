@@ -17,7 +17,7 @@ import {
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const onDisk = JSON.parse(fs.readFileSync(
-  path.join(here, '../regelkataloge/db-ril-800-0110.json'), 'utf-8'))
+  path.join(here, '../constraints/db-ril-800-0110.json'), 'utf-8'))
 
 const PHYSICS = { u0_factor: CANT_DEFICIENCY_COEFF }
 const physics = { physics: PHYSICS }
@@ -30,14 +30,17 @@ describe('the catalogue file', () => {
     expect(CATALOG_ID).toBe('db-ril-800-0110')
   })
 
-  it('is DB Ril 800.0110 itself, in the version and from the date it holds', () => {
+  it('is versioned as the machine-readable rendering it is, not as the Ril', () => {
     expect(KATALOG.catalog.title).toBe('DB Ril 800.0110 | Linienführung')
-    expect(KATALOG.catalog.version).toBe('3.0')
-    expect(KATALOG.catalog.gueltig_ab).toBe('2021-02-01')
-    // And the source it renders says the same — it is the same document.
+    expect(KATALOG.catalog.katalog_version).toBe('0.3.0')
+    expect(KATALOG.catalog.status).toBe('draft')
+    // The Ril's own edition and validity date are stated nowhere: this file
+    // renders the Ril, it does not speak for it.
+    expect(KATALOG.catalog.version).toBeUndefined()
+    expect(KATALOG.catalog.gueltig_ab).toBeUndefined()
     const source = KATALOG.sources.find(s => s.id === 'RIL_800_0110')
-    expect(source.version).toBe(KATALOG.catalog.version)
-    expect(source.gueltig_ab).toBe(KATALOG.catalog.gueltig_ab)
+    expect(source.version).toBeUndefined()
+    expect(source.gueltig_ab).toBeUndefined()
   })
 
   // The rules and the values the optimizer runs on are one rulebook under one
@@ -47,8 +50,6 @@ describe('the catalogue file', () => {
       '../../tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json'), 'utf-8'))
     expect(served.id).toBe(CATALOG_ID)
     expect(served.name).toBe(KATALOG.catalog.title)
-    expect(served.version).toBe(KATALOG.catalog.version)
-    expect(served.gueltig_ab).toBe(KATALOG.catalog.gueltig_ab)
   })
 })
 
@@ -209,9 +210,12 @@ describe('applying a rule', () => {
     expect(out.outOfRange).toBe(true)
   })
 
-  it('LP.KB.02 raises the deficiency limit above 150 km/h', () => {
-    expect(at('LP.KB.02', { 'element.design_speed': 160, 'physics.u_f': 140 }).severity).toBe('ok')
-    expect(at('LP.KB.02', { 'element.design_speed': 150, 'physics.u_f': 140 }).severity).toBe('error')
+  it('LP.KB.02 keeps 130 mm as the Regelwert and opens 150 only above 150 km/h', () => {
+    expect(at('LP.KB.02', { 'element.design_speed': 160, 'physics.u_f': 130 }).severity).toBe('ok')
+    expect(at('LP.KB.02', { 'element.design_speed': 160, 'physics.u_f': 140 }).severity).toBe('warning')
+    expect(at('LP.KB.02', { 'element.design_speed': 160, 'physics.u_f': 151 }).severity).toBe('error')
+    // Up to 150 km/h the two thresholds coincide: no discretion, straight to error.
+    expect(at('LP.KB.02', { 'element.design_speed': 150, 'physics.u_f': 131 }).severity).toBe('error')
   })
 
   it('LP.KB.04 states the Regelüberhöhung and only hints at a departure from it', () => {
@@ -310,7 +314,7 @@ describe('where the catalogue and the served regelwerk overlap', () => {
   const ril = JSON.parse(fs.readFileSync(
     path.join(repoRoot, 'tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json'), 'utf-8'))
   const physicsFile = JSON.parse(fs.readFileSync(
-    path.join(repoRoot, 'tools/optimizer/physics.json'), 'utf-8'))
+    path.join(repoRoot, 'src/constraints/physics.json'), 'utf-8'))
 
   // Every threshold is read back out of the rule rather than out of the file's
   // text: what is compared is then what the checker would really apply.
@@ -394,7 +398,7 @@ describe('where the catalogue and the app\'s own cant constants overlap', () => 
     for (const v of [40, 100, 150, 151, 200, 300]) {
       expect(thresholds('LP.KB.02', {
         'element.design_speed': v, 'physics.u_f': 0,
-      }).max, `${v} km/h`).toBe(cantDefLimit(v))
+      }).discretion, `${v} km/h`).toBe(cantDefLimit(v))
     }
   })
 
