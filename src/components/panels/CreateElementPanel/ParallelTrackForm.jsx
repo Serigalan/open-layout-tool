@@ -9,6 +9,7 @@ import useTrackName from '../../../hooks/useTrackName'
 import TrackFields from '../TrackFields'
 import HeightDatumField from '../HeightDatumField'
 import { elementsPath } from '../../../utils/lineLookup'
+import RuleFindings from '../RuleFindings'
 
 export default function ParallelTrackForm({ t, map, project, onTrackSaved }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -147,6 +148,10 @@ export default function ParallelTrackForm({ t, map, project, onTrackSaved }) {
 
       {!selecting && (
         <>
+          {/* A whole chain at once — offset from an existing track, so what
+              the catalogue has to say about it is mostly what it had to say
+              about the track it was drawn beside. */}
+          {elements && <RuleFindings t={t} elements={elements} />}
           <button className="panel-btn panel-btn-full" style={{ opacity: elements ? 1 : 0.5 }} disabled={!elements} onClick={handleCommit}>
             {t('btn_commit')}
           </button>

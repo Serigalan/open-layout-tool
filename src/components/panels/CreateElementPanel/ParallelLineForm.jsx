@@ -11,6 +11,7 @@ import TrackFields from '../TrackFields'
 import useNearbyLines from '../../../hooks/useNearbyLines'
 import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
+import RuleFindings from '../RuleFindings'
 import { toWgs } from './createHelpers'
 import { elementPath } from '../../../utils/lineLookup'
 
@@ -368,6 +369,11 @@ export default function ParallelLineForm({ t, map, project, onTrackSaved }) {
 
       {points.length === 2 && !selecting && (
         <>
+          {/* A parallel is a straight or an arc, exactly as the element it was
+              drawn beside is — so it is judged as whichever it turned out. */}
+          <RuleFindings t={t} element={isArc
+            ? { elementType: 1, radius: signedR, cant: 0, speed, length: Number(length) }
+            : { elementType: 0, cant: 0, speed, length: Number(length) }} />
           <button className="panel-btn panel-btn-full" onClick={handleCommit}>
             {t('btn_commit')}
           </button>

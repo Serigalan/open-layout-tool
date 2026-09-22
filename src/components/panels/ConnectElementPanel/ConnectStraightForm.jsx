@@ -12,6 +12,7 @@ import useElementSelection from '../../../hooks/useElementSelection'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
 import { toWgs } from './connectHelpers'
+import RuleFindings from '../RuleFindings'
 
 export default function ConnectStraightForm({ t, map, project, onTrackSaved, onCommitted }) {
   const [phase, setPhase]                   = useState('select')
@@ -276,6 +277,9 @@ export default function ConnectStraightForm({ t, map, project, onTrackSaved, onC
 
       {phase === 'done' && endPoint && (
         <>
+          <RuleFindings t={t} element={{
+            elementType: 0, speed, length: Number(length), cant: 0,
+          }} />
           <button className="panel-btn panel-btn-full" onClick={handleCommit}>
             {t('btn_commit')}
           </button>

@@ -49,3 +49,41 @@ describe('RuleFindings', () => {
     expect(render(arc({ radius: 500, cant: 0 }))).toContain('LP.KB.02')
   })
 })
+
+describe('a whole chain at once', () => {
+  const short = (speed) => ({ elementType: 0, speed, length: 3, cant: 0 })
+
+  it('reports a rule once, with the number of places it was found', () => {
+    const html = renderToStaticMarkup(createElement(RuleFindings, {
+      t, elements: [short(100), short(100), short(100)],
+    }))
+    expect(html.match(/LP\.EL\.01/g)).toHaveLength(1)
+    expect(html).toContain('(3×)')
+  })
+
+  it('leaves the count off where a rule was found in one place only', () => {
+    const html = renderToStaticMarkup(createElement(RuleFindings, {
+      t, elements: [short(100), { elementType: 0, speed: 100, length: 100, cant: 0 }],
+    }))
+    expect(html).toContain('LP.EL.01')
+    expect(html).not.toContain('×)')
+  })
+
+  it('picks up what only a boundary can say', () => {
+    // A straight against an arc with no transition: a jump in curvature.
+    const html = renderToStaticMarkup(createElement(RuleFindings, {
+      t,
+      elements: [
+        { elementType: 0, speed: 100, length: 100, cant: 0 },
+        { elementType: 1, speed: 100, length: 100, radius: 1000, cant: 65 },
+      ],
+    }))
+    expect(html).toContain('LP.KS.01')
+  })
+
+  it('says nothing about a chain where no element has a design speed', () => {
+    expect(renderToStaticMarkup(createElement(RuleFindings, {
+      t, elements: [short(0), short(0)],
+    }))).toBe('')
+  })
+})
