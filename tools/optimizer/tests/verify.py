@@ -21,6 +21,7 @@ from olt_optimizer.geometry import (          # noqa: E402
     permissible_speed, radius_for_speed, max_dist_to_polyline, snap_down, snap_up,
     fit_s_group, RAMP_FACTOR, R_STEP, R_MIN, L_STEP, U_MAX, U_STEP,
     U_MAX_SWITCH, UF_MAX_SWITCH, MIN_LENGTH_COEFF, CANT_DEFICIENCY_COEFF,
+    heading_coeffs,
 )
 from olt_optimizer.track_io import (          # noqa: E402
     parse_groups, build_elements, is_straight, _straight_element,
@@ -799,8 +800,45 @@ ok(f"Physik: die Herleitung aus s und g rundet auf denselben Koeffizienten ({der
 ok("Physik: die Formel aus der Datei trifft permissible_speed (1e-12)",
    abs(math.sqrt(700.0 * (120.0 + 130.0) / physics["ueberhoehungsfehlbetrag_koeffizient"]["wert"])
        - permissible_speed(700.0, 120.0, 130.0)) < 1e-12)
+
+
+def _eval_formel(expr, **variablen):
+    """`expr` is one of physics.json's `*_calc` fields — a bare arithmetic
+    expression, never anything a user typed or a service answered, so eval()
+    is safe here the same way it would not be on external input. No builtins,
+    no name but the ones the formula names and `sqrt` for the one place that
+    needs it — an expression reaching for anything else is a bug in the file,
+    and this makes it fail loudly instead of silently succeeding at the wrong
+    thing."""
+    return eval(expr, {"__builtins__": {}, "sqrt": math.sqrt}, variablen)          # noqa: S307
+
+
+koeff = physics["ueberhoehungsfehlbetrag_koeffizient"]
+ok("Physik: formel_calc, ausgewertet, trifft ebenfalls permissible_speed (1e-12)",
+   abs(_eval_formel(koeff["formel_calc"], R=700.0, u=120.0, uf=130.0, k=koeff["wert"])
+       - permissible_speed(700.0, 120.0, 130.0)) < 1e-12)
+
 ok("Physik: beide Übergangsbogenprofile sind beschrieben",
    {"clothoid", "bloss"} <= set(physics["uebergangsbogenprofile"]))
+
+# kruemmung_calc, ausgewertet gegen den Kernel: geometry.py hält keine
+# kappa(s)-Funktion vor, sondern die Koeffizienten von deren Stammfunktion,
+# dem Heading-Polynom h(s) (heading_coeffs) — kappa(s) ist dessen Ableitung,
+# a1 + 2 a2 s + 3 a3 s^2 + 4 a4 s^3. Das ist derselbe Weg, auf dem
+# physics.json selbst zu seinen beiden Formeln kommt (siehe deren `warum`).
+def _kernel_kappa(profile, k1, k2, length, s):
+    a1, a2, a3, a4 = heading_coeffs(profile, k1, k2, length)
+    return a1 + s * (2 * a2 + s * (3 * a3 + s * 4 * a4))
+
+
+for _name, _profil in physics["uebergangsbogenprofile"].items():
+    if "kruemmung_calc" not in _profil:
+        continue
+    _k1, _k2, _L, _s = -0.01, 0.02, 120.0, 45.0
+    _from_file = _eval_formel(_profil["kruemmung_calc"], kappa1=_k1, kappa2=_k2, L=_L, s=_s)
+    _from_kernel = _kernel_kappa(_name, _k1, _k2, _L, _s)
+    ok(f"Physik: kruemmung_calc von '{_name}' trifft den Kernel (1e-12)",
+       abs(_from_file - _from_kernel) < 1e-12)
 
 rw = load_regelwerk()
 ok("Regelwerk: db-ril-800 ist das Vorgabe-Regelwerk", rw["id"] == "db-ril-800")

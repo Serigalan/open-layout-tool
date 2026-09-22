@@ -50,10 +50,30 @@ export function appValueFor(path) {
 }
 
 /**
+ * Evaluates a `*_calc` expression from physics.json — never anything a user
+ * typed or a service answered, always this repo's own file, which is what
+ * makes `Function` safe to reach for here. `variablen` names the values the
+ * expression's identifiers resolve to; `sqrt` is the one function name a
+ * formula may call.
+ */
+export function evalFormel(expr, variablen) {
+  const names = Object.keys(variablen)
+  const fn = new Function('sqrt', ...names, `"use strict"; return (${expr});`)
+  return fn(Math.sqrt, ...names.map(n => variablen[n]))
+}
+
+/**
  * physics.json as rows: `konstanten` (one per { wert, ... } entry, in file
  * order) and `profile` (the transition curve profiles, which state a curvature
  * function instead of a value). Values keep their JSON type; formatting is the
  * caller's job.
+ *
+ * A formula travels twice, and neither is a copy of the other: `*_calc` is a
+ * bare, evaluable expression (no units, no prose — `evalFormel` below runs
+ * it), `*_mathml` is the set formula the popup renders. Nothing here reads
+ * `*_calc` for display; it exists so a test can hold the file to the kernel's
+ * own arithmetic (see constraintsView.test.js and tests/verify.py's mirror of
+ * it) instead of only the constant the formula produces.
  */
 export function flattenPhysics(physik) {
   const konstanten = []
@@ -64,8 +84,8 @@ export function flattenPhysics(physik) {
       path: key,
       wert: node.wert,
       einheit: node.einheit ?? '',
-      formelText: node.formel_text ?? '',
-      formelLatex: node.formel_latex ?? '',
+      formelCalc: node.formel_calc ?? '',
+      formelMathml: node.formel_mathml ?? '',
       herleitung: node.herleitung ?? '',
       warum: node.warum ?? '',
       woVerwendet: PHYSICS_WHERE_USED[key] ?? 'Optimierer',
@@ -75,8 +95,8 @@ export function flattenPhysics(physik) {
     key,
     name: node.name ?? key,
     kruemmung: node.kruemmung ?? '',
-    kruemmungText: node.kruemmung_text ?? '',
-    kruemmungLatex: node.kruemmung_latex ?? '',
+    kruemmungCalc: node.kruemmung_calc ?? '',
+    kruemmungMathml: node.kruemmung_mathml ?? '',
     warum: node.warum ?? '',
   }))
   return { konstanten, profile }

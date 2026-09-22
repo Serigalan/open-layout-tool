@@ -1520,7 +1520,7 @@
 }
 
 .constraints-note,
-.constraints-formula,
+.constraints-math,
 .constraints-app-mismatch {
   display: block;
   margin-top: 3px;
@@ -1533,10 +1533,13 @@
   color: #888;
 }
 
-.constraints-formula {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  color: #444;
+/* The set formula, rendered by the browser's own MathML. It brings its own
+   typography — this only gives it room and a size to be read at, and never a
+   monospace font, which is the one thing a formula must not be. */
+.constraints-math {
+  margin: 5px 0 2px;
+  font-size: 15px;
+  color: #1a1a2e;
 }
 
 /* The app holds a handful of these values itself, for the dialogs that judge a

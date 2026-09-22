@@ -17,6 +17,22 @@ import { flattenPhysics, appValueFor, PHYSICS } from '../utils/constraintsView'
  * file (see constraintsView.js): the service cannot serve it, and it drives
  * nothing at runtime, so there is nothing live to ask for.
  */
+/**
+ * The set formula, drawn by the browser's own MathML — no library, MathML
+ * Core renders in every current browser. physics.json states each formula
+ * twice: this markup for drawing, and a bare `*_calc` expression a test
+ * evaluates against the kernel (constraintsView.test.js,
+ * tests/verify.py) — the calc side is never shown, only checked.
+ *
+ * The markup comes from this repo's own physics.json, never from anything a
+ * user typed or a service answered — which is what makes setting it as markup
+ * safe here, and why the popup does not do the same anywhere else.
+ */
+function Formel({ mathml }) {
+  if (!mathml) return null
+  return <span className="constraints-math" dangerouslySetInnerHTML={{ __html: mathml }} />
+}
+
 export default function ConstraintsOverlay({ t, regelwerkId, onClose }) {
   // null while the list is still being asked for, [] once the service has
   // answered with nothing — the two read the same in a table but not to the
@@ -159,7 +175,7 @@ export default function ConstraintsOverlay({ t, regelwerkId, onClose }) {
                   {row.warum}
                   {/* The formula the constant stands in, and the arithmetic it
                       comes out of — the reason the file exists at all. */}
-                  {row.formelText && <span className="constraints-formula">{row.formelText}</span>}
+                  <Formel mathml={row.formelMathml} />
                   {row.herleitung && <span className="constraints-note">{row.herleitung}</span>}
                 </td>
                 <td className="constraints-where">{row.woVerwendet}</td>
@@ -183,7 +199,7 @@ export default function ConstraintsOverlay({ t, regelwerkId, onClose }) {
                 <td className="constraints-value">{p.name}</td>
                 <td>
                   {p.kruemmung}
-                  {p.kruemmungText && <span className="constraints-formula">{p.kruemmungText}</span>}
+                  <Formel mathml={p.kruemmungMathml} />
                 </td>
                 <td>{p.warum}</td>
               </tr>
