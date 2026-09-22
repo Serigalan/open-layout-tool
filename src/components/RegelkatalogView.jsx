@@ -29,13 +29,15 @@ const appliesTo = (rule) => {
 
 export default function RegelkatalogView({ t }) {
   const { catalog, rules, tables, open_points: openPoints } = KATALOG
-  const source = KATALOG.sources[0]
 
   return (
     <>
       <p className="constraints-hint">
-        {catalog.title} · v{catalog.version} · {catalog.status} — {source.title} {source.version},{' '}
-        {t('optimize_regelwerk_gueltig_ab')} {source.gueltig_ab}
+        {catalog.title} · v{catalog.version} · {t('optimize_regelwerk_gueltig_ab')}{' '}
+        {catalog.gueltig_ab}
+        {/* The Ril has a version and the rendering of it into rules has one of
+            its own — they are different things and are said apart. */}
+        {' — '}{t('constraints_katalog_revision')} {catalog.katalog_version} ({catalog.status})
       </p>
       <p className="constraints-hint">{t('constraints_katalog_hint')}</p>
 

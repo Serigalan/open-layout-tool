@@ -31,7 +31,7 @@
       "kruemmung": "kubisch über die Länge (S-förmig, Krümmungsänderung an beiden Enden null)",
       "kruemmung_calc": "kappa1 + (kappa2 - kappa1) * (3*(s/L)**2 - 2*(s/L)**3)",
       "kruemmung_mathml": "<math xmlns=\"http://www.w3.org/1998/Math/MathML\" displaystyle=\"true\"><mi>κ</mi><mo stretchy=\"false\">(</mo><mi>s</mi><mo stretchy=\"false\">)</mo><mo>=</mo><msub><mi>κ</mi><mn>1</mn></msub><mo>+</mo><mo stretchy=\"false\">(</mo><msub><mi>κ</mi><mn>2</mn></msub><mo>−</mo><msub><mi>κ</mi><mn>1</mn></msub><mo stretchy=\"false\">)</mo><mrow><mo>(</mo><mn>3</mn><msup><mrow><mo>(</mo><mfrac><mi>s</mi><mi>L</mi></mfrac><mo>)</mo></mrow><mn>2</mn></msup><mo>−</mo><mn>2</mn><msup><mrow><mo>(</mo><mfrac><mi>s</mi><mi>L</mi></mfrac><mo>)</mo></mrow><mn>3</mn></msup><mo>)</mo></mrow></math>",
-      "warum": "an den Enden stetig differenzierbare Krümmung (Krümmungsruck an den Übergängen null), auf Kosten einer kürzeren zulässigen Rampenlänge — daher der kleinere Rampenfaktor gegenüber der Klothoide, siehe regelwerke/db-ril-800.json unter rampenregel"
+      "warum": "an den Enden stetig differenzierbare Krümmung (Krümmungsruck an den Übergängen null), auf Kosten einer kürzeren zulässigen Rampenlänge — daher der kleinere Rampenfaktor gegenüber der Klothoide, siehe regelwerke/db-ril-800-0110.json unter rampenregel"
     }
   }
 }

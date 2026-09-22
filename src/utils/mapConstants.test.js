@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import {
-  MAX_CANT, MAX_CANT_DEF, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION,
+  MAX_CANT, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION,
   cantExceedsLimit, cantExceptionFields, cantExceptionOf, cantLimit, clampSwitchCant,
   computeMaxSpeed, computeSwitchCant, switchCantError, switchCantLimit, worstCantOf,
-  VMAX_CANT_DEF, HIT_TOLERANCE, TRACKS_LAYER, elementUnderPoint,
-  cantDefLevel, designCantDef, limitCantDef,
+  HIT_TOLERANCE, TRACKS_LAYER, elementUnderPoint,
+  cantDefLevel, cantDefLimit, limitCantDef, maxSpeedFor,
 } from './mapConstants'
+
+// The two stretches of speed LP.KB.02 gives their own deficiency limit.
+const SLOW = 100      // ≤ 150 km/h
+const FAST = 200      // > 150 km/h
 
 // The numbers the whole package turns on. They are asserted by value, so a
 // change to any of them has to be made here as well as there.
@@ -16,22 +20,24 @@ describe('the limits themselves', () => {
     expect(MAX_SWITCH_CANT_DEF).toBe(110)
   })
 
-  it('leaves the line’s own limits where they were', () => {
-    expect(MAX_CANT).toBe(170)
-    expect(MAX_CANT_DEF).toBe(150)
+  // 160, not the 170 this carried before AP R.8: the limit is LP.KB.01's now.
+  it('holds a line element to the cant DB Ril 800.0110 allows', () => {
+    expect(MAX_CANT).toBe(160)
   })
 
-  it('designs a speed against 130 mm, inside the 150 mm an element may reach', () => {
-    expect(VMAX_CANT_DEF).toBe(130)
-    expect(VMAX_CANT_DEF).toBeLessThan(MAX_CANT_DEF)
-    // …and a switch route stays stricter still, so the lower one always governs.
-    expect(MAX_SWITCH_CANT_DEF).toBeLessThan(VMAX_CANT_DEF)
+  it('gives the deficiency one limit per stretch of speed, not one for all', () => {
+    expect(cantDefLimit(SLOW)).toBe(130)
+    expect(cantDefLimit(150)).toBe(130)      // still the lower one at 150 itself
+    expect(cantDefLimit(151)).toBe(150)
+    expect(cantDefLimit(FAST)).toBe(150)
+    // …and a switch route stays stricter than either, so the lower governs.
+    expect(MAX_SWITCH_CANT_DEF).toBeLessThan(cantDefLimit(SLOW))
   })
 
   it('keeps every switch limit under the line’s — a turnout is never the laxer case', () => {
     expect(MAX_SWITCH_CANT).toBeLessThan(MAX_SWITCH_CANT_EXCEPTION)
     expect(MAX_SWITCH_CANT_EXCEPTION).toBeLessThan(MAX_CANT)
-    expect(MAX_SWITCH_CANT_DEF).toBeLessThan(MAX_CANT_DEF)
+    expect(MAX_SWITCH_CANT_DEF).toBeLessThan(cantDefLimit(FAST))
   })
 })
 
@@ -54,8 +60,8 @@ describe('cantExceptionOf', () => {
 describe('cantLimit and cantExceedsLimit', () => {
   it.each([
     // element,                                                       limit, exceeds
-    [{ cant: 170 },                                                     170, false],
-    [{ cant: 175 },                                                     170, true],
+    [{ cant: 160 },                                                     160, false],
+    [{ cant: 165 },                                                     160, true],
     [{ switchBranch: true },                                            100, false],
     [{ switchBranch: true, cant: 100 },                                 100, false],
     [{ switchBranch: true, cant: 105 },                                 100, true],
@@ -68,7 +74,7 @@ describe('cantLimit and cantExceedsLimit', () => {
     [{ switchBranch: true, cant: 120, cantException: '   ' },           100, true],
     [{ switchBranch: true, cant: 120, cantException: '' },              100, true],
     // A justification on a line element buys nothing — the rule is the switch’s.
-    [{ cant: 175, cantException: 'Zwangspunkt' },                       170, true],
+    [{ cant: 165, cantException: 'Zwangspunkt' },                       160, true],
   ])('%o may carry %i mm', (el, limit, exceeds) => {
     expect(cantLimit(el)).toBe(limit)
     expect(cantExceedsLimit(el)).toBe(exceeds)
@@ -188,7 +194,7 @@ describe('computeSwitchCant', () => {
 describe('computeMaxSpeed under the switch deficiency limit', () => {
   it('admits less speed than the line limit does, at the same radius and cant', () => {
     expect(computeMaxSpeed(500, 0, MAX_SWITCH_CANT_DEF))
-      .toBeLessThan(computeMaxSpeed(500, 0, MAX_CANT_DEF))
+      .toBeLessThan(computeMaxSpeed(500, 0, cantDefLimit(FAST)))
   })
 
   it('leaves the deficiency at or under 110 mm at the speed it returns', () => {
@@ -201,27 +207,44 @@ describe('computeMaxSpeed under the switch deficiency limit', () => {
   })
 })
 
-// V_max is designed against VMAX_CANT_DEF, not against the ceiling an element
-// may reach before a dialog refuses it — the margin between the two is the
-// point of the constant, so it is pinned to the speeds it makes.
-describe('computeMaxSpeed at the deficiency a speed is designed against', () => {
-  it('leaves the deficiency at or under 130 mm at the speed it returns', () => {
-    for (const radius of [300, 500, 760, 1200, 2500]) {
+// The speed an element's geometry allows, under the limit that really holds
+// there. LP.KB.02 raises that limit above 150 km/h, so the answer is not one
+// call to computeMaxSpeed — a curve can miss the lower stretch and still clear
+// the higher one.
+describe('maxSpeedFor', () => {
+  it('never leaves the deficiency past the limit at the speed it returns', () => {
+    for (const radius of [300, 500, 760, 1200, 2500, 4000]) {
       for (const cant of [0, 80, MAX_CANT]) {
-        const v = computeMaxSpeed(radius, cant, VMAX_CANT_DEF)
-        expect(Math.round((11.8 * v * v) / radius - cant)).toBeLessThanOrEqual(VMAX_CANT_DEF)
+        const v = maxSpeedFor({}, radius, cant)
+        expect(Math.round((11.8 * v * v) / radius - cant), `R ${radius}, u ${cant}`)
+          .toBeLessThanOrEqual(cantDefLimit(v))
       }
     }
   })
 
-  it('holds a curve slower than the 150 mm ceiling would', () => {
-    expect(computeMaxSpeed(500, 0, VMAX_CANT_DEF)).toBe(74)
-    expect(computeMaxSpeed(500, 0, MAX_CANT_DEF)).toBe(79)
+  it('stays in the lower stretch where the curve cannot leave it', () => {
+    expect(maxSpeedFor({}, 500, 0)).toBe(74)          // 130 mm at 74 km/h
+    expect(computeMaxSpeed(500, 0, cantDefLimit(SLOW))).toBe(74)
   })
 
-  it('is what a switch route is never measured by — its own limit is lower', () => {
-    expect(computeMaxSpeed(500, 0, MAX_SWITCH_CANT_DEF))
-      .toBeLessThan(computeMaxSpeed(500, 0, VMAX_CANT_DEF))
+  // R 2000 reaches 148 km/h at 130 mm — and 159 once past 150 km/h, where the
+  // limit is 150. Reading the lower stretch alone would lose those 11 km/h.
+  it('takes the higher stretch when the curve clears it', () => {
+    expect(computeMaxSpeed(2000, 0, cantDefLimit(SLOW))).toBe(148)
+    expect(maxSpeedFor({}, 2000, 0)).toBe(159)
+  })
+
+  it('never proposes a speed the catalogue has no rules for', () => {
+    expect(maxSpeedFor({}, 4000, MAX_CANT)).toBe(300)
+  })
+
+  it('measures a switch route by its own, lower limit', () => {
+    expect(maxSpeedFor({ switchBranch: true }, 500, 0))
+      .toBeLessThan(maxSpeedFor({}, 500, 0))
+  })
+
+  it('says nothing about a straight — no curvature, no limit', () => {
+    expect(maxSpeedFor({}, 0, 0)).toBe(null)
   })
 })
 
@@ -276,31 +299,36 @@ describe('elementUnderPoint', () => {
   })
 })
 
-// What a deficiency says about the element carrying it — the two levels the
-// element table marks, and the one limit a switch route knows.
+// What a deficiency says about the element carrying it. Since AP R.8 there is
+// one limit and no reserve under it: a value is inside the Ril or it is not.
 describe('cantDefLevel', () => {
-  const line = {}
-  const route = { switchBranch: true }
+  const line = { speed: SLOW }
+  const fast = { speed: FAST }
+  const route = { switchBranch: true, speed: SLOW }
 
-  it('names the two limits a line element stands between', () => {
-    expect(designCantDef(line)).toBe(VMAX_CANT_DEF)
-    expect(limitCantDef(line)).toBe(MAX_CANT_DEF)
+  it('takes the limit that holds at this element’s own speed', () => {
+    expect(limitCantDef(line)).toBe(130)
+    expect(limitCantDef(fast)).toBe(150)
   })
 
-  it('gives a switch route one limit for both', () => {
-    expect(designCantDef(route)).toBe(MAX_SWITCH_CANT_DEF)
+  it('holds a switch route to its own, whatever its speed', () => {
     expect(limitCantDef(route)).toBe(MAX_SWITCH_CANT_DEF)
+    expect(limitCantDef({ switchBranch: true, speed: FAST })).toBe(MAX_SWITCH_CANT_DEF)
   })
 
   it.each([
     [0,   null],
-    [130, null],      // at what it is designed against: ordinary
-    [131, 'design'],  // over the design, inside what may be built
-    [150, 'design'],
-    [151, 'over'],    // past what any dialog would accept
+    [130, null],      // at the limit: still inside it
+    [131, 'over'],    // past what the Ril allows below 150 km/h
+    [150, 'over'],
     [236, 'over'],
-  ])('reads %i mm on a line element as %s', (def, level) => {
+  ])('reads %i mm on a line element at 100 km/h as %s', (def, level) => {
     expect(cantDefLevel(line, def)).toBe(level)
+  })
+
+  it('lets the same deficiency pass above 150 km/h, where the Ril raises it', () => {
+    expect(cantDefLevel(fast, 150)).toBe(null)
+    expect(cantDefLevel(fast, 151)).toBe('over')
   })
 
   it('has no middle ground on a switch route — its 110 mm is the limit', () => {

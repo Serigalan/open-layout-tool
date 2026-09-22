@@ -1,4 +1,4 @@
-import { weichenGruppen } from '../utils/weichenRegelwerk'
+import { weichenGruppen, WEICHEN_REGELWERK } from '../utils/weichenRegelwerk'
 import { switchKindLabelKey } from '../utils/switchModel'
 
 /**
@@ -23,6 +23,10 @@ export default function WeichenRegelwerk({ t }) {
 
   return (
     <>
+      <p className="constraints-hint">
+        {WEICHEN_REGELWERK.title} · v{WEICHEN_REGELWERK.version} ·{' '}
+        {t('optimize_regelwerk_gueltig_ab')} {WEICHEN_REGELWERK.gueltig_ab}
+      </p>
       <p className="constraints-hint">{t('constraints_weichen_hint')}</p>
       {gruppen.map(gruppe => (
         <div key={gruppe.key}>

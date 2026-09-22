@@ -3,6 +3,7 @@ import {
   MAX_SWITCH_CANT_DEF as RW_MAX_SWITCH_CANT_DEF,
   CANT_DEFICIENCY_COEFF as RW_CANT_DEFICIENCY_COEFF,
 } from './regelwerkDefaults'
+import { catalogLimit, catalogSpeedRange, IN_SWITCH_AREA } from './regelkatalog'
 
 /** Sagitta (max deviation) constants for arc coordinate generation */
 export const SAGITTA_ELEMENT = 0.05  // element.geometry.coordinates — fine precision
@@ -140,44 +141,56 @@ export const ZOOM_ICON_SIZE = lineWidthTimes(1 / MARKER_STROKE)
  */
 export const MARKER_MIN_ZOOM = 16
 
-/** Cant physics constants (same as Leaflet prototype) */
-export const MAX_CANT      = 170   // maximum cant (mm)
-export const MAX_CANT_DEF  = 150   // maximum cant deficiency (mm)
-export const CANT_STEP     = 5     // cant is designed in 5 mm steps
+/**
+ * The cant a curve may carry (mm) — LP.KB.01, read out of DB Ril 800.0110
+ * rather than restated here (see regelkatalog.js `catalogLimit`). It used to
+ * be 170 and is now the Ril's 160: since AP R.8 the dialogs create to the
+ * rulebook, not merely beside it.
+ */
+export const MAX_CANT = catalogLimit('LP.KB.01', 'max', { 'element.cant': 0 })
+
+export const CANT_STEP = 5     // cant is designed in 5 mm steps — LP.KB.03
 
 /**
- * The cant deficiency a speed is designed against (mm) — what the element
- * table's V_max column reads, and what its button sets every speed to.
- *
- * It is not MAX_CANT_DEF: 150 mm is the most an element may be built with
- * before the dialogs refuse it, the ceiling. The layout is drawn to 130, so
- * the design keeps the margin between the two instead of spending it and
- * leaving every curve at its limit. A switch route is designed to its own,
- * lower MAX_SWITCH_CANT_DEF — the stricter of the two always governs.
+ * The cant deficiency a line element may reach at `speed` (mm) — LP.KB.02.
+ * It is a **step**, not one number: 130 mm up to 150 km/h, 150 above it. The
+ * app used to read those two as "what a design aims at" and "what a dialog
+ * still accepts"; they are nothing of the kind, and since AP R.8 there is one
+ * limit per speed and no reserve between them.
  */
-export const VMAX_CANT_DEF = 130
+export const cantDefLimit = (speed) =>
+  catalogLimit('LP.KB.02', 'max', { 'element.design_speed': speed ?? 0, 'physics.u_f': 0 })
 
-/** The deficiency this element's speed is designed against. */
-export const designCantDef = (el) => (el?.switchBranch ? MAX_SWITCH_CANT_DEF : VMAX_CANT_DEF)
+/**
+ * Where that step stands, found by asking rather than by reading 150 out of
+ * the rule's text: [{ from, limit }, …], one entry per stretch of speed the
+ * Ril gives its own limit. A Ril that later has three steps needs no change
+ * here.
+ */
+const CANT_DEF_STEPS = (() => {
+  const steps = []
+  for (let v = catalogSpeedRange.min; v <= catalogSpeedRange.max; v++) {
+    const limit = cantDefLimit(v)
+    if (!steps.length || steps[steps.length - 1].limit !== limit) steps.push({ from: v, limit })
+  }
+  return steps
+})()
 
-/** The deficiency it may be built with at all — what the dialogs refuse past. */
-export const limitCantDef = (el) => (el?.switchBranch ? MAX_SWITCH_CANT_DEF : MAX_CANT_DEF)
+/** The deficiency this element may be built with — what the dialogs refuse past. */
+export const limitCantDef = (el) =>
+  (el?.switchBranch ? MAX_SWITCH_CANT_DEF : cantDefLimit(el?.speed))
 
 /**
  * What a cant deficiency says about the element carrying it: `'over'` — past
- * the limit it may be built with, so it is not buildable as it stands;
- * `'design'` — inside that, but past what its speed should have been laid out
- * against, so it is on the reserve the design is meant to keep; null —
- * ordinary. A switch route knows only the one limit: its 110 mm is both.
+ * the limit it may be built with, so it is not buildable as it stands; null —
+ * ordinary.
  *
  * Only a deficiency counts. A negative value is cant in excess of what the
  * speed needs, which has its own rules and is not judged here.
  */
-export const cantDefLevel = (el, cantDef) => (
-  cantDef > limitCantDef(el) ? 'over'
-    : cantDef > designCantDef(el) ? 'design'
-      : null)
-const CANT_COEFF    = 6.5   // C = k·v²/R
+export const cantDefLevel = (el, cantDef) => (cantDef > limitCantDef(el) ? 'over' : null)
+
+const CANT_COEFF    = 6.5   // C = k·v²/R — LP.KB.04's Regelüberhöhung
 const CANT_DEF_COEFF = RW_CANT_DEFICIENCY_COEFF // D = k·v²/R − C
 
 /**
@@ -212,9 +225,11 @@ export function computeAutoC(speed, radius) {
  * and then it is no exception at all. It is stated on the plan and warned about
  * in the element table, so it stays visible long after the dialog is gone.
  */
-export const MAX_SWITCH_CANT           = RW_MAX_SWITCH_CANT      // maximum cant on a switch route (mm)
-export const MAX_SWITCH_CANT_EXCEPTION = 120  // …raised to this by a written justification
-export const MAX_SWITCH_CANT_DEF       = RW_MAX_SWITCH_CANT_DEF  // maximum cant deficiency for switches (mm)
+export const MAX_SWITCH_CANT           = RW_MAX_SWITCH_CANT      // LP.KB.05 reg
+// …raised to this by a written justification — LP.KB.05's Ermessensgrenze,
+// which is exactly what a written justification is for.
+export const MAX_SWITCH_CANT_EXCEPTION = catalogLimit('LP.KB.05', 'discretion', { 'element.cant': 0 }, IN_SWITCH_AREA)
+export const MAX_SWITCH_CANT_DEF       = RW_MAX_SWITCH_CANT_DEF  // LP.KB.06
 
 /**
  * How far a single change in the track editor may reach before it is refused
@@ -295,6 +310,34 @@ export function computeSwitchCant(speed, radius) {
   return cantSign(radius) * Math.min(MAX_SWITCH_CANT, Math.max(0, needed))
 }
 
+/**
+ * Highest speed this element's geometry allows under the deficiency limit that
+ * really holds there — the switch route's own, or the Ril's step.
+ *
+ * The step is why this is not one call to computeMaxSpeed: the limit rises
+ * above 150 km/h, so a curve can be *too slow* for the higher limit and yet
+ * fast enough once it is past the step. Each stretch of speed is therefore
+ * solved with its own limit and clipped to its own stretch, and the fastest
+ * answer that lands inside the stretch it was computed for wins.
+ */
+export function maxSpeedFor(el, radius, cant) {
+  if (!(Math.abs(radius) > 0)) return null
+  // Never past the fastest speed the Ril speaks about (LP.ALL.01): a column
+  // that proposed 324 km/h would be proposing something the rulebook has no
+  // limits for, and the button beside it would write it into every element.
+  const ceiling = catalogSpeedRange.max
+  if (el?.switchBranch) {
+    return Math.min(computeMaxSpeed(radius, cant, MAX_SWITCH_CANT_DEF), ceiling)
+  }
+  let best = 0
+  CANT_DEF_STEPS.forEach((step, i) => {
+    const until = CANT_DEF_STEPS[i + 1] ? CANT_DEF_STEPS[i + 1].from - 1 : ceiling
+    const reached = Math.min(computeMaxSpeed(radius, cant, step.limit), until)
+    if (reached >= step.from) best = Math.max(best, reached)
+  })
+  return best
+}
+
 /** Compute cant deficiency from speed (km/h), radius (m), and signed cant (mm). */
 export function computeCantDef(speed, radius, cant) {
   const R = Math.abs(radius)
@@ -321,7 +364,7 @@ export function computeCantDefSigned(speed, radius, cant) {
  * computeCantDef, solved for the speed at which the deficiency reaches `limit`.
  * Returns null for a straight: without curvature the geometry imposes no limit.
  */
-export function computeMaxSpeed(radius, cant, limit = MAX_CANT_DEF) {
+export function computeMaxSpeed(radius, cant, limit) {
   const R = Math.abs(radius)
   if (!(R > 0)) return null
   // Cant that follows the curve buys speed; cant applied against it — a bent

@@ -1,8 +1,10 @@
 {
   "catalog": {
-    "id": "trassierung-lageplan",
-    "title": "Regelkatalog Trassierung – Lageplan",
-    "version": "0.2.0",
+    "id": "db-ril-800-0110",
+    "title": "DB Ril 800.0110 | Linienführung",
+    "version": "3.0",
+    "gueltig_ab": "2021-02-01",
+    "katalog_version": "0.2.0",
     "status": "draft",
     "date": "2026-09-22",
     "language": "de",

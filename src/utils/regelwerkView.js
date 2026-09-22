@@ -1,5 +1,5 @@
 // Turns a regelwerk (as GET /regelwerke/<id> returns it — see
-// tools/optimizer/olt_optimizer/regelwerke/db-ril-800.json for the shape)
+// tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json for the shape)
 // into table rows for the viewer panel (AP R.5, stage 1: showing). Kept as
 // plain functions, not JSX, so they run in the Node test suite without a DOM.
 

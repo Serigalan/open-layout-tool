@@ -1,4 +1,5 @@
-// The switch form tables as a regelwerk (AP R.6).
+// The switch form tables as the regelwerk they are: DB Ril 800.0120,
+// „Auswahl der Weichen und Kreuzungen" (AP R.6, named in AP R.8).
 //
 // A form table is a regelwerk in exactly the sense the optimizer's one is:
 // values a railway administration sets, which the app reads and never
@@ -19,11 +20,19 @@ import {
 } from './switchUtils'
 
 /**
- * The id this regelwerk carries in the viewer's selector. It is not an id the
- * service knows — nothing is fetched for it — which is why the fetch is
- * skipped on exactly this one.
+ * What this rulebook is: DB Ril 800.0120, the Ril that picks the forms —
+ * which is what the tables in switchUtils.js are. The id is not one the
+ * optimizer service knows, so nothing is ever fetched for it; the repo is
+ * where it is maintained and the version it states is the Ril's own.
  */
-export const WEICHEN_REGELWERK_ID = 'weichen'
+export const WEICHEN_REGELWERK = {
+  id: 'db-ril-800-0120',
+  title: 'DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen',
+  version: '1.1',
+  gueltig_ab: '2018-02-15',
+}
+
+export const WEICHEN_REGELWERK_ID = WEICHEN_REGELWERK.id
 
 /** The straight piece a branch ends in [m]; 0 for a form whose branch is one arc. */
 const geradesEndstueck = (form) =>

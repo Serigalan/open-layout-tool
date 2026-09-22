@@ -1384,6 +1384,22 @@
 .track-table-rule-special_case { color: #6a1b9a; }
 .track-table-rule-error   { color: #c0392b; }
 
+/* The same verdict beside a creation dialog's fields, before the element
+   exists — one line per rule that has something to say, in the colour of its
+   step (the .track-table-rule-* classes above carry those). */
+.rule-findings {
+  margin: 6px 0 0;
+  padding: 0 0 0 14px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.rule-findings-ok {
+  padding: 0;
+  list-style: none;
+  color: #2e7d32;
+}
+
 /* A cant a switch route carries on a written exception: inside the rules, but
    not the ordinary case, so it is marked without being called an error. Over the
    limit the cell takes .input-error instead. */

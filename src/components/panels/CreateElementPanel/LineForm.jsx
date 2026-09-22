@@ -10,6 +10,7 @@ import TrackFields from '../TrackFields'
 import useNearbyLines from '../../../hooks/useNearbyLines'
 import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
+import RuleFindings from '../RuleFindings'
 import { toWgs } from './createHelpers'
 import { elementPath } from '../../../utils/lineLookup'
 
@@ -253,6 +254,9 @@ export default function LineForm({ t, map, project, onTrackSaved }) {
 
       {points.length === 2 && !selecting && (
         <>
+          <RuleFindings t={t} element={{
+            elementType: 0, speed, length: Number(length), cant: 0,
+          }} />
           <button className="panel-btn panel-btn-full" onClick={handleCommit}>
             {t('btn_commit')}
           </button>

@@ -1,8 +1,8 @@
 {
-  "id": "db-ril-800",
-  "name": "DB Ril 800 (Entwurfsgrundsätze Bahnbau, Fahrweg)",
-  "version": "1",
-  "gueltig_ab": "2026-09-22",
+  "id": "db-ril-800-0110",
+  "name": "DB Ril 800.0110 | Linienführung",
+  "version": "3.0",
+  "gueltig_ab": "2021-02-01",
   "ueberhoehung": {
     "u_max": {
       "wert": 160,

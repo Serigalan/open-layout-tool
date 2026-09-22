@@ -2,12 +2,16 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { WEICHEN_REGELWERK_ID, weichenGruppen } from './weichenRegelwerk'
+import { WEICHEN_REGELWERK, WEICHEN_REGELWERK_ID, weichenGruppen } from './weichenRegelwerk'
 import {
   SWITCH_TYPES, SWITCH_TYPES_ALT1, SWITCH_TYPES_ALT2, SWITCH_TYPES_INVENTORY, CROSSING_TYPES,
 } from './switchUtils'
 import { switchKindLabelKey } from './switchModel'
 import { translations } from '../locales/i18n'
+import {
+  evaluateRule, ruleById, lookupPiecewise, KATALOG, IN_SWITCH_AREA,
+} from './regelkatalog'
+import { computeCantDefSigned } from './mapConstants'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const languages = Object.keys(translations)
@@ -99,12 +103,65 @@ describe('what the viewer asks the locales for', () => {
   })
 })
 
-describe('the id it carries in the selector', () => {
-  // The selector puts served and bundled regelwerke in one list, so the one id
-  // that is not the service's may not collide with one that is.
-  it('is not an id the service serves', () => {
+describe('what rulebook it is', () => {
+  it('is DB Ril 800.0120, in the version and from the date it holds', () => {
+    expect(WEICHEN_REGELWERK).toEqual({
+      id: 'db-ril-800-0120',
+      title: 'DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen',
+      version: '1.1',
+      gueltig_ab: '2018-02-15',
+    })
+    expect(WEICHEN_REGELWERK_ID).toBe(WEICHEN_REGELWERK.id)
+  })
+
+  // The selector puts served and bundled regelwerke in one list, and folds two
+  // entries with one id into one — so 800.0120, which the service does not
+  // serve, may not collide with the id of one it does.
+  it('is not the id the service serves', () => {
     const served = JSON.parse(fs.readFileSync(
-      path.join(repoRoot, 'tools/optimizer/olt_optimizer/regelwerke/db-ril-800.json'), 'utf-8'))
+      path.join(repoRoot, 'tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json'), 'utf-8'))
     expect(served.id).not.toBe(WEICHEN_REGELWERK_ID)
+  })
+})
+
+// Two rulebooks, one layout: a form 800.0120 offers has to be one 800.0110
+// would let a train over. Nothing here restates a limit — every number comes
+// out of the other catalogue's own rules.
+describe('DB Ril 800.0120 against DB Ril 800.0110 and the physics', () => {
+  const withSpeed = gruppen.flatMap(g => g.formen).filter(f => f.speed != null)
+
+  it('states a branch speed the Linienführung has rules for, on its 5 km/h grid', () => {
+    expect(withSpeed.length).toBeGreaterThan(15)
+    for (const f of withSpeed) {
+      expect(evaluateRule(ruleById('LP.ALL.01'), { 'element.design_speed': f.speed }).severity,
+        `${f.label}: ${f.speed} km/h`).toBe('ok')
+      expect(evaluateRule(ruleById('LP.ALL.02'), { 'element.design_speed': f.speed }).severity,
+        `${f.label}: ${f.speed} km/h`).toBe('ok')
+    }
+  })
+
+  // A turnout's branch is driven uncanted — a switch is built on one set of
+  // sleepers. So every form has to keep LP.KB.06 on its radius alone.
+  it('keeps every branch inside the deficiency a turnout may carry, with no cant at all', () => {
+    const turnouts = gruppen.filter(g => g.art === 'weiche').flatMap(g => g.formen)
+    expect(turnouts.length).toBeGreaterThan(10)
+    for (const f of turnouts) {
+      const u_f = computeCantDefSigned(f.speed, f.radius, 0)
+      const out = evaluateRule(ruleById('LP.KB.06'), { 'physics.u_f': u_f }, IN_SWITCH_AREA)
+      expect(out.severity, `${f.label}: ${u_f} mm at ${f.speed} km/h`).toBe('ok')
+    }
+  })
+
+  // The shortest straight 800.0120 asks for between two turnouts is never
+  // shorter than the shortest element 800.0110 allows at that speed — for the
+  // flatter forms the two are the same number.
+  it('asks for an intermediate straight the Linienführung would also allow', () => {
+    const withMinl = gruppen.filter(g => g.art === 'weiche').flatMap(g => g.formen)
+      .filter(f => f.minl != null)
+    expect(withMinl.length).toBeGreaterThan(10)
+    for (const f of withMinl) {
+      const l_min = lookupPiecewise(KATALOG.tables.min_element_length, f.speed)
+      expect(f.minl, `${f.label}: ${f.minl} m against ${l_min} m`).toBeGreaterThanOrEqual(l_min)
+    }
   })
 })

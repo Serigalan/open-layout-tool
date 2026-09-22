@@ -7,7 +7,7 @@ import { flattenPhysics, appValueFor, evalFormel, PHYSICS } from './constraintsV
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(repoRoot, rel), 'utf-8'))
 const physics = readJson('tools/optimizer/physics.json')
-const dbRil800 = readJson('tools/optimizer/olt_optimizer/regelwerke/db-ril-800.json')
+const dbRil800 = readJson('tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json')
 
 describe('the bundled physics file', () => {
   // The point of the build-time import is that the popup shows the one file in

@@ -11,7 +11,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(repoRoot, rel), 'utf-8'))
 
 describe('regelwerkDefaults, against the files it is a copy of', () => {
-  it('matches tools/optimizer/olt_optimizer/regelwerke/db-ril-800.json', () => {
+  it('matches tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json', () => {
     const rw = readJson(`tools/optimizer/olt_optimizer/regelwerke/${REGELWERK_ID}.json`)
     expect(rw.id).toBe(REGELWERK_ID)
     expect(MAX_SWITCH_CANT).toBe(rw.weiche.u_max.wert)

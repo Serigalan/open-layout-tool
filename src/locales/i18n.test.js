@@ -44,11 +44,19 @@ describe('the keys the element table derives', () => {
     expect(has('table_crs_hint')).toBe(true)
   })
 
-  it('leave room in the V_max hint for both deficiency limits', () => {
+  it('leave room in the V_max hint for every deficiency limit there is', () => {
     for (const lang of languages) {
       const hint = translations[lang].table_max_speed_hint
-      expect(hint, lang).toContain('{{mm}}')
-      expect(hint, lang).toContain('{{sw}}')
+      expect(hint, lang).toContain('{{mm}}')    // up to 150 km/h
+      expect(hint, lang).toContain('{{fast}}')  // above it — LP.KB.02 is a step
+      expect(hint, lang).toContain('{{sw}}')    // a switch route's own
+    }
+  })
+
+  it('say in the deficiency error what the speed would have to be', () => {
+    for (const lang of languages) {
+      const over = translations[lang].table_cant_def_over
+      for (const slot of ['{{is}}', '{{mm}}', '{{v}}']) expect(over, lang).toContain(slot)
     }
   })
 })

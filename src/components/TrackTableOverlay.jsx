@@ -10,9 +10,10 @@ import { ruleById, severityLabelKey } from '../utils/regelkatalog'
 import useTrackPick from '../hooks/useTrackPick'
 import {
   cantSign, cantDefLevel, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned,
-  computeMaxSpeed, designCantDef, limitCantDef, roundCant, filterForElement, FILTER_NONE,
-  CANT_STEP, MAX_SWITCH_CANT_DEF, VMAX_CANT_DEF, mapIsLive,
+  cantDefLimit, maxSpeedFor, limitCantDef, roundCant, filterForElement, FILTER_NONE,
+  CANT_STEP, MAX_SWITCH_CANT_DEF, mapIsLive,
 } from '../utils/mapConstants'
+import { catalogSpeedRange } from '../utils/regelkatalog'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
 
@@ -71,7 +72,7 @@ function maxSpeeds(elements, cap) {
   const curved = elements.map((el, i) => {
     const g = governing(elements, i)
     if (!g) return null
-    const v = computeMaxSpeed(g.radius, g.cant, designCantDef(el))
+    const v = maxSpeedFor(el, g.radius, g.cant)
     return v == null ? null : Math.floor(v / SPEED_STEP) * SPEED_STEP
   })
 
@@ -410,9 +411,8 @@ export default function TrackTableOverlay({
 
   const defNote = (el, level, cantDef, vMax) => {
     if (!level) return undefined
-    const key = level === 'over' ? 'table_cant_def_over' : 'table_cant_def_design'
-    return t(key)
-      .replace('{{mm}}', String(level === 'over' ? limitCantDef(el) : designCantDef(el)))
+    return t('table_cant_def_over')
+      .replace('{{mm}}', String(limitCantDef(el)))
       .replace('{{is}}', String(cantDef))
       .replace('{{v}}', String(vMax ?? '–'))
   }
@@ -541,8 +541,11 @@ export default function TrackTableOverlay({
               <th>{t('table_cant')} (mm)</th>
               <th>{t('table_cant_exception')}</th>
               <th>{t('table_cant_def')} (mm)</th>
+              {/* One limit per speed, so the column's tooltip names the step
+                  rather than a single number (LP.KB.02). */}
               <th title={t('table_max_speed_hint')
-                .replace('{{mm}}', String(VMAX_CANT_DEF))
+                .replace('{{mm}}', String(cantDefLimit(catalogSpeedRange.min)))
+                .replace('{{fast}}', String(cantDefLimit(catalogSpeedRange.max)))
                 .replace('{{sw}}', String(MAX_SWITCH_CANT_DEF))}>{t('table_max_speed')} (km/h)</th>
               <th title={t('table_crs_hint')}>{t('table_crs')}</th>
             </tr>
@@ -552,7 +555,7 @@ export default function TrackTableOverlay({
               // Derived, read-only: both follow the speed/cant/radius cells live.
               const g       = governing(elements, i)
               const cantDef = g ? computeCantDefSigned(el.speed ?? 0, g.radius, g.cant) : 0
-              const vMax    = g ? computeMaxSpeed(g.radius, g.cant, designCantDef(el)) : null
+              const vMax    = g ? maxSpeedFor(el, g.radius, g.cant) : null
               const level   = defLevel(el, cantDef)
               const defTip  = defNote(el, level, cantDef, vMax)
               return (

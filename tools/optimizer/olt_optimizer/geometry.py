@@ -12,7 +12,7 @@ Conventions — the app's, so an element chain crosses unchanged:
 
 The physical constant below (v = sqrt(R (u+uf) / 11.8)) is derived, with its
 formula, in ../physics.json; the values a run is held to (this section down to
-UF_MAX_SWITCH) are the code's copy of ../olt_optimizer/regelwerke/db-ril-800.json
+UF_MAX_SWITCH) are the code's copy of ../olt_optimizer/regelwerke/db-ril-800-0110.json
 (AP R.1/R.2, see ROADMAP.md). Both stay literals here — a run does not read
 either file — and tests/verify.py checks that neither has drifted from this
 module. What follows after (SAMPLE_SAGITTA on) is the search's own numerics,

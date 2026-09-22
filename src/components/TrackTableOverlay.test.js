@@ -200,12 +200,28 @@ describe('the radius of a switch route', () => {
 describe('a deficiency the speed is too high for', () => {
   it('marks the speed and the deficiency it makes, and says what V_max would be', () => {
     const { cell } = renderTable()
-    // R 500, u 100, v 100 → 136 mm: over the 130 a speed is designed against,
-    // inside the 150 an element may still be built with.
+    // R 500, u 100, v 100 → 136 mm, past the 130 LP.KB.02 allows below
+    // 150 km/h. Before AP R.8 this was the amber "design reserve" mark; there
+    // is no reserve any more, so it is the error it always was to the Ril.
     expect(cell(0, 'Fehlbetrag').text).toBe('136')
-    expect(cell(0, 'Fehlbetrag').mark).toBe('track-table-input-exception')
-    expect(cell(0, 'Speed').mark).toBe('track-table-input-exception')
+    expect(cell(0, 'Fehlbetrag').mark).toBe('input-error')
+    expect(cell(0, 'Speed').mark).toBe('input-error')
     expect(cell(0, 'Speed').note).toContain('V_max wäre 98 km/h')
+  })
+
+  it('lets a deficiency stand above 150 km/h that is an error below it', () => {
+    // R 2000 with no cant: 133 mm at 150 km/h — past the 130 the Ril allows
+    // there — and 142 mm at 155, inside the 150 it allows once past the step.
+    const at = (speed) => ({
+      id: `t-${speed}`, name: 'Gleis 4', epsg: 5678,
+      elements: [arc({ radius: 2000, cant: 0, speed })],
+    })
+    const slow = renderTable(at(150))
+    expect(slow.cell(0, 'Fehlbetrag').text).toBe('133')
+    expect(slow.cell(0, 'Fehlbetrag').mark).toBe('input-error')
+    const fast = renderTable(at(155))
+    expect(fast.cell(0, 'Fehlbetrag').text).toBe('142')
+    expect(fast.cell(0, 'Fehlbetrag').mark).toBe('')
   })
 
   it('calls a deficiency past the buildable limit an error', () => {

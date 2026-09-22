@@ -120,12 +120,12 @@ try:
     # ── 1b) Regelwerke (AP R.3) ───────────────────────────────────────────────
     status, body, _ = call(BASE, "/regelwerke")
     ok("GET /regelwerke antwortet 200", status == 200)
-    ok("GET /regelwerke listet db-ril-800",
+    ok("GET /regelwerke listet db-ril-800-0110",
        isinstance(body, dict)
-       and any(rw["id"] == "db-ril-800" for rw in body.get("regelwerke", [])))
-    status, body, _ = call(BASE, "/regelwerke/db-ril-800")
-    ok("GET /regelwerke/db-ril-800 antwortet mit dem vollen Regelwerk",
-       status == 200 and body.get("id") == "db-ril-800"
+       and any(rw["id"] == "db-ril-800-0110" for rw in body.get("regelwerke", [])))
+    status, body, _ = call(BASE, "/regelwerke/db-ril-800-0110")
+    ok("GET /regelwerke/db-ril-800-0110 antwortet mit dem vollen Regelwerk",
+       status == 200 and body.get("id") == "db-ril-800-0110"
        and "ueberhoehung" in body and "rampenregel" in body)
     status, body, _ = call(BASE, "/regelwerke/nicht-vorhanden")
     ok("GET /regelwerke/<unbekannt> → 404", status == 404 and body == {"error": "not_found"})
@@ -141,7 +141,7 @@ try:
        isinstance(body, dict)
        and set(body) >= {"elements", "report", "variant", "vBestand", "vBaseline", "vNeu",
                         "shifts", "skipped", "regelwerk"})
-    ok("Antwort nennt das verwendete Regelwerk", body.get("regelwerk") == "db-ril-800")
+    ok("Antwort nennt das verwendete Regelwerk", body.get("regelwerk") == "db-ril-800-0110")
     ok("jede geänderte Reportzeile nennt ihren Grund (AP R.4)",
        all(isinstance(r.get("grund"), dict) and r["grund"].get("regel")
           for r in body["report"] if r["changed"]))

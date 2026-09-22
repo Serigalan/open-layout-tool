@@ -7,7 +7,8 @@ import {
 } from '../../../utils/elementUtils'
 import { buildTypeFields } from '../../../utils/identifierUtils'
 import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
-import { computeAutoC, computeCantDef, roundCant, CANT_STEP, MAX_CANT, MAX_CANT_DEF, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
+import { computeAutoC, computeCantDef, roundCant, CANT_STEP, MAX_CANT, cantDefLimit, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
+import RuleFindings from '../RuleFindings'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import useDerivedField from '../../../hooks/useDerivedField'
@@ -289,11 +290,16 @@ export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
       {hasPoints && !selecting && (() => {
         const cantDef = computeCantDef(speed, Math.abs(Number(signedRadius)), cant)
         const cantErr = Math.abs(cant) > MAX_CANT
-        const defErr  = cantDef > MAX_CANT_DEF
+        // The deficiency a speed may reach is a step, not one number
+        // (LP.KB.02) — so it is asked for this speed, not read off a constant.
+        const defErr  = cantDef > cantDefLimit(speed)
         return (
           <>
             {cantErr && <p className="form-error">{t('cant_error')}</p>}
             {defErr  && <p className="form-error">{t('cant_def_error')}</p>}
+            <RuleFindings t={t} element={{
+              elementType: 1, radius: Number(signedRadius), cant, speed, length: Number(arcLength),
+            }} />
             <button className="panel-btn panel-btn-full" onClick={handleCommit}
               disabled={cantErr || defErr} style={{ opacity: (cantErr || defErr) ? 0.5 : 1 }}>
               {t('btn_commit')}

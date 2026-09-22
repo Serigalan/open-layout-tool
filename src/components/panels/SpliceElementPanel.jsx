@@ -7,8 +7,9 @@ import {
 } from '../../utils/spliceUtils'
 import {
   HIT_TOLERANCE, ZOOM_LINE_WIDTH, cantSign, computeAutoC, computeCantDef, roundCant, CANT_STEP,
-  MAX_CANT, MAX_CANT_DEF,
+  MAX_CANT, cantDefLimit,
 } from '../../utils/mapConstants'
+import RuleFindings from './RuleFindings'
 import useTrackHover from '../../hooks/useTrackHover'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
 import useDerivedField from '../../hooks/useDerivedField'
@@ -438,7 +439,8 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
     // Only the inserted arc takes a cant; an arc+arc splice re-shapes the two
     // existing arcs, which keep theirs.
     const cantDef = computeCantDef(speed, radius, cant)
-    const defErr  = !bothArcs && cantDef > MAX_CANT_DEF
+    // LP.KB.02's limit is a step over the speed, so it is asked for this one.
+    const defErr  = !bothArcs && cantDef > cantDefLimit(speed)
     return (
       <>
         <h2>{t('splice_element')}</h2>
@@ -543,6 +545,14 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
           </p>
         )}
         {defErr && <p className="form-error">{t('cant_def_error')}</p>}
+        {/* An arc+arc splice re-shapes the two arcs that are already there and
+            inserts none, so there is no new element to judge; the length is the
+            one the construction solved, not one that was typed. */}
+        {!bothArcs && splice?.result?.arcLength != null && (
+          <RuleFindings t={t} element={{
+            elementType: 1, radius: Number(radius), cant, speed, length: splice.result.arcLength,
+          }} />
+        )}
         <button
           className="panel-btn panel-btn-full"
           style={{ marginTop: 8, opacity: (canCommit && !defErr) ? 1 : 0.5 }}

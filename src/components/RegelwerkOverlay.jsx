@@ -2,35 +2,34 @@ import { useEffect, useState } from 'react'
 import { fetchRegelwerke, fetchRegelwerk } from '../utils/optimizerService'
 import { flattenRegelwerk } from '../utils/regelwerkView'
 import { appValueFor } from '../utils/constraintsView'
-import { WEICHEN_REGELWERK_ID } from '../utils/weichenRegelwerk'
+import { WEICHEN_REGELWERK } from '../utils/weichenRegelwerk'
 import { CATALOG_ID, KATALOG } from '../utils/regelkatalog'
 import WeichenRegelwerk from './WeichenRegelwerk'
 import RegelkatalogView from './RegelkatalogView'
 
-// The ones that live in this repo rather than on the service: nothing is
-// fetched for them, and they are what is left to show once the service has
-// answered with nothing.
+/**
+ * The regelwerke a layout is held to, read-only, in the same popup shell the
+ * track editor uses. A selector beside the heading names them; the page below
+ * is whichever one is chosen.
+ *
+ * **One rulebook is one entry**, however many faces it has. DB Ril 800.0110 is
+ * both the rules (bundled with the app, `regelkatalog.js`) and the bare values
+ * a run is measured against (fetched live from the optimizer, which serves them
+ * under the same id) — so it is listed once and shown as both: the rules
+ * first, the served values under them. A service built from an older commit
+ * than this bundle is exactly why the values half is still fetched rather than
+ * read out of the rules: that is the copy a run really uses.
+ *
+ * Bundled rulebooks come first and are always there; anything else the service
+ * lists is appended, so a regelwerk added to the service later shows up here
+ * without a change to this file.
+ */
+
 const BUNDLED = [
   { id: CATALOG_ID, name: KATALOG.catalog.title },
-  { id: WEICHEN_REGELWERK_ID, nameKey: 'constraints_weichen' },
+  { id: WEICHEN_REGELWERK.id, name: WEICHEN_REGELWERK.title },
 ]
 
-/**
- * The regelwerke a layout is held to — the values a railway administration
- * sets — read-only, in the same popup shell the track editor uses. There is
- * more than one of them, so the popup picks: a selector beside the heading
- * names them and the table below is whichever one is chosen.
- *
- * Two kinds are listed side by side because they are the same kind of thing:
- * the optimizer's regelwerk, fetched live from the service rather than bundled
- * (this is the copy a run is actually measured against, and an app built from
- * a newer commit than the deployed service would otherwise show limits nobody's
- * run uses), and the switch form tables, which are bundled because the app
- * draws with them itself and no service holds them.
- *
- * `flattenRegelwerk` (AP R.5) flattens the served one, `weichenRegelwerk.js`
- * reads the form tables; this is the rendering, the fetch and the choice.
- */
 export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
   // null while the list is still being asked for, [] once the service has
   // answered with nothing — the two read the same in a table but not to the
@@ -51,32 +50,32 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
     return () => { cancelled = true }
   }, [])
 
-  // The served ones first — a run is measured against one of those, and one of
-  // those is what the optimizer panel's link asks for — then the bundled ones,
-  // which are always there and are therefore what is left to fall back on once
-  // the service has answered with nothing.
   const alle = [
-    ...(regelwerke ?? []).map(rw => ({ id: rw.id, name: rw.name })),
-    ...BUNDLED.map(rw => ({ id: rw.id, name: rw.nameKey ? t(rw.nameKey) : rw.name })),
+    ...BUNDLED,
+    ...(regelwerke ?? [])
+      .filter(rw => !BUNDLED.some(bundled => bundled.id === rw.id))
+      .map(rw => ({ id: rw.id, name: rw.name })),
   ]
-  const id = wanted || regelwerke?.[0]?.id || (regelwerke ? CATALOG_ID : '')
-  const istGebuendelt = BUNDLED.some(rw => rw.id === id)
+  const id = wanted || CATALOG_ID
+  // Only what the service actually lists is asked for — a purely bundled
+  // rulebook has nothing to fetch, and a fetch for it would only ever fail.
+  const served = !!regelwerke?.some(rw => rw.id === id)
 
   useEffect(() => {
-    // Nothing to fetch for a bundled regelwerk — the service does not know it.
-    if (!id || BUNDLED.some(rw => rw.id === id)) return
+    if (!id || !served) return
     let cancelled = false
     fetchRegelwerk(id).then(rw => {
       if (cancelled) return
       setStatus(rw ? { id, regelwerk: rw } : { id, failed: true })
     })
     return () => { cancelled = true }
-  }, [id])
+  }, [id, served])
 
-  const current = !istGebuendelt && status?.id === id ? status : null
+  const current = status?.id === id ? status : null
   const regelwerk = current?.regelwerk ?? null
   const failed = !!current?.failed
   const rows = regelwerk ? flattenRegelwerk(regelwerk) : []
+  const bundled = BUNDLED.some(rw => rw.id === id)
 
   // A boolean limit ("does existing track fall under the ramp rule") reads as
   // a sentence, not as `false`; numbers keep the shape the JSON states them in.
@@ -105,25 +104,32 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
 
       <div className="track-table-scroll constraints-scroll">
         {/* A service that cannot be asked is said once, above whatever is
-            shown: the bundled tables are still there and still true, and the
-            reader has to know that the served one is missing rather than
+            shown: the bundled rules are still there and still true, and the
+            reader has to know that the values half is missing rather than
             gone. */}
         {regelwerke?.length === 0 && (
           <p className="constraints-error">{t('constraints_service_down')}</p>
         )}
+
         {id === CATALOG_ID && <RegelkatalogView t={t} />}
-        {id === WEICHEN_REGELWERK_ID && <WeichenRegelwerk t={t} />}
+        {id === WEICHEN_REGELWERK.id && <WeichenRegelwerk t={t} />}
+
         {/* Three states, said apart: still asking, asked and no server, and
             the table itself. A panel that needs the service says so rather
             than showing an empty table. */}
-        {!istGebuendelt && !failed && !regelwerk && (
+        {served && !failed && !regelwerk && (
           <p className="constraints-hint">{t('constraints_loading')}</p>
         )}
-        {failed && (
+        {failed && <p className="constraints-error">{t('optimize_err_unavailable')}</p>}
+        {!bundled && !served && regelwerke !== null && (
           <p className="constraints-error">{t('optimize_err_unavailable')}</p>
         )}
+
         {regelwerk && (
           <>
+            {/* Under the rules when there are rules above: the same rulebook,
+                as the numbers a run is really measured against. */}
+            <h4 className="constraints-subsection">{t('constraints_optimizer_values')}</h4>
             <p className="constraints-hint">
               {regelwerk.name} · v{regelwerk.version} · {t('optimize_regelwerk_gueltig_ab')}{' '}
               {regelwerk.gueltigAb ?? regelwerk.gueltig_ab}

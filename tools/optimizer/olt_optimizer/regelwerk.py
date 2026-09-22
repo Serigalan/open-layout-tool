@@ -19,7 +19,7 @@ import json
 from pathlib import Path
 
 REGELWERKE_DIR = Path(__file__).resolve().parent / "regelwerke"
-DEFAULT_REGELWERK_ID = "db-ril-800"
+DEFAULT_REGELWERK_ID = "db-ril-800-0110"
 
 # The regelwerk keys `optimize.py` reads from `params`, and where each comes
 # from in the JSON. `verify.py`'s drift check walks this same map in both

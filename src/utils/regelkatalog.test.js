@@ -11,13 +11,13 @@ import { parseExpr } from './ruleExpr'
 import { CANT_DEFICIENCY_COEFF } from './regelwerkDefaults'
 import { translations } from '../locales/i18n'
 import {
-  computeAutoC, MAX_CANT, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION,
-  VMAX_CANT_DEF,
+  cantDefLimit, computeAutoC, MAX_CANT, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF,
+  MAX_SWITCH_CANT_EXCEPTION,
 } from './mapConstants'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const onDisk = JSON.parse(fs.readFileSync(
-  path.join(here, '../regelkataloge/trassierung-lageplan.json'), 'utf-8'))
+  path.join(here, '../regelkataloge/db-ril-800-0110.json'), 'utf-8'))
 
 const PHYSICS = { u0_factor: CANT_DEFICIENCY_COEFF }
 const physics = { physics: PHYSICS }
@@ -27,13 +27,28 @@ describe('the catalogue file', () => {
   // is nothing here that could drift from what is maintained in the repo.
   it('is the file in the repo, not a transcription of it', () => {
     expect(KATALOG).toEqual(onDisk)
-    expect(CATALOG_ID).toBe('trassierung-lageplan')
+    expect(CATALOG_ID).toBe('db-ril-800-0110')
   })
 
-  it('names DB Ril 800.0110 in the version it was worked in', () => {
+  it('is DB Ril 800.0110 itself, in the version and from the date it holds', () => {
+    expect(KATALOG.catalog.title).toBe('DB Ril 800.0110 | Linienführung')
+    expect(KATALOG.catalog.version).toBe('3.0')
+    expect(KATALOG.catalog.gueltig_ab).toBe('2021-02-01')
+    // And the source it renders says the same — it is the same document.
     const source = KATALOG.sources.find(s => s.id === 'RIL_800_0110')
-    expect(source.version).toBe('3.0')
-    expect(source.gueltig_ab).toBe('2021-02-01')
+    expect(source.version).toBe(KATALOG.catalog.version)
+    expect(source.gueltig_ab).toBe(KATALOG.catalog.gueltig_ab)
+  })
+
+  // The rules and the values the optimizer runs on are one rulebook under one
+  // id — that is what makes the popup show them as one entry rather than two.
+  it('carries the id the optimizer service serves the values of', () => {
+    const served = JSON.parse(fs.readFileSync(path.join(here,
+      '../../tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json'), 'utf-8'))
+    expect(served.id).toBe(CATALOG_ID)
+    expect(served.name).toBe(KATALOG.catalog.title)
+    expect(served.version).toBe(KATALOG.catalog.version)
+    expect(served.gueltig_ab).toBe(KATALOG.catalog.gueltig_ab)
   })
 })
 
@@ -293,7 +308,7 @@ describe('applying a list of rules', () => {
 describe('where the catalogue and the served regelwerk overlap', () => {
   const repoRoot = path.resolve(here, '../..')
   const ril = JSON.parse(fs.readFileSync(
-    path.join(repoRoot, 'tools/optimizer/olt_optimizer/regelwerke/db-ril-800.json'), 'utf-8'))
+    path.join(repoRoot, 'tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json'), 'utf-8'))
   const physicsFile = JSON.parse(fs.readFileSync(
     path.join(repoRoot, 'tools/optimizer/physics.json'), 'utf-8'))
 
@@ -375,19 +390,19 @@ describe('where the catalogue and the app\'s own cant constants overlap', () => 
     expect(thresholds('LP.KB.06', { 'physics.u_f': 0 }, inSwitch).max).toBe(MAX_SWITCH_CANT_DEF)
   })
 
-  it('designs against the same deficiency the V_max column does', () => {
-    expect(thresholds('LP.KB.02', {
-      'element.design_speed': 100, 'physics.u_f': 0,
-    }).max).toBe(VMAX_CANT_DEF)
+  it('holds the deficiency to the same step the dialogs and the V_max column do', () => {
+    for (const v of [40, 100, 150, 151, 200, 300]) {
+      expect(thresholds('LP.KB.02', {
+        'element.design_speed': v, 'physics.u_f': 0,
+      }).max, `${v} km/h`).toBe(cantDefLimit(v))
+    }
   })
 
-  // The one place they differ on purpose: a dialog still accepts up to 170 mm
-  // (MAX_CANT), the catalogue allows 160. Nothing is changed here — the rule
-  // column is exactly what makes a value between the two visible as the
-  // departure from Ril 800.0110 that it is.
-  it('is the stricter of the two about plain line cant', () => {
-    const limit = thresholds('LP.KB.01', { 'element.cant': 0 }).max
-    expect(limit).toBe(160)
-    expect(MAX_CANT).toBeGreaterThan(limit)
+  // Until AP R.8 the dialogs accepted 170 mm where the catalogue allowed 160,
+  // and the rule column was what made the difference visible (Entscheidung
+  // 48). Now the dialogs take the limit from the catalogue, so the two are
+  // the same number by construction — and this is what keeps them so.
+  it('is where the dialogs get their cant limit from', () => {
+    expect(MAX_CANT).toBe(thresholds('LP.KB.01', { 'element.cant': 0 }).max)
   })
 })

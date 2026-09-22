@@ -51,7 +51,7 @@ def main(argv=None):
     ap.add_argument("--maxiter", type=int, default=150, help="DE-Iterationen (Default 150)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--regelwerk", default=None,
-                    help="Id des Regelwerks (Default: db-ril-800, siehe olt_optimizer/regelwerke/)")
+                    help="Id des Regelwerks (Default: db-ril-800-0110, siehe olt_optimizer/regelwerke/)")
     ap.add_argument("-o", "--out", help="Ausgabedatei (Default: <input>_optimized.json)")
     args = ap.parse_args(argv)
 

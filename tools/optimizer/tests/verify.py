@@ -783,7 +783,7 @@ ok(f"S-Bogen: unabhängige Abrückung ≤ 51 cm ({s_measured * 100:.1f} cm)", s_
 
 
 # ── 13) Regelwerk und Physik: Driftprüfung (AP R.1/R.2) ──────────────────────
-# physics.json und regelwerke/db-ril-800.json sind die lesbare Quelle; ein
+# physics.json und regelwerke/db-ril-800-0110.json sind die lesbare Quelle; ein
 # Lauf liest zur Laufzeit keine der beiden, geometry.py/optimize.py rechnen mit
 # ihren eigenen Literalen weiter (siehe die Moduldocstrings). Dieser Abschnitt
 # hält beide Seiten gegeneinander ehrlich, statt sie unbeobachtet auseinander-
@@ -841,9 +841,9 @@ for _name, _profil in physics["uebergangsbogenprofile"].items():
        abs(_from_file - _from_kernel) < 1e-12)
 
 rw = load_regelwerk()
-ok("Regelwerk: db-ril-800 ist das Vorgabe-Regelwerk", rw["id"] == "db-ril-800")
+ok("Regelwerk: db-ril-800-0110 ist das Vorgabe-Regelwerk", rw["id"] == "db-ril-800-0110")
 ok("Regelwerk: list_regelwerke() findet es",
-   any(r["id"] == "db-ril-800" for r in list_regelwerke()))
+   any(r["id"] == "db-ril-800-0110" for r in list_regelwerke()))
 try:
     load_regelwerk("nicht-vorhanden")
     ok("Regelwerk: unbekannte Id wird abgelehnt", False)
@@ -887,11 +887,11 @@ missing = (wired | informational) - all_leaves
 ok(f"Regelwerk: jeder verdrahtete Pfad existiert auch im JSON ({missing or 'alle da'})", not missing)
 
 rw_res = optimize_payload(track3, corridor_cm=50.0, uf=130.0, uebergang="bestand",
-                          regelwerk="db-ril-800", maxiter=25, seed=1)
+                          regelwerk="db-ril-800-0110", maxiter=25, seed=1)
 default_res = optimize_payload(track3, corridor_cm=50.0, uf=130.0, uebergang="bestand",
                                maxiter=25, seed=1)
-ok("Regelwerk: explizit db-ril-800 == Default", rw_res["vNeu"] == default_res["vNeu"])
-ok("Regelwerk: das Ergebnis nennt die verwendete Id", rw_res["regelwerk"] == "db-ril-800")
+ok("Regelwerk: explizit db-ril-800-0110 == Default", rw_res["vNeu"] == default_res["vNeu"])
+ok("Regelwerk: das Ergebnis nennt die verwendete Id", rw_res["regelwerk"] == "db-ril-800-0110")
 try:
     optimize_payload(track3, regelwerk="nicht-vorhanden")
     ok("Regelwerk: unbekannte Id über optimize_payload wird abgelehnt", False)

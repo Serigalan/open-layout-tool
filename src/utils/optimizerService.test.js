@@ -98,7 +98,7 @@ describe('asking whether the service is there', () => {
 
 describe('asking which regelwerke the service knows (AP R.3)', () => {
   it('resolves with the list', async () => {
-    const regelwerke = [{ id: 'db-ril-800', name: 'DB Ril 800', version: '1', gueltigAb: '2026-09-22' }]
+    const regelwerke = [{ id: 'db-ril-800-0110', name: 'DB Ril 800', version: '1', gueltigAb: '2026-09-22' }]
     vi.stubGlobal('fetch', vi.fn(async () => json({ regelwerke })))
     await expect(fetchRegelwerke()).resolves.toEqual(regelwerke)
   })
@@ -116,9 +116,9 @@ describe('asking which regelwerke the service knows (AP R.3)', () => {
 
 describe('asking for one regelwerk in full', () => {
   it('resolves with the regelwerk', async () => {
-    const rw = { id: 'db-ril-800', ueberhoehung: { u_max: { wert: 160 } } }
+    const rw = { id: 'db-ril-800-0110', ueberhoehung: { u_max: { wert: 160 } } }
     vi.stubGlobal('fetch', vi.fn(async () => json(rw)))
-    await expect(fetchRegelwerk('db-ril-800')).resolves.toEqual(rw)
+    await expect(fetchRegelwerk('db-ril-800-0110')).resolves.toEqual(rw)
   })
 
   it('resolves with null where the id is unknown', async () => {
@@ -128,7 +128,7 @@ describe('asking for one regelwerk in full', () => {
 
   it('resolves with null rather than throwing where the service is unreachable', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
-    await expect(fetchRegelwerk('db-ril-800')).resolves.toBeNull()
+    await expect(fetchRegelwerk('db-ril-800-0110')).resolves.toBeNull()
   })
 })
 

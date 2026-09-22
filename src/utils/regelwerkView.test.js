@@ -6,7 +6,7 @@ import { flattenRegelwerk } from './regelwerkView'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const dbRil800 = JSON.parse(fs.readFileSync(
-  path.join(repoRoot, 'tools/optimizer/olt_optimizer/regelwerke/db-ril-800.json'), 'utf-8'))
+  path.join(repoRoot, 'tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json'), 'utf-8'))
 
 describe('flattenRegelwerk', () => {
   it('turns a small regelwerk into one row per leaf, in order', () => {
@@ -44,7 +44,7 @@ describe('flattenRegelwerk', () => {
   })
 })
 
-describe('flattenRegelwerk against the real db-ril-800.json', () => {
+describe('flattenRegelwerk against the real db-ril-800-0110.json', () => {
   const rows = flattenRegelwerk(dbRil800)
 
   it('finds at least the values optimize.py reads (AP R.2)', () => {

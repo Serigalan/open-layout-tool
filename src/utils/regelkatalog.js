@@ -1,6 +1,11 @@
 /**
  * The rule catalogue — DB Ril 800.0110 Linienführung as the repo holds it
- * (src/regelkataloge/trassierung-lageplan.json), read and applied.
+ * (src/regelkataloge/db-ril-800-0110.json), read and applied.
+ *
+ * One rulebook, one id: the same `db-ril-800-0110` the optimizer service
+ * serves the *values* of. The two are the two faces of one Ril — the rules
+ * with their steps of severity here, the bare numbers a run is measured
+ * against there — and sharing the id is what says so.
  *
  * The file is the rule, not a description of one: every limit, every step of
  * severity and every formula lives there, and this module only walks it. That
@@ -15,7 +20,7 @@
  * trassierungCheck.js is what fills that scope from the app's own elements.
  */
 
-import KATALOG from '../regelkataloge/trassierung-lageplan.json'
+import KATALOG from '../regelkataloge/db-ril-800-0110.json'
 import { evalExpr } from './ruleExpr'
 
 export { KATALOG }
@@ -178,6 +183,48 @@ function nameValue(scope, from, ruleId, input) {
   if (!(from in scope)) throw new Error(`${ruleId}: nothing provides ${from} for ${input}`)
   return scope[from]
 }
+
+/**
+ * One threshold of one rule, read out of the catalogue — the number the
+ * checker would really apply. This is how the app takes its own limits **from**
+ * the rulebook instead of restating them beside it: a dialog that clamps at
+ * `catalogLimit('LP.KB.01', 'max', …)` clamps at whatever the Ril says, and
+ * changing the Ril changes the dialog.
+ *
+ * `scope` only has to carry the names that rule declares as inputs; a
+ * threshold that does not depend on them takes any neutral value.
+ */
+export function catalogLimit(ruleId, name, scope = {}, options = {}) {
+  const rule = ruleById(ruleId)
+  if (!rule) throw new Error(`unknown rule ${ruleId}`)
+  const value = evaluateRule(rule, scope, options).values[name]
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`${ruleId}.${name} is not a number: ${value}`)
+  }
+  return value
+}
+
+/** Reading a limit that only holds inside a turnout (LP.KB.05, LP.KB.06). */
+export const IN_SWITCH_AREA = { inContext: (id) => id === 'switch_area' }
+
+/**
+ * The design speeds the catalogue covers, as { min, max } [km/h] — found by
+ * asking LP.ALL.01 rather than by reading 40 and 300 out of its text. Anything
+ * outside it is not a speed the Ril speaks about, so it is not one the app
+ * should propose either.
+ */
+export const catalogSpeedRange = (() => {
+  const rule = ruleById('LP.ALL.01')
+  const keeps = (v) => evaluateRule(rule, { 'element.design_speed': v }).severity === 'ok'
+  let min = null
+  let max = null
+  for (let v = 1; v <= 1000; v++) {
+    if (!keeps(v)) continue
+    if (min === null) min = v
+    max = v
+  }
+  return { min, max }
+})()
 
 /**
  * The element rules that speak about this kind of element. A rule without
