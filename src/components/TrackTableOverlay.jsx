@@ -420,7 +420,7 @@ export default function TrackTableOverlay({
   // What the catalogue said about one row. The cell carries the worst of it,
   // the tooltip every rule that fired — an id, its step and the rule's own
   // title, because "Warnung" alone says nothing about what to change.
-  const ruleClass = (entry) => `track-table-rule track-table-rule-${entry?.severity ?? 'none'}`
+  const ruleClass = (entry) => `track-table-rule rule-sev-${entry?.severity ?? 'none'}`
 
   const ruleText = (entry) => {
     if (!entry || entry.unchecked) return '–'

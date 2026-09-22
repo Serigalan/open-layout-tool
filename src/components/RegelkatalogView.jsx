@@ -45,7 +45,7 @@ export default function RegelkatalogView({ t }) {
       <p className="constraints-hint">{KATALOG.aggregation}</p>
       <div className="constraints-severities">
         {KATALOG.severity_levels.map(level => (
-          <span key={level.id} className={`constraints-severity track-table-rule-${level.id}`}>
+          <span key={level.id} className={`constraints-severity rule-sev-${level.id}`}>
             {t(severityLabelKey(level.id))}
             {level.meaning && <span className="constraints-note">{level.meaning}</span>}
           </span>
@@ -90,7 +90,7 @@ export default function RegelkatalogView({ t }) {
                   <span key={i} className="constraints-expr">
                     {'else' in entry ? t('constraints_rule_else') : entry.if}
                     {' → '}
-                    <span className={`track-table-rule-${'else' in entry ? entry.else : entry.severity}`}>
+                    <span className={`rule-sev-${'else' in entry ? entry.else : entry.severity}`}>
                       {t(severityLabelKey('else' in entry ? entry.else : entry.severity))}
                     </span>
                   </span>

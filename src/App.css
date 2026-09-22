@@ -1366,37 +1366,47 @@
   width: 160px;
 }
 
-/* What the rule catalogue said about a row (AP R.7). One cell, the worst of
-   it, in the colour of its step — the tooltip carries the rules themselves.
-   The ladder runs grey → amber → orange → violet → red, so a glance down the
-   column finds the worst row without reading a word of it. */
+/* The one ladder of severities the rule catalogue answers with (AP R.7),
+   as colour: grey → amber → orange → violet → red. It is shared, not owned by
+   any one view — the element table's cell, a creation dialog's findings and
+   the catalogue's own legend all read from here, so the same step is the same
+   colour wherever it is said. */
+.rule-sev-none         { color: #bbb; font-weight: 400; }
+.rule-sev-ok           { color: #2e7d32; }
+.rule-sev-hint         { color: #6b7280; }
+.rule-sev-warning      { color: #e08b00; }
+.rule-sev-approval     { color: #d35400; }
+.rule-sev-special_case { color: #6a1b9a; }
+.rule-sev-error        { color: #c0392b; }
+
+/* The element table's cell: the worst step of the row, small and on one line,
+   with the rules themselves in the tooltip. A glance down the column finds
+   the worst row without reading a word of it. */
 .track-table-rule {
   white-space: nowrap;
   font-weight: 600;
   font-size: 11px;
 }
 
-.track-table-rule-none    { color: #bbb; font-weight: 400; }
-.track-table-rule-ok      { color: #2e7d32; }
-.track-table-rule-hint    { color: #6b7280; }
-.track-table-rule-warning { color: #e08b00; }
-.track-table-rule-approval { color: #d35400; }
-.track-table-rule-special_case { color: #6a1b9a; }
-.track-table-rule-error   { color: #c0392b; }
-
 /* The same verdict beside a creation dialog's fields, before the element
-   exists — one line per rule that has something to say, in the colour of its
-   step (the .track-table-rule-* classes above carry those). */
-.rule-findings {
-  margin: 6px 0 0;
-  padding: 0 0 0 14px;
-  font-size: 11px;
-  line-height: 1.45;
+   exists. It reads like the dialog's other messages — the family and size of
+   .form-error, one line per finding — and not as a bulleted list: a panel
+   keeps bullets for what it is about to do (.form-list), not for what it has
+   to say about it. */
+.rule-findings,
+.rule-findings-ok {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rule-findings li {
+  margin: 2px 0;
 }
 
 .rule-findings-ok {
-  padding: 0;
-  list-style: none;
   color: #2e7d32;
 }
 

@@ -16,6 +16,11 @@ import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
  * Judged on its own, as the single element it is about to be: the rules over
  * an element boundary need a neighbour, and until it is committed there is
  * none. The element table picks those up the moment there is.
+ *
+ * Rendered as the panel's other messages are — one line per finding, in the
+ * colour of its step (`rule-sev-*`, the one ladder the element table and the
+ * catalogue's legend read from too), with no bullets: a panel keeps those for
+ * what it is about to do, not for what it has to say about it.
  */
 export default function RuleFindings({ t, element }) {
   const entry = checkTrack([element]).perElement[0]
@@ -28,7 +33,7 @@ export default function RuleFindings({ t, element }) {
   return (
     <ul className="rule-findings">
       {fired.map(result => (
-        <li key={result.id} className={`track-table-rule-${result.severity}`}>
+        <li key={result.id} className={`rule-sev-${result.severity}`}>
           {result.id} · {t(severityLabelKey(result.severity))}: {ruleById(result.id)?.title}
         </li>
       ))}

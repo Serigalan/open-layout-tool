@@ -32,7 +32,7 @@ describe('RuleFindings', () => {
 
   it('marks each line with the colour of its step', () => {
     const html = render(arc({ length: 10 }))
-    expect(html).toContain('track-table-rule-error')
+    expect(html).toContain('rule-sev-error')
   })
 
   it('judges a straight by the rules a straight has', () => {
