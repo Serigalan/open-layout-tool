@@ -1,0 +1,88 @@
+{
+  "id": "db-ril-800",
+  "name": "DB Ril 800 (Entwurfsgrundsätze Bahnbau, Fahrweg)",
+  "version": "1",
+  "gueltig_ab": "2026-09-22",
+  "ueberhoehung": {
+    "u_max": {
+      "wert": 160,
+      "einheit": "mm",
+      "quelle": "",
+      "warum": "Überhöhungsdecke — oberhalb schlägt kein Lauf mehr etwas vor"
+    },
+    "u_step": {
+      "wert": 5,
+      "einheit": "mm",
+      "quelle": "",
+      "warum": "Überhöhung wird im 5-mm-Raster ausgelegt"
+    }
+  },
+  "weiche": {
+    "u_max": {
+      "wert": 100,
+      "einheit": "mm",
+      "quelle": "",
+      "warum": "Überhöhungsdecke auf einer Weichenstraße — enger als die freie Strecke"
+    },
+    "uf_max": {
+      "wert": 110,
+      "einheit": "mm",
+      "quelle": "",
+      "warum": "Überhöhungsfehlbetragsdecke auf einer Weichenstraße"
+    },
+    "ausnahme_120": {
+      "wert": 120,
+      "einheit": "mm",
+      "wird_automatisch_genutzt": false,
+      "warum": "Einzelfallentscheidung eines Planers für ein bestimmtes Element, keine Rechenreserve, die ein Lauf sich selbst nimmt"
+    }
+  },
+  "rampenregel": {
+    "faktor_klothoide": {
+      "wert": 8,
+      "einheit": "-",
+      "quelle": "",
+      "warum": "l >= k * v * du / 1000 [l m, v km/h, du mm] — Faktor k für Klothoiden-Übergangsbögen"
+    },
+    "faktor_bloss": {
+      "wert": 6,
+      "einheit": "-",
+      "quelle": "",
+      "warum": "l >= k * v * du / 1000 — Faktor k für Bloß-Übergangsbögen, kleiner als bei der Klothoide, weil deren Krümmung an den Enden bereits stetig differenzierbar anläuft"
+    }
+  },
+  "mindestlaenge": {
+    "koeffizient": {
+      "wert": 0.2,
+      "einheit": "m / (km/h)",
+      "quelle": "",
+      "warum": "l_min = koeffizient * v — Mindestlänge eines Elements oder einer Rampe, unabhängig davon, was die Rampenregel selbst verlangt"
+    }
+  },
+  "baubarkeitsraster": {
+    "radius_schritt": {
+      "wert": 1.0,
+      "einheit": "m",
+      "quelle": "",
+      "warum": "Radien werden in ganzen Metern ausgelegt — das Raster, in dem ein Entwurf gebaut wird, nicht die Rechengenauigkeit"
+    },
+    "radius_min": {
+      "wert": 25.0,
+      "einheit": "m",
+      "quelle": "",
+      "warum": "kleinster Radius, den ein Lauf von sich aus vorschlägt"
+    },
+    "laenge_schritt": {
+      "wert": 0.1,
+      "einheit": "m",
+      "quelle": "",
+      "warum": "Längen (Rampen, Elemente) werden in 10-cm-Schritten ausgelegt"
+    }
+  },
+  "bestand": {
+    "unterliegt_rampenregel": {
+      "wert": false,
+      "warum": "was gebaut ist, ist eine Tatsache, von der aus gerechnet wird, kein Vorschlag, der an der Rampen- oder Mindestlängenregel zu prüfen wäre"
+    }
+  }
+}

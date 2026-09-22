@@ -9,6 +9,7 @@
 4. Switch elements in a group: the tighter cant and deficiency limits (AP 1.1).
 """
 
+import json
 import math
 import sys
 import pathlib
@@ -18,7 +19,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from olt_optimizer.geometry import (          # noqa: E402
     transition_shift, fit_curve_group, fit_compound_group, dir_of,
     permissible_speed, radius_for_speed, max_dist_to_polyline, snap_down, snap_up,
-    fit_s_group, RAMP_FACTOR, R_STEP, L_STEP,
+    fit_s_group, RAMP_FACTOR, R_STEP, R_MIN, L_STEP, U_MAX, U_STEP,
+    U_MAX_SWITCH, UF_MAX_SWITCH, MIN_LENGTH_COEFF, CANT_DEFICIENCY_COEFF,
 )
 from olt_optimizer.track_io import (          # noqa: E402
     parse_groups, build_elements, is_straight, _straight_element,
@@ -29,6 +31,12 @@ from olt_optimizer.optimize import (        # noqa: E402
     _bestand_solution, _interior_straights, _max_radius_for,
 )
 from olt_optimizer.api import optimize_payload                # noqa: E402
+from olt_optimizer import regelwerk as regelwerk_mod           # noqa: E402
+from olt_optimizer.regelwerk import (                          # noqa: E402
+    RegelwerkError, list_regelwerke, load_regelwerk, params_from_regelwerk,
+)
+
+TOOLS_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 FAILED = 0
 
@@ -763,6 +771,86 @@ ok("S-Bogen: Radien in ganzen Metern", all(
    on_grid(abs(el["radius"]), R_STEP) for el in s_res2["elements"] if el["elementType"] == 1))
 s_measured = independent_offset(s_els2, s_res2["elements"])
 ok(f"S-Bogen: unabhängige Abrückung ≤ 51 cm ({s_measured * 100:.1f} cm)", s_measured <= 0.51)
+
+
+# ── 13) Regelwerk und Physik: Driftprüfung (AP R.1/R.2) ──────────────────────
+# physics.json und regelwerke/db-ril-800.json sind die lesbare Quelle; ein
+# Lauf liest zur Laufzeit keine der beiden, geometry.py/optimize.py rechnen mit
+# ihren eigenen Literalen weiter (siehe die Moduldocstrings). Dieser Abschnitt
+# hält beide Seiten gegeneinander ehrlich, statt sie unbeobachtet auseinander-
+# laufen zu lassen.
+
+physics = json.loads((TOOLS_ROOT / "physics.json").read_text(encoding="utf-8"))
+ok("Physik: Überhöhungsfehlbetrag-Koeffizient stimmt mit dem Kernel überein",
+   physics["ueberhoehungsfehlbetrag_koeffizient"]["wert"] == CANT_DEFICIENCY_COEFF)
+s_gauge = physics["wirksame_spurweite"]["wert"]
+g_erde = physics["erdbeschleunigung"]["wert"]
+derived = 1000.0 * s_gauge / (g_erde * 3.6 ** 2)
+ok(f"Physik: die Herleitung aus s und g rundet auf denselben Koeffizienten ({derived:.4f} → 11,8)",
+   round(derived, 1) == round(CANT_DEFICIENCY_COEFF, 1))
+ok("Physik: die Formel aus der Datei trifft permissible_speed (1e-12)",
+   abs(math.sqrt(700.0 * (120.0 + 130.0) / physics["ueberhoehungsfehlbetrag_koeffizient"]["wert"])
+       - permissible_speed(700.0, 120.0, 130.0)) < 1e-12)
+ok("Physik: beide Übergangsbogenprofile sind beschrieben",
+   {"clothoid", "bloss"} <= set(physics["uebergangsbogenprofile"]))
+
+rw = load_regelwerk()
+ok("Regelwerk: db-ril-800 ist das Vorgabe-Regelwerk", rw["id"] == "db-ril-800")
+ok("Regelwerk: list_regelwerke() findet es",
+   any(r["id"] == "db-ril-800" for r in list_regelwerke()))
+try:
+    load_regelwerk("nicht-vorhanden")
+    ok("Regelwerk: unbekannte Id wird abgelehnt", False)
+except RegelwerkError:
+    ok("Regelwerk: unbekannte Id wird abgelehnt", True)
+
+code_values = {
+    "u_max": U_MAX, "u_step": U_STEP, "u_max_switch": U_MAX_SWITCH,
+    "uf_max_switch": UF_MAX_SWITCH, "min_length_coeff": MIN_LENGTH_COEFF,
+    "r_step": R_STEP, "r_min": R_MIN, "l_step": L_STEP,
+}
+rw_values = params_from_regelwerk(rw)
+mismatches = {k: (v, rw_values[k]) for k, v in code_values.items() if rw_values[k] != v}
+ok(f"Regelwerk: jeder Code-Wert hat einen gleichlautenden Eintrag ({mismatches or 'keine Abweichung'})",
+   not mismatches)
+ok("Regelwerk: die Rampenfaktoren stimmen (Klothoide/Bloss)",
+   rw_values["ramp_factor"] == RAMP_FACTOR)
+
+
+def _leaf_paths(node, prefix=""):
+    """Dotted paths of every {"wert": <scalar>, ...} leaf under `node`."""
+    paths = []
+    for key, child in node.items():
+        if not isinstance(child, dict):
+            continue
+        path = f"{prefix}.{key}" if prefix else key
+        if "wert" in child and not isinstance(child["wert"], dict):
+            paths.append(path)
+        else:
+            paths.extend(_leaf_paths(child, path))
+    return paths
+
+
+all_leaves = set(_leaf_paths(rw))
+wired = {p.rsplit(".", 1)[0] for p in
+        set(regelwerk_mod._PATHS.values()) | set(regelwerk_mod._RAMP_PATHS.values())}
+informational = set(regelwerk_mod._INFORMATIONAL_PATHS)
+orphaned = all_leaves - wired - informational
+ok(f"Regelwerk: kein Eintrag im JSON ist verwaist ({orphaned or 'keiner'})", not orphaned)
+missing = (wired | informational) - all_leaves
+ok(f"Regelwerk: jeder verdrahtete Pfad existiert auch im JSON ({missing or 'alle da'})", not missing)
+
+rw_res = optimize_payload(track3, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+                          regelwerk="db-ril-800", maxiter=25, seed=1)
+default_res = optimize_payload(track3, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+                               maxiter=25, seed=1)
+ok("Regelwerk: explizit db-ril-800 == Default", rw_res["vNeu"] == default_res["vNeu"])
+ok("Regelwerk: das Ergebnis nennt die verwendete Id", rw_res["regelwerk"] == "db-ril-800")
+try:
+    optimize_payload(track3, regelwerk="nicht-vorhanden")
+    ok("Regelwerk: unbekannte Id über optimize_payload wird abgelehnt", False)
+except ValueError:
+    ok("Regelwerk: unbekannte Id über optimize_payload wird abgelehnt", True)
 
 
 print()

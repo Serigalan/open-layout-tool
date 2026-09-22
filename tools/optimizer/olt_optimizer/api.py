@@ -4,12 +4,13 @@
 
 from .geometry import permissible_speed
 from .optimize import baseline, capped, joint_optimize, uf_for, window_for
+from .regelwerk import RegelwerkError, load_regelwerk, params_from_regelwerk
 from .track_io import parse_groups, build_elements
 
 
 def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
                      per_curve=False, maxiter=150, seed=1, target_element_idx=None,
-                     v_max=None):
+                     v_max=None, regelwerk=None):
     """Optimize one track (dict in the tracks-export shape, scalar elements).
 
     v_max: the line's design speed [km/h], or None. A curve that reaches it is
@@ -17,19 +18,31 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
     alignment away for speed nobody asked for nor keeps searching once its
     slowest curve has arrived.
 
+    regelwerk: id of the regelwerk (AP R.2, see regelwerk.py) whose cant
+    ceilings, ramp rule and buildability grid the run is held to — None for
+    the default. Unknown ids raise ValueError, same as any other user error
+    here; the id a run actually used travels back in the result, because a
+    design three years from now is only reproducible if it says which rules
+    it was drawn under.
+
     target_element_idx (element mode): index of an ARC element — only the
     window around its curve group is optimized (neighbour curves may be
     re-shaped so the shared straights can shift; they must not fall below
     their existing speed). Everything else keeps its geometry.
 
     Returns { elements, report, variant, vBestand, vBaseline, vNeu, shifts,
-    skipped }.
+    skipped, regelwerk }.
     report: one row per arc with alt/neu values (radii m, cants mm, v km/h,
     offset cm). Raises ValueError with a readable message on unsupported
     topologies.
     """
+    try:
+        rw = load_regelwerk(regelwerk)
+    except RegelwerkError as exc:
+        raise ValueError(str(exc)) from None
     params = {"corridor": corridor_cm / 100.0, "uf": float(uf),
-              "v_max": float(v_max) if v_max else None}
+              "v_max": float(v_max) if v_max else None,
+              **params_from_regelwerk(rw)}
     skipped = []
     try:
         groups = parse_groups(track, skipped=skipped)
@@ -112,4 +125,5 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
         # panel says so — half an answer handed back in silence is worse than
         # the refusal this used to be.
         "skipped": [{"from": a, "to": b, "why": why} for a, b, why in skipped],
+        "regelwerk": rw["id"],
     }

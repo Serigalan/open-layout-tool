@@ -1,0 +1,37 @@
+{
+  "beschreibung": "Physikalische Konstanten und Übergangsbogenprofile des Optimierers (AP R.1). Diese Datei treibt zur Laufzeit nichts an — geometry.py rechnet mit seinen eigenen Literalen weiter. Sie ist die lesbare Herleitung, gegen die tests/verify.py die Literale gegenprüft: eine Konstante, die hier von der im Code abweicht, ist ein Fehler in einer der beiden Zahlen, nicht ein zu behebender Unterschied im Zweck.",
+  "ueberhoehungsfehlbetrag_koeffizient": {
+    "wert": 11.8,
+    "einheit": "-",
+    "formel_text": "v = sqrt(R * (u + uf) / 11.8), mit v in km/h, R in m, u/uf in mm",
+    "formel_latex": "v = \\sqrt{\\dfrac{R\\,(u+u_f)}{11{,}8}}",
+    "herleitung": "u[mm] = 1000 * s[m] * v[km/h]^2 / (3.6^2 * R[m] * g[m/s^2]); mit s = 1,5 m und g = 9,81 m/s^2 ergibt der Vorfaktor 1000*s/(3,6^2*g) = 11,7987… — im Regelwerk auf 11,8 gerundet. Umgestellt nach v folgt die Formel oben.",
+    "warum": "Umrechnung von Seitenbeschleunigung (v^2/R) über die wirksame Spurweite in eine Höhendifferenz (Überhöhung u, in mm)"
+  },
+  "wirksame_spurweite": {
+    "wert": 1.5,
+    "einheit": "m",
+    "warum": "Regelspurweite für die Überhöhungsrechnung (Abstand der Berührkreise, nicht die Nennspurweite 1,435 m) — der Hebelarm, über den eine Seitenbeschleunigung in eine Schienenkopf-Höhendifferenz umgerechnet wird"
+  },
+  "erdbeschleunigung": {
+    "wert": 9.81,
+    "einheit": "m/s^2",
+    "warum": "Normfallbeschleunigung, gegen die die Seitenbeschleunigung ins Verhältnis gesetzt wird"
+  },
+  "uebergangsbogenprofile": {
+    "clothoid": {
+      "name": "Klothoide",
+      "kruemmung": "linear über die Länge",
+      "kruemmung_text": "kappa(s) = kappa1 + (kappa2 - kappa1) * (s / L)",
+      "kruemmung_latex": "\\kappa(s) = \\kappa_1 + (\\kappa_2-\\kappa_1)\\,\\dfrac{s}{L}",
+      "warum": "die einfachste Krümmungsfunktion, die an beiden Enden die vorgegebene Krümmung trifft — Regelfall im deutschen Bahnbau"
+    },
+    "bloss": {
+      "name": "Bloß-Übergangsbogen",
+      "kruemmung": "kubisch über die Länge (S-förmig, Krümmungsänderung an beiden Enden null)",
+      "kruemmung_text": "kappa(s) = kappa1 + (kappa2 - kappa1) * (3*(s/L)^2 - 2*(s/L)^3)",
+      "kruemmung_latex": "\\kappa(s) = \\kappa_1 + (\\kappa_2-\\kappa_1)\\left(3\\left(\\dfrac{s}{L}\\right)^2 - 2\\left(\\dfrac{s}{L}\\right)^3\\right)",
+      "warum": "an den Enden stetig differenzierbare Krümmung (Krümmungsruck an den Übergängen null), auf Kosten einer kürzeren zulässigen Rampenlänge — daher der kleinere Rampenfaktor gegenüber der Klothoide, siehe regelwerke/db-ril-800.json unter rampenregel"
+    }
+  }
+}

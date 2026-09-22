@@ -24,19 +24,28 @@ from .geometry import (
     fit_compound_group, fit_s_group, permissible_speed, sample_transition, sample_arc,
     max_dist_to_polyline, radius_for_speed, snap_down, snap_up, RAMP_FACTOR,
     U_MAX, U_MAX_SWITCH, UF_MAX_SWITCH, U_STEP, R_STEP, R_MIN, L_STEP,
+    MIN_LENGTH_COEFF,
 )
 
 PENALTY = 1000.0
 
 
-def u_max_for(g):
-    """Cant ceiling of a group: the switch's where it runs through one."""
-    return U_MAX_SWITCH if g.get("on_switch") else U_MAX
+def u_max_for(g, params=None):
+    """Cant ceiling of a group: the switch's where it runs through one.
+
+    `params` carries the regelwerk a run was asked for (AP R.2); the bare
+    module constants are the fallback for callers — mostly tests — that build
+    a `params` dict of their own without one.
+    """
+    params = params or {}
+    return (params.get("u_max_switch", U_MAX_SWITCH) if g.get("on_switch")
+            else params.get("u_max", U_MAX))
 
 
 def uf_for(g, params):
     """Deficiency the group is evaluated at — never over what a switch admits."""
-    return min(params["uf"], UF_MAX_SWITCH) if g.get("on_switch") else params["uf"]
+    uf_max_switch = params.get("uf_max_switch", UF_MAX_SWITCH)
+    return min(params["uf"], uf_max_switch) if g.get("on_switch") else params["uf"]
 
 
 def _clamp(value, lo, hi):
@@ -65,7 +74,7 @@ def _radius_cap(g, u, params, r_alt):
     return max(r_alt, radius_for_speed(v_max, u, uf_for(g, params)))
 
 
-def _u_variable(g, i):
+def _u_variable(g, i, params):
     """May the cant of arc i be touched at all?
 
     Only where both adjacent ramps exist — a step in cant needs a ramp on
@@ -75,16 +84,19 @@ def _u_variable(g, i):
     takes it away, not even when taking it away would be faster.
     """
     return (g["has_t"][i] and g["has_t"][i + 1]
-            and g["arcs"][i]["u_alt"] <= u_max_for(g))
+            and g["arcs"][i]["u_alt"] <= u_max_for(g, params))
 
 
-def ramp_lengths(g, v, us):
+def ramp_lengths(g, v, us, params=None):
     """Transition lengths per slot for group speed v and per-arc cants.
 
     Handed out on the length grid, rounded up: a ramp that is a little longer
     than the rules ask for still satisfies them, one a little shorter does not.
     """
-    min_len = 0.2 * v
+    params = params or {}
+    ramp_factor = params.get("ramp_factor", RAMP_FACTOR)
+    l_step = params.get("l_step", L_STEP)
+    min_len = params.get("min_length_coeff", MIN_LENGTH_COEFF) * v
     n = len(g["arcs"])
     # Signed, because the cant follows the curve: over the ramp between the two
     # arcs of an S the rail goes from one side to the other, and that step is
@@ -99,8 +111,8 @@ def ramp_lengths(g, v, us):
         if not g["has_t"][i]:
             lengths.append(0.0)
             continue
-        need = max(min_len, RAMP_FACTOR[g["types"][i]] * v * du[i] / 1000.0)
-        lengths.append(snap_up(need, L_STEP))
+        need = max(min_len, ramp_factor[g["types"][i]] * v * du[i] / 1000.0)
+        lengths.append(snap_up(need, l_step))
     return lengths, min_len
 
 
@@ -148,7 +160,7 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=
     v = min(v_arcs)
     proposed = trans_l is None
     if proposed:
-        trans_l, min_len = ramp_lengths(g, v, us)
+        trans_l, min_len = ramp_lengths(g, v, us, params)
     if g["s_curve"]:
         fit = fit_s_group(p1, g["d1"], g["b1"], p2, g["d2"], g["b2"],
                           [sign * r for sign, r in zip(g["signs"], radii)],
@@ -182,6 +194,8 @@ def _max_radius_for(g, u, params):
     from there. The binding arc is the tightest one, so the search starts at it.
     """
     n = len(g["arcs"])
+    r_min = params.get("r_min", R_MIN)
+    r_step = params.get("r_step", R_STEP)
     r_alt = min(a["r_alt"] for a in g["arcs"])
     cap = _radius_cap(g, u, params, r_alt)
     # Every probe is snapped, so the search runs on the radii a run may hand
@@ -190,7 +204,7 @@ def _max_radius_for(g, u, params):
     # centimetre, and v goes with the square root of R — those last seven
     # rounds of the full feasibility check were worth 0.001 km/h.
     feasible = lambda radius: evaluate_group(                                # noqa: E731
-        g, [max(R_MIN, snap_down(radius, R_STEP))] * n, [u] * n, [], params)
+        g, [max(r_min, snap_down(radius, r_step))] * n, [u] * n, [], params)
     lo = hi = None
     if feasible(r_alt):
         lo = r_alt
@@ -222,7 +236,7 @@ def _max_radius_for(g, u, params):
         if lo is None:
             return None
         hi = lo / 0.85
-    while hi - lo > R_STEP:
+    while hi - lo > r_step:
         mid = (lo + hi) / 2
         if feasible(mid):
             lo = mid
@@ -292,13 +306,14 @@ def baseline(groups, params, window=None, target_gi=None):
         # raised to: the run improves an alignment, it does not quietly re-cant
         # one that is over its limit, and it only ever lowers such a cant where
         # that buys speed.
+        u_step = params.get("u_step", U_STEP)
         u_values = [u_alt]
-        if all(_u_variable(g, i) for i in range(n_arcs)):
+        if all(_u_variable(g, i, params) for i in range(n_arcs)):
             u = 0.0
-            while u <= u_max_for(g):
+            while u <= u_max_for(g, params):
                 if u != u_alt:
                     u_values.append(u)
-                u += U_STEP
+                u += u_step
         # What the group does today. A proposal below it is no proposal: the
         # existing alignment is exempt from the ramp and minimum-length rules —
         # it is a fact, not a suggestion — so where its ramps are too short for
@@ -405,22 +420,25 @@ def _decode(x, ctx):
     shifts = dict(ctx["held_shifts"])
     for i, idx in enumerate(ctx["straight_ids"]):
         shifts[idx] = _clamp(x[i], -params["corridor"], params["corridor"])
+    r_min = params.get("r_min", R_MIN)
+    r_step = params.get("r_step", R_STEP)
+    u_step = params.get("u_step", U_STEP)
     slices, _ = _layout(ctx)
     per_group = []
     for j, (pos, n) in zip(ctx["live"], slices):
         g = ctx["groups"][j]
         # radii live on the metre grid, cants on the 5 mm one — quantized
         # inside the objective so every evaluated candidate is directly usable
-        radii = [max(R_MIN, snap_down(x[pos + i], R_STEP)) for i in range(n)]
+        radii = [max(r_min, snap_down(x[pos + i], r_step)) for i in range(n)]
         us = []
         for i in range(n):
             u_alt = g["arcs"][i]["u_alt"]
-            if not _u_variable(g, i):
+            if not _u_variable(g, i, params):
                 us.append(u_alt)        # untouched, and exactly as it stands
                 continue
             # Down to nothing, up to the ceiling — quantized here in the
             # objective, so every evaluated candidate is directly usable.
-            us.append(snap_down(_clamp(x[pos + n + i], 0.0, u_max_for(g)), U_STEP))
+            us.append(snap_down(_clamp(x[pos + n + i], 0.0, u_max_for(g, params)), u_step))
         thetas = ([] if g["s_curve"]
                   else [max(1e-4, x[pos + 2 * n + i]) for i in range(n - 1)])
         per_group.append((radii, us, thetas))
@@ -452,7 +470,7 @@ def _evaluate_vector(x, ctx):
         d = ga["d2"]
         remaining = ((b["fit"]["cl_start"][0] - a["fit"]["cl_end"][0]) * d[0]
                      + (b["fit"]["cl_start"][1] - a["fit"]["cl_end"][1]) * d[1])
-        need = 0.2 * max(a["v"], b["v"])
+        need = params.get("min_length_coeff", MIN_LENGTH_COEFF) * max(a["v"], b["v"])
         if remaining < need:
             penalty += (need - remaining) / need
     return solutions, penalty
@@ -506,8 +524,9 @@ def _window_context(groups, params, held, held_shifts, live,
         thetas = (sol["thetas_free"] if sol
                   else ([] if g["s_curve"] else [a["sweep_alt"] for a in g["arcs"][:-1]]))
         x0 += list(radii) + list(us) + list(thetas)
-        bounds += [(max(R_MIN, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
-        bounds += [(0.0, max(a["u_alt"], u_max_for(g))) for a in g["arcs"]]
+        r_min = params.get("r_min", R_MIN)
+        bounds += [(max(r_min, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
+        bounds += [(0.0, max(a["u_alt"], u_max_for(g, params))) for a in g["arcs"]]
         if not g["s_curve"]:
             bounds += [(max(1e-3, 0.2 * a["sweep_alt"]),
                         min(math.pi, 2.5 * max(a["sweep_alt"], 1e-3)))

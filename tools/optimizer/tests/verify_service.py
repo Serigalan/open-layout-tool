@@ -117,6 +117,19 @@ try:
     status, body, _ = call(BASE, "/health")
     ok("GET /health antwortet 200 ok", status == 200 and body == {"status": "ok"})
 
+    # ── 1b) Regelwerke (AP R.3) ───────────────────────────────────────────────
+    status, body, _ = call(BASE, "/regelwerke")
+    ok("GET /regelwerke antwortet 200", status == 200)
+    ok("GET /regelwerke listet db-ril-800",
+       isinstance(body, dict)
+       and any(rw["id"] == "db-ril-800" for rw in body.get("regelwerke", [])))
+    status, body, _ = call(BASE, "/regelwerke/db-ril-800")
+    ok("GET /regelwerke/db-ril-800 antwortet mit dem vollen Regelwerk",
+       status == 200 and body.get("id") == "db-ril-800"
+       and "ueberhoehung" in body and "rampenregel" in body)
+    status, body, _ = call(BASE, "/regelwerke/nicht-vorhanden")
+    ok("GET /regelwerke/<unbekannt> → 404", status == 404 and body == {"error": "not_found"})
+
     # ── 2) Korbbogen über die Leitung (AP 4.2 durch den Dienst) ──────────────
     track = korbbogen_track()
     started = time.monotonic()
@@ -126,7 +139,9 @@ try:
     ok("POST /optimize antwortet 200", status == 200)
     ok("Antwort trägt den vollen Vertrag",
        isinstance(body, dict)
-       and set(body) >= {"elements", "report", "variant", "vBestand", "vBaseline", "vNeu", "shifts"})
+       and set(body) >= {"elements", "report", "variant", "vBestand", "vBaseline", "vNeu",
+                        "shifts", "skipped", "regelwerk"})
+    ok("Antwort nennt das verwendete Regelwerk", body.get("regelwerk") == "db-ril-800")
     ok("Korbbogen bleibt eine Gruppe mit zwei Bögen",
        len({r["group"] for r in body["report"]}) == 1
        and [r["arc"] for r in body["report"]] == [1, 2]
@@ -174,6 +189,10 @@ try:
     status, body, _ = call(BASE, "/optimize", {"corridorCm": 50})
     ok("Body ohne Track → 400 invalid_payload",
        status == 400 and body == {"error": "invalid_payload"})
+
+    status, body, _ = call(BASE, "/optimize", {"track": track, "regelwerk": "nicht-vorhanden"})
+    ok("unbekanntes Regelwerk → 400 invalid_regelwerk",
+       status == 400 and body == {"error": "invalid_regelwerk", "message": "nicht-vorhanden"})
 
     status, body, _ = call(BASE, "/optimize", {"track": straight_only_track()})
     ok("nicht optimierbare Topologie → 422 mit lesbarem Satz",

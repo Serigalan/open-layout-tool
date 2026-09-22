@@ -1,8 +1,13 @@
 """HTTP service around `optimize_payload` — the optimizer as it runs on the server.
 
-    POST /optimize   body: the panel's payload, answer: optimize_payload's result
-    POST /mdb        body: an Access file, answer: its Satzarten as JSON
-    GET  /health     so the panel can say "no server" before the user clicks
+    POST /optimize        body: the panel's payload, answer: optimize_payload's result
+    POST /mdb             body: an Access file, answer: its Satzarten as JSON
+    GET  /health          so the panel can say "no server" before the user clicks
+    GET  /regelwerke      the regelwerke a run may be asked for (AP R.3): id,
+                          name, version, gueltigAb — not their values, which is
+                          what the detail route below is for
+    GET  /regelwerke/<id> one regelwerk in full, the shape `optimize_payload`'s
+                          `regelwerk=` argument selects by id
 
 Failures travel as `{"error": <key>}` with an HTTP status; the client turns the
 key into a sentence. Two guards keep one request from taking the service down:
@@ -21,6 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .api import optimize_payload
 from .mdb import MdbError, convert as mdb_convert
+from .regelwerk import RegelwerkError, list_regelwerke, load_regelwerk
 
 HOST = os.environ.get("OLT_OPTIMIZER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("OLT_OPTIMIZER_PORT", "8099"))
@@ -136,6 +142,12 @@ def _as_payload(body):
         raise ServiceError(400, "invalid_payload")
     if len(track["elements"]) > MAX_ELEMENTS:
         raise ServiceError(413, "too_large")
+    regelwerk = data.get("regelwerk")
+    # Checked here, not left to optimize_payload's ValueError: an unknown
+    # regelwerk id is a bad request (400), not the unsupported-topology 422 a
+    # bare ValueError from deeper in would otherwise be read as.
+    if regelwerk is not None and not any(rw["id"] == regelwerk for rw in list_regelwerke()):
+        raise ServiceError(400, "invalid_regelwerk", regelwerk)
     try:
         return {
             "track": track,
@@ -147,6 +159,7 @@ def _as_payload(body):
             "seed": int(data.get("seed", 1)),
             "target_element_idx": data.get("targetElementIdx"),
             "v_max": float(data["vMax"]) if data.get("vMax") else None,
+            "regelwerk": regelwerk,
         }
     except (TypeError, ValueError):
         raise ServiceError(400, "invalid_payload") from None
@@ -181,8 +194,17 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):                                          # noqa: N802
-        if self.path.rstrip("/") in ("/health", ""):
+        route = self.path.rstrip("/")
+        if route in ("/health", ""):
             self._respond(200, {"status": "ok"})
+        elif route == "/regelwerke":
+            self._respond(200, {"regelwerke": list_regelwerke()})
+        elif route.startswith("/regelwerke/"):
+            rw_id = route[len("/regelwerke/"):]
+            try:
+                self._respond(200, load_regelwerk(rw_id))
+            except RegelwerkError:
+                self._respond(404, {"error": "not_found"})
         else:
             self._respond(404, {"error": "not_found"})
 

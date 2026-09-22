@@ -9,6 +9,14 @@ Conventions — the app's, so an element chain crosses unchanged:
   * compass bearings in degrees (0 = grid north, clockwise)
   * curvature kappa = -1/r; signed radius r > 0 = right-hand curve
   * transition profiles: 'clothoid' (linear curvature), 'bloss' (cubic)
+
+The physical constant below (v = sqrt(R (u+uf) / 11.8)) is derived, with its
+formula, in ../physics.json; the values a run is held to (this section down to
+UF_MAX_SWITCH) are the code's copy of ../olt_optimizer/regelwerke/db-ril-800.json
+(AP R.1/R.2, see ROADMAP.md). Both stay literals here — a run does not read
+either file — and tests/verify.py checks that neither has drifted from this
+module. What follows after (SAMPLE_SAGITTA on) is the search's own numerics,
+not something a railway administration sets, and has no JSON counterpart.
 """
 
 import math
@@ -16,11 +24,18 @@ import math
 DEG2RAD = math.pi / 180.0
 RAD2DEG = 180.0 / math.pi
 
+# v = sqrt(R * (u + uf) / 11.8) — see ../physics.json for the derivation.
+CANT_DEFICIENCY_COEFF = 11.8
+
 # Minimum ramp length factor: l >= k * v * du / 1000  [l m, v km/h, du mm]
 RAMP_FACTOR = {"clothoid": 8.0, "bloss": 6.0}
 
 U_MAX = 160.0   # max cant [mm]
 U_STEP = 5.0    # cant grid step [mm]
+
+# l_min = MIN_LENGTH_COEFF * v  [l m, v km/h] — minimum length of an element or
+# a ramp, whichever rule (this or the ramp rule below) asks for more.
+MIN_LENGTH_COEFF = 0.2
 
 # The grid a run hands its numbers out on: radii in whole metres, lengths in
 # ten centimetres, cants in five millimetres. These are the steps a designer
@@ -70,7 +85,7 @@ def snap_up(value, step):
 
 def permissible_speed(radius, u, uf):
     """Permissible speed [km/h] for radius [m], cant u and cant deficiency uf [mm]."""
-    return math.sqrt(abs(radius) * (u + uf) / 11.8)
+    return math.sqrt(abs(radius) * (u + uf) / CANT_DEFICIENCY_COEFF)
 
 
 def sample_step(radius):
@@ -82,7 +97,7 @@ def radius_for_speed(v, u, uf):
     """The radius at which a curve with this cant runs at v — the inverse of
     `permissible_speed`, so a target speed can be turned into the radius that
     reaches it instead of being searched for."""
-    return 11.8 * v * v / (u + uf) if u + uf > 0 else math.inf
+    return CANT_DEFICIENCY_COEFF * v * v / (u + uf) if u + uf > 0 else math.inf
 
 
 def dir_of(bearing_deg):

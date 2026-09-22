@@ -50,6 +50,8 @@ def main(argv=None):
                          "rechnen und die mit höherer Engpass-v übernehmen")
     ap.add_argument("--maxiter", type=int, default=150, help="DE-Iterationen (Default 150)")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--regelwerk", default=None,
+                    help="Id des Regelwerks (Default: db-ril-800, siehe olt_optimizer/regelwerke/)")
     ap.add_argument("-o", "--out", help="Ausgabedatei (Default: <input>_optimized.json)")
     args = ap.parse_args(argv)
 
@@ -65,7 +67,7 @@ def main(argv=None):
     try:
         res = optimize_payload(track, corridor_cm=args.corridor_cm, uf=args.uf,
                                uebergang=args.uebergang, per_curve=args.per_curve,
-                               maxiter=args.maxiter, seed=args.seed)
+                               maxiter=args.maxiter, seed=args.seed, regelwerk=args.regelwerk)
     except ValueError as exc:
         raise SystemExit(str(exc)) from None
 

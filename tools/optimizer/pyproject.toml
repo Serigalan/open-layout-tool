@@ -15,3 +15,8 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["olt_optimizer*"]
+
+# The regelwerke are data a run reads at request time (AP R.2) — they must
+# ship with the package, not just live in the source tree.
+[tool.setuptools.package-data]
+olt_optimizer = ["regelwerke/*.json"]
