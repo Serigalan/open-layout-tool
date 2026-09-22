@@ -296,6 +296,7 @@
   "optimize_skipped": "{{count}} stretch(es) not read ({{where}}) — left unchanged.",
   "optimize_uf": "Cant deficiency u_f",
   "optimize_uf_switches": "switches",
+  "optimize_regelwerk": "Rulebook",
   "optimize_curve": "Curve",
   "optimize_target": "selected",
   "optimize_unchanged": "unchanged",

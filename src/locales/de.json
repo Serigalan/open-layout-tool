@@ -296,6 +296,7 @@
   "optimize_skipped": "{{count}} Abschnitt(e) nicht gelesen ({{where}}) — bleiben unverändert.",
   "optimize_uf": "Überhöhungsfehlbetrag u_f",
   "optimize_uf_switches": "Weichen",
+  "optimize_regelwerk": "Regelwerk",
   "optimize_curve": "Bogen",
   "optimize_target": "gewählt",
   "optimize_unchanged": "unverändert",

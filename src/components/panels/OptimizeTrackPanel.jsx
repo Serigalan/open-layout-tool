@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { loadTracks, updateTrack, recalcAbsLengths, rebuildCoords } from '../../storage'
-import { optimizeOnServer, optimizerReachable, OptimizerError } from '../../utils/optimizerService'
+import {
+  optimizeOnServer, optimizerReachable, fetchRegelwerke, OptimizerError,
+} from '../../utils/optimizerService'
 import { reconstructElements } from '../../utils/elementReconstruct'
 import { HIT_TOLERANCE, ZOOM_LINE_WIDTH } from '../../utils/mapConstants'
 import useTrackHover from '../../hooks/useTrackHover'
@@ -67,6 +69,8 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
   const [corridorCm, setCorridorCm] = useState(50)
   const [uf, setUf]               = useState('130')
   const [vMax, setVMax]           = useState('')     // '' → kein Ziel, offen nach oben
+  const [regelwerke, setRegelwerke] = useState([])   // [{id,name,version,gueltigAb}], AP R.3
+  const [regelwerkId, setRegelwerkId] = useState('') // '' → Dienst-Vorgabe
   const [selectHint, setSelectHint] = useState(null)
   const [running, setRunning]     = useState(false)
   const [run, setRun]             = useState(null)    // { key, result? , error? }
@@ -74,7 +78,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
 
   // A result only counts for the parameters it was computed with — derived
   // from the parameter key rather than through an invalidation effect.
-  const runKey = [mode, trackId, elementIdx, corridorCm, uf, vMax, phase].join('|')
+  const runKey = [mode, trackId, elementIdx, corridorCm, uf, vMax, regelwerkId, phase].join('|')
   const result = run?.key === runKey ? run.result ?? null : null
   const runError = run?.key === runKey ? run.error ?? null : null
 
@@ -116,11 +120,15 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
   }, [page, phase, mode, map, project.id, t])
 
   // The service is asked once when the panel opens, so the panel can say there
-  // is no server instead of offering a run that cannot happen.
+  // is no server instead of offering a run that cannot happen. The regelwerke
+  // it knows come along the same trip (AP R.3) — an empty list is not an
+  // error here, `reachable` already says so; the panel just falls back to
+  // sending no id, which the service reads as its own default.
   useEffect(() => {
     if (page === 'menu') return
     let cancelled = false
     optimizerReachable().then(ok => { if (!cancelled) setReachable(ok) })
+    fetchRegelwerke().then(list => { if (!cancelled) setRegelwerke(list) })
     return () => { cancelled = true }
   }, [page])
 
@@ -155,6 +163,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
     optimizeOnServer({
       track, corridorCm, uf: Number(uf), uebergang: 'auto', maxiter: 100,
       ...(Number(vMax) > 0 ? { vMax: Number(vMax) } : {}),
+      ...(regelwerkId ? { regelwerk: regelwerkId } : {}),
       ...(mode === 'element' ? { targetElementIdx: elementIdx } : {}),
     })
       .then(res => {
@@ -184,6 +193,9 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
     updateTrack(project.id, {
       ...track, elements, coordinates: rebuildCoords(elements),
       heights: reshapedHeights(track, elements),
+      // The regelwerk this alignment was drawn under — without it a design a
+      // few years old is not reproducible once a second regelwerk exists.
+      regelwerk: result.regelwerk,
     })
     onTrackSaved?.()
     handleCancel()
@@ -251,6 +263,18 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
             <option value="150">150 mm</option>
           </select>
         </div>
+        {regelwerke.length > 0 && (
+          <div className="form-field">
+            <label>{t('optimize_regelwerk')}</label>
+            {regelwerke.length > 1 ? (
+              <select value={regelwerkId || regelwerke[0].id} onChange={e => setRegelwerkId(e.target.value)}>
+                {regelwerke.map(rw => <option key={rw.id} value={rw.id}>{rw.name}</option>)}
+              </select>
+            ) : (
+              <input type="text" readOnly value={regelwerke[0].name} />
+            )}
+          </div>
+        )}
       </div>
 
       <div className="element-form" style={{ marginTop: 8 }}>

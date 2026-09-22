@@ -1,3 +1,9 @@
+import {
+  MAX_SWITCH_CANT as RW_MAX_SWITCH_CANT,
+  MAX_SWITCH_CANT_DEF as RW_MAX_SWITCH_CANT_DEF,
+  CANT_DEFICIENCY_COEFF as RW_CANT_DEFICIENCY_COEFF,
+} from './regelwerkDefaults'
+
 /** Sagitta (max deviation) constants for arc coordinate generation */
 export const SAGITTA_ELEMENT = 0.05  // element.geometry.coordinates — fine precision
 export const SAGITTA_TRACK   = 0.2   // track.coordinates (via renderCoords) — rendering precision
@@ -172,7 +178,7 @@ export const cantDefLevel = (el, cantDef) => (
     : cantDef > designCantDef(el) ? 'design'
       : null)
 const CANT_COEFF    = 6.5   // C = k·v²/R
-const CANT_DEF_COEFF = 11.8 // D = k·v²/R − C
+const CANT_DEF_COEFF = RW_CANT_DEFICIENCY_COEFF // D = k·v²/R − C
 
 /**
  * Cant is stored SIGNED, following the curve: positive when the left rail is
@@ -206,9 +212,9 @@ export function computeAutoC(speed, radius) {
  * and then it is no exception at all. It is stated on the plan and warned about
  * in the element table, so it stays visible long after the dialog is gone.
  */
-export const MAX_SWITCH_CANT           = 100  // maximum cant on a switch route (mm)
+export const MAX_SWITCH_CANT           = RW_MAX_SWITCH_CANT      // maximum cant on a switch route (mm)
 export const MAX_SWITCH_CANT_EXCEPTION = 120  // …raised to this by a written justification
-export const MAX_SWITCH_CANT_DEF       = 110  // maximum cant deficiency for switches (mm)
+export const MAX_SWITCH_CANT_DEF       = RW_MAX_SWITCH_CANT_DEF  // maximum cant deficiency for switches (mm)
 
 /**
  * How far a single change in the track editor may reach before it is refused

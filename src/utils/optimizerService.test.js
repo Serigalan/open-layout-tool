@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { optimizeOnServer, optimizerReachable, OptimizerError } from './optimizerService'
+import {
+  optimizeOnServer, optimizerReachable, fetchRegelwerke, fetchRegelwerk, OptimizerError,
+} from './optimizerService'
 import { reconstructElements } from './elementReconstruct'
 import { recalcAbsLengths } from '../storage'
 import { expectValidTrack } from '../test/chainInvariants'
@@ -91,6 +93,42 @@ describe('asking whether the service is there', () => {
   it('answers false instead of throwing where it is not', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
     await expect(optimizerReachable()).resolves.toBe(false)
+  })
+})
+
+describe('asking which regelwerke the service knows (AP R.3)', () => {
+  it('resolves with the list', async () => {
+    const regelwerke = [{ id: 'db-ril-800', name: 'DB Ril 800', version: '1', gueltigAb: '2026-09-22' }]
+    vi.stubGlobal('fetch', vi.fn(async () => json({ regelwerke })))
+    await expect(fetchRegelwerke()).resolves.toEqual(regelwerke)
+  })
+
+  it('resolves with [] rather than throwing where the service is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    await expect(fetchRegelwerke()).resolves.toEqual([])
+  })
+
+  it('resolves with [] where the answer is not the expected shape', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({ nope: true })))
+    await expect(fetchRegelwerke()).resolves.toEqual([])
+  })
+})
+
+describe('asking for one regelwerk in full', () => {
+  it('resolves with the regelwerk', async () => {
+    const rw = { id: 'db-ril-800', ueberhoehung: { u_max: { wert: 160 } } }
+    vi.stubGlobal('fetch', vi.fn(async () => json(rw)))
+    await expect(fetchRegelwerk('db-ril-800')).resolves.toEqual(rw)
+  })
+
+  it('resolves with null where the id is unknown', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({ error: 'not_found' }, 404)))
+    await expect(fetchRegelwerk('nicht-vorhanden')).resolves.toBeNull()
+  })
+
+  it('resolves with null rather than throwing where the service is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    await expect(fetchRegelwerk('db-ril-800')).resolves.toBeNull()
   })
 })
 
