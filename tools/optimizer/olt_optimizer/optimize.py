@@ -15,7 +15,7 @@ u grid + R bisection); compound groups enter at their existing geometry.
 `joint_optimize` sweeps windows along the track — a group plus whoever
 shares a straight with it — running scipy differential_evolution over each,
 warm-started and guarded so it never falls below the baseline. A cant u_i may
-only rise when the ramps on both sides of arc i exist.
+only change where the ramps on both sides of arc i exist to carry the step.
 """
 
 import math
@@ -66,8 +66,16 @@ def _radius_cap(g, u, params, r_alt):
 
 
 def _u_variable(g, i):
-    """Cant of arc i may only rise when both adjacent ramps exist."""
-    return g["has_t"][i] and g["has_t"][i + 1]
+    """May the cant of arc i be touched at all?
+
+    Only where both adjacent ramps exist — a step in cant needs a ramp on
+    either side to run out on — and only where the existing cant is within the
+    ceiling this group is held to. One standing above it is an exception a
+    designer wrote down for that element; the run neither raises it nor quietly
+    takes it away, not even when taking it away would be faster.
+    """
+    return (g["has_t"][i] and g["has_t"][i + 1]
+            and g["arcs"][i]["u_alt"] <= u_max_for(g))
 
 
 def ramp_lengths(g, v, us):
@@ -253,24 +261,38 @@ def baseline(groups, params, window=None, target_gi=None):
             solutions.append(_bestand_solution(g, params))
             continue
         u_alt = g["arcs"][0]["u_alt"]
-        # The existing cant is always a candidate, even where it already stands
-        # above what the group may be raised to: the run improves an alignment,
-        # it does not quietly re-cant one that is already over its limit.
+        # The whole grid, below the existing cant as well as above it. Less cant
+        # asks for shorter ramps, and the length that frees can buy more radius
+        # than the cant gave away — on a switch route, where the cant ceiling is
+        # low, that is often the only way left. The existing cant is always a
+        # candidate, even where it already stands above what the group may be
+        # raised to: the run improves an alignment, it does not quietly re-cant
+        # one that is over its limit, and it only ever lowers such a cant where
+        # that buys speed.
         u_values = [u_alt]
         if _u_variable(g, 0):
-            u = math.ceil(u_alt / U_STEP) * U_STEP
+            u = 0.0
             while u <= u_max_for(g):
-                if u > u_alt:
+                if u != u_alt:
                     u_values.append(u)
                 u += U_STEP
-        best = None
+        # What the group does today. A proposal below it is no proposal: the
+        # existing alignment is exempt from the ramp and minimum-length rules —
+        # it is a fact, not a suggestion — so where its ramps are too short for
+        # the cant it carries, every rule-abiding answer comes out slower. Such
+        # a group is left alone rather than talked down.
+        v_alt = permissible_speed(g["arcs"][0]["r_alt"], u_alt, uf_for(g, params))
+        best, best_key = None, None
         for u in u_values:
             cand = _max_radius_for(g, u, params)
-            # Judged by the capped speed, so the first cant that reaches the
-            # target keeps the group: the ones above it buy nothing and only
-            # ask for more re-canting.
-            if cand and (best is None or capped(cand["v"], params) > capped(best["v"], params)):
-                best = cand
+            if not cand or cand["v"] < v_alt - 1e-9:
+                continue
+            # Faster wins; between equals the one that disturbs the existing
+            # cant least, because re-canting a curve is work paid for on site.
+            # Under a target speed that is most of them, so it matters.
+            key = (capped(cand["v"], params), -abs(u - u_alt))
+            if best_key is None or key > best_key:
+                best, best_key = cand, key
         solutions.append(best)
     return solutions
 
@@ -361,11 +383,12 @@ def _decode(x, ctx):
         us = []
         for i in range(n):
             u_alt = g["arcs"][i]["u_alt"]
-            u = x[pos + n + i] if _u_variable(g, i) else u_alt
-            # lo before hi: a group already over its ceiling keeps what it has
-            # rather than being pulled down to it.
-            u = _clamp(u, u_alt, max(u_alt, u_max_for(g)))
-            us.append(max(u_alt, snap_down(u, U_STEP)))
+            if not _u_variable(g, i):
+                us.append(u_alt)        # untouched, and exactly as it stands
+                continue
+            # Down to nothing, up to the ceiling — quantized here in the
+            # objective, so every evaluated candidate is directly usable.
+            us.append(snap_down(_clamp(x[pos + n + i], 0.0, u_max_for(g)), U_STEP))
         thetas = [max(1e-4, x[pos + 2 * n + i]) for i in range(n - 1)]
         per_group.append((radii, us, thetas))
     return shifts, per_group
@@ -450,7 +473,7 @@ def _window_context(groups, params, held, held_shifts, live,
         thetas = sol["thetas_free"] if sol else [a["sweep_alt"] for a in g["arcs"][:-1]]
         x0 += list(radii) + list(us) + list(thetas)
         bounds += [(max(R_MIN, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
-        bounds += [(a["u_alt"], max(a["u_alt"], u_max_for(g))) for a in g["arcs"]]
+        bounds += [(0.0, max(a["u_alt"], u_max_for(g))) for a in g["arcs"]]
         bounds += [(max(1e-3, 0.2 * a["sweep_alt"]), min(math.pi, 2.5 * max(a["sweep_alt"], 1e-3)))
                    for a in g["arcs"][:-1]]
     # The polish at the end of a window is unconstrained, so a held solution can

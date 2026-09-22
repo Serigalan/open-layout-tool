@@ -31,6 +31,14 @@ R_STEP = 1.0    # radius grid step [m]
 R_MIN = 25.0    # smallest radius a run may propose [m]
 L_STEP = 0.1    # length grid step [m]
 
+# How finely a curve is broken into the polyline the corridor is measured on.
+# The budget is the mid-ordinate of one step against its arc, not an angle: at a
+# fixed angular step the error grows with the radius, which is backwards, since
+# the wide curves are the ones a run moves furthest. Five millimetres is one
+# percent of the corridor the panel offers at its widest.
+SAMPLE_SAGITTA = 0.005     # m
+MAX_SAMPLES = 400          # points per element, whatever the budget asks for
+
 
 # A curve group running through a turnout is held to the switch's limits rather
 # than the line's — the same pair as src/utils/mapConstants.js (MAX_SWITCH_CANT,
@@ -63,6 +71,11 @@ def snap_up(value, step):
 def permissible_speed(radius, u, uf):
     """Permissible speed [km/h] for radius [m], cant u and cant deficiency uf [mm]."""
     return math.sqrt(abs(radius) * (u + uf) / 11.8)
+
+
+def sample_step(radius):
+    """Chord length whose mid-ordinate against `radius` is SAMPLE_SAGITTA."""
+    return math.sqrt(8.0 * SAMPLE_SAGITTA * abs(radius))
 
 
 def radius_for_speed(v, u, uf):
@@ -126,8 +139,18 @@ def transition_shift(length, radius, profile="clothoid"):
     return y + radius * math.cos(phi) - radius, x - radius * math.sin(phi), phi
 
 
-def sample_transition(e, n, bearing_deg, length, r1, r2, profile="clothoid", steps=16):
+def _transition_steps(length, r1, r2):
+    """Steps that keep a transition inside the sagitta budget at its tight end."""
+    radii = [abs(r) for r in (r1, r2) if r]
+    if not radii or length <= 0:
+        return 1                       # no curvature: the chord is the curve
+    return max(4, min(MAX_SAMPLES, math.ceil(length / sample_step(min(radii)))))
+
+
+def sample_transition(e, n, bearing_deg, length, r1, r2, profile="clothoid", steps=None):
     """Points along a transition (composite Simpson per step, on-curve vertices)."""
+    if steps is None:
+        steps = _transition_steps(length, r1, r2)
     a1, a2, a3, a4 = heading_coeffs(profile, _kappa(r1), _kappa(r2), length)
     phi0 = (90.0 - bearing_deg) * DEG2RAD
     cos, sin = math.cos, math.sin
@@ -220,7 +243,10 @@ def sample_arc(s_e, s_n, e_e, e_n, signed_r, max_step_angle=0.02):
     cx, cy = ac
     sweep = arc_sweep(s_e, s_n, e_e, e_n, cx, cy, signed_r)
     abs_r = abs(signed_r)
-    n_seg = max(2, min(200, math.ceil(abs(sweep) / max_step_angle)))
+    # The sagitta budget sets the step; `max_step_angle` is only a ceiling, so
+    # that a very tight curve still gets a few points to its name.
+    step = min(max_step_angle, sample_step(abs_r) / abs_r)
+    n_seg = max(2, min(MAX_SAMPLES, math.ceil(abs(sweep) / step)))
     a1 = math.atan2(s_n - cy, s_e - cx)
     return [
         (cx + abs_r * math.cos(a1 + i / n_seg * sweep), cy + abs_r * math.sin(a1 + i / n_seg * sweep))

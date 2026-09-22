@@ -26,7 +26,7 @@ from olt_optimizer.track_io import (          # noqa: E402
 )
 from olt_optimizer.optimize import (        # noqa: E402
     baseline, capped, joint_optimize, u_max_for, uf_for, window_for,
-    _bestand_solution, _interior_straights,
+    _bestand_solution, _interior_straights, _max_radius_for,
 )
 from olt_optimizer.api import optimize_payload                # noqa: E402
 
@@ -607,6 +607,93 @@ for label, kinds in (("nur eine Rampe zwischen Geraden", "GUG"),
     except SystemExit as exc:
         ok(f"{label} → abgelehnt und begründet",
            "Keine optimierbaren Bögen" in str(exc) and len(str(exc).split(".")) > 2)
+
+
+# ── 11) Die Überhöhung darf auch fallen ─────────────────────────────────────
+# Weniger Überhöhung heißt kürzere Rampen, und die Länge, die das freimacht,
+# kauft Radius. Innerhalb des 50-cm-Korridors, den das Panel anbietet, kommt
+# dieser Handel nie zum Tragen — dort ist der Korridor die bindende Schranke und
+# der Radius kann ohnehin kaum wachsen. Im weiten Korridor der CLI gewinnt er.
+UB1, UB2 = 40.0, 46.0                       # 6° Richtungswechsel, kurze Schenkel
+UD1, UD2 = dir_of(UB1), dir_of(UB2)
+UP1 = (500000.0, 5600000.0)
+UV = (UP1[0] + 300 * UD1[0], UP1[1] + 300 * UD1[1])
+UP2 = (UV[0] + 300 * UD2[0], UV[1] + 300 * UD2[1])
+u_fit = fit_compound_group(UP1, UD1, UB1, UP2, UD2, UB2, [2500.0], [], [60.0, 60.0],
+                           ["clothoid", "clothoid"])
+ok("Rampenhandel: Seed-Fit existiert", u_fit is not None)
+u_els = build_from_fit(u_fit, [110.0], UP1, UP2)
+u_track = {"id": "py-ueberhoehung", "name": "u.001", "epsg": EPSG, "elements": u_els}
+check_chain(u_els, "Rampenhandel-Seed")
+u_groups = parse_groups(u_track)
+u_alt = u_groups[0]["arcs"][0]["u_alt"]
+
+
+def _best_at(group, prms, only_upwards):
+    """Die Baseline-Auswahl, wahlweise mit dem alten Raster (nur nach oben)."""
+    alt = group["arcs"][0]["u_alt"]
+    v_alt = permissible_speed(group["arcs"][0]["r_alt"], alt, uf_for(group, prms))
+    grid = [alt]
+    u = alt if only_upwards else 0.0
+    while u <= u_max_for(group):
+        if u != alt and (not only_upwards or u > alt):
+            grid.append(u)
+        u += 5.0
+    best = None
+    for value in grid:
+        cand = _max_radius_for(group, value, prms)
+        if cand and cand["v"] >= v_alt - 1e-9 and (best is None or cand["v"] > best["v"]):
+            best = cand
+    return best
+
+
+wide = {"corridor": 2.0, "uf": 130.0}
+u_up = _best_at(u_groups[0], wide, True)
+u_free = _best_at(u_groups[0], wide, False)
+print(f"   Rampenhandel (2 m Korridor): nur hoch u {u_up['us'][0]:.0f} R {u_up['radii'][0]:.0f} "
+      f"v {u_up['v']:.2f} → frei u {u_free['us'][0]:.0f} R {u_free['radii'][0]:.0f} v {u_free['v']:.2f} km/h")
+ok("im weiten Korridor gewinnt die kleinere Überhöhung",
+   u_free["us"][0] < u_alt and u_free["v"] > u_up["v"] + 0.5)
+ok("sie kauft dafür Radius", u_free["radii"][0] > u_up["radii"][0])
+ok("und hält die Rampenregel ein",
+   u_free["trans_l"][0] >= RAMP_FACTOR["clothoid"] * u_free["v"] * u_free["us"][0] / 1000 - 1e-9)
+ok("die gesenkte Überhöhung liegt im 5-mm-Raster", on_grid(u_free["us"][0], 5.0))
+ok("die Baseline nimmt diese Lösung auch",
+   (baseline(u_groups, wide)[0] or {}).get("us", [None])[0] == u_free["us"][0])
+
+narrow = baseline(u_groups, {"corridor": 0.5, "uf": 130.0})[0]
+ok("im 50-cm-Korridor lohnt der Handel nicht und die Überhöhung bleibt",
+   narrow is None or narrow["us"][0] >= u_alt)
+
+# Kein Vorschlag darf langsamer sein als der Bestand. Wo dessen Rampen zu kurz
+# für seine Überhöhung sind, kommt jede regelkonforme Antwort langsamer heraus —
+# die Gruppe bleibt dann liegen, statt heruntergeredet zu werden.
+SB1, SB2 = 40.0, 85.0
+SD1, SD2 = dir_of(SB1), dir_of(SB2)
+SV = (UP1[0] + 320 * SD1[0], UP1[1] + 320 * SD1[1])
+SP2 = (SV[0] + 320 * SD2[0], SV[1] + 320 * SD2[1])
+s_fit = fit_compound_group(UP1, SD1, SB1, SP2, SD2, SB2, [600.0], [], [90.0, 90.0],
+                           ["clothoid", "clothoid"])
+s_track = {"id": "py-kurzrampe", "name": "k.001", "epsg": EPSG,
+           "elements": build_from_fit(s_fit, [140.0], UP1, SP2)}
+s_groups = parse_groups(s_track)
+s_params = {"corridor": 0.5, "uf": 110.0}
+s_alt = permissible_speed(s_groups[0]["arcs"][0]["r_alt"],
+                          s_groups[0]["arcs"][0]["u_alt"], 110.0)
+s_base = baseline(s_groups, s_params)
+s_offer = "keiner" if s_base[0] is None else f"{s_base[0]['v']:.1f} km/h"
+print(f"   zu kurze Bestandsrampe: Bestand {s_alt:.1f} km/h (regelwidrig), Vorschlag {s_offer}")
+ok("ein Bestand mit zu kurzer Rampe wird nicht heruntergeredet",
+   s_base[0] is None or s_base[0]["v"] >= s_alt - 1e-9)
+
+# Unter einer Zielgeschwindigkeit gewinnt bei Gleichstand die Überhöhung, die
+# dem Bestand am nächsten liegt — weniger Umbau bei gleichem Ergebnis.
+tie_target = permissible_speed(700.0, 90.0, 130.0)
+tie = baseline(groups, {"corridor": 0.5, "uf": 130.0, "v_max": tie_target})
+ok("bei Gleichstand bleibt die Überhöhung möglichst, wie sie war", all(
+   abs(s["us"][0] - g["arcs"][0]["u_alt"]) <= 25.0 for g, s in zip(groups, tie) if s))
+ok("und das Ziel wird trotzdem erreicht",
+   all(s is None or s["v"] >= tie_target - 1e-6 for s in tie))
 
 
 print()
