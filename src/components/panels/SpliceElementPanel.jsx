@@ -6,10 +6,11 @@ import {
   computeArcStraightSplice, validateSpliceTangents,
 } from '../../utils/spliceUtils'
 import {
-  HIT_TOLERANCE, ZOOM_LINE_WIDTH, cantSign, computeAutoC, computeCantDef, roundCant, CANT_STEP,
+  HIT_TOLERANCE, ZOOM_LINE_WIDTH, cantSign, computeAutoC, computeCantDef,
   MAX_CANT, cantDefLimit,
 } from '../../utils/mapConstants'
 import RuleFindings from './RuleFindings'
+import CantField from './CantField'
 import useTrackHover from '../../hooks/useTrackHover'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
 import useDerivedField from '../../hooks/useDerivedField'
@@ -480,13 +481,11 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
           </div>
           {!bothArcs && (
             <>
-              <div className="form-field">
-                <label>{t('cant')}</label>
-                <input
-                  type="number" min={0} max={MAX_CANT} step={CANT_STEP} value={cant}
-                  onChange={e => setCant(roundCant(Math.max(0, Math.min(MAX_CANT, Number(e.target.value) || 0))))}
-                />
-              </div>
+              {/* The radius field here is a magnitude, so the cant is one
+                  too — it is signed by the fitted arc when the element is
+                  written, and the offer below follows the same convention. */}
+              <CantField t={t} value={cant} onChange={setCant}
+                min={0} max={MAX_CANT} speed={speed} radius={Math.abs(Number(radius))} />
               <div className="form-field">
                 <label>{t('cant_def')}</label>
                 <input type="number" readOnly value={cantDef} />

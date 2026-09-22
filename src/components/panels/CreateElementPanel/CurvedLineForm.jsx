@@ -7,8 +7,9 @@ import {
 } from '../../../utils/elementUtils'
 import { buildTypeFields } from '../../../utils/identifierUtils'
 import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
-import { computeAutoC, computeCantDef, roundCant, CANT_STEP, MAX_CANT, cantDefLimit, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
+import { computeAutoC, computeCantDef, MAX_CANT, cantDefLimit, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
 import RuleFindings from '../RuleFindings'
+import CantField from '../CantField'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import useDerivedField from '../../../hooks/useDerivedField'
@@ -258,11 +259,8 @@ export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
                 <label>{t('field_speed')}</label>
                 <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
               </div>
-              <div className="form-field">
-                <label>{t('cant')}</label>
-                <input type="number" min={-MAX_CANT} max={MAX_CANT} step={CANT_STEP} value={cant}
-                  onChange={e => setCant(roundCant(Math.max(-MAX_CANT, Math.min(MAX_CANT, Number(e.target.value) || 0))))} />
-              </div>
+              <CantField t={t} value={cant} onChange={setCant}
+                min={-MAX_CANT} max={MAX_CANT} speed={speed} radius={absR} />
               <div className="form-field">
                 <label>{t('cant_def')}</label>
                 <input type="number" readOnly value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />

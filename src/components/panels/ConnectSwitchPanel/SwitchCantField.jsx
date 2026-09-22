@@ -1,6 +1,5 @@
-import {
-  CANT_STEP, MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION, clampSwitchCant,
-} from '../../../utils/mapConstants'
+import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION } from '../../../utils/mapConstants'
+import CantField from '../CantField'
 
 /**
  * The cant of a turnout and, above 100 mm, the reason it is allowed to be there.
@@ -25,17 +24,20 @@ export default function SwitchCantField({
   const needsReason = (magnitude ?? Math.abs(cant ?? 0)) > MAX_SWITCH_CANT
   return (
     <>
-      <div className="form-field">
-        <label>{label ?? t('cant')}</label>
-        {readOnlyText != null
-          ? <input type="text" readOnly value={readOnlyText} />
-          : <input
-            type="number" step={CANT_STEP}
-            min={-MAX_SWITCH_CANT_EXCEPTION} max={MAX_SWITCH_CANT_EXCEPTION}
-            value={cant}
-            onChange={e => onCant(clampSwitchCant(Number(e.target.value) || 0))}
-          />}
-      </div>
+      {readOnlyText != null
+        ? (
+          <div className="form-field">
+            <label>{label ?? t('cant')}</label>
+            <input type="text" readOnly value={readOnlyText} />
+          </div>
+        )
+        : (
+          /* No u_0 offer here: a turnout is not canted to balance one speed —
+             what it gets is just enough to bring the deficiency back under the
+             limit (computeSwitchCant), and the clamp is the switch's own. */
+          <CantField t={t} label={label ?? t('cant')} value={cant} onChange={onCant}
+            min={-MAX_SWITCH_CANT_EXCEPTION} max={MAX_SWITCH_CANT_EXCEPTION} />
+        )}
       {needsReason && (
         <div className="form-field">
           <label>{t('switch_cant_exception')}</label>

@@ -215,6 +215,24 @@ export function computeAutoC(speed, radius) {
 }
 
 /**
+ * The cant at which the deficiency is nil — the **ausgleichende Überhöhung**
+ * u_0 of physics.json (D_EQ in EN 13803): u_0 = k · v² / R, on the design step
+ * and signed like the curve.
+ *
+ * It is not what `computeAutoC` proposes. That one is drawn to 6.5 · v²/R,
+ * roughly half of this, because a line is laid out for a speed its slower
+ * traffic does not run — cant that exactly balances one speed leaves every
+ * slower train leaning into the curve. u_0 is what a designer reaches for when
+ * this curve really is to be run at this one speed, so it is offered rather
+ * than proposed.
+ */
+export function equilibriumCant(speed, radius) {
+  const R = Math.abs(radius)
+  if (!(R > 0)) return 0
+  return cantSign(radius) * roundCant((CANT_DEF_COEFF * speed * speed) / R)
+}
+
+/**
  * What a turnout may be canted to. A switch is built on one set of sleepers and
  * its two routes run over the same rails, so it is held well below the line's
  * own 170 mm: 100 mm, and 120 only where the design states in writing why it has
@@ -277,6 +295,23 @@ export const cantExceedsLimit = (el) => worstCantOf(el) > cantLimit(el)
  */
 export const cantExceptionFields = (cant, reason) =>
   (Math.abs(cant ?? 0) > MAX_SWITCH_CANT && reason?.trim() ? { cantException: reason.trim() } : {})
+
+/**
+ * What a cant typed into a field becomes when the field is left: rounded onto
+ * the design step and held inside the limits — or null where there is nothing
+ * to take from it. An empty field and a half-typed "-" are not values, and
+ * must leave what stood there rather than become a zero nobody asked for.
+ *
+ * Kept apart from the typing on purpose: a field that rounds every keystroke
+ * cannot reach a value whose leading digits are not themselves on the step —
+ * typing 65 went 6 → 5, and the 5 that was left is what the next keystroke
+ * built on.
+ */
+export function cantFromInput(draft, min, max) {
+  const typed = Number(draft)
+  if (String(draft).trim() === '' || !Number.isFinite(typed)) return null
+  return roundCant(Math.max(min, Math.min(max, typed)))
+}
 
 /** A cant typed into a switch dialog, on the design step and under the ceiling. */
 export const clampSwitchCant = (value) =>

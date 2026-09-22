@@ -7,8 +7,9 @@ import {
 import { wgs84ToUTM } from '../../../utils/coordinateUtils'
 import { computeClothoidUtm } from '../../../utils/clothoidUtils'
 import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
-import { FILTER_NONE, computeAutoC, computeCantDef, roundCant, CANT_STEP, MAX_CANT, cantDefLimit, SAGITTA_ELEMENT, SAGITTA_TRACK, mapIsLive } from '../../../utils/mapConstants'
+import { FILTER_NONE, computeAutoC, computeCantDef, MAX_CANT, cantDefLimit, SAGITTA_ELEMENT, SAGITTA_TRACK, mapIsLive } from '../../../utils/mapConstants'
 import RuleFindings from '../RuleFindings'
+import CantField from '../CantField'
 import useTrackHover from '../../../hooks/useTrackHover'
 import useDerivedField from '../../../hooks/useDerivedField'
 import useElementSelection from '../../../hooks/useElementSelection'
@@ -298,11 +299,9 @@ export default function ConnectCurvedForm({ t, map, project, onTrackSaved, onCom
                 <label>{t('field_speed')}</label>
                 <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
               </div>
-              <div className="form-field">
-                <label>{t('cant')}</label>
-                <input type="number" min={-MAX_CANT} max={MAX_CANT} step={CANT_STEP} value={cant}
-                  onChange={e => setCant(roundCant(Math.max(-MAX_CANT, Math.min(MAX_CANT, Number(e.target.value) || 0))))} />
-              </div>
+              <CantField t={t} value={cant} onChange={setCant}
+                min={-MAX_CANT} max={MAX_CANT}
+                speed={speed} radius={Math.abs(Number(signedRadius))} />
               <div className="form-field">
                 <label>{t('cant_def')}</label>
                 <input type="number" readOnly value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />

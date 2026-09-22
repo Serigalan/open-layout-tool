@@ -5,6 +5,7 @@ import {
   computeMaxSpeed, computeSwitchCant, switchCantError, switchCantLimit, worstCantOf,
   HIT_TOLERANCE, TRACKS_LAYER, elementUnderPoint,
   cantDefLevel, cantDefLimit, limitCantDef, maxSpeedFor,
+  CANT_STEP, computeAutoC, computeCantDef, equilibriumCant,
 } from './mapConstants'
 
 // The two stretches of speed LP.KB.02 gives their own deficiency limit.
@@ -338,5 +339,34 @@ describe('cantDefLevel', () => {
 
   it('says nothing about cant in excess of the speed — that is not a deficiency', () => {
     expect(cantDefLevel(line, -200)).toBe(null)
+  })
+})
+
+// The cant that balances one speed exactly — offered in the dialogs beside the
+// Regelüberhöhung they propose, never in place of it.
+describe('equilibriumCant', () => {
+  it('leaves no deficiency at the speed it was computed for', () => {
+    for (const [v, r] of [[100, 1000], [80, 600], [160, 4000], [60, 400]]) {
+      const u0 = equilibriumCant(v, r)
+      // Within half a step — u_0 itself is rounded onto the design step.
+      expect(Math.abs(computeCantDef(v, r, u0)), `${v} km/h, R ${r}`).toBeLessThanOrEqual(3)
+    }
+  })
+
+  it('is about twice the Regelüberhöhung the dialogs propose', () => {
+    // 11.8 against 6.5 — a line is laid out for traffic slower than v, too.
+    const ratio = equilibriumCant(100, 1000) / computeAutoC(100, 1000)
+    expect(ratio).toBeGreaterThan(1.7)
+    expect(ratio).toBeLessThan(1.9)
+  })
+
+  it('follows the curve, as stored cant does', () => {
+    expect(equilibriumCant(100, -1000)).toBe(-equilibriumCant(100, 1000))
+  })
+
+  it('lands on the design step, and is nil without a curve', () => {
+    expect(equilibriumCant(97, 733) % CANT_STEP).toBe(0)
+    expect(equilibriumCant(100, 0)).toBe(0)
+    expect(equilibriumCant(100, undefined)).toBe(0)
   })
 })
