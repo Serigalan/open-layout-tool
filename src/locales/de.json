@@ -220,7 +220,6 @@
   "switch_delete_confirm": "Weiche {{name}} löschen?",
   "edit_element_edit_tracks": "Trackeditor (tabellarisch)",
   "edit_tracks_hint": "Gleis in der Karte anklicken oder aus der Liste wählen.",
-  "edit_constraints": "Constraints",
   "constraints_readonly": "nur lesend — gepflegt im Repo, wo die Driftprüfungen sie sehen",
   "constraints_regelwerk": "Regelwerk",
   "constraints_loading": "Regelwerk wird vom Dienst geholt…",

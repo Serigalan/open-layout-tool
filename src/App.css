@@ -428,6 +428,26 @@
   border-color: var(--color-primary);
 }
 
+/* Physics/Regelwerk in the edit panel: pinned to the bottom of the screen
+   rather than the last two entries in a list that might scroll.
+   `.sidebar-secondary` is itself a flex column reaching the full height of
+   the viewport, so `margin-top: auto` on this direct child pushes it all the
+   way down, with a rule above it to keep it visibly apart from the menu. */
+.edit-panel-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* The MathJax-rendered glyphs (v², §) sit a size below the button label by
+   default — align them the way an inline formula sits next to its text. */
+.edit-panel-footer .create-element-btn svg {
+  flex-shrink: 0;
+}
+
 .create-element-btn.active {
   background: #eeeef8;
   border-color: var(--color-primary);

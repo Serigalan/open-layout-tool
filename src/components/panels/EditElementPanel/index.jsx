@@ -140,11 +140,15 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
           <DeleteSwitchIcon />
           {t('switch_delete')}
         </button>
-        {/* Not an object on the map but the rules every object is held to, so
-            they get a section of their own rather than a place among the
-            tracks and switches — and, like the track editor, a popup each
-            rather than a panel page: the tables are wider than the sidebar. */}
-        <span className="create-element-section">{t('edit_constraints')}</span>
+      </div>
+      {/* Not an object on the map but the rules every object is held to, so
+          they sit apart from the menu above rather than among the tracks and
+          switches — pinned to the bottom of the panel (`margin-top: auto` in
+          a flex column that already reaches the bottom of the screen) rather
+          than just the last two entries in a list that might scroll. Each
+          opens its own popup, like the track editor: the tables are wider
+          than the sidebar. */}
+      <div className="edit-panel-footer">
         <button className="create-element-btn" onClick={() => onShowPhysics?.()}>
           <PhysicsIcon />
           {t('constraints_physics')}
