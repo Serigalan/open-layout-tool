@@ -5,7 +5,7 @@ import {
   computeMaxSpeed, computeSwitchCant, switchCantError, switchCantLimit, worstCantOf,
   HIT_TOLERANCE, TRACKS_LAYER, elementUnderPoint,
   cantDefLevel, cantDefLimit, limitCantDef, maxSpeedFor,
-  CANT_STEP, computeAutoC, computeCantDef, equilibriumCant,
+  CANT_STEP, computeAutoC, computeCantDef, regelCant,
 } from './mapConstants'
 
 // The two stretches of speed LP.KB.02 gives their own deficiency limit.
@@ -342,31 +342,38 @@ describe('cantDefLevel', () => {
   })
 })
 
-// The cant that balances one speed exactly — offered in the dialogs beside the
-// Regelüberhöhung they propose, never in place of it.
-describe('equilibriumCant', () => {
-  it('leaves no deficiency at the speed it was computed for', () => {
+// The Regelüberhöhung, read out of LP.KB.04 — offered in the dialogs beside
+// the value they propose, which parts company with it on a gentle curve.
+describe('regelCant', () => {
+  it('is the value the dialogs already propose wherever a curve needs cant', () => {
     for (const [v, r] of [[100, 1000], [80, 600], [160, 4000], [60, 400]]) {
-      const u0 = equilibriumCant(v, r)
-      // Within half a step — u_0 itself is rounded onto the design step.
-      expect(Math.abs(computeCantDef(v, r, u0)), `${v} km/h, R ${r}`).toBeLessThanOrEqual(3)
+      expect(regelCant(v, r), `${v} km/h, R ${r}`).toBe(computeAutoC(v, r))
     }
   })
 
-  it('is about twice the Regelüberhöhung the dialogs propose', () => {
-    // 11.8 against 6.5 — a line is laid out for traffic slower than v, too.
-    const ratio = equilibriumCant(100, 1000) / computeAutoC(100, 1000)
-    expect(ratio).toBeGreaterThan(1.7)
-    expect(ratio).toBeLessThan(1.9)
+  // computeAutoC answers 0 below 60 mm of deficiency — a curve gentle enough
+  // to need no cant. LP.KB.04 has no such rule, so there the two differ, and
+  // the button is what closes the gap it reports as a Hinweis.
+  it('still states a cant where the proposal answers none', () => {
+    expect(computeCantDef(100, 4000, 0)).toBeLessThan(60)
+    expect(computeAutoC(100, 4000)).toBe(0)
+    expect(regelCant(100, 4000)).toBe(15)          // 6.5 · 100² / 4000 = 16.25
+  })
+
+  it('never states more cant than the Ril allows', () => {
+    // 6.5 · 100² / 300 = 217 mm, well past the 160 a curve may carry.
+    expect(regelCant(100, 300)).toBe(MAX_CANT)
+    // …and inside a turnout the cap is the turnout's own.
+    expect(regelCant(100, 300, { inSwitch: true })).toBe(MAX_SWITCH_CANT)
   })
 
   it('follows the curve, as stored cant does', () => {
-    expect(equilibriumCant(100, -1000)).toBe(-equilibriumCant(100, 1000))
+    expect(regelCant(100, -1000)).toBe(-regelCant(100, 1000))
   })
 
   it('lands on the design step, and is nil without a curve', () => {
-    expect(equilibriumCant(97, 733) % CANT_STEP).toBe(0)
-    expect(equilibriumCant(100, 0)).toBe(0)
-    expect(equilibriumCant(100, undefined)).toBe(0)
+    expect(regelCant(97, 733) % CANT_STEP).toBe(0)
+    expect(regelCant(100, 0)).toBe(0)
+    expect(regelCant(100, undefined)).toBe(0)
   })
 })

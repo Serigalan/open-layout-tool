@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { CANT_STEP, cantFromInput, equilibriumCant } from '../../utils/mapConstants'
+import { CANT_STEP, cantFromInput, regelCant } from '../../utils/mapConstants'
 
 /**
  * The cant field of a dialog: a value that is proposed and may be overridden,
- * with the ausgleichende Überhöhung one click away.
+ * with the Regelüberhöhung one click away.
  *
  * **What is typed is kept as text** until the field is left, and only then
  * rounded onto the design step and clamped. Doing that on every keystroke —
@@ -14,9 +14,9 @@ import { CANT_STEP, cantFromInput, equilibriumCant } from '../../utils/mapConsta
  * keeps between a draft and the value under it.
  *
  * The offer below the field appears only where there is something to offer: a
- * speed and a radius to compute u_0 from, and a value that is not already it.
- * It reads as `.field-override` reads everywhere else in the panels — a small
- * line under the field that says what it would put there.
+ * speed and a radius for LP.KB.04 to answer about, and a value that is not
+ * already its `u_reg`. It reads as `.field-override` reads everywhere else in
+ * the panels — a small line under the field that says what it would put there.
  */
 export default function CantField({
   t, label, value, onChange, min, max, speed, radius, children,
@@ -31,7 +31,7 @@ export default function CantField({
   }
 
   const offer = radius && speed
-    ? Math.max(min, Math.min(max, equilibriumCant(speed, radius)))
+    ? Math.max(min, Math.min(max, regelCant(speed, radius)))
     : null
 
   return (
@@ -45,9 +45,9 @@ export default function CantField({
         onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
       />
       {offer != null && offer !== value && (
-        <button type="button" className="field-override" title={t('cant_equilibrium_hint')}
+        <button type="button" className="field-override" title={t('cant_regel_hint')}
           onClick={() => onChange(offer)}>
-          {`${t('cant_equilibrium')} (${offer} mm)`}
+          {`${t('cant_regel')} (${offer} mm)`}
         </button>
       )}
       {children}

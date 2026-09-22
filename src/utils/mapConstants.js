@@ -215,21 +215,22 @@ export function computeAutoC(speed, radius) {
 }
 
 /**
- * The cant at which the deficiency is nil — the **ausgleichende Überhöhung**
- * u_0 of physics.json (D_EQ in EN 13803): u_0 = k · v² / R, on the design step
- * and signed like the curve.
+ * The **Regelüberhöhung** — LP.KB.04's `u_reg`, read out of the rule rather
+ * than recomputed here: 6.5 · v²/R on the 5 mm step, capped at the cant the
+ * Ril allows (160 on plain line, 100 inside a turnout). Signed like the curve.
  *
- * It is not what `computeAutoC` proposes. That one is drawn to 6.5 · v²/R,
- * roughly half of this, because a line is laid out for a speed its slower
- * traffic does not run — cant that exactly balances one speed leaves every
- * slower train leaning into the curve. u_0 is what a designer reaches for when
- * this curve really is to be run at this one speed, so it is offered rather
- * than proposed.
+ * It is what `computeAutoC` proposes, with one difference that matters: that
+ * one answers 0 where a curve is gentle enough to need no cant at all (a
+ * deficiency under 60 mm without any), which LP.KB.04 does not know about. So
+ * on a gentle curve the proposal and the rule part company, and the rule is
+ * what this offers.
  */
-export function equilibriumCant(speed, radius) {
+export function regelCant(speed, radius, { inSwitch = false } = {}) {
   const R = Math.abs(radius)
   if (!(R > 0)) return 0
-  return cantSign(radius) * roundCant((CANT_DEF_COEFF * speed * speed) / R)
+  return cantSign(radius) * catalogLimit('LP.KB.04', 'u_reg', {
+    'element.design_speed': speed, 'element.radius': R, 'element.cant': 0,
+  }, inSwitch ? IN_SWITCH_AREA : {})
 }
 
 /**

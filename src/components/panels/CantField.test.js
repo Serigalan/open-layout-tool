@@ -3,7 +3,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import translations from '../../locales/de.json'
 import CantField from './CantField'
-import { CANT_STEP, MAX_CANT, cantFromInput, equilibriumCant } from '../../utils/mapConstants'
+import { CANT_STEP, MAX_CANT, cantFromInput, regelCant } from '../../utils/mapConstants'
 
 const t = (key) => translations[key] ?? key
 const render = (props) => renderToStaticMarkup(createElement(CantField, {
@@ -41,27 +41,27 @@ describe('the field itself', () => {
     expect(render({ value: 65 })).toContain('value="65"')
   })
 
-  it('offers the ausgleichende Überhöhung, with the value it would set', () => {
-    // 11.8 · 100² / 1000 = 118 mm
-    const html = render({ value: 65, speed: 100, radius: 1000 })
-    expect(equilibriumCant(100, 1000)).toBe(120)
-    expect(html).toContain(t('cant_equilibrium'))
-    expect(html).toContain('(120 mm)')
+  it('offers the Regelüberhöhung, with the value it would set', () => {
+    // 6.5 · 100² / 1000 = 65 mm
+    const html = render({ value: 40, speed: 100, radius: 1000 })
+    expect(regelCant(100, 1000)).toBe(65)
+    expect(html).toContain(t('cant_regel'))
+    expect(html).toContain('(65 mm)')
   })
 
   it('does not offer what is already there', () => {
-    expect(render({ value: 120, speed: 100, radius: 1000 }))
-      .not.toContain(t('cant_equilibrium'))
+    expect(render({ value: 65, speed: 100, radius: 1000 }))
+      .not.toContain(t('cant_regel'))
   })
 
-  it('offers what the limits allow where u_0 is past them', () => {
-    // 11.8 · 100² / 300 = 393 mm, far past the 160 a curve may carry.
+  it('offers what the limits allow where u_reg is past them', () => {
+    // 6.5 · 100² / 300 = 217 mm, past the 160 a curve may carry.
     expect(render({ value: 0, speed: 100, radius: 300 })).toContain(`(${MAX_CANT} mm)`)
   })
 
   it('offers nothing where there is no speed or no curve to compute one from', () => {
-    expect(render({ value: 0 })).not.toContain(t('cant_equilibrium'))
-    expect(render({ value: 0, speed: 100 })).not.toContain(t('cant_equilibrium'))
-    expect(render({ value: 0, radius: 1000 })).not.toContain(t('cant_equilibrium'))
+    expect(render({ value: 0 })).not.toContain(t('cant_regel'))
+    expect(render({ value: 0, speed: 100 })).not.toContain(t('cant_regel'))
+    expect(render({ value: 0, radius: 1000 })).not.toContain(t('cant_regel'))
   })
 })
