@@ -13,7 +13,9 @@
  * drawn with, and the first thing it found would be its own disagreement.
  */
 
-import { evaluateRules, rulesForElement, rulesForScope, worstSeverity } from './regelkatalog'
+import {
+  evaluateRules, rulesForElement, rulesForScope, severityRank, worstSeverity,
+} from './regelkatalog'
 import { transitionCantEnds } from './clothoidUtils'
 import { computeCantDefSigned } from './mapConstants'
 import { CANT_DEFICIENCY_COEFF } from './regelwerkDefaults'
@@ -206,4 +208,17 @@ export function checkTrack(elements = []) {
     ramps,
     severity: worstSeverity(perElement.map(e => e.severity)),
   }
+}
+
+/**
+ * Does the catalogue call anything about this chain an error? What a creation
+ * dialog asks before it lets a commit through.
+ *
+ * Only `error` blocks. A Sonderfall ranks below it on purpose — the catalogue
+ * says of one that it wants an experienced hand, not that it is forbidden, so
+ * a Bloß transition is still buildable. And an element whose design speed is
+ * unknown is not judged at all, so it cannot block either.
+ */
+export function hasRuleError(elements = []) {
+  return severityRank(checkTrack(elements).severity) >= severityRank('error')
 }

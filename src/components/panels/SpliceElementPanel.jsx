@@ -7,9 +7,10 @@ import {
 } from '../../utils/spliceUtils'
 import {
   HIT_TOLERANCE, ZOOM_LINE_WIDTH, cantSign, computeAutoC, computeCantDef,
-  MAX_CANT, cantDefLimit,
+  MAX_CANT,
 } from '../../utils/mapConstants'
 import RuleFindings from './RuleFindings'
+import { hasRuleError } from '../../utils/trassierungCheck'
 import CantField from './CantField'
 import useTrackHover from '../../hooks/useTrackHover'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
@@ -438,10 +439,13 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
     // answer rather than an input — there is nothing to type and nothing to switch on.
     const directTransition = bothArcs && arcJoin === 'transition'
     // Only the inserted arc takes a cant; an arc+arc splice re-shapes the two
-    // existing arcs, which keep theirs.
+    // existing arcs, which keep theirs — and inserts no element of its own, so
+    // there is nothing for the catalogue to judge in that case.
     const cantDef = computeCantDef(speed, radius, cant)
-    // LP.KB.02's limit is a step over the speed, so it is asked for this one.
-    const defErr  = !bothArcs && cantDef > cantDefLimit(speed)
+    const inserted = !bothArcs && splice?.result?.arcLength != null
+      ? { elementType: 1, radius: Number(radius), cant, speed, length: splice.result.arcLength }
+      : null
+    const blocked = inserted ? hasRuleError([inserted]) : false
     return (
       <>
         <h2>{t('splice_element')}</h2>
@@ -543,19 +547,14 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
             {status.msg}
           </p>
         )}
-        {/* An arc+arc splice re-shapes the two arcs that are already there and
-            inserts none, so there is no new element to judge; the length is the
-            one the construction solved, not one that was typed. */}
-        {!bothArcs && splice?.result?.arcLength != null && (
-          <RuleFindings t={t} element={{
-            elementType: 1, radius: Number(radius), cant, speed, length: splice.result.arcLength,
-          }} />
-        )}
+        {/* The length judged here is the one the construction solved, not one
+            that was typed. */}
+        {inserted && <RuleFindings t={t} element={inserted} />}
         <button
           className="panel-btn panel-btn-full"
-          style={{ marginTop: 8, opacity: (canCommit && !defErr) ? 1 : 0.5 }}
+          style={{ marginTop: 8, opacity: (canCommit && !blocked) ? 1 : 0.5 }}
           onClick={handleCommit}
-          disabled={!canCommit || defErr}
+          disabled={!canCommit || blocked}
         >
           {t('btn_commit')}
         </button>

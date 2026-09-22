@@ -11,6 +11,7 @@ import useNearbyLines from '../../../hooks/useNearbyLines'
 import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
 import RuleFindings from '../RuleFindings'
+import { hasRuleError } from '../../../utils/trassierungCheck'
 import { toWgs } from './createHelpers'
 import { elementPath } from '../../../utils/lineLookup'
 
@@ -252,19 +253,22 @@ export default function LineForm({ t, map, project, onTrackSaved }) {
         </p>
       )}
 
-      {points.length === 2 && !selecting && (
-        <>
-          <RuleFindings t={t} element={{
-            elementType: 0, speed, length: Number(length), cant: 0,
-          }} />
-          <button className="panel-btn panel-btn-full" onClick={handleCommit}>
-            {t('btn_commit')}
-          </button>
-          <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onTrackSaved}>
-            {t('btn_cancel')}
-          </button>
-        </>
-      )}
+      {points.length === 2 && !selecting && (() => {
+        const element = { elementType: 0, speed, length: Number(length), cant: 0 }
+        const blocked = hasRuleError([element])
+        return (
+          <>
+            <RuleFindings t={t} element={element} />
+            <button className="panel-btn panel-btn-full" onClick={handleCommit}
+              disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
+              {t('btn_commit')}
+            </button>
+            <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onTrackSaved}>
+              {t('btn_cancel')}
+            </button>
+          </>
+        )
+      })()}
     </>
   )
 }

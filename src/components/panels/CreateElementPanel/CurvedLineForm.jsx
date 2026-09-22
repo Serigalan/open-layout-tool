@@ -7,8 +7,9 @@ import {
 } from '../../../utils/elementUtils'
 import { buildTypeFields } from '../../../utils/identifierUtils'
 import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
-import { computeAutoC, computeCantDef, MAX_CANT, cantDefLimit, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
+import { computeAutoC, computeCantDef, MAX_CANT, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
 import RuleFindings from '../RuleFindings'
+import { hasRuleError } from '../../../utils/trassierungCheck'
 import CantField from '../CantField'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
@@ -286,25 +287,20 @@ export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
       {selecting && <p className="selecting-hint">{selectingHint}</p>}
 
       {hasPoints && !selecting && (() => {
-        const cantDef = computeCantDef(speed, Math.abs(Number(signedRadius)), cant)
-        const cantErr = Math.abs(cant) > MAX_CANT
-        // The deficiency a speed may reach is a step, not one number
-        // (LP.KB.02) — so it is asked for this speed, not read off a constant.
-        const defErr  = cantDef > cantDefLimit(speed)
+        // Judged once, shown and acted on: the findings say what the catalogue
+        // found, and anything it calls an error stops the commit. Nothing here
+        // restates a limit — the sentence that used to stand in this spot named
+        // a fixed 150 mm, which the deficiency limit stopped being when it
+        // became LP.KB.02's step over the speed.
+        const element = {
+          elementType: 1, radius: Number(signedRadius), cant, speed, length: Number(arcLength),
+        }
+        const blocked = hasRuleError([element])
         return (
           <>
-            {/* What stands in the way is said by the findings above, from
-                the rule itself — the sentence that used to stand here named a
-                fixed 150 mm, which the deficiency limit stopped being when it
-                became LP.KB.02's step. The gate below stays narrower than the
-                catalogue's verdict on purpose: it refuses cant and deficiency,
-                as it always did, and does not newly refuse a length or a speed
-                off the grid that the findings only report. */}
-            <RuleFindings t={t} element={{
-              elementType: 1, radius: Number(signedRadius), cant, speed, length: Number(arcLength),
-            }} />
+            <RuleFindings t={t} element={element} />
             <button className="panel-btn panel-btn-full" onClick={handleCommit}
-              disabled={cantErr || defErr} style={{ opacity: (cantErr || defErr) ? 0.5 : 1 }}>
+              disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
               {t('btn_commit')}
             </button>
             <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onTrackSaved}>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  boundaryScope, checkTrack, elementScope, formOf, isCheckable, rampScope,
+  boundaryScope, checkTrack, elementScope, formOf, hasRuleError, isCheckable, rampScope,
 } from './trassierungCheck'
 import { computeCantDefSigned } from './mapConstants'
 
@@ -210,5 +210,41 @@ describe('an empty track', () => {
   it('has nothing to say about it', () => {
     expect(checkTrack([])).toMatchObject({ perElement: [], boundaries: [], ramps: [], severity: null })
     expect(checkTrack()).toMatchObject({ severity: null })
+  })
+})
+
+// What a creation dialog asks before it lets a commit through.
+describe('hasRuleError', () => {
+  it('is false for a chain the catalogue has nothing to fault', () => {
+    expect(hasRuleError(clean())).toBe(false)
+  })
+
+  it('is true where any rule of the catalogue says error', () => {
+    const short = [{ elementType: 0, length: 3, speed: 100, cant: 0 }]
+    expect(hasRuleError(short)).toBe(true)                     // LP.EL.01
+    expect(hasRuleError([{ ...short[0], length: 100, speed: 83 }])).toBe(true)   // LP.ALL.02
+    expect(hasRuleError([{ ...short[0], length: 100, speed: 320 }])).toBe(true)  // LP.ALL.01
+  })
+
+  // The catalogue says of a Sonderfall that it wants an experienced hand, not
+  // that it is forbidden — so a Bloß transition still commits.
+  it('is false for a Sonderfall, which ranks below an error', () => {
+    const bloss = clean()
+    bloss[1] = { ...bloss[1], transitionType: 'bloss' }
+    expect(checkTrack(bloss).severity).toBe('special_case')
+    expect(hasRuleError(bloss)).toBe(false)
+  })
+
+  it('is false for a hint alone', () => {
+    const offRegel = clean()
+    offRegel[2] = { ...offRegel[2], cant: 60 }        // not the Regelüberhöhung
+    expect(checkTrack(offRegel).severity).toBe('hint')
+    expect(hasRuleError(offRegel)).toBe(false)
+  })
+
+  it('is false where there is no design speed to judge by, and for nothing at all', () => {
+    expect(hasRuleError([{ elementType: 0, length: 3, speed: 0 }])).toBe(false)
+    expect(hasRuleError([])).toBe(false)
+    expect(hasRuleError()).toBe(false)
   })
 })

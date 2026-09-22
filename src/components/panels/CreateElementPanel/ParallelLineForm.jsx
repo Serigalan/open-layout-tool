@@ -12,6 +12,7 @@ import useNearbyLines from '../../../hooks/useNearbyLines'
 import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
 import RuleFindings from '../RuleFindings'
+import { hasRuleError } from '../../../utils/trassierungCheck'
 import { toWgs } from './createHelpers'
 import { elementPath } from '../../../utils/lineLookup'
 
@@ -367,21 +368,26 @@ export default function ParallelLineForm({ t, map, project, onTrackSaved }) {
         </p>
       )}
 
-      {points.length === 2 && !selecting && (
+      {points.length === 2 && !selecting && (() => {
+        // A parallel is a straight or an arc, exactly as the element it was
+        // drawn beside is — so it is judged as whichever it turned out.
+        const element = isArc
+          ? { elementType: 1, radius: signedR, cant: 0, speed, length: Number(length) }
+          : { elementType: 0, cant: 0, speed, length: Number(length) }
+        const blocked = hasRuleError([element])
+        return (
         <>
-          {/* A parallel is a straight or an arc, exactly as the element it was
-              drawn beside is — so it is judged as whichever it turned out. */}
-          <RuleFindings t={t} element={isArc
-            ? { elementType: 1, radius: signedR, cant: 0, speed, length: Number(length) }
-            : { elementType: 0, cant: 0, speed, length: Number(length) }} />
-          <button className="panel-btn panel-btn-full" onClick={handleCommit}>
+          <RuleFindings t={t} element={element} />
+          <button className="panel-btn panel-btn-full" onClick={handleCommit}
+            disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
             {t('btn_commit')}
           </button>
           <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onTrackSaved}>
             {t('btn_cancel')}
           </button>
         </>
-      )}
+        )
+      })()}
     </>
   )
 }

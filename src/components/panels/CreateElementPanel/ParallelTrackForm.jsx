@@ -10,6 +10,7 @@ import TrackFields from '../TrackFields'
 import HeightDatumField from '../HeightDatumField'
 import { elementsPath } from '../../../utils/lineLookup'
 import RuleFindings from '../RuleFindings'
+import { hasRuleError } from '../../../utils/trassierungCheck'
 
 export default function ParallelTrackForm({ t, map, project, onTrackSaved }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -22,6 +23,10 @@ export default function ParallelTrackForm({ t, map, project, onTrackSaved }) {
   const sourceRef                 = useRef(null)      // the picked track
   // The track as it would be saved: the line it lies on names it.
   const geometry = elements && sourceEpsg ? elementsPath(elements, sourceEpsg) : null
+  // A parallel inherits the geometry it was offset from, so a rule the source
+  // breaks is one the copy breaks too — and a copy of a chain that cannot be
+  // built is not something to write a second time.
+  const blocked = hasRuleError(elements ?? [])
   const { name, setName } = useTrackName(project.id, fields, { geometry, setField })
 
   useEffect(() => {
@@ -152,7 +157,9 @@ export default function ParallelTrackForm({ t, map, project, onTrackSaved }) {
               the catalogue has to say about it is mostly what it had to say
               about the track it was drawn beside. */}
           {elements && <RuleFindings t={t} elements={elements} />}
-          <button className="panel-btn panel-btn-full" style={{ opacity: elements ? 1 : 0.5 }} disabled={!elements} onClick={handleCommit}>
+          <button className="panel-btn panel-btn-full"
+            style={{ opacity: (elements && !blocked) ? 1 : 0.5 }}
+            disabled={!elements || blocked} onClick={handleCommit}>
             {t('btn_commit')}
           </button>
           <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onTrackSaved}>

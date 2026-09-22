@@ -13,6 +13,7 @@ import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
 import { toWgs } from './connectHelpers'
 import RuleFindings from '../RuleFindings'
+import { hasRuleError } from '../../../utils/trassierungCheck'
 
 export default function ConnectStraightForm({ t, map, project, onTrackSaved, onCommitted }) {
   const [phase, setPhase]                   = useState('select')
@@ -275,19 +276,22 @@ export default function ConnectStraightForm({ t, map, project, onTrackSaved, onC
         </div>
       )}
 
-      {phase === 'done' && endPoint && (
-        <>
-          <RuleFindings t={t} element={{
-            elementType: 0, speed, length: Number(length), cant: 0,
-          }} />
-          <button className="panel-btn panel-btn-full" onClick={handleCommit}>
-            {t('btn_commit')}
-          </button>
-          <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>
-            {t('btn_cancel')}
-          </button>
-        </>
-      )}
+      {phase === 'done' && endPoint && (() => {
+        const element = { elementType: 0, speed, length: Number(length), cant: 0 }
+        const blocked = hasRuleError([element])
+        return (
+          <>
+            <RuleFindings t={t} element={element} />
+            <button className="panel-btn panel-btn-full" onClick={handleCommit}
+              disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
+              {t('btn_commit')}
+            </button>
+            <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>
+              {t('btn_cancel')}
+            </button>
+          </>
+        )
+      })()}
     </>
   )
 }
