@@ -221,8 +221,6 @@
   "edit_element_edit_tracks": "Trackeditor (tabular)",
   "edit_tracks_hint": "Click a track on the map, or pick one from the list.",
   "edit_constraints": "Constraints",
-  "edit_constraints_view": "Rulebook and physics",
-  "constraints_title": "Constraints",
   "constraints_readonly": "read-only — maintained in the repo, where the drift checks can see them",
   "constraints_regelwerk": "Rulebook",
   "constraints_loading": "Fetching the rulebook from the service…",

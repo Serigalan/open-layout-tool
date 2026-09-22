@@ -27,7 +27,8 @@ import InfoPanel from './components/panels/InfoPanel'
 import DataExchangePanel from './components/panels/DataExchangePanel'
 import PlanExportPanel from './components/panels/PlanExportPanel'
 import TrackTableOverlay from './components/TrackTableOverlay'
-import ConstraintsOverlay from './components/ConstraintsOverlay'
+import PhysicsOverlay from './components/PhysicsOverlay'
+import RegelwerkOverlay from './components/RegelwerkOverlay'
 import PlanPreviewOverlay from './components/PlanPreviewOverlay'
 import ElevationOverlay from './components/ElevationOverlay'
 import CrossSectionOverlay from './components/CrossSectionOverlay'
@@ -286,13 +287,13 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
 }
 
 
-function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
+function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
   if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
   if (view === 'places')   return <CreateConnectPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'settings') return <SettingsPanel language={language} onLanguageChange={onLanguageChange} color={color} onColorChange={onColorChange} t={t} />
-  if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowConstraints={onShowConstraints} />
+  if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} />
   if (view === 'connect_switch') return <ConnectSwitchPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
-  if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowConstraints={onShowConstraints} />
+  if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowRegelwerk={onShowRegelwerk} />
   if (view === 'elevation') return <ElevationPanel t={t} map={map} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
   if (view === 'platform') return <PlatformCrossSectionPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
   if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onProjectImported={onProjectImported} onTrackSaved={onTrackSaved} />
@@ -334,10 +335,12 @@ export default function App() {
   const [profileTrackId, setProfileTrackId] = useState(null)   // track shown in the profile overlay
   const [planPreview, setPlanPreview] = useState(null)         // { plan, filenameBase } shown as a sheet preview
   const [crossSectionAt, setCrossSectionAt] = useState(null)   // { trackId, station } drawn in the cross-section overlay
-  // The constraints popup: { regelwerkId } while it is open, '' meaning "the
-  // one the service names first". It is read-only, so unlike the element table
-  // it has nothing to lose and closes without asking.
-  const [constraints, setConstraints] = useState(null)
+  // The two constraints popups — physics (a flag, it takes no argument) and
+  // the regelwerk ({ regelwerkId }, '' meaning "the one the service names
+  // first"). Both read-only, so unlike the element table they have nothing to
+  // lose and close without asking.
+  const [physicsOpen, setPhysicsOpen] = useState(false)
+  const [regelwerkOverlay, setRegelwerkOverlay] = useState(null)
   // Bumped after every write of height points, so the profile re-reads them.
   const [heightsVersion, setHeightsVersion] = useState(0)
   // [min, max] the elevation colour scale is fitted to — drives the legend.
@@ -548,10 +551,12 @@ export default function App() {
     // profile overlay likewise to the elevation panel.
     const go = () => {
       setActiveView(next)
-      // Reachable from two panels (edit and optimize), so it belongs to
-      // neither — any switch closes it rather than leaving it over a panel
-      // that did not open it.
-      setConstraints(null)
+      // Reachable from more than one panel (edit and optimize for the
+      // regelwerk; edit alone for physics), so they belong to neither — any
+      // switch closes them rather than leaving one over a panel that did not
+      // open it.
+      setPhysicsOpen(false)
+      setRegelwerkOverlay(null)
       if (next !== 'edit') setTrackTable(null)
       if (next !== 'elevation') setProfileTrackId(null)
       if (next !== 'plan') setPlanPreview(null)
@@ -561,8 +566,10 @@ export default function App() {
 
   // Picking another track keeps the edits — they are the table's, not one
   // track's — so only closing it (null) has to be asked about.
-  const handleShowConstraints = useCallback((regelwerkId = '') => {
-    setConstraints({ regelwerkId })
+  const handleShowPhysics = useCallback(() => setPhysicsOpen(true), [])
+
+  const handleShowRegelwerk = useCallback((regelwerkId = '') => {
+    setRegelwerkOverlay({ regelwerkId })
   }, [])
 
   const handleShowTrackTable = useCallback((tr, row) => {
@@ -695,7 +702,8 @@ export default function App() {
             onTrackSaved={handleTrackSaved}
             trackTableId={trackTable?.id}
             onShowTrackTable={handleShowTrackTable}
-            onShowConstraints={handleShowConstraints}
+            onShowPhysics={handleShowPhysics}
+            onShowRegelwerk={handleShowRegelwerk}
             onProjectImported={handleProjectImported}
             profileTrackId={profileTrackId}
             onShowProfile={setProfileTrackId}
@@ -715,8 +723,9 @@ export default function App() {
         {profileTrackId && <ElevationOverlay trackId={profileTrackId} project={project} map={map} version={heightsVersion} onClose={() => setProfileTrackId(null)} onSaved={handleTrackSaved} t={t} />}
         {crossSectionAt && <CrossSectionOverlay at={crossSectionAt} project={project} map={map}
           onAtChange={setCrossSectionAt} onClose={() => setCrossSectionAt(null)} t={t} />}
-        {constraints && <ConstraintsOverlay t={t} regelwerkId={constraints.regelwerkId}
-          onClose={() => setConstraints(null)} />}
+        {physicsOpen && <PhysicsOverlay t={t} onClose={() => setPhysicsOpen(false)} />}
+        {regelwerkOverlay && <RegelwerkOverlay t={t} regelwerkId={regelwerkOverlay.regelwerkId}
+          onClose={() => setRegelwerkOverlay(null)} />}
         {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
         {discardAsk && (
           <ConfirmModal

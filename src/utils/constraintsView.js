@@ -1,7 +1,7 @@
 // The physics file turned into table rows, and the handful of regelwerk values
-// the app holds a copy of — the reading half of the Constraints popup
-// (ConstraintsOverlay.jsx). Plain functions, not JSX, so they run in the Node
-// test suite without a DOM, same split regelwerkView.js keeps.
+// the app holds a copy of — the reading half of PhysicsOverlay.jsx and
+// RegelwerkOverlay.jsx. Plain functions, not JSX, so they run in the Node test
+// suite without a DOM, same split regelwerkView.js keeps.
 //
 // The regelwerk itself is not read here: it comes over the wire from the
 // service (GET /regelwerke/<id>) and flattenRegelwerk already turns it into

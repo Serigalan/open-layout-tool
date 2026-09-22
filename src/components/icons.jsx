@@ -190,13 +190,22 @@ export const DeleteSwitchIcon = () => (
   </MenuIcon>
 )
 
-// Constraints — an alignment running between two limits it may not cross. The
-// bounds are the regelwerk, the curve between them is what a run is allowed to
-// be; nothing here is a track symbol, because nothing here is one track.
-export const ConstraintsIcon = () => (
+// Physics — kappa, the curvature both transition profiles in physics.json are
+// written in terms of, squared: physics.json's one formula that is not a
+// straight physical constant is exactly a kappa(s) function.
+export const PhysicsIcon = () => (
   <MenuIcon>
-    <path d="M2 3 H14 M2 13 H14" />
-    <path d="M3 12 Q8 12 8 8 Q8 4 13 4" opacity="0.6" />
+    <path d="M4 2 V14" />
+    <path d="M4 8 L10 2" />
+    <path d="M4 9 Q6.5 9 10 14" />
+    <path d="M12 2.5 Q14 2.5 14 4 Q14 5.3 12 6.7 H14.2" />
+  </MenuIcon>
+)
+
+// Regelwerk — the section mark, the way a rulebook's own clauses are numbered.
+export const RegelwerkIcon = () => (
+  <MenuIcon>
+    <path d="M10 2 C6 2 6 5 9 6 C12 7 12 10 8 10 C5 10 5 13 9 14" />
   </MenuIcon>
 )
 

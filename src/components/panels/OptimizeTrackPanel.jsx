@@ -60,7 +60,7 @@ function reshapedHeights(track, elements) {
 // `initialPage`/`onExit` are what the merged splice-and-optimize panel passes:
 // it opens the panel straight in a mode and takes the back button back to its
 // own menu. Standalone, the panel starts in its own menu as before.
-export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, initialPage = 'menu', onExit, onShowConstraints }) {
+export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, initialPage = 'menu', onExit, onShowRegelwerk }) {
   const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element'
   const mode = page
   const [phase, setPhase]         = useState('select')
@@ -276,7 +276,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
             )}
             {/* The same popup the edit panel opens, on the regelwerk this
                 run would use — one viewer, not a second copy of the table. */}
-            <button type="button" onClick={() => onShowConstraints?.(regelwerkId || regelwerke[0].id)} style={{
+            <button type="button" onClick={() => onShowRegelwerk?.(regelwerkId || regelwerke[0].id)} style={{
               fontSize: 11, marginTop: 2, background: 'none', border: 'none', padding: 0,
               color: '#5b9bd5', textDecoration: 'underline', cursor: 'pointer',
             }}>
