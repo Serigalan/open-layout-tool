@@ -3,6 +3,7 @@ import { buildInfra } from './exchangeExport'
 import { parseOsrdRailJson } from './osrdImport'
 import {
   SWITCH_TYPES, computeSwitchGeometryUtm, switchArcLength, switchStraightLength, switchRouteVaries,
+  CROSSING_TYPES, crossingAngle, computeCrossingGeometryUtm, crossingElements,
 } from './switchUtils'
 import { newSwitchFields } from './switchModel'
 import { recalcAbsLengths } from '../storage'
@@ -105,4 +106,39 @@ describe('a turnout whose branch ends in a straight piece', () => {
     const { switches } = roundTrip(form)
     expect(switches[0].lcsCoords).toHaveLength(2)
   })
+})
+
+/**
+ * AP 3.4 — a crossing switch written out and read back in. The EBKW's legs are
+ * 3 cm shorter than an EKW 500's and otherwise alike in kind and angle, so it
+ * is the radius its legs run on that has to tell the two apart.
+ */
+describe('a crossing switch through the exchange file', () => {
+  const crossingRoundTrip = (label) => {
+    const form = CROSSING_TYPES.find(f => f.label === label)
+    const angle = crossingAngle(form) * 180 / Math.PI
+    const g = computeCrossingGeometryUtm(START, BEARING, form, angle)
+    const identity = { ...newSwitchFields(form.kind), name: 'crossing.001', label }
+    const els = crossingElements(g, identity)
+    const track = (id, el) => ({ id, epsg: EPSG, elements: recalcAbsLengths([el]) })
+    const tracks = [track('a', els.A), track('b', els.B), track('c', els.C), track('d', els.D),
+      ...[els.slip1, els.slip2].filter(Boolean).map((el, i) => track(`s${i + 1}`, el))]
+    const sw = {
+      ...identity,
+      portA_trackId: 'a', portA_endpoint: 'END',
+      portB_trackId: 'b', portB_endpoint: 'END',
+      portC_trackId: 'c', portC_endpoint: 'BEGIN',
+      portD_trackId: 'd', portD_endpoint: 'BEGIN',
+    }
+    return parseOsrdRailJson(buildInfra(tracks, [sw], [], {}))
+  }
+
+  for (const label of ['EKW 1:9 – 500', 'EBKW 1:9 – 500.860', 'DBKW 1:9 – 500.860']) {
+    it(`comes back as the ${label}`, () => {
+      const { switches, errors } = crossingRoundTrip(label)
+      expect(errors).toEqual([])
+      expect(switches).toHaveLength(1)
+      expect(switches[0].label).toBe(label)
+    })
+  }
 })

@@ -5,7 +5,7 @@ import { sampleTransitionUtm, transitionBearingAtUtm } from './clothoidUtils'
 import { elementAtStation, pointAtStationUtm, trackLength } from './heightUtils'
 import {
   lcsLineUtm, switchFillRing, switchRoutePointsUtm, switchRoutesFromTracks,
-  crossingRoutesFromTracks, crossingEndDistance,
+  crossingRoutesFromTracks, crossingEndDistance, crossingBodyUtm,
   switchChainPointUtm, switchChainBearingAt, switchChainBauform,
 } from './switchUtils'
 import { switchNumberOf } from './identifierUtils'
@@ -226,21 +226,15 @@ export function switchSymbolUtm(sw, trackById) {
   // is built there. The map draws a mark so the node can be picked; a plan
   // sheet has no such need.
   if (isLinkSwitch(sw)) return null
-  // A crossing kind is drawn from its own two legs: the diamond they span, the
-  // crossing point as its node, and the main leg's middle as where the label
+  // A crossing kind is drawn from its own four legs: the wedges between them
+  // (crossingBodyUtm), the crossing point as its node, and the main leg's middle as where the label
   // belongs. There is no branch and no toe, so branchTurn is 0 and the LCS
   // mark is absent — the forms carry no dLcs.
   if (sw.kind && sw.kind !== 'turnout') {
     const routes = crossingRoutesFromTracks(sw, trackById)
     if (!routes) return null
-    const { type, centre, mainBearing, crossBearing, main, cross } = routes
+    const { type, centre, mainBearing, main } = routes
     const t = crossingEndDistance(type)
-    const aUtm = { easting: centre.easting - t * Math.sin(mainBearing * Math.PI / 180),
-      northing: centre.northing - t * Math.cos(mainBearing * Math.PI / 180) }
-    const bUtm = { easting: centre.easting - t * Math.sin(crossBearing * Math.PI / 180),
-      northing: centre.northing - t * Math.cos(crossBearing * Math.PI / 180) }
-    const cUtm = switchChainPointUtm(centre, mainBearing, main)
-    const dUtm = switchChainPointUtm(centre, crossBearing, cross)
     const mid = switchChainPointUtm(centre, mainBearing, main, t / 2)
     return {
       node: [centre.easting, centre.northing],
@@ -248,18 +242,12 @@ export function switchSymbolUtm(sw, trackById) {
       number: switchNumberOf(sw),
       station: 0,
       mid: [mid.easting, mid.northing],
-      midBearing: mainBearing,
+      midBearing: switchChainBearingAt(mainBearing, main, t / 2),
       branchTurn: 0,
-      // The two wedges between the legs at the acute crossing angle — each a
-      // triangle from the crossing point out to the two ends on a side, the
-      // same pair of rings the map's fill draws. The obtuse wedges carry no
-      // body.
-      fill: [
-        [[aUtm.easting, aUtm.northing], [bUtm.easting, bUtm.northing],
-          [centre.easting, centre.northing], [aUtm.easting, aUtm.northing]],
-        [[cUtm.easting, cUtm.northing], [dUtm.easting, dUtm.northing],
-          [centre.easting, centre.northing], [cUtm.easting, cUtm.northing]],
-      ],
+      // The two wedges between the legs at the acute crossing angle, out along
+      // all four legs — the same pair of rings the map's fill draws. The obtuse
+      // wedges carry no body.
+      fill: crossingBodyUtm(routes),
       lcs: null,
       label: sw.label ?? null,
       bauform: 'plain',

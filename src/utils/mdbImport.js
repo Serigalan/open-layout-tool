@@ -80,14 +80,17 @@ const ELTYP_NAME = {
 
 /**
  * Bauform prefix → the record kind, and how many nodes the source splits it
- * into. `EABKW`/`EBKW` are curved variants of the einfache Kreuzungsweiche, so
- * they belong to `EKW`, not to the turnouts.
+ * into. The Bogenkreuzungsweichen are crossing switches, not turnouts: `EBKW`
+ * — which the source also writes `EABKW`, both for one unit — is the einfache,
+ * `DBKW` the doppelte. `bogen` says their crossing roads are arcs, which is
+ * what tells an EBKW 500 from an EKW 500 of the same kind, slope and radius.
  */
 const KIND_BY_PREFIX = {
   DKW:   { kind: 'double_slip', nodes: 4 },
+  DBKW:  { kind: 'double_slip', nodes: 4, bogen: true },
   EKW:   { kind: 'single_slip', nodes: 2 },
-  EABKW: { kind: 'single_slip', nodes: 2 },
-  EBKW:  { kind: 'single_slip', nodes: 2 },
+  EABKW: { kind: 'single_slip', nodes: 2, bogen: true },
+  EBKW:  { kind: 'single_slip', nodes: 2, bogen: true },
   KR:    { kind: 'crossing',    nodes: 1 },
   BKR:   { kind: 'crossing',    nodes: 1 },
   EW:    { kind: 'turnout',     nodes: 1 },
@@ -114,13 +117,14 @@ const padKey = (a, b) => `${a}\u0000${b}`
  * hand: `EW 54-190-1:9`, `tlw IBW 54-500-1:12 iU`, `ABW / IBW 54-500-1:12 iU`,
  * `SYM ABW 54-215-1:4,8`, `Kr 54-1:9`, `unbekannt`.
  *
- * `radius` is null where the form states none (crossings). Anything the
- * expression cannot place stays null and the caller reports it — a switch of
- * the wrong form is worse than a missing one.
+ * `radius` is null where the form states none (crossings). `bogen` marks a
+ * Bogenkreuzungsweiche (see KIND_BY_PREFIX). Anything the expression cannot
+ * place stays null and the caller reports it — a switch of the wrong form is
+ * worse than a missing one.
  */
 export function parseBauform(text) {
   const raw = String(text ?? '').trim()
-  const out = { raw, prefix: null, kind: null, rail: null, radius: null, n: null }
+  const out = { raw, prefix: null, kind: null, bogen: false, rail: null, radius: null, n: null }
   if (!raw) return out
 
   // Strip the qualifiers that say how much of the switch lies in a curve; they
@@ -131,15 +135,17 @@ export function parseBauform(text) {
   if (word) {
     out.prefix = word[1].toUpperCase()
     out.kind = KIND_BY_PREFIX[out.prefix]?.kind ?? null
+    out.bogen = KIND_BY_PREFIX[out.prefix]?.bogen === true
   }
 
   const slope = /1\s*[:]\s*(\d+(?:[.,]\d+)?)/.exec(core)
   if (slope) out.n = Number(slope[1].replace(',', '.'))
 
   // Numbers before the `1:n`, in source order: [rail?, radius?]. A rail profile
-  // is 49/54/60; anything else in that position is not one and is left out.
+  // is 49/54/60; anything else in that position is not one and is left out. A
+  // radius may carry decimals — the Bogenkreuzungsweiche's is 500,860.
   const head = core.slice(0, slope ? slope.index : core.length)
-  const nums = [...head.matchAll(/\b(\d{2,4})\b/g)].map(m => Number(m[1]))
+  const nums = [...head.matchAll(/\b(\d{2,4}(?:[.,]\d+)?)\b/g)].map(m => Number(m[1].replace(',', '.')))
   if (nums.length >= 2) {
     if ([49, 54, 60].includes(nums[0])) out.rail = nums[0]
     out.radius = nums[nums.length - 1]
@@ -545,6 +551,7 @@ export function mdbSwitchInventory(payload) {
       name: g.nr,
       number: Number.parseInt(g.nr, 10) || null,
       kind,
+      bogen: form.bogen,
       label: form.raw,
       radius: form.radius,
       slope: form.n,

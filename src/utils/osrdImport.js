@@ -5,7 +5,7 @@ import {
 } from './elementUtils'
 import {
   SWITCH_CONNECTION_STAGES, switchBranchSections, switchStraightLength,
-  CROSSING_TYPES, crossingAngle, crossingEndDistance, computeCrossingGeometryUtm,
+  CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius, computeCrossingGeometryUtm,
   lcsLine, switchFillRing,
   switchLabelGeometry, bauform,
 } from './switchUtils'
@@ -69,8 +69,8 @@ const portElementIndex = (els, endpoint) => (endpoint === 'END' ? els.length - 1
  * B1/B2 on the other — the app's A and C are the main route's ends (OSRD's
  * line 1, A1–B1), its B and D the cross route's (line 2, A2–B2). The legs are
  * the tracks' own elements, so the crossing point and both bearings are read
- * off them, and the form is matched by the angle between the legs and — for a
- * slip — the radius of the connecting curve at one of the slip ports.
+ * off them, and the form is matched by the angle between the legs, their
+ * length and — for a Bogenkreuzungsweiche — the radius they run on.
  * Returns null when the legs or the form do not resolve.
  */
 function rebuildCrossing(sw, trackById) {
@@ -102,13 +102,15 @@ function rebuildCrossing(sw, trackById) {
   // positive where the cross route (B→D) turns right off the main one (A→C).
   const bearingDelta = (from, to) => ((to - from + 540) % 360) - 180
   const crossAngle = bearingDelta(c.el.bearing, d.el.bearing)
-  const absAngle = Math.abs(bearingDelta(a.el.bearing, c.el.bearing === a.el.bearing
-    ? d.el.bearing : c.el.bearing)) || Math.abs(crossAngle)
-  // The form: the crossing angle as a slope, and for a slip the curve radius.
+  // Between the two legs that leave the point forwards — A and C run away from
+  // it in opposite directions, and measured between those every crossing read
+  // as 180° and matched no form.
+  const absAngle = Math.abs(crossAngle)
+  // The form: the crossing angle as a slope, the leg's length, and the radius
+  // a curved leg runs on.
   const legLen = a.el.length
-  const slipR = kind === 'crossing' ? null
-    : Math.abs(a.el.radius ?? 0) || null
-  const type = matchCrossingType(absAngle, legLen, slipR, kind)
+  const legR = Math.abs(a.el.radius ?? 0) || null
+  const type = matchCrossingType(absAngle, legLen, legR, kind)
   if (!type) return null
 
   const g = computeCrossingGeometryUtm(centreUtm, c.el.bearing, type, crossAngle)
@@ -134,20 +136,24 @@ function rebuildCrossing(sw, trackById) {
 }
 
 /**
- * The crossing form whose angle and slip radius the imported legs state. The
- * angle is matched through the slope it implies (1:9, 1:7.5) and the leg length
- * through the end distance it builds; a slip kind additionally has to name the
- * radius its curve runs on.
+ * The crossing form whose angle and legs the imported ones state. The angle is
+ * matched through the slope it implies (1:9, 1:7.5) and the leg length through
+ * the end distance it builds. A leg that runs on a radius belongs to a
+ * Bogenkreuzungsweiche and to nothing else, so it has to name that form's
+ * radius — which is also what keeps an EBKW from passing for the EKW 500
+ * whose legs are 3 cm longer.
  */
-function matchCrossingType(absAngleDeg, legLen, slipR, kind) {
+function matchCrossingType(absAngleDeg, legLen, legR, kind) {
   let best = null
   let bestErr = Infinity
   for (const type of CROSSING_TYPES) {
     if (type.kind !== kind) continue
+    const formLegR = crossingLegRadius(type)
+    if ((formLegR == null) !== (legR == null)) continue
     const angle = crossingAngle(type) * 180 / Math.PI
     const err = Math.abs(angle - absAngleDeg)
       + Math.abs(crossingEndDistance(type) - legLen)
-      + (type.R == null || slipR == null ? 0 : Math.abs(type.R - slipR))
+      + (formLegR == null ? 0 : Math.abs(formLegR - legR))
     if (err < bestErr) { best = type; bestErr = err }
   }
   return bestErr <= 0.05 ? best : null

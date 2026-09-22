@@ -43,6 +43,22 @@ describe('parseBauform', () => {
     expect(parseBauform('BKr 54-1200/oo-1:11.515').kind).toBe('crossing')
   })
 
+  // The Bogenkreuzungsweichen (AP 3.4): the same kinds, but marked, because
+  // kind, slope and radius alone are also an EKW 500's.
+  it('marks the Bogenkreuzungsweichen, the doppelte among them', () => {
+    expect(parseBauform('EBKW 54-500-1:9')).toMatchObject({ kind: 'single_slip', bogen: true, radius: 500, n: 9 })
+    expect(parseBauform('EABKW 54-500-1:9')).toMatchObject({ kind: 'single_slip', bogen: true })
+    expect(parseBauform('DBKW 54-500-1:9')).toMatchObject({ kind: 'double_slip', bogen: true, radius: 500 })
+    expect(parseBauform('EKW 54-500-1:9').bogen).toBe(false)
+    expect(parseBauform('DKW 49-190-1:9').bogen).toBe(false)
+  })
+
+  it('reads a radius with decimals as one number, not two', () => {
+    expect(parseBauform('DBKW 54-500,860-1:9')).toMatchObject({ rail: 54, radius: 500.86, n: 9 })
+    expect(parseBauform('EBKW 54-500.860-1:9').radius).toBe(500.86)
+    expect(parseBauform('SYM ABW 54-215-1:4,8')).toMatchObject({ rail: 54, radius: 215, n: 4.8 })
+  })
+
   it('leaves a crossing without a radius rather than inventing one', () => {
     expect(parseBauform('Kr 54-1:9')).toMatchObject({ rail: 54, radius: null, n: 9 })
   })

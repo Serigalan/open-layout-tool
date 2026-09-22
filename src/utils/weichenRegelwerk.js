@@ -51,8 +51,12 @@ const kreuzungRow = (form) => ({
   label: form.label,
   kind: form.kind,
   neigung: form.ratio,
+  // A Bogenkreuzungsweiche has no one radius — its routes state theirs.
   radius: form.R ?? null,
-  tangente: form.lt ?? null,
+  // What the form states about how far its ends lie from the crossing point:
+  // a plain crossing its tangent, a Bogenkreuzungsweiche the length of its
+  // curved legs. A crossing switch with straight legs states neither.
+  tangente: form.lt ?? form.lb ?? null,
   speed: form.speed ?? null,
   marke: form.dLcs ?? null,
   // A crossing switch carries more than one route and a speed for each of
@@ -72,9 +76,9 @@ const istKreuzungsweiche = (form) => form.kind !== 'crossing'
  *
  * `art` says which columns a group has: a turnout form states a minimum
  * intermediate straight and a straight end piece, a crossing a tangent — and
- * neither has the other's. A group with no form in it is left out, which is
- * what keeps the still missing Bogenkreuzungsweichen (OP.W.02) from showing as
- * an empty table.
+ * neither has the other's. A group with no form in it is left out: an empty
+ * table would claim the Ril has no such forms — which is how the
+ * Bogenkreuzungsweichen stayed out of sight until AP 3.4 brought them.
  */
 export function weichenGruppen() {
   const gruppe = (key, art, formen) => ({

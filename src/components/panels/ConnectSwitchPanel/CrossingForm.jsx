@@ -2,16 +2,13 @@ import { useEffect, useState } from 'react'
 import {
   loadTracks, saveTrack, saveSwitch, addElementToTrack, generateId, recalcAbsLengths, withUndo,
 } from '../../../storage'
-import {
-  computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, nodeUtm,
-} from '../../../utils/elementUtils'
-import { utmToWgs84 } from '../../../utils/coordinateUtils'
+import { resolveEndBearing, nodeUtm } from '../../../utils/elementUtils'
 import { TYPE_NAMES, SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
 import {
-  CROSSING_TYPES, crossingAngle, crossingEndDistance, computeCrossingGeometryUtm,
-  utmEndStraight,
+  CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius,
+  computeCrossingGeometryFromPortA, crossingElements,
 } from '../../../utils/switchUtils'
-import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
+import { newSwitchFields } from '../../../utils/switchModel'
 import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
 import { HIT_TOLERANCE } from '../../../utils/mapConstants'
 import useTrackFields from '../../../hooks/useTrackFields'
@@ -29,20 +26,22 @@ import {
 
 /**
  * A crossing or crossing switch (AP 3.2), connected to the end of an existing
- * element: port A is the picked element's end node, the main route (A→C) runs
- * on its end bearing, and the crossing point lies the form's end distance ahead
- * of it. The cross route (B→D) leaves at the form's crossing angle, on the side
- * the field says.
+ * element: port A is the picked element's end node, the main route (A→C) leaves
+ * it on its end bearing, and the crossing point lies the form's end distance
+ * along it — straight ahead, or along the arc a Bogenkreuzungsweiche's legs run
+ * on (AP 3.4). The cross route (B→D) leaves at the form's crossing angle, on
+ * the side the field says.
  *
  * The main route's first leg is not a track of its own: it is appended to the
  * picked track as its last element, marked 'main', so the record's port A names
  * that track and the crossing is connected the way a turnout is — what hangs on
  * the port is the line the user picked, and deleting the crossing trims the leg
  * back off it (switchDelete). The other legs are committed as tracks of their
- * own, one straight element long, marked with their route ('main' at C, 'cross'
- * at B and D); the slip curves of an EKW/DKW are committed as tracks of their
- * own, one arc element each, marked 'slip1'/'slip2'. The record names the four
- * ports.
+ * own, one element long, marked with their route ('main' at C, 'cross' at B and
+ * D); the connecting routes of a crossing switch are committed as tracks of
+ * their own, one element each, marked 'slip1'/'slip2'. Which element each is —
+ * straight or arc — is the geometry's to say (crossingElements). The record
+ * names the four ports.
  */
 
 export default function CrossingForm({ t, map, project, onTrackSaved, onCommitted, initialKind = 'crossing' }) {
@@ -75,12 +74,11 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
   usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
 
   // The geometry as it would be committed — derived, so preview and commit
-  // cannot disagree. The crossing point lies the form's end distance ahead of
-  // the anchored end, so port A is the picked element's end node exactly.
+  // cannot disagree. The crossing point lies the form's end distance along the
+  // main leg from the anchored end, so port A is the picked element's end node
+  // exactly.
   const g = anchor
-    ? computeCrossingGeometryUtm(
-        utmEndStraight(anchor.startUtm, anchor.bearing, crossingEndDistance(form)),
-        anchor.bearing, form, crossAngle, anchor.startWgs)
+    ? computeCrossingGeometryFromPortA(anchor.startUtm, anchor.startWgs, anchor.bearing, form, crossAngle)
     : null
 
   // ── Hover preview (select phase) ─────────────────────────────────────────
@@ -106,8 +104,7 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
       const endWgs = el.geometry.coordinates[el.geometry.coordinates.length - 1]
       const endUtm = nodeUtm(el.endNode, endWgs, track.epsg)
       const brg    = resolveEndBearing(el, track.epsg)
-      const centre = utmEndStraight(endUtm, brg, crossingEndDistance(form))
-      const gg     = computeCrossingGeometryUtm(centre, brg, form, crossAngle, endWgs)
+      const gg     = computeCrossingGeometryFromPortA(endUtm, endWgs, brg, form, crossAngle)
       const pv     = buildCrossingPreview(gg)
       m.getSource(SWITCH_LINES_SOURCE)?.setData(pv.lines)
       m.getSource(SWITCH_FILL_SOURCE)?.setData(pv.fill)
@@ -207,39 +204,16 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
 
     const identity = { ...newSwitchFields(form.kind), name: switchNo.name, label: form.label }
 
-    // One straight element per leg, marked with its route. The legs are the
-    // crossing's own body: A–C on the main bearing, B–D on the cross one.
-    const leg = (fromUtm, toUtm, route, coords) => {
-      const v = computeStraightValuesUtm(fromUtm, toUtm)
-      return {
-        elementType: 0,
-        startNode: v.startNode, endNode: v.endNode,
-        bearing: v.bearing, length: v.length, absLength: v.length,
-        ...switchElementMark(identity, route),
-        geometry: { type: 'LineString', coordinates: coords },
-      }
-    }
-    // One arc element per slip curve, marked with its route.
-    const slip = (fromUtm, toUtm, route, coords, signedR) => {
-      const v = computeCurvedValuesUtm(fromUtm, toUtm, signedR)
-      return {
-        elementType: 1,
-        startNode: v.startNode, endNode: v.endNode,
-        bearing: v.bearing, endBearing: v.endBearing,
-        length: v.length, absLength: v.length, radius: signedR,
-        ...switchElementMark(identity, route),
-        geometry: { type: 'LineString', coordinates: coords },
-      }
-    }
+    // One element per leg and per connecting route, marked with its route —
+    // straight or arc as the form's geometry has it.
+    const els = crossingElements(g, identity)
 
     // The legs run from the crossing point out to their ports, so the three new
     // ones join the appended first leg end to end there.
-    const tracksOf = (els, coords, trackName = null) => ({
+    const tracksOf = (el, trackName = null) => ({
       id: generateId(), name: trackName, owner: fields.owner, ...buildTypeFields(fields),
-      epsg: anchor.epsg, coordinates: coords, elements: recalcAbsLengths(els),
+      epsg: anchor.epsg, coordinates: el.geometry.coordinates, elements: recalcAbsLengths([el]),
     })
-
-    const centreWgs = utmToWgs84(g.centreUtm.easting, g.centreUtm.northing, anchor.epsg)
 
     // One undo step for the whole crossing: appended leg, the three new legs,
     // the slip tracks and the record together.
@@ -247,26 +221,12 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
       // The main route's first leg is the picked track's own now: appended as its
       // last element, from port A to the crossing point, so the join at the port
       // is the joint the track already had.
-      addElementToTrack(project.id, anchor.trackId,
-        leg(anchor.startUtm, g.centreUtm, 'main', [anchor.startWgs, centreWgs]))
+      addElementToTrack(project.id, anchor.trackId, els.A)
 
-      const legC = tracksOf([leg(g.centreUtm, g.portC_utm, 'main', [centreWgs, g.portC_wgs])],
-        [centreWgs, g.portC_wgs], name)
-      const legB = tracksOf([leg(g.portB_utm, g.centreUtm, 'cross', [g.portB_wgs, centreWgs])],
-        [g.portB_wgs, centreWgs])
-      const legD = tracksOf([leg(g.centreUtm, g.portD_utm, 'cross', [centreWgs, g.portD_wgs])],
-        [centreWgs, g.portD_wgs])
-      const slipTracks = []
-      if (g.slip1Coords) {
-        slipTracks.push(tracksOf(
-          [slip(g.portA_utm, g.portD_utm, 'slip1', g.slip1Coords, g.slip1Route.r1)],
-          g.slip1Coords))
-      }
-      if (g.slip2Coords) {
-        slipTracks.push(tracksOf(
-          [slip(g.portB_utm, g.portC_utm, 'slip2', g.slip2Coords, g.slip2Route.r1)],
-          g.slip2Coords))
-      }
+      const legC = tracksOf(els.C, name)
+      const legB = tracksOf(els.B)
+      const legD = tracksOf(els.D)
+      const slipTracks = [els.slip1, els.slip2].filter(Boolean).map(el => tracksOf(el))
 
       for (const tr of [legC, legB, legD, ...slipTracks]) saveTrack(project.id, tr)
 
@@ -340,6 +300,18 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
           <div className="form-field">
             <label>{t('field_radius')}</label>
             <input type="text" readOnly value={`${form.R} m`} />
+          </div>
+        )}
+        {crossingLegRadius(form) != null && (
+          <div className="form-field">
+            <label>{t('crossing_leg_radius')}</label>
+            <input type="text" readOnly value={`${crossingLegRadius(form)} m`} />
+          </div>
+        )}
+        {form.Ri != null && (
+          <div className="form-field">
+            <label>{t('crossing_inner_radius')}</label>
+            <input type="text" readOnly value={`${form.Ri} m`} />
           </div>
         )}
         <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />

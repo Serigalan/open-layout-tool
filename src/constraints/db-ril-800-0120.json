@@ -2,7 +2,7 @@
   "katalog": {
     "id": "db-ril-800-0120",
     "title": "DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen",
-    "katalog_version": "0.1.0",
+    "katalog_version": "0.2.0",
     "status": "draft",
     "date": "2026-09-22",
     "language": "de",
@@ -20,6 +20,15 @@
     "label_note": "Die Labels sind Schlüssel: ein gespeichertes Projekt schlägt seine Form darüber nach (switchTypeByLabel, switchModel.SWITCH_FORM_VERSION). Ein Label wird deshalb nicht umbenannt, auch wenn die Ril die Form anders schreibt."
   },
   "changelog": [
+    {
+      "version": "0.2.0",
+      "date": "2026-09-22",
+      "changes": [
+        "Neu aufgenommen: EBKW und DBKW 1:9 – 500,860, die Bogenkreuzungsweichen der A02 — gleichsinnig gekrümmte Kreuzungsgleise (Rk), Enden entlang dieser Bögen (lb), bei der DBKW der innenliegende Bogen (Ri)",
+        "Vom Auftraggeber entschieden: l_KW = 2·l_b, und c folgt aus der Konstruktion statt aus der gelieferten Zahl (OP.W.02)",
+        "Die DBKW trägt die Kreuzung der EBKW — ihre eigene Zeile ist nicht geliefert (OP.W.02)"
+      ]
+    },
     {
       "version": "0.1.0",
       "date": "2026-09-22",
@@ -61,8 +70,11 @@
     "label": "Name der Form, zugleich ihr Schlüssel",
     "art": "weiche oder kreuzung (Kreuzungen und Kreuzungsweichen)",
     "klasse": "regel oder sonderbauform",
-    "kind": "Bauart einer Kreuzung: crossing, single_slip (EKW), double_slip (DKW)",
-    "R": "Radius [m] — bei einer Weiche der des Bogenstrangs, bei einer Kreuzungsweiche der der Verbindungsbögen",
+    "kind": "Bauart einer Kreuzung: crossing, single_slip (EKW, EBKW), double_slip (DKW, DBKW)",
+    "R": "Radius [m] — bei einer Weiche der des Bogenstrangs, bei einer Kreuzungsweiche der der Verbindungsbögen. Die Bogenkreuzungsweiche hat keinen einen Radius und nennt ihre einzeln (Rk, Ri)",
+    "Rk": "Radius der Kreuzungsgleise [m] — nur bei der Bogenkreuzungsweiche (EBKW, DBKW), deren Kreuzungsgleise gleichsinnig gekrümmt sind. Fehlt er, sind die Kreuzungsgleise gerade",
+    "Ri": "Radius des innenliegenden Verbindungsbogens [m] — nur bei der DBKW. Ihre andere Verbindung ist gerade, wie die einzige der EBKW",
+    "lb": "Bogenlänge vom Kreuzungspunkt bis zu jedem der vier Enden [m], entlang der gekrümmten Kreuzungsgleise — das l_b der Bogenkreuzungsweiche. Ihre Länge l_KW ist 2·l_b (OP.W.02)",
     "ratio": "Neigung 1:n als n — bei einer Kreuzung der Kreuzungswinkel",
     "speed": "zulässige Geschwindigkeit [km/h] über den abzweigenden bzw. den Kreuzungsfahrweg",
     "routen": "Geschwindigkeit und Radius je Fahrweg, wo eine Form mehrere trägt (Kreuzungsweichen)",
@@ -554,6 +566,58 @@
         "lKr": 64.8176,
         "c": 1.7499
       }
+    },
+    {
+      "label": "EBKW 1:9 – 500.860",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "single_slip",
+      "ratio": 9,
+      "Rk": 500.86,
+      "lb": 27.6584,
+      "routen": [
+        {
+          "id": "verbindung",
+          "R": null,
+          "speed": 100
+        },
+        {
+          "id": "kreuzungsgleis",
+          "R": 500.86,
+          "speed": 60
+        }
+      ],
+      "masse": {
+        "lb": 27.6584,
+        "s": 3.4
+      }
+    },
+    {
+      "label": "DBKW 1:9 – 500.860",
+      "art": "kreuzung",
+      "klasse": "sonderbauform",
+      "kind": "double_slip",
+      "ratio": 9,
+      "Rk": 500.86,
+      "Ri": 249.763,
+      "lb": 27.6584,
+      "routen": [
+        {
+          "id": "verbindung",
+          "R": null,
+          "speed": 100
+        },
+        {
+          "id": "kreuzungsgleis",
+          "R": 500.86,
+          "speed": 60
+        },
+        {
+          "id": "innenbogen",
+          "R": 249.763,
+          "speed": 40
+        }
+      ]
     }
   ],
   "open_points": [
@@ -570,8 +634,8 @@
       "refs": [
         "formen"
       ],
-      "topic": "EBKW und DBKW 500,860 – 1:9 fehlen",
-      "assumption": "Drei Fahrwege: gerade Weichenverbindung (R unendlich, 100 km/h), zwei gleichsinnig gekrümmte Kreuzungsgleise (R 500,860, 60 km/h) und — nur bei der DBKW — der innenliegende Bogen (R 249,763, 40 km/h). Geliefert sind l_b 27,6584, l_KW 55,414, c 1,9596 und s 3,40 für die EBKW; offen bleiben die Messstelle von c, die Differenz von 9,7 cm zwischen l_KW und 2·l_b sowie die ganze DBKW-Zeile."
+      "topic": "EBKW und DBKW 500,860 – 1:9: gebaut, zum Teil auf Annahmen",
+      "assumption": "Drei Fahrwege: gerade Weichenverbindung (R unendlich, 100 km/h), zwei gleichsinnig gekrümmte Kreuzungsgleise (R 500,860, 60 km/h) und — nur bei der DBKW — der innenliegende Bogen (R 249,763, 40 km/h). Geliefert sind für die EBKW l_b 27,6584, l_KW 55,414, c 1,9596 und s 3,40. Vom Auftraggeber am 2026-09-22 entschieden: l_KW = 2·l_b = 55,3168 (die gelieferten 55,414 bleiben unverwendet), und c folgt aus der Konstruktion — an den Enden 3,0587 m; die gelieferten 1,9596 sind an einer unbekannten Stelle gemessen. Gebaut in AP 3.4: Kreuzungsgleise als Bögen R 500,860 durch den Kreuzungspunkt im Winkel 1:9, Enden l_b entlang der Bögen, Gerade und Innenbogen auf ihrem Katalogradius von Ende zu Ende. R, 1:9 und l_b zusammen lassen die Verbindungen nicht genau tangential an: die Gerade trifft die Kreuzungsgleise 0,107 mrad, der Innenbogen 0,019 mrad neben der Tangente. Offen: die DBKW-Zeile (angenommen: dieselbe Kreuzung wie die EBKW), die Bedeutung von s, Weichenmarke und Mindestzwischengerade (OP.W.03)."
     },
     {
       "id": "OP.W.03",
@@ -579,7 +643,7 @@
         "formen[kind=single_slip]",
         "formen[kind=double_slip]"
       ],
-      "topic": "Weichenmarke und Mindestzwischengerade der vier Kreuzungsweichen",
+      "topic": "Weichenmarke und Mindestzwischengerade der Kreuzungsweichen",
       "assumption": "Seit dem 2026-09-18 offen; die Geschwindigkeiten je Fahrweg sind am 2026-09-22 nachgereicht."
     },
     {

@@ -2,13 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   loadTracks, commitSwitchConnection, generateId, recalcAbsLengths,
 } from '../../../storage'
-import {
-  computeStraightValuesUtm, computeCurvedValuesUtm,
-} from '../../../utils/elementUtils'
-import { wgs84ToUTM, utmToWgs84 } from '../../../utils/coordinateUtils'
+import { wgs84ToUTM } from '../../../utils/coordinateUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
-  CROSSING_TYPES, crossingAngle, crossingEndDistance, computeCrossingGeometryUtm,
+  CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius, crossingLegSignedRadius,
+  crossingLegFitsTrack, computeCrossingGeometryUtm, crossingElements,
 } from '../../../utils/switchUtils'
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { clickStation, placeSwitchOnTrack } from '../../../utils/switchPlacement'
@@ -37,17 +35,18 @@ import {
  * to ports A and C as their own carved, marked elements — no new track on the
  * picked line, exactly as a turnout's through route stays in its host. The cross
  * route (B→D) is new: two tracks of their own through the crossing point, at
- * the form's crossing angle on the side the field says. The slip curves of an
- * EKW/DKW are committed as tracks of their own, one arc element each, marked
- * 'slip1'/'slip2' — the same shape the end-anchored CrossingForm commits, so
- * everything that reads a crossing back (the symbol, the deletion, the OSRD
- * codec) reads this one the same way.
+ * the form's crossing angle on the side the field says. The connecting routes
+ * of a crossing switch are committed as tracks of their own, one element each,
+ * marked 'slip1'/'slip2' — the same shape the end-anchored CrossingForm
+ * commits (crossingElements), so everything that reads a crossing back (the
+ * symbol, the deletion, the OSRD codec) reads this one the same way.
  *
- * The body is the 3.2 geometry, and that is straight legs: the crossing needs
- * straight track under it, the end distance to each side of the point, and the
- * placement refuses anything else. placeSwitchOnTrack does the walking — both
- * halves of the main route are its through route, one call each, with the
- * branching left out that a turnout adds.
+ * The track under the body has to be the form's main leg, the end distance to
+ * each side of the point: straight for the 3.2 forms, and for a
+ * Bogenkreuzungsweiche (AP 3.4) an arc on its leg radius, curved away from the
+ * cross route's side. The placement refuses anything else. placeSwitchOnTrack
+ * does the walking — both halves of the main route are its through route, one
+ * call each, with the branching left out that a turnout adds.
  */
 export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onCommitted, initialKind = 'crossing' }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -125,10 +124,19 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
     if (ahead.error) return { error: ahead.error === 'switch_on_track_no_room' ? noRoom : t(ahead.error) }
     const back = placeSwitchOnTrack(track, pointStation, true, endDist)
     if (back.error) return { error: back.error === 'switch_on_track_no_room' ? noRoom : t(back.error) }
-    // The body is the 3.2 geometry — straight legs. Curved track under it
-    // would leave that geometry beside the line it should be part of.
-    const straight = [...ahead.pieces, ...back.pieces].every(p => p.r1 == null && p.r2 == null)
-    if (!straight) return { error: t('crossing_on_track_straight_only') }
+    // The track under the body is its main leg, so it has to be one: straight,
+    // or a Bogenkreuzungsweiche's arc — walked backwards, the same arc bends the
+    // other way. Anything else would leave the geometry beside the line it
+    // should be part of.
+    const legR = crossingLegSignedRadius(form, crossAngle)
+    if (!crossingLegFitsTrack(ahead.pieces, legR)
+      || !crossingLegFitsTrack(back.pieces, legR == null ? null : -legR)) {
+      return {
+        error: legR == null
+          ? t('crossing_on_track_straight_only')
+          : t('crossing_on_track_leg_arc').replace('{{r}}', String(crossingLegRadius(form))),
+      }
+    }
     return {
       error: null, ahead, back,
       geom: computeCrossingGeometryUtm(ahead.toeUtm, ahead.bearing, form, crossAngle),
@@ -206,50 +214,17 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
       return
     }
 
-    // One straight element per cross leg, one arc per slip curve, marked with
-    // its route — the same elements the end-anchored crossing commits.
-    const leg = (fromUtm, toUtm, route, coords) => {
-      const v = computeStraightValuesUtm(fromUtm, toUtm)
-      return {
-        elementType: 0,
-        startNode: v.startNode, endNode: v.endNode,
-        bearing: v.bearing, length: v.length, absLength: v.length,
-        ...switchElementMark(identity, route),
-        geometry: { type: 'LineString', coordinates: coords },
-      }
-    }
-    const slip = (fromUtm, toUtm, route, coords, signedR) => {
-      const v = computeCurvedValuesUtm(fromUtm, toUtm, signedR)
-      return {
-        elementType: 1,
-        startNode: v.startNode, endNode: v.endNode,
-        bearing: v.bearing, endBearing: v.endBearing,
-        length: v.length, absLength: v.length, radius: signedR,
-        ...switchElementMark(identity, route),
-        geometry: { type: 'LineString', coordinates: coords },
-      }
-    }
-    const tracksOf = (els, coords, trackName = null) => ({
+    // One element per cross leg and per connecting route, marked with its route
+    // — the same elements the end-anchored crossing commits. The main legs are
+    // the host's own, carved above.
+    const els = crossingElements(g, identity)
+    const tracksOf = (el, trackName = null) => ({
       id: generateId(), name: trackName, owner: fields.owner, ...buildTypeFields(fields),
-      epsg: track.epsg, coordinates: coords, elements: recalcAbsLengths(els),
+      epsg: track.epsg, coordinates: el.geometry.coordinates, elements: recalcAbsLengths([el]),
     })
-
-    const centreWgs = utmToWgs84(g.centreUtm.easting, g.centreUtm.northing, track.epsg)
-    const legB = tracksOf([leg(g.portB_utm, g.centreUtm, 'cross', [g.portB_wgs, centreWgs])],
-      [g.portB_wgs, centreWgs])
-    const legD = tracksOf([leg(g.centreUtm, g.portD_utm, 'cross', [centreWgs, g.portD_wgs])],
-      [centreWgs, g.portD_wgs], name)
-    const slipTracks = []
-    if (g.slip1Coords) {
-      slipTracks.push(tracksOf(
-        [slip(g.portA_utm, g.portD_utm, 'slip1', g.slip1Coords, g.slip1Route.r1)],
-        g.slip1Coords))
-    }
-    if (g.slip2Coords) {
-      slipTracks.push(tracksOf(
-        [slip(g.portB_utm, g.portC_utm, 'slip2', g.slip2Coords, g.slip2Route.r1)],
-        g.slip2Coords))
-    }
+    const legB = tracksOf(els.B)
+    const legD = tracksOf(els.D, name)
+    const slipTracks = [els.slip1, els.slip2].filter(Boolean).map(el => tracksOf(el))
 
     // The record keeps only the ports: the main route's name the parted halves
     // of the host track — port A the one behind the point, port C the one
@@ -341,6 +316,18 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
           <div className="form-field">
             <label>{t('field_radius')}</label>
             <input type="text" readOnly value={`${form.R} m`} />
+          </div>
+        )}
+        {crossingLegRadius(form) != null && (
+          <div className="form-field">
+            <label>{t('crossing_leg_radius')}</label>
+            <input type="text" readOnly value={`${crossingLegRadius(form)} m`} />
+          </div>
+        )}
+        {form.Ri != null && (
+          <div className="form-field">
+            <label>{t('crossing_inner_radius')}</label>
+            <input type="text" readOnly value={`${form.Ri} m`} />
           </div>
         )}
         <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />

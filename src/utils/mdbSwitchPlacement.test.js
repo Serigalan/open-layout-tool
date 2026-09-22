@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parseMdbPayload, buildTracksFromMdb, mdbSwitchInventory } from './mdbImport'
 import { placeMdbSwitches, locateMdbSwitches, switchTypeFor } from './mdbSwitchPlacement'
-import { switchRoutesFromTracks, rebuildSwitchSymbol } from './switchUtils'
+import { switchRoutesFromTracks, rebuildSwitchSymbol, crossingRoutesFromTracks } from './switchUtils'
 import { elementBelongsToSwitch } from './switchModel'
 import {
   expectEpsgThroughout, expectNodesJoin, expectAbsLengthsRunning,
@@ -11,6 +11,7 @@ import { resolveEndBearing } from './elementUtils'
 import { recalcAbsLengths } from '../storage'
 import fixture from '../test/fixtures/mdb_weiche.json'
 import crossingFixture from '../test/fixtures/mdb_kreuzungsweiche.json'
+import bogenFixture from '../test/fixtures/mdb_bogenkreuzungsweiche.json'
 import { buildAllTracksFromMdb } from './mdbImport'
 import { switchPorts, isModelledSwitch } from './switchModel'
 import { parseProjectsPayload, hydrateProjects, dehydrateProjects } from './persistenceUtils'
@@ -223,6 +224,60 @@ describe('placeMdbSwitches — die Kreuzungsbauarten', () => {
     for (const t of placed2.tracks) {
       expectNodesJoin(recalcAbsLengths(t.elements))
     }
+  })
+})
+
+describe('placeMdbSwitches — die Bogenkreuzungsweiche (AP 3.4)', () => {
+  // A third slice, cut around the EABKW 206045/106 of the test database: an
+  // EBKW laid into the station's R 1704.5, so its two crossing roads bend the
+  // same way on that radius and its connection on about R 709 the other way.
+  // Every track through the point is curved — which is why the crossing roads
+  // are found by the angle they cross at, not by being the straightest.
+  const payload3 = parseMdbPayload(bogenFixture)
+  const { units: units3 } = mdbSwitchInventory(payload3)
+  const built3 = buildAllTracksFromMdb(payload3)
+  const placed3 = placeMdbSwitches(payload3, built3.tracks, units3)
+  const byId3 = Object.fromEntries(placed3.tracks.map(t => [t.id, t]))
+
+  it('reads the unit as the EBKW, not as the EKW 500 its Bauform also spells', () => {
+    expect(units3).toHaveLength(1)
+    expect(units3[0]).toMatchObject({ kind: 'single_slip', bogen: true, radius: 500, slope: 9 })
+    expect(switchTypeFor(units3[0])?.label).toBe('EBKW 1:9 – 500.860')
+    expect(switchTypeFor({ ...units3[0], bogen: false })?.label).toBe('EKW 1:9 – 500')
+    expect(switchTypeFor({ kind: 'double_slip', bogen: true, radius: 500, slope: 9 })?.label)
+      .toBe('DBKW 1:9 – 500.860')
+    expect(switchTypeFor({ kind: 'double_slip', bogen: true, radius: 500.86, slope: 9 })?.label)
+      .toBe('DBKW 1:9 – 500.860')
+  })
+
+  it('places it on its two crossing roads, l_b along each', () => {
+    expect(placed3.errors).toEqual([])
+    expect(placed3.switches).toHaveLength(1)
+    const sw = placed3.switches[0]
+    expect(sw.label).toBe('EBKW 1:9 – 500.860')
+    const routes = crossingRoutesFromTracks(sw, byId3)
+    for (const chain of [routes.main, routes.cross, routes.mainBack, routes.crossBack]) {
+      expect(chain.reduce((s, piece) => s + piece.length, 0)).toBeCloseTo(27.6584, 3)
+    }
+    // Both roads bend the same way, on the station's radius.
+    expect(Math.abs(routes.main[0].r1)).toBeCloseTo(1704.5, 1)
+    expect(Math.abs(routes.cross[0].r1)).toBeCloseTo(1704.5, 1)
+    // …and cross at the form's angle, 1:9.
+    const angle = Math.abs(((routes.crossBearing - routes.mainBearing + 540) % 360) - 180)
+    expect(Math.min(angle, 180 - angle)).toBeCloseTo(Math.atan(1 / 9) * 180 / Math.PI, 1)
+  })
+
+  it('draws the body along the curved legs', () => {
+    const symbol = rebuildSwitchSymbol(placed3.switches[0], byId3)
+    expect(symbol.fillCoords).toHaveLength(2)
+    for (const ring of symbol.fillCoords) {
+      expect(ring.length).toBeGreaterThan(4)
+      expect(ring[0]).toEqual(ring[ring.length - 1])
+    }
+  })
+
+  it('leaves the tracks joined after parting both roads', () => {
+    for (const t of placed3.tracks) expectNodesJoin(recalcAbsLengths(t.elements))
   })
 })
 

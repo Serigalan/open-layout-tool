@@ -1,6 +1,7 @@
 import {
   ALL_SWITCH_TYPES, CROSSING_TYPES,
-  switchStraightLength, switchBranchLength, crossingEndDistance, rebuildSwitchSymbol,
+  switchStraightLength, switchBranchLength, crossingEndDistance, crossingAngle, crossingLegRadius,
+  rebuildSwitchSymbol, switchRouteBearingAt, switchElementRoute,
 } from './switchUtils'
 import { newSwitchFields, switchElementMark } from './switchModel'
 import { splitTrackAtJoint, splitElementAt, carveSwitchRoute } from './trackSplitUtils'
@@ -55,13 +56,24 @@ const trackLength = (t) => t.elements.reduce((s, e) => s + (e.length ?? 0), 0)
  * slope, the crossing kinds by kind and slope — a plain crossing states no
  * radius, and the ones that do (the Kreuzungsweichen) carry it on their
  * connecting curves.
+ *
+ * The Bogenkreuzungsweiche is the exception: the radius its Bauform names is
+ * its crossing roads', and the source writes it rounded — `EBKW 54-500-1:9`
+ * for the form's 500.860. Kind, slope and that 500 are also exactly an EKW
+ * 500's, so what tells the two apart is the prefix (`unit.bogen`).
  */
 export function switchTypeFor(unit) {
   if (unit.slope == null) return null
   if (unit.kind && unit.kind !== 'turnout') {
+    const radiusFits = (t) => {
+      const legR = crossingLegRadius(t)
+      if (legR == null) return t.R == null || t.R === unit.radius
+      return unit.radius == null || Math.abs(legR - unit.radius) < 1
+    }
     return CROSSING_TYPES.find(t => t.kind === unit.kind
       && Math.abs(t.ratio - unit.slope) < 1e-6
-      && (t.R == null || t.R === unit.radius)) ?? null
+      && (crossingLegRadius(t) != null) === Boolean(unit.bogen)
+      && radiusFits(t)) ?? null
   }
   if (unit.radius == null) return null
   return ALL_TYPES.find(t => t.R === unit.radius && Math.abs(t.ratio - unit.slope) < 1e-6) ?? null
@@ -228,47 +240,95 @@ function locatorFor(coords, systems, tracks) {
   }
 }
 
+/** Tangent bearing of a track at a station along it, or null off its end. */
+function tangentAt(track, station) {
+  const at = elementAtStation(track.elements, station)
+  return at ? switchRouteBearingAt(at.el.bearing, switchElementRoute(at.el), at.s) : null
+}
+
+/** Curvature of a track at a station, unsigned — 0 on a straight. */
+function curvatureAt(track, station) {
+  const el = elementAtStation(track.elements, station)?.el
+  return el ? Math.abs(1 / (el.radius ?? el.r1 ?? Infinity)) : Infinity
+}
+
+/**
+ * Which two of the tracks through a crossing point are its crossing roads.
+ *
+ * In a Kreuzungsweiche the connecting routes pass the point within a metre as
+ * well, so more than two tracks run through it, and their curvature does not
+ * tell them apart: a DKW's curves are its sharpest tracks, but a
+ * Bogenkreuzungsweiche's straight connection is its flattest — and laid into a
+ * curve, as the test database's two EBKW are on R 1700, every one of them
+ * bends. The angle does. The crossing roads meet at the form's crossing angle, a
+ * crossing road and a connecting route at about half of it, two connecting
+ * routes not at all. So the pair is the one whose tangents at the point come
+ * closest to the form's angle, and within it the straighter track is the main
+ * route — the order the placement has always put them in.
+ */
+function crossingRoads(through, type) {
+  const alpha = crossingAngle(type) * 180 / Math.PI
+  let best = null
+  for (let i = 0; i < through.length; i++) {
+    for (let j = i + 1; j < through.length; j++) {
+      const a = tangentAt(through[i].track, through[i].station)
+      const b = tangentAt(through[j].track, through[j].station)
+      if (a == null || b == null) continue
+      const miss = Math.abs(lineAngle(a, b) - alpha)
+      if (!best || miss < best.miss) best = { miss, pair: [through[i], through[j]] }
+    }
+  }
+  if (!best) return null
+  const curvature = (c) => curvatureAt(c.track, c.station)
+  return best.pair.sort((a, b) => curvature(a) - curvature(b))
+}
+
 /**
  * Place a Kreuzung or Kreuzungsweiche: two routes crossing at one point.
  *
  * Both routes are imported track, so — as with the turnout — nothing is drawn
  * here. The body is the four legs reaching `crossingEndDistance` out of the
- * crossing point, and those legs are the halves the two tracks part into. What
- * else runs through the point are the connecting curves (a Kreuzungsweiche has
- * one, a doppelte has two); they are told apart by their curvature and left
- * alone, since the symbol is read from the main and cross legs only.
+ * crossing point along both routes, and those legs are the halves the two
+ * tracks part into. What else runs through the point are the connecting routes
+ * (a Kreuzungsweiche has one, a doppelte two); they are told apart by their
+ * angle (crossingRoads) and left alone, since the symbol is read from the legs
+ * only.
  */
 function placeCrossingUnit(found, unit, type, tracks, makeId) {
   const half = crossingEndDistance(type)
-  // The two crossing routes run through the point; the connecting curves bend
-  // on the form's radius. Straightest first, so the two legs come out on top.
-  const curvature = (c) => {
-    const el = elementAtStation(c.track.elements, c.station)?.el
-    return el ? Math.abs(1 / (el.radius ?? el.r1 ?? Infinity)) : Infinity
-  }
-  const legs = [...found.through].sort((a, b) => curvature(a) - curvature(b)).slice(0, 2)
-  if (legs.length < 2) {
+  const legs = crossingRoads(found.through, type)
+  if (!legs) {
     return { error: `${found.through.length} Gleise durch den Kreuzungspunkt – nicht gesetzt.` }
   }
 
-  // The corners give the centre only approximately. Where the two legs' tangents
-  // actually cross is the crossing point, so each leg is re-projected onto it.
+  // The corners give the centre only approximately. Where the two legs
+  // actually cross is the crossing point, so each leg is re-projected onto it:
+  // where their tangents cross, found again from the stations that gives until
+  // it stands still — at once on straight legs, after a step or two on a
+  // Bogenkreuzungsweiche's arcs.
   const tangentLine = (leg) => {
     const at = elementAtStation(leg.track.elements, leg.station)
     if (!at) return null
     const p0 = pointAtStationUtm(at.el, at.s, leg.track.epsg)
-    const rad = at.el.bearing * Math.PI / 180
+    const rad = tangentAt(leg.track, leg.station) * Math.PI / 180
     return { p: [p0.easting, p0.northing], d: [Math.sin(rad), Math.cos(rad)] }
   }
-  const l0 = tangentLine(legs[0])
-  const l1 = tangentLine(legs[1])
-  const centre = l0 && l1
-    ? intersect(l0.p, [l0.p[0] + l0.d[0], l0.p[1] + l0.d[1]],
-      l1.p, [l1.p[0] + l1.d[0], l1.p[1] + l1.d[1]])
-    : null
-  const placedLegs = centre
-    ? legs.map(leg => ({ ...leg, station: projectOnTrack(leg.track, centre)?.station ?? leg.station }))
-    : legs
+  let placedLegs = legs
+  for (let step = 0; step < 5; step++) {
+    const l0 = tangentLine(placedLegs[0])
+    const l1 = tangentLine(placedLegs[1])
+    const centre = l0 && l1
+      ? intersect(l0.p, [l0.p[0] + l0.d[0], l0.p[1] + l0.d[1]],
+        l1.p, [l1.p[0] + l1.d[0], l1.p[1] + l1.d[1]])
+      : null
+    if (!centre) break
+    const next = placedLegs.map(leg => ({
+      ...leg, station: offsetOnTrack(leg.track, centre)?.station ?? leg.station,
+    }))
+    const moved = Math.max(...next.map((leg, k) => Math.abs(leg.station - placedLegs[k].station)))
+    placedLegs = next
+    if (moved < 1e-9) break
+  }
 
   const identity = { ...newSwitchFields(unit.kind), name: unit.name, label: type.label }
   const marks = ['main', 'cross']

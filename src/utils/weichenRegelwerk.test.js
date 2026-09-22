@@ -27,7 +27,7 @@ describe('the switch forms as a regelwerk', () => {
   it('groups the forms the way the Ril itself does', () => {
     expect(gruppen.map(g => g.key)).toEqual([
       'regel_weichen', 'regel_kreuzungen', 'regel_kreuzungsweichen',
-      'sonder_weichen', 'sonder_kreuzungen',
+      'sonder_weichen', 'sonder_kreuzungen', 'sonder_kreuzungsweichen',
     ])
     expect(byKey.regel_weichen.formen.map(f => f.label)).toEqual(SWITCH_TYPES.map(f => f.label))
     expect(byKey.sonder_weichen.formen.map(f => f.label))
@@ -38,15 +38,17 @@ describe('the switch forms as a regelwerk', () => {
       .toEqual(CROSSING_TYPES.map(f => f.label).sort())
   })
 
-  // The Bogenkreuzungsweichen of A02 are not delivered yet (OP.W.02), and an
-  // empty table would claim the Ril has no such group.
+  // An empty table would claim the Ril has no such group — which is how the
+  // Bogenkreuzungsweichen of A02 stayed out of sight until AP 3.4.
   it('leaves out a group with no form in it', () => {
     expect(gruppen.every(g => g.formen.length)).toBe(true)
-    expect(gruppen.map(g => g.key)).not.toContain('sonder_kreuzungsweichen')
+    expect(byKey.sonder_kreuzungsweichen.formen.map(f => f.label))
+      .toEqual(['EBKW 1:9 – 500.860', 'DBKW 1:9 – 500.860'])
   })
 
   it('says of each group whether it has turnout columns or crossing ones', () => {
-    expect(gruppen.map(g => g.art)).toEqual(['weiche', 'kreuzung', 'kreuzung', 'weiche', 'kreuzung'])
+    expect(gruppen.map(g => g.art))
+      .toEqual(['weiche', 'kreuzung', 'kreuzung', 'weiche', 'kreuzung', 'kreuzung'])
   })
 
   // The viewer keys its rows by label; two forms with one label would be one row.
@@ -90,6 +92,20 @@ describe('the switch forms as a regelwerk', () => {
     })
   })
 
+  // A Bogenkreuzungsweiche has no one radius, and what it states in the tangent
+  // column is the length of its curved legs, l_b.
+  it('reads a Bogenkreuzungsweiche as its routes and its l_b', () => {
+    expect(form('sonder_kreuzungsweichen', 'DBKW 1:9 – 500.860')).toEqual({
+      label: 'DBKW 1:9 – 500.860', kind: 'double_slip', neigung: 9, radius: null,
+      tangente: 27.6584, speed: null, marke: null,
+      routen: [
+        { id: 'verbindung', R: null, speed: 100 },
+        { id: 'kreuzungsgleis', R: 500.86, speed: 60 },
+        { id: 'innenbogen', R: 249.763, speed: 40 },
+      ],
+    })
+  })
+
   it('keeps a Weichenmarke that stands before the body ends', () => {
     expect(form('sonder_kreuzungen', 'Kr 1:4.444').marke).toBe(-1.48)
   })
@@ -126,7 +142,7 @@ describe('what rulebook it is', () => {
     // statement beside it.
     expect(WEICHEN_REGELWERK.id).toBe('db-ril-800-0120')
     expect(WEICHEN_REGELWERK.title).toBe('DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen')
-    expect(WEICHEN_REGELWERK.katalog_version).toBe('0.1.0')
+    expect(WEICHEN_REGELWERK.katalog_version).toBe('0.2.0')
     expect(WEICHEN_REGELWERK.status).toBe('draft')
     // The Ril's own edition and validity date are stated nowhere.
     expect(WEICHEN_REGELWERK.version).toBeUndefined()
@@ -169,6 +185,20 @@ describe('DB Ril 800.0120 against DB Ril 800.0110 and the physics', () => {
       const u_f = computeCantDefSigned(f.speed, f.radius, 0)
       const out = evaluateRule(ruleById('LP.KB.06'), { 'physics.u_f': u_f }, IN_SWITCH_AREA)
       expect(out.severity, `${f.label}: ${u_f} mm at ${f.speed} km/h`).toBe('ok')
+    }
+  })
+
+  // A crossing switch is built on one set of sleepers as well: every curved
+  // route it states has to keep LP.KB.06 at its own speed, uncanted.
+  it('keeps every curved route of a crossing switch inside that deficiency too', () => {
+    const routes = gruppen.filter(g => g.art === 'kreuzung').flatMap(g => g.formen)
+      .flatMap(f => (f.routen ?? []).map(route => ({ ...route, label: f.label })))
+      .filter(route => route.R != null)
+    expect(routes.length).toBeGreaterThanOrEqual(7)
+    for (const route of routes) {
+      const u_f = computeCantDefSigned(route.speed, route.R, 0)
+      const out = evaluateRule(ruleById('LP.KB.06'), { 'physics.u_f': u_f }, IN_SWITCH_AREA)
+      expect(out.severity, `${route.label} ${route.id}: ${u_f} mm at ${route.speed} km/h`).toBe('ok')
     }
   })
 

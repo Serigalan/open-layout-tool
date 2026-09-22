@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   CROSSING_TYPES, crossingAngle, crossingEndDistance, computeCrossingGeometryUtm,
   crossingRoutesFromTracks, rebuildSwitchSymbol, switchTypeByLabel,
+  crossingLegRadius, crossingLegSignedRadius, computeCrossingGeometryFromPortA,
+  crossingElements, crossingLegFitsTrack, crossingBodyUtm,
 } from './switchUtils'
 import { newSwitchFields, switchElementMark, portsOf } from './switchModel'
 import { planSwitchDeletion, keptRoutes, switchParts } from './switchDelete'
@@ -38,14 +40,15 @@ const dkw500 = CROSSING_TYPES.find(f => f.label === 'DKW 1:9 – 500')
 describe('the crossing form table', () => {
   // In the order the catalogue states them: the Regelformen of A01 first, the
   // Sonderbauformen of A02 after — Kr 1:14 and Kr 1:18.5 among them since
-  // 2026-09-22.
-  it('holds eleven plain crossings and the four crossing switches', () => {
+  // 2026-09-22, and the two Bogenkreuzungsweichen behind them (AP 3.4).
+  it('holds eleven plain crossings and the six crossing switches', () => {
     expect(CROSSING_TYPES.map(f => f.label)).toEqual([
       'Kr 1:7.5', 'Kr 1:9',
       'EKW 1:9 – 190', 'EKW 1:9 – 500',
       'DKW 1:9 – 190', 'DKW 1:9 – 500',
       'Kr 1:2.9', 'Kr 1:3.224', 'Kr 1:3.683', 'Kr 1:4.444',
       'Kr 1:5.5', 'Kr 1:6.6', 'Kr 1:6.964', 'Kr 1:14', 'Kr 1:18.5',
+      'EBKW 1:9 – 500.860', 'DBKW 1:9 – 500.860',
     ])
   })
 
@@ -98,7 +101,11 @@ describe('computeCrossingGeometryUtm', () => {
   it('places all four ports at the end distance, on their legs', () => {
     for (const type of CROSSING_TYPES) {
       const g = computeCrossingGeometryUtm(CENTRE, BEARING, type, alphaOf(type))
-      const t = crossingEndDistance(type)
+      // Measured along the leg: on a Bogenkreuzungsweiche's arc the port lies
+      // the chord of that length away.
+      const R = crossingLegRadius(type)
+      const along = crossingEndDistance(type)
+      const t = R ? 2 * R * Math.sin(along / (2 * R)) : along
       for (const port of ['A', 'B', 'C', 'D']) {
         expect(dist([CENTRE.easting, CENTRE.northing], g['port' + port]),
           `${type.label} port ${port}`).toBeCloseTo(t, 6)
@@ -634,5 +641,191 @@ describe('the crossing laid into a track (AP 3.3)', () => {
     for (const tr of plan.updateTracks) {
       expect(tr.elements.some(el => el.switchBranch)).toBe(false)
     }
+  })
+})
+
+// ── AP 3.4 — the Bogenkreuzungsweichen ──────────────────────────────────────
+
+/**
+ * EBKW and DBKW 1:9 – 500.860: the crossing roads are arcs on R 500.860, curved
+ * the same way; the ends lie l_b along them (l_KW = 2·l_b, decided 2026-09-22);
+ * the connecting routes are a straight and — in the DBKW — an inner arc on
+ * R 249.763, each on its catalogue radius from port to port.
+ */
+describe('the Bogenkreuzungsweichen (AP 3.4)', () => {
+  const ebkw = switchTypeByLabel('EBKW 1:9 – 500.860')
+  const dbkw = switchTypeByLabel('DBKW 1:9 – 500.860')
+  const alpha = crossingAngle(ebkw) * 180 / Math.PI
+  const identity = (type) => ({ ...newSwitchFields(type.kind), name: 'crossing.034', label: type.label })
+  // Angle between two bearings [mrad], direction kept.
+  const mrad = (a, b) => Math.abs(((a - b + 540) % 360) - 180) * Math.PI / 180 * 1000
+
+  it('states its measures the way the catalogue does', () => {
+    expect(ebkw.kind).toBe('single_slip')
+    expect(dbkw.kind).toBe('double_slip')
+    for (const type of [ebkw, dbkw]) {
+      expect(type.ratio).toBe(9)
+      expect(type.klasse).toBe('sonderbauform')
+      expect(crossingLegRadius(type)).toBe(500.86)
+      // l_b is the end distance, and the whole length is twice it.
+      expect(crossingEndDistance(type)).toBe(27.6584)
+      expect(2 * crossingEndDistance(type)).toBeCloseTo(55.3168, 9)
+      // No one radius: the routes state theirs.
+      expect(type.R).toBeUndefined()
+    }
+    expect(dbkw.Ri).toBe(249.763)
+    expect(ebkw.routen.map(r => [r.R, r.speed])).toEqual([[null, 100], [500.86, 60]])
+    expect(dbkw.routen.map(r => [r.R, r.speed])).toEqual([[null, 100], [500.86, 60], [249.763, 40]])
+  })
+
+  it('curves both legs away from the side the cross route leaves on', () => {
+    expect(crossingLegSignedRadius(ebkw, alpha)).toBe(-500.86)
+    expect(crossingLegSignedRadius(ebkw, -alpha)).toBe(500.86)
+    // Every other form has straight legs.
+    for (const type of [kr9, ekw500, dkw190]) expect(crossingLegSignedRadius(type, alpha)).toBeNull()
+  })
+
+  it('lays each end l_b along its curved leg', () => {
+    for (const type of [ebkw, dbkw]) {
+      const g = computeCrossingGeometryUtm(CENTRE, BEARING, type, alpha)
+      const els = crossingElements(g, identity(type))
+      for (const port of ['A', 'B', 'C', 'D']) {
+        expect(els[port].elementType, `${type.label} leg ${port}`).toBe(1)
+        expect(els[port].radius).toBe(-500.86)
+        expect(els[port].length, `${type.label} leg ${port}`).toBeCloseTo(27.6584, 6)
+      }
+      // A and C are one arc through the crossing point: the tangent carries on.
+      expect(mrad(els.A.endBearing, els.C.bearing)).toBeLessThan(1e-6)
+      expect(mrad(els.B.endBearing, els.D.bearing)).toBeLessThan(1e-6)
+      expect(mrad(els.C.bearing, BEARING)).toBeLessThan(1e-6)
+      expect(mrad(els.D.bearing, g.crossBearing)).toBeLessThan(1e-6)
+    }
+  })
+
+  it('computes c itself: the two ends on a side lie 3.0587 m apart', () => {
+    // The delivered 1.9596 is measured at an unknown place; the client's
+    // decision of 2026-09-22 is that c follows from the construction.
+    const g = computeCrossingGeometryUtm(CENTRE, BEARING, dbkw, alpha)
+    expect(dist(g.portA, g.portB)).toBeCloseTo(3.0587, 4)
+    expect(dist(g.portC, g.portD)).toBeCloseTo(3.0587, 4)
+  })
+
+  it('joins A and D with the straight, B and C with the inner arc — the EBKW only the straight', () => {
+    const one = computeCrossingGeometryUtm(CENTRE, BEARING, ebkw, alpha)
+    expect(one.slip1Route).toEqual({ length: expect.any(Number), r1: null, r2: null })
+    expect(one.slip2Coords).toBeNull()
+
+    const g = computeCrossingGeometryUtm(CENTRE, BEARING, dbkw, alpha)
+    const els = crossingElements(g, identity(dbkw))
+    expect(els.slip1.elementType).toBe(0)
+    expect(els.slip1.length).toBeCloseTo(55.2885, 4)
+    expect(dist(els.slip1.startNode, g.portA)).toBeLessThan(1e-9)
+    expect(dist(els.slip1.endNode, g.portD)).toBeLessThan(1e-9)
+    // The inner arc is on its catalogue radius, turning the way the legs do.
+    expect(els.slip2.elementType).toBe(1)
+    expect(els.slip2.radius).toBe(-249.763)
+    expect(dist(els.slip2.startNode, g.portB)).toBeLessThan(1e-9)
+    expect(dist(els.slip2.endNode, g.portC)).toBeLessThan(1e-9)
+    // Its polyline ends on the ports' own twins, so the joins are exact.
+    expect(g.slip2Coords[0]).toEqual(g.portB_wgs)
+    expect(g.slip2Coords[g.slip2Coords.length - 1]).toEqual(g.portC_wgs)
+  })
+
+  it('meets the legs as near their tangent as R, 1:9 and l_b together allow', () => {
+    // Three binding measures that the delivered row does not quite reconcile:
+    // the connecting routes lie exactly on the ports, a hair off the tangent.
+    const g = computeCrossingGeometryUtm(CENTRE, BEARING, dbkw, alpha)
+    const els = crossingElements(g, identity(dbkw))
+    expect(mrad(els.slip1.bearing, els.A.bearing)).toBeCloseTo(0.1068, 4)
+    expect(mrad(els.slip1.bearing, els.D.endBearing)).toBeCloseTo(0.1068, 4)
+    expect(mrad(els.slip2.bearing, els.B.bearing)).toBeCloseTo(0.0186, 4)
+    expect(mrad(els.slip2.endBearing, els.C.endBearing)).toBeCloseTo(0.0186, 4)
+  })
+
+  it('mirrors for a cross route on the left', () => {
+    const right = computeCrossingGeometryUtm(CENTRE, BEARING, dbkw, alpha)
+    const left  = computeCrossingGeometryUtm(CENTRE, BEARING, dbkw, -alpha)
+    expect(left.mainLegR).toBe(500.86)
+    expect(left.slip2Route.r1).toBe(249.763)
+    for (const port of ['A', 'B', 'C', 'D']) {
+      expect(dist([CENTRE.easting, CENTRE.northing], left['port' + port]))
+        .toBeCloseTo(dist([CENTRE.easting, CENTRE.northing], right['port' + port]), 6)
+    }
+  })
+
+  it('is placed from port A along its curved main leg', () => {
+    const port = { easting: 480000, northing: 5620000, zone: EPSG }
+    const g = computeCrossingGeometryFromPortA(port, toWgs(port), BEARING, ebkw, alpha)
+    // Port A is the caller's point itself, not one recomputed from the centre.
+    expect(g.portA_utm).toBe(port)
+    // The crossing point lies l_b along the arc, and the leg has turned by it.
+    expect(dist([port.easting, port.northing], [g.centreUtm.easting, g.centreUtm.northing]))
+      .toBeCloseTo(2 * 500.86 * Math.sin(27.6584 / (2 * 500.86)), 6)
+    expect(g.mainBearing).toBeCloseTo(BEARING - 27.6584 / 500.86 * 180 / Math.PI, 9)
+    const els = crossingElements(g, identity(ebkw))
+    expect(els.A.startNode).toEqual([port.easting, port.northing])
+    expect(mrad(els.A.bearing, BEARING)).toBeLessThan(1e-6)
+  })
+
+  it('reads back from its tracks, the body along the curved legs', () => {
+    const g = computeCrossingGeometryUtm(CENTRE, BEARING, dbkw, alpha)
+    const id = identity(dbkw)
+    const els = crossingElements(g, id)
+    const legs = {
+      a: { id: 'a', epsg: EPSG, elements: [els.A] },
+      b: { id: 'b', epsg: EPSG, elements: [els.B] },
+      c: { id: 'c', epsg: EPSG, elements: [els.C] },
+      d: { id: 'd', epsg: EPSG, elements: [els.D] },
+    }
+    const sw = {
+      ...id,
+      portA_trackId: 'a', portA_endpoint: 'END',
+      portB_trackId: 'b', portB_endpoint: 'END',
+      portC_trackId: 'c', portC_endpoint: 'BEGIN',
+      portD_trackId: 'd', portD_endpoint: 'BEGIN',
+    }
+    const routes = crossingRoutesFromTracks(sw, legs)
+    expect(routes.type).toBe(dbkw)
+    expect(routes.main[0].r1).toBe(-500.86)
+    // Behind the point the same arc, run backwards.
+    expect(routes.mainBack[0].r1).toBeCloseTo(500.86, 9)
+
+    // The body's corners are the ports, and its sides follow the arcs.
+    const body = crossingBodyUtm(routes)
+    expect(dist(body[0][0], g.portA)).toBeLessThan(1e-6)
+    expect(dist(body[0][1], g.portB)).toBeLessThan(1e-6)
+    expect(dist(body[1][0], g.portC)).toBeLessThan(1e-6)
+    expect(dist(body[1][1], g.portD)).toBeLessThan(1e-6)
+    expect(body[0].length).toBeGreaterThan(4)
+    const rebuilt = rebuildSwitchSymbol(sw, legs)
+    expect(rebuilt.fillCoords.map(r => r.length)).toEqual(body.map(r => r.length))
+
+    // A record whose tracks carry no leg behind the point mirrors the one
+    // ahead — which on an arc is the same arc, so the same corners.
+    const mirrored = crossingBodyUtm(crossingRoutesFromTracks(
+      { ...sw, portA_trackId: 'none', portB_trackId: 'none' }, legs))
+    expect(dist(mirrored[0][0], g.portA)).toBeLessThan(1e-6)
+    expect(dist(mirrored[0][1], g.portB)).toBeLessThan(1e-6)
+  })
+
+  it('is laid into a track only where the track is its main leg', () => {
+    // The cross route leaves to the right, so the main leg — and the host
+    // under it — curves left on R 500.860.
+    const host = trackOf('arc', [arcElement(HOST_START, HOST_BEARING, -500.86, 120)])
+    const ahead = placeSwitchOnTrack(host, 50, false, crossingEndDistance(ebkw))
+    const back  = placeSwitchOnTrack(host, 50, true, crossingEndDistance(ebkw))
+    const legR = crossingLegSignedRadius(ebkw, alpha)
+    expect(crossingLegFitsTrack(ahead.pieces, legR)).toBe(true)
+    expect(crossingLegFitsTrack(back.pieces, -legR)).toBe(true)
+    // Its ports are where the placement reaches along the host.
+    const g = computeCrossingGeometryUtm(ahead.toeUtm, ahead.bearing, ebkw, alpha)
+    expect(dist(g.portC, [ahead.endUtm.easting, ahead.endUtm.northing])).toBeLessThan(1e-6)
+    expect(dist(g.portA, [back.endUtm.easting, back.endUtm.northing])).toBeLessThan(1e-6)
+    // The other side, a straight host or a plain crossing on this arc: no.
+    expect(crossingLegFitsTrack(ahead.pieces, -legR)).toBe(false)
+    expect(crossingLegFitsTrack(ahead.pieces, null)).toBe(false)
+    const straight = placeSwitchOnTrack(hostTrack(), 50, false, crossingEndDistance(ebkw))
+    expect(crossingLegFitsTrack(straight.pieces, legR)).toBe(false)
+    expect(crossingLegFitsTrack(straight.pieces, null)).toBe(true)
   })
 })

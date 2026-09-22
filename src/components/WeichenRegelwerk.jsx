@@ -19,11 +19,19 @@ import { switchKindLabelKey } from '../utils/switchModel'
 const zahl = (v) => (v === null || v === undefined ? '–' : String(v))
 
 // A crossing switch states a speed per route — the through road first, then
-// the curves. Printed as the table reads, "100 / 40", because one number for
+// the curves; a Bogenkreuzungsweiche its straight connection first, then the
+// crossing roads and the inner curve. Printed as the table reads, "100 / 40", because one number for
 // the whole form would be a claim the form does not make.
 const speedText = (form) => (form.routen
   ? form.routen.map(route => route.speed).join(' / ')
   : zahl(form.speed))
+
+// The radius the same way, route for route beside its speed — a straight route
+// is one of infinite radius, not one without. A Bogenkreuzungsweiche has no
+// single radius to print otherwise.
+const radiusText = (form) => (form.routen
+  ? form.routen.map(route => (route.R == null ? '∞' : String(route.R))).join(' / ')
+  : zahl(form.radius))
 
 export default function WeichenRegelwerk({ t }) {
   const gruppen = weichenGruppen()
@@ -85,7 +93,7 @@ export default function WeichenRegelwerk({ t }) {
                     <>
                       <td>{t(switchKindLabelKey(form.kind))}</td>
                       <td>1:{form.neigung}</td>
-                      <td>{zahl(form.radius)}</td>
+                      <td>{radiusText(form)}</td>
                       <td>{zahl(form.tangente)}</td>
                       <td>{speedText(form)}</td>
                       <td>{zahl(form.marke)}</td>
