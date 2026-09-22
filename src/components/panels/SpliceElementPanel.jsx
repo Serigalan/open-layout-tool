@@ -543,7 +543,6 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
             {status.msg}
           </p>
         )}
-        {defErr && <p className="form-error">{t('cant_def_error')}</p>}
         {/* An arc+arc splice re-shapes the two arcs that are already there and
             inserts none, so there is no new element to judge; the length is the
             one the construction solved, not one that was typed. */}

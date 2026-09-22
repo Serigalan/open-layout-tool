@@ -323,8 +323,13 @@ export default function ConnectCurvedForm({ t, map, project, onTrackSaved, onCom
         const defErr  = cantDef > cantDefLimit(speed)
         return (
           <>
-            {cantErr && <p className="form-error">{t('cant_error')}</p>}
-            {defErr  && <p className="form-error">{t('cant_def_error')}</p>}
+            {/* What stands in the way is said by the findings above, from
+                the rule itself — the sentence that used to stand here named a
+                fixed 150 mm, which the deficiency limit stopped being when it
+                became LP.KB.02's step. The gate below stays narrower than the
+                catalogue's verdict on purpose: it refuses cant and deficiency,
+                as it always did, and does not newly refuse a length or a speed
+                off the grid that the findings only report. */}
             <RuleFindings t={t} element={{
               elementType: 1, radius: Number(signedRadius), cant, speed, length: Number(arcLength),
             }} />

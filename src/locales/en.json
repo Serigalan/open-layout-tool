@@ -116,8 +116,6 @@
   "track_number": "Track Number",
   "cant": "Cant (mm)",
   "cant_def": "Cant deficiency (mm)",
-  "cant_error": "Cant exceeds maximum of 170 mm",
-  "cant_def_error": "Cant deficiency exceeds maximum of 150 mm",
   "cant_equilibrium": "Equilibrium cant",
   "cant_equilibrium_hint": "Sets the cant at which the cant deficiency is nil (u₀ = 11.8 · v² / R)",
   "utm_start": "Start Node",

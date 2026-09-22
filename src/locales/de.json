@@ -116,8 +116,6 @@
   "track_number": "Gleisnummer",
   "cant": "Überhöhung (mm)",
   "cant_def": "Überhöhungsfehlbetrag (mm)",
-  "cant_error": "Überhöhung überschreitet Maximum von 170 mm",
-  "cant_def_error": "Überhöhungsfehlbetrag überschreitet Maximum von 150 mm",
   "cant_equilibrium": "Ausgleichende Überhöhung",
   "cant_equilibrium_hint": "Setzt die Überhöhung, bei der der Überhöhungsfehlbetrag null ist (u₀ = 11,8 · v² / R)",
   "utm_start": "Startknoten",
