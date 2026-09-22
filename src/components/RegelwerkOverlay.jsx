@@ -2,18 +2,24 @@ import { useEffect, useState } from 'react'
 import { fetchRegelwerke, fetchRegelwerk } from '../utils/optimizerService'
 import { flattenRegelwerk } from '../utils/regelwerkView'
 import { appValueFor } from '../utils/constraintsView'
+import { WEICHEN_REGELWERK_ID } from '../utils/weichenRegelwerk'
+import WeichenRegelwerk from './WeichenRegelwerk'
 
 /**
- * The regelwerk a run is held to — the values a railway administration sets —
- * read-only, in the same popup shell the track editor uses. Fetched live from
- * the service rather than bundled: this is the copy a run is actually
- * measured against, and an app built from a newer commit than the deployed
- * service would otherwise show limits nobody's run uses.
+ * The regelwerke a layout is held to — the values a railway administration
+ * sets — read-only, in the same popup shell the track editor uses. There is
+ * more than one of them, so the popup picks: a selector beside the heading
+ * names them and the table below is whichever one is chosen.
  *
- * `flattenRegelwerk` (AP R.5) does the flattening; this is only the rendering
- * and the fetch, unchanged in substance from the RegelwerkView it replaces —
- * still open from the optimizer panel's "show regelwerk" link, now also from
- * the edit panel's own Regelwerk button.
+ * Two kinds are listed side by side because they are the same kind of thing:
+ * the optimizer's regelwerk, fetched live from the service rather than bundled
+ * (this is the copy a run is actually measured against, and an app built from
+ * a newer commit than the deployed service would otherwise show limits nobody's
+ * run uses), and the switch form tables, which are bundled because the app
+ * draws with them itself and no service holds them.
+ *
+ * `flattenRegelwerk` (AP R.5) flattens the served one, `weichenRegelwerk.js`
+ * reads the form tables; this is the rendering, the fetch and the choice.
  */
 export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
   // null while the list is still being asked for, [] once the service has
@@ -35,10 +41,20 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
     return () => { cancelled = true }
   }, [])
 
-  const id = wanted || regelwerke?.[0]?.id || ''
+  // The served ones first — a run is measured against one of those, and one of
+  // those is what the optimizer panel's link asks for — then the bundled
+  // forms, which are always there and are therefore what is left to fall back
+  // on once the service has answered with nothing.
+  const alle = [
+    ...(regelwerke ?? []).map(rw => ({ id: rw.id, name: rw.name })),
+    { id: WEICHEN_REGELWERK_ID, name: t('constraints_weichen') },
+  ]
+  const id = wanted || regelwerke?.[0]?.id || (regelwerke ? WEICHEN_REGELWERK_ID : '')
+  const istWeichen = id === WEICHEN_REGELWERK_ID
 
   useEffect(() => {
-    if (!id) return
+    // Nothing to fetch for a bundled regelwerk — the service does not know it.
+    if (!id || id === WEICHEN_REGELWERK_ID) return
     let cancelled = false
     fetchRegelwerk(id).then(rw => {
       if (cancelled) return
@@ -47,7 +63,7 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
     return () => { cancelled = true }
   }, [id])
 
-  const current = status?.id === id ? status : null
+  const current = !istWeichen && status?.id === id ? status : null
   const regelwerk = current?.regelwerk ?? null
   const failed = !!current?.failed
   const rows = regelwerk ? flattenRegelwerk(regelwerk) : []
@@ -64,31 +80,35 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
   return (
     <div className="track-table-overlay constraints-overlay">
       <div className="track-table-header">
-        <span className="track-table-title">
+        <span className="track-table-title constraints-title">
           {t('constraints_regelwerk')}
+          {/* Beside the heading, not out by the close button: it says which
+              regelwerk the heading is about, so it belongs to the heading. */}
+          <select className="track-table-input constraints-select"
+            value={id} onChange={e => setWanted(e.target.value)}>
+            {alle.map(rw => <option key={rw.id} value={rw.id}>{rw.name}</option>)}
+          </select>
           <span className="track-table-subtitle">{t('constraints_readonly')}</span>
         </span>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* A selector only where there is something to select — today the
-              service knows exactly one regelwerk. */}
-          {(regelwerke?.length ?? 0) > 1 && (
-            <select className="track-table-input track-table-input-wide"
-              value={id} onChange={e => setWanted(e.target.value)}>
-              {regelwerke.map(rw => <option key={rw.id} value={rw.id}>{rw.name}</option>)}
-            </select>
-          )}
-          <button className="track-table-close" onClick={onClose}>✕</button>
-        </div>
+        <button className="track-table-close" onClick={onClose}>✕</button>
       </div>
 
       <div className="track-table-scroll constraints-scroll">
+        {/* A service that cannot be asked is said once, above whatever is
+            shown: the bundled tables are still there and still true, and the
+            reader has to know that the served one is missing rather than
+            gone. */}
+        {regelwerke?.length === 0 && (
+          <p className="constraints-error">{t('constraints_service_down')}</p>
+        )}
+        {istWeichen && <WeichenRegelwerk t={t} />}
         {/* Three states, said apart: still asking, asked and no server, and
             the table itself. A panel that needs the service says so rather
             than showing an empty table. */}
-        {!failed && !regelwerk && (regelwerke === null || id) && (
+        {!istWeichen && !failed && !regelwerk && (
           <p className="constraints-hint">{t('constraints_loading')}</p>
         )}
-        {(failed || (regelwerke?.length === 0 && !id)) && (
+        {failed && (
           <p className="constraints-error">{t('optimize_err_unavailable')}</p>
         )}
         {regelwerk && (

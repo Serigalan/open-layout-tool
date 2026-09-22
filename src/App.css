@@ -1492,6 +1492,28 @@
   padding: 0 16px 16px;
 }
 
+/* There is more than one regelwerk, so the heading says which — the selector
+   sits beside it rather than out by the close button, because it names what
+   the heading is about. The subtitle keeps its distance through the gap, so
+   its own margin would be a second one. */
+.constraints-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.constraints-title .track-table-subtitle {
+  margin-left: 0;
+}
+
+/* A regelwerk's name is a sentence, not a word ("DB Ril 800 (Entwurfs…)"), so
+   the selector takes the width it needs up to a limit rather than the 160 px
+   a table cell's input is given. */
+.constraints-select {
+  width: auto;
+  max-width: 320px;
+}
+
 .constraints-section {
   font-size: 13px;
   font-weight: 600;
