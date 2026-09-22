@@ -163,6 +163,7 @@
   "switch_on_track_bloss": "A Bloss curve lies under the switch – a switch can only lie on straights, arcs and clothoids",
   "switch_on_track_over_switch": "The switch would reach over an existing switch",
   "switch_on_track_kink": "The track has a kink under the switch",
+  "switch_on_track_symmetric": "The symmetrical turnout has no straight route: the track under it has to be an arc of R {{r}} m, curving away from the branch's side",
   "switch_on_track_elements": "Elements under the switch",
   "switch_anchor_not_track_end": "No track ends here – a turnout inside a track is laid by “Switch on track”.",
   "switch_anchor_no_element": "There is no element there.",

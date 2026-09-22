@@ -533,6 +533,8 @@ export function placeMdbSwitches(payload, tracks, units,
     let placed
     if (crossing) {
       placed = placeCrossingUnit(found, unit, type, current, makeId)
+    } else if (type.symmetric && !found.through.length && found.starting.length === 3) {
+      placed = placeAtToe(found, unit, type, current)
     } else {
       const shape = chooseShape(found, type)
       if (shape.reason) { give(unit, `${shape.reason} – nicht gesetzt.`); continue }
@@ -574,6 +576,53 @@ export function placeMdbSwitches(payload, tracks, units,
       + 'lässt sich aus den Routen nicht ableiten – auf der Karte unsichtbar.')
   }
   return { tracks: current, switches: drawn, errors }
+}
+
+/**
+ * A symmetrical turnout whose three tracks all end at its toe — the shape it
+ * naturally has, since neither of its routes runs on from the track before it:
+ * the approach ends there, and both arcs begin there. Nothing is parted. The
+ * approach is the track that leaves the toe against the other two, and it is
+ * port A as it stands; of the two arcs, which one is the "through route" is a
+ * name only, so the first is the stem (B2) and the second the branch (B1). Each
+ * is carved to the form's length and marked.
+ */
+function placeAtToe(found, unit, type, tracks) {
+  const legs = found.starting.map(c => ({ ...c, bearing: outwardBearing(c.track, c.endpoint) }))
+  const opposite = (c) => legs.filter(o => o !== c).every(o => angleTo(c.bearing, o.bearing) > 90)
+  const approach = legs.find(opposite)
+  if (!approach) return { error: 'drei beginnende Gleise, aber keines läuft den anderen entgegen – nicht gesetzt.' }
+  const [stem, branch] = legs.filter(c => c !== approach)
+
+  const identity = { ...newSwitchFields(), name: unit.name, label: type.label }
+  const carve = (leg, route, length) => {
+    const track = tracks.find(t => t.id === leg.track.id) ?? leg.track
+    const total = trackLength(track)
+    if (total < length) return null
+    const at = elementAtStation(track.elements, leg.endpoint === 'BEGIN' ? length : total - length)
+    if (!at) return null
+    const cut = pointAtStationUtm(at.el, at.s, track.epsg)
+    return carveSwitchRoute(track, leg.endpoint, cut, switchElementMark(identity, route), length)
+  }
+  const stemCarved = carve(stem, 'main', switchStraightLength(type))
+  const branchCarved = carve(branch, 'branch', switchBranchLength(type))
+  if (!stemCarved || !branchCarved) return { error: 'Gleis kürzer als die Weichenform – nicht gesetzt.' }
+
+  return {
+    tracks: tracks
+      .filter(t => t.id !== stemCarved.id && t.id !== branchCarved.id)
+      .concat(stemCarved, branchCarved),
+    remaps: [],
+    record: {
+      ...identity,
+      trailing: false, speed: type.speed,
+      kind: unit.kind,
+      pad: unit.pad,
+      portA_trackId: approach.track.id, portA_endpoint: approach.endpoint,
+      portB1_trackId: branchCarved.id, portB1_endpoint: branch.endpoint,
+      portB2_trackId: stemCarved.id, portB2_endpoint: stem.endpoint,
+    },
+  }
 }
 
 function placeOne(found, unit, type, tracks, makeId) {

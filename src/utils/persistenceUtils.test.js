@@ -97,7 +97,7 @@ describe('track_optimized.json fixture — chain continuity invariants', () => {
 // ── A project of the current model ───────────────────────────────────────────
 
 const SWITCH_EPSG = 25832
-const FORM = SWITCH_TYPES[1]                       // 300 – 1:9
+const FORM = SWITCH_TYPES.find(form => form.label === '300 – 1:9')
 
 /** A facing turnout on a straight, written the way the dialogs write one. */
 function switchProject(identity = { switchId: 'sw-1', kind: DEFAULT_SWITCH_KIND, formVersion: SWITCH_FORM_VERSION }) {

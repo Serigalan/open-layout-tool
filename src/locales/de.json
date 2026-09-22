@@ -163,6 +163,7 @@
   "switch_on_track_bloss": "Unter der Weiche liegt ein Bloss-Bogen – eine Weiche kann nur auf Geraden, Bögen und Klothoiden liegen",
   "switch_on_track_over_switch": "Die Weiche würde über eine bestehende Weiche reichen",
   "switch_on_track_kink": "Das Gleis hat unter der Weiche einen Knick",
+  "switch_on_track_symmetric": "Die symmetrische Weiche hat keinen geraden Strang: das Gleis unter ihr muss ein Bogen R {{r}} m sein, gekrümmt zur Gegenseite des Zweigs",
   "switch_on_track_elements": "Elemente unter der Weiche",
   "switch_anchor_not_track_end": "Hier endet kein Gleis – eine Weiche mitten im Gleis legt „Weiche auf Gleis“ an.",
   "switch_anchor_no_element": "Dort liegt kein Element.",

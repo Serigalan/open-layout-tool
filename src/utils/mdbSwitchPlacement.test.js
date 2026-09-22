@@ -12,6 +12,7 @@ import { recalcAbsLengths } from '../storage'
 import fixture from '../test/fixtures/mdb_weiche.json'
 import crossingFixture from '../test/fixtures/mdb_kreuzungsweiche.json'
 import bogenFixture from '../test/fixtures/mdb_bogenkreuzungsweiche.json'
+import symFixture from '../test/fixtures/mdb_symmetrische_weiche.json'
 import { buildAllTracksFromMdb } from './mdbImport'
 import { switchPorts, isModelledSwitch } from './switchModel'
 import { parseProjectsPayload, hydrateProjects, dehydrateProjects } from './persistenceUtils'
@@ -278,6 +279,34 @@ describe('placeMdbSwitches — die Bogenkreuzungsweiche (AP 3.4)', () => {
 
   it('leaves the tracks joined after parting both roads', () => {
     for (const t of placed3.tracks) expectNodesJoin(recalcAbsLengths(t.elements))
+  })
+})
+
+describe('placeMdbSwitches — die symmetrische Weiche', () => {
+  // A fourth slice: the SYM ABW 335224/151. Neither of its routes runs on from
+  // the track before it, so all three tracks end at the toe and none runs
+  // through — the shape a turnout placement looks for is not there at all.
+  const payload4 = parseMdbPayload(symFixture)
+  const { units: units4 } = mdbSwitchInventory(payload4)
+  const built4 = buildAllTracksFromMdb(payload4)
+  const placed4 = placeMdbSwitches(payload4, built4.tracks, units4)
+  const byId4 = Object.fromEntries(placed4.tracks.map(t => [t.id, t]))
+
+  it('is placed where its three tracks meet, parting none of them', () => {
+    expect(placed4.errors).toEqual([])
+    expect(placed4.switches.map(sw => sw.label)).toEqual(['215 – 1:4.8'])
+    expect(placed4.tracks).toHaveLength(built4.tracks.length)
+  })
+
+  it('carves both routes as the mirror arcs they are, the form\'s length each', () => {
+    const routes = switchRoutesFromTracks(placed4.switches[0], byId4)
+    expect(routes.stem).toHaveLength(1)
+    expect(routes.branch).toHaveLength(1)
+    expect(routes.stem[0].length).toBeCloseTo(22.080, 3)
+    expect(routes.branch[0].length).toBeCloseTo(22.080, 3)
+    expect(routes.stem[0].r1).toBeCloseTo(-routes.branch[0].r1, 3)
+    expect(Math.abs(routes.branch[0].r1)).toBeCloseTo(215, 3)
+    expectSwitchRoutesCarved(placed4.switches[0], placed4.tracks)
   })
 })
 

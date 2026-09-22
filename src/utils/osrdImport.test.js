@@ -108,6 +108,23 @@ describe('a turnout whose branch ends in a straight piece', () => {
   })
 })
 
+describe('the symmetrical turnout', () => {
+  const form = SWITCH_TYPES.find(f => f.label === '215 – 1:4.8')
+
+  it('is written as two mirror arcs and comes back as that form', () => {
+    const { tracks: built } = turnout(form)
+    expect(built.find(t => t.id === 'through').elements.map(el => el.radius)).toEqual([-215])
+    expect(built.find(t => t.id === 'branch').elements.map(el => el.radius)).toEqual([215])
+    const { switches, errors, tracks } = roundTrip(form)
+    expect(errors).toEqual([])
+    expect(switches.map(sw => sw.label)).toEqual(['215 – 1:4.8'])
+    // The mirror arc is its through route, so it is marked as one — the symbol
+    // is read from it on load, and a straight would be drawn otherwise.
+    expect(tracks.find(t => t.id === 'through').elements[0].switchRoute).toBe('main')
+    expect(switches[0].bauform).toBe('abw')
+  })
+})
+
 /**
  * AP 3.4 — a crossing switch written out and read back in. The EBKW's legs are
  * 3 cm shorter than an EKW 500's and otherwise alike in kind and angle, so it

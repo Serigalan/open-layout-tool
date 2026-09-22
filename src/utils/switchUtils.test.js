@@ -271,8 +271,35 @@ describe('the forms outside the connection chain', () => {
     expect(switchBranchLength(sym)).toBeCloseTo(22.080, 3)
     expect(switchBranchSections(sym)).toEqual([{ type: 'arc', R: 215, length: half }])
     // Both routes are that same arc, so the through route is as long as the
-    // branch — a symmetrical turnout has no side that runs on.
-    expect(switchStraightLength(sym)).toBeCloseTo(22.0994, 3)
+    // branch — a symmetrical turnout has no side that runs on. Not the tangent
+    // polygon (22.0994): that is a straight side's length, and it left a 2 cm
+    // stub on every surveyed one the MDB import carved.
+    expect(switchStraightLength(sym)).toBeCloseTo(half, 9)
+  })
+
+  it('draw the symmetrical turnout as two mirror arcs, whichever way it is built', () => {
+    const start = { easting: 500000, northing: 5600000, zone: 25832 }
+    const alpha = Math.atan(1 / 4.8) * 180 / Math.PI
+    const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1])
+    const turn = (a, b) => ((b - a + 540) % 360) - 180
+    for (const side of ['right', 'left']) {
+      for (const trailing of [false, true]) {
+        const g = computeSwitchGeometryUtm(start, 30, sym, side, trailing)
+        const at = `${side}${trailing ? ', trailing' : ''}`
+        // From the toe the through route bends away from the branch on the
+        // same radius, over the same length.
+        expect(g.stemChain.map(p => p.r1), at).toEqual([side === 'right' ? -215 : 215])
+        expect(g.branchChain[0].r1, at).toBeCloseTo(side === 'right' ? 215 : -215, 9)
+        expect(g.stemChain[0].length, at).toBeCloseTo(g.branchChain[0].length, 9)
+        // So both ends lie the same distance from the toe, mirrored about its
+        // tangent, and the routes part at the full angle.
+        expect(d(g.portA, g.portB1), at).toBeCloseTo(d(g.portA, g.portB2), 9)
+        expect(d(g.portB1, g.portB2), at).toBeCloseTo(2 * 215 * (1 - Math.cos(Math.atan(1 / 4.8) / 2)), 6)
+        const branchTurn = turn(g.curveBearing, g.branchEndBearing)
+        expect(Math.abs(branchTurn), at).toBeCloseTo(alpha / 2, 9)
+        expect(g.bauform, at).toBe('abw')
+      }
+    }
   })
 
   it('carry the 190 on to 1:6,3 as the one arc it is', () => {

@@ -184,6 +184,9 @@ export function switchArcLength(R, ratio) {
  * lengths (190 – 1:9 = 27.14 m, 500 – 1:14 = 44.94 m, 190 – 1:7.5 = 25.86 m).
  */
 export function switchStraightLength(type) {
+  // A symmetrical turnout's through route is no tangent polygon: it is the
+  // branch's mirror image, the same arc to the other side, and as long.
+  if (type.symmetric) return switchBranchLength(type)
   return switchBranchSections(type).reduce((sum, section) => (
     sum + (section.R == null
       ? section.length
@@ -1142,16 +1145,30 @@ export function computeSwitchGeometry(startWgs, bearing, sw, side, trailing, crs
  * `branchEndBearing` is the branch's tangent at its end.
  */
 export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, startWgs = null, mainR = null) {
-  const formChain   = switchFormChain(sw, side)
   const arcLen      = switchBranchLength(sw)
   const straightLen = switchStraightLength(sw)
-  // The through route along `bearing`: straight, an arc, a piece of clothoid or
-  // a chain of such pieces.
+  // A symmetrical turnout has no side that runs on: unbent, its through route is
+  // the branch's mirror image, the form's arc to the other side. The branch is
+  // laid onto that through route like any branch onto its stem, so what it
+  // adds to it is twice the form's curvature — the curvature it has to turn
+  // back through and the one it turns on — and the two routes still part at
+  // the full angle, each through half of it.
+  const symmetric = sw.symmetric === true
+  const formChain = symmetric
+    ? switchFormChain(sw, side).map(section => ({ ...section, signedR: section.signedR / 2 }))
+    : switchFormChain(sw, side)
+  // Stated along `bearing`: a trailing turnout's through route runs towards the
+  // toe, and run that way the mirror arc bends to the branch's own side.
+  const formSignedR = switchFormChain(sw, side)[0].signedR
+  const unbent = symmetric ? (trailing ? formSignedR : -formSignedR) : null
+  // The through route along `bearing`: straight — or for the symmetrical
+  // turnout the mirror arc — an arc, a piece of clothoid or a chain of such
+  // pieces.
   const stem = Array.isArray(mainR)
     ? switchChainTo(mainR, straightLen)
     : [mainR !== null && typeof mainR === 'object'
       ? toRoute({ length: straightLen, r1: mainR.r1, r2: mainR.r2 })
-      : toRoute({ length: straightLen, radius: mainR })]
+      : toRoute({ length: straightLen, radius: mainR ?? unbent })]
   const mainSignedR = stem[0].r1
 
   const sWgs = startWgs ?? utmToWgs84(startUtm.easting, startUtm.northing, startUtm.zone)
@@ -1339,6 +1356,15 @@ export function crossingCentreFromPortA(portUtm, bearing, type, crossAngleDeg) {
  * is meant to be part of.
  */
 export function crossingLegFitsTrack(pieces, signedR) {
+  return piecesOnRadius(pieces, signedR)
+}
+
+/**
+ * Do the pieces of a route all run on `signedR` — straight for null — to within
+ * what counts as straight here? What a body that is laid into a track, rather
+ * than onto it, asks of the track under it.
+ */
+export function piecesOnRadius(pieces, signedR) {
   if (!signedR) return pieces.every(p => p.r1 == null && p.r2 == null)
   const k = 1 / signedR
   const on = (r) => r != null && Math.abs(1 / r - k) < STRAIGHT_CURVATURE

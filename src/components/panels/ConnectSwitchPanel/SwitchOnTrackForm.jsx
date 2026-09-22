@@ -9,6 +9,7 @@ import { wgs84ToUTM, utmToWgs84 } from '../../../utils/coordinateUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
   SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, switchStraightLength, computeSwitchGeometryUtm, switchRouteVaries,
+  piecesOnRadius,
 } from '../../../utils/switchUtils'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { placeSwitchOnTrack, clickStation } from '../../../utils/switchPlacement'
@@ -157,8 +158,15 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
     if ((reversed ? total - toeStation : toeStation) <= MIN_BEHIND) return { error: noRoom }
     const place = placeSwitchOnTrack(track, toeStation, reversed, straightLen)
     if (place.error) return { error: place.error === 'switch_on_track_no_room' ? noRoom : t(place.error) }
+    // A symmetrical turnout has no straight side: unbent, its through route is
+    // the branch's mirror arc, so that is what the track it is carved from has
+    // to be — on anything else the turnout would stand beside its own through
+    // route. On it, it is the ordinary unbent form.
+    if (sw.symmetric && !piecesOnRadius(place.pieces, side === 'left' ? sw.R : -sw.R)) {
+      return { error: t('switch_on_track_symmetric').replace('{{r}}', String(sw.R)) }
+    }
     // On nothing but straights the turnout is the ordinary, unbent one.
-    const plain  = place.pieces.every(p => p.r1 == null && p.r2 == null)
+    const plain  = sw.symmetric || place.pieces.every(p => p.r1 == null && p.r2 == null)
     const toeWgs = utmToWgs84(place.toeUtm.easting, place.toeUtm.northing, track.epsg)
     return {
       error: null, place, plain,

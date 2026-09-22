@@ -29,7 +29,10 @@ import {
 
 const EPSG  = 25832
 const START = { easting: 500000, northing: 5600000, zone: EPSG }
-const FORM  = SWITCH_TYPES[2]
+// An ordinary form with a straight through route, found by name: by position
+// this was 300 – 1:9 until AP R.9 put the symmetrical turnout in front of it,
+// whose through route is an arc the straight element built below is not.
+const FORM  = SWITCH_TYPES.find(form => form.label === '300 – 1:9')
 const toWgs = (u) => utmToWgs84(u.easting, u.northing, u.zone)
 
 function straightElement(startUtm, bearing, length) {

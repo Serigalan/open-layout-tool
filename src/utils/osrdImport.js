@@ -4,7 +4,7 @@ import {
   reverseElement,
 } from './elementUtils'
 import {
-  SWITCH_CONNECTION_STAGES, switchBranchSections, switchStraightLength,
+  ALL_SWITCH_TYPES, switchBranchSections, switchStraightLength,
   CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius, computeCrossingGeometryUtm,
   lcsLine, switchFillRing,
   switchLabelGeometry, bauform,
@@ -47,7 +47,10 @@ const ARC_TOL = 0.01   // 1 cm of arc length when identifying the switch type
 function matchSwitchType(absR, arcLen, endLen = 0) {
   let best = null
   let bestErr = Infinity
-  for (const type of SWITCH_CONNECTION_STAGES.flat()) {
+  // Every turnout form, not only those a connection builds from: a file hands
+  // back whatever was drawn, the symmetrical turnout and the Sonderbauformen
+  // included.
+  for (const type of ALL_SWITCH_TYPES) {
     if (Math.abs(type.R - absR) > 1e-6) continue
     const sections = switchBranchSections(type)
     const arcs = sections.filter(section => section.R != null)
@@ -234,11 +237,18 @@ function rebuildSwitch(sw, trackById) {
   ]
 
   // The through route runs the form's whole building length, end piece included.
+  // A symmetrical turnout's is the branch's mirror arc rather than a straight.
   const straightLen = type ? switchStraightLength(type) : 2 * absR * Math.tan(arcLen / (2 * absR))
+  const stemR       = type?.symmetric ? -arcEl.radius : null
   const nodeUtm     = { easting: arcEl.startNode[0], northing: arcEl.startNode[1], zone: epsg }
-  const straightUtm = endPointStraightUtm(nodeUtm, arcEl.bearing, straightLen)
+  const straightUtm = stemR
+    ? endPointCurvedUtm(nodeUtm, arcEl.bearing, straightLen, stemR)
+    : endPointStraightUtm(nodeUtm, arcEl.bearing, straightLen)
   const straightEnd = utmToWgs84(straightUtm.easting, straightUtm.northing, epsg)
   const node        = arc[0]
+  const stemCoords  = stemR
+    ? (arcCoordsFromRadiusUtm(nodeUtm, straightUtm, stemR, SAGITTA_ELEMENT) ?? [node, straightEnd])
+    : [node, straightEnd]
 
   const name     = sw.extensions?.sncf?.label ?? sw.id
   const label    = type?.label
@@ -250,11 +260,15 @@ function rebuildSwitch(sw, trackById) {
   if (endEl) mark(endStored, 'branch')
 
   // The straight side is its own track when the switch was built onto a track
-  // end: one straight element of exactly that length. Then it belongs to the
-  // switch too — that is the element the map labels with the switch type.
+  // end: one element of exactly that length — straight, or the mirror arc of a
+  // symmetrical turnout. Then it belongs to the switch too — that is the
+  // element the map labels with the switch type.
   const straightTrack = trackById[ports.B2?.track]
   const straightEls   = straightTrack?.elements ?? []
-  if (straightEls.length === 1 && straightEls[0].radius == null
+  const b2 = straightEls.length === 1 && ports.B2?.endpoint === 'END'
+    ? reverseElement(straightEls[0]) : straightEls[0]
+  const onStem = (r) => (stemR == null ? r == null : r != null && Math.abs(r - stemR) < 1e-6)
+  if (straightEls.length === 1 && onStem(b2.radius ?? null)
       && Math.abs((straightEls[0].length ?? 0) - straightLen) < 0.001) {
     mark(straightEls[0], 'main')
   }
@@ -272,10 +286,10 @@ function rebuildSwitch(sw, trackById) {
     portA_trackId:  ports.A?.track     ?? null, portA_endpoint:  ports.A?.endpoint  ?? null,
     portB1_trackId: ports.B1.track,             portB1_endpoint: ports.B1.endpoint,
     portB2_trackId: ports.B2?.track    ?? null, portB2_endpoint: ports.B2?.endpoint ?? null,
-    fillCoords: switchFillRing([node, straightEnd], branchCoords),
+    fillCoords: switchFillRing(stemCoords, branchCoords),
     ...switchLabelGeometry(nodeUtm, arcEl.bearing,
-      { length: straightLen, radius: null }, branchChain, epsg),
-    bauform: bauform(null, arcEl.radius ?? null),
+      { length: straightLen, radius: stemR }, branchChain, epsg),
+    bauform: bauform(stemR, arcEl.radius ?? null),
     ...(lcsCoords ? { lcsCoords } : {}),
   }
 }
