@@ -14,6 +14,12 @@ from .geometry import (
     arc_center, arc_sweep, arc_bearing_at, RAD2DEG,
 )
 
+# Arcs that turn opposite ways need the S-curve solver, and it takes exactly
+# two of them. Three alternating arcs between one pair of straights is a shape
+# nobody builds and one more unknown than the heading and the exit line can
+# pin down.
+S_ARCS = 2
+
 
 def load_tracks(path):
     with open(path, encoding="utf-8") as fh:
@@ -126,8 +132,10 @@ def _read_group(els, entry_idx, i, last):
         break
     if i > last or not is_straight(els[i]):
         raise _Unreadable("Bögen müssen zwischen Geraden liegen.")
-    if len({els[k]["radius"] > 0 for k in arc_idxs}) > 1:
-        raise _Unreadable("S-Bögen ohne Zwischengerade werden nicht unterstützt.")
+    signs = [els[k]["radius"] > 0 for k in arc_idxs]
+    if len(set(signs)) > 1 and len(arc_idxs) != S_ARCS:
+        raise _Unreadable("Mehr als zwei gegensinnige Bögen ohne Zwischengerade "
+                          "werden nicht unterstützt.")
     return _build_group(els, entry_idx, arc_idxs, t_idxs, i), i
 
 
@@ -194,10 +202,20 @@ def _build_group(els, entry_idx, arc_idxs, t_idxs, exit_idx):
     b1 = _bearing_from_nodes(entry)
     b2 = _bearing_from_nodes(exit_)
     trans = [els[k] if k is not None else None for k in t_idxs]
+    signs = [1.0 if els[k]["radius"] > 0 else -1.0 for k in arc_idxs]
     return {
         "entry_idx": entry_idx, "arc_idxs": arc_idxs, "t_idxs": t_idxs, "exit_idx": exit_idx,
         "p1": tuple(entry["startNode"]), "d1": dir_of(b1), "b1": b1,
         "p2": tuple(exit_["endNode"]), "d2": dir_of(b2), "b2": b2,
+        # Which way each arc turns. For a same-side group the corner itself
+        # says it, but an S-curve has to be told, and the cant step over the
+        # ramp between its arcs is their sum rather than their difference.
+        "signs": signs,
+        "s_curve": len(set(signs)) > 1,
+        # Where along the entry line the curve begins. The S-curve solver keeps
+        # this as it is instead of solving for it — see fit_s_group.
+        "s_entry": math.hypot(entry["endNode"][0] - entry["startNode"][0],
+                              entry["endNode"][1] - entry["startNode"][1]),
         "arcs": [{
             "r_alt": abs(els[k]["radius"]),
             # Cant is stored signed (following the curve); the solver works with

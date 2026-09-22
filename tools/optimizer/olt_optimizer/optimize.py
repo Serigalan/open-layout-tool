@@ -21,7 +21,7 @@ only change where the ramps on both sides of arc i exist to carry the step.
 import math
 
 from .geometry import (
-    fit_compound_group, permissible_speed, sample_transition, sample_arc,
+    fit_compound_group, fit_s_group, permissible_speed, sample_transition, sample_arc,
     max_dist_to_polyline, radius_for_speed, snap_down, snap_up, RAMP_FACTOR,
     U_MAX, U_MAX_SWITCH, UF_MAX_SWITCH, U_STEP, R_STEP, R_MIN, L_STEP,
 )
@@ -86,7 +86,14 @@ def ramp_lengths(g, v, us):
     """
     min_len = 0.2 * v
     n = len(g["arcs"])
-    du = [us[0]] + [abs(us[i + 1] - us[i]) for i in range(n - 1)] + [us[-1]]
+    # Signed, because the cant follows the curve: over the ramp between the two
+    # arcs of an S the rail goes from one side to the other, and that step is
+    # their sum, not their difference. For a same-side group the signs cancel
+    # out and this is the plain difference it always was.
+    signed_u = [sign * u for sign, u in zip(g["signs"], us)]
+    du = ([abs(signed_u[0])]
+          + [abs(signed_u[i + 1] - signed_u[i]) for i in range(n - 1)]
+          + [abs(signed_u[-1])])
     lengths = []
     for i in range(n + 1):
         if not g["has_t"][i]:
@@ -142,8 +149,13 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=
     proposed = trans_l is None
     if proposed:
         trans_l, min_len = ramp_lengths(g, v, us)
-    fit = fit_compound_group(p1, g["d1"], g["b1"], p2, g["d2"], g["b2"],
-                             radii, thetas_free, trans_l, g["types"])
+    if g["s_curve"]:
+        fit = fit_s_group(p1, g["d1"], g["b1"], p2, g["d2"], g["b2"],
+                          [sign * r for sign, r in zip(g["signs"], radii)],
+                          trans_l, g["types"], g["s_entry"])
+    else:
+        fit = fit_compound_group(p1, g["d1"], g["b1"], p2, g["d2"], g["b2"],
+                                 radii, thetas_free, trans_l, g["types"])
     if fit is None:
         return None
     if proposed:
@@ -160,12 +172,17 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=
 
 
 def _max_radius_for(g, u, params):
-    """Largest useful R for a simple group at fixed cant (bisection).
+    """Largest useful R for a group whose arcs all take the same radius.
 
     Useful, not largest: past the radius that reaches the target speed the
     curve only moves further off the existing alignment for nothing.
+
+    One arc for a plain curve, both for an S — a symmetric S is what the
+    per-curve stage hands out, and the window stage tells the two radii apart
+    from there. The binding arc is the tightest one, so the search starts at it.
     """
-    r_alt = g["arcs"][0]["r_alt"]
+    n = len(g["arcs"])
+    r_alt = min(a["r_alt"] for a in g["arcs"])
     cap = _radius_cap(g, u, params, r_alt)
     # Every probe is snapped, so the search runs on the radii a run may hand
     # out and never converges on something between two metres. It is the
@@ -173,7 +190,7 @@ def _max_radius_for(g, u, params):
     # centimetre, and v goes with the square root of R — those last seven
     # rounds of the full feasibility check were worth 0.001 km/h.
     feasible = lambda radius: evaluate_group(                                # noqa: E731
-        g, [max(R_MIN, snap_down(radius, R_STEP))], [u], [], params)
+        g, [max(R_MIN, snap_down(radius, R_STEP))] * n, [u] * n, [], params)
     lo = hi = None
     if feasible(r_alt):
         lo = r_alt
@@ -224,7 +241,7 @@ def _bestand_solution(g, params):
     """
     radii = [a["r_alt"] for a in g["arcs"]]
     us = [a["u_alt"] for a in g["arcs"]]
-    thetas = [a["sweep_alt"] for a in g["arcs"][:-1]]
+    thetas = [] if g["s_curve"] else [a["sweep_alt"] for a in g["arcs"][:-1]]
     return evaluate_group(g, radii, us, thetas, params, trans_l=g["t_len"])
 
 
@@ -257,10 +274,16 @@ def baseline(groups, params, window=None, target_gi=None):
         if window is not None and j != target_gi:
             solutions.append(_bestand_solution(g, params))
             continue
-        if len(g["arcs"]) > 1:
+        # A compound curve enters at its existing geometry — its arcs have
+        # radii and sweep splits of their own, and only the joint stage can
+        # tell them apart. An S is different: its sweeps are solved by the fit,
+        # so a symmetric search over radius and cant is exactly what it needs,
+        # and without it the joint stage has no usable place to start from.
+        if len(g["arcs"]) > 1 and not g["s_curve"]:
             solutions.append(_bestand_solution(g, params))
             continue
-        u_alt = g["arcs"][0]["u_alt"]
+        n_arcs = len(g["arcs"])
+        u_alt = min(a["u_alt"] for a in g["arcs"])
         # The whole grid, below the existing cant as well as above it. Less cant
         # asks for shorter ramps, and the length that frees can buy more radius
         # than the cant gave away — on a switch route, where the cant ceiling is
@@ -270,7 +293,7 @@ def baseline(groups, params, window=None, target_gi=None):
         # one that is over its limit, and it only ever lowers such a cant where
         # that buys speed.
         u_values = [u_alt]
-        if _u_variable(g, 0):
+        if all(_u_variable(g, i) for i in range(n_arcs)):
             u = 0.0
             while u <= u_max_for(g):
                 if u != u_alt:
@@ -281,7 +304,8 @@ def baseline(groups, params, window=None, target_gi=None):
         # it is a fact, not a suggestion — so where its ramps are too short for
         # the cant it carries, every rule-abiding answer comes out slower. Such
         # a group is left alone rather than talked down.
-        v_alt = permissible_speed(g["arcs"][0]["r_alt"], u_alt, uf_for(g, params))
+        v_alt = min(permissible_speed(a["r_alt"], a["u_alt"], uf_for(g, params))
+                    for a in g["arcs"])
         best, best_key = None, None
         for u in u_values:
             cand = _max_radius_for(g, u, params)
@@ -354,14 +378,22 @@ def _shifted_anchor(point, bearing_dir, s):
     return (point[0] + s * normal[0], point[1] + s * normal[1])
 
 
+def _n_vars(g):
+    """What a group contributes to the search vector: a radius and a cant per
+    arc, plus the sweep splits — except an S-curve, whose sweeps the fit solves
+    rather than the search."""
+    n = len(g["arcs"])
+    return 2 * n if g["s_curve"] else 3 * n - 1
+
+
 def _layout(ctx):
     """Variable layout: shifts, then per live group [R_1..R_n, u_1..u_n, th_1..th_{n-1}]."""
     slices = []
     pos = len(ctx["straight_ids"])
     for j in ctx["live"]:
-        n = len(ctx["groups"][j]["arcs"])
-        slices.append((pos, n))
-        pos += 3 * n - 1
+        g = ctx["groups"][j]
+        slices.append((pos, len(g["arcs"])))
+        pos += _n_vars(g)
     return slices, pos
 
 
@@ -389,7 +421,8 @@ def _decode(x, ctx):
             # Down to nothing, up to the ceiling — quantized here in the
             # objective, so every evaluated candidate is directly usable.
             us.append(snap_down(_clamp(x[pos + n + i], 0.0, u_max_for(g)), U_STEP))
-        thetas = [max(1e-4, x[pos + 2 * n + i]) for i in range(n - 1)]
+        thetas = ([] if g["s_curve"]
+                  else [max(1e-4, x[pos + 2 * n + i]) for i in range(n - 1)])
         per_group.append((radii, us, thetas))
     return shifts, per_group
 
@@ -470,12 +503,15 @@ def _window_context(groups, params, held, held_shifts, live,
         g, sol = groups[j], held[j]
         radii = sol["radii"] if sol else [a["r_alt"] for a in g["arcs"]]
         us = sol["us"] if sol else [a["u_alt"] for a in g["arcs"]]
-        thetas = sol["thetas_free"] if sol else [a["sweep_alt"] for a in g["arcs"][:-1]]
+        thetas = (sol["thetas_free"] if sol
+                  else ([] if g["s_curve"] else [a["sweep_alt"] for a in g["arcs"][:-1]]))
         x0 += list(radii) + list(us) + list(thetas)
         bounds += [(max(R_MIN, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
         bounds += [(0.0, max(a["u_alt"], u_max_for(g))) for a in g["arcs"]]
-        bounds += [(max(1e-3, 0.2 * a["sweep_alt"]), min(math.pi, 2.5 * max(a["sweep_alt"], 1e-3)))
-                   for a in g["arcs"][:-1]]
+        if not g["s_curve"]:
+            bounds += [(max(1e-3, 0.2 * a["sweep_alt"]),
+                        min(math.pi, 2.5 * max(a["sweep_alt"], 1e-3)))
+                       for a in g["arcs"][:-1]]
     # The polish at the end of a window is unconstrained, so a held solution can
     # carry a radius from outside the box it was searched in. It stays — it was
     # judged on its geometry, not on the box — but the next window may not be

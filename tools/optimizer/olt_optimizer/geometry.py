@@ -432,6 +432,130 @@ def fit_compound_group(p1, d1, b1, p2, d2, b2, radii, sweeps_free, trans_l, type
     }
 
 
+def _march(p1, d1, b1, s_entry, signed, thetas, trans_l, types):
+    """Walk transition-arc-…-transition from `s_entry` along the entry line.
+
+    Returns (segments, end point, end bearing). Unlike `fit_compound_group`'s
+    inner march the arcs carry their own sign, so they may turn either way.
+    """
+    n = len(signed)
+    pos = (p1[0] + s_entry * d1[0], p1[1] + s_entry * d1[1])
+    brg = b1
+    segments = []
+    for i in range(n + 1):
+        length = trans_l[i]
+        if length > 0:
+            r1 = None if i == 0 else signed[i - 1]
+            r2 = None if i == n else signed[i]
+            segments.append({"kind": "transition", "start": pos, "bearing": brg,
+                             "L": length, "r1": r1, "r2": r2, "type": types[i]})
+            ee, en, eb = transition_end(pos[0], pos[1], brg, length, r1, r2, types[i])
+            pos, brg = (ee, en), eb
+        if i == n:
+            break
+        start, start_brg = pos, brg
+        pos, brg = _arc_forward(pos[0], pos[1], brg, signed[i], thetas[i])
+        segments.append({"kind": "arc", "start": start, "end": pos, "signed_r": signed[i],
+                         "sweep": thetas[i], "bearing": start_brg, "end_bearing": brg})
+    return segments, pos, brg
+
+
+S_BRACKET_STEPS = 64        # ladder rungs searched for a sign change in theta_1
+S_BISECT_STEPS = 60
+S_THETA_MIN = 1e-6          # below any sweep a real curve has
+S_THETA_MAX = 1.2           # rad; beyond this an S between two straights is none
+
+
+def fit_s_group(p1, d1, b1, p2, d2, b2, signed, trans_l, types, s_entry):
+    """Fit an S-curve — arcs that turn opposite ways — between two tangents.
+
+    The same-side solver cannot do this. It closes the heading by handing the
+    last arc whatever sweep is left of the corner's total turn, then slides the
+    whole shape along the entry line until it meets the exit line. Between two
+    near-parallel straights — which is what an S-curve is usually for, moving a
+    track sideways — sliding along the entry line barely changes the distance to
+    the exit line, so that last step is worthless exactly where it is needed.
+
+    Here the shape itself closes the gap. The heading fixes one sweep against
+    the other (their turns are opposed, so their difference is what the corner
+    asks for), which leaves a single unknown: how far the first arc sweeps. The
+    sideways distance to the exit line grows with it, from nothing at all to
+    more than any corridor allows, so it is bracketed and bisected. `s_entry` —
+    where along the entry line the curve begins — stays as it is: an S-curve
+    slid along its own line lands the same way, so there is nothing to solve
+    there, and leaving it fixed keeps the curve where the track has it.
+    """
+    n = len(signed)
+    side = [1.0 if r >= 0 else -1.0 for r in signed]
+    if n != 2 or side[0] == side[1]:
+        return None
+
+    # The turn the arcs have to contribute between them, once the transitions
+    # have had their say — measured by marching with no sweep at all.
+    _, _, flat = _march(p1, d1, b1, s_entry, signed, [0.0] * n, trans_l, types)
+    delta = ((((b2 - flat) + 540.0) % 360.0) - 180.0) * DEG2RAD
+
+    def thetas_for(theta1):
+        theta2 = (delta - side[0] * theta1) / side[1]
+        return [theta1, theta2]
+
+    n2 = (-d2[1], d2[0])
+
+    def lateral(theta1):
+        thetas = thetas_for(theta1)
+        if min(thetas) <= 1e-7 or sum(thetas) > math.pi:
+            return None
+        _, end, _ = _march(p1, d1, b1, s_entry, signed, thetas, trans_l, types)
+        return (end[0] - p2[0]) * n2[0] + (end[1] - p2[1]) * n2[1]
+
+    # Bracket theta_1 on a ladder, then bisect. A ladder rather than a Newton
+    # step because the sideways distance goes with the square of the sweep near
+    # zero, where its slope vanishes and a Newton step walks straight out of the
+    # useful range. The ladder is geometric and starts at practically nothing:
+    # a railway S sweeps a few hundredths of a radian, so a linear ladder over
+    # the whole range would step straight over the answer — and the first rung
+    # has to sit below every reachable root, or a root beneath it is missed.
+    lo = hi = None
+    prev_t = prev_f = None
+    for k in range(S_BRACKET_STEPS + 1):
+        theta = S_THETA_MIN * (S_THETA_MAX / S_THETA_MIN) ** (k / S_BRACKET_STEPS)
+        value = lateral(theta)
+        if value is None:
+            break
+        if prev_f is not None and (value < 0.0) != (prev_f < 0.0):
+            lo, hi = prev_t, theta
+            break
+        prev_t, prev_f = theta, value
+    if lo is None:
+        return None
+
+    f_lo = lateral(lo)
+    for _ in range(S_BISECT_STEPS):
+        mid = 0.5 * (lo + hi)
+        f_mid = lateral(mid)
+        if f_mid is None:
+            hi = mid
+            continue
+        if (f_mid < 0.0) == (f_lo < 0.0):
+            lo, f_lo = mid, f_mid
+        else:
+            hi = mid
+    thetas = thetas_for(lo)
+    segments, end, brg = _march(p1, d1, b1, s_entry, signed, thetas, trans_l, types)
+    if abs(lateral(lo)) > 1e-6:
+        return None
+    return {
+        "segments": segments,
+        "cl_start": segments[0]["start"],
+        "cl_end": end,
+        "entry_len": s_entry,
+        "exit_len": (p2[0] - end[0]) * d2[0] + (p2[1] - end[1]) * d2[1],
+        "thetas": thetas,
+        "signed": list(signed),
+        "curve_side": "s",
+    }
+
+
 # ── Distances (numpy-accelerated when available) ─────────────────────────────
 
 try:

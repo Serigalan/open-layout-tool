@@ -18,14 +18,14 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from olt_optimizer.geometry import (          # noqa: E402
     transition_shift, fit_curve_group, fit_compound_group, dir_of,
     permissible_speed, radius_for_speed, max_dist_to_polyline, snap_down, snap_up,
-    RAMP_FACTOR, R_STEP, L_STEP,
+    fit_s_group, RAMP_FACTOR, R_STEP, L_STEP,
 )
 from olt_optimizer.track_io import (          # noqa: E402
     parse_groups, build_elements, is_straight, _straight_element,
     _transition_element, _arc_element_seg, _element_ref_points,
 )
 from olt_optimizer.optimize import (        # noqa: E402
-    baseline, capped, joint_optimize, u_max_for, uf_for, window_for,
+    baseline, capped, joint_optimize, ramp_lengths, u_max_for, uf_for, window_for,
     _bestand_solution, _interior_straights, _max_radius_for,
 )
 from olt_optimizer.api import optimize_payload                # noqa: E402
@@ -591,16 +591,19 @@ ok("die Bögen drumherum werden trotzdem schneller",
    gap_res["vNeu"] > gap_res["vBestand"] + 1)
 
 # Erst wenn gar nichts lesbar ist, wird abgelehnt — und dann mit dem Grund.
-for label, kinds in (("nur eine Rampe zwischen Geraden", "GUG"),
-                     ("S-Bogen ohne Zwischengerade", "GBbG")):
-    plain = [{"elementType": 0, "startNode": [0, 0], "endNode": [1, 1], "length": 1.0},
-             {"elementType": 2, "startNode": [1, 1], "endNode": [2, 2], "length": 1.0},
-             {"elementType": 0, "startNode": [2, 2], "endNode": [3, 3], "length": 1.0}]
-    if kinds == "GBbG":
-        plain = [plain[0],
-                 {"elementType": 1, "radius": 700.0, "startNode": [1, 1], "endNode": [2, 2], "length": 1.0},
-                 {"elementType": 1, "radius": -700.0, "startNode": [2, 2], "endNode": [3, 3], "length": 1.0},
-                 plain[2]]
+_G = {"elementType": 0, "startNode": [0, 0], "endNode": [1, 1], "length": 1.0}
+_U = {"elementType": 2, "startNode": [1, 1], "endNode": [2, 2], "length": 1.0}
+
+
+def _arc_of(radius):
+    return {"elementType": 1, "radius": radius, "startNode": [1, 1],
+            "endNode": [2, 2], "length": 1.0}
+
+
+for label, plain in (
+        ("nur eine Rampe zwischen Geraden", [_G, _U, _G]),
+        ("drei gegensinnige Bögen ohne Zwischengerade",
+         [_G, _arc_of(700.0), _arc_of(-700.0), _arc_of(700.0), _G])):
     try:
         parse_groups({**track3, "elements": plain})
         ok(f"{label} → abgelehnt", False)
@@ -694,6 +697,72 @@ ok("bei Gleichstand bleibt die Überhöhung möglichst, wie sie war", all(
    abs(s["us"][0] - g["arcs"][0]["u_alt"]) <= 25.0 for g, s in zip(groups, tie) if s))
 ok("und das Ziel wird trotzdem erreicht",
    all(s is None or s["v"] >= tie_target - 1e-6 for s in tie))
+
+
+# ── 12) S-Bögen ohne Zwischengerade ─────────────────────────────────────────
+# Zwei gegensinnige Bögen zwischen zwei Geraden — die Gleisverziehung, mit der
+# ein Gleis seitlich versetzt wird. Der Gleichsinn-Löser kann das nicht: er
+# schließt die Richtung über den letzten Bogen und schiebt die Form dann auf der
+# Eingangsgeraden, bis sie die Ausgangsgerade trifft. Zwischen nahezu parallelen
+# Geraden ändert dieses Schieben den Abstand aber kaum — also löst `fit_s_group`
+# stattdessen die Form selbst.
+SB = 40.0
+SD = dir_of(SB)
+SN = (-SD[1], SD[0])
+SP1 = (500000.0, 5600000.0)
+S_OFFSET = 6.0
+SP2 = (SP1[0] + 900 * SD[0] + S_OFFSET * SN[0], SP1[1] + 900 * SD[1] + S_OFFSET * SN[1])
+s_fit2 = fit_s_group(SP1, SD, SB, SP2, SD, SB, [-600.0, 600.0], [40.0, 40.0, 40.0],
+                     ["clothoid"] * 3, 270.0)
+ok("S-Bogen: Fit existiert", s_fit2 is not None)
+ok("S-Bogen: Ende liegt auf der Ausgangsgeraden",
+   abs((s_fit2["cl_end"][0] - SP2[0]) * SN[0]
+       + (s_fit2["cl_end"][1] - SP2[1]) * SN[1]) < 1e-6)
+s_els2 = build_from_fit(s_fit2, [40.0, 40.0], SP1, SP2)
+s_track2 = {"id": "py-sbogen", "name": "s.001", "epsg": EPSG, "elements": s_els2}
+check_chain(s_els2, "S-Bogen-Seed")
+ok("S-Bogen-Seed: die Bögen drehen gegensinnig",
+   len({el["radius"] > 0 for el in s_els2 if el["elementType"] == 1}) == 2)
+
+s_groups2 = parse_groups(s_track2)
+ok("S-Bogen: eine Gruppe, als S erkannt",
+   len(s_groups2) == 1 and s_groups2[0]["s_curve"]
+   and len(s_groups2[0]["arcs"]) == 2 and s_groups2[0]["signs"] == [-1.0, 1.0])
+s_best2 = _bestand_solution(s_groups2[0], params)
+ok("S-Bogen: der Bestand ist reproduzierbar", s_best2 is not None)
+ok(f"S-Bogen: die Bestandslage trifft das Gleis "
+   f"({(s_best2 or {}).get('offset', 9) * 100:.3f} cm)",
+   s_best2 is not None and s_best2["offset"] < 1e-3)
+
+# Über die Mittelrampe springt die Überhöhung von einer Seite auf die andere.
+s_lens, _ = ramp_lengths(s_groups2[0], 120.0, [70.0, 70.0])
+ok("S-Bogen: die Mittelrampe rechnet mit der Summe der Überhöhungen",
+   abs(s_lens[1] - snap_up(RAMP_FACTOR["clothoid"] * 120.0 * 140.0 / 1000.0, L_STEP)) < 1e-9)
+ok("S-Bogen: die Außenrampen rechnen mit der einzelnen Überhöhung",
+   abs(s_lens[0] - snap_up(RAMP_FACTOR["clothoid"] * 120.0 * 70.0 / 1000.0, L_STEP)) < 1e-9)
+
+s_res2 = optimize_payload(s_track2, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+                          maxiter=25, seed=1)
+ok("S-Bogen: der Lauf nimmt ihn an, statt ihn zu überspringen", not s_res2["skipped"])
+print(f"   S-Bogen: Bestand {s_res2['vBestand']:.1f} → {s_res2['vNeu']:.1f} km/h, "
+      f"R {s_res2['report'][0]['rAlt']:.0f}/{s_res2['report'][1]['rAlt']:.0f} → "
+      f"{s_res2['report'][0].get('rNeu', 0):.0f}/{s_res2['report'][1].get('rNeu', 0):.0f} m")
+ok("S-Bogen: nie schlechter als der Bestand", s_res2["vNeu"] >= s_res2["vBestand"] - 1e-6)
+ok("S-Bogen: er wird auch wirklich schneller", s_res2["vNeu"] > s_res2["vBestand"] + 5)
+ok("S-Bogen: die Bögen werden dabei weiter", all(
+   r["rNeu"] > r["rAlt"] + 1 for r in s_res2["report"] if r["changed"]))
+ok("S-Bogen: der Korridor wird eingehalten",
+   all(r["offsetCm"] <= 50.0 + 1e-6 for r in s_res2["report"] if r["changed"]))
+check_chain(s_res2["elements"], "S-Bogen optimiert")
+ok("S-Bogen: Endpunkte fix",
+   close_pt(s_res2["elements"][0]["startNode"], SP1)
+   and close_pt(s_res2["elements"][-1]["endNode"], SP2))
+ok("S-Bogen: die Bögen drehen weiter gegensinnig",
+   len({el["radius"] > 0 for el in s_res2["elements"] if el["elementType"] == 1}) == 2)
+ok("S-Bogen: Radien in ganzen Metern", all(
+   on_grid(abs(el["radius"]), R_STEP) for el in s_res2["elements"] if el["elementType"] == 1))
+s_measured = independent_offset(s_els2, s_res2["elements"])
+ok(f"S-Bogen: unabhängige Abrückung ≤ 51 cm ({s_measured * 100:.1f} cm)", s_measured <= 0.51)
 
 
 print()
