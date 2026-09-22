@@ -5,6 +5,8 @@ import { transitionCantEnds } from '../utils/clothoidUtils'
 import { crsLabel } from '../utils/coordinateUtils'
 import { switchKindLabelKey, switchRouteLabelKey } from '../utils/switchModel'
 import { elementStations } from '../utils/platformUtils'
+import { checkTrack } from '../utils/trassierungCheck'
+import { ruleById, severityLabelKey } from '../utils/regelkatalog'
 import useTrackPick from '../hooks/useTrackPick'
 import {
   cantSign, cantDefLevel, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned,
@@ -224,6 +226,14 @@ export default function TrackTableOverlay({
 
   const current  = tracks.find(tr => tr.id === track.id) ?? track
   const elements = current.elements ?? []
+
+  // What the rule catalogue says about this chain (AP R.7). It belongs here of
+  // all places: this table is where the speed, the cant and the radius a rule
+  // reads are typed, so the verdict lands in the same row as its cause —
+  // recomputed from the saved chain, which is what the rules are about. Left
+  // to the React compiler to hold on to rather than memoised by hand: a manual
+  // useMemo here is what makes it give up on the whole component.
+  const check = checkTrack(elements)
   // Where each element starts along the track, and how long the whole of it is
   // — from the working copy, so both follow an unsaved length straight away.
   const stations = elementStations(current)
@@ -407,6 +417,25 @@ export default function TrackTableOverlay({
       .replace('{{v}}', String(vMax ?? '–'))
   }
 
+  // What the catalogue said about one row. The cell carries the worst of it,
+  // the tooltip every rule that fired — an id, its step and the rule's own
+  // title, because "Warnung" alone says nothing about what to change.
+  const ruleClass = (entry) => `track-table-rule track-table-rule-${entry?.severity ?? 'none'}`
+
+  const ruleText = (entry) => {
+    if (!entry || entry.unchecked) return '–'
+    return entry.severity === 'ok' ? '✓' : t(severityLabelKey(entry.severity))
+  }
+
+  const ruleNote = (entry) => {
+    if (!entry || entry.unchecked) return t('table_rules_unchecked')
+    const fired = entry.results.filter(result => result.severity !== 'ok')
+    if (!fired.length) return t('table_rules_ok')
+    return fired
+      .map(result => `${result.id} · ${t(severityLabelKey(result.severity))}: ${ruleById(result.id)?.title ?? ''}`)
+      .join('\n')
+  }
+
   // A bearing is shown, never typed: an element starts where the one before it
   // ended, and the chain is what sets that. Typing one here would turn a single
   // cell into a rotation of everything behind it.
@@ -501,6 +530,7 @@ export default function TrackTableOverlay({
           <thead>
             <tr>
               <th>#</th>
+              <th title={t('table_rules_hint')}>{t('table_rules')}</th>
               <th title={t('table_station_hint')}>{t('table_station')} (m)</th>
               <th>{t('table_type')}</th>
               <th>{t('table_bearing')} (°)</th>
@@ -533,6 +563,9 @@ export default function TrackTableOverlay({
                   onClick={() => setActiveRow(i)}
                   onFocus={() => setActiveRow(i)}>
                   <td>{i + 1}</td>
+                  <td className={ruleClass(check.perElement[i])} title={ruleNote(check.perElement[i])}>
+                    {ruleText(check.perElement[i])}
+                  </td>
                   <td>{textCell(lengthText(stations[i]?.start))}</td>
                   <td title={hintNote(el) ?? switchNote(el)}>{textCell(typeLabel(el), {
                     wide: true,

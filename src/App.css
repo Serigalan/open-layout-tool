@@ -1366,6 +1366,24 @@
   width: 160px;
 }
 
+/* What the rule catalogue said about a row (AP R.7). One cell, the worst of
+   it, in the colour of its step — the tooltip carries the rules themselves.
+   The ladder runs grey → amber → orange → violet → red, so a glance down the
+   column finds the worst row without reading a word of it. */
+.track-table-rule {
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.track-table-rule-none    { color: #bbb; font-weight: 400; }
+.track-table-rule-ok      { color: #2e7d32; }
+.track-table-rule-hint    { color: #6b7280; }
+.track-table-rule-warning { color: #e08b00; }
+.track-table-rule-approval { color: #d35400; }
+.track-table-rule-special_case { color: #6a1b9a; }
+.track-table-rule-error   { color: #c0392b; }
+
 /* A cant a switch route carries on a written exception: inside the rules, but
    not the ordinary case, so it is marked without being called an error. Over the
    limit the cell takes .input-error instead. */
@@ -1564,6 +1582,33 @@
 
 .constraints-where {
   color: #888;
+}
+
+/* A limit as the catalogue writes it — an expression, not prose. Set apart
+   from the words around it, one per line, because two of them run together
+   read as one. */
+.constraints-expr {
+  display: block;
+  margin-top: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  color: #1a1a2e;
+  white-space: normal;
+}
+
+/* The ladder of severities, as a legend above the rules that use it. */
+.constraints-severities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+}
+
+.constraints-severity {
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 260px;
 }
 
 .constraints-note,

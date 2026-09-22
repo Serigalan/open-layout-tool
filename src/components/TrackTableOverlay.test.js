@@ -57,9 +57,11 @@ function renderTable(track = TRACK) {
     track, project: { id }, map: { current: null }, t,
     onPickTrack: () => {}, onClose: () => {}, onSaved: () => {},
   }))
-  const columns = [...html.matchAll(/<th[^>]*>(.*?)<\/th>/g)].map(m => m[1].replace(/<[^>]+>/g, ''))
-  const rows = html.match(/<tr[^>]*>(?:(?!<\/tr>).)*<\/tr>/g).slice(1).map(row =>
-    [...row.matchAll(/<td([^>]*)>(.*?)<\/td>/g)].map(([, attrs, inner]) => {
+  // Newline-tolerant: a title may hold several lines (the rule column lists one
+  // finding per line), and `.` would stop at the first of them.
+  const columns = [...html.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map(m => m[1].replace(/<[^>]+>/g, ''))
+  const rows = html.match(/<tr[^>]*>(?:(?!<\/tr>)[\s\S])*<\/tr>/g).slice(1).map(row =>
+    [...row.matchAll(/<td([^>]*)>([\s\S]*?)<\/td>/g)].map(([, attrs, inner]) => {
       // An input cell says its value in the attribute; a plain one is its text.
       const value = /value="([^"]*)"/.exec(inner)
       const title = /title="([^"]*)"/.exec(attrs)
@@ -225,5 +227,37 @@ describe('saving', () => {
   it('is nothing to press while the table holds no edits', () => {
     const { html } = renderTable()
     expect(/class="track-table-save-btn"[^>]*disabled/.test(html)).toBe(true)
+  })
+})
+
+describe('the rule column', () => {
+  it('states the worst the catalogue found, and names every finding behind it', () => {
+    const { cell } = renderTable()
+    // 100 km/h through R 500 on 100 mm of cant: 136 mm of deficiency, past the
+    // 130 the rulebook allows — and the Regelüberhöhung there is 130, not 100.
+    expect(cell(0, 'Regeln').text).toBe('Fehler')
+    expect(cell(0, 'Regeln').note).toContain('LP.KB.02')
+    expect(cell(0, 'Regeln').note).toContain('LP.KB.04')
+  })
+
+  it('ticks a row that keeps every rule it was measured against', () => {
+    const clean = {
+      id: 't2', name: 'Gleis 2', epsg: 5678,
+      elements: [
+        straight({ cant: 0 }),
+        // A clothoid long enough for the cant ramp it carries (65 mm at 100 km/h).
+        { elementType: 2, bearing: 30.1, endBearing: 30.1, length: 65, speed: 100, r1: null, r2: 1000, geometry: GEOM },
+        arc({ radius: 1000, cant: 65 }),
+      ],
+    }
+    const { cell } = renderTable(clean)
+    expect(cell(2, 'Regeln').text).toBe('✓')
+    expect(cell(2, 'Regeln').note).toBe(t('table_rules_ok'))
+  })
+
+  it('says outright where there is no design speed to judge by', () => {
+    const { cell } = renderTable({ ...TRACK, id: 't3', elements: [straight({ speed: 0 })] })
+    expect(cell(0, 'Regeln').text).toBe('–')
+    expect(cell(0, 'Regeln').note).toBe(t('table_rules_unchecked'))
   })
 })

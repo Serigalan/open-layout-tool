@@ -3,7 +3,17 @@ import { fetchRegelwerke, fetchRegelwerk } from '../utils/optimizerService'
 import { flattenRegelwerk } from '../utils/regelwerkView'
 import { appValueFor } from '../utils/constraintsView'
 import { WEICHEN_REGELWERK_ID } from '../utils/weichenRegelwerk'
+import { CATALOG_ID, KATALOG } from '../utils/regelkatalog'
 import WeichenRegelwerk from './WeichenRegelwerk'
+import RegelkatalogView from './RegelkatalogView'
+
+// The ones that live in this repo rather than on the service: nothing is
+// fetched for them, and they are what is left to show once the service has
+// answered with nothing.
+const BUNDLED = [
+  { id: CATALOG_ID, name: KATALOG.catalog.title },
+  { id: WEICHEN_REGELWERK_ID, nameKey: 'constraints_weichen' },
+]
 
 /**
  * The regelwerke a layout is held to — the values a railway administration
@@ -42,19 +52,19 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
   }, [])
 
   // The served ones first — a run is measured against one of those, and one of
-  // those is what the optimizer panel's link asks for — then the bundled
-  // forms, which are always there and are therefore what is left to fall back
-  // on once the service has answered with nothing.
+  // those is what the optimizer panel's link asks for — then the bundled ones,
+  // which are always there and are therefore what is left to fall back on once
+  // the service has answered with nothing.
   const alle = [
     ...(regelwerke ?? []).map(rw => ({ id: rw.id, name: rw.name })),
-    { id: WEICHEN_REGELWERK_ID, name: t('constraints_weichen') },
+    ...BUNDLED.map(rw => ({ id: rw.id, name: rw.nameKey ? t(rw.nameKey) : rw.name })),
   ]
-  const id = wanted || regelwerke?.[0]?.id || (regelwerke ? WEICHEN_REGELWERK_ID : '')
-  const istWeichen = id === WEICHEN_REGELWERK_ID
+  const id = wanted || regelwerke?.[0]?.id || (regelwerke ? CATALOG_ID : '')
+  const istGebuendelt = BUNDLED.some(rw => rw.id === id)
 
   useEffect(() => {
     // Nothing to fetch for a bundled regelwerk — the service does not know it.
-    if (!id || id === WEICHEN_REGELWERK_ID) return
+    if (!id || BUNDLED.some(rw => rw.id === id)) return
     let cancelled = false
     fetchRegelwerk(id).then(rw => {
       if (cancelled) return
@@ -63,7 +73,7 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
     return () => { cancelled = true }
   }, [id])
 
-  const current = !istWeichen && status?.id === id ? status : null
+  const current = !istGebuendelt && status?.id === id ? status : null
   const regelwerk = current?.regelwerk ?? null
   const failed = !!current?.failed
   const rows = regelwerk ? flattenRegelwerk(regelwerk) : []
@@ -101,11 +111,12 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
         {regelwerke?.length === 0 && (
           <p className="constraints-error">{t('constraints_service_down')}</p>
         )}
-        {istWeichen && <WeichenRegelwerk t={t} />}
+        {id === CATALOG_ID && <RegelkatalogView t={t} />}
+        {id === WEICHEN_REGELWERK_ID && <WeichenRegelwerk t={t} />}
         {/* Three states, said apart: still asking, asked and no server, and
             the table itself. A panel that needs the service says so rather
             than showing an empty table. */}
-        {!istWeichen && !failed && !regelwerk && (
+        {!istGebuendelt && !failed && !regelwerk && (
           <p className="constraints-hint">{t('constraints_loading')}</p>
         )}
         {failed && (
