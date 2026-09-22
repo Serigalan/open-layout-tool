@@ -287,11 +287,11 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
 }
 
 
-function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
+function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
   if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
   if (view === 'places')   return <CreateConnectPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'settings') return <SettingsPanel language={language} onLanguageChange={onLanguageChange} color={color} onColorChange={onColorChange} t={t} />
-  if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} />
+  if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} onCloseConstraints={onCloseConstraints} />
   if (view === 'connect_switch') return <ConnectSwitchPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowRegelwerk={onShowRegelwerk} />
   if (view === 'elevation') return <ElevationPanel t={t} map={map} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
@@ -576,6 +576,14 @@ export default function App() {
     setRegelwerkOverlay({ regelwerkId })
   }, [])
 
+  // Now that the popup only covers the map pane (not the panel that opened
+  // it), the edit panel's own submenu buttons stay reachable while one is up
+  // — this is what they call to close it on their way to a different page.
+  const handleCloseConstraints = useCallback(() => {
+    setPhysicsOpen(false)
+    setRegelwerkOverlay(null)
+  }, [])
+
   const handleShowTrackTable = useCallback((tr, row) => {
     if (tr) { setTrackTable(tr); setTrackTableInitialRow(row ?? null) }
     else closeTrackTable(() => setTrackTable(null))
@@ -708,6 +716,7 @@ export default function App() {
             onShowTrackTable={handleShowTrackTable}
             onShowPhysics={handleShowPhysics}
             onShowRegelwerk={handleShowRegelwerk}
+            onCloseConstraints={handleCloseConstraints}
             onProjectImported={handleProjectImported}
             profileTrackId={profileTrackId}
             onShowProfile={setProfileTrackId}

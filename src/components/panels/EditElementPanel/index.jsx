@@ -12,8 +12,14 @@ import {
   ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon, PhysicsIcon, RegelwerkIcon,
 } from '../../../components/icons'
 
-export default function EditElementPanel({ t, map, project, trackTableId, onTrackSaved, onShowTrackTable, onShowPhysics, onShowRegelwerk }) {
+export default function EditElementPanel({ t, map, project, trackTableId, onTrackSaved, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints }) {
   const [page, setPage] = useState('menu')
+
+  // A constraints popup no longer covers this panel's own menu (it only fills
+  // the map pane now), so its submenu buttons stay reachable while one is
+  // open — and clicking any of them, unlike the two that open a popup, is how
+  // it closes again.
+  const goto = (next) => { onCloseConstraints?.(); setPage(next) }
 
   // Which track to edit is picked on the map as readily as from the list: while
   // the list is up and no table is open yet, a click on a track opens it, and
@@ -110,33 +116,33 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
       <h2>{t('edit')}</h2>
       <div className="create-element-options">
         <span className="create-element-section">{t('edit_element')}</span>
-        <button className="create-element-btn" onClick={() => setPage('edit_length')}>
+        <button className="create-element-btn" onClick={() => goto('edit_length')}>
           <EditLengthIcon />
           {t('edit_element_edit_length')}
         </button>
-        <button className="create-element-btn" onClick={() => setPage('delete')}>
+        <button className="create-element-btn" onClick={() => goto('delete')}>
           <DeleteElementIcon />
           {t('edit_element_delete')}
         </button>
         <span className="create-element-section">{t('edit_track')}</span>
-        <button className="create-element-btn" onClick={() => setPage('edit_tracks')}>
+        <button className="create-element-btn" onClick={() => goto('edit_tracks')}>
           <EditTracksIcon />
           {t('edit_element_edit_tracks')}
         </button>
-        <button className="create-element-btn" onClick={() => setPage('edit_properties')}>
+        <button className="create-element-btn" onClick={() => goto('edit_properties')}>
           <EditPropertiesIcon />
           {t('edit_track_properties')}
         </button>
-        <button className="create-element-btn" onClick={() => setPage('change_direction')}>
+        <button className="create-element-btn" onClick={() => goto('change_direction')}>
           <ChangeDirectionIcon />
           {t('edit_change_direction')}
         </button>
-        <button className="create-element-btn" onClick={() => setPage('delete_track')}>
+        <button className="create-element-btn" onClick={() => goto('delete_track')}>
           <DeleteTrackIcon />
           {t('edit_track_delete')}
         </button>
         <span className="create-element-section">{t('edit_switch')}</span>
-        <button className="create-element-btn" onClick={() => setPage('delete_switch')}>
+        <button className="create-element-btn" onClick={() => goto('delete_switch')}>
           <DeleteSwitchIcon />
           {t('switch_delete')}
         </button>

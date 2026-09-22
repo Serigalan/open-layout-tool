@@ -20,10 +20,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 0;
-  /* Above .constraints-overlay's full-page fixed layer (z-index: 15) — the
-     icon rail has to stay clickable on top of it, since clicking one of its
-     icons is what closes that overlay. */
-  z-index: 20;
+  z-index: 10;
 }
 
 .sidebar-top,
@@ -1480,26 +1477,15 @@
    so by carrying its classes), with one difference that matters: these cells
    hold prose — a reason, a derivation — so they wrap instead of running off to
    the right the way a row of numbers may. */
-/* Unlike the element table, this covers the whole page rather than sitting
-   over the map: it is read-only reference material, not a workspace beside
-   something a track edit still needs to see. `position: fixed` takes it out
-   of the map pane's own box (`.track-table-overlay` is `absolute` within
-   that pane) and `inset: 0` sizes it to the viewport regardless of the
-   `bottom`/`height` that rule sets — those are overridden here explicitly
-   rather than left to fight a percentage height against four offsets.
-   `.sidebar-primary`'s z-index is raised past this one so the icon rail
-   stays visible and clickable on top of it: switching to another panel is
-   how this overlay is meant to be dismissed, see handleIconClick in
-   App.jsx. */
+/* Fills the map pane top to bottom rather than sitting over just its lower
+   half/two-thirds — but stays *inside* that pane: both sidebars (the icon
+   rail and whichever panel is open) stay visible at the edge, unlike the
+   element table this shell is otherwise borrowed from. `position: absolute`
+   is inherited from `.track-table-overlay`; only `top`/`height` need
+   overriding here to reach all the way up. */
 .constraints-overlay {
-  position: fixed;
   top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  width: auto;
   height: auto;
-  z-index: 15;
 }
 
 .constraints-scroll {
