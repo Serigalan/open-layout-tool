@@ -566,9 +566,13 @@ export default function App() {
 
   // Picking another track keeps the edits — they are the table's, not one
   // track's — so only closing it (null) has to be asked about.
-  const handleShowPhysics = useCallback(() => setPhysicsOpen(true), [])
+  const handleShowPhysics = useCallback(() => {
+    setRegelwerkOverlay(null)   // only one of the two is ever meant to be up
+    setPhysicsOpen(true)
+  }, [])
 
   const handleShowRegelwerk = useCallback((regelwerkId = '') => {
+    setPhysicsOpen(false)       // only one of the two is ever meant to be up
     setRegelwerkOverlay({ regelwerkId })
   }, [])
 
