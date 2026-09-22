@@ -3,7 +3,7 @@
 """
 
 from .geometry import permissible_speed
-from .optimize import baseline, capped, joint_optimize, uf_for, window_for
+from .optimize import baseline, binding_reason, capped, joint_optimize, uf_for, window_for
 from .regelwerk import RegelwerkError, load_regelwerk, params_from_regelwerk
 from .track_io import parse_groups, build_elements
 
@@ -97,6 +97,10 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
     report = []
     for j in report_gis:
         g, sol = groups_used[j], solutions[j]
+        # One reason per group, not per arc: v, offset and the ramps are group-
+        # level facts (AP R.4) — a compound or S group's arcs share what binds
+        # them, bar the cant ceiling, which binding_reason already names by arc.
+        reason = binding_reason(g, sol, params) if sol is not None else None
         for i, arc in enumerate(g["arcs"]):
             v_alt = permissible_speed(arc["r_alt"], arc["u_alt"], uf_for(g, params))
             row = {
@@ -110,6 +114,7 @@ def optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="auto",
                     "rNeu": sol["radii"][i], "uNeu": sol["us"][i],
                     "vNeu": permissible_speed(sol["radii"][i], sol["us"][i], uf_for(g, params)),
                     "offsetCm": sol["offset"] * 100.0,
+                    "grund": reason,
                 })
             report.append(row)
 

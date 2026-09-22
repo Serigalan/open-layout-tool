@@ -8,6 +8,7 @@ import { HIT_TOLERANCE, ZOOM_LINE_WIDTH } from '../../utils/mapConstants'
 import useTrackHover from '../../hooks/useTrackHover'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
 import { truncateHeights } from '../../utils/heightUtils'
+import { grundText } from '../../utils/optimizeReport'
 import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../icons'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
@@ -307,6 +308,9 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
                   <>
                     r {Math.round(r.rAlt)} → {Math.round(r.rNeu)} m · u {r.uAlt} → {r.uNeu} mm<br />
                     v {r.vAlt.toFixed(0)} → {r.vNeu.toFixed(0)} km/h · {t('optimize_offset_used')} {r.offsetCm.toFixed(0)} cm
+                    {grundText(t, r.grund) && (
+                      <><br /><span style={{ color: '#888' }}>{grundText(t, r.grund)}</span></>
+                    )}
                   </>
                 ) : (
                   <span style={{ color: '#888' }}>{t('optimize_unchanged')}</span>

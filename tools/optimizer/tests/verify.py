@@ -27,8 +27,8 @@ from olt_optimizer.track_io import (          # noqa: E402
     _transition_element, _arc_element_seg, _element_ref_points,
 )
 from olt_optimizer.optimize import (        # noqa: E402
-    baseline, capped, joint_optimize, ramp_lengths, u_max_for, uf_for, window_for,
-    _bestand_solution, _interior_straights, _max_radius_for,
+    baseline, binding_reason, capped, joint_optimize, ramp_lengths, u_max_for, uf_for,
+    window_for, _bestand_solution, _interior_straights, _max_radius_for,
 )
 from olt_optimizer.api import optimize_payload                # noqa: E402
 from olt_optimizer import regelwerk as regelwerk_mod           # noqa: E402
@@ -408,6 +408,10 @@ ok("Weiche: gleiche Geometrie, aber weniger v als die Streckengruppe",
 sw_sols, _, _ = joint_optimize(sw_groups, params, maxiter=40, seed=1)
 ok("Weiche: auch die Joint-Optimierung bleibt unter 100 mm",
    all(u <= 100.0 for u in sw_sols[0]["us"]))
+ok("Grund (AP R.4): an der Weichengrenze steht die Weiche, nicht die Strecke",
+   binding_reason(sw_groups[0], sw_base[0], params) == {"regel": "weiche", "arc": 1, "ist": 100.0, "soll": 100.0})
+ok("Grund: die Streckengruppe hängt an der Rampenregel, nicht an der Überhöhungsdecke",
+   binding_reason(groups[0], base[0], params)["regel"] == "rampenregel")
 
 # Ein Bestandswert über der Grenze ist ein Befund für die Elementtabelle, keine
 # Rechenreserve: er wird weder angehoben noch stillschweigend gekappt.
@@ -536,6 +540,8 @@ print(f"   Ziel {V_TARGET:.0f}: ohne Deckel {v_free['vNeu']:.1f} km/h bei {off_f
 ok("Ziel wird erreicht", v_cap["vNeu"] >= V_TARGET - 1e-6)
 ok("und nicht nennenswert überschritten", v_cap["vNeu"] < V_TARGET + 2.0)
 ok("der Deckel rückt das Gleis weniger ab", off_cap < off_free - 1.0)
+ok("Grund: am Ziel steht die Zielgeschwindigkeit (AP R.4)", all(
+   r["grund"]["regel"] == "zielgeschwindigkeit" for r in v_cap["report"] if r["changed"]))
 
 # Ein Bogen, der den Bestand schon schneller macht als das Ziel, wird in Ruhe
 # gelassen — ein Lauf verbessert eine Trasse, er flacht keine ab.
@@ -761,6 +767,8 @@ ok("S-Bogen: die Bögen werden dabei weiter", all(
    r["rNeu"] > r["rAlt"] + 1 for r in s_res2["report"] if r["changed"]))
 ok("S-Bogen: der Korridor wird eingehalten",
    all(r["offsetCm"] <= 50.0 + 1e-6 for r in s_res2["report"] if r["changed"]))
+ok("Grund: im engen Korridor bindet der Korridor, nicht die Rampenregel",
+   all(r["grund"]["regel"] == "korridor" for r in s_res2["report"] if r["changed"]))
 check_chain(s_res2["elements"], "S-Bogen optimiert")
 ok("S-Bogen: Endpunkte fix",
    close_pt(s_res2["elements"][0]["startNode"], SP1)

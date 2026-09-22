@@ -142,6 +142,9 @@ try:
        and set(body) >= {"elements", "report", "variant", "vBestand", "vBaseline", "vNeu",
                         "shifts", "skipped", "regelwerk"})
     ok("Antwort nennt das verwendete Regelwerk", body.get("regelwerk") == "db-ril-800")
+    ok("jede geänderte Reportzeile nennt ihren Grund (AP R.4)",
+       all(isinstance(r.get("grund"), dict) and r["grund"].get("regel")
+          for r in body["report"] if r["changed"]))
     ok("Korbbogen bleibt eine Gruppe mit zwei Bögen",
        len({r["group"] for r in body["report"]}) == 1
        and [r["arc"] for r in body["report"]] == [1, 2]

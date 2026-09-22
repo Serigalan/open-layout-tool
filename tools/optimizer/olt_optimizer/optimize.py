@@ -183,6 +183,45 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=
             "v": v, "trans_l": trans_l, "fit": fit, "offset": offset}
 
 
+def binding_reason(g, sol, params):
+    """Which rule a group's accepted solution sits against (AP R.4) — read off
+    the numbers it was accepted with, in the order a designer would check
+    them: target speed, cant ceiling, corridor, ramp rule. This is descriptive,
+    not a trace of the search that found the solution — the window stage's
+    differential evolution has no single constraint it stopped at, unlike the
+    per-curve stage's bisection, and pretending to reconstruct one would be
+    fiction. It reads `sol`'s own numbers, no re-fitting — one report row's
+    worth of comparisons, not another pass through the search.
+
+    Returns None where nothing is tight — most often an unchanged (Bestand)
+    row, or one a bare grid step still has room to grow in.
+    """
+    v = sol["v"]
+    v_max = params.get("v_max")
+    if v_max and v >= v_max - 1e-6:
+        return {"regel": "zielgeschwindigkeit", "ist": v, "soll": v_max}
+
+    u_max = u_max_for(g, params)
+    u_hit = next((i for i, u in enumerate(sol["us"]) if abs(u - u_max) < 1e-6), None)
+    if u_hit is not None:
+        regel = "weiche" if g.get("on_switch") else "ueberhoehung"
+        return {"regel": regel, "arc": u_hit + 1, "ist": sol["us"][u_hit], "soll": u_max}
+
+    corridor = params["corridor"]
+    corridor_eps = max(1e-4, corridor * 0.02)
+    if sol["offset"] >= corridor - corridor_eps:
+        return {"regel": "korridor", "ist": sol["offset"], "soll": corridor}
+
+    l_step = params.get("l_step", L_STEP)
+    floor_len = snap_up(params.get("min_length_coeff", MIN_LENGTH_COEFF) * v, l_step)
+    ramp_hit = next((i for i, length in enumerate(sol["trans_l"]) if length > floor_len + 1e-9), None)
+    if ramp_hit is not None:
+        return {"regel": "rampenregel", "slot": ramp_hit + 1,
+                "ist": sol["trans_l"][ramp_hit], "soll": floor_len}
+
+    return None
+
+
 def _max_radius_for(g, u, params):
     """Largest useful R for a group whose arcs all take the same radius.
 
