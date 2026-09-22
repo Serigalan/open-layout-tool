@@ -1452,6 +1452,103 @@
   color: #888;
 }
 
+/* ── Constraints popup ───────────────────────────────────────────────────────
+   The same shell as the element table (it is the same kind of popup, and says
+   so by carrying its classes), with one difference that matters: these cells
+   hold prose — a reason, a derivation — so they wrap instead of running off to
+   the right the way a row of numbers may. */
+/* Taller than the element table: three tables of prose, read once and closed
+   again, against a table of numbers that is worked in beside the map. */
+.constraints-overlay {
+  height: 60%;
+}
+
+.constraints-scroll {
+  padding: 0 16px 16px;
+}
+
+.constraints-section {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 14px 0 4px;
+}
+
+.constraints-subsection {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  margin: 12px 0 4px;
+}
+
+.constraints-hint,
+.constraints-error {
+  font-size: 12px;
+  margin: 0 0 6px;
+}
+
+.constraints-hint {
+  color: #888;
+}
+
+.constraints-error {
+  color: #e74c3c;
+}
+
+.constraints-table th {
+  padding-left: 0;
+}
+
+.constraints-table td {
+  white-space: normal;
+  vertical-align: top;
+  padding-left: 0;
+  padding-right: 16px;
+}
+
+/* The value itself stays on one line; anything said about it goes underneath,
+   which is what makes the lines below blocks rather than a second column of
+   mostly empty cells. */
+.constraints-value {
+  white-space: nowrap;
+  font-weight: 600;
+  min-width: 90px;
+}
+
+.constraints-where {
+  color: #888;
+}
+
+.constraints-note,
+.constraints-formula,
+.constraints-app-mismatch {
+  display: block;
+  margin-top: 3px;
+  font-weight: 400;
+  white-space: normal;
+}
+
+.constraints-note {
+  font-size: 11px;
+  color: #888;
+}
+
+.constraints-formula {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #444;
+}
+
+/* The app holds a handful of these values itself, for the dialogs that judge a
+   cant on every keystroke. Agreeing is a quiet note; disagreeing — a service
+   deployed from another commit than this bundle — is the one thing on this
+   read-only page a reader has to act on. */
+.constraints-app-mismatch {
+  font-size: 11px;
+  color: #c0392b;
+  font-weight: 600;
+}
+
 .transition-curve-row {
   display: flex;
   align-items: center;

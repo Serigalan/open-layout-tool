@@ -190,6 +190,16 @@ export const DeleteSwitchIcon = () => (
   </MenuIcon>
 )
 
+// Constraints — an alignment running between two limits it may not cross. The
+// bounds are the regelwerk, the curve between them is what a run is allowed to
+// be; nothing here is a track symbol, because nothing here is one track.
+export const ConstraintsIcon = () => (
+  <MenuIcon>
+    <path d="M2 3 H14 M2 13 H14" />
+    <path d="M3 12 Q8 12 8 8 Q8 4 13 4" opacity="0.6" />
+  </MenuIcon>
+)
+
 // Optimize track panel — the alignment as it is, and the optimized variant as
 // the dashed ghost of it.
 export const OptimizeTrackModeIcon = () => (

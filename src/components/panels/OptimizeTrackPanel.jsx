@@ -9,7 +9,6 @@ import useTrackHover from '../../hooks/useTrackHover'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
 import { truncateHeights } from '../../utils/heightUtils'
 import { grundText } from '../../utils/optimizeReport'
-import RegelwerkView from './RegelwerkView'
 import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../icons'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
@@ -61,7 +60,7 @@ function reshapedHeights(track, elements) {
 // `initialPage`/`onExit` are what the merged splice-and-optimize panel passes:
 // it opens the panel straight in a mode and takes the back button back to its
 // own menu. Standalone, the panel starts in its own menu as before.
-export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, initialPage = 'menu', onExit }) {
+export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, initialPage = 'menu', onExit, onShowConstraints }) {
   const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element'
   const mode = page
   const [phase, setPhase]         = useState('select')
@@ -73,7 +72,6 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
   const [vMax, setVMax]           = useState('')     // '' → kein Ziel, offen nach oben
   const [regelwerke, setRegelwerke] = useState([])   // [{id,name,version,gueltigAb}], AP R.3
   const [regelwerkId, setRegelwerkId] = useState('') // '' → Dienst-Vorgabe
-  const [showRegelwerk, setShowRegelwerk] = useState(false)  // AP R.5: der Regelwerk-Viewer
   const [selectHint, setSelectHint] = useState(null)
   const [running, setRunning]     = useState(false)
   const [run, setRun]             = useState(null)    // { key, result? , error? }
@@ -237,13 +235,6 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
     )
   }
 
-  if (showRegelwerk) {
-    return (
-      <RegelwerkView t={t} id={regelwerkId || regelwerke[0]?.id}
-        onBack={() => setShowRegelwerk(false)} />
-    )
-  }
-
   const changed = result?.report.filter(r => r.changed).length ?? 0
   const canCommit = changed > 0
   return (
@@ -283,7 +274,9 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
             ) : (
               <input type="text" readOnly value={regelwerke[0].name} />
             )}
-            <button type="button" onClick={() => setShowRegelwerk(true)} style={{
+            {/* The same popup the edit panel opens, on the regelwerk this
+                run would use — one viewer, not a second copy of the table. */}
+            <button type="button" onClick={() => onShowConstraints?.(regelwerkId || regelwerke[0].id)} style={{
               fontSize: 11, marginTop: 2, background: 'none', border: 'none', padding: 0,
               color: '#5b9bd5', textDecoration: 'underline', cursor: 'pointer',
             }}>

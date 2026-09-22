@@ -9,10 +9,10 @@ import DeleteTrackForm from './DeleteTrackForm'
 import DeleteSwitchForm from './DeleteSwitchForm'
 import {
   BackIcon, EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
-  ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon,
+  ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon, ConstraintsIcon,
 } from '../../../components/icons'
 
-export default function EditElementPanel({ t, map, project, trackTableId, onTrackSaved, onShowTrackTable }) {
+export default function EditElementPanel({ t, map, project, trackTableId, onTrackSaved, onShowTrackTable, onShowConstraints }) {
   const [page, setPage] = useState('menu')
 
   // Which track to edit is picked on the map as readily as from the list: while
@@ -139,6 +139,15 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
         <button className="create-element-btn" onClick={() => setPage('delete_switch')}>
           <DeleteSwitchIcon />
           {t('switch_delete')}
+        </button>
+        {/* Not an object on the map but the rules every object is held to, so
+            it gets a section of its own rather than a place among the tracks
+            and switches — and, like the track editor, a popup rather than a
+            panel page: the tables are wider than the sidebar. */}
+        <span className="create-element-section">{t('edit_constraints')}</span>
+        <button className="create-element-btn" onClick={() => onShowConstraints?.()}>
+          <ConstraintsIcon />
+          {t('edit_constraints_view')}
         </button>
       </div>
     </>

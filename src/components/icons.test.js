@@ -21,7 +21,7 @@ const MENU_ICONS = [
   'SwitchStraightIcon', 'SwitchCurvedIcon', 'SwitchOnTrackIcon', 'SwitchConnectionIcon',
   'EditLengthIcon', 'DeleteElementIcon', 'EditTracksIcon', 'EditPropertiesIcon',
   'ChangeDirectionIcon', 'DeleteTrackIcon', 'DeleteSwitchIcon',
-  'OptimizeTrackModeIcon', 'OptimizeElementModeIcon',
+  'OptimizeTrackModeIcon', 'OptimizeElementModeIcon', 'ConstraintsIcon',
   'CrossingIcon', 'CrossingSwitchIcon', 'CrossingOnTrackIcon', 'SwitchLinkIcon',
   'SpliceJoinIcon', 'NewPlatformIcon', 'CrossSectionCutIcon',
 ]
