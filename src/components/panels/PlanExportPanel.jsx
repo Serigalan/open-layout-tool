@@ -105,6 +105,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
       switchText: {
         plain: t('switch_code_plain'), ibw: t('switch_code_ibw'),
         abw: t('switch_code_abw'), abw_straight: t('switch_code_abw_straight'),
+        sym: t('switch_code_sym'),
         rBranch: t('switch_r_sub_branch'), rMain: t('switch_r_sub_main'),
         cantException: t('switch_plan_cant_exception'),
       },

@@ -289,7 +289,9 @@ function rebuildSwitch(sw, trackById) {
     fillCoords: switchFillRing(stemCoords, branchCoords),
     ...switchLabelGeometry(nodeUtm, arcEl.bearing,
       { length: straightLen, radius: stemR }, branchChain, epsg),
-    bauform: bauform(stemR, arcEl.radius ?? null),
+    // A symmetrical turnout is not an ABW wearing its stem radius — see
+    // switchChainBauform.
+    bauform: type?.symmetric ? 'sym' : bauform(stemR, arcEl.radius ?? null),
     ...(lcsCoords ? { lcsCoords } : {}),
   }
 }

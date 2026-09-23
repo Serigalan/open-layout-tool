@@ -332,7 +332,7 @@ const line = (x1, y1, x2, y2, opts) => path([['M', x1, y1], ['L', x2, y2]], opts
  * a plan reads like the map it was drawn from. These are the fallbacks.
  */
 const SWITCH_TEXT = {
-  plain: 'EW', ibw: 'IBW', abw: 'ABW', abw_straight: 'ABW',
+  plain: 'EW', ibw: 'IBW', abw: 'ABW', abw_straight: 'ABW', sym: 'SYM',
   rBranch: 'z', rMain: 's', cantException: 'Ausnahme',
 }
 

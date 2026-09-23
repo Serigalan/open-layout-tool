@@ -297,7 +297,9 @@ describe('the forms outside the connection chain', () => {
         expect(d(g.portB1, g.portB2), at).toBeCloseTo(2 * 215 * (1 - Math.cos(Math.atan(1 / 4.8) / 2)), 6)
         const branchTurn = turn(g.curveBearing, g.branchEndBearing)
         expect(Math.abs(branchTurn), at).toBeCloseTo(alpha / 2, 9)
-        expect(g.bauform, at).toBe('abw')
+        // Not 'abw': a mirror pair of the same form is not an ordinary bent
+        // switch wearing the wrong name (switchChainBauform).
+        expect(g.bauform, at).toBe('sym')
       }
     }
   })

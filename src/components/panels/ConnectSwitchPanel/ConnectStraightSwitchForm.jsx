@@ -427,7 +427,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
 
       <div className="element-form">
         <span className="create-element-section">Geometry Data</span>
-        <SwitchFormField t={t} value={switchTypeIdx} onChange={handleSwitchTypeChange} />
+        <SwitchFormField t={t} value={switchTypeIdx} onChange={handleSwitchTypeChange} hideSymmetric={curved} />
         <div className="form-field">
           <label>{t('switch_side')}</label>
           <select value={side} onChange={e => setSide(e.target.value)}>

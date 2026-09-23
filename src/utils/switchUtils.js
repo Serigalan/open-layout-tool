@@ -277,6 +277,11 @@ export function branchRadius(formSignedR, stemSignedR) {
  * (inner-bent, the branch tighter than the form), 'abw' where they turn apart
  * (outer-bent, the branch opened up) and 'abw_straight' for that form's
  * limiting case, the stem radius at which the branch comes out straight.
+ *
+ * A symmetrical turnout is none of these — its two routes are mirror images of
+ * the same form, never a stem the form was laid onto — so a caller that has one
+ * answers 'sym' before it ever asks this. This function does not: it works from
+ * radii alone and has none to tell a mirror pair from an ordinary ABW.
  */
 export function bauform(stemSignedR, branchSignedR) {
   if (!stemSignedR) return 'plain'
@@ -525,8 +530,14 @@ export function switchBranchChain(formChain, stem) {
  * and ends in a curve counts as the bent one it mostly is. The branch there is
  * the stem plus the form, and the toe gives the form: κ_form = κ_branch(0) −
  * κ_stem(0).
+ *
+ * `symmetric` names it 'sym' outright: a symmetrical turnout's stem is the
+ * branch's own mirror arc, not a track the form was laid onto, so reading it
+ * against the form's curvature the way an ordinary bent switch is read would
+ * call it an ABW — a different form wearing the wrong name.
  */
-export function switchChainBauform(stem, branch) {
+export function switchChainBauform(stem, branch, symmetric = false) {
+  if (symmetric) return 'sym'
   const s = toChain(stem)
   const b = toChain(branch)
   let tightest = null
@@ -1093,7 +1104,7 @@ export function rebuildSwitchSymbol(sw, trackById) {
     ...rest,
     fillCoords: switchFillRing(mainCoords, branchCoords),
     ...switchLabelGeometry(node, bearing, stem, branch, epsg),
-    bauform: switchChainBauform(stem, branch),
+    bauform: switchChainBauform(stem, branch, type?.symmetric === true),
     ...(lcsCoords ? { lcsCoords } : {}),
   }
 }
@@ -1220,7 +1231,7 @@ export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, 
 
   return {
     straightCoords, arcCoords, fillCoords, ...labelGeom,
-    bauform: switchChainBauform(stemChain, branchChain),
+    bauform: switchChainBauform(stemChain, branchChain, symmetric),
     portA, portB1, portB2,
     portA_wgs, portB1_wgs, portB2_wgs,
     lcsCoords,

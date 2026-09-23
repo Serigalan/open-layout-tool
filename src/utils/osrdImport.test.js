@@ -121,7 +121,8 @@ describe('the symmetrical turnout', () => {
     // The mirror arc is its through route, so it is marked as one — the symbol
     // is read from it on load, and a straight would be drawn otherwise.
     expect(tracks.find(t => t.id === 'through').elements[0].switchRoute).toBe('main')
-    expect(switches[0].bauform).toBe('abw')
+    // Not 'abw': a mirror pair of the same form, not an ordinary bent switch.
+    expect(switches[0].bauform).toBe('sym')
   })
 })
 
