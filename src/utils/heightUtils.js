@@ -311,6 +311,26 @@ export function verticalCurve(points, i, steps = 24) {
   })
 }
 
+/**
+ * Height of the rounded gradient at a station [m]: the tangent polygon of
+ * `heightAt`, and inside a vertical curve the parabola `verticalCurve` draws.
+ * This is the height the track is built at — the polygon is only where its
+ * gradients meet. Null for a track without heights.
+ */
+export function gradientAt(heights, station) {
+  const z = heightAt(heights, station)
+  if (z == null) return null
+  for (let i = 1; i < heights.length - 1; i++) {
+    const t = tangentLength(heights, i)
+    const p = heights[i]
+    const x = station - p.station
+    if (!t || Math.abs(x) >= t) continue
+    const { before, after } = gradients(heights, i)
+    return p.z + before * x + (x + t) ** 2 * (after - before) / (4 * t)
+  }
+  return z
+}
+
 /** Every vertical curve of a point list, for drawing them. */
 export function verticalCurves(points, steps = 24) {
   return points.map((_, i) => verticalCurve(points, i, steps)).filter(Boolean)

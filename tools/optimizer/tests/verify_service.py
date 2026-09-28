@@ -271,6 +271,83 @@ finally:
     proc2.terminate()
     proc2.wait(10)
 
+# ── 6) Gelände: DGM1 der Länder, ohne Netz geprüft ──────────────────────────
+import io as _io          # noqa: E402
+import tempfile           # noqa: E402
+import zipfile            # noqa: E402
+
+from olt_optimizer import terrain                                   # noqa: E402
+
+
+def xyz_tile(ek, nk, half, z_of):
+    """Ein kleines Kachelarchiv wie Thüringen es liefert: 10 × 10 Zellen,
+    Zellmitten auf halben (2020–2025) oder ganzen Metern (2014–2019)."""
+    off = 0.5 if half else 0.0
+    lines = [f"{ek * 1000 + c + off:.2f} {nk * 1000 + 9 - r + off:.2f} {z_of(c, r):.2f}"
+             for r in range(10) for c in range(10)]
+    buf = _io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("kachel.xyz", "\n".join(lines))
+        zf.writestr("kachel.meta", "EPSG-Code Lage: 25832")
+    return buf.getvalue()
+
+
+tile = terrain.parse_xyz(b"10.5 21.5 100\n11.5 21.5 102\n10.5 20.5 104\n11.5 20.5 -9999", "t")
+ok("XYZ: Raster aus den Koordinaten, Nordzeile zuerst",
+   tile.grid.shape == (2, 2) and tile.x0 == 10.5 and tile.y0 == 21.5 and tile.grid[1, 0] == 104)
+ok("XYZ: Zellmitte trifft ihren Wert", tile.height(10.5, 21.5) == 100)
+ok("XYZ: bilinear zwischen zwei Zellen", abs(tile.height(11.0, 21.5) - 101) < 1e-9)
+ok("XYZ: kein Wert, wo eine Nachbarzelle keine Daten hat", tile.height(11.4, 20.6) is None)
+
+fetched = []
+archives = {
+    # 2020–2025 hat die Kachel 600/5600, nur 2014–2019 hat 601/5600.
+    "dgm1_32_600_5600_1_th_2020-2025.zip": xyz_tile(600, 5600, True, lambda c, r: 200 + c),
+    "dgm1_601_5600_1_th_2014-2019.zip": xyz_tile(601, 5600, False, lambda c, r: 300 + r),
+}
+
+
+def fake_fetch(url):
+    fetched.append(url)
+    return archives.get(url.rsplit("/", 1)[-1])
+
+
+with tempfile.TemporaryDirectory() as cache:
+    store = terrain.TileStore(cache_dir=cache, fetch=fake_fetch)
+    heights, sources = terrain.sample([[600_003.5, 5_600_005.5], [601_002.0, 5_600_007.0],
+                                       [602_000.0, 5_600_000.0], [400_000.0, 5_600_000.0],
+                                       ["x", None]], store)
+    ok("DGM1: Punkt aus dem jüngsten Jahrgang", heights[0] == 203.0
+       and sources[0] == "dgm1-th 2020-2025")
+    ok("DGM1: älterer Jahrgang, wo der jüngste die Kachel nicht hat", heights[1] == 302.0
+       and sources[1] == "dgm1-th 2014-2019")
+    ok("DGM1: keine Höhe, wo kein Jahrgang die Kachel hat", heights[2] is None and sources[2] is None)
+    ok("DGM1: außerhalb Thüringens wird gar nicht erst gefragt",
+       heights[3] is None and not any("_400_" in u for u in fetched))
+    ok("DGM1: unlesbarer Punkt → null statt Fehler", heights[4] is None)
+    count = len(fetched)
+    terrain.sample([[600_004.5, 5_600_004.5], [602_000.0, 5_600_000.0]], store)
+    ok("DGM1: geladene und fehlende Kacheln werden nicht erneut geholt", len(fetched) == count)
+    fresh = terrain.TileStore(cache_dir=cache, fetch=fake_fetch)
+    terrain.sample([[600_004.5, 5_600_004.5]], fresh)
+    ok("DGM1: Plattenablage überlebt den Neustart", len(fetched) == count)
+
+with tempfile.TemporaryDirectory() as cache:
+    proc3, BASE3 = start_server(OLT_TERRAIN_CACHE=cache)
+    try:
+        status, body, _ = call(BASE3, "/terrain", {"points": [[400_000.0, 5_600_000.0]]})
+        ok("/terrain: Punkt außerhalb jeder Quelle → null",
+           status == 200 and body == {"heights": [None], "sources": [None]})
+        status, body, _ = call(BASE3, "/terrain", {"punkte": []})
+        ok("/terrain: ohne Punktliste → 400 invalid_payload",
+           status == 400 and body == {"error": "invalid_payload"})
+        status, body, _ = call(BASE3, "/terrain", {"points": [[0, 0]] * 20001})
+        ok("/terrain: zu viele Punkte → 413 too_large",
+           status == 413 and body == {"error": "too_large"})
+    finally:
+        proc3.terminate()
+        proc3.wait(10)
+
 print()
 if FAILED:
     print(f"{len(FAILED)} FEHLGESCHLAGEN:")

@@ -1,6 +1,6 @@
 // Client for the server service (tools/optimizer, olt_optimizer/service.py) —
-// the optimizer and, on a second endpoint, the Access-file conversion for the
-// MDB import.
+// the optimizer and, on endpoints of their own, the Access-file conversion for
+// the MDB import and the Länder's DGM1 terrain.
 //
 // The optimizer runs on the server and nowhere else — there is no second
 // implementation in this bundle to fall back on. So every failure here is one
@@ -103,6 +103,35 @@ export async function optimizeOnServer(payload, { signal } = {}) {
   if (!res.ok) throw new OptimizerError(data?.error ?? 'unavailable', data?.message)
   if (data === null) throw new OptimizerError('unavailable')
   return data
+}
+
+/**
+ * Ground heights from the Länder's DGM1, which only the service can read (the
+ * Länder publish zipped tiles without a CORS header). `points` are
+ * [[easting, northing], ...] in EPSG:25832.
+ *
+ * Resolves with { heights, sources } — per point the height [m] and the dataset
+ * it came from, both null where no DGM1 has the point. Never throws: the
+ * terrain has sources to fall back on, so a service that cannot be asked
+ * answers null for every point, like one that has no data there.
+ */
+export async function terrainOnServer(points, { signal } = {}) {
+  const none = { heights: points.map(() => null), sources: points.map(() => null) }
+  try {
+    const res = await fetch(`${SERVICE}/terrain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ points }),
+      signal,
+    })
+    if (!res.ok) return none
+    const data = await res.json()
+    if (!Array.isArray(data?.heights) || data.heights.length !== points.length) return none
+    return { heights: data.heights, sources: data.sources ?? none.sources }
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err
+    return none
+  }
 }
 
 /**

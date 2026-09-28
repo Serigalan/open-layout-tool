@@ -2,16 +2,23 @@
  * The cross section of a track at a station: the running plane, the
  * superstructure carrying it and the clearance contour over it, all in
  * millimetres of the track's own frame — y across the track from its centre,
- * positive to the right seen in the running direction, z up from the running
- * plane, which is the top of the rail head.
+ * positive to the right seen in the running direction, z up from the top of
+ * the rail that is not raised. That rail is what the gradient states the
+ * height of (`track.heights`): the cant lifts the other one, in a curve the
+ * outer, so the inner rail keeps the gradient's height and the section turns
+ * about it.
  *
  * Nothing about the section is stored. It is derived from what the track and
  * the element already carry — cant, radius and the superstructure stated along
  * the track — so a section can never disagree with the alignment it belongs to.
+ * The same holds for what stands beside it: the other tracks the section line
+ * crosses, and the terrain along it, are found where the section is drawn.
  */
 
 import { transitionCantEnds } from './clothoidUtils'
-import { edgeOffsets, DEFAULT_PLATFORM_HEIGHT } from './platformUtils'
+import { edgeOffsets, elementStations, pointOnElement, DEFAULT_PLATFORM_HEIGHT } from './platformUtils'
+import { transformPlanePoint, utmToWgs84 } from './coordinateUtils'
+import { QUERSCHNITT_KATALOG } from './gaugeProfiles'
 
 /** Distance between the two running circles, and between the rail inner faces [mm]. */
 export const RUNNING_CIRCLE_DISTANCE = 1500
@@ -76,8 +83,7 @@ export function superstructureAt(track, station) {
 }
 
 /**
- * The angle the cant turns the section through [rad], about the centre of the
- * two running circles.
+ * The angle the cant turns the section through [rad].
  *
  * Cant is the height difference between the running circles, so the angle
  * follows from that distance alone: sin θ = u / 1500. Its sign follows the
@@ -88,6 +94,14 @@ export function superstructureAt(track, station) {
 export const cantAngle = (cant) =>
   -Math.asin(clamp((cant ?? 0) / RUNNING_CIRCLE_DISTANCE, -1, 1))
 
+/**
+ * The running circle the cant turns the section about: the one of the rail
+ * that stays down. A positive cant raises the left rail, so the section turns
+ * about the right one, and the other way round; without cant it does not
+ * matter which.
+ */
+export const cantPivot = (cant) => [(cant ?? 0) < 0 ? -HALF_RUNNING : HALF_RUNNING, 0]
+
 /** A point [y, z] turned about the origin by `angle`, the rotation the cant makes. */
 export const rotatePoint = ([y, z], angle) => {
   const c = Math.cos(angle), s = Math.sin(angle)
@@ -96,6 +110,12 @@ export const rotatePoint = ([y, z], angle) => {
 
 /** A polyline turned by the cant — the whole section rotates rigidly. */
 export const rotatePoints = (points, angle) => points.map(p => rotatePoint(p, angle))
+
+/** A polyline turned by `angle` about `pivot` instead of the origin. */
+export const rotatePointsAbout = (points, angle, [py, pz]) => points.map(([y, z]) => {
+  const [ry, rz] = rotatePoint([y - py, z - pz], angle)
+  return [ry + py, rz + pz]
+})
 
 /**
  * The mapping that fits a section into a drawing area: scale [px/mm] and the
@@ -205,35 +225,154 @@ function sleeperOutline(sleeper, railHeight) {
  *
  * The clearance contour turns with the track. That is what makes the drawing
  * worth having: the contour is fixed to the running plane, so the cant leans it
- * against whatever stands beside the track.
+ * against whatever stands beside the track. The turn is about the running
+ * circle of the rail that stays down (cantPivot), so that rail keeps the
+ * height the gradient gives it and the raised one climbs the full cant.
  */
 export function crossSection({ cant = 0, gaugeRing = [], gaugeAreas = [], rail = null, sleeper = null }) {
   const angle = cantAngle(cant)
+  const pivot = cantPivot(cant)
+  const turn = (points) => rotatePointsAbout(points, angle, pivot)
   const railProfile    = RAILS[rail] ?? null
   const sleeperProfile = SLEEPERS[sleeper] ?? null
   return {
     angle,
+    pivot,
     // The two running circles carry the running plane between them; the rail
     // inner faces sit the gauge apart on the same line.
-    runningCircles: rotatePoints([[-HALF_RUNNING, 0], [HALF_RUNNING, 0]], angle),
-    railFaces:      rotatePoints([[-HALF_GAUGE, 0], [HALF_GAUGE, 0]], angle),
-    gauge:          rotatePoints(gaugeRing, angle),
-    areas:          gaugeAreas.map(area => rotatePoints(area, angle)),
+    runningCircles: turn([[-HALF_RUNNING, 0], [HALF_RUNNING, 0]]),
+    railFaces:      turn([[-HALF_GAUGE, 0], [HALF_GAUGE, 0]]),
+    gauge:          turn(gaugeRing),
+    areas:          gaugeAreas.map(turn),
     rails: railProfile
-      ? [rotatePoints(railOutline(railProfile, -HALF_GAUGE, -1), angle),
-        rotatePoints(railOutline(railProfile, HALF_GAUGE, 1), angle)]
+      ? [turn(railOutline(railProfile, -HALF_GAUGE, -1)), turn(railOutline(railProfile, HALF_GAUGE, 1))]
       : [],
-    sleeper: sleeperProfile && railProfile
-      ? rotatePoints(sleeperOutline(sleeperProfile, railProfile.height), angle)
-      : [],
+    sleeper: sleeperProfile && railProfile ? turn(sleeperOutline(sleeperProfile, railProfile.height)) : [],
   }
+}
+
+/**
+ * The parts of a section moved into another track's frame: mirrored where
+ * that track runs the other way (its right is this one's left), then shifted
+ * across by `offset` and up by `dz` [mm]. Every part of a drawn section is a
+ * polyline or a list of them, and each goes through this the same way.
+ */
+export function placeSection(points, { offset = 0, dz = 0, mirrored = false } = {}) {
+  return points.map(([y, z]) => [(mirrored ? -y : y) + offset, z + dz])
+}
+
+/**
+ * Planum edge beyond the outermost track [mm]: the widest the Regelquerschnitte
+ * of Ril 800.0130 ask for. The section is fitted to reach at least that far, so
+ * the ground beside the track is in view and not only the track itself.
+ */
+export const PLANUM_EDGE = 1000 * Math.max(
+  ...QUERSCHNITT_KATALOG.streckenquerschnitte.rows.map(r => r.planumskante))
+
+/** The steepest another track may cross the section line and still be drawn in it [deg]. */
+const MAX_CROSSING_ANGLE = 45
+
+/**
+ * The other tracks the section line crosses within `reach` metres either side:
+ * where each one lies on the line, at which of its own stations, and whether it
+ * runs the other way. The line is the perpendicular through the station — the
+ * line a section is taken along.
+ *
+ * A track found here is drawn as its own section, standing upright on the
+ * line. That is what it is where it runs nearly parallel, which is what a
+ * station's tracks do; one crossing more steeply than MAX_CROSSING_ANGLE (a
+ * flyover, a level crossing) would be cut obliquely and drawn wrong, so it is
+ * left out.
+ *
+ * Resolves each crossing to a tenth of a millimetre along the other track by
+ * bisection between two samples on either side of the line. Elements that
+ * cannot reach the line are skipped before they are sampled — a station with a
+ * few hundred elements is walked on every move of the slider.
+ */
+export function sectionNeighbours(track, station, tracks, reach) {
+  const epsg = track?.epsg
+  const rows = elementStations(track)
+  if (!epsg || !rows.length) return []
+  const total = rows[rows.length - 1].end
+  const s0 = clamp(station, 0, total)
+  const row0 = rows.find(r => s0 <= r.end + 1e-9) ?? rows[rows.length - 1]
+  const { utm: o, bearing } = pointOnElement(row0.el, epsg, s0 - row0.start)
+  const rad = bearing * Math.PI / 180
+  const along = [Math.sin(rad), Math.cos(rad)]     // running direction
+  const right = [Math.cos(rad), -Math.sin(rad)]    // positive y of the section
+  const minCos = Math.cos(MAX_CROSSING_ANGLE * Math.PI / 180)
+
+  const found = []
+  for (const other of tracks ?? []) {
+    if (!other?.epsg || other.id === track.id) continue
+    const toHere = (p) => {
+      const [e, n] = transformPlanePoint(p.easting, p.northing, other.epsg, epsg)
+      return [e - o.easting, n - o.northing]
+    }
+    const dot = (v, w) => v[0] * w[0] + v[1] * w[1]
+    for (const row of elementStations(other)) {
+      const len = row.el.length ?? 0
+      if (!(len > 0)) continue
+      const start = toHere(pointOnElement(row.el, other.epsg, 0).utm)
+      if (Math.hypot(...start) > len + reach + 1) continue
+      const at = (s) => toHere(pointOnElement(row.el, other.epsg, s).utm)
+      const n = Math.max(1, Math.ceil(len / 2))
+      let prevS = 0, prevD = dot(start, along)
+      for (let k = 1; k <= n; k++) {
+        const s = len * k / n
+        const d = dot(at(s), along)
+        if ((prevD <= 0 && d > 0) || (prevD > 0 && d <= 0)) {
+          let lo = prevS, hi = s, dLo = prevD
+          for (let i = 0; i < 40 && hi - lo > 1e-4; i++) {
+            const mid = (lo + hi) / 2, dMid = dot(at(mid), along)
+            if ((dLo <= 0) === (dMid <= 0)) { lo = mid; dLo = dMid } else hi = mid
+          }
+          const sHit = (lo + hi) / 2
+          const y = dot(at(sHit), right)
+          const dir = pointOnElement(row.el, other.epsg, sHit).bearing * Math.PI / 180
+          const cos = Math.sin(dir) * along[0] + Math.cos(dir) * along[1]
+          if (Math.abs(y) <= reach && Math.abs(cos) >= minCos) {
+            found.push({ track: other, station: row.start + sHit, offset: y * 1000, mirrored: cos < 0 })
+          }
+        }
+        prevS = s
+        prevD = d
+      }
+    }
+  }
+  return found.sort((a, b) => a.offset - b.offset)
+}
+
+/**
+ * Where the terrain is read along the section line: every `step` metres from
+ * `from` to `to` (y in metres, positive to the right), each point as the
+ * offset across the track [mm] and its WGS84 position.
+ */
+export function sectionLinePoints(track, station, from, to, step = 1) {
+  const epsg = track?.epsg
+  const rows = elementStations(track)
+  if (!epsg || !rows.length || !(to > from) || !(step > 0)) return []
+  const total = rows[rows.length - 1].end
+  const s0 = clamp(station, 0, total)
+  const row = rows.find(r => s0 <= r.end + 1e-9) ?? rows[rows.length - 1]
+  const { utm, bearing } = pointOnElement(row.el, epsg, s0 - row.start)
+  const rad = bearing * Math.PI / 180
+  const n = Math.ceil((to - from) / step)
+  return Array.from({ length: n + 1 }, (_, i) => {
+    const y = from + (to - from) * i / n
+    return {
+      y: y * 1000,
+      lngLat: utmToWgs84(utm.easting + y * Math.cos(rad), utm.northing - y * Math.sin(rad), epsg),
+    }
+  })
 }
 
 /**
  * Outline of a platform in the frame the section is drawn in — the untilted
  * one, because a platform is laid level: the cant tilts the track under it,
- * not the platform with it. Its top sits the stated height over top of rail at
- * the track's centre (the origin the cant turns about), between the two edge
+ * not the platform with it. Its top sits the stated height over the rail that
+ * is not raised — the height the gradient states, which is also what
+ * platformEdgeElevation adds the platform height to — between the two edge
  * offsets; it reaches down to the underside of the superstructure.
  */
 export function platformSection(platform, { rail = DEFAULT_RAIL, sleeper = DEFAULT_SLEEPER } = {}) {

@@ -2,6 +2,9 @@
 
     POST /optimize        body: the panel's payload, answer: optimize_payload's result
     POST /mdb             body: an Access file, answer: its Satzarten as JSON
+    POST /terrain         body: {"points": [[e, n], ...]} in EPSG:25832, answer:
+                          {"heights": [...], "sources": [...]} from the Länder's
+                          DGM1, null where none has the point
     GET  /health          so the panel can say "no server" before the user clicks
     GET  /regelwerke      the rule catalogues a run may be held to: id, name and
                           the catalogue's own version
@@ -29,6 +32,7 @@ from .api import optimize_payload, variants_for
 from .grenzen import DEFAULT_STUFE, STUFEN, grenzen_for
 from .mdb import MdbError, convert as mdb_convert
 from .regelwerk import DEFAULT_REGELWERK_ID, list_regelwerke
+from .terrain import sample as terrain_sample
 
 HOST = os.environ.get("OLT_OPTIMIZER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("OLT_OPTIMIZER_PORT", "8099"))
@@ -47,6 +51,10 @@ MAX_CONCURRENT = int(os.environ.get("OLT_OPTIMIZER_WORKERS", "2"))
 # An Access file is a whole database, not a payload — the delivered test file is
 # 33 MB, so this limit is its own and much larger than the optimizer's.
 MAX_MDB_BODY = int(os.environ.get("OLT_MDB_MAX_BODY", str(128 * 1024 * 1024)))
+
+# Points per terrain request: a cross section asks for a few hundred, a whole
+# station's gradient for a few thousand.
+MAX_TERRAIN_POINTS = int(os.environ.get("OLT_TERRAIN_MAX_POINTS", "20000"))
 
 MAX_ITER = 150
 MAX_ELEMENTS = 2000
@@ -265,11 +273,33 @@ class Handler(BaseHTTPRequestHandler):
                          len(body), result["counts"], time.monotonic() - started)
         self._respond(200, result)
 
+    def _do_terrain(self):
+        """Ground heights for the points of the body, from the Länder's DGM1.
+
+        Not held to the optimizer's slots: a request is a tile download at worst
+        and a lookup otherwise, and waiting behind a two-minute optimizer run
+        would make the cross section wait for nothing.
+        """
+        try:
+            data = json.loads(self._read_body(MAX_BODY))
+        except (ValueError, UnicodeDecodeError):
+            raise ServiceError(400, "invalid_payload") from None
+        points = data.get("points") if isinstance(data, dict) else None
+        if not isinstance(points, list):
+            raise ServiceError(400, "invalid_payload")
+        if len(points) > MAX_TERRAIN_POINTS:
+            raise ServiceError(413, "too_large")
+        started = time.monotonic()
+        heights, sources = terrain_sample(points)
+        self.log_message("terrain %d points (%d answered) in %.1fs", len(points),
+                         sum(h is not None for h in heights), time.monotonic() - started)
+        self._respond(200, {"heights": heights, "sources": sources})
+
     def do_POST(self):                                         # noqa: N802
         route = self.path.rstrip("/")
-        if route == "/mdb":
+        if route in ("/mdb", "/terrain"):
             try:
-                self._do_mdb()
+                self._do_mdb() if route == "/mdb" else self._do_terrain()
             except ServiceError as exc:
                 answer = {"error": exc.code}
                 if exc.message and exc.code != "internal":

@@ -56,7 +56,7 @@ export function elementStations(track) {
 }
 
 /** Point and tangent bearing at station `s` within one element, in the plane. */
-function pointOnElement(el, epsg, s) {
+export function pointOnElement(el, epsg, s) {
   const startUtm = nodeUtm(el.startNode, el.geometry?.coordinates?.[0], epsg)
   if (el.elementType === 2) {
     return {

@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   RUNNING_CIRCLE_DISTANCE, TRACK_GAUGE, RAILS, SLEEPERS, DEFAULT_RAIL, DEFAULT_SLEEPER,
   superstructureAt, elementStartStation,
-  cantAngle, rotatePoint, fitSection, sectionAtStation, crossSection, platformSection,
+  cantAngle, cantPivot, rotatePoint, rotatePointsAbout, fitSection, sectionAtStation, crossSection,
+  platformSection, placeSection, sectionNeighbours, sectionLinePoints, PLANUM_EDGE,
 } from './crossSectionUtils'
+import { wgs84ToUTM } from './coordinateUtils'
 import { GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileRing } from './gaugeProfiles'
 
 describe('the frame the section is drawn in', () => {
@@ -48,20 +50,32 @@ describe('the superstructure along a track', () => {
 })
 
 describe('the cant turning the section', () => {
-  /** Height of a running circle after the cant has turned the section. */
-  const railZ = (cant, y) => rotatePoint([y, 0], cantAngle(cant))[1]
+  /** Height of the two running circles after the cant has turned the section. */
+  const circlesZ = (cant) => crossSection({ cant }).runningCircles.map(p => p[1])
 
-  it('splits the cant evenly between the two rails — it turns about their centre', () => {
-    const left = railZ(100, -RUNNING_CIRCLE_DISTANCE / 2)
-    const right = railZ(100, RUNNING_CIRCLE_DISTANCE / 2)
-    expect(left).toBeCloseTo(50, 9)
-    expect(right).toBeCloseTo(-50, 9)
-    expect(left - right).toBeCloseTo(100, 9)   // …and the difference is the cant itself
+  it('keeps the rail that is not raised at the gradient and lifts the other by the whole cant', () => {
+    const [left, right] = circlesZ(100)
+    expect(right).toBeCloseTo(0, 9)
+    expect(left).toBeCloseTo(100, 9)
+    const [l2, r2] = circlesZ(-100)
+    expect(l2).toBeCloseTo(0, 9)
+    expect(r2).toBeCloseTo(100, 9)
+  })
+
+  it('turns about the running circle that stays down', () => {
+    expect(cantPivot(160)).toEqual([RUNNING_CIRCLE_DISTANCE / 2, 0])
+    expect(cantPivot(-160)).toEqual([-RUNNING_CIRCLE_DISTANCE / 2, 0])
   })
 
   it('raises the left rail for a positive cant, as the store’s sign convention has it', () => {
-    expect(railZ(160, -RUNNING_CIRCLE_DISTANCE / 2)).toBeGreaterThan(0)
-    expect(railZ(-160, -RUNNING_CIRCLE_DISTANCE / 2)).toBeLessThan(0)
+    expect(circlesZ(160)[0]).toBeGreaterThan(0)
+    expect(circlesZ(-160)[0]).toBeCloseTo(0, 9)
+    expect(circlesZ(-160)[1]).toBeGreaterThan(0)
+  })
+
+  it('turns a point about another one, keeping its distance from it', () => {
+    const [p] = rotatePointsAbout([[0, 1000]], cantAngle(150), [750, 0])
+    expect(Math.hypot(p[0] - 750, p[1])).toBeCloseTo(Math.hypot(750, 1000), 9)
   })
 
   it('leaves a section without cant alone', () => {
@@ -234,8 +248,11 @@ describe('the superstructure as it is drawn', () => {
   })
 
   it('turns the superstructure with the section — rail and contour lean together', () => {
-    const [, right] = section({ cant: 150 }).rails
-    expect(Math.max(...right.map(p => p[1]))).toBeLessThan(0)   // the right rail goes down
+    const [left, right] = section({ cant: 150 }).rails
+    // The right rail turns about its own running circle and stays put — only
+    // the head's inner edge, 32.5 mm inside the circle, lifts by 32.5 · u/1500.
+    expect(Math.max(...right.map(p => p[1]))).toBeCloseTo(32.5 * 150 / 1500, 1)
+    expect(Math.max(...left.map(p => p[1]))).toBeGreaterThan(140)
   })
 })
 
@@ -274,5 +291,79 @@ describe('a platform in the section', () => {
     expect(Number.isFinite(k)).toBe(true)
     expect(Number.isFinite(bounds.yMax)).toBe(true)
     expect(bounds.yMax).toBeCloseTo(4680, 9)   // the platform's back edge is the widest point
+  })
+})
+
+describe('placing another track in the section', () => {
+  it('shifts across and up', () => {
+    expect(placeSection([[100, 0], [-50, 20]], { offset: 4500, dz: 300 }))
+      .toEqual([[4600, 300], [4450, 320]])
+  })
+
+  it('mirrors a track that runs the other way — its right is this one’s left', () => {
+    expect(placeSection([[100, 0]], { offset: -4000, mirrored: true })).toEqual([[-4100, 0]])
+  })
+
+  it('reaches the drawing out to the widest planum edge of the Regelquerschnitte', () => {
+    expect(PLANUM_EDGE).toBeCloseTo(3800, 9)
+  })
+})
+
+describe('the tracks the section line crosses', () => {
+  const straight = (id, start, bearing, length) => ({
+    id, epsg: 25832, elements: [{ length, bearing, startNode: start }],
+  })
+  // This track runs north; the section at station 100 lies along N 5 600 100.
+  const main  = straight('main', [600000, 5600000], 0, 200)
+  const right = straight('right', [600004.5, 5599950], 0, 300)
+  const back  = straight('back', [599996, 5600300], 180, 400)
+  const far   = straight('far', [600050, 5599900], 0, 400)
+  // Cuts the line 0.4 m right of the axis, but at 60° — a flyover, not a neighbour.
+  const cross = straight('cross', [599990, 5600094], 60, 20)
+
+  it('finds a parallel track to the right, at its own station and offset', () => {
+    const [hit] = sectionNeighbours(main, 100, [main, right], 20)
+    expect(hit.track.id).toBe('right')
+    expect(hit.station).toBeCloseTo(150, 3)
+    expect(hit.offset).toBeCloseTo(4500, 1)
+    expect(hit.mirrored).toBe(false)
+  })
+
+  it('finds one running the other way on the left, and says it runs the other way', () => {
+    const [hit] = sectionNeighbours(main, 100, [back], 20)
+    expect(hit.station).toBeCloseTo(200, 3)
+    expect(hit.offset).toBeCloseTo(-4000, 1)
+    expect(hit.mirrored).toBe(true)
+  })
+
+  it('orders them from left to right and leaves out the track itself', () => {
+    const hits = sectionNeighbours(main, 100, [main, right, back], 20)
+    expect(hits.map(h => h.track.id)).toEqual(['back', 'right'])
+  })
+
+  it('leaves out a track beyond the reach, and one that crosses too steeply to be cut square', () => {
+    expect(sectionNeighbours(main, 100, [far, cross], 20)).toEqual([])
+    expect(sectionNeighbours(main, 100, [far], 60)).toHaveLength(1)
+  })
+
+  it('finds nothing for a track that cannot be placed', () => {
+    expect(sectionNeighbours({ id: 'x', elements: [] }, 0, [right], 20)).toEqual([])
+  })
+})
+
+describe('the section line the terrain is read along', () => {
+  const main = { id: 'main', epsg: 25832, elements: [{ length: 200, bearing: 0, startNode: [600000, 5600000] }] }
+
+  it('runs square to the track through the station, positive to the right', () => {
+    const line = sectionLinePoints(main, 100, -10, 10, 5)
+    expect(line.map(p => p.y)).toEqual([-10000, -5000, 0, 5000, 10000])
+    const { easting, northing } = wgs84ToUTM(line[4].lngLat, 25832)
+    expect(easting).toBeCloseTo(600010, 3)
+    expect(northing).toBeCloseTo(5600100, 3)
+  })
+
+  it('reads nothing for an empty stretch or a track without a plane', () => {
+    expect(sectionLinePoints(main, 100, 5, 5)).toEqual([])
+    expect(sectionLinePoints({ elements: [] }, 0, -5, 5)).toEqual([])
   })
 })

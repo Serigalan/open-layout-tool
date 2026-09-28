@@ -1866,6 +1866,11 @@
   cursor: grabbing;
 }
 
+/* How far either side other tracks are looked for — a number, a few digits wide. */
+.profile-edit .cross-section-reach {
+  width: 56px;
+}
+
 .cross-section-svg {
   display: block;
   user-select: none;
