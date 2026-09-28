@@ -39,7 +39,7 @@ export default function WeichenRegelwerk({ t }) {
   return (
     <>
       <p className="constraints-hint">
-        {WEICHEN_REGELWERK.title} · {t('constraints_katalog_revision')}{' '}
+        {t(`regelwerk_title_${WEICHEN_REGELWERK.id}`)} · {t('constraints_katalog_revision')}{' '}
         {WEICHEN_REGELWERK.katalog_version} ({WEICHEN_REGELWERK.status})
       </p>
       <p className="constraints-hint">{t('constraints_weichen_hint')}</p>

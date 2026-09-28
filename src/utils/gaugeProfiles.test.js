@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   QUERSCHNITT_KATALOG, GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfile, gaugeProfileRing,
-  gaugeProfileAreas,
+  gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
 } from './gaugeProfiles'
+import { translations } from '../locales/i18n'
 
 describe('the profile table', () => {
   it('names a default that is in it', () => {
@@ -11,9 +12,25 @@ describe('the profile table', () => {
 
   it('is the Lichtraum of Ril 800.0130A01 — Hauptgleise and Nebengleise', () => {
     expect(Object.keys(GAUGE_PROFILES)).toEqual(['hauptgleis', 'nebengleis'])
-    expect(GAUGE_PROFILES.hauptgleis.label).toBe('Hauptgleise · DB Ril 800.0130A01')
+    expect(LICHTRAUM_SOURCE).toBe('DB Ril 800.0130A01')
     expect(GAUGE_PROFILES.nebengleis.points)
       .toEqual([[0, 0], [2200, 0], [2200, 3900], [1860, 4900], [0, 4900]])
+  })
+
+  it('names itself to the reader in both languages, apart from the German source title', () => {
+    const key = `regelwerk_title_${QUERSCHNITT_KATALOG.katalog.id}`
+    for (const lang of Object.keys(translations)) {
+      expect(typeof translations[lang][key], lang).toBe('string')
+    }
+  })
+
+  it('names every profile in both languages', () => {
+    const languages = Object.keys(translations)
+    for (const id of Object.keys(GAUGE_PROFILES)) {
+      for (const lang of languages) {
+        expect(typeof translations[lang][gaugeProfileLabelKey(id)], `${lang}.${id}`).toBe('string')
+      }
+    }
   })
 
   it('states every contour from the centre line outwards, over the running plane', () => {
@@ -53,6 +70,18 @@ function inside([py, pz], ring) {
 }
 
 describe('the catalogue checked against itself', () => {
+  it('names every line category in both languages', () => {
+    const languages = Object.keys(translations)
+    const kategorien = [...new Set(QUERSCHNITT_KATALOG.streckenquerschnitte.rows.map(r => r.kategorie))]
+    for (const kategorie of kategorien) {
+      for (const lang of languages) {
+        const key = `constraints_querschnitt_kategorie_${kategorie}`
+        expect(typeof translations[lang][key], `${lang}.${key}`).toBe('string')
+      }
+    }
+  })
+
+
   it('states a formation width that is the track spacing plus both edges', () => {
     for (const row of QUERSCHNITT_KATALOG.streckenquerschnitte.rows) {
       expect(row.planumsbreite, row.kategorie)

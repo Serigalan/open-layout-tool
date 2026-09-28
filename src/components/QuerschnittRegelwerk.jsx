@@ -1,5 +1,6 @@
 import {
-  QUERSCHNITT_KATALOG, GAUGE_PROFILES, gaugeProfileRing, gaugeProfileAreas,
+  QUERSCHNITT_KATALOG, GAUGE_PROFILES, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey,
+  LICHTRAUM_SOURCE,
 } from '../utils/gaugeProfiles'
 
 /**
@@ -48,8 +49,9 @@ function ProfileDrawing({ profile, t }) {
 
   return (
     <figure className="querschnitt-figure">
-      <figcaption className="constraints-value">{profile.title}</figcaption>
-      <svg viewBox={viewBox} className="querschnitt-svg" role="img" aria-label={profile.label}>
+      <figcaption className="constraints-value">{t(gaugeProfileLabelKey(profile.id))}</figcaption>
+      <svg viewBox={viewBox} className="querschnitt-svg" role="img"
+        aria-label={`${t(gaugeProfileLabelKey(profile.id))} · ${LICHTRAUM_SOURCE}`}>
         <path d={`${path(ring)} Z`} fill="rgba(48,51,131,0.08)" stroke="var(--color-primary)"
           strokeWidth="1.6" {...line} />
         {areas.map((a, i) => (
@@ -118,7 +120,8 @@ export default function QuerschnittRegelwerk({ t }) {
   return (
     <>
       <p className="constraints-hint">
-        {katalog.title} · {t('constraints_katalog_revision')} {katalog.katalog_version} ({katalog.status})
+        {t(`regelwerk_title_${katalog.id}`)} · {t('constraints_katalog_revision')} {katalog.katalog_version}{' '}
+        ({katalog.status})
       </p>
       <p className="constraints-hint">{t('constraints_querschnitt_hint')}</p>
 
@@ -137,7 +140,7 @@ export default function QuerschnittRegelwerk({ t }) {
         <tbody>
           {streckenquerschnitte.rows.map(row => (
             <tr key={`${row.kategorie}${row.v_max}`}>
-              <td className="constraints-value">{row.kategorie}</td>
+              <td className="constraints-value">{t(`constraints_querschnitt_kategorie_${row.kategorie}`)}</td>
               <td>{speedRange(row)}</td>
               <td>{meter(row.gleisabstand)}</td>
               <td>{meter(row.planumskante)}</td>

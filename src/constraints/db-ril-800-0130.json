@@ -48,10 +48,10 @@
   "streckenquerschnitte": {
     "source": { "ref": "RIL_800_0130", "section": "S. 1" },
     "rows": [
-      { "kategorie": "Ausbaustrecken", "v_max": 160, "gleisabstand": 4.00, "planumskante": 3.30, "planumsbreite": 10.60 },
-      { "kategorie": "Ausbaustrecken", "v_min": 160, "v_max": 200, "gleisabstand": 4.00, "planumskante": 3.80, "planumsbreite": 11.60 },
-      { "kategorie": "Neubaustrecken", "v_max": 300, "gleisabstand": 4.50, "planumskante": 3.80, "planumsbreite": 12.10 },
-      { "kategorie": "S-Bahnen", "v_max": 120, "gleisabstand": 3.80, "planumskante": 3.20, "planumsbreite": 10.20 }
+      { "kategorie": "ausbaustrecke", "v_max": 160, "gleisabstand": 4.00, "planumskante": 3.30, "planumsbreite": 10.60 },
+      { "kategorie": "ausbaustrecke", "v_min": 160, "v_max": 200, "gleisabstand": 4.00, "planumskante": 3.80, "planumsbreite": 11.60 },
+      { "kategorie": "neubaustrecke", "v_max": 300, "gleisabstand": 4.50, "planumskante": 3.80, "planumsbreite": 12.10 },
+      { "kategorie": "s_bahn", "v_max": 120, "gleisabstand": 3.80, "planumskante": 3.20, "planumsbreite": 10.20 }
     ]
   },
   "lichtraum": {

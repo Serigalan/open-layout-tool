@@ -22,6 +22,11 @@ const byKey = Object.fromEntries(gruppen.map(g => [g.key, g]))
 const form = (key, label) => byKey[key].formen.find(f => f.label === label)
 
 describe('the switch forms as a regelwerk', () => {
+  it('names itself to the reader in both languages, apart from the German source title', () => {
+    const key = `regelwerk_title_${WEICHEN_REGELWERK_ID}`
+    expect(says(key), key).toBe(true)
+  })
+
   // The catalogue's own order: the Regelformen of A01 first, the
   // Sonderbauformen of A02 after, each split by what a row can state.
   it('groups the forms the way the Ril itself does', () => {

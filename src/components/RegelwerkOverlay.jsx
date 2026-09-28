@@ -26,11 +26,7 @@ import RegelkatalogView from './RegelkatalogView'
  * without a change to this file.
  */
 
-const BUNDLED = [
-  { id: CATALOG_ID, name: KATALOG.catalog.title },
-  { id: WEICHEN_REGELWERK.id, name: WEICHEN_REGELWERK.title },
-  { id: QUERSCHNITT_KATALOG.katalog.id, name: QUERSCHNITT_KATALOG.katalog.title },
-]
+const BUNDLED_IDS = [CATALOG_ID, WEICHEN_REGELWERK.id, QUERSCHNITT_KATALOG.katalog.id]
 
 export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
   // null while the list is still being asked for, [] once the service has
@@ -52,10 +48,14 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
     return () => { cancelled = true }
   }, [])
 
+  // The bundled rulebooks say their own name through the app, in whichever
+  // language it is asked in (regelwerk_title_<id>) — the way every other name
+  // a catalogue states about itself is spoken (see switchKindLabelKey). A
+  // served rulebook has no such key and is named as the service states it.
   const alle = [
-    ...BUNDLED,
+    ...BUNDLED_IDS.map(id => ({ id, name: t(`regelwerk_title_${id}`) })),
     ...(regelwerke ?? [])
-      .filter(rw => !BUNDLED.some(bundled => bundled.id === rw.id))
+      .filter(rw => !BUNDLED_IDS.includes(rw.id))
       .map(rw => ({ id: rw.id, name: rw.name })),
   ]
   const id = wanted || CATALOG_ID
@@ -76,7 +76,7 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
   const current = status?.id === id ? status : null
   const regelwerk = current?.regelwerk ?? null
   const failed = !!current?.failed
-  const bundled = BUNDLED.some(rw => rw.id === id)
+  const bundled = BUNDLED_IDS.includes(id)
 
   // A limit is a number, a range, a list of steps, the transition forms a run
   // may hand out, or the worst severity it may produce — each read as itself.

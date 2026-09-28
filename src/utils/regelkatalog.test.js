@@ -30,6 +30,13 @@ describe('the catalogue file', () => {
     expect(CATALOG_ID).toBe('db-ril-800-0110')
   })
 
+  it('names itself to the reader in both languages, apart from the German source title', () => {
+    const key = `regelwerk_title_${CATALOG_ID}`
+    for (const lang of Object.keys(translations)) {
+      expect(typeof translations[lang][key], lang).toBe('string')
+    }
+  })
+
   it('is versioned as the machine-readable rendering it is, not as the Ril', () => {
     expect(KATALOG.catalog.title).toBe('DB Ril 800.0110 | Linienführung')
     expect(KATALOG.catalog.katalog_version).toBe('0.3.0')

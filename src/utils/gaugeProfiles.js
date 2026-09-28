@@ -20,12 +20,13 @@ import QUERSCHNITT_KATALOG from '../constraints/db-ril-800-0130.json'
 export { QUERSCHNITT_KATALOG }
 
 const A01 = QUERSCHNITT_KATALOG.sources.find(s => s.id === QUERSCHNITT_KATALOG.lichtraum.source.ref)
-const A01_NAME = A01.title.split(' — ')[0]
+// "DB Ril 800.0130A01 — Lichtraum" → "DB Ril 800.0130A01": a reference, not a
+// name to translate — the same way a Ril's number is stated everywhere else.
+export const LICHTRAUM_SOURCE = A01.title.split(' — ')[0]
 
 export const GAUGE_PROFILES = Object.fromEntries(
   QUERSCHNITT_KATALOG.lichtraum.profile.map(p => [p.id, {
-    title: p.title,
-    label: `${p.title} · ${A01_NAME}`,
+    id: p.id,
     points: p.umriss,
     einragungen: p.einragungen ?? [],
   }]))
@@ -36,6 +37,15 @@ export const DEFAULT_GAUGE_PROFILE = 'hauptgleis'
 
 /** The chosen profile, or the default where a project names one that is gone. */
 export const gaugeProfile = (key) => GAUGE_PROFILES[key] ?? GAUGE_PROFILES[DEFAULT_GAUGE_PROFILE]
+
+/**
+ * Locale key naming a profile — "Hauptgleise"/"Nebengleise" are the Ril's own
+ * words for what the profile is for, so the app speaks them, the way it
+ * speaks every other name a catalogue states about itself (see
+ * switchKindLabelKey). Paired with LICHTRAUM_SOURCE where a reader needs to
+ * know which regelwerk a profile is from.
+ */
+export const gaugeProfileLabelKey = (id) => `constraints_querschnitt_profil_${id}`
 
 const onAxis = ([y]) => y === 0
 // Mirroring the centre line itself must give 0, not the −0 the negation would.

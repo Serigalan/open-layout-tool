@@ -8,7 +8,8 @@ import {
   crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
 import {
-  gaugeProfile, gaugeProfileRing, gaugeProfileAreas, DEFAULT_GAUGE_PROFILE,
+  gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
+  DEFAULT_GAUGE_PROFILE,
 } from '../utils/gaugeProfiles'
 import usePreviewLayers from '../hooks/usePreviewLayers'
 
@@ -154,7 +155,9 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
         {[leftCircle, rightCircle].map(([y, z], i) => (
           <circle key={`c${i}`} cx={X(y)} cy={Y(z)} r="3.5" fill="#a52a1f" />
         ))}
-        <text x={X(0)} y={Y(zMax) - 8} fontSize="11" fill="#777" textAnchor="middle">{profile.label}</text>
+        <text x={X(0)} y={Y(zMax) - 8} fontSize="11" fill="#777" textAnchor="middle">
+          {`${t(gaugeProfileLabelKey(profile.id))} · ${LICHTRAUM_SOURCE}`}
+        </text>
       </svg>
     )
   }

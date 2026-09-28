@@ -7,7 +7,9 @@ import { HIT_TOLERANCE } from '../../utils/mapConstants'
 import {
   RAILS, SLEEPERS, DEFAULT_RAIL, DEFAULT_SLEEPER,
 } from '../../utils/crossSectionUtils'
-import { GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE } from '../../utils/gaugeProfiles'
+import {
+  GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
+} from '../../utils/gaugeProfiles'
 import useTrackHover from '../../hooks/useTrackHover'
 
 /**
@@ -141,8 +143,8 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
           <label>{t('cross_section_profile')}</label>
           <select value={project.gaugeProfile ?? DEFAULT_GAUGE_PROFILE}
             onChange={(e) => { updateProject(project.id, { gaugeProfile: e.target.value }); onTrackSaved?.() }}>
-            {Object.entries(GAUGE_PROFILES).map(([key, p]) => (
-              <option key={key} value={key}>{p.label}</option>
+            {Object.entries(GAUGE_PROFILES).map(([key]) => (
+              <option key={key} value={key}>{`${t(gaugeProfileLabelKey(key))} · ${LICHTRAUM_SOURCE}`}</option>
             ))}
           </select>
         </div>
