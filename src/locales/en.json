@@ -228,7 +228,7 @@
   "switch_delete_confirm": "Delete switch {{name}}?",
   "edit_element_edit_tracks": "Trackeditor (tabular)",
   "edit_tracks_hint": "Click a track on the map, or pick one from the list.",
-  "constraints_readonly": "read-only — maintained in the repo, where the drift checks can read them",
+  "constraints_readonly": "Changes can only be made in the repo.",
   "constraints_regelwerk": "Rulebook",
   "constraints_loading": "Fetching the rulebook from the service…",
   "constraints_physics": "Physics",

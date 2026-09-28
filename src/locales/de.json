@@ -228,7 +228,7 @@
   "switch_delete_confirm": "Weiche {{name}} löschen?",
   "edit_element_edit_tracks": "Trackeditor (tabellarisch)",
   "edit_tracks_hint": "Gleis in der Karte anklicken oder aus der Liste wählen.",
-  "constraints_readonly": "nur lesend — gepflegt im Repo, gegen das automatisierte Tests laufen",
+  "constraints_readonly": "Änderungen können nur im Repo vorgenommen werden.",
   "constraints_regelwerk": "Regelwerk",
   "constraints_loading": "Regelwerk wird vom Dienst geholt…",
   "constraints_physics": "Physik",
