@@ -1670,6 +1670,32 @@
   font-weight: 600;
 }
 
+/* The clearance profiles of Ril 800.0130A01, drawn to scale side by side —
+   one column each on a narrow screen, where two would be too small to read. */
+.querschnitt-profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.querschnitt-figure {
+  flex: 1 1 280px;
+  max-width: 440px;
+  margin: 0;
+}
+
+.querschnitt-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 6px 0;
+}
+
+.querschnitt-points td:first-child {
+  white-space: nowrap;
+  color: #888;
+}
+
 .transition-curve-row {
   display: flex;
   align-items: center;

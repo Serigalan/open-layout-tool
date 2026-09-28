@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfile, gaugeProfileRing, gaugeProfileGuides,
+  QUERSCHNITT_KATALOG, GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfile, gaugeProfileRing,
+  gaugeProfileAreas,
 } from './gaugeProfiles'
 
 describe('the profile table', () => {
@@ -8,15 +9,64 @@ describe('the profile table', () => {
     expect(GAUGE_PROFILES[DEFAULT_GAUGE_PROFILE]).toBeDefined()
   })
 
+  it('is the Lichtraum of Ril 800.0130A01 — Hauptgleise and Nebengleise', () => {
+    expect(Object.keys(GAUGE_PROFILES)).toEqual(['hauptgleis', 'nebengleis'])
+    expect(GAUGE_PROFILES.hauptgleis.label).toBe('Hauptgleise · DB Ril 800.0130A01')
+    expect(GAUGE_PROFILES.nebengleis.points)
+      .toEqual([[0, 0], [2200, 0], [2200, 3900], [1860, 4900], [0, 4900]])
+  })
+
   it('states every contour from the centre line outwards, over the running plane', () => {
     for (const p of Object.values(GAUGE_PROFILES)) {
       expect(p.points.length).toBeGreaterThan(2)
       expect(p.points.every(([y, z]) => y >= 0 && z >= 0)).toBe(true)
+      for (const area of p.einragungen) {
+        expect(area.every(([y, z]) => y >= 0 && z >= 0)).toBe(true)
+      }
     }
   })
 
   it('falls back to the default where a project names a profile that is gone', () => {
     expect(gaugeProfile('a-profile-that-was-removed')).toBe(GAUGE_PROFILES[DEFAULT_GAUGE_PROFILE])
+    // The profile every project was drawn against before the Ril's came in.
+    expect(gaugeProfile('en15273_gc')).toBe(GAUGE_PROFILES.hauptgleis)
+  })
+})
+
+// Inside or on the edge of a closed outline — an area may share its border
+// with the outline it is cut out of, and most of them do.
+function inside([py, pz], ring) {
+  const onEdge = ring.slice(1).some(([y2, z2], i) => {
+    const [y1, z1] = ring[i]
+    const cross = (y2 - y1) * (pz - z1) - (z2 - z1) * (py - y1)
+    return Math.abs(cross) < 1e-6
+      && py >= Math.min(y1, y2) - 1e-9 && py <= Math.max(y1, y2) + 1e-9
+      && pz >= Math.min(z1, z2) - 1e-9 && pz <= Math.max(z1, z2) + 1e-9
+  })
+  if (onEdge) return true
+  let hit = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [yi, zi] = ring[i], [yj, zj] = ring[j]
+    if ((zi > pz) !== (zj > pz) && py < ((yj - yi) * (pz - zi)) / (zj - zi) + yi) hit = !hit
+  }
+  return hit
+}
+
+describe('the catalogue checked against itself', () => {
+  it('states a formation width that is the track spacing plus both edges', () => {
+    for (const row of QUERSCHNITT_KATALOG.streckenquerschnitte.rows) {
+      expect(row.planumsbreite, row.kategorie)
+        .toBeCloseTo(row.gleisabstand + 2 * row.planumskante, 9)
+    }
+  })
+
+  it('keeps every area that may be reached into inside the outline it belongs to', () => {
+    for (const [id, p] of Object.entries(GAUGE_PROFILES)) {
+      const ring = gaugeProfileRing(p.points)
+      for (const area of p.einragungen) {
+        for (const point of area) expect(inside(point, ring), `${id} ${point}`).toBe(true)
+      }
+    }
   })
 })
 
@@ -51,19 +101,19 @@ describe('gaugeProfileRing', () => {
   })
 })
 
-describe('gaugeProfileGuides', () => {
-  it('draws each reference line on both sides of the track', () => {
-    expect(gaugeProfileGuides([[[1275, 0], [2500, 0], [2500, 760]]])).toEqual([
-      [[1275, 0], [2500, 0], [2500, 760]],
-      [[-1275, 0], [-2500, 0], [-2500, 760]],
+describe('gaugeProfileAreas', () => {
+  it('closes each area and lays it on both sides of the track', () => {
+    expect(gaugeProfileAreas([[[2200, 0], [2200, 3900], [2500, 3050], [2500, 0]]])).toEqual([
+      [[2200, 0], [2200, 3900], [2500, 3050], [2500, 0], [2200, 0]],
+      [[-2200, 0], [-2200, 3900], [-2500, 3050], [-2500, 0], [-2200, 0]],
     ])
   })
 
-  it('keeps a line on the centre line once — it is its own mirror image', () => {
-    expect(gaugeProfileGuides([[[0, 0], [0, 4900]]])).toEqual([[[0, 0], [0, 4900]]])
+  it('keeps an area on the centre line once — it is its own mirror image', () => {
+    expect(gaugeProfileAreas([[[0, 0], [0, 4900]]])).toEqual([[[0, 0], [0, 4900], [0, 0]]])
   })
 
-  it('answers with nothing where a profile states no reference lines', () => {
-    expect(gaugeProfileGuides(undefined)).toEqual([])
+  it('answers with nothing where a profile states no areas', () => {
+    expect(gaugeProfileAreas(undefined)).toEqual([])
   })
 })

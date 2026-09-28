@@ -4,6 +4,8 @@ import { BUNDLED_KATALOG_VERSION, GRENZWERTE, optimizerLimitRows } from '../util
 import { WEICHEN_REGELWERK } from '../utils/weichenRegelwerk'
 import { CATALOG_ID, KATALOG } from '../utils/regelkatalog'
 import WeichenRegelwerk from './WeichenRegelwerk'
+import QuerschnittRegelwerk from './QuerschnittRegelwerk'
+import { QUERSCHNITT_KATALOG } from '../utils/gaugeProfiles'
 import RegelkatalogView from './RegelkatalogView'
 
 /**
@@ -27,6 +29,7 @@ import RegelkatalogView from './RegelkatalogView'
 const BUNDLED = [
   { id: CATALOG_ID, name: KATALOG.catalog.title },
   { id: WEICHEN_REGELWERK.id, name: WEICHEN_REGELWERK.title },
+  { id: QUERSCHNITT_KATALOG.katalog.id, name: QUERSCHNITT_KATALOG.katalog.title },
 ]
 
 export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
@@ -112,6 +115,7 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
 
         {id === CATALOG_ID && <RegelkatalogView t={t} />}
         {id === WEICHEN_REGELWERK.id && <WeichenRegelwerk t={t} />}
+        {id === QUERSCHNITT_KATALOG.katalog.id && <QuerschnittRegelwerk t={t} />}
 
         {/* Three states, said apart: still asking, asked and no server, and
             the table itself. A panel that needs the service says so rather

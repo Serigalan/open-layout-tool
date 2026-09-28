@@ -8,7 +8,7 @@ import {
   crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
 import {
-  gaugeProfile, gaugeProfileRing, gaugeProfileGuides, DEFAULT_GAUGE_PROFILE,
+  gaugeProfile, gaugeProfileRing, gaugeProfileAreas, DEFAULT_GAUGE_PROFILE,
 } from '../utils/gaugeProfiles'
 import usePreviewLayers from '../hooks/usePreviewLayers'
 
@@ -101,7 +101,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   const section = crossSection({
     cant: state?.cant ?? 0,
     gaugeRing: gaugeProfileRing(profile.points),
-    gaugeGuides: gaugeProfileGuides(profile.guides),
+    gaugeAreas: gaugeProfileAreas(profile.einragungen),
     rail,
     sleeper,
   })
@@ -110,7 +110,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
     if (!size || size.w < 40 || size.h < 40) return null
     // Everything handed to fitSection is a point — the platform outlines are
     // arrays of points, so they are flattened in with the rest.
-    const all = [...section.gauge, ...section.runningCircles, ...section.sleeper, ...section.guides.flat(), ...platforms.flat()]
+    const all = [...section.gauge, ...section.runningCircles, ...section.sleeper, ...section.areas.flat(), ...platforms.flat()]
     const { k, cx, cy, bounds } = fitSection(all, size, MARGIN)
     const { zMax } = bounds
     const X = (y) => cx + y * k
@@ -123,11 +123,13 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
       <svg width={size.w} height={size.h} className="cross-section-svg">
         {/* the horizontal, so the cant is visible as the angle it is */}
         <line x1={MARGIN / 2} x2={size.w - MARGIN / 2} y1={Y(0)} y2={Y(0)} stroke="#e4e4ec" strokeDasharray="6 4" />
-        {/* the clearance contour, and the lines it is read against */}
+        {/* the clearance contour, and the areas inside it that may be
+            reached into — dashed, because they are part of the outline but
+            not of the space that has to stay free */}
         <path d={`${path(section.gauge)} Z`} fill="rgba(108,92,231,0.07)" stroke="var(--color-primary)" strokeWidth="1.5" />
-        {section.guides.map((g, i) => (
-          <path key={`g${i}`} d={path(g)} fill="none" stroke="var(--color-primary)"
-            strokeWidth="1" strokeDasharray="5 4" opacity="0.7" />
+        {section.areas.map((a, i) => (
+          <path key={`a${i}`} d={`${path(a)} Z`} fill="#ffffff" fillOpacity="0.6"
+            stroke="var(--color-primary)" strokeWidth="1" strokeDasharray="5 4" opacity="0.8" />
         ))}
         {/* the platforms beside the track, level while the track leans */}
         {platforms.map((p, i) => (

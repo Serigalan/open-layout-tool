@@ -269,7 +269,7 @@ describe('a platform in the section', () => {
       rail: '54E4', sleeper: 'B70',
     })
     const outlines = [platformSection({ side: 'right', height: 550 })]
-    const all = [...s.gauge, ...s.runningCircles, ...s.sleeper, ...s.guides.flat(), ...outlines.flat()]
+    const all = [...s.gauge, ...s.runningCircles, ...s.sleeper, ...s.areas.flat(), ...outlines.flat()]
     const { k, bounds } = fitSection(all, { w: 400, h: 200 })
     expect(Number.isFinite(k)).toBe(true)
     expect(Number.isFinite(bounds.yMax)).toBe(true)

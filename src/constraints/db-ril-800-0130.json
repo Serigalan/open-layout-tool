@@ -1,0 +1,79 @@
+{
+  "katalog": {
+    "id": "db-ril-800-0130",
+    "title": "DB Ril 800.0130 | Streckenquerschnitte auf Erdkörpern",
+    "katalog_version": "0.1.0",
+    "status": "draft",
+    "date": "2026-09-28",
+    "language": "de",
+    "scope": {
+      "included": [
+        "Regelquerschnitte je Streckenkategorie: Gleisabstand, Abstand Gleismitte – Planumskante, Planumsbreite",
+        "Lichtraum für Haupt- und Nebengleise mit den Bereichen, in die eingeragt werden darf (A01)"
+      ],
+      "excluded": [
+        "Überhöhte Querschnitte — die Planumsbreite gilt hier nur bei u = 0"
+      ]
+    }
+  },
+  "changelog": [
+    {
+      "version": "0.1.0",
+      "date": "2026-09-28",
+      "changes": [
+        "Erste maschinenlesbare Fassung: Regelquerschnitte (S. 1) und Lichtraum für Haupt- und Nebengleise (A01, S. 2)",
+        "Der Lichtraum ersetzt das bisher fest im Code hinterlegte Profil EN 15273-1 · GC"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "RIL_800_0130",
+      "title": "DB Ril 800.0130 Streckenquerschnitte auf Erdkörpern"
+    },
+    {
+      "id": "RIL_800_0130_A01",
+      "title": "DB Ril 800.0130A01 — Lichtraum"
+    }
+  ],
+  "felder": {
+    "streckenquerschnitte": "Eine Zeile je Streckenkategorie und Geschwindigkeitsbereich. v_min ist ausschließlich, v_max einschließlich; fehlt v_min, gilt die Zeile ab 0 km/h.",
+    "gleisabstand": "Abstand der Gleismitten zweier benachbarter Gleise [m]",
+    "planumskante": "Abstand von der Gleismitte des äußeren Gleises bis zur Planumskante [m]",
+    "planumsbreite": "Breite des Planums einer zweigleisigen Strecke bei u = 0 [m]; gleich Gleisabstand + 2 · Abstand zur Planumskante",
+    "lichtraum": "Halbe Umrisse in mm, je Punkt [Abstand zur Gleismitte, Höhe über Schienenoberkante]. Die andere Hälfte ist das Spiegelbild an der Gleismitte.",
+    "umriss": "Äußere Begrenzung des Lichtraums",
+    "einragungen": "Bereiche innerhalb des Umrisses, in die Bauteile hineinragen dürfen. Jeder Bereich ist ein geschlossener Umriss; der letzte Punkt schließt an den ersten an."
+  },
+  "streckenquerschnitte": {
+    "source": { "ref": "RIL_800_0130", "section": "S. 1" },
+    "rows": [
+      { "kategorie": "Ausbaustrecken", "v_max": 160, "gleisabstand": 4.00, "planumskante": 3.30, "planumsbreite": 10.60 },
+      { "kategorie": "Ausbaustrecken", "v_min": 160, "v_max": 200, "gleisabstand": 4.00, "planumskante": 3.80, "planumsbreite": 11.60 },
+      { "kategorie": "Neubaustrecken", "v_max": 300, "gleisabstand": 4.50, "planumskante": 3.80, "planumsbreite": 12.10 },
+      { "kategorie": "S-Bahnen", "v_max": 120, "gleisabstand": 3.80, "planumskante": 3.20, "planumsbreite": 10.20 }
+    ]
+  },
+  "lichtraum": {
+    "source": { "ref": "RIL_800_0130_A01", "section": "S. 2" },
+    "profile": [
+      {
+        "id": "hauptgleis",
+        "title": "Hauptgleise",
+        "umriss": [[0, 0], [2500, 0], [2500, 3050], [1860, 4900], [0, 4900]],
+        "einragungen": [
+          [[1275, 0], [1600, 380], [1680, 380], [1680, 760], [2500, 760], [2500, 0]],
+          [[2200, 0], [2200, 3900], [2500, 3050], [2500, 0]]
+        ]
+      },
+      {
+        "id": "nebengleis",
+        "title": "Nebengleise",
+        "umriss": [[0, 0], [2200, 0], [2200, 3900], [1860, 4900], [0, 4900]],
+        "einragungen": [
+          [[1275, 0], [1600, 380], [1680, 380], [1680, 1200], [2200, 1200], [2200, 0]]
+        ]
+      }
+    ]
+  }
+}

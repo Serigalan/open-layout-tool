@@ -207,7 +207,7 @@ function sleeperOutline(sleeper, railHeight) {
  * worth having: the contour is fixed to the running plane, so the cant leans it
  * against whatever stands beside the track.
  */
-export function crossSection({ cant = 0, gaugeRing = [], gaugeGuides = [], rail = null, sleeper = null }) {
+export function crossSection({ cant = 0, gaugeRing = [], gaugeAreas = [], rail = null, sleeper = null }) {
   const angle = cantAngle(cant)
   const railProfile    = RAILS[rail] ?? null
   const sleeperProfile = SLEEPERS[sleeper] ?? null
@@ -218,7 +218,7 @@ export function crossSection({ cant = 0, gaugeRing = [], gaugeGuides = [], rail 
     runningCircles: rotatePoints([[-HALF_RUNNING, 0], [HALF_RUNNING, 0]], angle),
     railFaces:      rotatePoints([[-HALF_GAUGE, 0], [HALF_GAUGE, 0]], angle),
     gauge:          rotatePoints(gaugeRing, angle),
-    guides:         gaugeGuides.map(line => rotatePoints(line, angle)),
+    areas:          gaugeAreas.map(area => rotatePoints(area, angle)),
     rails: railProfile
       ? [rotatePoints(railOutline(railProfile, -HALF_GAUGE, -1), angle),
         rotatePoints(railOutline(railProfile, HALF_GAUGE, 1), angle)]
