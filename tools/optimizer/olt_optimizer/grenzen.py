@@ -46,6 +46,16 @@ from .ruleexpr import comparison
 STUFEN = {"reg": "hint", "discretion": "warning"}
 DEFAULT_STUFE = "reg"
 
+# The rule scopes a level lets a run past whatever they say. At the
+# Ermessensgrenze that is the cant ramp (LP.UB.02): it judges the ramp's *form*
+# against the transition's, and in this app every ramp is straight (ROADMAP,
+# decision 47), so a Bloss transition is a Sonderfall there by the app's model,
+# not by a limit of the Ril. The client decided (ROADMAP, decision 57) that a
+# run at the Ermessensgrenze still proposes Bloss transitions — their lengths
+# and gradients are held to LP.UB.04/06/07/08 like any other — and the element
+# table then shows each one as the Sonderfall it is.
+TOLERIERT = {"reg": (), "discretion": ("cant_ramp",)}
+
 _FLIP = {"<": ">", "<=": ">=", ">": "<", ">=": "<="}
 _LOWER = (">", ">=")
 
@@ -85,6 +95,9 @@ class Grenzen:
         self.stufe = stufe
         self.regelwerk = katalog.id
         self.max_rank = katalog.rank(STUFEN[stufe])
+        # Rules a run at this level is let past (TOLERIERT), by id — what the
+        # acceptance's own check has to know to judge a run fairly.
+        self.toleriert = {r["id"] for scope in TOLERIERT[stufe] for r in katalog.rules_for_scope(scope)}
 
         self.speeds = self._design_speeds()
         if not self.speeds:
@@ -272,9 +285,11 @@ class Grenzen:
     def _form_admitted(self, form):
         """May a run hand out a transition of this form? LP.UB.02 asks
         whether the ramp matches it, and in this app the ramp is always
-        straight (ROADMAP, decision 47) — so it matches a clothoid only."""
+        straight (ROADMAP, decision 47) — so it matches a clothoid only. At
+        the Ermessensgrenze that question is let past (TOLERIERT)."""
         base = {"model.ramp_on_transition": True, "model.ramp_form_matches": form == "clothoid"}
-        return self._all_admit(self._ramp_rules, base)
+        rules = [r for r in self._ramp_rules if r["id"] not in self.toleriert]
+        return self._all_admit(rules, base)
 
     # ── asking ───────────────────────────────────────────────────────────
 

@@ -370,7 +370,7 @@
   "optimize_grenzwert": "Rechnen gegen",
   "optimize_grenzwert_reg": "Regelwert",
   "optimize_grenzwert_discretion": "Ermessensgrenze",
-  "optimize_grenzwert_discretion_hint": "Was dabei unter den Regelwert fällt, meldet die Elementtabelle als Warnung — jede braucht eine schriftliche Begründung.",
+  "optimize_grenzwert_discretion_hint": "Was dabei unter den Regelwert fällt, meldet die Elementtabelle als Warnung — jede braucht eine schriftliche Begründung. Blossbögen, die der Lauf vorschlägt, stehen dort als Sonderfall (LP.UB.02).",
   "optimize_grund_kruemmungssprung": "begrenzt durch: Krümmungssprung (Vergleichsradius {{ist}}/{{soll}} m)",
   "optimize_err_invalid_grenzwert": "Diese Grenzwertstufe kennt der Dienst nicht",
   "optimize_regelwerk": "Regelwerk",

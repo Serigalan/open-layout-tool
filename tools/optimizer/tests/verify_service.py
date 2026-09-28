@@ -177,9 +177,9 @@ try:
                       body["elements"][-1]["endNode"][1] - KP2[1]) < 1e-6)
     print(f"   Lauf über HTTP: {took:.1f}s, {len(body['elements'])} Elemente")
 
-    # `auto` rechnet jede Variante, die das Regelwerk auf der Stufe zulässt, als
-    # eigenen Kindprozess. Blossbögen lässt es auf keiner zu (LP.UB.02), also
-    # ist `auto` genau der Bestand — dieselbe Rechnung, nicht bloß dieselbe Zahl.
+    # `auto` rechnet jede Variante, die die Stufe zulässt, als eigenen
+    # Kindprozess. Am Regelwert gibt es keine Blossbögen (LP.UB.02), also ist
+    # `auto` dort genau der Bestand — dieselbe Rechnung, nicht bloß dieselbe Zahl.
     st, single, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 100,
                                              "uebergang": "bestand", "maxiter": 40})
     ok("auto liefert genau die Bestandsvariante",
@@ -188,14 +188,28 @@ try:
        and json.dumps(body["report"]) == json.dumps(single["report"]))
     st, bd, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 50,
                                          "uebergang": "bloss", "maxiter": 40})
-    ok("Bloss ausdrücklich verlangt → 422 mit Grund (LP.UB.02)",
+    ok("Bloss am Regelwert ausdrücklich verlangt → 422 mit Grund (LP.UB.02)",
        st == 422 and bd.get("error") == "unsupported_topology" and "LP.UB.02" in bd.get("message", ""))
 
     # Die Ermessensgrenze über die Leitung: nie langsamer, und so ausgewiesen.
+    # `auto` rechnet dort beide Varianten nebeneinander (Bloss ist zugelassen)
+    # und muss dasselbe liefern wie die bessere, einzeln gerechnet.
     st, erm, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 100, "grenzwert": "discretion",
                                           "uebergang": "auto", "maxiter": 40})
     ok(f"Ermessensgrenze: {erm.get('vNeu', 0):.1f} ≥ Regelwert {body['vNeu']:.1f} km/h, als solche genannt",
        st == 200 and erm["grenzwert"] == "discretion" and erm["vNeu"] >= body["vNeu"] - 1e-6)
+    singles = {}
+    for name in ("bestand", "bloss"):
+        st, bd, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 100, "grenzwert": "discretion",
+                                             "uebergang": name, "maxiter": 40})
+        singles[name] = bd if st == 200 else None
+    better = max((b for b in singles.values() if b), key=lambda b: b["vNeu"], default=None)
+    ok("Ermessensgrenze: auto liefert genau die bessere Einzelvariante",
+       better is not None and all(singles.values()) and erm["variant"] == better["variant"]
+       and json.dumps(erm["elements"]) == json.dumps(better["elements"]))
+    print("   Ermessensgrenze einzeln: "
+          + ", ".join(f"{k} {v['vNeu']:.2f}" for k, v in singles.items() if v)
+          + f" | auto wählt {erm['variant']} ({erm['vNeu']:.2f})")
 
     # ── 3) Die Fehlerschlüssel, die das Panel übersetzt ──────────────────────
     status, body, _ = call(BASE, "/optimize", raw=b"{nicht json")

@@ -36,7 +36,7 @@ python3 -m venv .venv
 | `--grenzwert {reg,discretion}` | gegen welche Grenze des Regelwerks gerechnet wird: `reg` = Regelwert (Default, kein Vorschlag schlechter als ein Hinweis), `discretion` = Ermessensgrenze (höchstens Warnungen, jede begründungspflichtig) |
 | `--regelwerk` | Id des Regelkatalogs aus `src/constraints/` (Default `db-ril-800-0110`) |
 | `--per-curve` | nur Baseline: Geraden bleiben fix (Verhalten des App-Panels) |
-| `--uebergang {bestand,bloss,auto}` | Übergangsbogen-Profil: wie vorhanden lassen, alle Rampen auf Bloss, oder automatisch die zulässige Variante mit höherer Engpass-v (Default: auto). Bloss lässt DB Ril 800.0110 in dieser App auf keiner Stufe zu (LP.UB.02 — die Rampe ist immer gerade), `auto` rechnet deshalb nur den Bestand |
+| `--uebergang {bestand,bloss,auto}` | Übergangsbogen-Profil: wie vorhanden lassen, alle Rampen auf Bloss, oder automatisch die zulässige Variante mit höherer Engpass-v (Default: auto). Bloss nur an der Ermessensgrenze: LP.UB.02 nennt einen Blossbogen auf der (in dieser App immer geraden) Rampe einen Sonderfall, am Regelwert rechnet `auto` deshalb nur den Bestand |
 | `--maxiter`, `--seed` | Differential-Evolution-Steuerung |
 
 ## Modell

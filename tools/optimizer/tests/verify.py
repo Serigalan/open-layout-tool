@@ -76,7 +76,8 @@ def check_rules(label, old_els, new_els, grenzen=REG):
     app's element table judges it: nothing worse than the level admits."""
     idx = new_indices(old_els, new_els)
     findings = check_track(grenzen.katalog, new_els, idx)
-    bad = sorted({f for f in findings if grenzen.katalog.rank(f[2]) > grenzen.max_rank})
+    bad = sorted({f for f in findings
+                  if grenzen.katalog.rank(f[2]) > grenzen.max_rank and f[1] not in grenzen.toleriert})
     ok(f"{label}: Regelkatalog ({grenzen.stufe}) für {len(idx)} neue Elemente eingehalten"
        f" ({bad[:4] or 'kein Befund darüber'})", idx and not bad)
     return findings
@@ -217,19 +218,21 @@ measured = independent_offset(elements, new_els)
 ok(f"unabhängige Abrückung ≤ 51 cm ({measured * 100:.1f} cm)", measured <= 0.51)
 
 # ── 3b) Profilwechsel auf Bloss ─────────────────────────────────────────────
-# Der Kernel kann Bloss (LP.UB.04/06 statt .03/.05 — kürzere Rampen), aber ein
-# Lauf bietet ihn nicht an: die Rampe ist in dieser App immer gerade, und
-# LP.UB.02 nennt einen Blossbogen darunter einen Sonderfall — auf beiden Stufen
-# schlechter, als ein Lauf liefern darf.
-ok("Bloss: auf keiner Stufe zugelassen",
-   not REG.forms["bloss"] and not ERM.forms["bloss"] and REG.forms["clothoid"])
-ok("Bloss: 'auto' rechnet nur den Bestand", variants_for("auto", REG) == ["bestand"]
-   and variants_for("auto", ERM) == ["bestand"])
+# Die Rampe ist in dieser App immer gerade, und LP.UB.02 nennt einen Blossbogen
+# darauf einen Sonderfall. Am Regelwert bietet ein Lauf ihn deshalb nicht an;
+# an der Ermessensgrenze schon (Entscheidung 57) — Länge und Neigung halten
+# dort LP.UB.04/06/07/08 ein, nur LP.UB.02 wird durchgelassen.
+ok("Bloss: am Regelwert nicht, an der Ermessensgrenze schon",
+   not REG.forms["bloss"] and ERM.forms["bloss"] and REG.forms["clothoid"])
+ok("Bloss: durchgelassen wird an der Ermessensgrenze nur LP.UB.02",
+   REG.toleriert == set() and ERM.toleriert == {"LP.UB.02"})
+ok("Bloss: 'auto' rechnet am Regelwert nur den Bestand, an der Ermessensgrenze beide",
+   variants_for("auto", REG) == ["bestand"] and variants_for("auto", ERM) == ["bestand", "bloss"])
 try:
     variants_for("bloss", REG)
-    ok("Bloss: ausdrücklich verlangt → abgelehnt, mit Grund", False)
+    ok("Bloss: am Regelwert ausdrücklich verlangt → abgelehnt, mit Grund", False)
 except ValueError as exc:
-    ok("Bloss: ausdrücklich verlangt → abgelehnt, mit Grund", "LP.UB.02" in str(exc))
+    ok("Bloss: am Regelwert ausdrücklich verlangt → abgelehnt, mit Grund", "LP.UB.02" in str(exc))
 bloss_groups = [{**g, "types": ["bloss" if has else t for t, has in zip(g["types"], g["has_t"])]}
                 for g in groups]
 b_base = baseline(bloss_groups, params)
@@ -1042,6 +1045,24 @@ check_rules("Lauf am Regelwert", elements3, reg_res["elements"], REG)
 _erm_findings = check_rules("Lauf an der Ermessensgrenze", elements3, erm_res["elements"], ERM)
 ok("Lauf: die Ermessensgrenze schöpft den Spielraum auch aus (Warnungen, die der Regelwert nicht hätte)",
    any(sev == "warning" for _, _, sev in _erm_findings))
+# An der Ermessensgrenze mit Bloss-Variante: sie wird gerechnet, und wo sie
+# gewinnt, besteht sie die Prüfung — mit LP.UB.02 als Sonderfall und sonst nichts.
+bl_res = optimize_payload(track3, corridor_cm=50.0, grenzwert="discretion", uebergang="bloss",
+                          maxiter=25, seed=1)
+auto_res = optimize_payload(track3, corridor_cm=50.0, grenzwert="discretion", uebergang="auto",
+                            maxiter=25, seed=1)
+print(f"   Ermessensgrenze: Bestand-Typen {erm_res['vNeu']:.1f} | Bloss {bl_res['vNeu']:.1f} | "
+      f"auto {auto_res['vNeu']:.1f} km/h ({auto_res['variant']})")
+ok("Bloss an der Ermessensgrenze: die Rampen sind Blossbögen",
+   bl_res["variant"] == "Bloss"
+   and all(el.get("transitionType") == "bloss"
+           for el in (bl_res["elements"][i] for i in new_indices(elements3, bl_res["elements"]))
+           if el["elementType"] == 2))
+_bl_findings = check_rules("Bloss an der Ermessensgrenze", elements3, bl_res["elements"], ERM)
+ok("Bloss an der Ermessensgrenze: als Sonderfall gemeldet wird nur LP.UB.02",
+   {rid for _, rid, sev in _bl_findings if sev == "special_case"} == {"LP.UB.02"})
+ok("auto an der Ermessensgrenze nimmt die schnellere Variante",
+   abs(auto_res["vNeu"] - max(erm_res["vNeu"], bl_res["vNeu"])) < 1e-9)
 for bad in ({"grenzwert": "approval"}, {"regelwerk": "nicht-vorhanden"}):
     try:
         optimize_payload(track3, **bad)

@@ -204,7 +204,7 @@ describe('optimizerLimitRows', () => {
       discretion: {
         stufe: 'discretion', schlechtesteStufe: 'warning', geschwindigkeiten: [40.0, 300.0],
         uMax: 160.0, uMaxWeiche: 120.0, uStep: 5.0, ufMax: [130.0, 150.0], ufMaxWeiche: [110.0],
-        uebergangsbogen: ['clothoid'],
+        uebergangsbogen: ['clothoid', 'bloss'],
       },
     },
   }
@@ -227,8 +227,9 @@ describe('optimizerLimitRows', () => {
     expect(byLabel.constraints_limit_uf.discretion.app).toEqual([130, 150])
     expect(byLabel.constraints_limit_worst.reg.app).toBe('hint')
     // LP.UB.02 calls a Bloss curve on this app's straight ramp a Sonderfall —
-    // worse than either level admits.
-    expect(byLabel.constraints_limit_forms.discretion.app).toEqual(['clothoid'])
+    // worse than the Regelwert admits; the Ermessensgrenze lets it past.
+    expect(byLabel.constraints_limit_forms.reg.app).toEqual(['clothoid'])
+    expect(byLabel.constraints_limit_forms.discretion.app).toEqual(['clothoid', 'bloss'])
   })
 
   it('flags a service that computes with other numbers', () => {

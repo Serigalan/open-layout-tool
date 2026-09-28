@@ -33,6 +33,11 @@ const PHYSICS_WHERE_USED = {
 // the same pairing as the optimizer's grenzen.py (STUFEN).
 export const GRENZWERTE = { reg: 'hint', discretion: 'warning' }
 
+// The rule scopes a level lets a run past — grenzen.py's TOLERIERT: at the
+// Ermessensgrenze a run proposes Bloss transitions although LP.UB.02 calls one
+// on this app's straight ramp a Sonderfall (ROADMAP, decision 57).
+const TOLERIERT = { reg: [], discretion: ['cant_ramp'] }
+
 const DESIGN_SPEEDS = (() => {
   const out = []
   for (let v = catalogSpeedRange.min; v <= catalogSpeedRange.max; v++) {
@@ -56,9 +61,10 @@ function appLimits(level) {
   const kb06 = catalogLimit('LP.KB.06', 'max', { 'physics.u_f': 0 }, IN_SWITCH_AREA)
   const uf = (v) => catalogLimit('LP.KB.02', level, { 'element.design_speed': v, 'physics.u_f': 0 })
   const allowed = severityRank(GRENZWERTE[level])
-  const formOk = (form) => severityRank(evaluateRule(ruleById('LP.UB.02'), {
-    'model.ramp_on_transition': true, 'model.ramp_form_matches': form === 'clothoid',
-  }).severity) <= allowed
+  const formOk = (form) => TOLERIERT[level].includes(ruleById('LP.UB.02').applies_to.scope)
+    || severityRank(evaluateRule(ruleById('LP.UB.02'), {
+      'model.ramp_on_transition': true, 'model.ramp_form_matches': form === 'clothoid',
+    }).severity) <= allowed
   const uMax = catalogLimit('LP.KB.01', 'max', { 'element.cant': 0 })
   return {
     geschwindigkeiten: [catalogSpeedRange.min, catalogSpeedRange.max],

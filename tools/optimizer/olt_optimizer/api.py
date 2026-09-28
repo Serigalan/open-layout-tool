@@ -28,17 +28,18 @@ def run_params(corridor_cm=50.0, grenzwert=DEFAULT_STUFE, v_max=None, regelwerk=
 
 def variants_for(uebergang, grenzen):
     """The transition profiles a run tries: the ramps as they lie, and all of
-    them Bloss — the latter only where the catalogue admits a Bloss transition
-    at this level. In this app every ramp is straight, which LP.UB.02 calls a
-    Sonderfall on a Bloss curve (ROADMAP, decision 47), so at either level a
-    run does not hand one out. Asked for Bloss outright, it says so instead of
-    quietly answering something else."""
+    them Bloss — the latter only where the level admits a Bloss transition. In
+    this app every ramp is straight, which LP.UB.02 calls a Sonderfall on a
+    Bloss curve (ROADMAP, decision 47): at the Regelwert a run does not hand
+    one out, at the Ermessensgrenze it does (grenzen.TOLERIERT). Asked for
+    Bloss outright where it is not admitted, it says so instead of quietly
+    answering something else."""
     if uebergang == "auto":
         return [name for name in VARIANTS if name != "bloss" or grenzen.forms["bloss"]]
     if uebergang not in VARIANTS:
         raise ValueError(f"unbekanntes Übergangsbogen-Profil: {uebergang}")
     if uebergang == "bloss" and not grenzen.forms["bloss"]:
-        raise ValueError("Blossbögen lässt das Regelwerk auf dieser Stufe nicht zu "
+        raise ValueError("Blossbögen schlägt ein Lauf nur an der Ermessensgrenze vor "
                          "(LP.UB.02: die Überhöhungsrampe ist in dieser App immer gerade).")
     return [uebergang]
 

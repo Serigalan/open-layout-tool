@@ -370,7 +370,7 @@
   "optimize_grenzwert": "Compute against",
   "optimize_grenzwert_reg": "standard value",
   "optimize_grenzwert_discretion": "discretion limit",
-  "optimize_grenzwert_discretion_hint": "Whatever falls below the standard value shows as a warning in the element table — each one needs a written justification.",
+  "optimize_grenzwert_discretion_hint": "Whatever falls below the standard value shows as a warning in the element table — each one needs a written justification. Bloss curves the run proposes show there as a special case (LP.UB.02).",
   "optimize_grund_kruemmungssprung": "limited by: curvature jump (comparison radius {{ist}}/{{soll}} m)",
   "optimize_err_invalid_grenzwert": "The service does not know this limit level",
   "optimize_regelwerk": "Rulebook",

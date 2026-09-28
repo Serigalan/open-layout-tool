@@ -88,12 +88,11 @@ def run_isolated(payload, timeout=TIMEOUT):
     """Run one optimization under a deadline, in processes that can be killed.
 
     `uebergang: 'auto'` is up to two runs that know nothing of each other — the
-    ramps as they lie, and all of them Bloss where the catalogue admits Bloss
-    at the level asked for (api.variants_for; today it does at neither) — of
-    which the faster wins. They go side by side, one process each: the same
-    answer for half the wait. fork keeps that cheap, numpy and scipy being
-    already imported in the parent, so a child starts with them in place
-    instead of loading them again.
+    ramps as they lie, and all of them Bloss where the level admits Bloss
+    (api.variants_for: at the Ermessensgrenze) — of which the faster wins.
+    They go side by side, one process each: the same answer for half the wait.
+    fork keeps that cheap, numpy and scipy being already imported in the
+    parent, so a child starts with them in place instead of loading them again.
     """
     ctx = multiprocessing.get_context("fork")
     grenzen = grenzen_for(payload.get("regelwerk") or DEFAULT_REGELWERK_ID,
