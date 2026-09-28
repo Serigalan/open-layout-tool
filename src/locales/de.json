@@ -263,7 +263,7 @@
   "constraints_weichen_symmetrisch": "symmetrisch — beide Fahrwege verlassen die Spitze auf diesem Radius, je durch den halben Winkel",
   "constraints_service_down": "Der Optimierer-Dienst antwortet nicht — hier stehen nur die mitgelieferten Regelwerke.",
   "table_rules": "Regeln",
-  "table_rules_hint": "Was der Regelkatalog Trassierung – Lageplan (DB Ril 800.0110) zu diesem Element und zu der Elementgrenze sagt, an der es beginnt.",
+  "table_rules_hint": "Was der Regelkatalog Linienführung (DB Ril 800.0110) zu diesem Element und zu der Elementgrenze sagt, an der es beginnt.",
   "table_rules_ok": "Alle geprüften Regeln eingehalten",
   "table_rules_unchecked": "Nicht geprüft: ohne Entwurfsgeschwindigkeit ist fast jede Regel unbestimmt.",
   "rule_sev_ok": "eingehalten",
