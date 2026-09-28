@@ -2,9 +2,10 @@
 
     POST /optimize        body: the panel's payload, answer: optimize_payload's result
     POST /mdb             body: an Access file, answer: its Satzarten as JSON
-    POST /terrain         body: {"points": [[e, n], ...]} in EPSG:25832, answer:
-                          {"heights": [...], "sources": [...]} from the Länder's
-                          DGM1, null where none has the point
+    POST /terrain         body: {"lnglat": [[lng, lat], ...]} (or, as first
+                          built, {"points": [[e, n], ...]} in EPSG:25832),
+                          answer: {"heights": [...], "sources": [...]} from
+                          the Länder's DGM1, null where none has the point
     GET  /health          so the panel can say "no server" before the user clicks
     GET  /regelwerke      the rule catalogues a run may be held to: id, name and
                           the catalogue's own version
@@ -32,7 +33,7 @@ from .api import optimize_payload, variants_for
 from .grenzen import DEFAULT_STUFE, STUFEN, grenzen_for
 from .mdb import MdbError, convert as mdb_convert
 from .regelwerk import DEFAULT_REGELWERK_ID, list_regelwerke
-from .terrain import sample as terrain_sample
+from .terrain import sample as terrain_sample, to_lnglat
 
 HOST = os.environ.get("OLT_OPTIMIZER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("OLT_OPTIMIZER_PORT", "8099"))
@@ -284,14 +285,23 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(self._read_body(MAX_BODY))
         except (ValueError, UnicodeDecodeError):
             raise ServiceError(400, "invalid_payload") from None
-        points = data.get("points") if isinstance(data, dict) else None
-        if not isinstance(points, list):
+        data = data if isinstance(data, dict) else {}
+        lnglat, points = data.get("lnglat"), data.get("points")
+        given = lnglat if isinstance(lnglat, list) else points
+        if not isinstance(given, list):
             raise ServiceError(400, "invalid_payload")
-        if len(points) > MAX_TERRAIN_POINTS:
+        if len(given) > MAX_TERRAIN_POINTS:
             raise ServiceError(413, "too_large")
+        if not isinstance(lnglat, list):
+            def back(p):
+                try:
+                    return to_lnglat(float(p[0]), float(p[1]))
+                except (TypeError, ValueError, IndexError):
+                    return None
+            lnglat = [back(p) for p in points]
         started = time.monotonic()
-        heights, sources = terrain_sample(points)
-        self.log_message("terrain %d points (%d answered) in %.1fs", len(points),
+        heights, sources = terrain_sample(lnglat)
+        self.log_message("terrain %d points (%d answered) in %.1fs", len(lnglat),
                          sum(h is not None for h in heights), time.monotonic() - started)
         self._respond(200, {"heights": heights, "sources": sources})
 

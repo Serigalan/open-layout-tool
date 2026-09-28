@@ -107,30 +107,34 @@ export async function optimizeOnServer(payload, { signal } = {}) {
 
 /**
  * Ground heights from the Länder's DGM1, which only the service can read (the
- * Länder publish zipped tiles without a CORS header). `points` are
- * [[easting, northing], ...] in EPSG:25832.
+ * Länder publish tiles without a CORS header). `lngLats` are WGS84
+ * [[lng, lat], ...].
  *
  * Resolves with { heights, sources } — per point the height [m] and the dataset
  * it came from, both null where no DGM1 has the point. Never throws: the
- * terrain has sources to fall back on, so a service that cannot be asked
- * answers null for every point, like one that has no data there.
+ * terrain has sources to fall back on, so a service that cannot be asked, or
+ * does not answer within `timeoutMs`, answers null for every point, like one
+ * that has no data there.
  */
-export async function terrainOnServer(points, { signal } = {}) {
-  const none = { heights: points.map(() => null), sources: points.map(() => null) }
+export async function terrainOnServer(lngLats, { timeoutMs = 60000 } = {}) {
+  const none = { heights: lngLats.map(() => null), sources: lngLats.map(() => null) }
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), timeoutMs)
   try {
     const res = await fetch(`${SERVICE}/terrain`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ points }),
-      signal,
+      body: JSON.stringify({ lnglat: lngLats }),
+      signal: abort.signal,
     })
     if (!res.ok) return none
     const data = await res.json()
-    if (!Array.isArray(data?.heights) || data.heights.length !== points.length) return none
+    if (!Array.isArray(data?.heights) || data.heights.length !== lngLats.length) return none
     return { heights: data.heights, sources: data.sources ?? none.sources }
-  } catch (err) {
-    if (err?.name === 'AbortError') throw err
+  } catch {
     return none
+  } finally {
+    clearTimeout(timer)
   }
 }
 

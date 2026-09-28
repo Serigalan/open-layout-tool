@@ -66,7 +66,7 @@ export function stationsToRead(track, force = false) {
  * Resolves to { updated, missing } — tracks written, and tracks the terrain
  * sources had no data for.
  */
-export async function fillHeights(projectId, { force = false, trackId = null } = {}) {
+export async function fillHeights(projectId, { force = false, trackId = null, source } = {}) {
   const jobs = []
   for (const track of loadTracks(projectId)) {
     if (trackId && track.id !== trackId) continue
@@ -78,7 +78,7 @@ export async function fillHeights(projectId, { force = false, trackId = null } =
   }
   if (!jobs.length) return { updated: 0, missing: 0 }
 
-  const zs = await sampleHeights(jobs.flatMap(j => j.points.map(p => p.lngLat)))
+  const zs = await sampleHeights(jobs.flatMap(j => j.points.map(p => p.lngLat)), { source })
   let k = 0, updated = 0, missing = 0
   const byTrack = new Map()
   for (const job of jobs) {

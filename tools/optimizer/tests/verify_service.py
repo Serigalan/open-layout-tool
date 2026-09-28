@@ -312,36 +312,89 @@ def fake_fetch(url):
     return archives.get(url.rsplit("/", 1)[-1])
 
 
+def ll(e, n, crs=25832):
+    return list(terrain.to_lnglat(e, n, crs))
+
+
+FRANCE = ll(300_000.0, 5_300_000.0)       # in keinem Land, das eine Quelle hat
+
 with tempfile.TemporaryDirectory() as cache:
     store = terrain.TileStore(cache_dir=cache, fetch=fake_fetch)
-    heights, sources = terrain.sample([[600_003.5, 5_600_005.5], [601_002.0, 5_600_007.0],
-                                       [602_000.0, 5_600_000.0], [400_000.0, 5_600_000.0],
-                                       ["x", None]], store)
-    ok("DGM1: Punkt aus dem jüngsten Jahrgang", heights[0] == 203.0
+    heights, sources = terrain.sample([ll(600_003.5, 5_600_005.5), ll(601_002.0, 5_600_007.0),
+                                       ll(602_000.5, 5_600_000.5), FRANCE, ["x", None]], store)
+    ok("DGM1: Punkt aus dem jüngsten Jahrgang", abs(heights[0] - 203.0) < 0.01
        and sources[0] == "dgm1-th 2020-2025")
-    ok("DGM1: älterer Jahrgang, wo der jüngste die Kachel nicht hat", heights[1] == 302.0
+    ok("DGM1: älterer Jahrgang, wo der jüngste die Kachel nicht hat", abs(heights[1] - 302.0) < 0.01
        and sources[1] == "dgm1-th 2014-2019")
-    ok("DGM1: keine Höhe, wo kein Jahrgang die Kachel hat", heights[2] is None and sources[2] is None)
-    ok("DGM1: außerhalb Thüringens wird gar nicht erst gefragt",
-       heights[3] is None and not any("_400_" in u for u in fetched))
-    ok("DGM1: unlesbarer Punkt → null statt Fehler", heights[4] is None)
+    ok("DGM1: keine Höhe, wo kein Land die Kachel hat", heights[2] is None and sources[2] is None)
     count = len(fetched)
-    terrain.sample([[600_004.5, 5_600_004.5], [602_000.0, 5_600_000.0]], store)
+    terrain.sample([FRANCE], store)
+    ok("DGM1: außerhalb der Länder wird gar nicht erst gefragt",
+       heights[3] is None and len(fetched) == count)
+    ok("DGM1: unlesbarer Punkt → null statt Fehler", heights[4] is None)
+    terrain.sample([ll(600_004.5, 5_600_004.5), ll(602_000.5, 5_600_000.5)], store)
     ok("DGM1: geladene und fehlende Kacheln werden nicht erneut geholt", len(fetched) == count)
     fresh = terrain.TileStore(cache_dir=cache, fetch=fake_fetch)
-    terrain.sample([[600_004.5, 5_600_004.5]], fresh)
+    terrain.sample([ll(600_004.5, 5_600_004.5)], fresh)
     ok("DGM1: Plattenablage überlebt den Neustart", len(fetched) == count)
+
+# Das Kachelraster: Baden-Württemberg legt 2-km-Kacheln auf ungerade Kilometer Ost.
+bw, sn = terrain.SOURCES_BY_ID["dgm1-bw"], terrain.SOURCES_BY_ID["dgm1-sn"]
+ok("Kachelraster: BW-Kachel beginnt auf ungeradem Kilometer Ost, geradem Nord",
+   bw.tile_of(513_500, 5_403_500) == (513, 5402) and bw.tile_of(512_999, 5_402_000) == (511, 5402))
+ok("Kachelraster: Sachsen auf geraden Kilometern", sn.tile_of(411_999.9, 5_655_000) == (410, 5654))
+
+
+def geotiff(grid, left, top, point=False, nodata="-9999"):
+    """Ein GeoTIFF, wie Bayern oder Brandenburg es liefern: 1 m, Kopfpunkt links oben."""
+    import tifffile
+    keys = (1, 1, 0, 1, 1025, 0, 1, 2 if point else 1)
+    buf = _io.BytesIO()
+    tifffile.imwrite(buf, np.asarray(grid, dtype=np.float32), compression="lzw", extratags=[
+        (33550, "d", 3, (1.0, 1.0, 0.0), True),
+        (33922, "d", 6, (0.0, 0.0, 0.0, float(left), float(top), 0.0), True),
+        (34735, "H", len(keys), keys, True),
+        (42113, "s", 0, nodata, True),
+    ])
+    return buf.getvalue()
+
+
+import numpy as np        # noqa: E402
+
+t = terrain.parse_tif(geotiff([[10, 11], [12, -9999]], 1000, 2002), "t")
+ok("GeoTIFF: Kopfpunkt ist die Pixelecke, Raster nach Zellmitten",
+   t.x0 == 1000.5 and t.y0 == 2001.5 and t.height(1000.5, 2001.5) == 10)
+ok("GeoTIFF: Nodata wird zu keinem Wert", t.height(1001.4, 2000.6) is None)
+t = terrain.parse_tif(geotiff([[10, 11], [12, 13]], 1000, 2002, point=True), "t")
+ok("GeoTIFF: PixelIsPoint legt die Zellmitte auf den Kopfpunkt", t.x0 == 1000.0 and t.y0 == 2002.0)
+
+# Ein Punkt im Grenzstreifen Thüringen/Bayern: Thüringens Kachel hat dort keine
+# Daten (jenseits der Grenze), also antwortet Bayern.
+by = terrain.SOURCES_BY_ID["dgm1-by"]
+point = ll(640_500.5, 5_570_500.5)                 # bei Coburg, beide Kästen
+ek, nk = by.tile_of(*terrain._to_plane(25832, *point))
+nan_tile = xyz_tile(640, 5570, True, lambda c, r: -9999)
+by_tile = geotiff(np.full((1000, 1000), 321.0), ek * 1000, nk * 1000 + 1000)
+border = {"dgm1_32_640_5570_1_th_2020-2025.zip": nan_tile, f"{ek}_{nk}.tif": by_tile}
+with tempfile.TemporaryDirectory() as cache:
+    store = terrain.TileStore(cache_dir=cache, fetch=lambda url: border.get(url.rsplit("/", 1)[-1]))
+    heights, sources = terrain.sample([point], store)
+    ok("DGM1: jenseits der Landesgrenze antwortet das Nachbarland",
+       heights == [321.0] and sources == ["dgm1-by"])
 
 with tempfile.TemporaryDirectory() as cache:
     proc3, BASE3 = start_server(OLT_TERRAIN_CACHE=cache)
     try:
-        status, body, _ = call(BASE3, "/terrain", {"points": [[400_000.0, 5_600_000.0]]})
+        status, body, _ = call(BASE3, "/terrain", {"lnglat": [FRANCE]})
         ok("/terrain: Punkt außerhalb jeder Quelle → null",
+           status == 200 and body == {"heights": [None], "sources": [None]})
+        status, body, _ = call(BASE3, "/terrain", {"points": [[300_000.0, 5_300_000.0]]})
+        ok("/terrain: die alte Form in EPSG:25832 wird weiter verstanden",
            status == 200 and body == {"heights": [None], "sources": [None]})
         status, body, _ = call(BASE3, "/terrain", {"punkte": []})
         ok("/terrain: ohne Punktliste → 400 invalid_payload",
            status == 400 and body == {"error": "invalid_payload"})
-        status, body, _ = call(BASE3, "/terrain", {"points": [[0, 0]] * 20001})
+        status, body, _ = call(BASE3, "/terrain", {"lnglat": [[0, 0]] * 20001})
         ok("/terrain: zu viele Punkte → 413 too_large",
            status == 413 and body == {"error": "too_large"})
     finally:

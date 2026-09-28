@@ -4,7 +4,8 @@ import { trackLength, gradientAt } from '../utils/heightUtils'
 import { utmToWgs84 } from '../utils/coordinateUtils'
 import { pointAtStation } from '../utils/platformUtils'
 import { PLATFORM_FILL_COLOR, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderUtils'
-import { sampleHeightsWithSource, terrainSourceLabel } from '../utils/elevationSource'
+import { sampleHeightsWithSource, terrainSourceLabel, chosenTerrainSource } from '../utils/elevationSource'
+import TerrainSourceSelect from './TerrainSourceSelect'
 import {
   crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, placeSection,
   sectionNeighbours, sectionLinePoints, sectionLevels, PLANUM_EDGE, RAILS, SLEEPERS,
@@ -80,6 +81,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   const [heightPx, setHeightPx] = useState(null)
   const [reach, setReach] = useState(DEFAULT_REACH)
   const [terrain, setTerrain] = useState(null)   // { key, points: [{ y, z }], sources }
+  const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
   const bodyRef = useRef(null)
 
   const tracks = loadTracks(project.id)
@@ -158,7 +160,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   // where a track without a gradient stands, and that depends on the terrain.
   const terrainHalf = Math.max(reach + 10, MIN_TERRAIN_HALF)
   const terrainStep = Math.max(0.5, Math.round(2 * terrainHalf / 200 * 2) / 2)
-  const terrainKey = track ? `${track.id}|${station.toFixed(1)}|${terrainHalf}|${terrainStep}` : null
+  const terrainKey = track ? `${track.id}|${station.toFixed(1)}|${terrainHalf}|${terrainStep}|${terrainSource}` : null
 
   useEffect(() => {
     if (!terrainKey || !track) return
@@ -167,7 +169,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
       const line = sectionLinePoints(track, station, -terrainHalf, terrainHalf, terrainStep)
       if (!line.length) return
       try {
-        const { heights, sources } = await sampleHeightsWithSource(line.map(p => p.lngLat))
+        const { heights, sources } = await sampleHeightsWithSource(line.map(p => p.lngLat), { source: terrainSource })
         if (cancelled) return
         setTerrain({
           key: terrainKey,
@@ -356,6 +358,10 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
             {state?.radius != null ? ` · R ${Math.round(Math.abs(state.radius))} m` : ` · ${t('table_type_straight')}`}
             {` · ${RAILS[main.rail]?.label ?? main.rail} · ${SLEEPERS[main.sleeper]?.label ?? main.sleeper}`}
           </span>
+          <label className="profile-edit">
+            {t('terrain_source')}
+            <TerrainSourceSelect t={t} value={terrainSource} onChange={setTerrainSource} />
+          </label>
           <label className="profile-edit" title={t('cross_section_reach_hint')}>
             {t('cross_section_reach')}
             <input className="track-table-input cross-section-reach" type="number" min={1} max={MAX_REACH} step={5}

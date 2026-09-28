@@ -5,6 +5,11 @@ description = "Track optimizer for Open Layout Tool exports (radius/cant within 
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "scipy>=1.10"]
 
+[project.optional-dependencies]
+# The terrain endpoint: plane transforms per Land, and GeoTIFF tiles (LZW needs
+# imagecodecs). The rest of the service runs without them.
+terrain = ["pyproj>=3.4", "tifffile>=2023.1", "imagecodecs>=2023.1"]
+
 [project.scripts]
 olt-optimize = "olt_optimizer.cli:main"
 olt-optimizer-serve = "olt_optimizer.service:main"

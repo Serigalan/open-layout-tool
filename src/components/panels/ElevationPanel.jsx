@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { loadTracks } from '../../storage'
 import { fillHeights } from '../../utils/elevationFill'
 import useTrackPick from '../../hooks/useTrackPick'
+import { chosenTerrainSource } from '../../utils/elevationSource'
+import TerrainSourceSelect from '../TerrainSourceSelect'
 
 /**
  * Vertical alignment: pick a track to see its profile in the overlay, and
@@ -14,6 +16,7 @@ export default function ElevationPanel({ t, map, project, profileTrackId, onShow
   const tracks = loadTracks(project?.id ?? '') ?? []
   const [busy, setBusy]     = useState(false)
   const [result, setResult] = useState(null)   // { updated, missing } of the last run
+  const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
 
   // A track is picked on the map as readily as from the list, and the one under
   // the cursor is drawn on the hover layer so it is clear which it would be.
@@ -26,7 +29,7 @@ export default function ElevationPanel({ t, map, project, profileTrackId, onShow
     setBusy(true)
     setResult(null)
     try {
-      setResult(await fillHeights(project.id, opts))
+      setResult(await fillHeights(project.id, { ...opts, source: terrainSource }))
     } catch {
       setResult({ updated: 0, missing: 0, failed: true })
     } finally {
@@ -55,7 +58,11 @@ export default function ElevationPanel({ t, map, project, profileTrackId, onShow
           </button>
         ))}
       </div>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 12 }}
+      <div className="form-field" style={{ marginTop: 12 }}>
+        <label>{t('terrain_source')}</label>
+        <TerrainSourceSelect t={t} value={terrainSource} onChange={setTerrainSource} />
+      </div>
+      <button className="panel-btn panel-btn-full" style={{ marginTop: 4 }}
         disabled={busy || !profileTrackId} onClick={() => run({ force: true, trackId: profileTrackId })}>
         {t('elevation_reload_track')}
       </button>

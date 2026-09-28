@@ -5,6 +5,7 @@ import {
 } from '../utils/heightUtils'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../utils/mapConstants'
 import { fillHeights } from '../utils/elevationFill'
+import { chosenTerrainSource } from '../utils/elevationSource'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
@@ -269,7 +270,7 @@ export default function ElevationOverlay({ trackId, project, map, onClose, onSav
     setReading({ trackId, state: 'busy' })
     let state = null
     try {
-      const r = await fillHeights(project.id, { force: true, trackId })
+      const r = await fillHeights(project.id, { force: true, trackId, source: chosenTerrainSource() })
       if (!r.updated) state = 'missing'
     } catch {
       state = 'failed'
