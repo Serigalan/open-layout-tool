@@ -7,7 +7,7 @@ import { PLATFORM_FILL_COLOR, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderU
 import { sampleHeightsWithSource, terrainSourceLabel } from '../utils/elevationSource'
 import {
   crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, placeSection,
-  sectionNeighbours, sectionLinePoints, sectionLevels, PLANUM_EDGE, ASSUMED_RAIL_OVER_TERRAIN, RAILS, SLEEPERS,
+  sectionNeighbours, sectionLinePoints, sectionLevels, PLANUM_EDGE, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
 import {
   gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
@@ -254,7 +254,6 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
     if (!p.level.assumed) return `${name}SO ${fmt(p.z)} m`
     if (p.level.z == null) return `${name}${t('cross_section_no_gradient')}`
     return `${name}${t('cross_section_no_gradient')} · SO ≈ ${fmt(p.level.z, 2)} m`
-      + ` (${t('cross_section_assumed').replace('{{m}}', ASSUMED_RAIL_OVER_TERRAIN.toFixed(2))})`
   }
 
   const drawing = () => {

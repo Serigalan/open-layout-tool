@@ -597,7 +597,6 @@
   "cross_section_use_switch_zone": "15 m vor und hinter einer Weiche",
   "cross_section_use_switch": "in Weichen",
   "cross_section_no_gradient": "Keine Gradiente",
-  "cross_section_assumed": "angenommen {{m}} m über Gelände",
   "cross_section_reach": "Breite ±",
   "cross_section_reach_hint": "Wie weit beiderseits des Gleises andere Gleise mitgezeichnet werden",
   "cross_section_terrain": "Gelände",
