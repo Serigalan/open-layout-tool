@@ -28,7 +28,7 @@ const appliesTo = (rule) => {
 }
 
 export default function RegelkatalogView({ t }) {
-  const { catalog, rules, tables, open_points: openPoints } = KATALOG
+  const { catalog, rules, tables } = KATALOG
 
   return (
     <>
@@ -139,24 +139,6 @@ export default function RegelkatalogView({ t }) {
           {table.key_mode?.note && <p className="constraints-hint">{table.key_mode.note}</p>}
         </div>
       ))}
-
-      <h4 className="constraints-subsection">{t('constraints_open_points')}</h4>
-      <table className="track-table constraints-table">
-        <tbody>
-          {openPoints.map(point => (
-            <tr key={point.id}>
-              <td className="constraints-value">
-                {point.id}
-                <span className="constraints-note">{point.refs.join(', ')}</span>
-              </td>
-              <td>
-                {point.topic}
-                <span className="constraints-note">{point.assumption}</span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </>
   )
 }

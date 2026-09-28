@@ -282,7 +282,6 @@
   "constraints_rule_else": "sonst",
   "constraints_rule_condition": "nur wenn",
   "constraints_tables": "Tabellen",
-  "constraints_open_points": "Offene Punkte",
   "constraints_version_mismatch": "Der Dienst rechnet nach Katalogversion {{served}}, die App bündelt {{bundled}} — er ist aus einem anderen Stand ausgeliefert.",
   "constraints_limit_speeds": "Entwurfsgeschwindigkeit",
   "constraints_limit_u": "Überhöhung",

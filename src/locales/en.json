@@ -282,7 +282,6 @@
   "constraints_rule_else": "otherwise",
   "constraints_rule_condition": "only when",
   "constraints_tables": "Tables",
-  "constraints_open_points": "Open points",
   "constraints_version_mismatch": "The service computes with catalogue version {{served}}, the app bundles {{bundled}} — it was deployed from another commit.",
   "constraints_limit_speeds": "Design speed",
   "constraints_limit_u": "Cant",
