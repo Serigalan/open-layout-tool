@@ -344,6 +344,58 @@ export function sectionNeighbours(track, station, tracks, reach) {
 }
 
 /**
+ * Where a track without a gradient is drawn: its top of rail this far over the
+ * terrain at its axis [m] — a stand-in so it shows where it roughly lies, never
+ * a height it is given.
+ */
+export const ASSUMED_RAIL_OVER_TERRAIN = 0.20
+
+/**
+ * The terrain height at `y` [mm across the section] from the points read along
+ * the line ([{ y, z }], ascending in y), linearly between the two around it.
+ * Null outside the points and where either of the two has no height.
+ */
+export function terrainHeightAt(points, y) {
+  for (let i = 1; i < (points?.length ?? 0); i++) {
+    const a = points[i - 1], b = points[i]
+    if (y < a.y || y > b.y) continue
+    if (a.z == null || b.z == null) return null
+    return b.y === a.y ? a.z : a.z + (b.z - a.z) * (y - a.y) / (b.y - a.y)
+  }
+  return null
+}
+
+/**
+ * The level every drawn track stands at [m], and the one the drawing is
+ * relative to. `tracks` are [{ z, offset }] — the gradient at the station
+ * (null where the track has none) and the offset across the section [mm], the
+ * first being the track the section is taken on.
+ *
+ * A track with a gradient stands at it. One without stands
+ * ASSUMED_RAIL_OVER_TERRAIN over the terrain at its axis and is marked
+ * `assumed`; where there is no terrain there either, its level is null and it
+ * is drawn level with the reference. The reference is the first track's level,
+ * otherwise the nearest one that has a gradient, otherwise the nearest assumed
+ * one — a stated height beats a guessed one.
+ */
+export function sectionLevels(tracks, terrainPoints) {
+  const levels = tracks.map(({ z, offset }) => {
+    if (z != null) return { z, assumed: false }
+    const ground = terrainHeightAt(terrainPoints, offset)
+    return { z: ground == null ? null : ground + ASSUMED_RAIL_OVER_TERRAIN, assumed: true }
+  })
+  const byDistance = tracks.map((tr, i) => i).slice(1)
+    .sort((a, b) => Math.abs(tracks[a].offset) - Math.abs(tracks[b].offset))
+  const first = levels[0]
+  const zRef = (first && first.z != null && !first.assumed ? first.z : null)
+    ?? byDistance.map(i => levels[i]).find(l => l.z != null && !l.assumed)?.z
+    ?? first?.z
+    ?? byDistance.map(i => levels[i]).find(l => l.z != null)?.z
+    ?? null
+  return { levels, zRef }
+}
+
+/**
  * Where the terrain is read along the section line: every `step` metres from
  * `from` to `to` (y in metres, positive to the right), each point as the
  * offset across the track [mm] and its WGS84 position.

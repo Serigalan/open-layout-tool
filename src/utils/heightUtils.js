@@ -10,8 +10,9 @@ import { HEIGHT_POINT_SPACING, HEIGHT_SPLIT_MIN } from './mapConstants'
 // [m] and rv the radius of the vertical curve rounding the gradient change
 // there, absent where there is none. Ascending in station, the first at 0 and
 // the last at the track's length — the two that meet the neighbouring tracks.
-// The heights are design values — first taken from the terrain, then edited.
-// A track without them yet has no `heights` at all.
+// The heights are design values — stated by hand, or read from the terrain on
+// request and edited from there; never filled in behind the user's back. A
+// track without a gradient has no `heights` at all.
 
 const STATION_TOL = 1e-6   // m — two stations this close are the same point
 
@@ -114,8 +115,9 @@ export function joinHeights(a, b, aLength) {
  * The heights of a track whose stretch from `at` on has been re-shaped — an
  * element's length edited, a track spliced. What lies before `at` keeps its
  * points and the point at `at` itself is kept as the new end; the rest is
- * dropped, so the terrain reads it again (see elevationFill). Undefined when
- * nothing is left to keep.
+ * dropped and the stretch stays without a gradient until it is read from
+ * the terrain on request (see elevationFill). Undefined when nothing is left
+ * to keep.
  */
 export function truncateHeights(heights, at) {
   if (!heights?.length || !(at > 0)) return undefined

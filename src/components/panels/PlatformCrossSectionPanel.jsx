@@ -20,11 +20,15 @@ function BackButton({ t, onBack }) {
  * Platforms and cross sections in one panel: the menu keeps both headings,
  * separated by the gray line. Both tools pick on the map, so only the chosen
  * one is ever mounted — the menu is what keeps their click handlers from
- * meeting.
+ * meeting. The cross-section overlay belongs to its tool: leaving the tool
+ * closes it, as switching to another panel does (App).
  */
 export default function PlatformCrossSectionPanel({ t, map, project, onTrackSaved, crossSectionAt, onShowCrossSection }) {
   const [page, setPage] = useState('menu')
-  const back = () => setPage('menu')
+  const back = () => {
+    if (page === 'cross_section') onShowCrossSection?.(null)
+    setPage('menu')
+  }
 
   if (page === 'platform') return (
     <>

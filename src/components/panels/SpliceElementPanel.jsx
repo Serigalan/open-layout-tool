@@ -52,8 +52,8 @@ function trackLabel(track) {
 /**
  * The vertical alignment the merged track starts with: the departure track's,
  * cut where its last element is re-shaped — everything from there on belongs
- * to a track that did not exist before and is read from the terrain (see
- * elevationFill). `heights: undefined` when nothing is left to keep.
+ * to a track that did not exist before and has no gradient until one is read
+ * from the terrain on request (see elevationFill). `heights: undefined` when nothing is left to keep.
  */
 function spliceHeights(depTrack, elIdx) {
   const cutAt = (depTrack.elements ?? []).slice(0, elIdx).reduce((sum, el) => sum + (el.length ?? 0), 0)

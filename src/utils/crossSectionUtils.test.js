@@ -4,6 +4,7 @@ import {
   superstructureAt, elementStartStation,
   cantAngle, cantPivot, rotatePoint, rotatePointsAbout, fitSection, sectionAtStation, crossSection,
   platformSection, placeSection, sectionNeighbours, sectionLinePoints, PLANUM_EDGE,
+  terrainHeightAt, sectionLevels, ASSUMED_RAIL_OVER_TERRAIN,
 } from './crossSectionUtils'
 import { wgs84ToUTM } from './coordinateUtils'
 import { GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileRing } from './gaugeProfiles'
@@ -365,5 +366,48 @@ describe('the section line the terrain is read along', () => {
   it('reads nothing for an empty stretch or a track without a plane', () => {
     expect(sectionLinePoints(main, 100, 5, 5)).toEqual([])
     expect(sectionLinePoints({ elements: [] }, 0, -5, 5)).toEqual([])
+  })
+})
+
+describe('where a track without a gradient stands', () => {
+  // Ground falling 1 m over 10 m, from 101 m at the left end to 99 m at the right.
+  const ground = [{ y: -10000, z: 101 }, { y: 0, z: 100 }, { y: 10000, z: 99 }, { y: 20000, z: null }]
+
+  it('reads the terrain between the points it was read at', () => {
+    expect(terrainHeightAt(ground, 0)).toBeCloseTo(100, 9)
+    expect(terrainHeightAt(ground, 4500)).toBeCloseTo(99.55, 9)
+    expect(terrainHeightAt(ground, 15000)).toBe(null)   // one of the two has no height
+    expect(terrainHeightAt(ground, 30000)).toBe(null)   // beyond what was read
+    expect(terrainHeightAt(null, 0)).toBe(null)
+  })
+
+  it('stands a track with a gradient at it, and is drawn relative to this one', () => {
+    const { levels, zRef } = sectionLevels([{ z: 184.5, offset: 0 }, { z: 184.8, offset: 4500 }], ground)
+    expect(levels).toEqual([{ z: 184.5, assumed: false }, { z: 184.8, assumed: false }])
+    expect(zRef).toBe(184.5)
+  })
+
+  it('assumes the top of rail of one without a gradient a little over the ground at its axis', () => {
+    const { levels } = sectionLevels([{ z: 184.5, offset: 0 }, { z: null, offset: 4500 }], ground)
+    expect(levels[1].assumed).toBe(true)
+    expect(levels[1].z).toBeCloseTo(99.55 + ASSUMED_RAIL_OVER_TERRAIN, 9)
+    expect(ASSUMED_RAIL_OVER_TERRAIN).toBe(0.2)
+  })
+
+  it('draws relative to a stated gradient beside it rather than to its own guess', () => {
+    const { zRef } = sectionLevels([{ z: null, offset: 0 }, { z: 102, offset: 10000 }, { z: 103, offset: -4000 }], ground)
+    expect(zRef).toBe(103)   // the nearer of the two that have one
+  })
+
+  it('draws relative to the guess where nothing in the section has a gradient', () => {
+    const { levels, zRef } = sectionLevels([{ z: null, offset: 0 }], ground)
+    expect(zRef).toBeCloseTo(100.2, 9)
+    expect(levels[0]).toEqual({ z: zRef, assumed: true })
+  })
+
+  it('has no level at all where there is neither gradient nor terrain', () => {
+    const { levels, zRef } = sectionLevels([{ z: null, offset: 0 }], null)
+    expect(levels[0]).toEqual({ z: null, assumed: true })
+    expect(zRef).toBe(null)
   })
 })

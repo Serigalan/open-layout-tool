@@ -5,10 +5,10 @@ import useTrackPick from '../../hooks/useTrackPick'
 
 /**
  * Vertical alignment: pick a track to see its profile in the overlay, and
- * bring heights in from the terrain. Elements without heights are filled
- * automatically after every change; the buttons here are for the rest —
- * reading a whole track again (which overwrites edited heights) or retrying
- * the missing ones after a failed fetch.
+ * bring heights in from the terrain. Nothing is read on its own — a track has
+ * a gradient once it is stated or asked for: in the profile of a track without
+ * one, or with the buttons here — reading a whole track again (which
+ * overwrites edited heights), or every track that still lacks heights.
  */
 export default function ElevationPanel({ t, map, project, profileTrackId, onShowProfile, onTrackSaved }) {
   const tracks = loadTracks(project?.id ?? '') ?? []

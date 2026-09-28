@@ -32,7 +32,6 @@ import RegelwerkOverlay from './components/RegelwerkOverlay'
 import PlanPreviewOverlay from './components/PlanPreviewOverlay'
 import ElevationOverlay from './components/ElevationOverlay'
 import CrossSectionOverlay from './components/CrossSectionOverlay'
-import { fillMissingHeights } from './utils/elevationFill'
 import ElevationLegend from './components/ElevationLegend'
 import './App.css'
 
@@ -440,13 +439,6 @@ export default function App() {
     })
   }, [restoreKmLines])
 
-  // Elements that have no height points yet get them from the terrain in the
-  // background — after every change, and once when a project is opened.
-  const fillHeights = useCallback((projectId) => {
-    fillMissingHeights(projectId).then(r => { if (r.updated) setHeightsVersion(v => v + 1) })
-  }, [])
-  useEffect(() => { if (project) fillHeights(project.id) }, [project, fillHeights])
-
   // The kilometrage lines the tracks name are fetched the same way: in the
   // background, after every change and once on opening. Nothing on screen
   // waits for them — they are read when a plan is drawn.
@@ -469,10 +461,9 @@ export default function App() {
     if (map.current && project) renderTracksOnMap(map.current, project)
     setUndoAvailable(canUndo())
     setHeightsVersion(v => v + 1)
-    if (project) {
-      fillHeights(project.id)
-      syncKmLines(project.id)
-    }
+    // The gradient is not read from the terrain behind the user's back: a
+    // track has one when it is stated, or read on request in the profile.
+    if (project) syncKmLines(project.id)
   }
 
   const handleUndo = useCallback(() => {
@@ -560,6 +551,7 @@ export default function App() {
       if (next !== 'edit') setTrackTable(null)
       if (next !== 'elevation') setProfileTrackId(null)
       if (next !== 'plan') setPlanPreview(null)
+      if (next !== 'platform') setCrossSectionAt(null)
     }
     if (next !== 'edit') closeTrackTable(go); else go()
   }

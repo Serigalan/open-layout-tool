@@ -55,11 +55,11 @@ export function stationsToRead(track, force = false) {
 }
 
 /**
- * Give tracks their height points from the terrain. Without `force` only
- * tracks that have none yet, and stretches added to a track since, are read —
- * that is how a new track gets its first heights while edited ones are left
- * alone; with `force` the whole track (or project) is read again and
- * overwritten.
+ * Give tracks their height points from the terrain — only ever on request (the
+ * profile's button, the elevation panel), never on its own. Without `force`
+ * only tracks that have none yet, and stretches added to a track since, are
+ * read, so edited heights are left alone; with `force` the whole track (or
+ * project) is read again and overwritten.
  *
  * A track whose length changed while its heights were being fetched is
  * skipped: the points would belong to the old geometry.
@@ -94,27 +94,4 @@ export async function fillHeights(projectId, { force = false, trackId = null } =
   if (byTrack.size) setHeightsForTracks(projectId, byTrack, { undo: force })
   unifyJoints(projectId, new Set(byTrack.keys()))
   return { updated, missing }
-}
-
-// The automatic fill runs after every change; a change during a run queues one
-// more run, so nothing is missed and nothing runs twice at once.
-const running = new Map()   // projectId → { promise, again }
-
-/** Fill the heights every track still lacks — serialized per project. */
-export function fillMissingHeights(projectId) {
-  const state = running.get(projectId)
-  if (state) { state.again = true; return state.promise }
-  const entry = { again: false }
-  entry.promise = (async () => {
-    let total = { updated: 0, missing: 0 }
-    do {
-      entry.again = false
-      const r = await fillHeights(projectId).catch(() => ({ updated: 0, missing: 0 }))
-      total = { updated: total.updated + r.updated, missing: r.missing }
-    } while (entry.again)
-    running.delete(projectId)
-    return total
-  })()
-  running.set(projectId, entry)
-  return entry.promise
 }

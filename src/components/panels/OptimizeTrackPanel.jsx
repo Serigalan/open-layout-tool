@@ -46,8 +46,8 @@ function previewGeoJSON(elements) {
  * The vertical alignment the optimized track keeps. It is stationed along the
  * track and independent of the elements, so re-shaping them changes nothing
  * for it as long as their lengths do — where the first length moves, the
- * stations behind it move with it, and the rest is read from the terrain again
- * (see elevationFill).
+ * stations behind it move with it, and the rest is left without a gradient
+ * until it is read from the terrain on request (see elevationFill).
  */
 function reshapedHeights(track, elements) {
   const old = track.elements ?? []

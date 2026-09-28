@@ -147,7 +147,7 @@ export function planElementChange(tracks, switches, trackId, elIdx, { length, be
   })
   // A new length re-stations the track from that element on, so the vertical
   // alignment is cut there — what lies before it keeps its height points, the
-  // rest is read from the terrain again (see elevationFill).
+  // rest has no gradient until it is read on request (see elevationFill).
   if (newEl.length !== el.length && track.heights) {
     const cutAt = track.elements.slice(0, elIdx).reduce((sum, e) => sum + (e.length ?? 0), 0)
     const kept  = truncateHeights(track.heights, cutAt)

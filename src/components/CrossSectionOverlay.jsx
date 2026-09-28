@@ -7,7 +7,7 @@ import { PLATFORM_FILL_COLOR, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderU
 import { sampleHeightsWithSource, terrainSourceLabel } from '../utils/elevationSource'
 import {
   crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, placeSection,
-  sectionNeighbours, sectionLinePoints, PLANUM_EDGE, RAILS, SLEEPERS,
+  sectionNeighbours, sectionLinePoints, sectionLevels, PLANUM_EDGE, ASSUMED_RAIL_OVER_TERRAIN, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
 import {
   gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
@@ -25,7 +25,9 @@ const MAX_REACH = 100
 /** Wait after the last move of the slider before the terrain is read [ms]. */
 const TERRAIN_DEBOUNCE = 250
 const TERRAIN_COLOR = '#2e8b3a'
-const MISSING_COLOR = '#a52a1f'
+/** Terrain is read at least this far either side of the track [m]. */
+const MIN_TERRAIN_HALF = 40
+const ASSUMED_COLOR = '#8a8a8a'
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 // Where the section is taken: a dot on the track at the slider's station, and
@@ -63,8 +65,11 @@ const inRange = (p, station) => station >= (p.startStation ?? 0) && station <= (
  * Beside it stand the other tracks the section line crosses, each with its own
  * cant and platforms, and under all of them the terrain as a thin green line.
  * Everything is placed at its height relative to this track's gradient, and
- * every track and platform is labelled with its absolute height — a track
- * without heights says so instead, and is drawn level with this one.
+ * every track is labelled with its absolute height and its cant (u=…), every
+ * platform with the height of its edge. A track without a gradient says so:
+ * it is drawn greyed, its top of rail assumed a little over the terrain at its
+ * axis — the gradient is never read from the terrain on its own (see the
+ * profile's button for that).
  *
  * The slider walks the station along the whole track; nothing here is
  * editable. The section is a view of the alignment; what it shows is changed
@@ -146,17 +151,47 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
 
   const main = track ? sectionOf({ track, station }) : null
   const neighbours = track ? sectionNeighbours(track, station, tracks, reach).map(sectionOf) : []
-  // Heights are drawn relative to this track's gradient; where it has none,
-  // the nearest track that has one takes its place, so the others still
-  // stand at their heights to each other.
-  const zRef = main?.z
-    ?? [...neighbours].sort((a, b) => Math.abs(a.offset) - Math.abs(b.offset)).find(n => n.z != null)?.z
-    ?? null
   const drawn = main ? [main, ...neighbours] : []
-  const placed = drawn.map(d => {
+
+  // ── The terrain along the section line, read once the slider rests ────────
+  // A fixed stretch either side, not the fitted drawing: the drawing depends on
+  // where a track without a gradient stands, and that depends on the terrain.
+  const terrainHalf = Math.max(reach + 10, MIN_TERRAIN_HALF)
+  const terrainStep = Math.max(0.5, Math.round(2 * terrainHalf / 200 * 2) / 2)
+  const terrainKey = track ? `${track.id}|${station.toFixed(1)}|${terrainHalf}|${terrainStep}` : null
+
+  useEffect(() => {
+    if (!terrainKey || !track) return
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      const line = sectionLinePoints(track, station, -terrainHalf, terrainHalf, terrainStep)
+      if (!line.length) return
+      try {
+        const { heights, sources } = await sampleHeightsWithSource(line.map(p => p.lngLat))
+        if (cancelled) return
+        setTerrain({
+          key: terrainKey,
+          points: line.map((p, i) => ({ y: p.y, z: heights[i] })),
+          sources: [...new Set(sources.filter(Boolean))],
+        })
+      } catch {
+        if (!cancelled) setTerrain({ key: terrainKey, points: [], sources: [] })
+      }
+    }, TERRAIN_DEBOUNCE)
+    return () => { cancelled = true; clearTimeout(timer) }
+    // track and station are part of the key; the track object is new on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terrainKey])
+
+  const terrainPoints = terrain?.key === terrainKey ? terrain.points : null
+  // Every track at its gradient; one without stands a little over the ground,
+  // greyed, and the drawing is relative to the stated height nearest to hand.
+  const { levels, zRef } = sectionLevels(drawn.map(d => ({ z: d.z, offset: d.offset })), terrainPoints)
+  const placed = drawn.map((d, i) => {
+    const level = levels[i]
     const place = (pts) => placeSection(pts, {
       offset: d.offset, mirrored: d.mirrored,
-      dz: d.z != null && zRef != null ? (d.z - zRef) * 1000 : 0,
+      dz: level.z != null && zRef != null ? (level.z - zRef) * 1000 : 0,
     })
     const { section } = d
     // The inner-face ticks stand square on the running plane, so they are
@@ -165,6 +200,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
       place([[y, z], [y - Math.sin(section.angle) * FACE_TICK, z + Math.cos(section.angle) * FACE_TICK]]))
     return {
       ...d,
+      level,
       gauge: place(section.gauge),
       areas: section.areas.map(place),
       rails: section.rails.map(place),
@@ -186,61 +222,40 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   if (placed.length) {
     const left  = placed.reduce((a, b) => (b.axis[0] < a.axis[0] ? b : a))
     const right = placed.reduce((a, b) => (b.axis[0] > a.axis[0] ? b : a))
-    fitPoints.push([left.axis[0] - PLANUM_EDGE, bottomOf(left)], [right.axis[0] + PLANUM_EDGE, bottomOf(right)])
+    // Room under the outermost tracks for their two label lines.
+    fitPoints.push([left.axis[0] - PLANUM_EDGE, bottomOf(left) - 200], [right.axis[0] + PLANUM_EDGE, bottomOf(right) - 200])
   }
   const fit = size && size.w >= 40 && size.h >= 40 && fitPoints.length ? fitSection(fitPoints, size, MARGIN) : null
-
-  // ── The terrain along the section line, read once the slider rests ────────
-  // The whole width of the drawing is read, not only what was fitted: the
-  // spare space on the wider axis shows ground too.
-  const viewFrom = fit ? Math.max(-MAX_REACH, Math.floor((0 - fit.cx) / fit.k / 1000)) : null
-  const viewTo   = fit ? Math.min(MAX_REACH, Math.ceil((size.w - fit.cx) / fit.k / 1000)) : null
-  const terrainStep = fit ? Math.max(0.5, Math.round((viewTo - viewFrom) / 150 * 2) / 2) : null
-  const terrainKey = fit && track ? `${track.id}|${station.toFixed(1)}|${viewFrom}|${viewTo}|${terrainStep}` : null
-
-  useEffect(() => {
-    if (!terrainKey || !track) return
-    let cancelled = false
-    const timer = setTimeout(async () => {
-      const line = sectionLinePoints(track, station, viewFrom, viewTo, terrainStep)
-      if (!line.length) return
-      try {
-        const { heights, sources } = await sampleHeightsWithSource(line.map(p => p.lngLat))
-        if (cancelled) return
-        setTerrain({
-          key: terrainKey,
-          points: line.map((p, i) => ({ y: p.y, z: heights[i] })),
-          sources: [...new Set(sources.filter(Boolean))],
-        })
-      } catch {
-        if (!cancelled) setTerrain({ key: terrainKey, points: [], sources: [] })
-      }
-    }, TERRAIN_DEBOUNCE)
-    return () => { cancelled = true; clearTimeout(timer) }
-    // track and station are part of the key; the track object is new on every render
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terrainKey])
 
   if (!track) return null
 
   const fmt = (z, digits = 3) => z.toFixed(digits)
 
   const terrainState = (() => {
-    if (!terrain || terrain.key !== terrainKey) return { text: t('cross_section_terrain_loading') }
-    if (!terrain.points.some(p => p.z != null)) return { text: t('cross_section_terrain_none') }
+    if (!terrainPoints) return { text: t('cross_section_terrain_loading') }
+    if (!terrainPoints.some(p => p.z != null)) return { text: t('cross_section_terrain_none') }
     if (zRef == null) return { text: t('cross_section_terrain_no_height') }
-    const axis = terrain.points.reduce((a, b) => (Math.abs(b.y) < Math.abs(a.y) ? b : a))
+    const axis = terrainPoints.reduce((a, b) => (Math.abs(b.y) < Math.abs(a.y) ? b : a))
     return {
       text: `${t('cross_section_terrain')} · ${terrain.sources.map(terrainSourceLabel).join(', ')}`
         + (axis.z != null ? ` · ${t('cross_section_terrain_axis')} ${fmt(axis.z, 2)} m` : ''),
       // Split at the gaps where no source had a height, so a gap stays one.
-      runs: terrain.points.reduce((runs, p) => {
+      runs: terrainPoints.reduce((runs, p) => {
         if (p.z == null) { if (runs[runs.length - 1]?.length) runs.push([]); return runs }
         runs[runs.length - 1].push([p.y, (p.z - zRef) * 1000])
         return runs
       }, [[]]).filter(r => r.length >= 2),
     }
   })()
+
+  /** The two lines under a track: its name (not for the track itself) and height, then its cant. */
+  const trackLabel = (p, isMain) => {
+    const name = isMain ? '' : `${p.track.name || p.track.id.slice(0, 8)} · `
+    if (!p.level.assumed) return `${name}SO ${fmt(p.z)} m`
+    if (p.level.z == null) return `${name}${t('cross_section_no_gradient')}`
+    return `${name}${t('cross_section_no_gradient')} · SO ≈ ${fmt(p.level.z, 2)} m`
+      + ` (${t('cross_section_assumed').replace('{{m}}', ASSUMED_RAIL_OVER_TERRAIN.toFixed(2))})`
+  }
 
   const drawing = () => {
     if (!fit) return null
@@ -260,10 +275,10 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
           <path key={`g${i}`} d={path(r)} fill="none" stroke={TERRAIN_COLOR} strokeWidth="1.2" />
         ))}
         {placed.map((p, n) => {
-          const missing = p.z == null
           const isMain = n === 0
           return (
-            <g key={`${p.track.id}|${p.station}`} opacity={missing ? 0.55 : 1}>
+            <g key={`${p.track.id}|${p.station}`} opacity={p.level.assumed ? 0.4 : 1}
+              style={p.level.assumed ? { filter: 'grayscale(1)' } : undefined}>
               {/* the clearance contour, and the areas inside it that may be
                   reached into — dashed, because they are part of the outline
                   but not of the space that has to stay free */}
@@ -301,14 +316,15 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
         {/* heights: of every track's gradient under it, of every platform edge over it */}
         {placed.map((p, n) => (
           <text key={`l${p.track.id}|${p.station}`} x={X(p.axis[0])} y={Y(bottomOf(p)) + 14}
-            fontSize="11" textAnchor="middle" fill={p.z == null ? MISSING_COLOR : '#444'}>
-            {(n === 0 ? '' : `${p.track.name || p.track.id.slice(0, 8)} · `)
-              + (p.z == null ? t('cross_section_height_missing') : `SO ${fmt(p.z)} m`)}
+            fontSize="11" textAnchor="middle" fill={p.level.assumed ? ASSUMED_COLOR : '#444'}
+            fontStyle={p.level.assumed ? 'italic' : undefined}>
+            <tspan x={X(p.axis[0])}>{trackLabel(p, n === 0)}</tspan>
+            <tspan x={X(p.axis[0])} dy="13">{`u=${Math.round(Math.abs(p.state?.cant ?? 0))}`}</tspan>
           </text>
         ))}
         {placed.flatMap(p => p.platformOutlines.map(({ platform, outline }, i) => {
           const height = Number(platform.height)
-          if (p.z == null || !Number.isFinite(height)) return null
+          if (p.level.assumed || !Number.isFinite(height)) return null
           const ys = outline.map(q => q[0]), top = Math.max(...outline.map(q => q[1]))
           return (
             <text key={`b${p.track.id}|${i}`} x={X((Math.min(...ys) + Math.max(...ys)) / 2)} y={Y(top) - 5}
@@ -337,7 +353,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
         </span>
         <div className="profile-controls">
           <span className="profile-hint">
-            {`${t('cant')} ${Math.round(state?.cant ?? 0)} mm`}
+            {`u=${Math.round(Math.abs(state?.cant ?? 0))} mm`}
             {state?.radius != null ? ` · R ${Math.round(Math.abs(state.radius))} m` : ` · ${t('table_type_straight')}`}
             {` · ${RAILS[main.rail]?.label ?? main.rail} · ${SLEEPERS[main.sleeper]?.label ?? main.sleeper}`}
           </span>

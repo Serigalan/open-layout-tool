@@ -4,6 +4,7 @@ import {
   trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, elementAtStation,
 } from '../utils/heightUtils'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../utils/mapConstants'
+import { fillHeights } from '../utils/elevationFill'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
@@ -39,6 +40,9 @@ const gradeLabel = (perMille) => {
  * curve rounding the gradient change there — drawn in light grey between its
  * tangent points. Every stretch is labelled with its gradient in ‰. Any point
  * but the two ends of the track can be deleted.
+ *
+ * A track without a gradient shows none — the terrain is not read on its own.
+ * The empty profile offers to compute one from the height data instead.
  */
 // `version` is passed by the parent purely to re-render this after a write to
 // the store — the profile is read from the store on every render.
@@ -59,6 +63,9 @@ export default function ElevationOverlay({ trackId, project, map, onClose, onSav
   const bodyRef = useRef(null)
   const svgRef  = useRef(null)
   const panRef  = useRef(null)
+  // Reading the gradient from the terrain: { trackId, state } with state
+  // 'busy', 'missing' (no height data there) or 'failed'.
+  const [reading, setReading] = useState(null)
 
   // ── Data: the track's own profile and the stubs of the joined tracks ──────
   // Recomputed on every render — it is a few hundred numbers, and `version`
@@ -257,6 +264,20 @@ export default function ElevationOverlay({ trackId, project, map, onClose, onSav
     return t('table_type_straight')
   }
 
+  const readState = reading?.trackId === trackId ? reading.state : null
+  const readFromTerrain = async () => {
+    setReading({ trackId, state: 'busy' })
+    let state = null
+    try {
+      const r = await fillHeights(project.id, { force: true, trackId })
+      if (!r.updated) state = 'missing'
+    } catch {
+      state = 'failed'
+    }
+    setReading({ trackId, state })
+    onSaved?.()
+  }
+
   const drawing = () => {
     if (!size || !view) return null
     const right = size.w - MARGIN.right, bottom = size.h - MARGIN.bottom
@@ -408,8 +429,18 @@ export default function ElevationOverlay({ trackId, project, map, onClose, onSav
         </div>
       </div>
       <div className="profile-body" ref={bodyRef}>
-        {allPoints.length === 0
-          ? <div className="profile-empty">{t('elevation_no_heights')}</div>
+        {points.length === 0
+          ? (
+            <div className="profile-empty">
+              <span>{t('elevation_no_heights')}</span>
+              <button className="panel-btn" disabled={readState === 'busy'} onClick={readFromTerrain}>
+                {t('elevation_compute')}
+              </button>
+              {readState === 'busy' && <span>{t('elevation_loading')}</span>}
+              {readState === 'missing' && <span className="form-error">{t('elevation_compute_missing')}</span>}
+              {readState === 'failed' && <span className="form-error">{t('elevation_failed')}</span>}
+            </div>
+          )
           : drawing()}
       </div>
     </div>
