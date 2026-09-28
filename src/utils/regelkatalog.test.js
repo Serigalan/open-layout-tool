@@ -43,13 +43,14 @@ describe('the catalogue file', () => {
     expect(source.gueltig_ab).toBeUndefined()
   })
 
-  // The rules and the values the optimizer runs on are one rulebook under one
-  // id — that is what makes the popup show them as one entry rather than two.
-  it('carries the id the optimizer service serves the values of', () => {
-    const served = JSON.parse(fs.readFileSync(path.join(here,
-      '../../tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json'), 'utf-8'))
-    expect(served.id).toBe(CATALOG_ID)
-    expect(served.name).toBe(KATALOG.catalog.title)
+  // The rules the app checks by and the rules the optimizer builds to are one
+  // file — the optimizer's package reaches it through a symlink, so there is
+  // no second copy that could say something else.
+  it('is the very file the optimizer applies', () => {
+    const applied = JSON.parse(fs.readFileSync(path.join(here,
+      '../../tools/optimizer/olt_optimizer/constraints/db-ril-800-0110.json'), 'utf-8'))
+    expect(applied).toEqual(KATALOG)
+    expect(applied.catalog.id).toBe(CATALOG_ID)
   })
 })
 
@@ -305,50 +306,11 @@ describe('applying a list of rules', () => {
   })
 })
 
-// The catalogue restates limits the served regelwerk already carries as bare
-// numbers, because the two are written for different readers: the optimizer
-// reads a value, this reads a rule with its steps of severity. Restating them
-// is only safe while something fails when they part company.
-describe('where the catalogue and the served regelwerk overlap', () => {
-  const repoRoot = path.resolve(here, '../..')
-  const ril = JSON.parse(fs.readFileSync(
-    path.join(repoRoot, 'tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json'), 'utf-8'))
+// The comparison radius between two rows of its table is a formula over the
+// physics document's coefficient — the one number the catalogue asks of it.
+describe('what the catalogue takes from the physics file', () => {
   const physicsFile = JSON.parse(fs.readFileSync(
-    path.join(repoRoot, 'src/constraints/physics.json'), 'utf-8'))
-
-  // Every threshold is read back out of the rule rather than out of the file's
-  // text: what is compared is then what the checker would really apply.
-  const thresholds = (id, scope, options = physics) =>
-    evaluateRule(ruleById(id), scope, options).values
-  const inSwitch = { ...physics, inContext: (id) => id === 'switch_area' }
-
-  it('agrees on the cant a curve and a turnout may carry', () => {
-    expect(thresholds('LP.KB.01', { 'element.cant': 0 }).max).toBe(ril.ueberhoehung.u_max.wert)
-    const turnout = thresholds('LP.KB.05', { 'element.cant': 0 }, inSwitch)
-    expect(turnout.reg).toBe(ril.weiche.u_max.wert)
-    expect(turnout.discretion).toBe(ril.weiche.ausnahme_120.wert)
-  })
-
-  it('agrees on the deficiency a turnout may carry', () => {
-    expect(thresholds('LP.KB.06', { 'physics.u_f': 0 }, inSwitch).max).toBe(ril.weiche.uf_max.wert)
-  })
-
-  // The optimizer keeps one ramp factor per transition form; in the catalogue
-  // that factor is the Ermessensgrenze, with a Regelwert above it and a
-  // Zustimmungswert below. Read at v = 1 km/h and Δu = 1000 mm the threshold
-  // is the factor itself.
-  it('agrees on the ramp factors, as the step the optimizer plans to', () => {
-    const factors = (id) => thresholds(id, {
-      'element.design_speed': 1, 'physics.delta_u': 1000, 'element.length': 0,
-    })
-    expect(factors('LP.UB.03').discretion).toBe(ril.rampenregel.faktor_klothoide.wert)
-    expect(factors('LP.UB.04').discretion).toBe(ril.rampenregel.faktor_bloss.wert)
-  })
-
-  it('agrees on the minimum element length above 100 km/h', () => {
-    const table = KATALOG.tables.min_element_length
-    expect(lookupPiecewise(table, 200) / 200).toBeCloseTo(ril.mindestlaenge.koeffizient.wert, 10)
-  })
+    path.join(here, '../../src/constraints/physics.json'), 'utf-8'))
 
   it('computes the comparison radius with the physics file\'s own coefficient', () => {
     expect(PHYSICS.u0_factor).toBe(physicsFile.ueberhoehungsfehlbetrag_koeffizient.wert)

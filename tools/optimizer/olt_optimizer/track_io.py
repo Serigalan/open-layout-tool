@@ -57,6 +57,11 @@ def is_switch_element(el):
     return bool(el.get("switchBranch"))
 
 
+def _same_switch(a, b):
+    """Do both elements belong to one and the same turnout?"""
+    return a.get("switchId") is not None and a.get("switchId") == b.get("switchId")
+
+
 def _bearing_from_nodes(el):
     (s_e, s_n), (e_e, e_n) = el["startNode"], el["endNode"]
     return (math.atan2(e_e - s_e, e_n - s_n) * RAD2DEG) % 360.0
@@ -233,6 +238,16 @@ def _build_group(els, entry_idx, arc_idxs, t_idxs, exit_idx):
         # no cant of their own and are shared with the neighbouring groups, so a
         # turnout on one of them is not this group's business.
         "on_switch": any(is_switch_element(el) for el in els[entry_idx + 1:exit_idx]),
+        # Per slot: a curvature jump there lies inside one turnout, and a jump
+        # inside a turnout is the turnout's own business — the catalogue
+        # excludes it (LP.KS.01, `switch_internal`), as the app's check does.
+        "jump_internal": [_same_switch(els[a], els[b]) for a, b in zip(
+            [entry_idx] + list(arc_idxs), list(arc_idxs) + [exit_idx])],
+        # The design speed the bounding straights state for themselves. A
+        # straight between two groups has to be as long as the fastest of it
+        # and its curves asks for (LP.EL.01).
+        "entry_speed": float(entry.get("speed") or 0.0),
+        "exit_speed": float(exit_.get("speed") or 0.0),
         # Both are measured against every candidate the run tries, so they are
         # put into their measuring form here, once, and not there, every time.
         "ref_poly": as_points(_ref_polyline(els, entry_idx, exit_idx)),
@@ -327,7 +342,10 @@ def build_elements(track, groups, solutions, shifts):
             for k in sorted(group_members[gi]):
                 out.append(dict(els[k]))
             continue
-        speed = math.floor(sol["v"])
+        # The design speed the run stated the group at — on the catalogue's
+        # grid (LP.ALL.02), not the bare speed the curve permits.
+        v_design = sol.get("v_design")
+        speed = int(v_design) if v_design and v_design == int(v_design) else (v_design or math.floor(sol["v"]))
         arc_no = 0
         for seg in sol["fit"]["segments"]:
             if seg["kind"] == "transition":

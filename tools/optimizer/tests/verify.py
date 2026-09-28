@@ -7,6 +7,11 @@
    joint optimization; continuity, fixed end points, corridor, ramp rules,
    joint never below baseline.
 4. Switch elements in a group: the tighter cant and deficiency limits (AP 1.1).
+5. The rule catalogue a run is held to (src/constraints/db-ril-800-0110.json):
+   its expression language, the limits it gives at Regelwert and
+   Ermessensgrenze, and every proposal judged afterwards by a port of the
+   app's own check (katalog_check.py) — independent of the bounds the run
+   built to.
 """
 
 import json
@@ -19,23 +24,26 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from olt_optimizer.geometry import (          # noqa: E402
     transition_shift, fit_curve_group, fit_compound_group, dir_of,
     permissible_speed, radius_for_speed, max_dist_to_polyline, snap_down, snap_up,
-    fit_s_group, RAMP_FACTOR, R_STEP, R_MIN, L_STEP, U_MAX, U_STEP,
-    U_MAX_SWITCH, UF_MAX_SWITCH, MIN_LENGTH_COEFF, CANT_DEFICIENCY_COEFF,
-    heading_coeffs,
+    fit_s_group, R_STEP, L_STEP, CANT_DEFICIENCY_COEFF, heading_coeffs,
 )
 from olt_optimizer.track_io import (          # noqa: E402
     parse_groups, build_elements, is_straight, _straight_element,
     _transition_element, _arc_element_seg, _element_ref_points,
 )
 from olt_optimizer.optimize import (        # noqa: E402
-    baseline, binding_reason, capped, joint_optimize, ramp_lengths, u_max_for, uf_for,
-    window_for, _bestand_solution, _interior_straights, _max_radius_for,
+    arc_speed, baseline, bestand_speed, binding_reason, capped, joint_optimize, ramp_lengths,
+    u_max_for, window_for, _bestand_solution, _interior_straights, _max_radius_for,
 )
-from olt_optimizer.api import optimize_payload                # noqa: E402
-from olt_optimizer import regelwerk as regelwerk_mod           # noqa: E402
-from olt_optimizer.regelwerk import (                          # noqa: E402
-    RegelwerkError, list_regelwerke, load_regelwerk, params_from_regelwerk,
+from olt_optimizer.api import optimize_payload, run_params, variants_for      # noqa: E402
+from olt_optimizer.grenzen import Grenzen, GrenzenError, grenzen_for          # noqa: E402
+from olt_optimizer.katalog import Katalog                                     # noqa: E402
+from olt_optimizer.regelwerk import (                                         # noqa: E402
+    CONSTRAINTS_DIR, RegelwerkError, list_regelwerke, load_katalog, load_regelwerk,
 )
+from olt_optimizer.ruleexpr import ExprError, comparison, eval_expr           # noqa: E402
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from katalog_check import check_track, new_indices                            # noqa: E402
 
 # The constraint files live in the repo's own src/constraints/, not in the
 # package: physics.json is the readable derivation this harness checks the
@@ -57,6 +65,21 @@ def ok(label, cond):
 
 close_pt = lambda a, b, tol=1e-6: math.hypot(a[0] - b[0], a[1] - b[1]) < tol   # noqa: E731
 on_grid = lambda v, step: abs(v / step - round(v / step)) < 1e-6              # noqa: E731
+
+
+REG = grenzen_for("db-ril-800-0110", "reg")
+ERM = grenzen_for("db-ril-800-0110", "discretion")
+
+
+def check_rules(label, old_els, new_els, grenzen=REG):
+    """Every element the run proposed, judged by the catalogue the way the
+    app's element table judges it: nothing worse than the level admits."""
+    idx = new_indices(old_els, new_els)
+    findings = check_track(grenzen.katalog, new_els, idx)
+    bad = sorted({f for f in findings if grenzen.katalog.rank(f[2]) > grenzen.max_rank})
+    ok(f"{label}: Regelkatalog ({grenzen.stufe}) für {len(idx)} neue Elemente eingehalten"
+       f" ({bad[:4] or 'kein Befund darüber'})", idx and not bad)
+    return findings
 
 
 def check_chain(els, label):
@@ -155,16 +178,14 @@ groups = parse_groups(track)
 ok("Parser: 2 Gruppen, gemeinsame Zwischengerade",
    len(groups) == 2 and groups[0]["exit_idx"] == groups[1]["entry_idx"])
 
-params = {"corridor": 0.5, "uf": 130.0}
+params = run_params(50.0)
 base = baseline(groups, params)
-v_alt = min(permissible_speed(a["r_alt"], a["u_alt"], params["uf"]) for g in groups for a in g["arcs"])
+v_alt = min(bestand_speed(g, params) for g in groups)
 v_base = min(s["v"] for s in base)
 print(f"   Bestand {v_alt:.1f} km/h → Baseline {v_base:.1f} km/h")
 ok("Baseline verbessert Engpass-v", v_base > v_alt + 1)
 ok("Baseline: Korridor eingehalten", all(s["offset"] <= 0.5 + 1e-6 for s in base))
-ok("Baseline: Rampenregeln", all(
-    s["trans_l"][0] >= RAMP_FACTOR[g["types"][0]] * s["v"] * s["us"][0] / 1000 - 1e-9
-    for g, s in zip(groups, base)))
+check_rules("Baseline", elements, build_elements(track, groups, base, {}))
 
 solutions, shifts, _ = joint_optimize(groups, params, maxiter=40, seed=1)
 v_joint = min(s["v"] for s in solutions)
@@ -188,18 +209,34 @@ ok("Optimierter Track: Übergangsbogenlängen im 10-cm-Raster", all(
     on_grid(el["length"], L_STEP) for el in new_els if el["elementType"] == 2))
 ok("Endpunkte fix", tuple(new_els[0]["startNode"]) == P1
    and math.hypot(new_els[-1]["endNode"][0] - P3[0], new_els[-1]["endNode"][1] - P3[1]) < 1e-9)
-ok("Mindestlängen 0,2·v", all(el["length"] >= 0.2 * el.get("speed", 0) - 1e-6 for el in new_els))
+check_rules("Optimierter Track", elements, new_els)
+ok("Entwurfsgeschwindigkeit der neuen Elemente im 5-km/h-Raster",
+   all(el["speed"] % 5 == 0 for el in (new_els[i] for i in new_indices(elements, new_els))
+       if el["elementType"] != 0))
 measured = independent_offset(elements, new_els)
 ok(f"unabhängige Abrückung ≤ 51 cm ({measured * 100:.1f} cm)", measured <= 0.51)
 
-# ── 3b) Profilwechsel auf Bloss (kürzere Rampen, k=6) ────────────────────────
+# ── 3b) Profilwechsel auf Bloss ─────────────────────────────────────────────
+# Der Kernel kann Bloss (LP.UB.04/06 statt .03/.05 — kürzere Rampen), aber ein
+# Lauf bietet ihn nicht an: die Rampe ist in dieser App immer gerade, und
+# LP.UB.02 nennt einen Blossbogen darunter einen Sonderfall — auf beiden Stufen
+# schlechter, als ein Lauf liefern darf.
+ok("Bloss: auf keiner Stufe zugelassen",
+   not REG.forms["bloss"] and not ERM.forms["bloss"] and REG.forms["clothoid"])
+ok("Bloss: 'auto' rechnet nur den Bestand", variants_for("auto", REG) == ["bestand"]
+   and variants_for("auto", ERM) == ["bestand"])
+try:
+    variants_for("bloss", REG)
+    ok("Bloss: ausdrücklich verlangt → abgelehnt, mit Grund", False)
+except ValueError as exc:
+    ok("Bloss: ausdrücklich verlangt → abgelehnt, mit Grund", "LP.UB.02" in str(exc))
 bloss_groups = [{**g, "types": ["bloss" if has else t for t, has in zip(g["types"], g["has_t"])]}
                 for g in groups]
 b_base = baseline(bloss_groups, params)
 v_bloss = min(s["v"] for s in b_base)
 print(f"   Baseline Bestand-Typen {v_base:.1f} km/h | alle Bloss {v_bloss:.1f} km/h")
-ok("Bloss-Variante: Rampenregel mit k=6", all(
-    s["trans_l"][0] >= RAMP_FACTOR["bloss"] * s["v"] * s["us"][0] / 1000 - 1e-9 for s in b_base))
+ok("Bloss-Variante (Kernel): Rampen nach LP.UB.04, kürzer als die Klothoide", all(
+    b["trans_l"][0] <= c["trans_l"][0] + 1e-9 for b, c in zip(b_base, base) if b["us"] == c["us"]))
 b_els = build_elements(track, bloss_groups, b_base, {})
 ok("Bloss-Variante: Elemente tragen transitionType bloss",
    all(el.get("transitionType") == "bloss" for el in b_els if el["elementType"] == 2))
@@ -226,7 +263,7 @@ ok("Sweeps aus Bestand rekonstruiert",
 
 k_sols, k_shifts, k_base = joint_optimize(k_groups, params, maxiter=60, seed=1)
 k_sol = k_sols[0]
-v_k_alt = min(permissible_speed(a["r_alt"], a["u_alt"], params["uf"]) for a in k_groups[0]["arcs"])
+v_k_alt = bestand_speed(k_groups[0], params)
 print(f"   Korbbogen: Bestand {v_k_alt:.1f} → Joint {k_sol['v']:.1f} km/h | "
       f"r {[round(a['r_alt']) for a in k_groups[0]['arcs']]} → {[round(r, 1) for r in k_sol['radii']]} | "
       f"u {[a['u_alt'] for a in k_groups[0]['arcs']]} → {k_sol['us']}")
@@ -235,13 +272,14 @@ ok("Korbbogen: u im 5-mm-Raster", all(
     u <= 160 and (abs(u / 5 - round(u / 5)) < 1e-9 or u == a["u_alt"])
     for a, u in zip(k_groups[0]["arcs"], k_sol["us"])))
 ok("Korbbogen: Korridor eingehalten", k_sol["offset"] <= 0.5 + 1e-6)
-ok("Korbbogen: Zwischenrampe nach Δu-Regel",
-   k_sol["trans_l"][1] >= RAMP_FACTOR["clothoid"] * k_sol["v"] * abs(k_sol["us"][1] - k_sol["us"][0]) / 1000 - 1e-9)
+ok("Korbbogen: Zwischenrampe mindestens nach LP.UB.03 (10·v·Δu)",
+   k_sol["trans_l"][1] >= 10 * k_sol["v_design"] * abs(k_sol["us"][1] - k_sol["us"][0]) / 1000 - 1e-9)
 
 k_new = build_elements(k_track, k_groups, k_sols, k_shifts)
 check_chain(k_new, "Optimierter Korbbogen")
 ok("Korbbogen: Endpunkte fix", tuple(k_new[0]["startNode"]) == P1
    and math.hypot(k_new[-1]["endNode"][0] - KP2[0], k_new[-1]["endNode"][1] - KP2[1]) < 1e-9)
+check_rules("Korbbogen", k_els, k_new)
 k_measured = independent_offset(k_els, k_new)
 ok(f"Korbbogen: unabhängige Abrückung ≤ 51 cm ({k_measured * 100:.1f} cm)", k_measured <= 0.51)
 ok("Korbbogen: beide Bögen gleiche Richtung",
@@ -297,7 +335,7 @@ ok(f"Dreibogen: Bestandslage trifft das Gleis ({(t_bestand or {}).get('offset', 
    t_bestand is not None and t_bestand["offset"] < 1e-4)
 t_sols, t_shifts, _ = joint_optimize(t_groups, params, maxiter=25, seed=1)
 ok("Dreibogen: Gruppe wird nicht gesperrt", t_sols[0] is not None)
-v_t_alt = min(permissible_speed(a["r_alt"], a["u_alt"], params["uf"]) for a in t_groups[0]["arcs"])
+v_t_alt = bestand_speed(t_groups[0], params)
 ok("Dreibogen: nie schlechter als der Bestand", t_sols[0]["v"] >= v_t_alt - 1e-6)
 t_new = build_elements(t_track, t_groups, t_sols, t_shifts)
 check_chain(t_new, "Dreibogen optimiert")
@@ -305,8 +343,7 @@ ok("Dreibogen: alle drei Bögen gleiche Richtung",
    len({el["radius"] > 0 for el in t_new if el["elementType"] == 1}) == 1)
 # Im weiteren Korridor bewegt sich die Gruppe auch wirklich — sonst sagte der
 # Test oben nur, dass nichts passiert.
-t_wide, _, _ = joint_optimize(parse_groups(t_track),
-                              {"corridor": 5.0, "uf": 130.0}, maxiter=40, seed=1)
+t_wide, _, _ = joint_optimize(parse_groups(t_track), run_params(500.0), maxiter=40, seed=1)
 print(f"   Dreibogen: Bestand {v_t_alt:.1f} → 50 cm {t_sols[0]['v']:.1f} → 5 m {t_wide[0]['v']:.1f} km/h")
 ok("Dreibogen: im weiten Korridor wird er schneller", t_wide[0]["v"] > v_t_alt + 1)
 
@@ -340,15 +377,14 @@ ok("Fenster-Baseline: Gruppe 3 gesperrt, Nachbar auf Bestand",
    and abs(w_base[1]["radii"][0] - w_groups[1]["arcs"][0]["r_alt"]) < 1e-9)
 
 TARGET_IDX = w_groups[0]["arc_idxs"][0]
-res = optimize_payload(track3, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+res = optimize_payload(track3, corridor_cm=50.0, uebergang="bestand",
                        maxiter=40, seed=1, target_element_idx=TARGET_IDX)
 rows = res["report"]
 t_rows = [r for r in rows if r["target"]]
 n_rows = [r for r in rows if not r["target"]]
 ok("Report: nur Fenster-Gruppen, Ziel markiert",
    {r["group"] for r in rows} == {1, 2} and len(t_rows) == 1 and t_rows[0]["group"] == 1)
-v0_alt = permissible_speed(w_groups[0]["arcs"][0]["r_alt"],
-                           w_groups[0]["arcs"][0]["u_alt"], params["uf"])
+v0_alt = bestand_speed(w_groups[0], params)
 v0_base = w_base[0]["v"]
 print(f"   Ziel-Bogen: Bestand {v0_alt:.1f} → Baseline {v0_base:.1f} "
       f"→ Fenster {t_rows[0]['vNeu']:.1f} km/h | Verschiebungen: "
@@ -372,6 +408,7 @@ ok("Gesperrte Gruppe 3 unverändert", len(new3) == len(elements3) and all(
     and new3[k]["endNode"] == elements3[k]["endNode"]
     and new3[k].get("radius") == elements3[k].get("radius")
     for k in locked_idxs))
+check_rules("Fenster-optimierter Track", elements3, new3)
 w_measured = independent_offset(elements3, new3)
 ok(f"Fenster: unabhängige Abrückung ≤ 51 cm ({w_measured * 100:.1f} cm)", w_measured <= 0.51)
 
@@ -401,9 +438,13 @@ edge_groups = parse_groups({**track, "id": "py-weiche-rand", "elements": edge_el
 ok("Weiche: Marke auf einer Randgeraden bindet keine Gruppe",
    not any(g["on_switch"] for g in edge_groups))
 
-ok("Weiche: u_max 100 mm statt 160, uf gedeckelt auf 110 mm",
-   u_max_for(sw_groups[0]) == 100.0 and uf_for(sw_groups[0], params) == 110.0
-   and u_max_for(sw_groups[1]) == 160.0 and uf_for(sw_groups[1], params) == params["uf"])
+ok("Weiche: u_max 100 mm statt 160 (LP.KB.05/01), u_f 110 statt 130 (LP.KB.06/02)",
+   u_max_for(sw_groups[0], params) == 100.0 and REG.uf_max(100.0, True) == 110.0
+   and u_max_for(sw_groups[1], params) == 160.0 and REG.uf_max(100.0, False) == 130.0)
+ok("Weiche: an der Ermessensgrenze 120 mm (LP.KB.05), u_f bleibt 110 (LP.KB.06 kennt keine)",
+   ERM.u_max(True) == 120.0 and ERM.uf_max(100.0, True) == 110.0)
+ok("Weiche: die Bogengeschwindigkeit rechnet mit 110 mm",
+   abs(arc_speed(sw_groups[0], 700.0, 0.0, params) - permissible_speed(700.0, 0.0, 110.0)) < 1e-9)
 
 sw_base = baseline(sw_groups, params)
 print(f"   Weichengruppe: u {sw_base[0]['us']} bei v {sw_base[0]['v']:.1f} km/h | "
@@ -415,10 +456,16 @@ ok("Weiche: gleiche Geometrie, aber weniger v als die Streckengruppe",
 sw_sols, _, _ = joint_optimize(sw_groups, params, maxiter=40, seed=1)
 ok("Weiche: auch die Joint-Optimierung bleibt unter 100 mm",
    all(u <= 100.0 for u in sw_sols[0]["us"]))
+# Am Regelwert (10·v·Δu) lohnt die volle Weichenüberhöhung hier nicht mehr —
+# ihre Rampe kostet mehr Radius, als sie bringt. Der Grund wird deshalb an
+# einer Lösung geprüft, die an der Decke steht.
+_sw_at_cap = {**sw_base[0], "us": [100.0], "jump": None, "offset": 0.1}
 ok("Grund (AP R.4): an der Weichengrenze steht die Weiche, nicht die Strecke",
-   binding_reason(sw_groups[0], sw_base[0], params) == {"regel": "weiche", "arc": 1, "ist": 100.0, "soll": 100.0})
-ok("Grund: die Streckengruppe hängt an der Rampenregel, nicht an der Überhöhungsdecke",
-   binding_reason(groups[0], base[0], params)["regel"] == "rampenregel")
+   binding_reason(sw_groups[0], _sw_at_cap, params) == {"regel": "weiche", "arc": 1, "ist": 100.0, "soll": 100.0}
+   and binding_reason(groups[0], {**base[0], "us": [100.0], "jump": None, "offset": 0.1},
+                      params)["regel"] != "weiche")
+ok("Grund: im 50-cm-Korridor bindet bei der Streckengruppe der Korridor",
+   binding_reason(groups[0], base[0], params)["regel"] == "korridor")
 
 # Ein Bestandswert über der Grenze ist ein Befund für die Elementtabelle, keine
 # Rechenreserve: er wird weder angehoben noch stillschweigend gekappt.
@@ -448,7 +495,7 @@ for label, sub in EDGE.items():
        is_straight(sub[e_groups[0]["entry_idx"]]) and is_straight(sub[e_groups[-1]["exit_idx"]])
        and all(not is_straight(el) for el in sub[:e_groups[0]["entry_idx"]])
        and all(not is_straight(el) for el in sub[e_groups[-1]["exit_idx"] + 1:]))
-    e_res = optimize_payload(e_track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+    e_res = optimize_payload(e_track, corridor_cm=50.0, uebergang="bestand",
                              maxiter=25, seed=1)
     e_new = e_res["elements"]
     ok(f"{label}: kein Element geht verloren", len(e_new) == len(sub))
@@ -512,7 +559,7 @@ ok("Bestandslösung rundet den krummen Radius nicht",
 ok("Bestandslösung rundet die krumme Rampe nicht",
    odd_bestand is not None and abs(odd_bestand["trans_l"][0] - ODD_L) < 1e-6)
 
-odd_res = optimize_payload(odd_track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+odd_res = optimize_payload(odd_track, corridor_cm=50.0, uebergang="bestand",
                            maxiter=25, seed=1)
 odd_new = odd_res["elements"]
 ok("Vorschlag aus krummem Bestand: Radien wieder ganze Meter", all(
@@ -524,10 +571,7 @@ check_chain(odd_new, "Raster-Track")
 # Die Rampenregel darf am Raster nicht zerbrechen: aufgerundet erfüllt sie sich
 # weiter, abgerundet nicht.
 odd_base = baseline(odd_groups, params)
-ok("Rampenregel hält trotz Rasterung", all(
-    s["trans_l"][0] >= RAMP_FACTOR[g["types"][0]] * s["v"] * s["us"][0] / 1000 - 1e-9
-    and s["trans_l"][0] >= 0.2 * s["v"] - 1e-9
-    for g, s in zip(odd_groups, odd_base) if s))
+check_rules("Rampenregeln trotz Rasterung", odd_els, build_elements(odd_track, odd_groups, odd_base, {}))
 
 
 # ── 9) Zielgeschwindigkeit: oberhalb davon ist nichts mehr zu holen ──────────
@@ -535,10 +579,10 @@ ok("radius_for_speed kehrt permissible_speed um", all(
     abs(permissible_speed(radius_for_speed(v, u, 130.0), u, 130.0) - v) < 1e-9
     for v in (100.0, 160.0, 230.0) for u in (0.0, 60.0, 150.0)))
 
-v_free = optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+v_free = optimize_payload(track, corridor_cm=50.0, uebergang="bestand",
                           maxiter=40, seed=1)
-V_TARGET = 115.0
-v_cap = optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+V_TARGET = 113.0
+v_cap = optimize_payload(track, corridor_cm=50.0, uebergang="bestand",
                          maxiter=40, seed=1, v_max=V_TARGET)
 off_free = max(r["offsetCm"] for r in v_free["report"] if r["changed"])
 off_cap = max(r["offsetCm"] for r in v_cap["report"] if r["changed"])
@@ -552,7 +596,7 @@ ok("Grund: am Ziel steht die Zielgeschwindigkeit (AP R.4)", all(
 
 # Ein Bogen, der den Bestand schon schneller macht als das Ziel, wird in Ruhe
 # gelassen — ein Lauf verbessert eine Trasse, er flacht keine ab.
-v_below = optimize_payload(track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+v_below = optimize_payload(track, corridor_cm=50.0, uebergang="bestand",
                            maxiter=40, seed=1, v_max=100.0)
 ok("Ziel unter dem Bestand ändert nichts an den Radien",
    all(abs(r["rNeu"] - r["rAlt"]) < 1e-9 for r in v_below["report"] if r["changed"]))
@@ -562,10 +606,12 @@ ok("Ziel unter dem Bestand: v bleibt der Bestandswert",
    abs(v_below["vNeu"] - v_below["vBestand"]) < 1e-6)
 ok("ohne Ziel bleibt alles wie bisher", v_free["vNeu"] >= v_cap["vNeu"] - 1e-9)
 
-cap_params = {"corridor": 0.5, "uf": 130.0, "v_max": V_TARGET}
+cap_params = run_params(50.0, v_max=V_TARGET)
 ok("capped deckelt nur nach oben",
    capped(200.0, cap_params) == V_TARGET and capped(80.0, cap_params) == 80.0
    and capped(200.0, params) == 200.0)
+ok("capped: über der schnellsten Entwurfsgeschwindigkeit des Katalogs zählt nichts mehr",
+   capped(340.0, params) == REG.v_top == 300.0)
 
 
 # ── 10) Unlesbare Abschnitte werden übersprungen, nicht abgelehnt ────────────
@@ -599,7 +645,7 @@ ok("die Geraden um die Lücke dürfen nicht wandern",
    GAP_AT not in _interior_straights(gap_groups)
    and GAP_AT + 2 not in _interior_straights(gap_groups))
 
-gap_res = optimize_payload(gap_track, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+gap_res = optimize_payload(gap_track, corridor_cm=50.0, uebergang="bestand",
                            maxiter=25, seed=1)
 ok("das Ergebnis nennt die übersprungene Stelle",
    len(gap_res["skipped"]) == 1 and gap_res["skipped"][0]["from"] == GAP_AT + 1)
@@ -656,10 +702,10 @@ u_alt = u_groups[0]["arcs"][0]["u_alt"]
 def _best_at(group, prms, only_upwards):
     """Die Baseline-Auswahl, wahlweise mit dem alten Raster (nur nach oben)."""
     alt = group["arcs"][0]["u_alt"]
-    v_alt = permissible_speed(group["arcs"][0]["r_alt"], alt, uf_for(group, prms))
+    v_alt = bestand_speed(group, prms)
     grid = [alt]
     u = alt if only_upwards else 0.0
-    while u <= u_max_for(group):
+    while u <= u_max_for(group, prms):
         if u != alt and (not only_upwards or u > alt):
             grid.append(u)
         u += 5.0
@@ -671,7 +717,13 @@ def _best_at(group, prms, only_upwards):
     return best
 
 
-wide = {"corridor": 2.0, "uf": 130.0}
+# Am Regelwert gibt es nach oben gar keinen Weg mehr: 110 mm auf R 2500 hieße
+# bei rund 225 km/h eine Rampe von 10·v·Δu ≈ 250 m, auf 300 m langen Schenkeln.
+ok("am Regelwert führt nur der Weg nach unten",
+   _best_at(u_groups[0], run_params(200.0), True) is None
+   and _best_at(u_groups[0], run_params(200.0), False) is not None)
+# Den Handel selbst zeigt die Ermessensgrenze, wo beide Richtungen gehen.
+wide = run_params(200.0, "discretion")
 u_up = _best_at(u_groups[0], wide, True)
 u_free = _best_at(u_groups[0], wide, False)
 print(f"   Rampenhandel (2 m Korridor): nur hoch u {u_up['us'][0]:.0f} R {u_up['radii'][0]:.0f} "
@@ -679,13 +731,15 @@ print(f"   Rampenhandel (2 m Korridor): nur hoch u {u_up['us'][0]:.0f} R {u_up['
 ok("im weiten Korridor gewinnt die kleinere Überhöhung",
    u_free["us"][0] < u_alt and u_free["v"] > u_up["v"] + 0.5)
 ok("sie kauft dafür Radius", u_free["radii"][0] > u_up["radii"][0])
-ok("und hält die Rampenregel ein",
-   u_free["trans_l"][0] >= RAMP_FACTOR["clothoid"] * u_free["v"] * u_free["us"][0] / 1000 - 1e-9)
+check_rules("Rampenhandel", u_els, build_elements(u_track, u_groups, [u_free], {}), ERM)
+_ramp_reason = binding_reason(u_groups[0], u_free, wide)
+ok(f"Grund: im weiten Korridor bindet die Rampe, und der Grund nennt ihre Regel ({_ramp_reason})",
+   _ramp_reason["regel"] == "rampenregel" and _ramp_reason.get("regelId") == "LP.UB.03")
 ok("die gesenkte Überhöhung liegt im 5-mm-Raster", on_grid(u_free["us"][0], 5.0))
 ok("die Baseline nimmt diese Lösung auch",
    (baseline(u_groups, wide)[0] or {}).get("us", [None])[0] == u_free["us"][0])
 
-narrow = baseline(u_groups, {"corridor": 0.5, "uf": 130.0})[0]
+narrow = baseline(u_groups, params)[0]
 ok("im 50-cm-Korridor lohnt der Handel nicht und die Überhöhung bleibt",
    narrow is None or narrow["us"][0] >= u_alt)
 
@@ -701,9 +755,8 @@ s_fit = fit_compound_group(UP1, SD1, SB1, SP2, SD2, SB2, [600.0], [], [90.0, 90.
 s_track = {"id": "py-kurzrampe", "name": "k.001", "epsg": EPSG,
            "elements": build_from_fit(s_fit, [140.0], UP1, SP2)}
 s_groups = parse_groups(s_track)
-s_params = {"corridor": 0.5, "uf": 110.0}
-s_alt = permissible_speed(s_groups[0]["arcs"][0]["r_alt"],
-                          s_groups[0]["arcs"][0]["u_alt"], 110.0)
+s_params = params
+s_alt = bestand_speed(s_groups[0], s_params)
 s_base = baseline(s_groups, s_params)
 s_offer = "keiner" if s_base[0] is None else f"{s_base[0]['v']:.1f} km/h"
 print(f"   zu kurze Bestandsrampe: Bestand {s_alt:.1f} km/h (regelwidrig), Vorschlag {s_offer}")
@@ -713,7 +766,7 @@ ok("ein Bestand mit zu kurzer Rampe wird nicht heruntergeredet",
 # Unter einer Zielgeschwindigkeit gewinnt bei Gleichstand die Überhöhung, die
 # dem Bestand am nächsten liegt — weniger Umbau bei gleichem Ergebnis.
 tie_target = permissible_speed(700.0, 90.0, 130.0)
-tie = baseline(groups, {"corridor": 0.5, "uf": 130.0, "v_max": tie_target})
+tie = baseline(groups, run_params(50.0, v_max=tie_target))
 ok("bei Gleichstand bleibt die Überhöhung möglichst, wie sie war", all(
    abs(s["us"][0] - g["arcs"][0]["u_alt"]) <= 25.0 for g, s in zip(groups, tie) if s))
 ok("und das Ziel wird trotzdem erreicht",
@@ -731,10 +784,13 @@ SB = 40.0
 SD = dir_of(SB)
 SN = (-SD[1], SD[0])
 SP1 = (500000.0, 5600000.0)
-S_OFFSET = 6.0
-SP2 = (SP1[0] + 900 * SD[0] + S_OFFSET * SN[0], SP1[1] + 900 * SD[1] + S_OFFSET * SN[1])
-s_fit2 = fit_s_group(SP1, SD, SB, SP2, SD, SB, [-600.0, 600.0], [40.0, 40.0, 40.0],
-                     ["clothoid"] * 3, 270.0)
+S_OFFSET = 15.0
+SP2 = (SP1[0] + 1200 * SD[0] + S_OFFSET * SN[0], SP1[1] + 1200 * SD[1] + S_OFFSET * SN[1])
+# Nicht enger: die Wendeklothoide trägt den Fehlbetrag beider Bögen (LP.UB.05,
+# Δu_f ist die Summe), und ein S aus R 600 auf 6 m Versatz hat für eine solche
+# Rampe keinen Platz — der Lauf ließe es zu Recht liegen.
+s_fit2 = fit_s_group(SP1, SD, SB, SP2, SD, SB, [-1200.0, 1200.0], [70.0, 100.0, 70.0],
+                     ["clothoid"] * 3, 300.0)
 ok("S-Bogen: Fit existiert", s_fit2 is not None)
 ok("S-Bogen: Ende liegt auf der Ausgangsgeraden",
    abs((s_fit2["cl_end"][0] - SP2[0]) * SN[0]
@@ -756,13 +812,16 @@ ok(f"S-Bogen: die Bestandslage trifft das Gleis "
    s_best2 is not None and s_best2["offset"] < 1e-3)
 
 # Über die Mittelrampe springt die Überhöhung von einer Seite auf die andere.
-s_lens, _ = ramp_lengths(s_groups2[0], 120.0, [70.0, 70.0])
-ok("S-Bogen: die Mittelrampe rechnet mit der Summe der Überhöhungen",
-   abs(s_lens[1] - snap_up(RAMP_FACTOR["clothoid"] * 120.0 * 140.0 / 1000.0, L_STEP)) < 1e-9)
+# Mit u_f = 0 (u_0 = u), damit allein der Überhöhungssprung zählt: R so, dass
+# 11,8·120²/R genau 70 mm ergibt.
+S_R = CANT_DEFICIENCY_COEFF * 120.0 ** 2 / 70.0
+s_lens, s_rules = ramp_lengths(s_groups2[0], 120.0, [S_R, S_R], [70.0, 70.0], params)
+ok("S-Bogen: die Mittelrampe rechnet mit der Summe der Überhöhungen (LP.UB.03, 10·v·Δu)",
+   abs(s_lens[1] - snap_up(10 * 120.0 * 140.0 / 1000.0, L_STEP)) < 1e-9 and s_rules[1] == "LP.UB.03")
 ok("S-Bogen: die Außenrampen rechnen mit der einzelnen Überhöhung",
-   abs(s_lens[0] - snap_up(RAMP_FACTOR["clothoid"] * 120.0 * 70.0 / 1000.0, L_STEP)) < 1e-9)
+   abs(s_lens[0] - snap_up(10 * 120.0 * 70.0 / 1000.0, L_STEP)) < 1e-9)
 
-s_res2 = optimize_payload(s_track2, corridor_cm=50.0, uf=130.0, uebergang="bestand",
+s_res2 = optimize_payload(s_track2, corridor_cm=50.0, uebergang="bestand",
                           maxiter=25, seed=1)
 ok("S-Bogen: der Lauf nimmt ihn an, statt ihn zu überspringen", not s_res2["skipped"])
 print(f"   S-Bogen: Bestand {s_res2['vBestand']:.1f} → {s_res2['vNeu']:.1f} km/h, "
@@ -784,16 +843,15 @@ ok("S-Bogen: die Bögen drehen weiter gegensinnig",
    len({el["radius"] > 0 for el in s_res2["elements"] if el["elementType"] == 1}) == 2)
 ok("S-Bogen: Radien in ganzen Metern", all(
    on_grid(abs(el["radius"]), R_STEP) for el in s_res2["elements"] if el["elementType"] == 1))
+check_rules("S-Bogen", s_els2, s_res2["elements"])
 s_measured = independent_offset(s_els2, s_res2["elements"])
 ok(f"S-Bogen: unabhängige Abrückung ≤ 51 cm ({s_measured * 100:.1f} cm)", s_measured <= 0.51)
 
 
-# ── 13) Regelwerk und Physik: Driftprüfung (AP R.1/R.2) ──────────────────────
-# physics.json und regelwerke/db-ril-800-0110.json sind die lesbare Quelle; ein
-# Lauf liest zur Laufzeit keine der beiden, geometry.py/optimize.py rechnen mit
-# ihren eigenen Literalen weiter (siehe die Moduldocstrings). Dieser Abschnitt
-# hält beide Seiten gegeneinander ehrlich, statt sie unbeobachtet auseinander-
-# laufen zu lassen.
+# ── 13) Physik: Driftprüfung (AP R.1) ───────────────────────────────────────
+# physics.json ist die lesbare Herleitung; der Kernel rechnet mit seinem
+# eigenen Koeffizienten weiter (siehe den Docstring von geometry.py). Dieser
+# Abschnitt hält beide gegeneinander ehrlich.
 
 physics = json.loads((REPO_ROOT / "src" / "constraints" / "physics.json")
                      .read_text(encoding="utf-8"))
@@ -847,63 +905,178 @@ for _name, _profil in physics["uebergangsbogenprofile"].items():
     ok(f"Physik: kruemmung_calc von '{_name}' trifft den Kernel (1e-12)",
        abs(_from_file - _from_kernel) < 1e-12)
 
-rw = load_regelwerk()
-ok("Regelwerk: db-ril-800-0110 ist das Vorgabe-Regelwerk", rw["id"] == "db-ril-800-0110")
-ok("Regelwerk: list_regelwerke() findet es",
-   any(r["id"] == "db-ril-800-0110" for r in list_regelwerke()))
+# ── 14) Der Regelkatalog, den ein Lauf anwendet ─────────────────────────────
+# Kein Wert mehr im Code und keine Kopie im Paket: ein Lauf liest
+# src/constraints/db-ril-800-0110.json, dieselbe Datei, die die App bündelt.
+ok("Katalog: olt_optimizer/constraints ist das src/constraints/ des Repos, keine Kopie",
+   CONSTRAINTS_DIR.resolve() == (REPO_ROOT / "src" / "constraints").resolve())
+rw_list = list_regelwerke()
+katalog_file = json.loads((REPO_ROOT / "src" / "constraints" / "db-ril-800-0110.json")
+                          .read_text(encoding="utf-8"))
+ok("Katalog: gelistet wird genau DB Ril 800.0110, mit der Version der Datei",
+   [r["id"] for r in rw_list] == ["db-ril-800-0110"]
+   and rw_list[0]["version"] == katalog_file["catalog"]["katalog_version"])
+ok("Katalog: load_regelwerk() ist die Datei, unverändert", load_regelwerk() == katalog_file)
+for bad_id in ("nicht-vorhanden", "db-ril-800-0120", "physics", "../constraints/physics"):
+    try:
+        load_regelwerk(bad_id)
+        ok(f"Katalog: '{bad_id}' wird abgelehnt", False)
+    except RegelwerkError:
+        ok(f"Katalog: '{bad_id}' wird abgelehnt", True)
+
+# Die Ausdruckssprache — dieselben Fälle, an denen ruleExpr.js hängt.
+ok("Ausdruck: Punkt vor Strich, ^ bindet rechts",
+   eval_expr("2 + 3 * 4", {}) == 14 and eval_expr("2 ^ 3 ^ 2", {}) == 512
+   and eval_expr("-2 ^ 2", {}) == -4)
+ok("Ausdruck: Namen mit Punkt sind ein Name",
+   eval_expr("prev.design_speed * 2", {"prev.design_speed": 40}) == 80)
+ok("Ausdruck: and/or/not und Vergleiche",
+   eval_expr("v >= 40 and v <= 300", {"v": 40}) is True
+   and eval_expr("not (v % 5 == 0)", {"v": 42}) is True)
+ok("Ausdruck: % wie in JavaScript (Vorzeichen des Dividenden)",
+   eval_expr("-7 % 5", {}) == -2)
+ok("Ausdruck: if rechnet nur den gewählten Zweig",
+   eval_expr("if(r > 0, 1000 / r, 0)", {"r": 0}) == 0)
+ok("Ausdruck: Zeichenketten",
+   eval_expr("form == 'clothoid'", {"form": "clothoid"}) is True)
+for bad_src, bad_scope in (("unbekannt + 1", {}), ("1 +", {}), ("3 & 4", {}), ("'offen", {}),
+                           ("wurzel(4)", {})):
+    try:
+        eval_expr(bad_src, bad_scope)
+        ok(f"Ausdruck: '{bad_src}' wird nicht stillschweigend beantwortet", False)
+    except ExprError:
+        ok(f"Ausdruck: '{bad_src}' wird nicht stillschweigend beantwortet", True)
+ok("Ausdruck: comparison liest 'Eingang ≥ Schwelle'",
+   comparison("l_R >= reg") == ("l_R", ">=", "reg") and comparison("u >= 0 and u % step == 0") is None)
+
+# Der Katalog selbst, ausgewertet wie in regelkatalog.js.
+KAT = load_katalog()
+ok("Katalog: LP.KB.02 wird bei 160 km/h zur Warnung, ab 151 mm zum Fehler",
+   KAT.evaluate_rule(KAT.rule("LP.KB.02"), {"element.design_speed": 160.0, "physics.u_f": 140.0})["severity"]
+   == "warning"
+   and KAT.evaluate_rule(KAT.rule("LP.KB.02"), {"element.design_speed": 160.0, "physics.u_f": 151.0})["severity"]
+   == "error"
+   and KAT.evaluate_rule(KAT.rule("LP.KB.02"), {"element.design_speed": 150.0, "physics.u_f": 140.0})["severity"]
+   == "error")
+ok("Katalog: Mindestelementlänge aus der Stufentabelle (0,1·v / 0,15·v / 0,2·v)",
+   [REG.min_length("straight", V) for V in (40.0, 70.0, 75.0, 100.0, 105.0, 300.0)]
+   == [4.0, 7.0, 11.25, 15.0, 21.0, 60.0])
+ok("Katalog: Zwischengerade zwischen Gegenbögen bei genau 40 km/h 7,2 m (LP.EL.02)",
+   REG.min_length("straight", 40.0, True) == 7.2 and REG.min_length("straight", 45.0, True) == 4.5)
+_rw_reg = [REG.jump_need(V) for V in (40.0, 45.0, 100.0, 200.0, 205.0)]
+_rw_erm = [ERM.jump_need(V) for V in (40.0, 45.0, 100.0, 200.0)]
+ok(f"Katalog: Vergleichsradius — Tabellenwert, dazwischen nächsthöher bzw. Formel ({_rw_reg}, {_rw_erm})",
+   _rw_reg[:4] == [220, 340, 1370, 10000] and _rw_reg[4] == math.inf
+   and _rw_erm[0] == 178 and abs(_rw_erm[1] - CANT_DEFICIENCY_COEFF * 45 ** 2 / 106.5) < 1e-9
+   and _rw_erm[2:] == [1110, 7000])
+
+# Die beiden Stufen, gegeneinander.
+ok("Stufen: Entwurfsgeschwindigkeiten 40…300 in 5 km/h, auf beiden gleich",
+   REG.speeds == ERM.speeds and REG.speeds[0] == 40.0 and REG.speeds[-1] == 300.0
+   and all(b - a == 5.0 for a, b in zip(REG.speeds, REG.speeds[1:])))
+ok("Stufen: Überhöhung 0…160 mm in 5 mm (LP.KB.01/03)",
+   REG.u_max() == ERM.u_max() == 160.0 and REG.u_step == ERM.u_step == 5.0)
+ok("Stufen: u_f 130 mm am Regelwert, an der Ermessensgrenze 150 erst über 150 km/h (LP.KB.02)",
+   {REG.uf_max(V) for V in REG.speeds} == {130.0}
+   and ERM.uf_max(150.0) == 130.0 and ERM.uf_max(155.0) == 150.0)
+ok("Stufen: R 2000 ohne Überhöhung — 148 km/h am Regelwert, 159 an der Ermessensgrenze",
+   abs(REG.speed(2000.0, 0.0) - permissible_speed(2000.0, 0.0, 130.0)) < 1e-9
+   and abs(ERM.speed(2000.0, 0.0) - permissible_speed(2000.0, 0.0, 150.0)) < 1e-9
+   and round(REG.speed(2000.0, 0.0)) == 148 and round(ERM.speed(2000.0, 0.0)) == 159)
+ok("Stufen: eine Kurve knapp über 150 km/h rechnet mit 130 mm — ihre Entwurfsgeschwindigkeit ist 150",
+   ERM.speed(1740.0, 0.0) == permissible_speed(1740.0, 0.0, 130.0))
+_ramp_reg = REG.ramp_bounds("clothoid", 100.0, 100.0, 0.0)
+_ramp_erm = ERM.ramp_bounds("clothoid", 100.0, 100.0, 0.0)
+ok(f"Stufen: Klothoidenrampe 10·v·Δu am Regelwert, 8·v·Δu an der Ermessensgrenze ({_ramp_reg[:2]}, {_ramp_erm[:2]})",
+   _ramp_reg[0] == 100.0 and _ramp_reg[2] == "LP.UB.03" and _ramp_erm[0] == 80.0)
+_duf = REG.ramp_bounds("clothoid", 100.0, 0.0, 130.0)
+ok(f"Stufen: ohne Überhöhungssprung trägt die Rampe den Fehlbetragssprung (LP.UB.05, {_duf[:3]})",
+   _duf[0] == 4 * 100.0 * 130.0 / 1000.0 and _duf[2] == "LP.UB.05")
+_slow = REG.ramp_bounds("clothoid", 40.0, 100.0, 0.0)
+ok(f"Stufen: bei 40 km/h bindet die Neigung 1:600 statt 10·v (LP.UB.07, {_slow[:3]})",
+   _slow[0] == 60.0 and _slow[2] == "LP.UB.07" and ERM.ramp_bounds("clothoid", 40.0, 100.0, 0.0)[0] == 40.0)
+_flat = REG.ramp_bounds("clothoid", 150.0, 5.0, 0.0)
+ok(f"Stufen: eine Rampe darf nicht flacher als 1:3000 sein (LP.UB.08, {_flat[:2]})",
+   _flat[1] == 15.0 and _flat[0] == 30.0)
+ok("Stufen: jump_speed setzt die Gruppe auf die schnellste Entwurfsgeschwindigkeit, bei der der Sprung passt",
+   REG.jump_speed(900.0, 120.0) == 80.0 and ERM.jump_speed(900.0, 120.0) == 90.0
+   and REG.jump_speed(5000.0, 120.0) == 120.0 and REG.jump_speed(100.0, 120.0) is None
+   and REG.jump_speed(100.0, 120.0, internal=True) == 120.0)
 try:
-    load_regelwerk("nicht-vorhanden")
-    ok("Regelwerk: unbekannte Id wird abgelehnt", False)
-except RegelwerkError:
-    ok("Regelwerk: unbekannte Id wird abgelehnt", True)
+    grenzen_for("db-ril-800-0110", "approval")
+    ok("Stufen: nur Regelwert und Ermessensgrenze", False)
+except GrenzenError:
+    ok("Stufen: nur Regelwert und Ermessensgrenze", True)
 
-code_values = {
-    "u_max": U_MAX, "u_step": U_STEP, "u_max_switch": U_MAX_SWITCH,
-    "uf_max_switch": UF_MAX_SWITCH, "min_length_coeff": MIN_LENGTH_COEFF,
-    "r_step": R_STEP, "r_min": R_MIN, "l_step": L_STEP,
-}
-rw_values = params_from_regelwerk(rw)
-mismatches = {k: (v, rw_values[k]) for k, v in code_values.items() if rw_values[k] != v}
-ok(f"Regelwerk: jeder Code-Wert hat einen gleichlautenden Eintrag ({mismatches or 'keine Abweichung'})",
-   not mismatches)
-ok("Regelwerk: die Rampenfaktoren stimmen (Klothoide/Bloss)",
-   rw_values["ramp_factor"] == RAMP_FACTOR)
-
-
-def _leaf_paths(node, prefix=""):
-    """Dotted paths of every {"wert": <scalar>, ...} leaf under `node`."""
-    paths = []
-    for key, child in node.items():
-        if not isinstance(child, dict):
-            continue
-        path = f"{prefix}.{key}" if prefix else key
-        if "wert" in child and not isinstance(child["wert"], dict):
-            paths.append(path)
-        else:
-            paths.extend(_leaf_paths(child, path))
-    return paths
-
-
-all_leaves = set(_leaf_paths(rw))
-wired = {p.rsplit(".", 1)[0] for p in
-        set(regelwerk_mod._PATHS.values()) | set(regelwerk_mod._RAMP_PATHS.values())}
-informational = set(regelwerk_mod._INFORMATIONAL_PATHS)
-orphaned = all_leaves - wired - informational
-ok(f"Regelwerk: kein Eintrag im JSON ist verwaist ({orphaned or 'keiner'})", not orphaned)
-missing = (wired | informational) - all_leaves
-ok(f"Regelwerk: jeder verdrahtete Pfad existiert auch im JSON ({missing or 'alle da'})", not missing)
-
-rw_res = optimize_payload(track3, corridor_cm=50.0, uf=130.0, uebergang="bestand",
-                          regelwerk="db-ril-800-0110", maxiter=25, seed=1)
-default_res = optimize_payload(track3, corridor_cm=50.0, uf=130.0, uebergang="bestand",
-                               maxiter=25, seed=1)
-ok("Regelwerk: explizit db-ril-800-0110 == Default", rw_res["vNeu"] == default_res["vNeu"])
-ok("Regelwerk: das Ergebnis nennt die verwendete Id", rw_res["regelwerk"] == "db-ril-800-0110")
+# Was der Optimierer nicht umsetzen kann, lehnt er ab, statt es zu übergehen.
+_extra = json.loads(json.dumps(katalog_file))
+_extra["rules"].append({
+    "id": "LP.TEST.01", "title": "Mindestradius", "status": "confirmed",
+    "applies_to": {"scope": "element", "element_types": ["circular_arc"]},
+    "inputs": {"r": {"from": "element.radius", "unit": "m"}},
+    "thresholds": {"min": {"expr": "300", "unit": "m"}},
+    "evaluation": [{"if": "r >= min", "severity": "ok"}, {"else": "error"}]})
 try:
-    optimize_payload(track3, regelwerk="nicht-vorhanden")
-    ok("Regelwerk: unbekannte Id über optimize_payload wird abgelehnt", False)
-except ValueError:
-    ok("Regelwerk: unbekannte Id über optimize_payload wird abgelehnt", True)
+    Grenzen(Katalog(_extra, physics={"u0_factor": CANT_DEFICIENCY_COEFF}), "reg")
+    ok("Katalog: eine Regel, die der Optimierer nicht kennt, wird abgelehnt", False)
+except GrenzenError as exc:
+    ok(f"Katalog: eine Regel, die der Optimierer nicht kennt, wird abgelehnt ({exc})",
+       "LP.TEST.01" in str(exc))
+_hint = json.loads(json.dumps(_extra))
+_hint["rules"][-1]["evaluation"][1] = {"else": "hint"}
+ok("Katalog: dieselbe Regel als bloßer Hinweis bindet keinen Lauf",
+   isinstance(Grenzen(Katalog(_hint, physics={"u0_factor": CANT_DEFICIENCY_COEFF}), "reg"), Grenzen))
+
+# Ein Lauf, einmal je Stufe — und das Ergebnis besteht die Prüfung der App.
+reg_res = optimize_payload(track3, corridor_cm=50.0, uebergang="bestand", maxiter=25, seed=1)
+erm_res = optimize_payload(track3, corridor_cm=50.0, grenzwert="discretion", uebergang="bestand",
+                           maxiter=25, seed=1)
+print(f"   Regelwert {reg_res['vBestand']:.1f} → {reg_res['vNeu']:.1f} km/h | "
+      f"Ermessensgrenze {erm_res['vBestand']:.1f} → {erm_res['vNeu']:.1f} km/h")
+ok("Lauf: das Ergebnis nennt Regelwerk, Katalogversion und Stufe",
+   reg_res["regelwerk"] == "db-ril-800-0110" and reg_res["grenzwert"] == "reg"
+   and erm_res["grenzwert"] == "discretion"
+   and reg_res["regelwerkVersion"] == katalog_file["catalog"]["katalog_version"])
+ok("Lauf: die Ermessensgrenze ist nie langsamer als der Regelwert", erm_res["vNeu"] >= reg_res["vNeu"] - 1e-6)
+check_rules("Lauf am Regelwert", elements3, reg_res["elements"], REG)
+_erm_findings = check_rules("Lauf an der Ermessensgrenze", elements3, erm_res["elements"], ERM)
+ok("Lauf: die Ermessensgrenze schöpft den Spielraum auch aus (Warnungen, die der Regelwert nicht hätte)",
+   any(sev == "warning" for _, _, sev in _erm_findings))
+for bad in ({"grenzwert": "approval"}, {"regelwerk": "nicht-vorhanden"}):
+    try:
+        optimize_payload(track3, **bad)
+        ok(f"Lauf: {bad} wird abgelehnt", False)
+    except ValueError:
+        ok(f"Lauf: {bad} wird abgelehnt", True)
+
+# Ein Bogen ohne Übergangsbogen: der Krümmungssprung an Gerade und Bogen hält
+# die Gruppe auf der Geschwindigkeit, bei der sein Vergleichsradius reicht.
+j_fit = fit_compound_group(P1, D1, B1, V2, D2, B2, [700.0], [], [0.0, 0.0], ["clothoid", "clothoid"])
+# Die Geraden stehen auf 60 km/h: bei 100, wie der Rest der Testgleise, hätte
+# schon die Gerade selbst mehr Vergleichsradius verlangt (1370 m), als der
+# Sprung je bekommen kann — der Lauf ließe den Bogen dann liegen.
+j_els = [{**el, "speed": 60} if el["elementType"] == 0 else el for el in
+         build_from_fit(j_fit, [0.0], P1, (j_fit["cl_end"][0] + 400 * D2[0], j_fit["cl_end"][1] + 400 * D2[1]))]
+j_track = {"id": "py-sprung", "name": "sprung.001", "epsg": EPSG, "elements": j_els}
+j_groups = parse_groups(j_track)
+ok("Krümmungssprung: Bogen ohne ÜB wird als Gruppe ohne Rampen gelesen",
+   len(j_groups) == 1 and j_groups[0]["has_t"] == [False, False])
+ok("Krümmungssprung: R 700 an der Geraden — 70 km/h am Regelwert (670 ≤ 700 < 875)",
+   bestand_speed(j_groups[0], params) == 70.0
+   and bestand_speed(j_groups[0], run_params(50.0, "discretion")) == 75.0)
+j_res = optimize_payload(j_track, corridor_cm=500.0, uebergang="bestand", maxiter=25, seed=1)
+j_row = j_res["report"][0]
+print(f"   Krümmungssprung: v {j_res['vBestand']:.1f} → {j_res['vNeu']:.1f} km/h, "
+      f"R {j_row['rAlt']:.0f} → {j_row.get('rNeu', j_row['rAlt']):.0f} m, Grund {j_row.get('grund')}")
+ok("Krümmungssprung: ein Lauf macht den Bogen weiter, um schneller zu werden",
+   j_row["changed"] and j_row["rNeu"] > j_row["rAlt"] and j_res["vNeu"] > j_res["vBestand"])
+ok("Krümmungssprung: der Grund nennt LP.KS.01",
+   (j_row.get("grund") or {}).get("regelId") == "LP.KS.01")
+check_rules("Krümmungssprung", j_els, j_res["elements"])
+j_fast = {**j_track, "elements": [{**el, "speed": 100} for el in j_els]}
+j_fast_res = optimize_payload(j_fast, corridor_cm=500.0, uebergang="bestand", maxiter=25, seed=1)
+ok("Krümmungssprung: steht die Gerade auf 100 km/h, bleibt der Bogen liegen (1370 m > jedes R im Korridor)",
+   not any(r["changed"] for r in j_fast_res["report"]))
 
 
 print()

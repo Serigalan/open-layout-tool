@@ -31,8 +31,9 @@ export async function optimizerReachable() {
 }
 
 /**
- * The regelwerke the service knows (AP R.3), as [{ id, name, version,
- * gueltigAb }, ...] — not their values, only enough to fill a selector.
+ * The rule catalogues the service can hold a run to (AP R.3), as [{ id, name,
+ * version }, ...] — `version` the catalogue's own katalog_version — not their
+ * limits, only enough to fill a selector.
  * Resolves with [] where the service cannot be asked, same as
  * `optimizerReachable`'s false: a panel offering a run at all has already
  * found the service, so this failing too is nothing new to say twice.
@@ -49,9 +50,11 @@ export async function fetchRegelwerke() {
 }
 
 /**
- * One regelwerk in full — the shape the (still to come) regelwerk viewer
- * reads. Resolves with null where the id is unknown or the service cannot be
- * asked, for the same reason `fetchRegelwerke` resolves with [].
+ * What a run under one catalogue is held to, per level: { id, name, version,
+ * grenzwerte: { reg, discretion } } — the numbers the regelwerk popup sets
+ * beside the app's own. Resolves with null where the id is unknown or the
+ * service cannot be asked, for the same reason `fetchRegelwerke` resolves
+ * with [].
  */
 export async function fetchRegelwerk(id) {
   try {
@@ -65,15 +68,18 @@ export async function fetchRegelwerk(id) {
 
 /**
  * Optimize one track.
- * payload: { track, corridorCm, uf, uebergang?, maxiter?, seed?, targetElementIdx?,
- *            vMax?, regelwerk? }  — vMax is the line's design speed; above it
- *            there is nothing to optimize, so the run neither pushes past it
- *            nor moves the alignment for speed nobody asked for. regelwerk is
- *            an id from fetchRegelwerke(); omitted, the service uses its
- *            default.
+ * payload: { track, corridorCm, grenzwert?, uebergang?, maxiter?, seed?,
+ *            targetElementIdx?, vMax?, regelwerk? } — grenzwert is the level
+ *            of the rulebook the run is held to, 'reg' (Regelwert, the
+ *            default) or 'discretion' (Ermessensgrenze). vMax is the line's
+ *            design speed; above it there is nothing to optimize, so the run
+ *            neither pushes past it nor moves the alignment for speed nobody
+ *            asked for. regelwerk is an id from fetchRegelwerke(); omitted,
+ *            the service uses its default.
  * Resolves with { elements, report, variant, vBestand, vBaseline, vNeu, shifts,
- * skipped, regelwerk }, `skipped` naming the stretches the parser could not
- * read and `regelwerk` the id the run actually used.
+ * skipped, regelwerk, regelwerkVersion, grenzwert }, `skipped` naming the
+ * stretches the parser could not read and the last three what the run was
+ * actually held to.
  */
 export async function optimizeOnServer(payload, { signal } = {}) {
   let res

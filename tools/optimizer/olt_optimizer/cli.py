@@ -2,7 +2,7 @@
 
 Workflow:
   1. In der App: Datenaustausch → Tracks exportieren  →  tracks.json
-  2. olt-optimize tracks.json --track <Name|Id> [--corridor-cm 50] [--uf 130]
+  2. olt-optimize tracks.json --track <Name|Id> [--corridor-cm 50] [--grenzwert reg|discretion]
   3. In der App: Datenaustausch → Tracks importieren (gleiche Id ersetzt den Track)
 """
 
@@ -13,8 +13,12 @@ from .api import optimize_payload
 from .track_io import load_tracks, save_tracks, find_track
 
 
-def _report(res, corridor_cm, uf):
-    print(f"\nKorridor {corridor_cm:.0f} cm | u_f {uf:.0f} mm")
+GRENZWERT_TEXT = {"reg": "Regelwert", "discretion": "Ermessensgrenze"}
+
+
+def _report(res, corridor_cm):
+    print(f"\nKorridor {corridor_cm:.0f} cm | {res['regelwerk']} {res['regelwerkVersion']}"
+          f" | {GRENZWERT_TEXT.get(res['grenzwert'], res['grenzwert'])}")
     for row in res["report"]:
         label = f"Bogen {row['group']}" + (f".{row['arc']}" if row["arcs"] > 1 else "")
         if not row["changed"]:
@@ -40,18 +44,19 @@ def main(argv=None):
     ap.add_argument("input", help="tracks.json aus dem Datenaustausch-Export")
     ap.add_argument("--track", help="Name oder Id des Tracks (bei genau einem Track optional)")
     ap.add_argument("--corridor-cm", type=float, default=50.0, help="max. Abrückung in cm (Default 50)")
-    ap.add_argument("--uf", type=float, choices=[110.0, 130.0, 150.0], default=130.0,
-                    help="Überhöhungsfehlbetrag u_f in mm (110 = Weichen)")
+    ap.add_argument("--grenzwert", choices=["reg", "discretion"], default="reg",
+                    help="gegen welche Grenze des Regelwerks gerechnet wird: reg = Regelwert "
+                         "(Default), discretion = Ermessensgrenze")
     ap.add_argument("--per-curve", action="store_true",
                     help="nur Baseline (Geraden bleiben fix, wie im App-Panel)")
     ap.add_argument("--uebergang", choices=["bestand", "bloss", "auto"], default="auto",
                     help="Übergangsbogen-Profil: bestand = wie vorhanden, bloss = alle Rampen "
-                         "auf Bloss (k=6 statt 8 → kürzere Rampen), auto = beide Varianten "
-                         "rechnen und die mit höherer Engpass-v übernehmen")
+                         "auf Bloss (nur, wo das Regelwerk ihn auf der Stufe zulässt), auto = "
+                         "alle zulässigen Varianten rechnen und die mit höherer Engpass-v übernehmen")
     ap.add_argument("--maxiter", type=int, default=150, help="DE-Iterationen (Default 150)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--regelwerk", default=None,
-                    help="Id des Regelwerks (Default: db-ril-800-0110, siehe olt_optimizer/regelwerke/)")
+                    help="Id des Regelwerks (Default: db-ril-800-0110, siehe src/constraints/)")
     ap.add_argument("-o", "--out", help="Ausgabedatei (Default: <input>_optimized.json)")
     args = ap.parse_args(argv)
 
@@ -65,13 +70,13 @@ def main(argv=None):
                          + ", ".join(t.get("name") or t.get("id", "?") for t in tracks))
 
     try:
-        res = optimize_payload(track, corridor_cm=args.corridor_cm, uf=args.uf,
+        res = optimize_payload(track, corridor_cm=args.corridor_cm, grenzwert=args.grenzwert,
                                uebergang=args.uebergang, per_curve=args.per_curve,
                                maxiter=args.maxiter, seed=args.seed, regelwerk=args.regelwerk)
     except ValueError as exc:
         raise SystemExit(str(exc)) from None
 
-    _report(res, args.corridor_cm, args.uf)
+    _report(res, args.corridor_cm)
 
     track["elements"] = res["elements"]
     out = args.out or str(pathlib.Path(args.input).with_suffix("")) + "_optimized.json"

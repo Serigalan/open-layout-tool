@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { flattenPhysics, appValueFor, evalFormel, PHYSICS } from './constraintsView'
+import {
+  BUNDLED_KATALOG_VERSION, evalFormel, flattenPhysics, GRENZWERTE, optimizerLimitRows, PHYSICS,
+} from './constraintsView'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(repoRoot, rel), 'utf-8'))
 const physics = readJson('src/constraints/physics.json')
-const dbRil800 = readJson('tools/optimizer/olt_optimizer/regelwerke/db-ril-800-0110.json')
+const katalog = readJson('src/constraints/db-ril-800-0110.json')
 
 describe('the bundled physics file', () => {
   // The point of the build-time import is that the popup shows the one file in
@@ -187,14 +189,62 @@ describe('the MathML physics.json states', () => {
   })
 })
 
-describe('appValueFor', () => {
-  // The column only has something to say where the app really does hold the
-  // value itself; everywhere else it stays empty rather than repeating the
-  // service's number as if it were a second source.
-  it('answers with the app copy for the switch limits, and null elsewhere', () => {
-    expect(appValueFor('weiche.u_max')).toBe(dbRil800.weiche.u_max.wert)
-    expect(appValueFor('weiche.uf_max')).toBe(dbRil800.weiche.uf_max.wert)
-    expect(appValueFor('ueberhoehung.u_max')).toBeNull()
-    expect(appValueFor('nicht.vorhanden')).toBeNull()
+describe('optimizerLimitRows', () => {
+  // What GET /regelwerke/db-ril-800-0110 answers from a service built from
+  // this commit (tools/optimizer, grenzen.py: Grenzen.describe) — JSON floats,
+  // as Python sends them.
+  const served = {
+    id: 'db-ril-800-0110', name: katalog.catalog.title, version: katalog.catalog.katalog_version,
+    grenzwerte: {
+      reg: {
+        stufe: 'reg', schlechtesteStufe: 'hint', geschwindigkeiten: [40.0, 300.0],
+        uMax: 160.0, uMaxWeiche: 100.0, uStep: 5.0, ufMax: [130.0], ufMaxWeiche: [110.0],
+        uebergangsbogen: ['clothoid'],
+      },
+      discretion: {
+        stufe: 'discretion', schlechtesteStufe: 'warning', geschwindigkeiten: [40.0, 300.0],
+        uMax: 160.0, uMaxWeiche: 120.0, uStep: 5.0, ufMax: [130.0, 150.0], ufMaxWeiche: [110.0],
+        uebergangsbogen: ['clothoid'],
+      },
+    },
+  }
+
+  it('reads the same limits out of the bundled catalogue as the service does — no row disagrees', () => {
+    const rows = optimizerLimitRows(served)
+    expect(rows).toHaveLength(8)
+    for (const row of rows) {
+      for (const level of Object.keys(GRENZWERTE)) {
+        expect(row[level].mismatch, `${row.label} ${level}`).toBe(false)
+      }
+    }
+  })
+
+  it('tells the two levels apart where the Ril does', () => {
+    const byLabel = Object.fromEntries(optimizerLimitRows(served).map(r => [r.label, r]))
+    expect(byLabel.constraints_limit_u_switch.reg.app).toBe(100)
+    expect(byLabel.constraints_limit_u_switch.discretion.app).toBe(120)
+    expect(byLabel.constraints_limit_uf.reg.app).toEqual([130])
+    expect(byLabel.constraints_limit_uf.discretion.app).toEqual([130, 150])
+    expect(byLabel.constraints_limit_worst.reg.app).toBe('hint')
+    // LP.UB.02 calls a Bloss curve on this app's straight ramp a Sonderfall —
+    // worse than either level admits.
+    expect(byLabel.constraints_limit_forms.discretion.app).toEqual(['clothoid'])
+  })
+
+  it('flags a service that computes with other numbers', () => {
+    const stale = structuredClone(served)
+    stale.grenzwerte.discretion.uMaxWeiche = 100.0
+    const row = optimizerLimitRows(stale).find(r => r.label === 'constraints_limit_u_switch')
+    expect(row.discretion.mismatch).toBe(true)
+    expect(row.reg.mismatch).toBe(false)
+  })
+
+  it('has nothing to compare where the service sent nothing', () => {
+    const rows = optimizerLimitRows({ id: 'x' })
+    expect(rows.every(r => r.reg.served === null && !r.reg.mismatch)).toBe(true)
+  })
+
+  it('names the catalogue version the app bundles', () => {
+    expect(BUNDLED_KATALOG_VERSION).toBe(katalog.catalog.katalog_version)
   })
 })

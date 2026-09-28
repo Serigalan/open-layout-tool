@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchRegelwerke, fetchRegelwerk } from '../utils/optimizerService'
-import { flattenRegelwerk } from '../utils/regelwerkView'
-import { appValueFor } from '../utils/constraintsView'
+import { BUNDLED_KATALOG_VERSION, GRENZWERTE, optimizerLimitRows } from '../utils/constraintsView'
 import { WEICHEN_REGELWERK } from '../utils/weichenRegelwerk'
 import { CATALOG_ID, KATALOG } from '../utils/regelkatalog'
 import WeichenRegelwerk from './WeichenRegelwerk'
@@ -13,12 +12,12 @@ import RegelkatalogView from './RegelkatalogView'
  * is whichever one is chosen.
  *
  * **One rulebook is one entry**, however many faces it has. DB Ril 800.0110 is
- * both the rules (bundled with the app, `regelkatalog.js`) and the bare values
- * a run is measured against (fetched live from the optimizer, which serves them
- * under the same id) — so it is listed once and shown as both: the rules
- * first, the served values under them. A service built from an older commit
- * than this bundle is exactly why the values half is still fetched rather than
- * read out of the rules: that is the copy a run really uses.
+ * the rules the app bundles (`regelkatalog.js`) and the very file the optimizer
+ * applies — so it is listed once, the rules first, and under them the limits
+ * the service says a run is held to at Regelwert and Ermessensgrenze. Those
+ * are still fetched rather than read out of the rules: a service deployed
+ * from an older commit than this bundle runs on its own copy of the file, and
+ * that is the copy a run really uses.
  *
  * Bundled rulebooks come first and are always there; anything else the service
  * lists is appended, so a regelwerk added to the service later shows up here
@@ -74,17 +73,17 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
   const current = status?.id === id ? status : null
   const regelwerk = current?.regelwerk ?? null
   const failed = !!current?.failed
-  const rows = regelwerk ? flattenRegelwerk(regelwerk) : []
   const bundled = BUNDLED.some(rw => rw.id === id)
 
-  // A boolean limit ("does existing track fall under the ramp rule") reads as
-  // a sentence, not as `false`; numbers keep the shape the JSON states them in.
-  const wertText = (wert) =>
-    typeof wert === 'boolean' ? t(wert ? 'constraints_yes' : 'constraints_no') : String(wert)
-
-  // "-" is how the file says a value has no unit — it is not one, so it is
-  // not printed as one.
-  const einheitText = (einheit) => (einheit && einheit !== '-' ? ` ${einheit}` : '')
+  // A limit is a number, a range, a list of steps, the transition forms a run
+  // may hand out, or the worst severity it may produce — each read as itself.
+  const limitText = (row, value) => {
+    if (value === null || value === undefined) return '—'
+    if (row.kind === 'forms') return value.map(form => t(`transition_type_${form}`)).join(', ') || '—'
+    if (row.kind === 'severity') return t(`rule_sev_${value}`)
+    const text = Array.isArray(value) ? value.join(row.join) : String(value)
+    return row.unit ? `${text} ${row.unit}` : text
+  }
 
   return (
     <div className="track-table-overlay constraints-overlay">
@@ -127,46 +126,48 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
 
         {regelwerk && (
           <>
-            {/* Under the rules when there are rules above: the same rulebook,
-                as the numbers a run is really measured against. */}
+            {/* Under the rules: what the optimizer says it runs at under them,
+                per level, beside the app's own reading of the same file. */}
             <h4 className="constraints-subsection">{t('constraints_optimizer_values')}</h4>
             <p className="constraints-hint">
-              {regelwerk.name} · v{regelwerk.version} · {t('optimize_regelwerk_gueltig_ab')}{' '}
-              {regelwerk.gueltigAb ?? regelwerk.gueltig_ab}
+              {regelwerk.name} · {t('constraints_katalog_revision')} {regelwerk.version}
             </p>
+            {regelwerk.version !== BUNDLED_KATALOG_VERSION && (
+              <p className="constraints-error">
+                {t('constraints_version_mismatch')
+                  .replace('{{served}}', regelwerk.version)
+                  .replace('{{bundled}}', BUNDLED_KATALOG_VERSION)}
+              </p>
+            )}
             <table className="track-table constraints-table">
               <thead>
                 <tr>
-                  <th>{t('optimize_regelwerk_wert')}</th>
-                  <th>{t('optimize_regelwerk_warum')}</th>
-                  <th>{t('optimize_regelwerk_wo')}</th>
+                  <th />
+                  <th>{t('optimize_grenzwert_reg')}</th>
+                  <th>{t('optimize_grenzwert_discretion')}</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => {
-                  // Only a value the app really holds itself says so, and only
-                  // there can the two disagree — a service deployed from an
-                  // older commit than this bundle. The drift test on disk
-                  // cannot see that one; this line can.
-                  const app = appValueFor(row.path)
-                  const mismatch = app !== null && app !== row.wert
-                  return (
-                    <tr key={row.path}>
-                      <td className="constraints-value">
-                        {wertText(row.wert)}{einheitText(row.einheit)}
-                        {app !== null && (
-                          <span className={mismatch ? 'constraints-app-mismatch' : 'constraints-note'}>
-                            {mismatch
-                              ? `${t('constraints_app_mismatch')}: ${app}${einheitText(row.einheit)}`
-                              : t('constraints_app')}
-                          </span>
-                        )}
-                      </td>
-                      <td>{row.warum}</td>
-                      <td className="constraints-where">{row.woVerwendet}</td>
-                    </tr>
-                  )
-                })}
+                {optimizerLimitRows(regelwerk).map(row => (
+                  <tr key={row.label}>
+                    <td>{t(row.label)}</td>
+                    {Object.keys(GRENZWERTE).map(level => {
+                      const cell = row[level]
+                      return (
+                        <td key={level} className="constraints-value">
+                          {limitText(row, cell.served ?? cell.app)}
+                          {/* Only where the two disagree — a service deployed
+                              from another commit than this bundle. */}
+                          {cell.mismatch && (
+                            <span className="constraints-app-mismatch">
+                              {t('constraints_app_mismatch')}: {limitText(row, cell.app)}
+                            </span>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </>

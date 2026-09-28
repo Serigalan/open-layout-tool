@@ -11,12 +11,12 @@ Conventions — the app's, so an element chain crosses unchanged:
   * transition profiles: 'clothoid' (linear curvature), 'bloss' (cubic)
 
 The physical constant below (v = sqrt(R (u+uf) / 11.8)) is derived, with its
-formula, in src/constraints/physics.json; the values a run is held to (this section down to
-UF_MAX_SWITCH) are the code's copy of ../olt_optimizer/regelwerke/db-ril-800-0110.json
-(AP R.1/R.2, see ROADMAP.md). Both stay literals here — a run does not read
-either file — and tests/verify.py checks that neither has drifted from this
-module. What follows after (SAMPLE_SAGITTA on) is the search's own numerics,
-not something a railway administration sets, and has no JSON counterpart.
+formula, in src/constraints/physics.json; it stays a literal here and
+tests/verify.py checks that it has not drifted from the file. The limits a run
+is held to are not here at all: they are the rules of the catalogue in
+src/constraints/, read and applied at run time (grenzen.py). What is left is
+the buildability grid and the search's own numerics — nothing a railway
+administration sets, and nothing with a counterpart in a rulebook.
 """
 
 import math
@@ -27,18 +27,8 @@ RAD2DEG = 180.0 / math.pi
 # v = sqrt(R * (u + uf) / 11.8) — see src/constraints/physics.json for the derivation.
 CANT_DEFICIENCY_COEFF = 11.8
 
-# Minimum ramp length factor: l >= k * v * du / 1000  [l m, v km/h, du mm]
-RAMP_FACTOR = {"clothoid": 8.0, "bloss": 6.0}
-
-U_MAX = 160.0   # max cant [mm]
-U_STEP = 5.0    # cant grid step [mm]
-
-# l_min = MIN_LENGTH_COEFF * v  [l m, v km/h] — minimum length of an element or
-# a ramp, whichever rule (this or the ramp rule below) asks for more.
-MIN_LENGTH_COEFF = 0.2
-
 # The grid a run hands its numbers out on: radii in whole metres, lengths in
-# ten centimetres, cants in five millimetres. These are the steps a designer
+# ten centimetres (the cants' five millimetres are LP.KB.03's). These are the steps a designer
 # works in and the numbers that go on a drawing; a radius of 703.47 m is not an
 # answer anybody builds. Existing values are never snapped to it — what is
 # already built is a fact to start from, not a proposal to round off.
@@ -53,15 +43,6 @@ L_STEP = 0.1    # length grid step [m]
 # percent of the corridor the panel offers at its widest.
 SAMPLE_SAGITTA = 0.005     # m
 MAX_SAMPLES = 400          # points per element, whatever the budget asks for
-
-
-# A curve group running through a turnout is held to the switch's limits rather
-# than the line's — the same pair as src/utils/mapConstants.js (MAX_SWITCH_CANT,
-# MAX_SWITCH_CANT_DEF). The 120 mm exception is deliberately not read here: it is
-# a decision a designer writes down for one element, not headroom an automatic
-# run may help itself to.
-U_MAX_SWITCH = 100.0    # max cant on a switch route [mm]
-UF_MAX_SWITCH = 110.0   # max cant deficiency on a switch route [mm]
 
 
 def _slack(quotient):

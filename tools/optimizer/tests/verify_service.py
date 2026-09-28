@@ -11,6 +11,7 @@ browser never sees any of it.
 import json
 import math
 import os
+import pathlib
 import socket
 import subprocess
 import sys
@@ -123,25 +124,36 @@ try:
     ok("GET /regelwerke listet db-ril-800-0110",
        isinstance(body, dict)
        and any(rw["id"] == "db-ril-800-0110" for rw in body.get("regelwerke", [])))
+    ok("GET /regelwerke nennt die Katalogversion der Datei",
+       body["regelwerke"][0].get("version") == json.loads(
+           (pathlib.Path(__file__).resolve().parents[3] / "src" / "constraints" / "db-ril-800-0110.json")
+           .read_text(encoding="utf-8"))["catalog"]["katalog_version"])
     status, body, _ = call(BASE, "/regelwerke/db-ril-800-0110")
-    ok("GET /regelwerke/db-ril-800-0110 antwortet mit dem vollen Regelwerk",
+    ok("GET /regelwerke/db-ril-800-0110 nennt, woran ein Lauf je Stufe gehalten ist",
        status == 200 and body.get("id") == "db-ril-800-0110"
-       and "ueberhoehung" in body and "rampenregel" in body)
+       and set(body.get("grenzwerte", {})) == {"reg", "discretion"}
+       and body["grenzwerte"]["reg"]["uMaxWeiche"] == 100.0
+       and body["grenzwerte"]["discretion"]["uMaxWeiche"] == 120.0
+       and body["grenzwerte"]["discretion"]["ufMax"] == [130.0, 150.0])
     status, body, _ = call(BASE, "/regelwerke/nicht-vorhanden")
     ok("GET /regelwerke/<unbekannt> → 404", status == 404 and body == {"error": "not_found"})
 
     # ── 2) Korbbogen über die Leitung (AP 4.2 durch den Dienst) ──────────────
     track = korbbogen_track()
     started = time.monotonic()
-    status, body, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 50, "uf": 130,
+    # 1 m Korridor: am Regelwert (10·v·Δu, dazu der Fehlbetragssprung) lässt
+    # dieser Korbbogen in 50 cm kaum Spielraum — 0,1 km/h, zu wenig, um zu
+    # sehen, dass über die Leitung wirklich gerechnet wurde.
+    status, body, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 100,
                                                "uebergang": "auto", "maxiter": 40})
     took = time.monotonic() - started
     ok("POST /optimize antwortet 200", status == 200)
     ok("Antwort trägt den vollen Vertrag",
        isinstance(body, dict)
        and set(body) >= {"elements", "report", "variant", "vBestand", "vBaseline", "vNeu",
-                        "shifts", "skipped", "regelwerk"})
-    ok("Antwort nennt das verwendete Regelwerk", body.get("regelwerk") == "db-ril-800-0110")
+                        "shifts", "skipped", "regelwerk", "regelwerkVersion", "grenzwert"})
+    ok("Antwort nennt das verwendete Regelwerk und die Stufe (Vorgabe: Regelwert)",
+       body.get("regelwerk") == "db-ril-800-0110" and body.get("grenzwert") == "reg")
     ok("jede geänderte Reportzeile nennt ihren Grund (AP R.4)",
        all(isinstance(r.get("grund"), dict) and r["grund"].get("regel")
           for r in body["report"] if r["changed"]))
@@ -154,7 +166,7 @@ try:
     ok("Überhöhungen im 5-mm-Raster",
        all(abs(r["uNeu"] / 5 - round(r["uNeu"] / 5)) < 1e-9 for r in body["report"] if r["changed"]))
     ok("Abrückung im Korridor",
-       all(r["offsetCm"] <= 50.0 + 1e-6 for r in body["report"] if r["changed"]))
+       all(r["offsetCm"] <= 100.0 + 1e-6 for r in body["report"] if r["changed"]))
     ok("Elementkette schließt (Knoten < 1 mm)",
        all(math.hypot(b["startNode"][0] - a["endNode"][0], b["startNode"][1] - a["endNode"][1]) < 1e-3
            for a, b in zip(body["elements"], body["elements"][1:])))
@@ -165,24 +177,25 @@ try:
                       body["elements"][-1]["endNode"][1] - KP2[1]) < 1e-6)
     print(f"   Lauf über HTTP: {took:.1f}s, {len(body['elements'])} Elemente")
 
-    # `auto` läuft als zwei Kindprozesse nebeneinander. Es muss dasselbe
-    # herauskommen wie aus der besseren der beiden einzeln gerechneten Varianten
-    # — sonst wäre die Parallelität nicht bloß schneller, sondern eine andere
-    # Rechnung.
-    singles = {}
-    for name in ("bestand", "bloss"):
-        st, bd, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 50, "uf": 130,
-                                             "uebergang": name, "maxiter": 40})
-        singles[name] = bd if st == 200 else None
-    better = max((b for b in singles.values() if b), key=lambda b: b["vNeu"], default=None)
-    ok("auto liefert genau die bessere Einzelvariante",
-       better is not None and body["variant"] == better["variant"]
-       and abs(body["vNeu"] - better["vNeu"]) < 1e-12
-       and json.dumps(body["elements"]) == json.dumps(better["elements"])
-       and json.dumps(body["report"]) == json.dumps(better["report"]))
-    print("   Varianten einzeln: "
-          + ", ".join(f"{k} {v['vNeu']:.2f}" for k, v in singles.items() if v)
-          + f" | auto wählt {body['variant']} ({body['vNeu']:.2f})")
+    # `auto` rechnet jede Variante, die das Regelwerk auf der Stufe zulässt, als
+    # eigenen Kindprozess. Blossbögen lässt es auf keiner zu (LP.UB.02), also
+    # ist `auto` genau der Bestand — dieselbe Rechnung, nicht bloß dieselbe Zahl.
+    st, single, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 100,
+                                             "uebergang": "bestand", "maxiter": 40})
+    ok("auto liefert genau die Bestandsvariante",
+       st == 200 and body["variant"] == single["variant"] == "Bestand"
+       and json.dumps(body["elements"]) == json.dumps(single["elements"])
+       and json.dumps(body["report"]) == json.dumps(single["report"]))
+    st, bd, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 50,
+                                         "uebergang": "bloss", "maxiter": 40})
+    ok("Bloss ausdrücklich verlangt → 422 mit Grund (LP.UB.02)",
+       st == 422 and bd.get("error") == "unsupported_topology" and "LP.UB.02" in bd.get("message", ""))
+
+    # Die Ermessensgrenze über die Leitung: nie langsamer, und so ausgewiesen.
+    st, erm, _ = call(BASE, "/optimize", {"track": track, "corridorCm": 100, "grenzwert": "discretion",
+                                          "uebergang": "auto", "maxiter": 40})
+    ok(f"Ermessensgrenze: {erm.get('vNeu', 0):.1f} ≥ Regelwert {body['vNeu']:.1f} km/h, als solche genannt",
+       st == 200 and erm["grenzwert"] == "discretion" and erm["vNeu"] >= body["vNeu"] - 1e-6)
 
     # ── 3) Die Fehlerschlüssel, die das Panel übersetzt ──────────────────────
     status, body, _ = call(BASE, "/optimize", raw=b"{nicht json")
@@ -196,6 +209,10 @@ try:
     status, body, _ = call(BASE, "/optimize", {"track": track, "regelwerk": "nicht-vorhanden"})
     ok("unbekanntes Regelwerk → 400 invalid_regelwerk",
        status == 400 and body == {"error": "invalid_regelwerk", "message": "nicht-vorhanden"})
+
+    status, body, _ = call(BASE, "/optimize", {"track": track, "grenzwert": "approval"})
+    ok("unbekannte Grenzwertstufe → 400 invalid_grenzwert",
+       status == 400 and body == {"error": "invalid_grenzwert", "message": "approval"})
 
     status, body, _ = call(BASE, "/optimize", {"track": straight_only_track()})
     ok("nicht optimierbare Topologie → 422 mit lesbarem Satz",

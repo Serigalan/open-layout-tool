@@ -55,6 +55,27 @@ describe('what the scopes take from an element', () => {
     expect(elementScope(reverse, 1)['physics.delta_u']).toBe(100)
   })
 
+  it('measures the deficiency over a reverse transition from side to side, too', () => {
+    // Each end lacks 68 mm toward the outside of its own curve — and the
+    // outsides lie on opposite rails, so the ramp carries 136 mm, not none.
+    const reverse = [
+      { elementType: 1, length: 100, speed: 100, radius: 1000, cant: 50 },
+      { elementType: 2, length: 100, speed: 100, r1: 1000, r2: -1000, transitionType: 'clothoid' },
+      { elementType: 1, length: 100, speed: 100, radius: -1000, cant: -50 },
+    ]
+    const uf = computeCantDefSigned(100, 1000, 50)
+    expect(uf).toBe(68)
+    expect(elementScope(reverse, 1)['physics.delta_u_f']).toBe(2 * uf)
+    // Two curves the same way: the plain difference, as before.
+    const compound = [
+      { elementType: 1, length: 100, speed: 100, radius: 1000, cant: 50 },
+      { elementType: 2, length: 100, speed: 100, r1: 1000, r2: 800, transitionType: 'clothoid' },
+      { elementType: 1, length: 100, speed: 100, radius: 800, cant: 50 },
+    ]
+    expect(elementScope(compound, 1)['physics.delta_u_f'])
+      .toBe(computeCantDefSigned(100, 800, 50) - uf)
+  })
+
   it('states the cant as a magnitude, whichever rail the curve raises', () => {
     const left = [{ elementType: 1, length: 100, speed: 100, radius: -1000, cant: -65 }]
     expect(elementScope(left, 0)['element.cant']).toBe(65)

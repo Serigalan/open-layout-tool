@@ -23,7 +23,7 @@ python3 -m venv .venv
 2. **Optimieren:**
    ```bash
    .venv/bin/olt-optimize tracks.json --track <Name|Id> \
-       --corridor-cm 50 --uf 130 -o tracks_optimized.json
+       --corridor-cm 50 --grenzwert reg -o tracks_optimized.json
    ```
 3. **Import** in der App: Datenaustausch → Tracks importieren
    (gleiche Id ⇒ Konfliktdialog, „importiert behalten" ersetzt den Track).
@@ -33,20 +33,33 @@ python3 -m venv .venv
 | Option | Bedeutung |
 |---|---|
 | `--corridor-cm` | max. Abrückung zur Bestandsachse in cm (Default 50) |
-| `--uf {110,130,150}` | Überhöhungsfehlbetrag u_f in mm; 110 = Weichenbereich |
+| `--grenzwert {reg,discretion}` | gegen welche Grenze des Regelwerks gerechnet wird: `reg` = Regelwert (Default, kein Vorschlag schlechter als ein Hinweis), `discretion` = Ermessensgrenze (höchstens Warnungen, jede begründungspflichtig) |
+| `--regelwerk` | Id des Regelkatalogs aus `src/constraints/` (Default `db-ril-800-0110`) |
 | `--per-curve` | nur Baseline: Geraden bleiben fix (Verhalten des App-Panels) |
-| `--uebergang {bestand,bloss,auto}` | Übergangsbogen-Profil: wie vorhanden lassen, alle Rampen auf Bloss (k = 6 statt 8 → kürzere Rampen) oder automatisch die Variante mit höherer Engpass-v (Default: auto) |
+| `--uebergang {bestand,bloss,auto}` | Übergangsbogen-Profil: wie vorhanden lassen, alle Rampen auf Bloss, oder automatisch die zulässige Variante mit höherer Engpass-v (Default: auto). Bloss lässt DB Ril 800.0110 in dieser App auf keiner Stufe zu (LP.UB.02 — die Rampe ist immer gerade), `auto` rechnet deshalb nur den Bestand |
 | `--maxiter`, `--seed` | Differential-Evolution-Steuerung |
 
 ## Modell
 
 * Variablen: Verschiebung s_i der inneren Geraden (parallel, ±Korridor),
-  Radius R_j und Überhöhung u_j (u ≤ 160 mm, 5-mm-Raster) je Bogen.
+  Radius R_j und Überhöhung u_j je Bogen.
 * Zielfunktion: max min_j v_j (Engpass-v), Differential Evolution + Nelder-Mead-
   Politur, warm gestartet mit der Per-Bogen-Baseline (Ergebnis nie schlechter).
-* Nebenbedingungen: Abrückung ≤ Korridor (beidseitig gesampelt), Elementlängen
-  ≥ 0,2·v, Rampenlängen l ≥ k·v·Δu/1000 (k = 8 Klothoide, 6 Bloss; Δu = Über-
-  höhungssprung über die jeweilige Rampe), Track-Endpunkte und Richtungen fix.
+* Nebenbedingungen: Abrückung ≤ Korridor (beidseitig gesampelt), Track-Endpunkte
+  und Richtungen fix — und **jede Regel des Regelkatalogs** auf der gewählten
+  Stufe. Kein Grenzwert steht im Code: ein Lauf liest
+  `src/constraints/db-ril-800-0110.json` (im Paket über den Symlink
+  `olt_optimizer/constraints`) und wertet ihn mit derselben Ausdruckssprache aus
+  wie die App (`ruleexpr.py`, `katalog.py`). `grenzen.py` macht daraus die
+  Schranken eines Laufs: Entwurfsgeschwindigkeit (40…300 km/h im 5-km/h-Raster),
+  Überhöhung und Überhöhungsfehlbetrag (auch im Weichenbereich), Mindestelement-
+  länge, Rampenlänge aus Überhöhungs- *und* Fehlbetragssprung, mittlere
+  Rampenneigung (steilste und flachste), Vergleichsradius an Krümmungssprüngen,
+  Zwischengerade zwischen Gegenbögen. Eine Regel, die es nicht einordnen kann,
+  lehnt es ab, statt sie zu übergehen.
+* Die Elemente eines Vorschlags tragen ihre Entwurfsgeschwindigkeit im Raster
+  des Katalogs; `tests/katalog_check.py` prüft jeden Vorschlag danach mit einem
+  Nachbau der App-Prüfung (`trassierungCheck.js`).
 * **Korbbögen** werden unterstützt: mehrere gleichsinnige Bögen (optional mit
   Zwischen-Übergangsbögen) bilden eine Gruppe mit eigenen R_i und u_i je
   Teilbogen plus freien Sweep-Aufteilungen; die Überhöhung eines Teilbogens

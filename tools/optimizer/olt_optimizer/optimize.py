@@ -7,8 +7,11 @@ Model:
   * objective: maximize the bottleneck speed min v over all optimizable arcs,
     v = sqrt(R (u + uf) / 11.8); the whole group runs at its min v,
   * constraints: max lateral offset to the existing alignment <= corridor,
-    element lengths >= 0.2 v, ramp lengths l >= k v du / 1000 (k = 8 clothoid,
-    6 Bloss; du = cant step across the ramp), u <= 160 mm, track ends fixed.
+    track ends fixed, and every rule of the catalogue the run was asked for,
+    at the level it was asked for (grenzen.py): the cants and cant
+    deficiency a curve may carry, the length and gradient of every ramp, the
+    minimum length of every element, the comparison radius at a curvature
+    jump. None of them is a number in this file.
 
 `baseline` reproduces the in-app per-curve search for simple groups (s = 0,
 u grid + R bisection); compound groups enter at their existing geometry.
@@ -21,31 +24,94 @@ only change where the ramps on both sides of arc i exist to carry the step.
 import math
 
 from .geometry import (
-    fit_compound_group, fit_s_group, permissible_speed, sample_transition, sample_arc,
-    max_dist_to_polyline, radius_for_speed, snap_down, snap_up, RAMP_FACTOR,
-    U_MAX, U_MAX_SWITCH, UF_MAX_SWITCH, U_STEP, R_STEP, R_MIN, L_STEP,
-    MIN_LENGTH_COEFF,
+    fit_compound_group, fit_s_group, sample_transition, sample_arc,
+    max_dist_to_polyline, snap_down, snap_up, CANT_DEFICIENCY_COEFF, R_STEP, R_MIN, L_STEP,
 )
+from .grenzen import DEFAULT_STUFE, grenzen_for
+from .regelwerk import DEFAULT_REGELWERK_ID
 
 PENALTY = 1000.0
 
 
+def grenzen_of(params):
+    """The limits a run is held to (grenzen.py). `api.py` puts them into
+    `params`; a caller that builds a `params` dict of its own without them —
+    mostly tests — gets the default catalogue at its Regelwert."""
+    return params.get("grenzen") or grenzen_for(DEFAULT_REGELWERK_ID, DEFAULT_STUFE)
+
+
 def u_max_for(g, params=None):
-    """Cant ceiling of a group: the switch's where it runs through one.
+    """Cant ceiling of a group: the switch's where it runs through one."""
+    return grenzen_of(params or {}).u_max(g.get("on_switch"))
 
-    `params` carries the regelwerk a run was asked for (AP R.2); the bare
-    module constants are the fallback for callers — mostly tests — that build
-    a `params` dict of their own without one.
+
+def arc_speed(g, radius, cant, params):
+    """The speed one arc of the group permits on its own — at the deficiency
+    the catalogue admits, the switch's where the group runs through one."""
+    return grenzen_of(params).speed(radius, cant, g.get("on_switch"))
+
+
+def _jumps(g, radii):
+    """The curvature jumps of a group: one per slot that has no transition,
+    as (slot, comparison radius, inside one turnout). 1/r_w = |κ1 − κ2| — a
+    straight against an arc gives the arc's radius, two curves the same way
+    the larger comparison radius, an S the smaller."""
+    signs = g["signs"]
+    n = len(radii)
+    out = []
+    for i, has in enumerate(g["has_t"]):
+        if has:
+            continue
+        k1 = 0.0 if i == 0 else signs[i - 1] / radii[i - 1]
+        k2 = 0.0 if i == n else signs[i] / radii[i]
+        step = abs(k1 - k2)
+        if step < 1e-12:
+            continue
+        out.append((i, 1.0 / step, g.get("jump_internal", [False] * (n + 1))[i]))
+    return out
+
+
+def group_speed(g, radii, us, params, straights=True):
+    """The speed the group runs at, and what bounds it.
+
+    The slowest arc sets it; a curvature jump may set it lower still
+    (LP.KS.01 — its comparison radius has to suit the speed across it).
+    Returns (v, jump) with `jump` = {slot, r_w, soll} where a jump is what
+    bounds v, or (None, None) where a jump admits no design speed at all.
+
+    A jump onto one of the bounding straights is judged at the faster of the
+    two design speeds that meet there, as the app's check judges it — and the
+    straight keeps the speed it states. Where that speed alone already asks
+    for more comparison radius than the jump has, no speed of the curve's
+    helps, and a proposal has no answer. `straights=False` leaves that out:
+    for the existing alignment, whose speed is a question about the curve and
+    not about what the straights beside it claim.
     """
-    params = params or {}
-    return (params.get("u_max_switch", U_MAX_SWITCH) if g.get("on_switch")
-            else params.get("u_max", U_MAX))
+    grenzen = grenzen_of(params)
+    v = min(arc_speed(g, r, u, params) for r, u in zip(radii, us))
+    jump = None
+    n = len(radii)
+    for slot, r_w, internal in _jumps(g, radii):
+        own = g.get("entry_speed") if slot == 0 else g.get("exit_speed") if slot == n else None
+        if straights and own:
+            V_own = grenzen.design_speed(own)
+            if V_own is not None and grenzen.jump_need(V_own, internal) > r_w:
+                return None, None
+        v_jump = grenzen.jump_speed(r_w, v, internal)
+        if v_jump is None:
+            return None, None
+        if v_jump < v - 1e-9:
+            v = v_jump
+            jump = {"slot": slot, "r_w": r_w, "soll": grenzen.jump_need(v_jump, internal)}
+    return v, jump
 
 
-def uf_for(g, params):
-    """Deficiency the group is evaluated at — never over what a switch admits."""
-    uf_max_switch = params.get("uf_max_switch", UF_MAX_SWITCH)
-    return min(params["uf"], uf_max_switch) if g.get("on_switch") else params["uf"]
+def bestand_speed(g, params):
+    """What the group permits as it lies — 0 where the catalogue admits no
+    speed for it at all (a curvature jump too sharp for its slowest speed)."""
+    v, _ = group_speed(g, [a["r_alt"] for a in g["arcs"]], [a["u_alt"] for a in g["arcs"]], params,
+                       straights=False)
+    return v or 0.0
 
 
 def _clamp(value, lo, hi):
@@ -58,8 +124,11 @@ def capped(v, params):
     Above the target speed there is nothing left to win, so everything above it
     counts the same. The run then stops trading the existing alignment away for
     speed nobody asked for, and stops altogether once its slowest curve has
-    arrived — which is most of what makes a target worth giving.
+    arrived — which is most of what makes a target worth giving. The fastest
+    design speed the catalogue knows is a target of its own: past it there is
+    no speed left to state.
     """
+    v = min(v, grenzen_of(params).v_top)
     v_max = params.get("v_max")
     return min(v, v_max) if v_max else v
 
@@ -71,7 +140,7 @@ def _radius_cap(g, u, params, r_alt):
     v_max = params.get("v_max")
     if not v_max:
         return math.inf
-    return max(r_alt, radius_for_speed(v_max, u, uf_for(g, params)))
+    return max(r_alt, grenzen_of(params).radius_for(v_max, u, g.get("on_switch")))
 
 
 def _u_variable(g, i, params):
@@ -87,33 +156,53 @@ def _u_variable(g, i, params):
             and g["arcs"][i]["u_alt"] <= u_max_for(g, params))
 
 
-def ramp_lengths(g, v, us, params=None):
-    """Transition lengths per slot for group speed v and per-arc cants.
+def _signed_deficiency(V, radius, cant, sign):
+    """u_f = u_0 − u at design speed V, signed with the curve like the cant."""
+    return sign * (CANT_DEFICIENCY_COEFF * V * V / radius - cant)
 
-    Handed out on the length grid, rounded up: a ramp that is a little longer
-    than the rules ask for still satisfies them, one a little shorter does not.
+
+def ramp_lengths(g, V, radii, us, params=None):
+    """Transition lengths per slot for design speed V, per-arc radii and cants.
+
+    Every length and gradient rule of the transition's form, at once: the ramp
+    has to carry the cant step (LP.UB.03/04) and the deficiency step
+    (LP.UB.05/06) at the gradient the rules allow (LP.UB.07/08), and be an
+    element of its own minimum length (LP.EL.01). Handed out on the length
+    grid, rounded up: a ramp a little longer than the rules ask for still
+    satisfies them, one a little shorter does not.
+
+    Returns (lengths, rules) — `rules` naming, per slot, the rule that asked
+    for the length — or None where no length satisfies all of them: LP.UB.08
+    caps how flat a ramp may be, so a small cant step with a long minimum
+    length has no answer.
     """
-    params = params or {}
-    ramp_factor = params.get("ramp_factor", RAMP_FACTOR)
-    l_step = params.get("l_step", L_STEP)
-    min_len = params.get("min_length_coeff", MIN_LENGTH_COEFF) * v
+    grenzen = grenzen_of(params or {})
     n = len(g["arcs"])
     # Signed, because the cant follows the curve: over the ramp between the two
     # arcs of an S the rail goes from one side to the other, and that step is
     # their sum, not their difference. For a same-side group the signs cancel
     # out and this is the plain difference it always was.
-    signed_u = [sign * u for sign, u in zip(g["signs"], us)]
-    du = ([abs(signed_u[0])]
-          + [abs(signed_u[i + 1] - signed_u[i]) for i in range(n - 1)]
-          + [abs(signed_u[-1])])
-    lengths = []
+    signed_u = [0.0] + [sign * u for sign, u in zip(g["signs"], us)] + [0.0]
+    signed_uf = ([0.0] + [_signed_deficiency(V, r, u, sign)
+                          for sign, r, u in zip(g["signs"], radii, us)] + [0.0])
+    lengths, rules = [], []
     for i in range(n + 1):
         if not g["has_t"][i]:
             lengths.append(0.0)
+            rules.append(None)
             continue
-        need = max(min_len, ramp_factor[g["types"][i]] * v * du[i] / 1000.0)
-        lengths.append(snap_up(need, l_step))
-    return lengths, min_len
+        du = abs(signed_u[i + 1] - signed_u[i])
+        duf = abs(signed_uf[i + 1] - signed_uf[i])
+        bounds = grenzen.ramp_bounds(g["types"][i], V, du, duf)
+        if bounds is None:
+            return None
+        lo, hi, by = bounds
+        length = snap_up(lo, L_STEP)
+        if length > hi + 1e-9:
+            return None
+        lengths.append(length)
+        rules.append(by)
+    return lengths, rules
 
 
 def _sample_fit(fit):
@@ -149,18 +238,29 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=
     """Feasibility evaluation of one group; returns a solution dict or None.
 
     trans_l: the ramp lengths to fit with. Passing the existing ones reproduces
-    the group as it lies, and then the ramp and minimum-length rules are not
-    applied to it: an existing alignment is a fact to start from, not a
-    proposal to judge. Everything the run proposes leaves this at None and is
-    held to both rules.
+    the group as it lies, and then the length rules are not applied to it: an
+    existing alignment is a fact to start from, not a proposal to judge.
+    Everything the run proposes leaves this at None and is held to all of them
+    — and to a design speed the catalogue admits.
     """
+    grenzen = grenzen_of(params)
     p1 = p1 or g["p1"]
     p2 = p2 or g["p2"]
-    v_arcs = [permissible_speed(r, u, uf_for(g, params)) for r, u in zip(radii, us)]
-    v = min(v_arcs)
     proposed = trans_l is None
+    v, jump = group_speed(g, radii, us, params, straights=proposed)
+    if v is None:
+        if proposed:
+            return None
+        v = 0.0
+    V = grenzen.design_speed(v)
+    ramp_rules = [None] * len(g["has_t"])
     if proposed:
-        trans_l, min_len = ramp_lengths(g, v, us, params)
+        if V is None:
+            return None
+        ramps = ramp_lengths(g, V, radii, us, params)
+        if ramps is None:
+            return None
+        trans_l, ramp_rules = ramps
     if g["s_curve"]:
         fit = fit_s_group(p1, g["d1"], g["b1"], p2, g["d2"], g["b2"],
                           [sign * r for sign, r in zip(g["signs"], radii)],
@@ -171,35 +271,49 @@ def evaluate_group(g, radii, us, thetas_free, params, p1=None, p2=None, trans_l=
     if fit is None:
         return None
     if proposed:
-        if fit["entry_len"] < min_len or fit["exit_len"] < min_len:
-            return None
+        # The straights either side are elements of their own, stated at their
+        # own design speed — the faster of it and the curve's is what counts.
+        for length, own in ((fit["entry_len"], g.get("entry_speed")),
+                            (fit["exit_len"], g.get("exit_speed"))):
+            if length < grenzen.min_length("straight", grenzen.design_speed(max(v, own or 0.0))):
+                return None
+        arc_min = grenzen.min_length("circular_arc", V)
         for seg in fit["segments"]:
-            if seg["kind"] == "arc" and abs(seg["sweep"] * seg["signed_r"]) < min_len:
+            if seg["kind"] == "arc" and abs(seg["sweep"] * seg["signed_r"]) < arc_min:
                 return None
     offset = fit_offset(g, fit, p1, p2, params["corridor"])
     if offset > params["corridor"]:
         return None
     return {"radii": list(radii), "us": list(us), "thetas_free": list(thetas_free),
-            "v": v, "trans_l": trans_l, "fit": fit, "offset": offset}
+            "v": v, "v_design": V, "trans_l": trans_l, "ramp_rules": ramp_rules,
+            "jump": jump, "fit": fit, "offset": offset}
 
 
 def binding_reason(g, sol, params):
     """Which rule a group's accepted solution sits against (AP R.4) — read off
     the numbers it was accepted with, in the order a designer would check
-    them: target speed, cant ceiling, corridor, ramp rule. This is descriptive,
-    not a trace of the search that found the solution — the window stage's
-    differential evolution has no single constraint it stopped at, unlike the
-    per-curve stage's bisection, and pretending to reconstruct one would be
-    fiction. It reads `sol`'s own numbers, no re-fitting — one report row's
-    worth of comparisons, not another pass through the search.
+    them: target speed, curvature jump, cant ceiling, corridor, ramp rules.
+    This is descriptive, not a trace of the search that found the solution —
+    the window stage's differential evolution has no single constraint it
+    stopped at, unlike the per-curve stage's bisection, and pretending to
+    reconstruct one would be fiction. It reads `sol`'s own numbers, no
+    re-fitting — one report row's worth of comparisons, not another pass
+    through the search.
 
+    Where the reason is a rule of the catalogue, `regelId` names it.
     Returns None where nothing is tight — most often an unchanged (Bestand)
     row, or one a bare grid step still has room to grow in.
     """
+    grenzen = grenzen_of(params)
     v = sol["v"]
     v_max = params.get("v_max")
     if v_max and v >= v_max - 1e-6:
         return {"regel": "zielgeschwindigkeit", "ist": v, "soll": v_max}
+
+    if sol.get("jump"):
+        jump = sol["jump"]
+        return {"regel": "kruemmungssprung", "slot": jump["slot"] + 1,
+                "ist": jump["r_w"], "soll": jump["soll"], "regelId": "LP.KS.01"}
 
     u_max = u_max_for(g, params)
     u_hit = next((i for i, u in enumerate(sol["us"]) if abs(u - u_max) < 1e-6), None)
@@ -212,12 +326,16 @@ def binding_reason(g, sol, params):
     if sol["offset"] >= corridor - corridor_eps:
         return {"regel": "korridor", "ist": sol["offset"], "soll": corridor}
 
-    l_step = params.get("l_step", L_STEP)
-    floor_len = snap_up(params.get("min_length_coeff", MIN_LENGTH_COEFF) * v, l_step)
+    V = sol.get("v_design") or grenzen.design_speed(v)
+    floor_len = snap_up(grenzen.min_length("transition_curve", V), L_STEP) if V else 0.0
     ramp_hit = next((i for i, length in enumerate(sol["trans_l"]) if length > floor_len + 1e-9), None)
     if ramp_hit is not None:
-        return {"regel": "rampenregel", "slot": ramp_hit + 1,
-                "ist": sol["trans_l"][ramp_hit], "soll": floor_len}
+        reason = {"regel": "rampenregel", "slot": ramp_hit + 1,
+                  "ist": sol["trans_l"][ramp_hit], "soll": floor_len}
+        by = (sol.get("ramp_rules") or [None] * len(sol["trans_l"]))[ramp_hit]
+        if by:
+            reason["regelId"] = by
+        return reason
 
     return None
 
@@ -233,8 +351,7 @@ def _max_radius_for(g, u, params):
     from there. The binding arc is the tightest one, so the search starts at it.
     """
     n = len(g["arcs"])
-    r_min = params.get("r_min", R_MIN)
-    r_step = params.get("r_step", R_STEP)
+    r_min, r_step = R_MIN, R_STEP
     r_alt = min(a["r_alt"] for a in g["arcs"])
     cap = _radius_cap(g, u, params, r_alt)
     # Every probe is snapped, so the search runs on the radii a run may hand
@@ -345,7 +462,7 @@ def baseline(groups, params, window=None, target_gi=None):
         # raised to: the run improves an alignment, it does not quietly re-cant
         # one that is over its limit, and it only ever lowers such a cant where
         # that buys speed.
-        u_step = params.get("u_step", U_STEP)
+        u_step = grenzen_of(params).u_step
         u_values = [u_alt]
         if all(_u_variable(g, i, params) for i in range(n_arcs)):
             u = 0.0
@@ -358,8 +475,7 @@ def baseline(groups, params, window=None, target_gi=None):
         # it is a fact, not a suggestion — so where its ramps are too short for
         # the cant it carries, every rule-abiding answer comes out slower. Such
         # a group is left alone rather than talked down.
-        v_alt = min(permissible_speed(a["r_alt"], a["u_alt"], uf_for(g, params))
-                    for a in g["arcs"])
+        v_alt = bestand_speed(g, params)
         best, best_key = None, None
         for u in u_values:
             cand = _max_radius_for(g, u, params)
@@ -459,9 +575,8 @@ def _decode(x, ctx):
     shifts = dict(ctx["held_shifts"])
     for i, idx in enumerate(ctx["straight_ids"]):
         shifts[idx] = _clamp(x[i], -params["corridor"], params["corridor"])
-    r_min = params.get("r_min", R_MIN)
-    r_step = params.get("r_step", R_STEP)
-    u_step = params.get("u_step", U_STEP)
+    r_min, r_step = R_MIN, R_STEP
+    u_step = grenzen_of(params).u_step
     slices, _ = _layout(ctx)
     per_group = []
     for j, (pos, n) in zip(ctx["live"], slices):
@@ -482,6 +597,19 @@ def _decode(x, ctx):
                   else [max(1e-4, x[pos + 2 * n + i]) for i in range(n - 1)])
         per_group.append((radii, us, thetas))
     return shifts, per_group
+
+
+def _straight_need(ga, gb, a, b, params):
+    """How long the straight between two neighbouring groups has to stay: an
+    element of its own (LP.EL.01) at the fastest speed that meets on it — its
+    own and both curves' — and between two curves that turn opposite ways the
+    Zwischengerade of LP.EL.02 on top."""
+    grenzen = grenzen_of(params)
+    V = grenzen.design_speed(max(a["v"], b["v"], ga.get("exit_speed") or 0.0))
+    if V is None:
+        return 0.0
+    reverse = ga["signs"][-1] != gb["signs"][0]
+    return grenzen.min_length("straight", V, reverse)
 
 
 def _evaluate_vector(x, ctx):
@@ -509,7 +637,7 @@ def _evaluate_vector(x, ctx):
         d = ga["d2"]
         remaining = ((b["fit"]["cl_start"][0] - a["fit"]["cl_end"][0]) * d[0]
                      + (b["fit"]["cl_start"][1] - a["fit"]["cl_end"][1]) * d[1])
-        need = params.get("min_length_coeff", MIN_LENGTH_COEFF) * max(a["v"], b["v"])
+        need = _straight_need(ga, gb, a, b, params)
         if remaining < need:
             penalty += (need - remaining) / need
     return solutions, penalty
@@ -563,8 +691,7 @@ def _window_context(groups, params, held, held_shifts, live,
         thetas = (sol["thetas_free"] if sol
                   else ([] if g["s_curve"] else [a["sweep_alt"] for a in g["arcs"][:-1]]))
         x0 += list(radii) + list(us) + list(thetas)
-        r_min = params.get("r_min", R_MIN)
-        bounds += [(max(r_min, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
+        bounds += [(max(R_MIN, 0.25 * a["r_alt"]), 10.0 * a["r_alt"]) for a in g["arcs"]]
         bounds += [(0.0, max(a["u_alt"], u_max_for(g, params))) for a in g["arcs"]]
         if not g["s_curve"]:
             bounds += [(max(1e-3, 0.2 * a["sweep_alt"]),
@@ -613,8 +740,7 @@ def joint_optimize(groups, params, maxiter=150, seed=1, target_gi=None):
     if all(sol is None for sol in base):
         return base, {}, base
 
-    v_floors = [min(permissible_speed(a["r_alt"], a["u_alt"], uf_for(g, params)) for a in g["arcs"])
-                for g in groups]
+    v_floors = [bestand_speed(g, params) for g in groups]
 
     if target_gi is not None:
         live = [j for j in sorted(window) if base[j] is not None]

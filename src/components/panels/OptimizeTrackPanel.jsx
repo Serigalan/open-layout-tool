@@ -68,9 +68,13 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
   const [elementIdx, setElementIdx] = useState(null)    // nur im Element-Modus
   const [label, setLabel]         = useState('')
   const [corridorCm, setCorridorCm] = useState(50)
-  const [uf, setUf]               = useState('130')
+  // Regelwert or Ermessensgrenze of the rulebook — the level the run is held
+  // to. The deficiency, the ramps and every other limit follow from it on the
+  // server; there is no number here to choose (the u_f field this replaced
+  // let a run use 150 mm where the Ril allows 130).
+  const [grenzwert, setGrenzwert] = useState('reg')
   const [vMax, setVMax]           = useState('')     // '' → kein Ziel, offen nach oben
-  const [regelwerke, setRegelwerke] = useState([])   // [{id,name,version,gueltigAb}], AP R.3
+  const [regelwerke, setRegelwerke] = useState([])   // [{id,name,version}], AP R.3
   const [regelwerkId, setRegelwerkId] = useState('') // '' → Dienst-Vorgabe
   const [selectHint, setSelectHint] = useState(null)
   const [running, setRunning]     = useState(false)
@@ -79,7 +83,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
 
   // A result only counts for the parameters it was computed with — derived
   // from the parameter key rather than through an invalidation effect.
-  const runKey = [mode, trackId, elementIdx, corridorCm, uf, vMax, regelwerkId, phase].join('|')
+  const runKey = [mode, trackId, elementIdx, corridorCm, grenzwert, vMax, regelwerkId, phase].join('|')
   const result = run?.key === runKey ? run.result ?? null : null
   const runError = run?.key === runKey ? run.error ?? null : null
 
@@ -162,7 +166,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
     setRun(null)
     setRunning(true)
     optimizeOnServer({
-      track, corridorCm, uf: Number(uf), uebergang: 'auto', maxiter: 100,
+      track, corridorCm, grenzwert, uebergang: 'auto', maxiter: 100,
       ...(Number(vMax) > 0 ? { vMax: Number(vMax) } : {}),
       ...(regelwerkId ? { regelwerk: regelwerkId } : {}),
       ...(mode === 'element' ? { targetElementIdx: elementIdx } : {}),
@@ -194,9 +198,10 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
     updateTrack(project.id, {
       ...track, elements, coordinates: rebuildCoords(elements),
       heights: reshapedHeights(track, elements),
-      // The regelwerk this alignment was drawn under — without it a design a
-      // few years old is not reproducible once a second regelwerk exists.
+      // The regelwerk this alignment was drawn under, and at which level —
+      // without them a design a few years old is not reproducible.
       regelwerk: result.regelwerk,
+      regelwerkGrenzwert: result.grenzwert,
     })
     onTrackSaved?.()
     handleCancel()
@@ -257,12 +262,18 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
             value={vMax} onChange={e => setVMax(e.target.value)} />
         </div>
         <div className="form-field">
-          <label>{t('optimize_uf')}</label>
-          <select value={uf} onChange={e => setUf(e.target.value)}>
-            <option value="110">110 mm ({t('optimize_uf_switches')})</option>
-            <option value="130">130 mm</option>
-            <option value="150">150 mm</option>
+          <label>{t('optimize_grenzwert')}</label>
+          <select value={grenzwert} onChange={e => setGrenzwert(e.target.value)}>
+            <option value="reg">{t('optimize_grenzwert_reg')}</option>
+            <option value="discretion">{t('optimize_grenzwert_discretion')}</option>
           </select>
+          {grenzwert === 'discretion' && (
+            // The catalogue says of every warning that it needs a written
+            // justification — the panel says so before the run, not after.
+            <span style={{ fontSize: 11, color: '#c8860d', marginTop: 2 }}>
+              {t('optimize_grenzwert_discretion_hint')}
+            </span>
+          )}
         </div>
         {regelwerke.length > 0 && (
           <div className="form-field">
@@ -340,7 +351,8 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
             <p style={{ fontSize: 12, color: changed ? '#5b9bd5' : '#e74c3c', marginTop: 4 }}>
               {changed
                 ? <>{t('optimize_done')}: v {result.vBestand.toFixed(0)} → {result.vNeu.toFixed(0)} km/h
-                    {' · '}{t('optimize_variant')}: {result.variant}</>
+                    {' · '}{t('optimize_variant')}: {result.variant}
+                    {result.grenzwert && <>{' · '}{t(`optimize_grenzwert_${result.grenzwert}`)}</>}</>
                 : t('optimize_nothing')}
             </p>
           </div>

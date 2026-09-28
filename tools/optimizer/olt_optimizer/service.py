@@ -3,11 +3,12 @@
     POST /optimize        body: the panel's payload, answer: optimize_payload's result
     POST /mdb             body: an Access file, answer: its Satzarten as JSON
     GET  /health          so the panel can say "no server" before the user clicks
-    GET  /regelwerke      the regelwerke a run may be asked for (AP R.3): id,
-                          name, version, gueltigAb — not their values, which is
-                          what the detail route below is for
-    GET  /regelwerke/<id> one regelwerk in full, the shape `optimize_payload`'s
-                          `regelwerk=` argument selects by id
+    GET  /regelwerke      the rule catalogues a run may be held to: id, name and
+                          the catalogue's own version
+    GET  /regelwerke/<id> what a run is held to under that catalogue, per level
+                          (Regelwert, Ermessensgrenze) — the numbers the service
+                          really computes with, so a service deployed from an
+                          older commit than the app shows as one
 
 Failures travel as `{"error": <key>}` with an HTTP status; the client turns the
 key into a sentence. Two guards keep one request from taking the service down:
@@ -24,9 +25,10 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from .api import optimize_payload
+from .api import optimize_payload, variants_for
+from .grenzen import DEFAULT_STUFE, STUFEN, grenzen_for
 from .mdb import MdbError, convert as mdb_convert
-from .regelwerk import RegelwerkError, list_regelwerke, load_regelwerk
+from .regelwerk import DEFAULT_REGELWERK_ID, list_regelwerke
 
 HOST = os.environ.get("OLT_OPTIMIZER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("OLT_OPTIMIZER_PORT", "8099"))
@@ -85,15 +87,21 @@ def _spawn(ctx, load):
 def run_isolated(payload, timeout=TIMEOUT):
     """Run one optimization under a deadline, in processes that can be killed.
 
-    `uebergang: 'auto'` is two runs that know nothing of each other — the ramps
-    as they lie, and all of them Bloss — of which the faster wins. They go side
-    by side, one process each: the same answer for half the wait. fork keeps
-    that cheap, numpy and scipy being already imported in the parent, so a
-    child starts with them in place instead of loading them again.
+    `uebergang: 'auto'` is up to two runs that know nothing of each other — the
+    ramps as they lie, and all of them Bloss where the catalogue admits Bloss
+    at the level asked for (api.variants_for; today it does at neither) — of
+    which the faster wins. They go side by side, one process each: the same
+    answer for half the wait. fork keeps that cheap, numpy and scipy being
+    already imported in the parent, so a child starts with them in place
+    instead of loading them again.
     """
     ctx = multiprocessing.get_context("fork")
-    uebergang = payload.get("uebergang", "auto")
-    variants = ["bestand", "bloss"] if uebergang == "auto" else [uebergang]
+    grenzen = grenzen_for(payload.get("regelwerk") or DEFAULT_REGELWERK_ID,
+                          payload.get("grenzwert") or DEFAULT_STUFE)
+    try:
+        variants = variants_for(payload.get("uebergang", "auto"), grenzen)
+    except ValueError as exc:
+        raise ServiceError(422, "unsupported_topology", str(exc)) from None
     running = [_spawn(ctx, {**payload, "uebergang": name}) for name in variants]
 
     deadline = time.monotonic() + timeout
@@ -148,11 +156,14 @@ def _as_payload(body):
     # bare ValueError from deeper in would otherwise be read as.
     if regelwerk is not None and not any(rw["id"] == regelwerk for rw in list_regelwerke()):
         raise ServiceError(400, "invalid_regelwerk", regelwerk)
+    grenzwert = data.get("grenzwert", DEFAULT_STUFE)
+    if grenzwert not in STUFEN:
+        raise ServiceError(400, "invalid_grenzwert", str(grenzwert))
     try:
         return {
             "track": track,
             "corridor_cm": float(data.get("corridorCm", 50.0)),
-            "uf": float(data.get("uf", 130.0)),
+            "grenzwert": grenzwert,
             "uebergang": str(data.get("uebergang", "auto")),
             "per_curve": bool(data.get("perCurve", False)),
             "maxiter": max(1, min(MAX_ITER, int(data.get("maxiter", 100)))),
@@ -201,10 +212,12 @@ class Handler(BaseHTTPRequestHandler):
             self._respond(200, {"regelwerke": list_regelwerke()})
         elif route.startswith("/regelwerke/"):
             rw_id = route[len("/regelwerke/"):]
-            try:
-                self._respond(200, load_regelwerk(rw_id))
-            except RegelwerkError:
+            listed = next((rw for rw in list_regelwerke() if rw["id"] == rw_id), None)
+            if listed is None:
                 self._respond(404, {"error": "not_found"})
+            else:
+                self._respond(200, {**listed, "grenzwerte": {
+                    stufe: grenzen_for(rw_id, stufe).describe() for stufe in STUFEN}})
         else:
             self._respond(404, {"error": "not_found"})
 

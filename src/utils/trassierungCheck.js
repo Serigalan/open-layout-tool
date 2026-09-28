@@ -50,6 +50,15 @@ const cantEndsOf = (elements, i) => (isTransition(elements[i])
 const deficiency = (v, radius, cant) => (radius ? computeCantDefSigned(v, radius, cant) : 0)
 
 /**
+ * The same deficiency, signed with the curve the way the cant is. The one the
+ * app computes is measured against the curve it belongs to — positive toward
+ * the outside of *that* curve — which is all a single curve needs. Across a
+ * reverse transition the outside changes sides, and the step the ramp has to
+ * carry is the sum of both ends, not the difference of their magnitudes.
+ */
+const sideDeficiency = (v, radius, cant) => (radius ? Math.sign(radius) * deficiency(v, radius, cant) : 0)
+
+/**
  * An element the catalogue can speak about at all. A design speed of 0 means
  * "unknown" in this store (an import that stated none) — and an unknown speed
  * is not a slow one: nearly every rule is a function of v, so judging it as
@@ -69,10 +78,10 @@ export function elementScope(elements, i) {
   const ends = cantEndsOf(elements, i)
   // Over a reverse transition the cross level really does travel from one
   // rail to the other, so the ramp is the signed difference, not the
-  // difference of the magnitudes.
+  // difference of the magnitudes — for the cant and for the deficiency alike.
   const deltaU = Math.abs(ends.end - ends.start)
   const deltaUf = isTransition(el)
-    ? Math.abs(deficiency(v, el.r2, ends.end) - deficiency(v, el.r1, ends.start))
+    ? Math.abs(sideDeficiency(v, el.r2, ends.end) - sideDeficiency(v, el.r1, ends.start))
     : 0
   return {
     'element.design_speed': v,
