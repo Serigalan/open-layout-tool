@@ -60,16 +60,19 @@ describe('full title block', () => {
     expect(scale.y).toBeLessThan(y0 + 104)
   })
 
-  it('writes the notes into the rows below the planner, one each', () => {
+  it('names the reference systems and the paper in the rows below the planner', () => {
     const x0 = 840 - FRAME.right - 180
     const y0 = 297 - FRAME.bottom - 134
-    const notes = ['Lagesystem: EPSG 25832', 'Höhensystem: DHHN2016']
-    const items = build(block({ notes })).filter(i => i.type === 'text' && notes.includes(i.parts[0].t))
-    expect(items).toHaveLength(2)
-    items.forEach((item, k) => {
-      expect(item.x).toBeGreaterThan(x0 + 130)
-      expect(item.y).toBeGreaterThan(y0 + 35 + k * 8)
-      expect(item.y).toBeLessThan(y0 + 43 + k * 8)
+    const systems = [['Lagesystem', 'EPSG 25832'], ['Höhensystem', 'EPSG 7837'], ['Blattformat', '297 × 840 mm']]
+    const items = build(block({ systems })).filter(i => i.type === 'text')
+    systems.forEach(([caption, value], k) => {
+      const [c, v] = [caption, value].map(str => items.find(i => i.parts[0].t === str))
+      for (const item of [c, v]) {
+        expect(item.x).toBeGreaterThan(x0 + 130)
+        expect(item.y).toBeGreaterThan(y0 + 35 + k * 8)
+        expect(item.y).toBeLessThan(y0 + 43 + k * 8)
+      }
+      expect(c.y).toBeLessThan(v.y)
     })
   })
 
@@ -211,7 +214,6 @@ describe('stored title block', () => {
     expect(parties.owner.signs).toBe(true)
     expect(parties.lead).toEqual({ address: 'DB', logo: null, signs: false })
     expect(parties.contractor.signs).toBe(false)
-    expect(normalizeHeader(null).notes).toBe('')
   })
 
   it('keeps the chosen block style, and falls back to the simple one', () => {

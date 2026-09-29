@@ -29,6 +29,14 @@ const PLATFORM_EDGE = 0.1
 const WEDGE_LEG = 3     // legs of a switch's triangle at full spacing [mm]
 const KM_POST_R = 0.8   // kilometre post circle [mm]
 const KM_POST_TEXT = 5.6 // from the post to its figure [mm]
+// A switch number sits in the sharp angle of its switch beyond the triangle,
+// clear of both strokes, an arrow before it pointing at the switch.
+const SWITCH_TEXT = 2.117 // 6 pt [mm]
+const CAP_HEIGHT = 0.72   // Helvetica's capitals, in text sizes
+const SWITCH_CLEAR = 0.75 // from the track to the number [mm]
+const ARROW_W = 0.55      // the arrow's length and height, in text sizes
+const ARROW_H = 0.6
+const ARROW_SPACE = 0.3   // between arrow and number, in text sizes
 
 const STROKE = {
   track: 0.5,
@@ -44,6 +52,35 @@ const PRIO = { station: 1, joint: 1, km: 2, switch: 3, track: 4 }
 const fmt = (v, decimals, comma) => {
   const s = v.toFixed(decimals)
   return comma ? s.replace('.', ',') : s
+}
+
+/**
+ * What the plan calls a switch: its number alone, without the leading zeros
+ * of a generated name — switch.003 is 3, W 12a is 12a. A name without a
+ * number stays as it is.
+ */
+export function switchNumber(name) {
+  const str = String(name ?? '').trim()
+  const m = /(\d+)\s*([a-z]?)$/i.exec(str)
+  return m ? `${Number(m[1])}${m[2]}` : str
+}
+
+/**
+ * A switch number beside the triangle at (x, y) that opens along `sx` and
+ * across `sy`: the arrow nearest the switch pointing back at it, the number
+ * beyond, both off the track on the side the branch leaves to.
+ */
+function switchLabel(x, y, { sx, sy, off, t, color }) {
+  const s = SWITCH_TEXT
+  const cap = CAP_HEIGHT * s
+  const base = sy > 0 ? y + SWITCH_CLEAR + cap : y - SWITCH_CLEAR
+  const mid = base - cap / 2
+  const tip = x + sx * off
+  const back = tip + sx * ARROW_W * s
+  const arrow = path([['M', tip, mid], ['L', back, mid - ARROW_H * s / 2], ['L', back, mid + ARROW_H * s / 2], ['Z']],
+    { stroke: null, fill: color })
+  return text(back + sx * ARROW_SPACE * s, base, [{ t }],
+    { size: s, align: sx > 0 ? 'left' : 'right', color, prio: PRIO.switch, marks: [arrow] })
 }
 
 /** A polyline as path commands. */
@@ -216,10 +253,11 @@ export function buildSchematicPlan({
   function stripFor(Y) {
     const strip = []
     const at = new Map()
-    const wedged = new Set()
+    // Each wedged switch with the way its triangle opens — along x, and across.
+    const wedged = new Map()
     const wedge = (node, x, y, sx, sy) => {
       if (!shown.switches || node.link) return
-      wedged.add(node)
+      if (!wedged.has(node)) wedged.set(node, { sx, sy })
       const l = leg / mmPerM
       strip.push({ kind: 'fill', pts: [[x, y], [x + sx * l, y], [x + sx * l, y + sy * leg]], color: STATUS_COLOR[statusOf(node)] })
     }
@@ -344,9 +382,18 @@ export function buildSchematicPlan({
         const y = Y(node.lane)
         // A switch whose branch leaves the strip has no diagonal to set its
         // triangle in, so it keeps a point.
-        if (!wedged.has(node)) strip.push({ kind: 'dot', x: nodeX(node), y, color: STATUS_COLOR[statusOf(node)] })
-        const name = String(node.sw.name ?? '').trim()
-        if (!name) continue
+        const color = STATUS_COLOR[statusOf(node)]
+        const open = wedged.get(node)
+        if (!open) strip.push({ kind: 'dot', x: nodeX(node), y, color })
+        const number = switchNumber(node.sw.name)
+        if (!number) continue
+        if (open) {
+          // In the sharp angle beside the triangle, as far out as the diagonal
+          // leaves room for the figure's height.
+          const off = Math.max(leg, SWITCH_CLEAR + CAP_HEIGHT * SWITCH_TEXT + 0.3)
+          strip.push({ kind: 'switch', x: nodeX(node), y, ...open, off, t: number, color })
+          continue
+        }
         // The label goes to the side the branch does not leave to.
         const others = [...node.attach].map(k => {
           const sc = layout.sectionOfTrack.get(k.split(':')[0])
@@ -356,7 +403,8 @@ export function buildSchematicPlan({
           return far?.lane ?? null
         }).filter(l => l != null)
         const up = others.some(l => l > node.lane)
-        strip.push({ kind: 'label', x: nodeX(node), y: up ? y + 3.2 : y - 1.6, t: name, size: 2.0, prio: PRIO.switch })
+        strip.push({ kind: 'label', x: nodeX(node), y: up ? y + 3.2 : y - 1.6, t: number, size: SWITCH_TEXT,
+          color, prio: PRIO.switch })
       }
     }
 
@@ -445,7 +493,10 @@ export function buildSchematicPlan({
         inner.push(line(a, it.y1 - edge, b, it.y1 - edge, { width: STROKE.platformEdge }))
       } else if (it.kind === 'label') {
         if (it.room != null && it.room < textWidth([{ t: it.t }], it.size) + 2) continue
-        inner.push(text(X(it.x), it.y, [{ t: it.t }], { size: it.size, align: 'center', prio: it.prio }))
+        inner.push(text(X(it.x), it.y, [{ t: it.t }],
+          { size: it.size, align: 'center', color: it.color, prio: it.prio }))
+      } else if (it.kind === 'switch') {
+        inner.push(switchLabel(X(it.x), it.y, it))
       }
     }
 

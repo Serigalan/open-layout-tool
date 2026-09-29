@@ -713,6 +713,7 @@
   "plan_block_epsg": "EPSG:",
   "plan_block_format": "Format:",
   "plan_party_signs": "Zeile für Ort, Datum und Unterschrift",
-  "plan_notes": "Zusatzangaben unter Planung",
-  "plan_notes_hint": "eine Zeile je Feld (max. 6), z. B.\nLagesystem: ETRS89/UTM (EPSG 25832)\nHöhensystem: DHHN2016"
+  "plan_system_position": "Lagesystem",
+  "plan_system_height": "Höhensystem",
+  "plan_system_format": "Blattformat"
 }

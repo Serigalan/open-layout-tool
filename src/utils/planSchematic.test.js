@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { endPointStraightUtm } from './elementUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { schematicLayout, schematicNetwork } from './planSchematic'
-import { buildSchematicPlan } from './planSchematicPlan'
+import { buildSchematicPlan, switchNumber } from './planSchematicPlan'
 
 const EPSG = 25832
 const E0 = 500000, N0 = 5600000
@@ -48,6 +48,9 @@ const switches = [
   turnout('W2', ['2b', 'BEGIN'], ['X', 'END'], ['2a', 'END']),
   turnout('W3', ['2b', 'END'], ['S', 'BEGIN'], ['2c', 'BEGIN']),
 ]
+/** A switch's triangle, told from the arrow beside its number by its size. */
+const isWedge = (i) => i.type === 'path' && i.fill && i.d.length === 4 && Math.abs(i.d[1][1] - i.d[0][1]) > 2
+
 const platforms = [{
   id: 'p1', trackId: '1b', startStation: 400, endStation: 600, side: 'right',
   stationName: 'Musterstadt', code: 'MS',
@@ -118,7 +121,7 @@ describe('schematic plan', () => {
   })
 
   it('names the station, the switches and the kilometres', () => {
-    expect(texts).toEqual(expect.arrayContaining(['Musterstadt', 'MS', 'W1', 'W3', 'km 1,0']))
+    expect(texts).toEqual(expect.arrayContaining(['Musterstadt', 'MS', '1', '3', 'km 1,0']))
   })
 
   it('draws the siding and the crossover at 45°', () => {
@@ -139,7 +142,7 @@ describe('schematic plan', () => {
   })
 
   it('marks each switch with a filled triangle in the angle of its branch', () => {
-    const wedges = inner.filter(i => i.type === 'path' && i.fill && i.d.length === 4)
+    const wedges = inner.filter(isWedge)
     expect(wedges).toHaveLength(3)
     for (const w of wedges) {
       const [[, x0, y0], [, x1, y1], [, x2, y2]] = w.d
@@ -147,6 +150,28 @@ describe('schematic plan', () => {
       expect(y1).toBeCloseTo(y0)
       expect(x2).toBeCloseTo(x1)
       expect(Math.abs(y2 - y1)).toBeCloseTo(3)
+    }
+  })
+
+  it('sets each switch number in the sharp angle beyond its triangle, an arrow pointing at it', () => {
+    for (const w of inner.filter(isWedge)) {
+      const [[, tx, ty], [, bx], [, , cy]] = w.d
+      const sx = Math.sign(bx - tx)
+      const sy = Math.sign(cy - ty)
+      const label = inner.find(i => i.type === 'text' && /^\d+$/.test(i.parts[0].t)
+        && Math.abs(i.x - tx) < 8 && Math.abs(i.y - ty) < 3 && Math.sign(i.x - tx) === sx)
+      expect(label).toBeDefined()
+      // Off the track on the branch side, clear of it by the same margin either way.
+      const cap = 0.72 * label.size
+      const near = sy > 0 ? label.y - cap - ty : ty - label.y
+      expect(near).toBeCloseTo(0.75)
+      expect(label.align).toBe(sx > 0 ? 'left' : 'right')
+      const arrow = inner.find(i => i.type === 'path' && i.fill && i.d.length === 4 && !isWedge(i)
+        && Math.abs(i.d[0][1] - (tx + sx * 3)) < 0.01 && Math.abs(i.d[0][2] - ty) < 3)
+      expect(arrow).toBeDefined()
+      // The arrow's point is nearest the switch and its colour the switch's.
+      expect(Math.sign(arrow.d[1][1] - arrow.d[0][1])).toBe(sx)
+      expect(arrow.fill).toBe(label.color)
     }
   })
 
@@ -176,7 +201,7 @@ describe('planning status in the schematic plan', () => {
     const diag = inner.filter(i => i.type === 'path' && i.d.length === 2
       && Math.abs(i.d[1][2] - i.d[0][2]) > 0.1 && Math.abs(i.d[1][1] - i.d[0][1]) > 0.1)
     expect(diag.map(i => i.stroke)).toEqual(expect.arrayContaining(['#ff0000', '#e6b400']))
-    expect(colours(i => i.type === 'path' && i.fill && i.d.length === 4).sort())
+    expect(colours(isWedge).sort())
       .toEqual(['#e6b400', '#ff0000', '#ff0000'])
   })
 
@@ -185,7 +210,17 @@ describe('planning status in the schematic plan', () => {
     const items = buildSchematicPlan({
       tracks: withStatus, switches: own, platforms, paperKey: '297x840', scaleDen: 10000,
     }).sheets[0].items.find(i => i.type === 'group').items
-    expect(items.filter(i => i.type === 'path' && i.fill && i.d.length === 4).map(i => i.fill).sort())
+    expect(items.filter(isWedge).map(i => i.fill).sort())
       .toEqual(['#000000', '#e6b400', '#ff0000'])
+  })
+})
+
+describe('switch number', () => {
+  it('keeps the number of a name alone, without leading zeros', () => {
+    expect(switchNumber('switch.003')).toBe('3')
+    expect(switchNumber('W 301')).toBe('301')
+    expect(switchNumber('W12a')).toBe('12a')
+    expect(switchNumber('Weiche Nord')).toBe('Weiche Nord')
+    expect(switchNumber(null)).toBe('')
   })
 })

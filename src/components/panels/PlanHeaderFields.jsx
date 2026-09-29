@@ -1,5 +1,5 @@
 import { fileToLogo } from '../../utils/logoImage'
-import { NOTE_ROWS, PARTIES, STAFF } from '../../utils/planHeader'
+import { PARTIES, STAFF } from '../../utils/planHeader'
 
 /** Longest side of a location sketch image [px] — it fills a box of 13 × 4 cm. */
 const SKETCH_PX = 1600
@@ -97,13 +97,6 @@ export default function PlanHeaderFields({ t, header, onChange, onError, simple 
                 onChange={e => setParty(key, { signs: e.target.checked })} />
               <span>{t('plan_party_signs')}</span>
             </label>
-            {key === 'planner' && (
-              <>
-                <label style={{ marginTop: 6 }}>{t('plan_notes')}</label>
-                <textarea rows={NOTE_ROWS} value={header.notes} placeholder={t('plan_notes_hint')}
-                  onChange={e => onChange({ ...header, notes: e.target.value })} />
-              </>
-            )}
           </div>
         )
       })}

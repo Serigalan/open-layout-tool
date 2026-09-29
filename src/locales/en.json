@@ -713,6 +713,7 @@
   "plan_block_epsg": "EPSG:",
   "plan_block_format": "Format:",
   "plan_party_signs": "Line for place, date and signature",
-  "plan_notes": "Notes below the planner",
-  "plan_notes_hint": "one line per field (max. 6), e.g.\nPosition: ETRS89/UTM (EPSG 25832)\nHeights: DHHN2016"
+  "plan_system_position": "Horizontal reference",
+  "plan_system_height": "Height reference",
+  "plan_system_format": "Sheet size"
 }

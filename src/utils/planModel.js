@@ -19,12 +19,14 @@ import { cantExceptionOf, computeCantDef, worstCantOf } from './mapConstants'
  * SVG without either knowing anything about railways:
  *
  *   { type: 'path',  d, stroke, width, dash, fill, opacity }
- *   { type: 'text',  x, y, angle, size, align, parts: [{ t, sub, color }], color, prio, path }
+ *   { type: 'text',  x, y, angle, size, align, parts: [{ t, sub, color }], color, prio, path, marks? }
  *
  * A text with a `path` — a page polyline — is set along it instead of at x/y,
  * so a label on a curve bends with the curve. SVG draws those with a real
  * <textPath>; the PDF backend walks the polyline and places the glyphs itself,
- * because PDF has no such operator.
+ * because PDF has no such operator. A text's `marks` are paths that belong to
+ * the label — an arrow beside a number — and give way with it; culling hands
+ * them on as paths of their own, so no backend has to know them.
  *   { type: 'image', dataUrl, x, y, w, h, opacity }
  *   { type: 'group', clip: { x, y, w, h }, items }
  *
@@ -235,13 +237,23 @@ function cullItems(items, area) {
     .sort((a, b) => (a.item.prio - b.item.prio) || (a.i - b.i))
 
   for (const { item } of texts) {
-    const box = textBox(item)
+    let box = textBox(item)
+    // A mark drawn with a label — an arrow beside a number — counts as part of it.
+    for (const mark of item.marks ?? []) {
+      const b = pathBox(mark.d)
+      box = {
+        minX: Math.min(box.minX, b.minX), minY: Math.min(box.minY, b.minY),
+        maxX: Math.max(box.maxX, b.maxX), maxY: Math.max(box.maxY, b.maxY),
+      }
+    }
     if (!boxInArea(box, area) || boxes.some(b => boxesOverlap(b, box))) continue
     boxes.push(box)
     keep.add(item)
   }
 
-  return paths.filter(item => item.type !== 'text' || keep.has(item))
+  // A label's marks stand or fall with it.
+  return paths.flatMap(item => (item.type !== 'text' ? [item]
+    : keep.has(item) ? [item, ...(item.marks ?? [])] : []))
 }
 
 /** Path commands from the track plane into page millimetres. */
@@ -318,6 +330,7 @@ const text = (x, y, parts, opts = {}) => ({
   bold: opts.bold ?? false,
   prio: opts.prio ?? 0,
   path: opts.path ?? null,
+  ...(opts.marks ? { marks: opts.marks } : {}),
 })
 
 /** What a label is worth when two of them want the same spot. */
@@ -834,8 +847,8 @@ const RULES_THIN = [
 const RULES_TABLE = [43, 51, 59, 67, 75].map(y => [130, y, 180, y])
 /** Where the location sketch is drawn, clear of its caption. */
 const SKETCH_BOX = { x: 2, y: 41, w: 126, h: 40.5 }
-/** The free rows below the planner's column, for notes such as the reference systems. */
-const NOTES_BOX = { x: 130, y: 35, w: 50, row: 8, rows: 6 }
+/** The rows below the planner's column, which name the reference systems and the paper. */
+const SYSTEMS_BOX = { x: 130, y: 35, row: 8, rows: 6 }
 
 /**
  * The network in a box, north up, with the part the sheet shows in red. Points
@@ -882,9 +895,9 @@ function sketchItems(sketch, focus, box) {
  * sheet it copies: a column each for client, project management, contractor
  * and planner (heading, logo, address and — where the party signs — lines for
  * place, date and signature); the location sketch beside a table whose rows
- * take free notes; and at the foot scale, code, who drew, edited and checked
- * the sheet, the plan title in three lines and three cells for format, sheet
- * and the rest.
+ * name the reference systems and the paper; and at the foot scale, code, who
+ * drew, edited and checked the sheet, the plan title in three lines and three
+ * cells, the middle one for the sheet number.
  * The caller supplies every text and image.
  */
 function fullTitleBlockItems(pageW, pageH, block, sheet) {
@@ -934,8 +947,11 @@ function fullTitleBlockItems(pageW, pageH, block, sheet) {
 
   put(2, 39.2, block.sketchCaption, 2.8)
 
-  ;(block.notes ?? []).slice(0, NOTES_BOX.rows).forEach((l, k) => {
-    put(NOTES_BOX.x + 1.5, NOTES_BOX.y + k * NOTES_BOX.row + 4.9, l, fitSize(l, 2.47, NOTES_BOX.w - 3))
+  // A caption over its value in each row, as the fields of a form.
+  ;(block.systems ?? []).slice(0, SYSTEMS_BOX.rows).forEach(([caption, value], k) => {
+    const y = SYSTEMS_BOX.y + k * SYSTEMS_BOX.row
+    put(SYSTEMS_BOX.x + 1.5, y + 2.9, caption, 2.0)
+    put(SYSTEMS_BOX.x + 1.5, y + 6.7, value, fitSize(value, 2.82, w - SYSTEMS_BOX.x - 3))
   })
 
   centred(9, 102.6, block.scale || '-', 2.82, 16)
@@ -1017,7 +1033,7 @@ function northArrowItems(rotDeg) {
  * @param {string}  o.paperKey   key of PAPER_FORMATS
  * @param {number}  o.scaleDen   scale denominator
  * @param {object}  o.titleBlock { title, rows: [[left, right]], legend }; {i}/{n} = sheet.
- *                          With `full`: { title, range, subtitle, scale, code, notes, parties,
+ *                          With `full`: { title, range, subtitle, scale, code, systems, parties,
  *                          staff, footer: [[lines] × 3], sketch | sketchImage, ...captions }
  * @param {object}  o.show       which annotations to draw
  * @param {Array}   o.basemaps   per sheet: { dataUrl, xMm, yMm, wMm, hMm } or null

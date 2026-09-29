@@ -17,9 +17,6 @@ export const STAFF = [
 
 export const BLOCK_STYLES = ['compact', 'full']
 
-/** The free rows below the planner's column, one line of the notes each. */
-export const NOTE_ROWS = 6
-
 const pad = (n) => String(n).padStart(2, '0')
 
 /** Today as the date input holds it (yyyy-mm-dd), in local time. */
@@ -47,7 +44,6 @@ export const emptyHeader = () => ({
   subtitle: '',
   range: '',
   code: '',
-  notes: '',
   sketch: null,
   parties: Object.fromEntries(PARTIES.map(p => [p.key, { address: '', logo: null, signs: p.signs }])),
   staff: Object.fromEntries(STAFF.map(s => [s.key, { date: '', name: '' }])),
@@ -61,7 +57,6 @@ export const normalizeHeader = (stored) => {
     subtitle: stored?.subtitle ?? '',
     range: stored?.range ?? '',
     code: stored?.code ?? '',
-    notes: stored?.notes ?? '',
     sketch: stored?.sketch ?? null,
     parties: Object.fromEntries(PARTIES.map(p => [p.key, { ...base.parties[p.key], ...stored?.parties?.[p.key] }])),
     staff: Object.fromEntries(STAFF.map(s => {

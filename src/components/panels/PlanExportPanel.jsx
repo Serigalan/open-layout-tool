@@ -116,6 +116,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     const plan = {
       kind: kindName, scale, lines,
       epsg: zone ? String(zone) : '-',
+      heightEpsg: String(current.find(tr => tr.heightEpsg)?.heightEpsg ?? DEFAULT_HEIGHT_EPSG),
       format: formatText(),
     }
     return {
@@ -258,13 +259,14 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     // The cell above the code states the scale; a schematic plan has none.
     scale: plan.scale === '-' ? '-' : `M ${plan.scale}`,
     code: h.code,
-    notes: h.notes.split('\n').map(l => l.trim()).filter(Boolean),
-    // The cells at the foot state what the simple block states, in the same words.
-    footer: [
-      [`${t('plan_block_format')} ${plan.format}`],
-      [plan.lines[0]],
-      [`${t('plan_block_epsg')} ${plan.epsg}`, ...plan.lines.slice(1)],
+    // The fields below the planner name the reference systems and the paper,
+    // so the cells at the foot beside the sheet number stay free.
+    systems: [
+      [t('plan_system_position'), plan.epsg === '-' ? '-' : `EPSG ${plan.epsg}`],
+      [t('plan_system_height'), `EPSG ${plan.heightEpsg}`],
+      [t('plan_system_format'), plan.format],
     ],
+    footer: [[], [plan.lines[0]], []],
     sketchImage: h.sketch,
     sketch: h.sketch ? null : sketchLines(current),
     sketchCaption: t('plan_sketch_caption'),
