@@ -85,9 +85,16 @@ function drawPath(doc, item) {
   if (item.fill) doc.setFillColor(...hexToRgb(item.fill))
   if (item.dash) doc.setLineDashPattern(item.dash, 0)
 
-  for (const sub of subpaths(item.d)) {
-    const { start, deltas, closed } = toDeltas(sub)
-    if (deltas.length) doc.lines(deltas, start[0], start[1], [1, 1], style, closed)
+  if (style === 'F') {
+    // A fill is painted over all its subpaths at once, so the counter of an
+    // o or an a stays open, as the nonzero rule has it.
+    doc.path(item.d.map(c => (c[0] === 'Z' ? { op: 'h' } : { op: c[0].toLowerCase(), c: c.slice(1) })))
+    doc.fill()
+  } else {
+    for (const sub of subpaths(item.d)) {
+      const { start, deltas, closed } = toDeltas(sub)
+      if (deltas.length) doc.lines(deltas, start[0], start[1], [1, 1], style, closed)
+    }
   }
 
   if (item.dash) doc.setLineDashPattern([], 0)

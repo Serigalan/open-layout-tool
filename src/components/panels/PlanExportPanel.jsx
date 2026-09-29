@@ -87,18 +87,26 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
   const fill = (key, vals) => Object.entries(vals)
     .reduce((s, [k, v]) => s.replace(`{${k}}`, v), t(key))
 
-  const titleBlockOf = (rows, legend, footer, current) => ({
-    ...(blockStyle === 'full' ? fullBlockFields(header, footer, current) : {}),
+  /**
+   * The title block for a plan. `simple` is what the simple block states —
+   * plan kind, scale and the lines under the title — and `footer` the three
+   * cells at the foot of the detailed one.
+   */
+  const titleBlockOf = ({ legend, simple, footer, current }) => ({
+    ...(blockStyle === 'full' ? fullBlockFields(header, footer, current) : simpleBlockFields(header, simple)),
     title: project.title || t('plan_default_title'),
-    rows,
     legend,
   })
-  const today = () => new Date().toLocaleDateString(language === 'en' ? 'en-GB' : 'de-DE')
+  /** Month and year, as a drawing is dated. */
+  const monthYear = () => {
+    const now = new Date()
+    return `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`
+  }
 
   /** The overview: the network as a strip along the kilometrage. */
   const assembleSchematic = (current) => {
     const zone = current.find(tr => tr.epsg)?.epsg ?? null
-    const scaleText = `${t('plan_field_scale')} 1:${Number(schematicScaleKey).toLocaleString('de-DE')} ${t('plan_schematic_lengths')}`
+    const scale = `1:${Number(schematicScaleKey).toLocaleString('de-DE')}`
     const plan = buildSchematicPlan({
       tracks: current,
       switches: loadSwitches(project.id),
@@ -114,15 +122,19 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
         next: t('plan_sheet_next'), prev: t('plan_sheet_prev'), range: t('plan_km_range'),
         status: Object.fromEntries(STATUSES.map(s => [s, t(`status_${s}`)])),
       },
-      titleBlock: titleBlockOf([
-        [scaleText, t('plan_sheet_of')],
-        [crsLabel(zone), today()],
-        [`${t('plan_field_format')} ${paperKey} mm`, ''],
-      ], t('plan_schematic_legend'), [
-        [`${t('plan_field_scale')} 1:${Number(schematicScaleKey).toLocaleString('de-DE')}`, t('plan_schematic_lengths')],
-        [t('plan_sheet_of')],
-        [crsLabel(zone), `${t('plan_field_format')} ${paperKey} mm`],
-      ], current),
+      titleBlock: titleBlockOf({
+        legend: t('plan_schematic_legend'),
+        simple: {
+          kind: t('plan_kind_schematic_short'), scale: `${scale} ${t('plan_schematic_lengths')}`,
+          lines: [t('plan_sheet_of'), `${crsLabel(zone)} · ${t('plan_field_format')} ${paperKey} mm`],
+        },
+        footer: [
+          [`${t('plan_field_scale')} ${scale}`, t('plan_schematic_lengths')],
+          [t('plan_sheet_of')],
+          [crsLabel(zone), `${t('plan_field_format')} ${paperKey} mm`],
+        ],
+        current,
+      }),
     })
     return { plan, layout: { fits: plan.fits } }
   }
@@ -179,21 +191,42 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
         rBranch: t('switch_r_sub_branch'), rMain: t('switch_r_sub_main'),
         cantException: t('switch_plan_cant_exception'),
       },
-      titleBlock: titleBlockOf([
-        [`${t('plan_field_scale')} 1:${scaleKey}`, t('plan_sheet_of')],
-        [crsLabel(zone), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
-        [`${t('plan_field_format')} ${paperKey} mm`, today()],
-      ], t('plan_legend'), [
-        [`${t('plan_field_scale')} 1:${scaleKey}`, `${t('plan_field_format')} ${paperKey} mm`],
-        [t('plan_sheet_of')],
-        [crsLabel(zone), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
-      ], current),
+      titleBlock: titleBlockOf({
+        legend: t('plan_legend'),
+        simple: {
+          kind: t('plan_default_title'), scale: `1:${scaleKey}`,
+          lines: [t('plan_sheet_of'), `${crsLabel(zone)} · ${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
+        },
+        footer: [
+          [`${t('plan_field_scale')} 1:${scaleKey}`, `${t('plan_field_format')} ${paperKey} mm`],
+          [t('plan_sheet_of')],
+          [crsLabel(zone), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
+        ],
+        current,
+      }),
     })
     return { plan, layout }
   }
 
+  /** What the simple title block reads: kind, scale, content, who drew and checked it, the file. */
+  const simpleBlockFields = (h, simple) => ({
+    ...simple,
+    labels: {
+      kind: t('plan_block_kind'), scale: t('plan_block_scale'),
+      content: t('plan_block_content'), file: t('plan_block_file'),
+    },
+    staff: [['drawn', 'plan_staff_drawn_short'], ['checked', 'plan_staff_checked_short']].map(([key, labelKey]) => ({
+      label: t(labelKey),
+      date: h.staff[key].date || (key === 'drawn' ? monthYear() : ''),
+      name: h.staff[key].name,
+    })),
+    dateHeader: t('plan_staff_date'),
+    nameHeader: t('plan_staff_name'),
+    fileName: filenameBase(),
+  })
+
   /**
-   * Extra fields the detailed title block reads on top of the compact ones.
+   * What the detailed title block reads on top of the title.
    * Without an image of its own the location sketch draws the network.
    */
   const fullBlockFields = (h, footer, current) => ({
@@ -389,10 +422,8 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
             <option value="full">{t('plan_titleblock_full')}</option>
           </select>
         </div>
-        {blockStyle === 'full' && (
-          <PlanHeaderFields t={t} header={header} onChange={changeHeader}
-            onError={msg => setStatus({ msg, error: true })} />
-        )}
+        <PlanHeaderFields t={t} header={header} onChange={changeHeader} simple={blockStyle !== 'full'}
+          onError={msg => setStatus({ msg, error: true })} />
       </div>
 
       {status && (

@@ -122,3 +122,42 @@ describe('title column', () => {
     expect(group.clip.w).toBeCloseTo(840 - FRAME.left - FRAME.right)
   })
 })
+
+describe('simple title block', () => {
+  const simple = {
+    title: 'EW 500 - 1:12', kind: 'Weichenskizze', scale: '1:50', lines: ['Blatt {i} / {n}'],
+    labels: { kind: 'Planart:', scale: 'Maßstab:', content: 'Inhalt:', file: 'Dateiname:' },
+    staff: [{ label: 'gez.', date: '04/2026', name: 'Wolf' }, { label: 'gepr.', date: '', name: '' }],
+    dateHeader: 'Datum', nameHeader: 'Name', fileName: 'Weichenskizze_500_1_12',
+  }
+
+  it('sits in the frame corner at 145 × 52 mm, with the fold mark 190 mm from the right', () => {
+    const items = build(simple)
+    const outline = items.find(i => i.type === 'path' && i.width === 0.5 && i.d.length === 3)
+    expect(outline.d).toEqual([['M', 840 - 5 - 145, 297 - 5], ['L', 840 - 5 - 145, 297 - 5 - 52], ['L', 840 - 5, 297 - 5 - 52]])
+    const fold = items.find(i => i.type === 'path' && i.d[0][1] === 840 - 190)
+    expect(fold.d).toEqual([['M', 840 - 190, 292], ['L', 840 - 190, 297]])
+  })
+
+  it('states kind, scale, content, staff and file as the template does', () => {
+    expect(texts(build(simple))).toEqual(expect.arrayContaining([
+      'Planart:', 'Weichenskizze', 'Maßstab: 1:50', 'Inhalt:', 'EW 500 - 1:12', 'Blatt 1 / 2',
+      'Datum', 'Name', 'gez.', '04/2026', 'Wolf', 'gepr.', 'Dateiname: Weichenskizze_500_1_12',
+    ]))
+  })
+
+  it('carries the wordmark as filled vector paths inside its top row', () => {
+    const marks = build(simple).filter(i => i.type === 'path' && i.fill === '#1f0f96' || i.type === 'path' && i.fill === '#000000' && i.stroke === null && i.d.length > 50)
+    expect(marks).toHaveLength(2)
+    const y0 = 297 - 5 - 52
+    for (const m of marks) {
+      for (const c of m.d.filter(c => c[0] !== 'Z')) {
+        for (let k = 2; k < c.length; k += 2) {
+          expect(c[k]).toBeGreaterThan(y0)
+          expect(c[k]).toBeLessThan(y0 + 11)
+        }
+      }
+    }
+  })
+})
+

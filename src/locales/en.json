@@ -704,5 +704,12 @@
   "status_auto": "From the tracks ({s})",
   "switch_status": "Switch status",
   "switch_status_hint": "Click a switch on the map.",
-  "switch_status_selected": "Switch {name}"
+  "switch_status_selected": "Switch {name}",
+  "plan_block_kind": "Plan type:",
+  "plan_block_scale": "Scale:",
+  "plan_block_content": "Content:",
+  "plan_block_file": "File name:",
+  "plan_staff_drawn_short": "drawn",
+  "plan_staff_checked_short": "checked",
+  "plan_kind_schematic_short": "Overview plan"
 }

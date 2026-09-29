@@ -5,7 +5,14 @@ import { PARTIES, STAFF } from '../../utils/planHeader'
 const SKETCH_PX = 1600
 
 /** Editing of the title block: plan title, parties with logo and address, sketch, staff. */
-export default function PlanHeaderFields({ t, header, onChange, onError }) {
+/** The staff rows the simple title block has room for. */
+const SIMPLE_STAFF = ['drawn', 'checked']
+
+/**
+ * `simple`: only what the simple title block states besides the plan itself —
+ * who drew and who checked it.
+ */
+export default function PlanHeaderFields({ t, header, onChange, onError, simple = false }) {
   const setParty = (key, patch) => onChange({
     ...header, parties: { ...header.parties, [key]: { ...header.parties[key], ...patch } },
   })
@@ -38,6 +45,22 @@ export default function PlanHeaderFields({ t, header, onChange, onError }) {
         onChange={e => onChange({ ...header, [key]: e.target.value })} />
     </div>
   )
+
+  const staffRows = STAFF.filter(({ key }) => !simple || SIMPLE_STAFF.includes(key)).map(({ key, labelKey }) => (
+    <div className="form-field" key={key}>
+      <label>{t(labelKey)}</label>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <input type="text" style={{ width: '40%' }} value={header.staff[key].date}
+          placeholder={t('plan_staff_date')}
+          onChange={e => setStaff(key, { date: e.target.value })} />
+        <input type="text" style={{ flex: 1 }} value={header.staff[key].name}
+          placeholder={t('plan_staff_name')}
+          onChange={e => setStaff(key, { name: e.target.value })} />
+      </div>
+    </div>
+  ))
+
+  if (simple) return <>{staffRows}</>
 
   return (
     <>
@@ -94,19 +117,7 @@ export default function PlanHeaderFields({ t, header, onChange, onError }) {
         {!header.sketch && <p style={{ fontSize: 11, color: '#888', margin: '4px 0 0' }}>{t('plan_sketch_auto')}</p>}
       </div>
 
-      {STAFF.map(({ key, labelKey }) => (
-        <div className="form-field" key={key}>
-          <label>{t(labelKey)}</label>
-          <div style={{ display: 'flex', gap: 4 }}>
-            <input type="text" style={{ width: '40%' }} value={header.staff[key].date}
-              placeholder={t('plan_staff_date')}
-              onChange={e => setStaff(key, { date: e.target.value })} />
-            <input type="text" style={{ flex: 1 }} value={header.staff[key].name}
-              placeholder={t('plan_staff_name')}
-              onChange={e => setStaff(key, { name: e.target.value })} />
-          </div>
-        </div>
-      ))}
+      {staffRows}
     </>
   )
 }

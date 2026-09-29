@@ -704,5 +704,12 @@
   "status_auto": "Aus den Gleisen ({s})",
   "switch_status": "Weichenstatus",
   "switch_status_hint": "Weiche auf der Karte anklicken.",
-  "switch_status_selected": "Weiche {name}"
+  "switch_status_selected": "Weiche {name}",
+  "plan_block_kind": "Planart:",
+  "plan_block_scale": "Maßstab:",
+  "plan_block_content": "Inhalt:",
+  "plan_block_file": "Dateiname:",
+  "plan_staff_drawn_short": "gez.",
+  "plan_staff_checked_short": "gepr.",
+  "plan_kind_schematic_short": "Übersichtsplan"
 }

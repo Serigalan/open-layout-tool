@@ -27,8 +27,8 @@ export const FRAME_WIDTH = 0.5
 
 /** Width [mm] of the column on the right that a detailed title block takes. */
 export const TITLE_COLUMN_MM = 180
-/** Width [mm] of the compact title block. */
-export const COMPACT_BLOCK_MM = 110
+/** Width [mm] of the simple title block. */
+export const COMPACT_BLOCK_MM = 145
 
 /**
  * Drawing area of a sheet, in page millimetres. `reserve` is a column on the
