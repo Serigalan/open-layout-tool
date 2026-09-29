@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildPlan } from './planModel'
-import { TITLE_COLUMN_MM, drawingArea, makeTransform } from './planExport'
+import { FRAME, TITLE_COLUMN_MM, drawingArea, makeTransform } from './planExport'
 
 const block = (over = {}) => ({
   full: true, title: 'GSH Erfurt - Bebra', subtitle: 'Streckenband', range: 'km 190,0 bis km 200,0',
@@ -32,19 +32,20 @@ describe('full title block', () => {
   })
 
   it('sits in the bottom right corner at the size of the template', () => {
-    const rules = build(block()).filter(i => i.type === 'path' && i.width === 0.5)
+    // The rules of the block are single strokes; the sheet frame is one closed path.
+    const rules = build(block()).filter(i => i.type === 'path' && i.width === 0.5 && i.d.length === 2)
     const xs = rules.flatMap(r => r.d.filter(c => c[0] !== 'Z').map(c => c[1]))
     const ys = rules.flatMap(r => r.d.filter(c => c[0] !== 'Z').map(c => c[2]))
-    expect(Math.min(...xs)).toBeCloseTo(840 - 12 - 180)
-    expect(Math.max(...xs)).toBeCloseTo(840 - 12)
-    expect(Math.min(...ys)).toBeCloseTo(297 - 12 - 134)
-    expect(Math.max(...ys)).toBeCloseTo(297 - 12)
+    expect(Math.min(...xs)).toBeCloseTo(840 - FRAME.right - 180)
+    expect(Math.max(...xs)).toBeCloseTo(840 - FRAME.right)
+    expect(Math.min(...ys)).toBeCloseTo(297 - FRAME.bottom - 134)
+    expect(Math.max(...ys)).toBeCloseTo(297 - FRAME.bottom)
   })
 
   it('gives signature lines only to the parties that sign', () => {
     const dotted = build(block()).filter(i => i.type === 'path' && i.dash?.[0] === 0.25)
     expect(dotted).toHaveLength(6)
-    const x0 = 840 - 12 - 180
+    const x0 = 840 - FRAME.right - 180
     expect(dotted.some(d => d.d[0][1] > x0 + 90 && d.d[0][1] < x0 + 135)).toBe(false)
   })
 
@@ -61,8 +62,8 @@ describe('full title block', () => {
     const items = build(block({ sketch }))
     const ring = items.find(i => i.type === 'path' && i.stroke === '#ec0016')
     expect(ring.d).toHaveLength(5)
-    const x0 = 840 - 12 - 180
-    const y0 = 297 - 12 - 134
+    const x0 = 840 - FRAME.right - 180
+    const y0 = 297 - FRAME.bottom - 134
     for (const [, x, y] of ring.d) {
       expect(x).toBeGreaterThanOrEqual(x0 + 2 - 1e-6)
       expect(x).toBeLessThanOrEqual(x0 + 128 + 1e-6)
@@ -89,10 +90,25 @@ describe('full title block', () => {
   })
 })
 
+describe('sheet frame', () => {
+  it('keeps the filing margin on the left and 5 mm elsewhere, drawn 0.5 mm', () => {
+    const frame = build(block()).find(i => i.type === 'path' && i.d.length === 5)
+    expect(frame.width).toBe(0.5)
+    expect(frame.d[0].slice(1)).toEqual([20, 5])
+    expect(frame.d[2].slice(1)).toEqual([840 - 5, 297 - 5])
+  })
+
+  it('centres the drawing between the frame lines', () => {
+    const t = makeTransform({ e: 0, n: 0 }, 1920, 297, 1000, 0)
+    expect(t(0, 0)[0]).toBeCloseTo(20 + (1920 - 25) / 2)
+    expect(t(0, 0)[1]).toBeCloseTo(5 + 287 / 2)
+  })
+})
+
 describe('title column', () => {
   it('keeps the drawing clear of the column the full block takes', () => {
     const group = build(block()).find(i => i.type === 'group')
-    expect(group.clip.x + group.clip.w).toBeCloseTo(840 - 12 - TITLE_COLUMN_MM)
+    expect(group.clip.x + group.clip.w).toBeCloseTo(840 - FRAME.right - TITLE_COLUMN_MM)
   })
 
   it('centres the drawing in what is left', () => {
@@ -103,6 +119,6 @@ describe('title column', () => {
 
   it('leaves the compact block over the full width', () => {
     const group = build({ title: 'T', rows: [] }).find(i => i.type === 'group')
-    expect(group.clip.w).toBeCloseTo(840 - 24)
+    expect(group.clip.w).toBeCloseTo(840 - FRAME.left - FRAME.right)
   })
 })

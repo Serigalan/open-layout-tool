@@ -3,6 +3,7 @@ import { trackLength } from './heightUtils'
 import { kmForTrackPoint } from './kmLineUtils'
 import { utmToWgs84, wgs84ToUTM } from './coordinateUtils'
 import { isLinkSwitch, portsOf } from './switchModel'
+import { trackStatus } from './planStatus'
 
 /**
  * The track network as a schematic strip: the lines of the layout become
@@ -311,10 +312,12 @@ export function schematicLayout({
     st.x0 = Math.min(...use.map(q => q.x))
     st.x1 = Math.max(...use.map(q => q.x))
     st.off = st === ref ? 0 : median(use.map(q => q.off))
-    // Where each of its tracks runs, so a name can be set over its own stretch.
+    // Where each of its tracks runs, so a name — and a status — can be set over its own stretch.
     st.named = st.parts.map(({ track }) => {
       const xs = along.get(track.id).filter(q => Math.abs(q.off) <= corridor).map(q => q.x)
-      return xs.length ? { name: track.name ?? '', x0: Math.min(...xs), x1: Math.max(...xs) } : null
+      return xs.length
+        ? { name: track.name ?? '', status: trackStatus(track), x0: Math.min(...xs), x1: Math.max(...xs) }
+        : null
     }).filter(Boolean)
     st.endNodes = st.ends.map(k => net.nodeOfEnd.get(k) ?? null)
     st.endAttached = st.ends.map((k, i) => Boolean(st.endNodes[i]?.attach.includes(k)))
@@ -336,29 +339,73 @@ export function schematicLayout({
       && a?.host && b?.host && a.host !== b.host && a.host !== st && b.host !== st
   }
 
-  // Lanes: outwards from the reference, each strand one further out than the
-  // strands on its side it overlaps and that lie nearer to the reference.
-  ref.lane = 0
-  const placed = [ref]
+  // Sections: each track of a strand, with where it runs and how far out.
+  // A track takes its own lane, so a strand steps inwards where the track
+  // beside it ends and neighbouring tracks stay one spacing apart.
+  const sectionOfTrack = new Map()
+  for (const st of net.strands) {
+    st.sections = st.parts.map(({ track, reversed }) => {
+      const a = along.get(track.id)
+      const inside = a.filter(q => Math.abs(q.off) <= corridor)
+      const use = inside.length >= 2 ? inside : a
+      const sc = {
+        strand: st, track, reversed, name: track.name ?? '', status: trackStatus(track),
+        x0: Math.min(...use.map(q => q.x)), x1: Math.max(...use.map(q => q.x)),
+        off: median(use.map(q => q.off)), inside: inside.length >= 2,
+        // Which way along x the strand runs through this track.
+        dir: (a.length < 2 || a[a.length - 1].x >= a[0].x) !== reversed ? 1 : -1,
+      }
+      sectionOfTrack.set(track.id, sc)
+      return sc
+    })
+  }
+
+  // Lanes: outwards from the reference, each section one further out than the
+  // sections of other strands on its side it overlaps and that lie nearer.
+  const placed = ref.sections.map(sc => Object.assign(sc, { lane: 0 }))
   const laned = net.strands.filter(st => st !== ref && !st.connector && !st.outside)
+  const pending = laned.flatMap(st => st.sections.filter(sc => sc.inside))
     .sort((a, b) => Math.abs(a.off) - Math.abs(b.off))
-  for (const st of laned) {
-    const side = st.off >= 0 ? 1 : -1
+  for (const sc of pending) {
+    const side = sc.off >= 0 ? 1 : -1
     let lane = 0
     let overlaps = false
     for (const o of placed) {
-      if (o.x1 + LANE_CLEARANCE < st.x0 || st.x1 + LANE_CLEARANCE < o.x0) continue
+      if (o.strand === sc.strand) continue
+      if (o.x1 + LANE_CLEARANCE < sc.x0 || sc.x1 + LANE_CLEARANCE < o.x0) continue
       if (o.lane !== 0 && Math.sign(o.lane) !== side) continue
       overlaps = true
       lane = Math.max(lane, Math.abs(o.lane) + 1)
     }
-    if (!overlaps) lane = Math.abs(st.off) < 3 ? 0 : 1
-    st.lane = side * lane
-    placed.push(st)
+    if (!overlaps) lane = Math.abs(sc.off) < 3 ? 0 : 1
+    sc.lane = side * lane
+    placed.push(sc)
   }
+  // A section beyond the corridor keeps the lane of its nearest neighbour in the strand.
+  for (const st of [ref, ...laned]) {
+    const secs = st.sections
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < secs.length; i++) {
+        if (secs[i].lane != null) continue
+        secs[i].lane = secs[i - 1]?.lane ?? secs[i + 1]?.lane ?? null
+      }
+      secs.reverse()
+    }
+    st.lane = secs.find(sc => sc.lane != null)?.lane ?? null
+  }
+  // A switch sits on the lane of the track at its toe; a node the strand only
+  // passes through on its way from one section to the next is where it steps.
+  const sectionAt = (key) => sectionOfTrack.get(key.split(':')[0]) ?? null
   for (const node of net.nodes) {
-    node.lane = node.host?.lane
-      ?? net.strands.find(st => st.lane != null && st.endNodes.includes(node))?.lane ?? null
+    const home = node.through.map(sectionAt).find(sc => sc?.lane != null)
+      ?? node.attach.map(sectionAt).find(sc => sc?.lane != null && !sc.strand.connector)
+    node.lane = home?.lane ?? null
+    node.home = home ?? null
+  }
+  // Between two sections of a strand: the switch whose through route joins them.
+  for (const st of net.strands) {
+    st.junctions = st.sections.slice(0, -1)
+      .map(sc => net.nodeOfEnd.get(endKey(sc.track.id, sc.reversed ? 'BEGIN' : 'END')) ?? null)
   }
 
   // Platforms: their track's lane, the x of their two stations, and the side
@@ -366,8 +413,8 @@ export function schematicLayout({
   const placedPlatforms = []
   for (const pf of platforms) {
     const a = along.get(pf.trackId)
-    const st = net.strandOfTrack.get(pf.trackId)
-    if (!a || !st || st.lane == null) continue
+    const sc = sectionOfTrack.get(pf.trackId)
+    if (!a || sc?.lane == null) continue
     const xAt = (s) => {
       let i = 1
       while (i < a.length - 1 && a[i].s < s) i++
@@ -381,7 +428,7 @@ export function schematicLayout({
     const increasing = a[a.length - 1].x >= a[0].x
     const left = pf.side === 'left'
     placedPlatforms.push({
-      platform: pf, lane: st.lane, x0: Math.min(xa, xb), x1: Math.max(xa, xb),
+      platform: pf, lane: sc.lane, x0: Math.min(xa, xb), x1: Math.max(xa, xb),
       up: left === increasing,
     })
   }
@@ -399,6 +446,7 @@ export function schematicLayout({
     strands: net.strands,
     nodes: net.nodes,
     platforms: placedPlatforms,
+    sectionOfTrack,
     kmTable,
     kmKnown,
     ref,

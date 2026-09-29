@@ -82,6 +82,8 @@ function oltExtension(track) {
     // built of the defaults from begin to end states nothing (crossSectionUtils).
     rails:        track.rails?.length ? track.rails : null,
     sleepers:     track.sleepers?.length ? track.sleepers : null,
+    // Planning status; existing is what a track without one is.
+    status:       track.status && track.status !== 'existing' ? track.status : null,
   }
   const present = Object.entries(fields).filter(([, v]) => v != null && v !== '')
   return present.length ? Object.fromEntries(present) : null

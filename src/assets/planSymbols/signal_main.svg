@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="7mm" height="4.5mm" viewBox="-6 -4 7 4.5">
+  <!-- Main signal: the head rounded at its outer end. -->
+  <!-- Origin: the signal position on the track axis. Drawn above the track for travel to the left (right-hand side), the head pointing in the direction of travel the signal applies to; mirror for the other direction. Taken from the DB overview plan template, 1 unit = 1 mm. -->
+  <path d="M0 -1.5v-1M0 -2h-3" fill="none" stroke="#000" stroke-width=".25" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M-3 -1h-1a1 1 0 1 1 0-2h1z"/>
+</svg>

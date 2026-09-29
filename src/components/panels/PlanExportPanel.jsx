@@ -13,6 +13,7 @@ import { buildSchematicPlan, SCHEMATIC_SCALES } from '../../utils/planSchematicP
 import { DEFAULT_CORRIDOR } from '../../utils/planSchematic'
 import { fetchBasemapImage } from '../../utils/rasterBasemap'
 import { sketchLines } from '../../utils/planSketch'
+import { STATUSES } from '../../utils/planStatus'
 import { downloadBlob } from '../../utils/fileUtils'
 
 /**
@@ -56,7 +57,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
   const [schematicShow, setSchematicShow] = useState({
     km: true, switches: true, trackNames: true, platforms: true,
   })
-  const [paperKey, setPaperKey] = useState('297x840')
+  const [paperKey, setPaperKey] = useState('297x1920')
   const [mode, setMode]         = useState('auto')
   const [rotation, setRotation] = useState(0)
   const [leadTrackId, setLeadTrackId] = useState('')
@@ -109,7 +110,10 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
       corridor,
       show: schematicShow,
       comma: language !== 'en',
-      texts: { next: t('plan_sheet_next'), prev: t('plan_sheet_prev'), range: t('plan_km_range') },
+      texts: {
+        next: t('plan_sheet_next'), prev: t('plan_sheet_prev'), range: t('plan_km_range'),
+        status: Object.fromEntries(STATUSES.map(s => [s, t(`status_${s}`)])),
+      },
       titleBlock: titleBlockOf([
         [scaleText, t('plan_sheet_of')],
         [crsLabel(zone), today()],

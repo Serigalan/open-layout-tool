@@ -696,5 +696,13 @@
   "plan_sketch_add": "Bild wählen",
   "plan_sketch_remove": "Bild entfernen",
   "plan_sketch_auto": "Ohne Bild zeigt die Lageskizze das Gleisnetz und rot den Ausschnitt des Blatts.",
-  "plan_km_range": "km {a} bis km {b}"
+  "plan_km_range": "km {a} bis km {b}",
+  "status": "Planungsstatus",
+  "status_existing": "Bestand",
+  "status_new": "Neubau",
+  "status_removal": "Rückbau",
+  "status_auto": "Aus den Gleisen ({s})",
+  "switch_status": "Weichenstatus",
+  "switch_status_hint": "Weiche auf der Karte anklicken.",
+  "switch_status_selected": "Weiche {name}"
 }

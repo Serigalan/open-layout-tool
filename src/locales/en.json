@@ -696,5 +696,13 @@
   "plan_sketch_add": "Choose image",
   "plan_sketch_remove": "Remove image",
   "plan_sketch_auto": "Without an image the sketch shows the track network with the sheet outlined in red.",
-  "plan_km_range": "km {a} to km {b}"
+  "plan_km_range": "km {a} to km {b}",
+  "status": "Planning status",
+  "status_existing": "Existing",
+  "status_new": "New",
+  "status_removal": "Removal",
+  "status_auto": "From the tracks ({s})",
+  "switch_status": "Switch status",
+  "switch_status_hint": "Click a switch on the map.",
+  "switch_status_selected": "Switch {name}"
 }

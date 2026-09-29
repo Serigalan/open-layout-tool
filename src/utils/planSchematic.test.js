@@ -129,4 +129,63 @@ describe('schematic plan', () => {
       expect(Math.abs(d.d[1][1] - d.d[0][1])).toBeCloseTo(Math.abs(d.d[1][2] - d.d[0][2]), 3)
     }
   })
+
+  it('keeps every track one spacing from the next', () => {
+    const ys = [...new Set(inner.filter(i => i.type === 'path' && i.d.length === 2 && i.width === 0.5
+      && i.d[0][2] === i.d[1][2] && Math.abs(i.d[1][1] - i.d[0][1]) > 20).map(i => i.d[0][2]))].sort((a, b) => a - b)
+    expect(ys).toHaveLength(3)
+    expect(ys[1] - ys[0]).toBeCloseTo(10)
+    expect(ys[2] - ys[1]).toBeCloseTo(10)
+  })
+
+  it('marks each switch with a filled triangle in the angle of its branch', () => {
+    const wedges = inner.filter(i => i.type === 'path' && i.fill && i.d.length === 4)
+    expect(wedges).toHaveLength(3)
+    for (const w of wedges) {
+      const [[, x0, y0], [, x1, y1], [, x2, y2]] = w.d
+      expect(Math.abs(x1 - x0)).toBeCloseTo(3)
+      expect(y1).toBeCloseTo(y0)
+      expect(x2).toBeCloseTo(x1)
+      expect(Math.abs(y2 - y1)).toBeCloseTo(3)
+    }
+  })
+
+  it('draws a platform as the DB symbol: a box with its edges along both sides', () => {
+    const box = inner.find(i => i.type === 'path' && i.fill === '#ffffff' && i.d.length === 5)
+    const [top, bottom] = [box.d[0][2], box.d[2][2]].sort((a, b) => a - b)
+    expect(bottom - top).toBeCloseTo(6)
+    const edges = inner.filter(i => i.type === 'path' && i.width === 0.25 && i.d.length === 2
+      && i.d[0][1] === box.d[0][1] && i.d[0][2] > top && i.d[0][2] < bottom).map(i => i.d[0][2]).sort((a, b) => a - b)
+    expect(edges).toEqual([top + 1, bottom - 1].map(v => expect.closeTo(v)))
+  })
+
+  it('sets kilometre posts in the gap beside the reference', () => {
+    expect(inner.some(i => i.type === 'text' && i.bold && i.parts[0].t === '1,0')).toBe(true)
+  })
+})
+
+describe('planning status in the schematic plan', () => {
+  const withStatus = tracks.map(tr => (tr.id === 'X' ? { ...tr, status: 'new' } : tr.id === 'S' ? { ...tr, status: 'removal' } : tr))
+  const inner = buildSchematicPlan({
+    tracks: withStatus, switches, platforms, paperKey: '297x840', scaleDen: 10000,
+    titleBlock: { title: 'Test', rows: [], legend: '' },
+  }).sheets[0].items.find(i => i.type === 'group').items
+  const colours = (pred) => inner.filter(pred).map(i => i.fill ?? i.stroke)
+
+  it('draws a new crossover and its switches in red', () => {
+    const diag = inner.filter(i => i.type === 'path' && i.d.length === 2
+      && Math.abs(i.d[1][2] - i.d[0][2]) > 0.1 && Math.abs(i.d[1][1] - i.d[0][1]) > 0.1)
+    expect(diag.map(i => i.stroke)).toEqual(expect.arrayContaining(['#ff0000', '#e6b400']))
+    expect(colours(i => i.type === 'path' && i.fill && i.d.length === 4).sort())
+      .toEqual(['#e6b400', '#ff0000', '#ff0000'])
+  })
+
+  it('lets a switch state its own status over what its tracks say', () => {
+    const own = switches.map(sw => (sw.name === 'W1' ? { ...sw, status: 'existing' } : sw))
+    const items = buildSchematicPlan({
+      tracks: withStatus, switches: own, platforms, paperKey: '297x840', scaleDen: 10000,
+    }).sheets[0].items.find(i => i.type === 'group').items
+    expect(items.filter(i => i.type === 'path' && i.fill && i.d.length === 4).map(i => i.fill).sort())
+      .toEqual(['#000000', '#e6b400', '#ff0000'])
+  })
 })

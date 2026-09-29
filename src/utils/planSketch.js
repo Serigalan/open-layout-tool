@@ -30,12 +30,13 @@ export function sketchLines(tracks, epsg = tracks.find(tr => tr.epsg)?.epsg) {
 
 /**
  * The ground a sheet of the site plan covers, as a closed ring of plane
- * points: the drawing area taken back through the sheet's transform.
+ * points: the drawing area taken back through the sheet's transform, which
+ * centres the sheet on it (planExport.makeTransform).
  */
-export function sheetFootprint(sheet, area, pageW, pageH, scaleDen, reserve = 0) {
+export function sheetFootprint(sheet, area, scaleDen) {
   const mmPerM = 1000 / scaleDen
-  const cx = (pageW - reserve) / 2
-  const cy = pageH / 2
+  const cx = area.x + area.w / 2
+  const cy = area.y + area.h / 2
   const th = (sheet.rotDeg ?? 0) * Math.PI / 180
   const cos = Math.cos(th)
   const sin = Math.sin(th)

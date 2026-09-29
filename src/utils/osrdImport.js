@@ -15,6 +15,7 @@ import { computeClothoidUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT } from './mapConstants'
 import { TYPE_CODES, SIDE_CODES } from './identifierUtils'
+import { STATUSES } from './planStatus'
 
 const GON2DEG = 9 / 10
 
@@ -498,6 +499,7 @@ export function parseOsrdRailJson(data) {
         uicStation:  olt.uic_station ?? undefined,
         rails:       olt.rails?.length ? olt.rails : undefined,
         sleepers:    olt.sleepers?.length ? olt.sleepers : undefined,
+        status:      STATUSES.includes(olt.status) ? olt.status : undefined,
         heightEpsg,
       }),
       epsg,
@@ -508,7 +510,11 @@ export function parseOsrdRailJson(data) {
 
   const trackById = Object.fromEntries(tracks.map(tr => [tr.id, tr]))
   const switches = (Array.isArray(infra.switches) ? infra.switches : [])
-    .map(sw => rebuildSwitch(sw, trackById))
+    .map(sw => {
+      const record = rebuildSwitch(sw, trackById)
+      const status = sw.extensions?.olt?.status
+      return record && STATUSES.includes(status) ? { ...record, status } : record
+    })
     .filter(Boolean)
 
   return { tracks, errors, infra, switches }

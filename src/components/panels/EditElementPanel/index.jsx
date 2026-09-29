@@ -7,6 +7,7 @@ import ChangeDirectionForm from './ChangeDirectionForm'
 import DeleteForm from './DeleteForm'
 import DeleteTrackForm from './DeleteTrackForm'
 import DeleteSwitchForm from './DeleteSwitchForm'
+import SwitchStatusForm from './SwitchStatusForm'
 import {
   BackIcon, EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
   ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon, PhysicsIcon, RegelwerkIcon,
@@ -103,6 +104,15 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
     </>
   )
 
+  if (page === 'switch_status') return (
+    <>
+      {backButton()}
+      <h2>{t('switch_status')}</h2>
+      <SwitchStatusForm t={t} map={map} project={project}
+        onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+    </>
+  )
+
   if (page === 'change_direction') return (
     <>
       {backButton()}
@@ -142,6 +152,10 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
           {t('edit_track_delete')}
         </button>
         <span className="create-element-section">{t('edit_switch')}</span>
+        <button className="create-element-btn" onClick={() => goto('switch_status')}>
+          <EditPropertiesIcon />
+          {t('switch_status')}
+        </button>
         <button className="create-element-btn" onClick={() => goto('delete_switch')}>
           <DeleteSwitchIcon />
           {t('switch_delete')}

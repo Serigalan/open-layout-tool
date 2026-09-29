@@ -239,6 +239,14 @@ const OSRD_PORT_NAMES = {
 OSRD_PORT_NAMES.single_slip = OSRD_PORT_NAMES.crossing
 OSRD_PORT_NAMES.double_slip = OSRD_PORT_NAMES.crossing
 
+/** A switch's label, and its planning status where it states one of its own. */
+function switchExtensions(sw) {
+  const ext = {}
+  if (sw.name) ext.sncf = { label: sw.name }
+  if (sw.status) ext.olt = { status: sw.status }
+  return Object.keys(ext).length ? ext : null
+}
+
 export function switchesToPorts(switches, trackMap, foreign = []) {
   const out = switches.map((sw, i) => {
     const names = OSRD_PORT_NAMES[sw.kind] ?? OSRD_PORT_NAMES.turnout
@@ -251,7 +259,7 @@ export function switchesToPorts(switches, trackMap, foreign = []) {
     return {
       id: sw.switchId ?? sw.name ?? `switch_${i}`,
       ports,
-      extensions: sw.name ? { sncf: { label: sw.name } } : null,
+      extensions: switchExtensions(sw),
       switch_type: OSRD_SWITCH_TYPES[sw.kind] ?? OSRD_SWITCH_TYPES.turnout,
       group_change_delay: 0,
     }

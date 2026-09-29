@@ -1,4 +1,4 @@
-import { MARGIN_MM, PAPER_FORMATS, makeTransform, drawingArea } from './planExport'
+import { FRAME, PAPER_FORMATS, makeTransform, drawingArea } from './planExport'
 import { trackPathUtm, trackPointAt } from './planGeometry'
 import { trackLength } from './heightUtils'
 
@@ -92,8 +92,9 @@ function centredOn(points, rotDeg, pageW, pageH, scaleDen, seed, reserve = 0) {
   if (!Number.isFinite(minX)) return seed
 
   const mmPerM = 1000 / scaleDen
-  const dRx = ((minX + maxX) / 2 - (pageW - reserve) / 2) / mmPerM
-  const dRy = (pageH / 2 - (minY + maxY) / 2) / mmPerM
+  const area = drawingArea(pageW, pageH, reserve)
+  const dRx = ((minX + maxX) / 2 - (area.x + area.w / 2)) / mmPerM
+  const dRy = ((area.y + area.h / 2) - (minY + maxY) / 2) / mmPerM
   const th = rotDeg * Math.PI / 180
   const cos = Math.cos(th)
   const sin = Math.sin(th)
@@ -275,4 +276,4 @@ function everythingFits(tracks, transform, area) {
   return true
 }
 
-export { MARGIN_MM, trackPointAt }
+export { FRAME, trackPointAt }

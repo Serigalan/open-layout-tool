@@ -1,4 +1,6 @@
-import { COMPACT_BLOCK_MM, MARGIN_MM, PAPER_FORMATS, TITLE_COLUMN_MM, makeTransform } from './planExport'
+import {
+  COMPACT_BLOCK_MM, FRAME, FRAME_WIDTH, PAPER_FORMATS, TITLE_COLUMN_MM, drawingArea, makeTransform,
+} from './planExport'
 import { sheetFootprint } from './planSketch'
 import { kmForTrackPoint } from './kmLineUtils'
 import { formatKm } from './kmLineMath'
@@ -661,26 +663,23 @@ function trackItems(sheet, ctx) {
   return items
 }
 
-function frameItems(pageW, pageH, reserve = 0) {
-  const w = pageW - 2 * MARGIN_MM
-  const h = pageH - 2 * MARGIN_MM
-  const items = [path([
-    ['M', MARGIN_MM, MARGIN_MM], ['L', MARGIN_MM + w, MARGIN_MM],
-    ['L', MARGIN_MM + w, MARGIN_MM + h], ['L', MARGIN_MM, MARGIN_MM + h], ['Z'],
-  ], { width: STYLE.frame })]
-  if (reserve > 0) {
-    const x = pageW - MARGIN_MM - reserve
-    items.push(line(x, MARGIN_MM, x, MARGIN_MM + h, { width: STYLE.frame }))
-  }
-  return items
+/**
+ * The sheet frame. The column a title block keeps free has no rule of its
+ * own: the block closes it at the foot and the legend heads it, as on the
+ * DB sheet.
+ */
+function frameItems(pageW, pageH) {
+  const { x, y, w, h } = drawingArea(pageW, pageH)
+  return [path([['M', x, y], ['L', x + w, y], ['L', x + w, y + h], ['L', x, y + h], ['Z']],
+    { width: FRAME_WIDTH })]
 }
 
 function titleBlockItems(pageW, pageH, block, sheet) {
   const rows = block.rows ?? []
   const w = COMPACT_BLOCK_MM
   const h = 8 + rows.length * 7
-  const x = pageW - MARGIN_MM - w
-  const y = pageH - MARGIN_MM - h
+  const x = pageW - FRAME.right - w
+  const y = pageH - FRAME.bottom - h
   const fill = (s) => s.replace('{i}', sheet.index + 1).replace('{n}', sheet.count)
 
   const items = [
@@ -740,6 +739,7 @@ function containedImage(logo, x, y, w, h, centre = false) {
 const FULL_BLOCK = { w: TITLE_COLUMN_MM, h: 134 }
 const RULE_THICK = 0.5
 const RULE_THIN = 0.25
+const RULE_TABLE = 0.265
 const FOCUS_COLOR = '#ec0016'
 
 /*
@@ -756,11 +756,12 @@ const RULES_THICK = [
 ]
 const RULES_THIN = [
   [45, 0, 45, 35], [90, 0, 90, 35], [135, 0, 135, 35],
-  [130, 35, 130, 99], [130, 43, 180, 43], [130, 51, 180, 51], [130, 59, 180, 59],
-  [130, 67, 180, 67], [130, 75, 180, 75],
+  [130, 35, 130, 99],
   [0, 83, 180, 83], [0, 91, 180, 91], [60, 83, 60, 91], [80, 83, 80, 91], [25, 91, 25, 99],
   [18, 104, 77, 104], [18, 109, 77, 109], [35, 114, 77, 114], [56, 99, 56, 119],
 ]
+/** The rows of the revision table beside the sketch, a shade heavier on the template. */
+const RULES_TABLE = [43, 51, 59, 67, 75].map(y => [130, y, 180, y])
 /** Where the location sketch is drawn, clear of its caption. */
 const SKETCH_BOX = { x: 2, y: 41, w: 126, h: 40.5 }
 
@@ -815,8 +816,8 @@ function sketchItems(sketch, focus, box) {
  */
 function fullTitleBlockItems(pageW, pageH, block, sheet) {
   const { w, h } = FULL_BLOCK
-  const ox = pageW - MARGIN_MM - w
-  const oy = pageH - MARGIN_MM - h
+  const ox = pageW - FRAME.right - w
+  const oy = pageH - FRAME.bottom - h
   const fill = (str) => String(str ?? '').replace('{i}', sheet.index + 1).replace('{n}', sheet.count)
   const items = [path([['M', ox, oy], ['L', ox + w, oy], ['L', ox + w, oy + h], ['L', ox, oy + h], ['Z']],
     { stroke: null, fill: '#ffffff' })]
@@ -832,7 +833,7 @@ function fullTitleBlockItems(pageW, pageH, block, sheet) {
       : []
   items.push(...sketch)
 
-  for (const [rules, width] of [[RULES_THIN, RULE_THIN], [RULES_THICK, RULE_THICK]]) {
+  for (const [rules, width] of [[RULES_THIN, RULE_THIN], [RULES_TABLE, RULE_TABLE], [RULES_THICK, RULE_THICK]]) {
     for (const [x1, y1, x2, y2] of rules) items.push(line(ox + x1, oy + y1, ox + x2, oy + y2, { width }))
   }
 
@@ -884,7 +885,7 @@ function fullTitleBlockItems(pageW, pageH, block, sheet) {
 
   // The column above the block is free, so the legend heads it.
   if (block.legend) {
-    items.push(text(ox + 3, MARGIN_MM + 5, [{ t: block.legend }],
+    items.push(text(ox + 3, FRAME.top + 5, [{ t: block.legend }],
       { size: fitSize(block.legend, STYLE.sizeLegend, w - 6) }))
   }
   return items
@@ -894,8 +895,8 @@ function scaleBarItems(pageH, scaleDen, comma) {
   const mmPerM = 1000 / scaleDen
   const segM = scaleDen <= 500 ? 10 : 20
   const segMm = segM * mmPerM
-  const x0 = MARGIN_MM + 6
-  const y0 = pageH - MARGIN_MM - 6
+  const x0 = FRAME.left + 6
+  const y0 = pageH - FRAME.bottom - 6
   const items = []
   for (let i = 0; i < 4; i++) {
     items.push(path([
@@ -910,8 +911,8 @@ function scaleBarItems(pageH, scaleDen, comma) {
 }
 
 function northArrowItems(rotDeg) {
-  const cx = MARGIN_MM + 8
-  const cy = MARGIN_MM + 12
+  const cx = FRAME.left + 8
+  const cy = FRAME.top + 12
   const len = 8
   // North is up at rotDeg 0 and turns clockwise with the content.
   const a = rotDeg * Math.PI / 180
@@ -960,7 +961,7 @@ export function buildPlan({
     labels: true, switches: true, trackNames: true, mainPoints: true,
     kilometrage: false, ...show,
   }
-  const clip = { x: MARGIN_MM, y: MARGIN_MM, w: pageW - 2 * MARGIN_MM - reserve, h: pageH - 2 * MARGIN_MM }
+  const clip = drawingArea(pageW, pageH, reserve)
 
   const built = sheets.map((sheet, i) => {
     const withTransform = {
@@ -984,12 +985,12 @@ export function buildPlan({
         { tracks, switches, kmLines, show: shown, comma, scaleDen, switchText: swText }), clip),
     })
 
-    items.push(...frameItems(pageW, pageH, reserve))
+    items.push(...frameItems(pageW, pageH))
     items.push(...scaleBarItems(pageH, scaleDen, comma))
     items.push(...northArrowItems(sheet.rotDeg))
     if (titleBlock) {
       const focus = titleBlock.sketch && sheet.center
-        ? { ring: sheetFootprint(sheet, clip, pageW, pageH, scaleDen, reserve) }
+        ? { ring: sheetFootprint(sheet, clip, scaleDen) }
         : null
       items.push(...(titleBlock.full
         ? fullTitleBlockItems(pageW, pageH, titleBlock, { ...sheet, focus })

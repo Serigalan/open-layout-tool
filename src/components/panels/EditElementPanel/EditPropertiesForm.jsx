@@ -4,6 +4,8 @@ import { TYPE_NAMES, SIDE_NAMES, buildTypeFields } from '../../../utils/identifi
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackHover from '../../../hooks/useTrackHover'
 import TrackFields from '../TrackFields'
+import StatusField from '../StatusField'
+import { trackStatus } from '../../../utils/planStatus'
 import HeightDatumField from '../HeightDatumField'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, DEFAULT_HEIGHT_EPSG, mapIsLive } from '../../../utils/mapConstants'
 
@@ -12,6 +14,7 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState(false)
+  const [status, setStatus] = useState('existing')
 
   useTrackHover(map, selectedTrackId === null ? 'select' : 'editing', 'select', project, true)
 
@@ -46,6 +49,7 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
       m.setFilter('tracks-selected-layer', filterForTrack(trackId))
       setSelectedTrackId(trackId)
       setName(track.name ?? '')
+      setStatus(trackStatus(track))
       setField('owner',       track.owner       ?? 'DB')
       setField('type',        TYPE_NAMES[track.trackType]   ?? 'line_track')
       setField('lineNumber',  track.lineNumber  ?? '')
@@ -84,6 +88,8 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
       name,
       owner: fields.owner,
       ...buildTypeFields(fields),
+      // Existing is what a track without a status is, so it is not written.
+      status: status === 'existing' ? undefined : status,
     })
 
     replaceAllTracks(project.id, newTracks)
@@ -101,6 +107,7 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
             <span className="create-element-section">Meta Data</span>
             <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
               name={name} onNameChange={(val) => { setName(val); setNameError(false) }} nameError={nameError} />
+            <StatusField t={t} value={status} onChange={setStatus} />
           </div>
           <div className="element-form">
             <span className="create-element-section">Geometry Data</span>

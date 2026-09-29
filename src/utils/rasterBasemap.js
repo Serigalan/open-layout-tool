@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl'
 import { wgs84ToUTM, utmToWgs84 } from './coordinateUtils'
-import { makeTransform, MARGIN_MM } from './planExport'
+import { drawingArea, makeTransform } from './planExport'
 
 // OpenFreeMap "Positron" — light and grey, the default backdrop for a plan.
 // Any MapLibre style the app knows can stand in, an aerial one included.
@@ -83,8 +83,9 @@ function renderStyleToCanvas(bounds, sizePx, style) {
 export async function fetchBasemapImage({
   center, zone, pageW, pageH, scaleDen, rotDeg, style = DEFAULT_STYLE, reserve = 0,
 }) {
-  const drawWmm = pageW - 2 * MARGIN_MM - reserve
-  const drawHmm = pageH - 2 * MARGIN_MM
+  const area = drawingArea(pageW, pageH, reserve)
+  const drawWmm = area.w
+  const drawHmm = area.h
 
   // Page-pixel output resolution (cap the long side).
   let pxPerMm = 150 / 25.4
@@ -140,7 +141,7 @@ export async function fetchBasemapImage({
       const ll = map.unproject([px / dpr, py / dpr])
       const u = wgs84ToUTM([ll.lng, ll.lat], zone)
       const [mmX, mmY] = transform(u.easting, u.northing)
-      return [(mmX - MARGIN_MM) * pxPerMm, (mmY - MARGIN_MM) * pxPerMm]
+      return [(mmX - area.x) * pxPerMm, (mmY - area.y) * pxPerMm]
     }
 
     // Warp the rendered Mercator image into the rotated UTM page frame, cell by
@@ -179,7 +180,7 @@ export async function fetchBasemapImage({
 
     return {
       dataUrl: out.toDataURL('image/png'),
-      xMm: MARGIN_MM, yMm: MARGIN_MM, wMm: drawWmm, hMm: drawHmm,
+      xMm: area.x, yMm: area.y, wMm: drawWmm, hMm: drawHmm,
     }
   } finally {
     dispose()

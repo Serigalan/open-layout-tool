@@ -726,6 +726,15 @@ export function saveSwitch(projectId, sw) {
   persist(projectId)
 }
 
+/** Merge fields into one switch record, as one undo step. */
+export function updateSwitch(projectId, switchId, patch) {
+  pushUndo()
+  const project = getCache().find((p) => p.id === projectId)
+  if (!project) return
+  project.switches = (project.switches ?? []).map(sw => (sw.switchId === switchId ? { ...sw, ...patch } : sw))
+  persist(projectId)
+}
+
 /**
  * Atomically replace the two selected line tracks of a switch connection with the
  * resulting tracks (four split halves + the connection) and add the two junction

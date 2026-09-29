@@ -160,3 +160,17 @@ describe('a crossing switch through the exchange file', () => {
     })
   }
 })
+
+describe('the planning status through the exchange file', () => {
+  const form = SWITCH_TYPES.find(f => f.label === '300 – 1:9')
+
+  it('comes back on the tracks and on a switch that states its own', () => {
+    const { tracks, switches } = turnout(form)
+    tracks[0].status = 'new'
+    switches[0].status = 'removal'
+    const back = parseOsrdRailJson(buildInfra(tracks, switches, [], {}))
+    expect(back.tracks.find(t => t.id === 'branch').status).toBe('new')
+    expect(back.tracks.find(t => t.id === 'through').status).toBeUndefined()
+    expect(back.switches[0].status).toBe('removal')
+  })
+})
