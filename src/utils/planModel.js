@@ -310,6 +310,7 @@ const text = (x, y, parts, opts = {}) => ({
   size: opts.size ?? STYLE.sizeField,
   align: opts.align ?? 'left',
   color: opts.color ?? STYLE.ink,
+  bold: opts.bold ?? false,
   prio: opts.prio ?? 0,
   path: opts.path ?? null,
 })
@@ -696,6 +697,93 @@ function titleBlockItems(pageW, pageH, block, sheet) {
   return items
 }
 
+/** A size that keeps a text within `maxW`, never above `size`. */
+const fitSize = (str, size, maxW) => {
+  const w = textWidth([{ t: str }], size)
+  return w > maxW ? size * maxW / w : size
+}
+
+/** An image scaled to sit inside a box, left-aligned and centred vertically. */
+function containedImage(logo, x, y, w, h) {
+  const k = Math.min(w / logo.w, h / logo.h)
+  const iw = logo.w * k
+  const ih = logo.h * k
+  return { type: 'image', dataUrl: logo.dataUrl, x, y: y + (h - ih) / 2, w: iw, h: ih, opacity: 1 }
+}
+
+/** Width and height [mm] of the full title block. */
+const FULL_BLOCK = { w: 180, partiesH: 46, titleH: 30 }
+
+/**
+ * The title block of a construction drawing: one column each for the client,
+ * the project management and the planner — logo, address and a signature line
+ * — over a strip with who drew, edited and checked the sheet and what the
+ * sheet is called. The caller supplies every text and logo.
+ */
+function fullTitleBlockItems(pageW, pageH, block, sheet) {
+  const { w, partiesH, titleH } = FULL_BLOCK
+  const h = partiesH + titleH
+  const x = pageW - MARGIN_MM - w
+  const y = pageH - MARGIN_MM - h
+  const fill = (str) => str.replace('{i}', sheet.index + 1).replace('{n}', sheet.count)
+  const items = [
+    path([['M', x, y], ['L', x + w, y], ['L', x + w, y + h], ['L', x, y + h], ['Z']],
+      { width: STYLE.frame, fill: '#ffffff' }),
+    line(x, y + partiesH, x + w, y + partiesH, { width: STYLE.frame }),
+  ]
+
+  const parties = block.parties ?? []
+  const colW = w / Math.max(parties.length, 1)
+  parties.forEach((party, i) => {
+    const cx = x + i * colW
+    if (i > 0) items.push(line(cx, y, cx, y + partiesH, { width: STYLE.frame }))
+    items.push(text(cx + 3, y + 5, [{ t: party.label }], { size: 2.8, bold: true }))
+    if (party.logo) items.push(containedImage(party.logo, cx + 3, y + 7, colW - 6, 12))
+    ;(party.lines ?? []).slice(0, 5).forEach((l, k) => {
+      items.push(text(cx + 3, y + 23.5 + k * 3.1, [{ t: l }],
+        { size: fitSize(l, 2.5, colW - 6) }))
+    })
+    const sy = y + 41
+    const half = (colW - 9) / 2
+    for (const [sx, caption] of [[cx + 3, block.dateCaption], [cx + 6 + half, block.signCaption]]) {
+      items.push(line(sx, sy, sx + half, sy, { width: 0.25, dash: [0.25, 1] }))
+      items.push(text(sx + half / 2, sy + 2.6, [{ t: caption }], { size: 2.2, align: 'center' }))
+    }
+  })
+
+  const ty = y + partiesH
+  const split = 90
+  items.push(line(x + split, ty, x + split, y + h, { width: STYLE.frame }))
+  const staff = block.staff ?? []
+  const colDate = x + 34
+  const colName = x + 60
+  items.push(text(colDate, ty + 5, [{ t: block.dateHeader }], { size: 2.2 }))
+  items.push(text(colName, ty + 5, [{ t: block.nameHeader }], { size: 2.2 }))
+  staff.forEach((row, k) => {
+    const ry = ty + 11 + k * 6
+    items.push(text(x + 3, ry, [{ t: row.label }], { size: 2.8 }))
+    items.push(text(colDate, ry, [{ t: row.date || '-' }], { size: 2.8 }))
+    items.push(text(colName, ry, [{ t: row.name || '-' }], { size: 2.8 }))
+  })
+
+  const tx = x + split + 4
+  const tw = w - split - 8
+  const head = fill(block.title)
+  items.push(text(tx, ty + 8, [{ t: head }], { size: fitSize(head, 4.2, tw), bold: true }))
+  if (block.subtitle) {
+    items.push(text(tx, ty + 14, [{ t: block.subtitle }], { size: fitSize(block.subtitle, 3.2, tw) }))
+  }
+  ;(block.rows ?? []).slice(0, 3).forEach(([left, right], k) => {
+    const l = fill([left, right].filter(Boolean).join('  ·  '))
+    items.push(text(tx, ty + 19 + k * 4, [{ t: l }], { size: fitSize(l, 2.5, tw) }))
+  })
+  if (block.legend) {
+    items.push(text(x - 4, y + h - 1, [{ t: block.legend }],
+      { size: STYLE.sizeLegend, align: 'right', color: STYLE.switchFill }))
+  }
+  return items
+}
+
 function scaleBarItems(pageH, scaleDen, comma) {
   const mmPerM = 1000 / scaleDen
   const segM = scaleDen <= 500 ? 10 : 20
@@ -744,7 +832,8 @@ function northArrowItems(rotDeg) {
  * @param {Array}   o.sheets     from planLayout: { center, rotDeg, index, count, joints? }
  * @param {string}  o.paperKey   key of PAPER_FORMATS
  * @param {number}  o.scaleDen   scale denominator
- * @param {object}  o.titleBlock { title, rows: [[left, right]], legend }; {i}/{n} = sheet
+ * @param {object}  o.titleBlock { title, rows: [[left, right]], legend }; {i}/{n} = sheet.
+ *                          With `full`: { title, subtitle, rows, parties, staff, ...captions }
  * @param {object}  o.show       which annotations to draw
  * @param {Array}   o.basemaps   per sheet: { dataUrl, xMm, yMm, wMm, hMm } or null
  * @param {number}  o.basemapOpacity
@@ -788,7 +877,11 @@ export function buildPlan({
     items.push(...frameItems(pageW, pageH))
     items.push(...scaleBarItems(pageH, scaleDen, comma))
     items.push(...northArrowItems(sheet.rotDeg))
-    if (titleBlock) items.push(...titleBlockItems(pageW, pageH, titleBlock, sheet))
+    if (titleBlock) {
+      items.push(...(titleBlock.full
+        ? fullTitleBlockItems(pageW, pageH, titleBlock, sheet)
+        : titleBlockItems(pageW, pageH, titleBlock, sheet)))
+    }
 
     return { index: sheet.index ?? i, count: sheet.count ?? sheets.length, items }
   })

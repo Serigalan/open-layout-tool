@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { loadTracks, loadSwitches, loadKmLines } from '../../storage'
+import { loadTracks, loadSwitches, loadKmLines, loadPlanHeader, savePlanHeader } from '../../storage'
+import PlanHeaderFields from './PlanHeaderFields'
+import { PARTIES, STAFF, normalizeHeader } from '../../utils/planHeader'
 import { BASEMAPS } from '../../basemaps'
 import { crsLabel } from '../../utils/coordinateUtils'
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../../utils/mapConstants'
@@ -48,6 +50,8 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     kilometrage: true,
   })
   const [background, setBackground] = useState('none')
+  const [blockStyle, setBlockStyle] = useState('compact')
+  const [header, setHeader] = useState(() => normalizeHeader(loadPlanHeader(project.id)))
   const [busy, setBusy]     = useState(false)
   const [status, setStatus] = useState(null)   // { msg, error }
 
@@ -57,6 +61,11 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
   // legitimately be missing — the plan then simply states no kilometrage.
   const kmLines = loadKmLines(project.id)
   const namedTracks = tracks.filter(tr => (tr.elements ?? []).length > 0)
+  const changeHeader = (next) => {
+    setHeader(next)
+    if (!savePlanHeader(project.id, next)) setStatus({ msg: t('plan_logo_failed'), error: true })
+  }
+
   const fill = (key, vals) => Object.entries(vals)
     .reduce((s, [k, v]) => s.replace(`{${k}}`, v), t(key))
 
@@ -110,6 +119,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
         cantException: t('switch_plan_cant_exception'),
       },
       titleBlock: {
+        ...(blockStyle === 'full' ? fullBlockFields(header) : {}),
         title: project.title || t('plan_default_title'),
         rows: [
           [`${t('plan_field_scale')} 1:${scaleKey}`, t('plan_sheet_of')],
@@ -122,6 +132,22 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     })
     return { plan, layout }
   }
+
+  /** Extra fields the detailed title block reads on top of the compact ones. */
+  const fullBlockFields = (h) => ({
+    full: true,
+    subtitle: h.subtitle,
+    parties: PARTIES.map(({ key, labelKey }) => ({
+      label: `${t(labelKey)}:`,
+      lines: h.parties[key].address.split('\n').map(l => l.trim()).filter(Boolean),
+      logo: h.parties[key].logo,
+    })),
+    staff: STAFF.map(({ key, labelKey }) => ({ label: t(labelKey), ...h.staff[key] })),
+    dateCaption: t('plan_place_date'),
+    signCaption: t('plan_signature'),
+    dateHeader: t('plan_staff_date'),
+    nameHeader: t('plan_staff_name'),
+  })
 
   const run = async (after) => {
     setBusy(true)
@@ -230,6 +256,20 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
             ))}
           </select>
         </div>
+      </div>
+
+      <div className="element-form">
+        <span className="create-element-section">{t('plan_titleblock')}</span>
+        <div className="form-field">
+          <select value={blockStyle} onChange={e => setBlockStyle(e.target.value)}>
+            <option value="compact">{t('plan_titleblock_compact')}</option>
+            <option value="full">{t('plan_titleblock_full')}</option>
+          </select>
+        </div>
+        {blockStyle === 'full' && (
+          <PlanHeaderFields t={t} header={header} onChange={changeHeader}
+            onError={msg => setStatus({ msg, error: true })} />
+        )}
       </div>
 
       {status && (

@@ -11,6 +11,7 @@ export const STORAGE_KEY = 'olt_projects'
 const SETTINGS_KEY = 'olt_settings'
 const IMAGE_KEY_PREFIX = 'olt_image_'
 const REPORT_KEY_PREFIX = 'olt_reports_'
+const PLAN_HEADER_KEY_PREFIX = 'olt_planheader_'
 
 export function loadSettings() {
   try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') } catch { return {} }
@@ -18,6 +19,23 @@ export function loadSettings() {
 
 export function saveSettings(patch) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...loadSettings(), ...patch }))
+}
+
+/**
+ * The title block of a plan — parties with logo and address, who drew and
+ * checked it. Kept per project but outside the project record: logos are
+ * images, and images have no business riding through every undo snapshot.
+ */
+export function loadPlanHeader(projectId) {
+  try { return JSON.parse(localStorage.getItem(PLAN_HEADER_KEY_PREFIX + projectId) ?? 'null') } catch { return null }
+}
+
+/** False when the store refused the write (a large logo can fill it). */
+export function savePlanHeader(projectId, header) {
+  try {
+    localStorage.setItem(PLAN_HEADER_KEY_PREFIX + projectId, JSON.stringify(header))
+    return true
+  } catch { return false }
 }
 
 export function generateId() {
@@ -298,6 +316,7 @@ export function deleteProject(id) {
   pushUndo()
   _cache = getCache().filter((p) => p.id !== id)
   saveProjectImage(id, null)
+  try { localStorage.removeItem(PLAN_HEADER_KEY_PREFIX + id) } catch { /* already gone */ }
   clearImportReports(id)
   if (_backend === 'idb') {
     _deleted.add(id)

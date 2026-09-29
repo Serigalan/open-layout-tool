@@ -154,6 +154,8 @@ function drawText(doc, item) {
   }
   const { dir, down } = textAxes(item.angle)
 
+  if (item.bold) doc.setFont('helvetica', 'bold')
+
   // Measure first: the parts are laid out along the text's own axis, so a
   // centred or right-aligned run has to start a known distance back.
   const widths = item.parts.map(p => {
@@ -176,6 +178,7 @@ function drawText(doc, item) {
       { angle: item.angle })
     offset += widths[i]
   })
+  if (item.bold) doc.setFont('helvetica', 'normal')
 }
 
 function drawImage(doc, item) {

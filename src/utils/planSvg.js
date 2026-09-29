@@ -47,7 +47,7 @@ function renderText(item, ids) {
   // xml:space keeps the spacing the model set: SVG folds repeated spaces by
   // default, which would silently undo the gaps around a separator that the PDF
   // backend, measuring glyph by glyph, does honour.
-  const common = `font-size="${num(item.size)}" fill="${item.color}" xml:space="preserve"`
+  const common = `font-size="${num(item.size)}" fill="${item.color}"${item.bold ? ' font-weight="bold"' : ''} xml:space="preserve"`
 
   // A label with a path is set along it — this is what SVG's textPath is for.
   if (item.path?.length > 1) {
