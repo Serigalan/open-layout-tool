@@ -3,10 +3,12 @@ import { buildPlan } from './planModel'
 import { TITLE_COLUMN_MM, drawingArea, makeTransform } from './planExport'
 
 const block = (over = {}) => ({
-  full: true, title: 'GSH Erfurt - Bebra', subtitle: 'Streckenband',
+  full: true, title: 'GSH Erfurt - Bebra', subtitle: 'Streckenband', range: 'km 190,0 bis km 200,0',
   rows: [['1:1000', 'Blatt {i} / {n}']],
-  parties: ['Bauherr:', 'Projektleitung:', 'Planung:'].map((label, i) => ({
-    label, lines: [`Firma ${i}`, 'Strasse 1'],
+  footer: [['Maßstab 1:1000'], ['Blatt {i} / {n}'], []],
+  code: 'MS',
+  parties: ['Bauherr:', 'Projektleitung:', 'Auftragnehmer:', 'Planung:'].map((label, i) => ({
+    label, lines: [`Firma ${i}`, 'Strasse 1'], signs: i !== 2,
     logo: i === 0 ? { dataUrl: 'data:image/png;base64,AA==', w: 200, h: 100 } : null,
   })),
   staff: [{ label: 'Gezeichnet', date: '01/2026', name: 'J. Wolf' }],
@@ -19,17 +21,61 @@ const build = (titleBlock) => buildPlan({
   paperKey: '297x840', scaleDen: 1000, titleBlock,
 }).sheets[0].items
 
+const texts = (items) => items.filter(i => i.type === 'text').map(i => i.parts[0].t)
+
 describe('full title block', () => {
-  it('draws party labels, addresses and the sheet number', () => {
-    const texts = build(block()).filter(i => i.type === 'text').map(i => i.parts[0].t)
-    expect(texts).toEqual(expect.arrayContaining(['Bauherr:', 'Projektleitung:', 'Planung:', 'Firma 1', '1:1000  ·  Blatt 1 / 2']))
+  it('draws party labels, addresses, the title lines and the sheet number', () => {
+    expect(texts(build(block()))).toEqual(expect.arrayContaining([
+      'Bauherr:', 'Projektleitung:', 'Auftragnehmer:', 'Planung:', 'Firma 1',
+      'GSH Erfurt - Bebra', 'km 190,0 bis km 200,0', 'Streckenband', 'MS', 'Blatt 1 / 2',
+    ]))
+  })
+
+  it('sits in the bottom right corner at the size of the template', () => {
+    const rules = build(block()).filter(i => i.type === 'path' && i.width === 0.5)
+    const xs = rules.flatMap(r => r.d.filter(c => c[0] !== 'Z').map(c => c[1]))
+    const ys = rules.flatMap(r => r.d.filter(c => c[0] !== 'Z').map(c => c[2]))
+    expect(Math.min(...xs)).toBeCloseTo(840 - 12 - 180)
+    expect(Math.max(...xs)).toBeCloseTo(840 - 12)
+    expect(Math.min(...ys)).toBeCloseTo(297 - 12 - 134)
+    expect(Math.max(...ys)).toBeCloseTo(297 - 12)
+  })
+
+  it('gives signature lines only to the parties that sign', () => {
+    const dotted = build(block()).filter(i => i.type === 'path' && i.dash?.[0] === 0.25)
+    expect(dotted).toHaveLength(6)
+    const x0 = 840 - 12 - 180
+    expect(dotted.some(d => d.d[0][1] > x0 + 90 && d.d[0][1] < x0 + 135)).toBe(false)
+  })
+
+  it('takes the kilometrage of the sheet when no section is given', () => {
+    const items = buildPlan({
+      tracks: [], sheets: [{ center: { e: 0, n: 0 }, rotDeg: 0, index: 0, count: 1, range: 'km 1,0 bis km 2,0' }],
+      paperKey: '297x840', scaleDen: 1000, titleBlock: block({ range: '' }),
+    }).sheets[0].items
+    expect(texts(items)).toContain('km 1,0 bis km 2,0')
+  })
+
+  it('outlines the sheet on the location sketch', () => {
+    const sketch = { epsg: 25832, lines: [[[-2000, 0], [2000, 0]], [[0, -500], [0, 500]]] }
+    const items = build(block({ sketch }))
+    const ring = items.find(i => i.type === 'path' && i.stroke === '#ec0016')
+    expect(ring.d).toHaveLength(5)
+    const x0 = 840 - 12 - 180
+    const y0 = 297 - 12 - 134
+    for (const [, x, y] of ring.d) {
+      expect(x).toBeGreaterThanOrEqual(x0 + 2 - 1e-6)
+      expect(x).toBeLessThanOrEqual(x0 + 128 + 1e-6)
+      expect(y).toBeGreaterThanOrEqual(y0 + 41 - 1e-6)
+      expect(y).toBeLessThanOrEqual(y0 + 81.5 + 1e-6)
+    }
   })
 
   it('sets a logo inside its box without distorting it', () => {
     const [img, ...rest] = build(block()).filter(i => i.type === 'image')
     expect(rest).toHaveLength(0)
     expect(img.w / img.h).toBeCloseTo(2)
-    expect(img.h).toBeLessThanOrEqual(12)
+    expect(img.h).toBeLessThanOrEqual(5.2)
   })
 
   it('draws no image for a party without a logo', () => {
@@ -39,7 +85,7 @@ describe('full title block', () => {
 
   it('keeps the compact block when `full` is not set', () => {
     const items = build({ title: 'T', rows: [['a', 'b']] })
-    expect(items.some(i => i.type === 'text' && i.parts[0].t === 'Bauherr:')).toBe(false)
+    expect(texts(items)).not.toContain('Bauherr:')
   })
 })
 

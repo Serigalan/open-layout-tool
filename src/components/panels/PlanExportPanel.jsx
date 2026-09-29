@@ -12,6 +12,7 @@ import { renderPdf } from '../../utils/planPdf'
 import { buildSchematicPlan, SCHEMATIC_SCALES } from '../../utils/planSchematicPlan'
 import { DEFAULT_CORRIDOR } from '../../utils/planSchematic'
 import { fetchBasemapImage } from '../../utils/rasterBasemap'
+import { sketchLines } from '../../utils/planSketch'
 import { downloadBlob } from '../../utils/fileUtils'
 
 /**
@@ -85,8 +86,8 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
   const fill = (key, vals) => Object.entries(vals)
     .reduce((s, [k, v]) => s.replace(`{${k}}`, v), t(key))
 
-  const titleBlockOf = (rows, legend) => ({
-    ...(blockStyle === 'full' ? fullBlockFields(header) : {}),
+  const titleBlockOf = (rows, legend, footer, current) => ({
+    ...(blockStyle === 'full' ? fullBlockFields(header, footer, current) : {}),
     title: project.title || t('plan_default_title'),
     rows,
     legend,
@@ -96,6 +97,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
   /** The overview: the network as a strip along the kilometrage. */
   const assembleSchematic = (current) => {
     const zone = current.find(tr => tr.epsg)?.epsg ?? null
+    const scaleText = `${t('plan_field_scale')} 1:${Number(schematicScaleKey).toLocaleString('de-DE')} ${t('plan_schematic_lengths')}`
     const plan = buildSchematicPlan({
       tracks: current,
       switches: loadSwitches(project.id),
@@ -107,13 +109,16 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
       corridor,
       show: schematicShow,
       comma: language !== 'en',
-      texts: { next: t('plan_sheet_next'), prev: t('plan_sheet_prev') },
+      texts: { next: t('plan_sheet_next'), prev: t('plan_sheet_prev'), range: t('plan_km_range') },
       titleBlock: titleBlockOf([
-        [`${t('plan_field_scale')} 1:${Number(schematicScaleKey).toLocaleString('de-DE')} ${t('plan_schematic_lengths')}`,
-          t('plan_sheet_of')],
+        [scaleText, t('plan_sheet_of')],
         [crsLabel(zone), today()],
         [`${t('plan_field_format')} ${paperKey} mm`, ''],
-      ], t('plan_schematic_legend')),
+      ], t('plan_schematic_legend'), [
+        [`${t('plan_field_scale')} 1:${Number(schematicScaleKey).toLocaleString('de-DE')}`, t('plan_schematic_lengths')],
+        [t('plan_sheet_of')],
+        [crsLabel(zone), `${t('plan_field_format')} ${paperKey} mm`],
+      ], current),
     })
     return { plan, layout: { fits: plan.fits } }
   }
@@ -174,19 +179,34 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
         [`${t('plan_field_scale')} 1:${scaleKey}`, t('plan_sheet_of')],
         [crsLabel(zone), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
         [`${t('plan_field_format')} ${paperKey} mm`, today()],
-      ], t('plan_legend')),
+      ], t('plan_legend'), [
+        [`${t('plan_field_scale')} 1:${scaleKey}`, `${t('plan_field_format')} ${paperKey} mm`],
+        [t('plan_sheet_of')],
+        [crsLabel(zone), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
+      ], current),
     })
     return { plan, layout }
   }
 
-  /** Extra fields the detailed title block reads on top of the compact ones. */
-  const fullBlockFields = (h) => ({
+  /**
+   * Extra fields the detailed title block reads on top of the compact ones.
+   * Without an image of its own the location sketch draws the network.
+   */
+  const fullBlockFields = (h, footer, current) => ({
     full: true,
     subtitle: h.subtitle,
-    parties: PARTIES.map(({ key, labelKey }) => ({
+    range: h.range,
+    index: h.index,
+    code: h.code,
+    footer,
+    sketchImage: h.sketch,
+    sketch: h.sketch ? null : sketchLines(current),
+    sketchCaption: t('plan_sketch_caption'),
+    parties: PARTIES.map(({ key, labelKey, signs }) => ({
       label: `${t(labelKey)}:`,
       lines: h.parties[key].address.split('\n').map(l => l.trim()).filter(Boolean),
       logo: h.parties[key].logo,
+      signs,
     })),
     staff: STAFF.map(({ key, labelKey }) => ({ label: t(labelKey), ...h.staff[key] })),
     dateCaption: t('plan_place_date'),

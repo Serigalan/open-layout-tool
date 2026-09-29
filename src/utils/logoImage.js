@@ -6,15 +6,15 @@ const MAX_PX = 600
  * Going through a canvas makes every format the browser can show (SVG, JPEG,
  * WebP …) the one thing the PDF backend takes, and keeps the store small.
  */
-export function fileToLogo(file) {
+export function fileToLogo(file, maxPx = MAX_PX) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = new Image()
     img.onload = () => {
       URL.revokeObjectURL(url)
-      const nw = img.naturalWidth || img.width || MAX_PX
-      const nh = img.naturalHeight || img.height || MAX_PX
-      const k = Math.min(1, MAX_PX / Math.max(nw, nh))
+      const nw = img.naturalWidth || img.width || maxPx
+      const nh = img.naturalHeight || img.height || maxPx
+      const k = Math.min(1, maxPx / Math.max(nw, nh))
       const w = Math.max(1, Math.round(nw * k))
       const h = Math.max(1, Math.round(nh * k))
       const canvas = document.createElement('canvas')

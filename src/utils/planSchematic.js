@@ -36,7 +36,7 @@ const endKey = (trackId, end) => `${trackId}:${end}`
 const otherEnd = (end) => (end === 'END' ? 'BEGIN' : 'END')
 
 /** A plane point of `from` in the plane of `to`. */
-function toPlane(point, from, to) {
+export function toPlane(point, from, to) {
   if (!from || !to || Number(from) === Number(to)) return point
   const u = wgs84ToUTM(utmToWgs84(point[0], point[1], from), to)
   return [u.easting, u.northing]
@@ -390,7 +390,8 @@ export function schematicLayout({
   const extent = [Math.min(...all.map(st => st.x0)), Math.max(...all.map(st => st.x1))]
   // Without a line to read the kilometrage off, the ruler states the chainage
   // along the reference instead.
-  if (kmTable.length < 2) {
+  const kmKnown = kmTable.length >= 2
+  if (!kmKnown) {
     kmTable.length = 0
     kmTable.push({ x: extent[0], km: extent[0] }, { x: extent[1], km: extent[1] })
   }
@@ -399,7 +400,11 @@ export function schematicLayout({
     nodes: net.nodes,
     platforms: placedPlatforms,
     kmTable,
+    kmKnown,
     ref,
+    epsg,
+    // The reference in the plane with its x, so a stretch of the strip can be found on the ground.
+    axis: refPoints.map(p => ({ x: proj(p).x, p })).filter(q => Number.isFinite(q.x)),
     extent,
     lanes: [Math.min(...all.map(s => s.lane)), Math.max(...all.map(s => s.lane))],
   }

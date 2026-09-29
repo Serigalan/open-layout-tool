@@ -1,4 +1,5 @@
 import { COMPACT_BLOCK_MM, MARGIN_MM, PAPER_FORMATS, TITLE_COLUMN_MM, makeTransform } from './planExport'
+import { sheetFootprint } from './planSketch'
 import { kmForTrackPoint } from './kmLineUtils'
 import { formatKm } from './kmLineMath'
 import {
@@ -702,89 +703,188 @@ function titleBlockItems(pageW, pageH, block, sheet) {
   return items
 }
 
+/**
+ * Advance of a text in Helvetica [mm], from the glyph classes of its metrics:
+ * close enough to fit a field, unlike textWidth, which errs wide on purpose so
+ * that labels keep clear of each other.
+ */
+const NARROW = new Set([...'iljtfrI.,:;\'|!()/- '])
+const WIDE = new Set([...'mwMW@%'])
+function helveticaWidth(str, size) {
+  let em = 0
+  for (const ch of String(str)) {
+    em += NARROW.has(ch) ? 0.29 : WIDE.has(ch) ? 0.85
+      : /[A-ZÄÖÜ&]/.test(ch) ? 0.68 : /[0-9]/.test(ch) ? 0.556 : 0.53
+  }
+  return em * size
+}
+
 /** A size that keeps a text within `maxW`, never above `size`. */
 const fitSize = (str, size, maxW) => {
-  const w = textWidth([{ t: str }], size)
+  const w = helveticaWidth(str, size)
   return w > maxW ? size * maxW / w : size
 }
 
-/** An image scaled to sit inside a box, left-aligned and centred vertically. */
-function containedImage(logo, x, y, w, h) {
+/** An image scaled to sit inside a box, centred vertically and left-aligned or centred. */
+function containedImage(logo, x, y, w, h, centre = false) {
   const k = Math.min(w / logo.w, h / logo.h)
   const iw = logo.w * k
   const ih = logo.h * k
-  return { type: 'image', dataUrl: logo.dataUrl, x, y: y + (h - ih) / 2, w: iw, h: ih, opacity: 1 }
+  return {
+    type: 'image', dataUrl: logo.dataUrl, opacity: 1,
+    x: centre ? x + (w - iw) / 2 : x, y: y + (h - ih) / 2, w: iw, h: ih,
+  }
 }
 
-/** Width and height [mm] of the full title block. */
-const FULL_BLOCK = { w: TITLE_COLUMN_MM, partiesH: 46, titleH: 30 }
+/** Size [mm] of the full title block — the DB Streckenband sheet it copies. */
+const FULL_BLOCK = { w: TITLE_COLUMN_MM, h: 134 }
+const RULE_THICK = 0.5
+const RULE_THIN = 0.25
+const FOCUS_COLOR = '#ec0016'
+
+/*
+ * The rules of the full block, in block millimetres from its top left corner,
+ * as [x1, y1, x2, y2]: the four party columns, the location sketch with the
+ * revision table beside it and two free rows below, and the strip with index,
+ * staff, plan title and the three cells at the foot.
+ */
+const RULES_THICK = [
+  [0, 0, 180, 0], [0, 0, 0, 134], [0, 35, 180, 35], [0, 99, 180, 99],
+  [0, 104, 18, 104], [0, 114, 35, 114], [18, 99, 18, 114], [35, 99, 35, 134],
+  [77, 99, 77, 124], [56, 119, 56, 124], [35, 119, 77, 119], [35, 124, 180, 124],
+  [138, 124, 138, 134], [153, 124, 153, 134],
+]
+const RULES_THIN = [
+  [45, 0, 45, 35], [90, 0, 90, 35], [135, 0, 135, 35],
+  [130, 35, 130, 99], [130, 43, 180, 43], [130, 51, 180, 51], [130, 59, 180, 59],
+  [130, 67, 180, 67], [130, 75, 180, 75],
+  [0, 83, 180, 83], [0, 91, 180, 91], [60, 83, 60, 91], [80, 83, 80, 91], [25, 91, 25, 99],
+  [18, 104, 77, 104], [18, 109, 77, 109], [35, 114, 77, 114], [56, 99, 56, 119],
+]
+/** Where the location sketch is drawn, clear of its caption. */
+const SKETCH_BOX = { x: 2, y: 41, w: 126, h: 40.5 }
 
 /**
- * The title block of a construction drawing: one column each for the client,
- * the project management and the planner — logo, address and a signature line
- * — over a strip with who drew, edited and checked the sheet and what the
- * sheet is called. The caller supplies every text and logo.
+ * The network in a box, north up, with the part the sheet shows in red. Points
+ * closer than a few tenths of a millimetre to the last one kept are dropped —
+ * the network would otherwise put every sample of every track on every sheet.
+ */
+function sketchItems(sketch, focus, box) {
+  const focusPts = focus?.ring ?? focus?.line ?? []
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const pts of [...sketch.lines, focusPts]) {
+    for (const [e, n] of pts) {
+      if (e < minX) minX = e
+      if (e > maxX) maxX = e
+      if (n < minY) minY = n
+      if (n > maxY) maxY = n
+    }
+  }
+  if (!(maxX > minX || maxY > minY)) return []
+  const k = Math.min(box.w / (maxX - minX || 1), box.h / (maxY - minY || 1))
+  const ox = box.x + (box.w - (maxX - minX) * k) / 2
+  const oy = box.y + (box.h + (maxY - minY) * k) / 2
+  const page = ([e, n]) => [ox + (e - minX) * k, oy - (n - minY) * k]
+
+  const d = []
+  for (const pts of sketch.lines) {
+    let last = null
+    pts.forEach((p, i) => {
+      const q = page(p)
+      if (last && i < pts.length - 1 && Math.hypot(q[0] - last[0], q[1] - last[1]) < 0.3) return
+      d.push([last ? 'L' : 'M', q[0], q[1]])
+      last = q
+    })
+  }
+  const items = [path(d, { width: 0.12, stroke: '#666666' })]
+  if (focusPts.length > 1) {
+    items.push(path(focusPts.map((p, i) => [i ? 'L' : 'M', ...page(p)]),
+      { width: focus.ring ? 0.35 : 0.7, stroke: FOCUS_COLOR }))
+  }
+  return items
+}
+
+/**
+ * The title block of a construction drawing, laid out as the DB Streckenband
+ * sheet it copies: a column each for client, project management, contractor
+ * and planner (heading, logo, address and — where the party signs — lines for
+ * place, date and signature); the location sketch beside an empty revision
+ * table; and at the foot index, code, who drew, edited and checked the sheet,
+ * the plan title in three lines and three cells for scale, sheet and the rest.
+ * The caller supplies every text and image.
  */
 function fullTitleBlockItems(pageW, pageH, block, sheet) {
-  const { w, partiesH, titleH } = FULL_BLOCK
-  const h = partiesH + titleH
-  const x = pageW - MARGIN_MM - w
-  const y = pageH - MARGIN_MM - h
-  const fill = (str) => str.replace('{i}', sheet.index + 1).replace('{n}', sheet.count)
-  const items = [
-    path([['M', x, y], ['L', x + w, y], ['L', x + w, y + h], ['L', x, y + h], ['Z']],
-      { width: STYLE.frame, fill: '#ffffff' }),
-    line(x, y + partiesH, x + w, y + partiesH, { width: STYLE.frame }),
-  ]
+  const { w, h } = FULL_BLOCK
+  const ox = pageW - MARGIN_MM - w
+  const oy = pageH - MARGIN_MM - h
+  const fill = (str) => String(str ?? '').replace('{i}', sheet.index + 1).replace('{n}', sheet.count)
+  const items = [path([['M', ox, oy], ['L', ox + w, oy], ['L', ox + w, oy + h], ['L', ox, oy + h], ['Z']],
+    { stroke: null, fill: '#ffffff' })]
+  const put = (x, y, str, size, o = {}) => {
+    if (str) items.push(text(ox + x, oy + y, [{ t: str }], { size, ...o }))
+  }
+  const centred = (x, y, str, size, room, o = {}) => put(x, y, str, fitSize(str, size, room), { align: 'center', ...o })
+
+  const sketch = block.sketchImage
+    ? [containedImage(block.sketchImage, ox + SKETCH_BOX.x, oy + SKETCH_BOX.y, SKETCH_BOX.w, SKETCH_BOX.h, true)]
+    : block.sketch
+      ? sketchItems(block.sketch, sheet.focus, { ...SKETCH_BOX, x: ox + SKETCH_BOX.x, y: oy + SKETCH_BOX.y })
+      : []
+  items.push(...sketch)
+
+  for (const [rules, width] of [[RULES_THIN, RULE_THIN], [RULES_THICK, RULE_THICK]]) {
+    for (const [x1, y1, x2, y2] of rules) items.push(line(ox + x1, oy + y1, ox + x2, oy + y2, { width }))
+  }
 
   const parties = block.parties ?? []
   const colW = w / Math.max(parties.length, 1)
   parties.forEach((party, i) => {
-    const cx = x + i * colW
-    if (i > 0) items.push(line(cx, y, cx, y + partiesH, { width: STYLE.frame }))
-    items.push(text(cx + 3, y + 5, [{ t: party.label }], { size: 2.8, bold: true }))
-    if (party.logo) items.push(containedImage(party.logo, cx + 3, y + 7, colW - 6, 12))
-    ;(party.lines ?? []).slice(0, 5).forEach((l, k) => {
-      items.push(text(cx + 3, y + 23.5 + k * 3.1, [{ t: l }],
-        { size: fitSize(l, 2.5, colW - 6) }))
+    const cx = i * colW
+    put(cx + 1.5, 5, party.label, 2.8)
+    if (party.logo) {
+      // Right of the heading, as far in as the longest heading reaches.
+      const lx = Math.max(cx + 23, cx + 3 + helveticaWidth(party.label, 2.8))
+      const lw = cx + colW - 0.8 - lx
+      if (lw > 3) items.push(containedImage(party.logo, ox + lx, oy + 1.6, lw, 5.2))
+    }
+    ;(party.lines ?? []).slice(0, 6).forEach((l, k) => {
+      put(cx + 2, 11.9 + k * 3.09, l, fitSize(l, 2.47, colW - 3.5))
     })
-    const sy = y + 41
-    const half = (colW - 9) / 2
-    for (const [sx, caption] of [[cx + 3, block.dateCaption], [cx + 6 + half, block.signCaption]]) {
-      items.push(line(sx, sy, sx + half, sy, { width: 0.25, dash: [0.25, 1] }))
-      items.push(text(sx + half / 2, sy + 2.6, [{ t: caption }], { size: 2.2, align: 'center' }))
+    if (party.signs) {
+      for (const [x1, x2, caption] of [[2.1, 16, block.dateCaption], [28, 42.5, block.signCaption]]) {
+        items.push(line(ox + cx + x1, oy + 30.9, ox + cx + x2, oy + 30.9, { width: 0.25, dash: [0.25, 1] }))
+        centred(cx + (x1 + x2) / 2, 33.45, caption, 2.47, colW / 2 - 1)
+      }
     }
   })
 
-  const ty = y + partiesH
-  const split = 90
-  items.push(line(x + split, ty, x + split, y + h, { width: STYLE.frame }))
-  const staff = block.staff ?? []
-  const colDate = x + 34
-  const colName = x + 60
-  items.push(text(colDate, ty + 5, [{ t: block.dateHeader }], { size: 2.2 }))
-  items.push(text(colName, ty + 5, [{ t: block.nameHeader }], { size: 2.2 }))
-  staff.forEach((row, k) => {
-    const ry = ty + 11 + k * 6
-    items.push(text(x + 3, ry, [{ t: row.label }], { size: 2.8 }))
-    items.push(text(colDate, ry, [{ t: row.date || '-' }], { size: 2.8 }))
-    items.push(text(colName, ry, [{ t: row.name || '-' }], { size: 2.8 }))
+  put(2, 39.2, block.sketchCaption, 2.8)
+
+  centred(9, 102.45, block.index || '-', 2.47, 16)
+  centred(9, 111, block.code, 5.64, 16)
+  ;(block.staff ?? []).slice(0, 3).forEach((row, k) => {
+    const y = 102.4 + k * 5
+    put(19.4, y, row.label, fitSize(row.label, 2.82, 15.4))
+    centred(45.5, y, row.date || '-', 2.82, 20)
+    centred(66.5, y, row.name || '-', 2.82, 20)
+  })
+  centred(45.5, 122.5, block.dateHeader, 2.82, 20)
+  centred(66.5, 122.5, block.nameHeader, 2.82, 20)
+
+  const title = [fill(block.title), fill(block.range || sheet.range), fill(block.subtitle)]
+  centred(128.5, 105.8, title[0], 4.23, 99, { bold: true })
+  centred(128.5, 112.35, title[1], 4.23, 99)
+  centred(128.5, 119.6, title[2], 4.23, 99)
+
+  ;[[77, 138], [138, 153], [153, 180]].forEach(([x1, x2], i) => {
+    const lines = (block.footer?.[i] ?? []).map(fill).filter(Boolean).slice(0, 2)
+    const y0 = lines.length > 1 ? 127.9 : 129.8
+    lines.forEach((l, k) => centred((x1 + x2) / 2, y0 + k * 3.7, l, 2.5, x2 - x1 - 2))
   })
 
-  const tx = x + split + 4
-  const tw = w - split - 8
-  const head = fill(block.title)
-  items.push(text(tx, ty + 8, [{ t: head }], { size: fitSize(head, 4.2, tw), bold: true }))
-  if (block.subtitle) {
-    items.push(text(tx, ty + 14, [{ t: block.subtitle }], { size: fitSize(block.subtitle, 3.2, tw) }))
-  }
-  ;(block.rows ?? []).slice(0, 3).forEach(([left, right], k) => {
-    const l = fill([left, right].filter(Boolean).join('  ·  '))
-    items.push(text(tx, ty + 19 + k * 4, [{ t: l }], { size: fitSize(l, 2.5, tw) }))
-  })
   // The column above the block is free, so the legend heads it.
   if (block.legend) {
-    items.push(text(x + 3, MARGIN_MM + 5, [{ t: block.legend }],
+    items.push(text(ox + 3, MARGIN_MM + 5, [{ t: block.legend }],
       { size: fitSize(block.legend, STYLE.sizeLegend, w - 6) }))
   }
   return items
@@ -839,7 +939,8 @@ function northArrowItems(rotDeg) {
  * @param {string}  o.paperKey   key of PAPER_FORMATS
  * @param {number}  o.scaleDen   scale denominator
  * @param {object}  o.titleBlock { title, rows: [[left, right]], legend }; {i}/{n} = sheet.
- *                          With `full`: { title, subtitle, rows, parties, staff, ...captions }
+ *                          With `full`: { title, range, subtitle, index, code, parties,
+ *                          staff, footer: [[lines] × 3], sketch | sketchImage, ...captions }
  * @param {object}  o.show       which annotations to draw
  * @param {Array}   o.basemaps   per sheet: { dataUrl, xMm, yMm, wMm, hMm } or null
  * @param {number}  o.basemapOpacity
@@ -887,8 +988,11 @@ export function buildPlan({
     items.push(...scaleBarItems(pageH, scaleDen, comma))
     items.push(...northArrowItems(sheet.rotDeg))
     if (titleBlock) {
+      const focus = titleBlock.sketch && sheet.center
+        ? { ring: sheetFootprint(sheet, clip, pageW, pageH, scaleDen, reserve) }
+        : null
       items.push(...(titleBlock.full
-        ? fullTitleBlockItems(pageW, pageH, titleBlock, sheet)
+        ? fullTitleBlockItems(pageW, pageH, titleBlock, { ...sheet, focus })
         : titleBlockItems(pageW, pageH, titleBlock, sheet)))
     }
 

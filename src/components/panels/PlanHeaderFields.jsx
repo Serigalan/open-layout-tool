@@ -1,7 +1,10 @@
 import { fileToLogo } from '../../utils/logoImage'
 import { PARTIES, STAFF } from '../../utils/planHeader'
 
-/** Editing of the title block: parties with logo and address, staff, plan name. */
+/** Longest side of a location sketch image [px] — it fills a box of 13 × 4 cm. */
+const SKETCH_PX = 1600
+
+/** Editing of the title block: plan title, parties with logo and address, sketch, staff. */
 export default function PlanHeaderFields({ t, header, onChange, onError }) {
   const setParty = (key, patch) => onChange({
     ...header, parties: { ...header.parties, [key]: { ...header.parties[key], ...patch } },
@@ -19,12 +22,30 @@ export default function PlanHeaderFields({ t, header, onChange, onError }) {
     }
   }
 
+  const pickSketch = async (file) => {
+    if (!file) return
+    try {
+      onChange({ ...header, sketch: await fileToLogo(file, SKETCH_PX) })
+    } catch {
+      onError?.(t('plan_logo_failed'))
+    }
+  }
+
+  const field = (key, labelKey, placeholder) => (
+    <div className="form-field">
+      <label>{t(labelKey)}</label>
+      <input type="text" value={header[key]} placeholder={placeholder}
+        onChange={e => onChange({ ...header, [key]: e.target.value })} />
+    </div>
+  )
+
   return (
     <>
-      <div className="form-field">
-        <label>{t('plan_subtitle')}</label>
-        <input type="text" value={header.subtitle}
-          onChange={e => onChange({ ...header, subtitle: e.target.value })} />
+      {field('range', 'plan_range', t('plan_range_hint'))}
+      {field('subtitle', 'plan_subtitle')}
+      <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ width: '40%' }}>{field('index', 'plan_index', '-')}</div>
+        <div style={{ flex: 1 }}>{field('code', 'plan_code')}</div>
       </div>
 
       {PARTIES.map(({ key, labelKey }) => {
@@ -52,6 +73,26 @@ export default function PlanHeaderFields({ t, header, onChange, onError }) {
           </div>
         )
       })}
+
+      <div className="form-field">
+        <label>{t('plan_sketch')}</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {header.sketch && (
+            <img src={header.sketch.dataUrl} alt="" style={{ maxHeight: 40, maxWidth: 120, background: '#fff' }} />
+          )}
+          <label className="panel-btn" style={{ cursor: 'pointer' }}>
+            {t('plan_sketch_add')}
+            <input type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => { pickSketch(e.target.files?.[0]); e.target.value = '' }} />
+          </label>
+          {header.sketch && (
+            <button className="panel-btn" onClick={() => onChange({ ...header, sketch: null })}>
+              {t('plan_sketch_remove')}
+            </button>
+          )}
+        </div>
+        {!header.sketch && <p style={{ fontSize: 11, color: '#888', margin: '4px 0 0' }}>{t('plan_sketch_auto')}</p>}
+      </div>
 
       {STAFF.map(({ key, labelKey }) => (
         <div className="form-field" key={key}>

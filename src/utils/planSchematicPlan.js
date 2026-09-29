@@ -3,7 +3,7 @@ import {
   pathItem as path, textItem as text, lineItem as line, circlePath, cullItems, frameItems,
   fitSize, titleBlockFor, textWidth, STYLE,
 } from './planModel'
-import { schematicLayout } from './planSchematic'
+import { schematicLayout, toPlane } from './planSchematic'
 
 /**
  * The schematic overview as a plan: the strip from planSchematic cut into
@@ -65,6 +65,38 @@ function kmMarks(kmTable, xa, xb) {
   return marks
 }
 
+/** Kilometrage at an x of the strip, read off the table the layout made. */
+function kmAt(kmTable, x) {
+  if (x <= kmTable[0].x) return kmTable[0].km
+  for (let i = 1; i < kmTable.length; i++) {
+    const a = kmTable[i - 1]
+    const b = kmTable[i]
+    if (x <= b.x) return a.km + (b.km - a.km) * (x - a.x) / (b.x - a.x || 1)
+  }
+  return kmTable[kmTable.length - 1].km
+}
+
+/**
+ * What the title block says about one sheet: the stretch of the reference it
+ * shows, for the location sketch, and its kilometrage, where the project has
+ * a line to read it off.
+ */
+function sheetContext(layout, xa, xb, titleBlock, texts, comma) {
+  const out = {}
+  const sketch = titleBlock?.sketch
+  if (sketch) {
+    const line = layout.axis.filter(q => q.x >= xa && q.x <= xb).map(q => toPlane(q.p, layout.epsg, sketch.epsg))
+    if (line.length > 1) out.focus = { line }
+  }
+  if (layout.kmKnown && texts.range) {
+    const a = Math.max(xa, layout.extent[0])
+    const b = Math.min(xb, layout.extent[1])
+    const [ka, kb] = [kmAt(layout.kmTable, a), kmAt(layout.kmTable, b)].map(k => fmt(k / 1000, 1, comma))
+    out.range = texts.range.replace('{a}', ka).replace('{b}', kb)
+  }
+  return out
+}
+
 /**
  * Build the overview.
  *
@@ -75,7 +107,7 @@ function kmMarks(kmTable, xa, xb) {
  * @param {number} o.scaleDen     horizontal scale denominator
  * @param {object} o.titleBlock   as buildPlan takes it
  * @param {object} o.show         { km, switches, trackNames, platforms }
- * @param {object} o.texts        { next, prev, legend } — `{n}` = sheet number
+ * @param {object} o.texts        { next, prev, legend, range } — `{n}` = sheet number, `{a}`/`{b}` = km
  * @param {boolean} o.comma
  * @returns {{ pageW, pageH, sheets, fits }} — `fits` false when the lanes had to be packed tighter than they read
  */
@@ -306,7 +338,7 @@ export function buildSchematicPlan({
         { size: 2.5, align: 'right', prio: PRIO.joint }))
     }
 
-    const sheet = { index: i, count }
+    const sheet = { index: i, count, ...sheetContext(layout, x0, x0 + span, titleBlock, texts, comma) }
     sheets.push({
       index: i, count,
       items: [{ type: 'group', clip: area, items: cullItems(inner, area) }, ...furniture(sheet)],
