@@ -25,10 +25,8 @@ export const FRAME = { left: 20, top: 5, right: 5, bottom: 5 }
 /** Width of the sheet frame [mm]. */
 export const FRAME_WIDTH = 0.5
 
-/** Width [mm] of the column on the right that a detailed title block takes. */
+/** Width [mm] of the column on the right that either title block heads. */
 export const TITLE_COLUMN_MM = 180
-/** Width [mm] of the simple title block. */
-export const COMPACT_BLOCK_MM = 145
 
 /**
  * Drawing area of a sheet, in page millimetres. `reserve` is a column on the

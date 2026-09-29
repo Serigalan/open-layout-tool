@@ -1,4 +1,4 @@
-import { COMPACT_BLOCK_MM, PAPER_FORMATS, TITLE_COLUMN_MM, drawingArea } from './planExport'
+import { PAPER_FORMATS, TITLE_COLUMN_MM, drawingArea } from './planExport'
 import {
   pathItem as path, textItem as text, lineItem as line, circlePath, cullItems, frameItems,
   fitSize, titleBlockFor, textWidth, STYLE,
@@ -129,17 +129,17 @@ export function buildSchematicPlan({
 }) {
   const [pageW, pageH] = PAPER_FORMATS[paperKey]
   const shown = { km: true, switches: true, trackNames: true, platforms: true, ...show }
-  const reserve = titleBlock?.full ? TITLE_COLUMN_MM : COMPACT_BLOCK_MM
+  const reserve = titleBlock ? TITLE_COLUMN_MM : 0
   const area = drawingArea(pageW, pageH, reserve)
   const mmPerM = 1000 / scaleDen
   const layout = schematicLayout({ tracks, switches, platforms, kmLines, leadTrackId, corridor })
 
   const furniture = (sheet) => {
-    const items = [...frameItems(pageW, pageH)]
+    const items = []
     if (titleBlock) {
       items.push(...titleBlockFor(pageW, pageH, { ...titleBlock, legend: null }, sheet))
       const legend = [texts.legend, titleBlock.legend].filter(Boolean).join(' · ')
-      const x = pageW - area.x - reserve + 3
+      const x = area.x + area.w + 3
       if (legend) {
         items.push(text(x, area.y + 5, [{ t: legend }], { size: fitSize(legend, STYLE.sizeLegend, reserve - 6) }))
       }
@@ -152,6 +152,7 @@ export function buildSchematicPlan({
         items.push(text(x + 10, y, [{ t: label }], { size: STYLE.sizeLegend }))
       })
     }
+    items.push(...frameItems(pageW, pageH))
     return items
   }
 

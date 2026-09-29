@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import {
   withUndo, saveProject, saveTrack, saveSwitch, loadTracks, loadSwitches,
   undo, canUndo, loadImportReports, saveImportReport, clearImportReports,
+  loadPlanHeader, savePlanHeader, exportProjectsPayload,
 } from './storage'
 
 // Outside the browser storage degrades to the localStorage backend — a stub
@@ -79,5 +80,26 @@ describe('the reports an import leaves behind', () => {
   it('survives a store that cannot be read', () => {
     localStorage.setItem('olt_reports_r6', 'not json')
     expect(loadImportReports('r6')).toEqual([])
+  })
+})
+
+describe('the title block of a project\'s plans', () => {
+  it('is kept on the project, travels with its export, and stays out of undo', () => {
+    saveProject({ id: 'h1', tracks: [], switches: [] })
+    // What an earlier version kept under its own key is read until the project has its own.
+    localStorage.setItem('olt_planheader_h1', JSON.stringify({ subtitle: 'alt' }))
+    expect(loadPlanHeader('h1').subtitle).toBe('alt')
+
+    expect(savePlanHeader('h1', { subtitle: 'Streckenband' })).toBe(true)
+    expect(loadPlanHeader('h1').subtitle).toBe('Streckenband')
+    expect(localStorage.getItem('olt_planheader_h1')).toBeNull()
+    const exported = exportProjectsPayload(new Set(['h1'])).projects[0]
+    expect(exported.planHeader.subtitle).toBe('Streckenband')
+
+    saveTrack('h1', { id: 'th', elements: [] })
+    savePlanHeader('h1', { subtitle: 'neu' })
+    expect(undo()).toBe(true)
+    expect(loadTracks('h1')).toHaveLength(0)
+    expect(loadPlanHeader('h1').subtitle).toBe('neu')
   })
 })

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildPlan } from './planModel'
 import { FRAME, TITLE_COLUMN_MM, drawingArea, makeTransform } from './planExport'
+import { normalizeHeader, toIsoDate } from './planHeader'
 
 const block = (over = {}) => ({
   full: true, title: 'GSH Erfurt - Bebra', subtitle: 'Streckenband', range: 'km 190,0 bis km 200,0',
@@ -92,10 +93,24 @@ describe('full title block', () => {
 
 describe('sheet frame', () => {
   it('keeps the filing margin on the left and 5 mm elsewhere, drawn 0.5 mm', () => {
-    const frame = build(block()).find(i => i.type === 'path' && i.d.length === 5)
+    const frame = build(block()).find(i => i.type === 'path' && i.d.length === 5 && i.d[0][1] === 20)
     expect(frame.width).toBe(0.5)
     expect(frame.d[0].slice(1)).toEqual([20, 5])
     expect(frame.d[2].slice(1)).toEqual([840 - 5, 297 - 5])
+  })
+
+  it('draws the frame over either title block, so it keeps its width all round', () => {
+    for (const tb of [block(), { title: 'T' }]) {
+      const items = build(tb)
+      const frame = items.findIndex(i => i.type === 'path' && i.d.length === 5 && i.d[0][1] === 20)
+      const grounds = items.map((i, k) => (i.fill === '#ffffff' ? k : -1)).filter(k => k >= 0)
+      expect(frame).toBeGreaterThan(Math.max(...grounds))
+    }
+  })
+
+  it('marks the fold 190 mm from the right edge in the bottom margin', () => {
+    const fold = build({ title: 'T' }).find(i => i.type === 'path' && i.d[0][1] === 840 - 190)
+    expect(fold.d).toEqual([['M', 840 - 190, 292], ['L', 840 - 190, 297]])
   })
 
   it('centres the drawing between the frame lines', () => {
@@ -117,32 +132,29 @@ describe('title column', () => {
     expect(t(0, 0)[0]).toBeCloseTo(area.x + area.w / 2)
   })
 
-  it('leaves the compact block over the full width', () => {
-    const group = build({ title: 'T', rows: [] }).find(i => i.type === 'group')
-    expect(group.clip.w).toBeCloseTo(840 - FRAME.left - FRAME.right)
+  it('keeps the same column clear for the simple block', () => {
+    const group = build({ title: 'T' }).find(i => i.type === 'group')
+    expect(group.clip.x + group.clip.w).toBeCloseTo(840 - FRAME.right - TITLE_COLUMN_MM)
   })
 })
 
 describe('simple title block', () => {
   const simple = {
     title: 'EW 500 - 1:12', kind: 'Weichenskizze', scale: '1:50', lines: ['Blatt {i} / {n}'],
-    labels: { kind: 'Planart:', scale: 'Maßstab:', content: 'Inhalt:', file: 'Dateiname:' },
-    staff: [{ label: 'gez.', date: '04/2026', name: 'Wolf' }, { label: 'gepr.', date: '', name: '' }],
-    dateHeader: 'Datum', nameHeader: 'Name', fileName: 'Weichenskizze_500_1_12',
+    labels: { kind: 'Planart:', scale: 'Maßstab:', content: 'Inhalt:', epsg: 'EPSG:', format: 'Format:' },
+    staff: [{ label: 'gez.', date: '15.04.2026', name: 'Wolf' }, { label: 'gepr.', date: '', name: '' }],
+    dateHeader: 'Datum', nameHeader: 'Name', epsg: '5684', format: '297 × 840 mm',
   }
 
-  it('sits in the frame corner at 145 × 52 mm, with the fold mark 190 mm from the right', () => {
-    const items = build(simple)
-    const outline = items.find(i => i.type === 'path' && i.width === 0.5 && i.d.length === 3)
-    expect(outline.d).toEqual([['M', 840 - 5 - 145, 297 - 5], ['L', 840 - 5 - 145, 297 - 5 - 52], ['L', 840 - 5, 297 - 5 - 52]])
-    const fold = items.find(i => i.type === 'path' && i.d[0][1] === 840 - 190)
-    expect(fold.d).toEqual([['M', 840 - 190, 292], ['L', 840 - 190, 297]])
+  it('sits in the frame corner as wide as the detailed block, 52 mm high', () => {
+    const outline = build(simple).find(i => i.type === 'path' && i.width === 0.5 && i.d.length === 3)
+    expect(outline.d).toEqual([['M', 840 - 5 - 180, 297 - 5], ['L', 840 - 5 - 180, 297 - 5 - 52], ['L', 840 - 5, 297 - 5 - 52]])
   })
 
-  it('states kind, scale, content, staff and file as the template does', () => {
+  it('states kind, scale, content, staff, reference system and paper', () => {
     expect(texts(build(simple))).toEqual(expect.arrayContaining([
       'Planart:', 'Weichenskizze', 'Maßstab: 1:50', 'Inhalt:', 'EW 500 - 1:12', 'Blatt 1 / 2',
-      'Datum', 'Name', 'gez.', '04/2026', 'Wolf', 'gepr.', 'Dateiname: Weichenskizze_500_1_12',
+      'Datum', 'Name', 'gez.', '15.04.2026', 'Wolf', 'gepr.', 'EPSG: 5684', 'Format: 297 × 840 mm',
     ]))
   })
 
@@ -161,3 +173,19 @@ describe('simple title block', () => {
   })
 })
 
+
+describe('stored title block', () => {
+  it('takes the dates typed by earlier versions into the calendar form', () => {
+    expect(toIsoDate('01/2026')).toBe('2026-01-01')
+    expect(toIsoDate('5.3.2026')).toBe('2026-03-05')
+    expect(toIsoDate('2026-04-15')).toBe('2026-04-15')
+    expect(normalizeHeader({ staff: { drawn: { date: '04/2026', name: 'J. Wolf' } } }).staff.drawn)
+      .toEqual({ date: '2026-04-01', name: 'J. Wolf' })
+  })
+
+  it('keeps the chosen block style, and falls back to the simple one', () => {
+    expect(normalizeHeader({ style: 'full' }).style).toBe('full')
+    expect(normalizeHeader({ style: 'odd' }).style).toBe('compact')
+    expect(normalizeHeader(null).style).toBe('compact')
+  })
+})

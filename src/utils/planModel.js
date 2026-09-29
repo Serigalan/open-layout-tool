@@ -1,5 +1,5 @@
 import {
-  COMPACT_BLOCK_MM, FRAME, FRAME_WIDTH, PAPER_FORMATS, TITLE_COLUMN_MM, drawingArea, makeTransform,
+  FRAME, FRAME_WIDTH, PAPER_FORMATS, TITLE_COLUMN_MM, drawingArea, makeTransform,
 } from './planExport'
 import { sheetFootprint } from './planSketch'
 import { BLOCK_ORIGIN, LOGO_PATHS, MM_PER_UNIT } from './planLogo'
@@ -665,34 +665,49 @@ function trackItems(sheet, ctx) {
   return items
 }
 
+/** A fold mark this far from the right page edge, where the sheet folds to A4 (DIN 824). */
+const FOLD_FROM_RIGHT = 190
+
 /**
- * The sheet frame. The column a title block keeps free has no rule of its
- * own: the block closes it at the foot and the legend heads it, as on the
- * DB sheet.
+ * The sheet frame and the fold mark in the margin below it. The column a
+ * title block keeps free has no rule of its own: the block closes it at the
+ * foot and the legend heads it, as on the DB sheet. Drawn after everything
+ * else, so no white ground of a title block eats into it and it runs the
+ * same width all the way round.
  */
 function frameItems(pageW, pageH) {
   const { x, y, w, h } = drawingArea(pageW, pageH)
-  return [path([['M', x, y], ['L', x + w, y], ['L', x + w, y + h], ['L', x, y + h], ['Z']],
-    { width: FRAME_WIDTH })]
+  return [
+    path([['M', x, y], ['L', x + w, y], ['L', x + w, y + h], ['L', x, y + h], ['Z']], { width: FRAME_WIDTH }),
+    line(pageW - FOLD_FROM_RIGHT, y + h, pageW - FOLD_FROM_RIGHT, pageH, { width: 0.265 }),
+  ]
 }
 
 /** Height [mm] of the simple title block. */
 const COMPACT_BLOCK_H = 52
 /** Text size of the simple title block: 13 px of the template [mm]. */
 const COMPACT_TEXT = 3.44
-/** A fold mark this far from the right page edge, where the sheet folds to A4 (DIN 824). */
-const FOLD_FROM_RIGHT = 190
+/**
+ * Where the simple block's date and name table begins: its template is
+ * 145 mm wide, and the block takes the detailed one's width by giving the
+ * extra to the content column, so both blocks head the same column.
+ */
+const COMPACT_TABLE_X = TITLE_COLUMN_MM - 60
 
 /*
  * Rules of the simple block, in block millimetres from its top left corner:
  * the wordmark row, plan kind and scale, the content beside the date and name
- * table, and the file name at the foot.
+ * table, and the reference system and format at the foot.
  */
-const COMPACT_RULES = [
-  [0, 11, 145, 11], [0, 20, 145, 20], [0, 44, 145, 44],
-  [85, 11, 85, 44], [85, 28, 145, 28], [85, 36, 145, 36],
-  [96, 20, 96, 44], [117, 20, 117, 44],
-]
+const COMPACT_RULES = (() => {
+  const w = TITLE_COLUMN_MM
+  const t = COMPACT_TABLE_X
+  return [
+    [0, 11, w, 11], [0, 20, w, 20], [0, 44, w, 44],
+    [t, 11, t, 44], [t, 28, w, 28], [t, 36, w, 36],
+    [t + 11, 20, t + 11, 44], [t + 32, 20, t + 32, 44],
+  ]
+})()
 
 /** The Open Layout Tool wordmark at the block's top left corner (ox, oy). */
 function wordmarkItems(ox, oy) {
@@ -704,11 +719,13 @@ function wordmarkItems(ox, oy) {
 /**
  * The simple title block, laid out as the DB-style template it copies: the
  * tool's wordmark; plan kind and scale; what the plan shows beside who drew
- * and checked it; and the file it was written to. {i}/{n} = sheet.
+ * and checked it; and the reference system and paper at the foot.
+ * {i}/{n} = sheet.
  */
 function titleBlockItems(pageW, pageH, block, sheet) {
-  const w = COMPACT_BLOCK_MM
+  const w = TITLE_COLUMN_MM
   const h = COMPACT_BLOCK_H
+  const t = COMPACT_TABLE_X
   const ox = pageW - FRAME.right - w
   const oy = pageH - FRAME.bottom - h
   const fill = (str) => String(str ?? '').replace('{i}', sheet.index + 1).replace('{n}', sheet.count)
@@ -718,37 +735,39 @@ function titleBlockItems(pageW, pageH, block, sheet) {
       { stroke: null, fill: '#ffffff' }),
     ...COMPACT_RULES.map(([x1, y1, x2, y2]) => line(ox + x1, oy + y1, ox + x2, oy + y2, { width: 0.265 })),
     path([['M', ox, oy + h], ['L', ox, oy], ['L', ox + w, oy]], { width: FRAME_WIDTH }),
-    line(pageW - FOLD_FROM_RIGHT, pageH - FRAME.bottom, pageW - FOLD_FROM_RIGHT, pageH, { width: 0.265 }),
     ...wordmarkItems(ox, oy),
   ]
   const put = (x, y, str, o = {}) => {
-    const t = fill(str)
-    if (t) items.push(text(ox + x, oy + y, [{ t }], { size: fitSize(t, size, o.room ?? 1e9), ...o }))
+    const s = fill(str)
+    if (s) items.push(text(ox + x, oy + y, [{ t: s }], { size: fitSize(s, size, o.room ?? 1e9), ...o }))
   }
   const labels = block.labels ?? {}
+  const labelled = (label, value) => [label, value].filter(Boolean).join(' ')
 
   put(3.3, 16.8, labels.kind)
-  put(19.4, 16.8, block.kind, { bold: true, room: 85 - 19.4 - 1 })
-  put(88.5, 16.8, [labels.scale, block.scale].filter(Boolean).join(' '), { room: 145 - 88.5 - 1 })
+  put(19.4, 16.8, block.kind, { bold: true, room: t - 19.4 - 1 })
+  put(t + 3.5, 16.8, labelled(labels.scale, block.scale), { room: w - t - 4.5 })
 
   put(3.3, 26.2, labels.content)
-  put(19.2, 26.2, block.title, { bold: true, room: 85 - 19.2 - 1 })
-  ;(block.lines ?? []).slice(0, 2).forEach((l, k) => put(19.2, 32.2 + k * 6, l, { room: 85 - 19.2 - 1 }))
+  put(19.2, 26.2, block.title, { bold: true, room: t - 19.2 - 1 })
+  ;(block.lines ?? []).slice(0, 2).forEach((l, k) => put(19.2, 32.2 + k * 6, l, { room: t - 19.2 - 1 }))
 
-  put(99.9, 25.3, block.dateHeader, { bold: true, room: 16 })
-  put(119.6, 25.3, block.nameHeader, { bold: true, room: 24.5 })
+  put(t + 14.9, 25.3, block.dateHeader, { bold: true, room: 16 })
+  put(t + 34.6, 25.3, block.nameHeader, { bold: true, room: 24.5 })
   ;(block.staff ?? []).slice(0, 2).forEach((row, k) => {
     const y = 33 + k * 8
-    put(86.5, y, row.label, { room: 9.5 })
-    put(98.9, y, row.date, { room: 17 })
-    put(119.8, y, row.name, { room: 24.5 })
+    put(t + 1.5, y, row.label, { room: 9.5 })
+    put(t + 13.9, y, row.date, { room: 17 })
+    put(t + 34.8, y, row.name, { room: 24.5 })
   })
 
-  put(3.3, 49.3, [labels.file, block.fileName].filter(Boolean).join(' '), { room: w - 5 })
+  put(3.3, 49.3, labelled(labels.epsg, block.epsg), { room: t - 4.3 })
+  put(t + 3.5, 49.3, labelled(labels.format, block.format), { room: w - t - 4.5 })
 
+  // The column above the block is free, so the legend heads it — as over the detailed block.
   if (block.legend) {
-    items.push(text(ox - 4, oy + h - 1, [{ t: block.legend }],
-      { size: STYLE.sizeLegend, align: 'right', color: STYLE.switchFill }))
+    items.push(text(ox + 3, FRAME.top + 5, [{ t: block.legend }],
+      { size: fitSize(block.legend, STYLE.sizeLegend, w - 6) }))
   }
   return items
 }
@@ -998,13 +1017,13 @@ function northArrowItems(rotDeg) {
  * @param {number}  o.basemapOpacity
  * @param {boolean} o.comma      German decimal comma
  * @param {number}  o.reserve    column on the right kept free of the drawing [mm];
- *                               a `full` title block takes TITLE_COLUMN_MM by default
+ *                               either title block takes TITLE_COLUMN_MM by default
  * @returns {{ pageW, pageH, sheets: Array<{ index, count, items }> }}
  */
 export function buildPlan({
   tracks, switches = [], kmLines = [], sheets, paperKey, scaleDen, titleBlock,
   show = {}, basemaps = [], basemapOpacity = 0.4, comma = true, switchText = {},
-  reserve = titleBlock?.full ? TITLE_COLUMN_MM : 0,
+  reserve = titleBlock ? TITLE_COLUMN_MM : 0,
 }) {
   const swText = { ...SWITCH_TEXT, ...switchText }
   const [pageW, pageH] = PAPER_FORMATS[paperKey]
@@ -1036,7 +1055,6 @@ export function buildPlan({
         { tracks, switches, kmLines, show: shown, comma, scaleDen, switchText: swText }), clip),
     })
 
-    items.push(...frameItems(pageW, pageH))
     items.push(...scaleBarItems(pageH, scaleDen, comma))
     items.push(...northArrowItems(sheet.rotDeg))
     if (titleBlock) {
@@ -1047,6 +1065,7 @@ export function buildPlan({
         ? fullTitleBlockItems(pageW, pageH, titleBlock, { ...sheet, focus })
         : titleBlockItems(pageW, pageH, titleBlock, sheet)))
     }
+    items.push(...frameItems(pageW, pageH))
 
     return { index: sheet.index ?? i, count: sheet.count ?? sheets.length, items }
   })

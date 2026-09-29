@@ -50,10 +50,11 @@ export default function PlanHeaderFields({ t, header, onChange, onError, simple 
     <div className="form-field" key={key}>
       <label>{t(labelKey)}</label>
       <div style={{ display: 'flex', gap: 4 }}>
-        <input type="text" style={{ width: '40%' }} value={header.staff[key].date}
-          placeholder={t('plan_staff_date')}
+        {/* The browser's calendar; the plan writes the day in the language's own form. */}
+        <input type="date" style={{ width: '45%', minWidth: 0 }} value={header.staff[key].date}
+          title={t('plan_staff_date')}
           onChange={e => setStaff(key, { date: e.target.value })} />
-        <input type="text" style={{ flex: 1 }} value={header.staff[key].name}
+        <input type="text" style={{ flex: 1, minWidth: 0 }} value={header.staff[key].name}
           placeholder={t('plan_staff_name')}
           onChange={e => setStaff(key, { name: e.target.value })} />
       </div>

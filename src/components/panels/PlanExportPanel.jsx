@@ -1,9 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, loadKmLines, loadPlatforms, loadPlanHeader, savePlanHeader } from '../../storage'
 import PlanHeaderFields from './PlanHeaderFields'
-import { PARTIES, STAFF, normalizeHeader } from '../../utils/planHeader'
+import { PARTIES, STAFF, normalizeHeader, todayIso } from '../../utils/planHeader'
 import { BASEMAPS } from '../../basemaps'
-import { crsLabel } from '../../utils/coordinateUtils'
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../../utils/mapConstants'
 import { PAPER_FORMATS, SCALES, TITLE_COLUMN_MM } from '../../utils/planExport'
 import { planSheets } from '../../utils/planLayout'
@@ -49,6 +48,9 @@ function heightLabel(epsg) {
   return known ? `EPSG ${code} – ${known.label}` : `EPSG ${code}`
 }
 
+/** Pause in typing after which the title block is saved to the project [ms]. */
+const HEADER_SAVE_DELAY = 500
+
 export default function PlanExportPanel({ t, project, language, onShowPlanPreview }) {
   const [kind, setKind]         = useState('site')   // 'site' | 'schematic'
   const [scaleKey, setScaleKey] = useState('1000')
@@ -68,8 +70,8 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     kilometrage: true,
   })
   const [background, setBackground] = useState('none')
-  const [blockStyle, setBlockStyle] = useState('compact')
   const [header, setHeader] = useState(() => normalizeHeader(loadPlanHeader(project.id)))
+  const blockStyle = header.style
   const [busy, setBusy]     = useState(false)
   const [status, setStatus] = useState(null)   // { msg, error }
 
@@ -79,34 +81,71 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
   // legitimately be missing — the plan then simply states no kilometrage.
   const kmLines = loadKmLines(project.id)
   const namedTracks = tracks.filter(tr => (tr.elements ?? []).length > 0)
+  // The header is project metadata; typing in it saves once the typing pauses
+  // rather than writing the whole project on every key.
+  const pendingHeader = useRef(null)
+  const saveTimer = useRef(null)
+  const flushHeader = () => {
+    clearTimeout(saveTimer.current)
+    saveTimer.current = null
+    if (!pendingHeader.current) return
+    const ok = savePlanHeader(project.id, pendingHeader.current)
+    pendingHeader.current = null
+    if (!ok) setStatus({ msg: t('plan_logo_failed'), error: true })
+  }
+  const flushRef = useRef(flushHeader)
+  flushRef.current = flushHeader
+  useEffect(() => () => flushRef.current(), [])
   const changeHeader = (next) => {
     setHeader(next)
-    if (!savePlanHeader(project.id, next)) setStatus({ msg: t('plan_logo_failed'), error: true })
+    pendingHeader.current = next
+    clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => flushRef.current(), HEADER_SAVE_DELAY)
   }
+  const setBlockStyle = (style) => changeHeader({ ...header, style })
 
   const fill = (key, vals) => Object.entries(vals)
     .reduce((s, [k, v]) => s.replace(`{${k}}`, v), t(key))
 
   /**
-   * The title block for a plan. `simple` is what the simple block states —
-   * plan kind, scale and the lines under the title — and `footer` the three
-   * cells at the foot of the detailed one.
+   * The title block for a plan. Both blocks state the same: plan kind, scale,
+   * sheet and what else `lines` holds, reference system and paper, who drew
+   * and checked it — the detailed one adds parties, sketch and signatures.
    */
-  const titleBlockOf = ({ legend, simple, footer, current }) => ({
-    ...(blockStyle === 'full' ? fullBlockFields(header, footer, current) : simpleBlockFields(header, simple)),
-    title: project.title || t('plan_default_title'),
-    legend,
+  const titleBlockOf = ({ legend, kind: kindName, scale, zone, lines, current }) => {
+    const plan = {
+      kind: kindName, scale, lines,
+      epsg: zone ? String(zone) : '-',
+      format: formatText(),
+    }
+    return {
+      ...(blockStyle === 'full' ? fullBlockFields(header, plan, current) : simpleBlockFields(header, plan)),
+      title: project.title || t('plan_default_title'),
+      legend,
+    }
+  }
+  /** A date the calendar gave (yyyy-mm-dd) as the plan states it; anything else as typed. */
+  const planDate = (value) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '')
+    if (!m) return value ?? ''
+    return language === 'en' ? `${m[3]}/${m[2]}/${m[1]}` : `${m[3]}.${m[2]}.${m[1]}`
+  }
+  /**
+   * Who drew and checked the plan, dated. Without an entry the plan is drawn
+   * today, by whoever created the project.
+   */
+  const staffRow = (h, key) => ({
+    date: planDate(h.staff[key].date || (key === 'drawn' ? todayIso() : '')),
+    name: h.staff[key].name || (key === 'drawn' ? project.creator ?? '' : ''),
   })
-  /** Month and year, as a drawing is dated. */
-  const monthYear = () => {
-    const now = new Date()
-    return `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`
+  const formatText = () => {
+    const [w, hgt] = PAPER_FORMATS[paperKey]
+    return `${hgt} × ${w} mm`
   }
 
   /** The overview: the network as a strip along the kilometrage. */
   const assembleSchematic = (current) => {
     const zone = current.find(tr => tr.epsg)?.epsg ?? null
-    const scale = `1:${Number(schematicScaleKey).toLocaleString('de-DE')}`
     const plan = buildSchematicPlan({
       tracks: current,
       switches: loadSwitches(project.id),
@@ -122,17 +161,10 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
         next: t('plan_sheet_next'), prev: t('plan_sheet_prev'), range: t('plan_km_range'),
         status: Object.fromEntries(STATUSES.map(s => [s, t(`status_${s}`)])),
       },
+      // A schematic plan is to no scale, so its scale reads "-".
       titleBlock: titleBlockOf({
         legend: t('plan_schematic_legend'),
-        simple: {
-          kind: t('plan_kind_schematic_short'), scale: `${scale} ${t('plan_schematic_lengths')}`,
-          lines: [t('plan_sheet_of'), `${crsLabel(zone)} · ${t('plan_field_format')} ${paperKey} mm`],
-        },
-        footer: [
-          [`${t('plan_field_scale')} ${scale}`, t('plan_schematic_lengths')],
-          [t('plan_sheet_of')],
-          [crsLabel(zone), `${t('plan_field_format')} ${paperKey} mm`],
-        ],
+        kind: t('plan_kind_schematic_short'), scale: '-', zone, lines: [t('plan_sheet_of')],
         current,
       }),
     })
@@ -193,49 +225,44 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
       },
       titleBlock: titleBlockOf({
         legend: t('plan_legend'),
-        simple: {
-          kind: t('plan_default_title'), scale: `1:${scaleKey}`,
-          lines: [t('plan_sheet_of'), `${crsLabel(zone)} · ${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
-        },
-        footer: [
-          [`${t('plan_field_scale')} 1:${scaleKey}`, `${t('plan_field_format')} ${paperKey} mm`],
-          [t('plan_sheet_of')],
-          [crsLabel(zone), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
-        ],
+        kind: t('plan_default_title'), scale: `1:${scaleKey}`, zone,
+        lines: [t('plan_sheet_of'), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
         current,
       }),
     })
     return { plan, layout }
   }
 
-  /** What the simple title block reads: kind, scale, content, who drew and checked it, the file. */
-  const simpleBlockFields = (h, simple) => ({
-    ...simple,
+  /** What the simple title block reads: kind, scale, content, who drew and checked it, EPSG and paper. */
+  const simpleBlockFields = (h, plan) => ({
+    ...plan,
     labels: {
-      kind: t('plan_block_kind'), scale: t('plan_block_scale'),
-      content: t('plan_block_content'), file: t('plan_block_file'),
+      kind: t('plan_block_kind'), scale: t('plan_block_scale'), content: t('plan_block_content'),
+      epsg: t('plan_block_epsg'), format: t('plan_block_format'),
     },
-    staff: [['drawn', 'plan_staff_drawn_short'], ['checked', 'plan_staff_checked_short']].map(([key, labelKey]) => ({
-      label: t(labelKey),
-      date: h.staff[key].date || (key === 'drawn' ? monthYear() : ''),
-      name: h.staff[key].name,
-    })),
+    staff: [['drawn', 'plan_staff_drawn_short'], ['checked', 'plan_staff_checked_short']]
+      .map(([key, labelKey]) => ({ label: t(labelKey), ...staffRow(h, key) })),
     dateHeader: t('plan_staff_date'),
     nameHeader: t('plan_staff_name'),
-    fileName: filenameBase(),
   })
 
   /**
    * What the detailed title block reads on top of the title.
    * Without an image of its own the location sketch draws the network.
    */
-  const fullBlockFields = (h, footer, current) => ({
+  const fullBlockFields = (h, plan, current) => ({
     full: true,
-    subtitle: h.subtitle,
+    // Without a plan title of its own the third title line names the plan kind.
+    subtitle: h.subtitle || plan.kind,
     range: h.range,
     index: h.index,
     code: h.code,
-    footer,
+    // The cells at the foot state what the simple block states, in the same words.
+    footer: [
+      [`${t('plan_block_scale')} ${plan.scale}`, `${t('plan_block_format')} ${plan.format}`],
+      [plan.lines[0]],
+      [`${t('plan_block_epsg')} ${plan.epsg}`, ...plan.lines.slice(1)],
+    ],
     sketchImage: h.sketch,
     sketch: h.sketch ? null : sketchLines(current),
     sketchCaption: t('plan_sketch_caption'),
@@ -245,7 +272,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
       logo: h.parties[key].logo,
       signs,
     })),
-    staff: STAFF.map(({ key, labelKey }) => ({ label: t(labelKey), ...h.staff[key] })),
+    staff: STAFF.map(({ key, labelKey }) => ({ label: t(labelKey), ...staffRow(h, key) })),
     dateCaption: t('plan_place_date'),
     signCaption: t('plan_signature'),
     dateHeader: t('plan_staff_date'),

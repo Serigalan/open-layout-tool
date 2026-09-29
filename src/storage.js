@@ -23,17 +23,28 @@ export function saveSettings(patch) {
 
 /**
  * The title block of a plan — parties with logo and address, who drew and
- * checked it. Kept per project but outside the project record: logos are
- * images, and images have no business riding through every undo snapshot.
+ * checked it — as the project's metadata, `project.planHeader`, so it travels
+ * with the project into a backup. A header kept by an earlier version under
+ * its own localStorage key is read until the project first saves one.
  */
 export function loadPlanHeader(projectId) {
+  const project = getCache().find(p => p.id === projectId)
+  if (project?.planHeader) return project.planHeader
   try { return JSON.parse(localStorage.getItem(PLAN_HEADER_KEY_PREFIX + projectId) ?? 'null') } catch { return null }
 }
 
-/** False when the store refused the write (a large logo can fill it). */
+/**
+ * Store the header on the project. Not an undo step: it is what the plans
+ * are signed with, not the alignment, and its logos would ride through every
+ * snapshot (see pushUndo). False when the store refused the write.
+ */
 export function savePlanHeader(projectId, header) {
+  const project = getCache().find(p => p.id === projectId)
+  if (!project) return false
+  project.planHeader = header
   try {
-    localStorage.setItem(PLAN_HEADER_KEY_PREFIX + projectId, JSON.stringify(header))
+    persist(projectId)
+    localStorage.removeItem(PLAN_HEADER_KEY_PREFIX + projectId)
     return true
   } catch { return false }
 }
@@ -112,9 +123,12 @@ function getCache() {
   return _cache
 }
 
+/** A project's plan header stays out of the snapshots — see savePlanHeader. */
+const withoutHeader = (key, value) => (key === 'planHeader' ? undefined : value)
+
 function pushUndo() {
   if (_undoDepth > 0) return
-  _undoStack.push(JSON.stringify(getCache()))
+  _undoStack.push(JSON.stringify(getCache(), withoutHeader))
   if (_undoStack.length > MAX_UNDO) _undoStack.shift()
 }
 
@@ -193,7 +207,10 @@ export function canUndo() {
 
 export function undo() {
   if (_undoStack.length === 0) return false
+  // The headers are not part of the snapshot, so they are kept as they are now.
+  const headers = new Map(getCache().filter(p => p.planHeader).map(p => [p.id, p.planHeader]))
   _cache = JSON.parse(_undoStack.pop())
+  for (const p of _cache) if (headers.has(p.id)) p.planHeader = headers.get(p.id)
   persist()
   return true
 }
