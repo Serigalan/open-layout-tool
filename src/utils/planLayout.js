@@ -79,8 +79,8 @@ function fixedRotation(mode, manualRot) {
  * sheet on one side and overflows on the other. The shift is measured on the
  * page and taken back into the plane through the inverse of the rotation.
  */
-function centredOn(points, rotDeg, pageW, pageH, scaleDen, seed) {
-  const transform = makeTransform(seed, pageW, pageH, scaleDen, rotDeg)
+function centredOn(points, rotDeg, pageW, pageH, scaleDen, seed, reserve = 0) {
+  const transform = makeTransform(seed, pageW, pageH, scaleDen, rotDeg, reserve)
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
   for (const [e, n] of points) {
     const [x, y] = transform(e, n)
@@ -92,7 +92,7 @@ function centredOn(points, rotDeg, pageW, pageH, scaleDen, seed) {
   if (!Number.isFinite(minX)) return seed
 
   const mmPerM = 1000 / scaleDen
-  const dRx = ((minX + maxX) / 2 - pageW / 2) / mmPerM
+  const dRx = ((minX + maxX) / 2 - (pageW - reserve) / 2) / mmPerM
   const dRy = (pageH / 2 - (minY + maxY) / 2) / mmPerM
   const th = rotDeg * Math.PI / 180
   const cos = Math.cos(th)
@@ -131,18 +131,18 @@ function stationRangeFits(track, from, to, transform, area) {
 }
 
 /** One sheet over a station range of the lead track. */
-function sheetOver(track, from, to, pageW, pageH, scaleDen, mode, manualRot) {
+function sheetOver(track, from, to, pageW, pageH, scaleDen, mode, manualRot, reserve) {
   const a = trackPointAt(track, from)
   const b = trackPointAt(track, to)
   if (!a || !b) return null
   const rotDeg = fixedRotation(mode, manualRot) ?? rotationFor(bearingBetween(a.point, b.point))
   const chordMid = { e: (a.point[0] + b.point[0]) / 2, n: (a.point[1] + b.point[1]) / 2 }
-  const center = centredOn(rangePoints(track, from, to), rotDeg, pageW, pageH, scaleDen, chordMid)
+  const center = centredOn(rangePoints(track, from, to), rotDeg, pageW, pageH, scaleDen, chordMid, reserve)
   return {
     center,
     rotDeg,
     station: [from, to],
-    transform: makeTransform(center, pageW, pageH, scaleDen, rotDeg),
+    transform: makeTransform(center, pageW, pageH, scaleDen, rotDeg, reserve),
   }
 }
 
@@ -159,15 +159,17 @@ function sheetOver(track, from, to, pageW, pageH, scaleDen, mode, manualRot) {
  * @param {boolean} o.split        cut a long alignment into several sheets
  * @param {number} o.overlapM      overlap between neighbouring sheets [m]
  * @param {{next:string, prev:string}} o.jointText  labels, `{n}` = sheet number
+ * @param {number} o.reserve       column on the right kept free of the drawing [mm]
  * @returns {{ sheets, leadTrack, fits, extent }}
  *          `fits` says whether everything drawn is inside the sheets.
  */
 export function planSheets({
   tracks, paperKey, scaleDen, mode = 'auto', rotDeg = 0, leadTrackId = null,
   split = true, overlapM = 50, jointText = { next: 'Sheet {n} →', prev: '← Sheet {n}' },
+  reserve = 0,
 }) {
   const [pageW, pageH] = PAPER_FORMATS[paperKey]
-  const area = drawingArea(pageW, pageH)
+  const area = drawingArea(pageW, pageH, reserve)
   const mmPerM = 1000 / scaleDen
   const drawn = tracks.filter(tr => (tr.elements ?? []).length > 0)
   const lead = pickLeadTrack(drawn, leadTrackId)
@@ -186,7 +188,7 @@ export function planSheets({
       extent,
       sheets: [{
         center, rotDeg: rot, index: 0, count: 1, station: [0, 0], joints: [],
-        transform: makeTransform(center, pageW, pageH, scaleDen, rot),
+        transform: makeTransform(center, pageW, pageH, scaleDen, rot, reserve),
       }],
     }
   }
@@ -197,8 +199,8 @@ export function planSheets({
   const wholeRot = fixedRotation(mode, rotDeg)
     ?? rotationFor(bearingBetween(trackPointAt(lead, 0).point, trackPointAt(lead, total).point))
   const wholeCenter = centredOn(allDrawnPoints(drawn), wholeRot, pageW, pageH, scaleDen,
-    { e: (bb.minE + bb.maxE) / 2, n: (bb.minN + bb.maxN) / 2 })
-  const wholeTransform = makeTransform(wholeCenter, pageW, pageH, scaleDen, wholeRot)
+    { e: (bb.minE + bb.maxE) / 2, n: (bb.minN + bb.maxN) / 2 }, reserve)
+  const wholeTransform = makeTransform(wholeCenter, pageW, pageH, scaleDen, wholeRot, reserve)
   const wholeFits = everythingFits(drawn, wholeTransform, area)
 
   if (wholeFits || !split) {
@@ -224,7 +226,7 @@ export function planSheets({
     let sheet = null
     for (let shrink = 0; shrink <= MAX_SHRINK; shrink++) {
       const to = Math.min(from + span, total)
-      sheet = sheetOver(lead, from, to, pageW, pageH, scaleDen, mode, rotDeg)
+      sheet = sheetOver(lead, from, to, pageW, pageH, scaleDen, mode, rotDeg, reserve)
       if (!sheet) break
       if (stationRangeFits(lead, from, to, sheet.transform, area)) break
       if (shrink < MAX_SHRINK) span /= 2

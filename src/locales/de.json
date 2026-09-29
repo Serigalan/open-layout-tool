@@ -535,7 +535,7 @@
   "scurve_cant_mismatch": "Die beiden Gleise tragen verschiedene Überhöhung – das Zwischenelement bräuchte eine Rampe.",
   "scurve_cant_over": "Überhöhung über 100 mm: darauf lässt sich keine Weiche legen.",
   "plan_title": "Zeichenausgabe (PDF)",
-  "plan_intro": "Erzeugt einen maßstäblichen Lageplan der Gleise als PDF.",
+  "plan_intro": "Erzeugt einen maßstäblichen Lageplan oder einen schematischen Übersichtsplan der Gleise als PDF.",
   "plan_scale": "Maßstab",
   "plan_paper": "Papierformat",
   "plan_rotation": "Drehung",
@@ -674,5 +674,16 @@
   "plan_staff_date": "Datum",
   "plan_staff_name": "Name",
   "plan_place_date": "Ort, Datum",
-  "plan_signature": "Unterschrift"
+  "plan_signature": "Unterschrift",
+  "plan_kind": "Planart",
+  "plan_kind_site": "Lageplan (maßstäblich)",
+  "plan_kind_schematic": "Übersichtsplan (schematisch)",
+  "plan_reference_track": "Bezugsgleis",
+  "plan_corridor": "Korridor um das Bezugsgleis (m)",
+  "plan_show_platforms": "Bahnsteige und Betriebsstellen",
+  "plan_schematic_lengths": "(nur Längen)",
+  "plan_schematic_legend": "Schematischer Übersichtsplan – nur die Längen entlang der Strecke sind maßstäblich, Gleisabstände nicht",
+  "plan_schematic_crowded": "Zu viele Gleise nebeneinander – Korridor verkleinern oder ein anderes Bezugsgleis wählen.",
+  "plan_schematic_km_missing": "Keine Kilometrierungslinie im Projekt – die Leiste zeigt dann die Stationierung entlang des Bezugsgleises.",
+  "plan_schematic_file": "Uebersicht"
 }

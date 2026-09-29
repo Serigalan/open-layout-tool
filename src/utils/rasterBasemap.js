@@ -76,13 +76,14 @@ function renderStyleToCanvas(bounds, sizePx, style) {
  * @param {number} p.pageH    page height [mm]
  * @param {number} p.scaleDen scale denominator
  * @param {number} p.rotDeg   rotation [deg] (same as the plan)
+ * @param {number} p.reserve  column on the right kept free [mm] (same as the plan)
  * @param {string|object} p.style  MapLibre style to render; a plain map by default
  * @returns {Promise<null | {dataUrl, xMm, yMm, wMm, hMm}>}
  */
 export async function fetchBasemapImage({
-  center, zone, pageW, pageH, scaleDen, rotDeg, style = DEFAULT_STYLE,
+  center, zone, pageW, pageH, scaleDen, rotDeg, style = DEFAULT_STYLE, reserve = 0,
 }) {
-  const drawWmm = pageW - 2 * MARGIN_MM
+  const drawWmm = pageW - 2 * MARGIN_MM - reserve
   const drawHmm = pageH - 2 * MARGIN_MM
 
   // Page-pixel output resolution (cap the long side).
@@ -91,7 +92,7 @@ export async function fetchBasemapImage({
   const canvasW = Math.round(drawWmm * pxPerMm)
   const canvasH = Math.round(drawHmm * pxPerMm)
 
-  const transform = makeTransform(center, pageW, pageH, scaleDen, rotDeg)
+  const transform = makeTransform(center, pageW, pageH, scaleDen, rotDeg, reserve)
 
   // Ground half-extent the page covers; the diagonal covers any rotation.
   const mmPerM = 1000 / scaleDen

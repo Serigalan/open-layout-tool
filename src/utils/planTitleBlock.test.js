@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildPlan } from './planModel'
+import { TITLE_COLUMN_MM, drawingArea, makeTransform } from './planExport'
 
 const block = (over = {}) => ({
   full: true, title: 'GSH Erfurt - Bebra', subtitle: 'Streckenband',
@@ -39,5 +40,23 @@ describe('full title block', () => {
   it('keeps the compact block when `full` is not set', () => {
     const items = build({ title: 'T', rows: [['a', 'b']] })
     expect(items.some(i => i.type === 'text' && i.parts[0].t === 'Bauherr:')).toBe(false)
+  })
+})
+
+describe('title column', () => {
+  it('keeps the drawing clear of the column the full block takes', () => {
+    const group = build(block()).find(i => i.type === 'group')
+    expect(group.clip.x + group.clip.w).toBeCloseTo(840 - 12 - TITLE_COLUMN_MM)
+  })
+
+  it('centres the drawing in what is left', () => {
+    const t = makeTransform({ e: 0, n: 0 }, 840, 297, 1000, 0, TITLE_COLUMN_MM)
+    const area = drawingArea(840, 297, TITLE_COLUMN_MM)
+    expect(t(0, 0)[0]).toBeCloseTo(area.x + area.w / 2)
+  })
+
+  it('leaves the compact block over the full width', () => {
+    const group = build({ title: 'T', rows: [] }).find(i => i.type === 'group')
+    expect(group.clip.w).toBeCloseTo(840 - 24)
   })
 })

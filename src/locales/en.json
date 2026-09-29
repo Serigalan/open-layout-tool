@@ -535,7 +535,7 @@
   "scurve_cant_mismatch": "The two tracks carry different cant – the middle element would need a ramp.",
   "scurve_cant_over": "Cant above 100 mm: no turnout may be laid there.",
   "plan_title": "Plan export (PDF)",
-  "plan_intro": "Creates a to-scale site plan of the tracks as a PDF.",
+  "plan_intro": "Creates a to-scale site plan or a schematic overview plan of the tracks as a PDF.",
   "plan_scale": "Scale",
   "plan_paper": "Paper size",
   "plan_rotation": "Rotation",
@@ -674,5 +674,16 @@
   "plan_staff_date": "Date",
   "plan_staff_name": "Name",
   "plan_place_date": "Place, date",
-  "plan_signature": "Signature"
+  "plan_signature": "Signature",
+  "plan_kind": "Plan type",
+  "plan_kind_site": "Site plan (to scale)",
+  "plan_kind_schematic": "Overview plan (schematic)",
+  "plan_reference_track": "Reference track",
+  "plan_corridor": "Corridor around the reference track (m)",
+  "plan_show_platforms": "Platforms and stations",
+  "plan_schematic_lengths": "(lengths only)",
+  "plan_schematic_legend": "Schematic overview – only lengths along the line are to scale, track spacing is not",
+  "plan_schematic_crowded": "Too many tracks side by side – narrow the corridor or choose another reference track.",
+  "plan_schematic_km_missing": "No kilometrage line in the project – the ruler then shows the chainage along the reference track.",
+  "plan_schematic_file": "Overview"
 }

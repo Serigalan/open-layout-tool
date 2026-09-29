@@ -17,9 +17,17 @@ export const SCALES = { '500': 500, '1000': 1000 }
 
 export const MARGIN_MM = 12   // outer margin around the drawing area
 
-/** Drawing area of a sheet, in page millimetres. */
-export function drawingArea(pageW, pageH) {
-  return { x: MARGIN_MM, y: MARGIN_MM, w: pageW - 2 * MARGIN_MM, h: pageH - 2 * MARGIN_MM }
+/** Width [mm] of the column on the right that a detailed title block takes. */
+export const TITLE_COLUMN_MM = 180
+/** Width [mm] of the compact title block. */
+export const COMPACT_BLOCK_MM = 110
+
+/**
+ * Drawing area of a sheet, in page millimetres. `reserve` is a column on the
+ * right kept free of the drawing (title block, legend).
+ */
+export function drawingArea(pageW, pageH, reserve = 0) {
+  return { x: MARGIN_MM, y: MARGIN_MM, w: pageW - 2 * MARGIN_MM - reserve, h: pageH - 2 * MARGIN_MM }
 }
 
 /**
@@ -30,11 +38,12 @@ export function drawingArea(pageW, pageH) {
  * @param scaleDen scale denominator (500 or 1000)
  * @param rotDeg   rotation of the content, clockwise, in degrees.
  *                 0 = North up, 180 = South up.
+ * @param reserve  column on the right kept free [mm]; the centre moves left by half of it
  * @returns function (e, n) → [xMm, yMm]
  */
-export function makeTransform(center, pageW, pageH, scaleDen, rotDeg) {
+export function makeTransform(center, pageW, pageH, scaleDen, rotDeg, reserve = 0) {
   const mmPerM = 1000 / scaleDen
-  const cx = pageW / 2
+  const cx = (pageW - reserve) / 2
   const cy = pageH / 2
   const th = (rotDeg * Math.PI) / 180
   const cos = Math.cos(th)

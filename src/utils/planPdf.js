@@ -17,6 +17,14 @@ const PT_PER_MM = 72 / 25.4
 const SUB_SIZE = 0.75
 const SUB_DROP = 0.3
 
+/**
+ * The core fonts only carry WinAnsi. A string with any glyph beyond it is
+ * written as UTF-16 instead, which a viewer shows letter-spaced and garbled —
+ * so the arrows the sheet joints use are spelled out in what the font has.
+ */
+const WIN_ANSI_STANDIN = { '→': '->', '←': '<-' }
+const pdfSafe = (str) => str.replace(/[→←]/g, ch => WIN_ANSI_STANDIN[ch])
+
 const hexToRgb = (hex) => {
   const h = hex.replace('#', '')
   return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16))
@@ -158,7 +166,8 @@ function drawText(doc, item) {
 
   // Measure first: the parts are laid out along the text's own axis, so a
   // centred or right-aligned run has to start a known distance back.
-  const widths = item.parts.map(p => {
+  const parts = item.parts.map(p => ({ ...p, t: pdfSafe(p.t) }))
+  const widths = parts.map(p => {
     const size = item.size * (p.sub ? SUB_SIZE : 1)
     doc.setFontSize(size * PT_PER_MM)
     return doc.getTextWidth(p.t)
@@ -167,7 +176,7 @@ function drawText(doc, item) {
   const shift = item.align === 'center' ? -total / 2 : item.align === 'right' ? -total : 0
 
   let offset = shift
-  item.parts.forEach((p, i) => {
+  parts.forEach((p, i) => {
     const size = item.size * (p.sub ? SUB_SIZE : 1)
     const drop = p.sub ? item.size * SUB_DROP : 0
     doc.setFontSize(size * PT_PER_MM)

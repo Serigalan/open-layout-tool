@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { loadTracks, loadSwitches, loadKmLines, loadPlanHeader, savePlanHeader } from '../../storage'
+import { loadTracks, loadSwitches, loadKmLines, loadPlatforms, loadPlanHeader, savePlanHeader } from '../../storage'
 import PlanHeaderFields from './PlanHeaderFields'
 import { PARTIES, STAFF, normalizeHeader } from '../../utils/planHeader'
 import { BASEMAPS } from '../../basemaps'
 import { crsLabel } from '../../utils/coordinateUtils'
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../../utils/mapConstants'
-import { PAPER_FORMATS, SCALES } from '../../utils/planExport'
+import { PAPER_FORMATS, SCALES, TITLE_COLUMN_MM } from '../../utils/planExport'
 import { planSheets } from '../../utils/planLayout'
 import { buildPlan } from '../../utils/planModel'
 import { renderPdf } from '../../utils/planPdf'
+import { buildSchematicPlan, SCHEMATIC_SCALES } from '../../utils/planSchematicPlan'
+import { DEFAULT_CORRIDOR } from '../../utils/planSchematic'
 import { fetchBasemapImage } from '../../utils/rasterBasemap'
 import { downloadBlob } from '../../utils/fileUtils'
 
@@ -31,6 +33,14 @@ const CONTENT_KEYS = [
   ['trackNames', 'plan_show_names'],
 ]
 
+/** What the overview can show, keyed as buildSchematicPlan reads it. */
+const SCHEMATIC_CONTENT_KEYS = [
+  ['km',         'plan_show_km'],
+  ['switches',   'plan_show_switches'],
+  ['trackNames', 'plan_show_names'],
+  ['platforms',  'plan_show_platforms'],
+]
+
 function heightLabel(epsg) {
   const code = epsg ?? DEFAULT_HEIGHT_EPSG
   const known = HEIGHT_DATUMS.find(d => String(d.epsg) === String(code))
@@ -38,7 +48,13 @@ function heightLabel(epsg) {
 }
 
 export default function PlanExportPanel({ t, project, language, onShowPlanPreview }) {
+  const [kind, setKind]         = useState('site')   // 'site' | 'schematic'
   const [scaleKey, setScaleKey] = useState('1000')
+  const [schematicScaleKey, setSchematicScaleKey] = useState('10000')
+  const [corridor, setCorridor] = useState(DEFAULT_CORRIDOR)
+  const [schematicShow, setSchematicShow] = useState({
+    km: true, switches: true, trackNames: true, platforms: true,
+  })
   const [paperKey, setPaperKey] = useState('297x840')
   const [mode, setMode]         = useState('auto')
   const [rotation, setRotation] = useState(0)
@@ -69,6 +85,39 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
   const fill = (key, vals) => Object.entries(vals)
     .reduce((s, [k, v]) => s.replace(`{${k}}`, v), t(key))
 
+  const titleBlockOf = (rows, legend) => ({
+    ...(blockStyle === 'full' ? fullBlockFields(header) : {}),
+    title: project.title || t('plan_default_title'),
+    rows,
+    legend,
+  })
+  const today = () => new Date().toLocaleDateString(language === 'en' ? 'en-GB' : 'de-DE')
+
+  /** The overview: the network as a strip along the kilometrage. */
+  const assembleSchematic = (current) => {
+    const zone = current.find(tr => tr.epsg)?.epsg ?? null
+    const plan = buildSchematicPlan({
+      tracks: current,
+      switches: loadSwitches(project.id),
+      platforms: loadPlatforms(project.id),
+      kmLines: loadKmLines(project.id),
+      leadTrackId: leadTrackId || null,
+      paperKey,
+      scaleDen: SCHEMATIC_SCALES[schematicScaleKey],
+      corridor,
+      show: schematicShow,
+      comma: language !== 'en',
+      texts: { next: t('plan_sheet_next'), prev: t('plan_sheet_prev') },
+      titleBlock: titleBlockOf([
+        [`${t('plan_field_scale')} 1:${Number(schematicScaleKey).toLocaleString('de-DE')} ${t('plan_schematic_lengths')}`,
+          t('plan_sheet_of')],
+        [crsLabel(zone), today()],
+        [`${t('plan_field_format')} ${paperKey} mm`, ''],
+      ], t('plan_schematic_legend')),
+    })
+    return { plan, layout: { fits: plan.fits } }
+  }
+
   /** Layout → model, optionally with a basemap fetched for every sheet. */
   const assemble = async (backgroundKey) => {
     const backdrop = BACKGROUNDS.find(b => b.key === backgroundKey) ?? BACKGROUNDS[0]
@@ -77,9 +126,12 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
       setStatus({ msg: t('plan_no_tracks'), error: true })
       return null
     }
+    if (kind === 'schematic') return assembleSchematic(current)
     const scaleDen = SCALES[scaleKey]
     const [pageW, pageH] = PAPER_FORMATS[paperKey]
+    const reserve = blockStyle === 'full' ? TITLE_COLUMN_MM : 0
     const layout = planSheets({
+      reserve,
       tracks: current, paperKey, scaleDen, mode, rotDeg: rotation,
       leadTrackId: leadTrackId || null, split, overlapM: overlap,
       jointText: { next: t('plan_sheet_next'), prev: t('plan_sheet_prev') },
@@ -93,7 +145,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
         setStatus({ msg: fill('plan_background_busy', { i: i + 1, n: layout.sheets.length }), error: false })
         try {
           basemaps.push(await fetchBasemapImage({
-            center: sheet.center, zone, pageW, pageH, scaleDen, rotDeg: sheet.rotDeg, style,
+            center: sheet.center, zone, pageW, pageH, scaleDen, rotDeg: sheet.rotDeg, style, reserve,
           }))
         } catch {
           basemaps.push(null)
@@ -108,7 +160,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
       switches: loadSwitches(project.id),
       kmLines: loadKmLines(project.id),
       sheets: layout.sheets,
-      paperKey, scaleDen, show, basemaps,
+      paperKey, scaleDen, show, basemaps, reserve,
       basemapOpacity: backdrop.opacity ?? 0.4,
       comma: language !== 'en',
       switchText: {
@@ -118,17 +170,11 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
         rBranch: t('switch_r_sub_branch'), rMain: t('switch_r_sub_main'),
         cantException: t('switch_plan_cant_exception'),
       },
-      titleBlock: {
-        ...(blockStyle === 'full' ? fullBlockFields(header) : {}),
-        title: project.title || t('plan_default_title'),
-        rows: [
-          [`${t('plan_field_scale')} 1:${scaleKey}`, t('plan_sheet_of')],
-          [crsLabel(zone), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
-          [`${t('plan_field_format')} ${paperKey} mm`,
-            new Date().toLocaleDateString(language === 'en' ? 'en-GB' : 'de-DE')],
-        ],
-        legend: t('plan_legend'),
-      },
+      titleBlock: titleBlockOf([
+        [`${t('plan_field_scale')} 1:${scaleKey}`, t('plan_sheet_of')],
+        [crsLabel(zone), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
+        [`${t('plan_field_format')} ${paperKey} mm`, today()],
+      ], t('plan_legend')),
     })
     return { plan, layout }
   }
@@ -153,12 +199,14 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     setBusy(true)
     setStatus({ msg: t('plan_busy'), error: false })
     try {
+      // Let the busy state paint before the layout takes the thread.
+      await new Promise(resolve => setTimeout(resolve, 30))
       const built = await assemble(background)
       if (!built) return
       after(built)
       setStatus(built.layout.fits
         ? { msg: fill('plan_sheets_built', { n: built.plan.sheets.length }), error: false }
-        : { msg: t('plan_overflow'), error: true })
+        : { msg: t(kind === 'schematic' ? 'plan_schematic_crowded' : 'plan_overflow'), error: true })
     } catch (err) {
       setStatus({ msg: `${t('plan_error')}: ${err.message}`, error: true })
     } finally {
@@ -166,8 +214,12 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     }
   }
 
-  const filenameBase = () =>
-    `${(project.title || t('plan_default_title')).replace(/\s+/g, '_')}_1-${scaleKey}`
+  const filenameBase = () => {
+    const base = (project.title || t('plan_default_title')).replace(/\s+/g, '_')
+    return kind === 'schematic'
+      ? `${base}_${t('plan_schematic_file')}_1-${schematicScaleKey}`
+      : `${base}_1-${scaleKey}`
+  }
 
   const handlePreview = () => run(({ plan }) => onShowPlanPreview?.({ plan, filenameBase: filenameBase() }))
   const handleExport  = () => run(({ plan }) => {
@@ -181,10 +233,26 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
 
       <div className="element-form">
         <div className="form-field">
-          <label>{t('plan_scale')}</label>
-          <select value={scaleKey} onChange={e => setScaleKey(e.target.value)}>
-            {Object.keys(SCALES).map(k => <option key={k} value={k}>1:{k}</option>)}
+          <label>{t('plan_kind')}</label>
+          <select value={kind} onChange={e => setKind(e.target.value)}>
+            <option value="site">{t('plan_kind_site')}</option>
+            <option value="schematic">{t('plan_kind_schematic')}</option>
           </select>
+        </div>
+
+        <div className="form-field">
+          <label>{t('plan_scale')}</label>
+          {kind === 'schematic' ? (
+            <select value={schematicScaleKey} onChange={e => setSchematicScaleKey(e.target.value)}>
+              {Object.keys(SCHEMATIC_SCALES).map(k => (
+                <option key={k} value={k}>1:{Number(k).toLocaleString('de-DE')}</option>
+              ))}
+            </select>
+          ) : (
+            <select value={scaleKey} onChange={e => setScaleKey(e.target.value)}>
+              {Object.keys(SCALES).map(k => <option key={k} value={k}>1:{k}</option>)}
+            </select>
+          )}
         </div>
 
         <div className="form-field">
@@ -194,26 +262,30 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
           </select>
         </div>
 
-        <div className="form-field">
-          <label>{t('plan_orientation')}</label>
-          <select value={mode} onChange={e => setMode(e.target.value)}>
-            <option value="auto">{t('plan_orientation_auto')}</option>
-            <option value="north">{t('plan_orientation_north')}</option>
-            <option value="south">{t('plan_orientation_south')}</option>
-            <option value="manual">{t('plan_orientation_manual')}</option>
-          </select>
-        </div>
+        {kind === 'site' && (
+          <>
+            <div className="form-field">
+              <label>{t('plan_orientation')}</label>
+              <select value={mode} onChange={e => setMode(e.target.value)}>
+                <option value="auto">{t('plan_orientation_auto')}</option>
+                <option value="north">{t('plan_orientation_north')}</option>
+                <option value="south">{t('plan_orientation_south')}</option>
+                <option value="manual">{t('plan_orientation_manual')}</option>
+              </select>
+            </div>
 
-        {mode === 'manual' && (
-          <div className="form-field">
-            <label>{t('plan_rotation')}: {rotation}°</label>
-            <input type="range" min="0" max="359" step="1" value={rotation}
-              onChange={e => setRotation(Number(e.target.value))} />
-          </div>
+            {mode === 'manual' && (
+              <div className="form-field">
+                <label>{t('plan_rotation')}: {rotation}°</label>
+                <input type="range" min="0" max="359" step="1" value={rotation}
+                  onChange={e => setRotation(Number(e.target.value))} />
+              </div>
+            )}
+          </>
         )}
 
         <div className="form-field">
-          <label>{t('plan_lead_track')}</label>
+          <label>{t(kind === 'schematic' ? 'plan_reference_track' : 'plan_lead_track')}</label>
           <select value={leadTrackId} onChange={e => setLeadTrackId(e.target.value)}>
             <option value="">{t('plan_lead_auto')}</option>
             {namedTracks.map(tr => (
@@ -222,40 +294,67 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
           </select>
         </div>
 
-        <label className="transition-curve-row">
-          <input type="checkbox" checked={split} onChange={e => setSplit(e.target.checked)} />
-          <span>{t('plan_split')}</span>
-        </label>
-
-        {split && (
+        {kind === 'schematic' ? (
           <div className="form-field">
-            <label>{t('plan_overlap')}</label>
-            <input type="number" min="0" step="10" value={overlap}
-              onChange={e => setOverlap(Math.max(0, Number(e.target.value) || 0))} />
+            <label>{t('plan_corridor')}</label>
+            <input type="number" min="20" step="50" value={corridor}
+              onChange={e => setCorridor(Math.max(20, Number(e.target.value) || DEFAULT_CORRIDOR))} />
           </div>
+        ) : (
+          <>
+            <label className="transition-curve-row">
+              <input type="checkbox" checked={split} onChange={e => setSplit(e.target.checked)} />
+              <span>{t('plan_split')}</span>
+            </label>
+
+            {split && (
+              <div className="form-field">
+                <label>{t('plan_overlap')}</label>
+                <input type="number" min="0" step="10" value={overlap}
+                  onChange={e => setOverlap(Math.max(0, Number(e.target.value) || 0))} />
+              </div>
+            )}
+          </>
         )}
       </div>
 
       <div className="element-form">
         <span className="create-element-section">{t('plan_content')}</span>
-        {CONTENT_KEYS.map(([key, labelKey]) => (
-          <label className="transition-curve-row" key={key}>
-            <input type="checkbox" checked={show[key]}
-              onChange={e => setShow({ ...show, [key]: e.target.checked })} />
-            <span>{t(labelKey)}</span>
-          </label>
-        ))}
-        {show.kilometrage && kmLines.length === 0 && (
-          <p className="form-error">{t('plan_km_missing')}</p>
-        )}
-        <div className="form-field">
-          <label>{t('plan_background')}</label>
-          <select value={background} onChange={e => setBackground(e.target.value)}>
-            {BACKGROUNDS.map(b => (
-              <option key={b.key} value={b.key}>{t(b.labelKey)}</option>
+        {kind === 'schematic' ? (
+          <>
+            {SCHEMATIC_CONTENT_KEYS.map(([key, labelKey]) => (
+              <label className="transition-curve-row" key={key}>
+                <input type="checkbox" checked={schematicShow[key]}
+                  onChange={e => setSchematicShow({ ...schematicShow, [key]: e.target.checked })} />
+                <span>{t(labelKey)}</span>
+              </label>
             ))}
-          </select>
-        </div>
+            {schematicShow.km && kmLines.length === 0 && (
+              <p className="form-error">{t('plan_schematic_km_missing')}</p>
+            )}
+          </>
+        ) : (
+          <>
+            {CONTENT_KEYS.map(([key, labelKey]) => (
+              <label className="transition-curve-row" key={key}>
+                <input type="checkbox" checked={show[key]}
+                  onChange={e => setShow({ ...show, [key]: e.target.checked })} />
+                <span>{t(labelKey)}</span>
+              </label>
+            ))}
+            {show.kilometrage && kmLines.length === 0 && (
+              <p className="form-error">{t('plan_km_missing')}</p>
+            )}
+            <div className="form-field">
+              <label>{t('plan_background')}</label>
+              <select value={background} onChange={e => setBackground(e.target.value)}>
+                {BACKGROUNDS.map(b => (
+                  <option key={b.key} value={b.key}>{t(b.labelKey)}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="element-form">

@@ -1,4 +1,4 @@
-import { MARGIN_MM, PAPER_FORMATS, makeTransform } from './planExport'
+import { COMPACT_BLOCK_MM, MARGIN_MM, PAPER_FORMATS, TITLE_COLUMN_MM, makeTransform } from './planExport'
 import { kmForTrackPoint } from './kmLineUtils'
 import { formatKm } from './kmLineMath'
 import {
@@ -660,18 +660,23 @@ function trackItems(sheet, ctx) {
   return items
 }
 
-function frameItems(pageW, pageH) {
+function frameItems(pageW, pageH, reserve = 0) {
   const w = pageW - 2 * MARGIN_MM
   const h = pageH - 2 * MARGIN_MM
-  return [path([
+  const items = [path([
     ['M', MARGIN_MM, MARGIN_MM], ['L', MARGIN_MM + w, MARGIN_MM],
     ['L', MARGIN_MM + w, MARGIN_MM + h], ['L', MARGIN_MM, MARGIN_MM + h], ['Z'],
   ], { width: STYLE.frame })]
+  if (reserve > 0) {
+    const x = pageW - MARGIN_MM - reserve
+    items.push(line(x, MARGIN_MM, x, MARGIN_MM + h, { width: STYLE.frame }))
+  }
+  return items
 }
 
 function titleBlockItems(pageW, pageH, block, sheet) {
   const rows = block.rows ?? []
-  const w = 110
+  const w = COMPACT_BLOCK_MM
   const h = 8 + rows.length * 7
   const x = pageW - MARGIN_MM - w
   const y = pageH - MARGIN_MM - h
@@ -712,7 +717,7 @@ function containedImage(logo, x, y, w, h) {
 }
 
 /** Width and height [mm] of the full title block. */
-const FULL_BLOCK = { w: 180, partiesH: 46, titleH: 30 }
+const FULL_BLOCK = { w: TITLE_COLUMN_MM, partiesH: 46, titleH: 30 }
 
 /**
  * The title block of a construction drawing: one column each for the client,
@@ -777,9 +782,10 @@ function fullTitleBlockItems(pageW, pageH, block, sheet) {
     const l = fill([left, right].filter(Boolean).join('  ·  '))
     items.push(text(tx, ty + 19 + k * 4, [{ t: l }], { size: fitSize(l, 2.5, tw) }))
   })
+  // The column above the block is free, so the legend heads it.
   if (block.legend) {
-    items.push(text(x - 4, y + h - 1, [{ t: block.legend }],
-      { size: STYLE.sizeLegend, align: 'right', color: STYLE.switchFill }))
+    items.push(text(x + 3, MARGIN_MM + 5, [{ t: block.legend }],
+      { size: fitSize(block.legend, STYLE.sizeLegend, w - 6) }))
   }
   return items
 }
@@ -838,11 +844,14 @@ function northArrowItems(rotDeg) {
  * @param {Array}   o.basemaps   per sheet: { dataUrl, xMm, yMm, wMm, hMm } or null
  * @param {number}  o.basemapOpacity
  * @param {boolean} o.comma      German decimal comma
+ * @param {number}  o.reserve    column on the right kept free of the drawing [mm];
+ *                               a `full` title block takes TITLE_COLUMN_MM by default
  * @returns {{ pageW, pageH, sheets: Array<{ index, count, items }> }}
  */
 export function buildPlan({
   tracks, switches = [], kmLines = [], sheets, paperKey, scaleDen, titleBlock,
   show = {}, basemaps = [], basemapOpacity = 0.4, comma = true, switchText = {},
+  reserve = titleBlock?.full ? TITLE_COLUMN_MM : 0,
 }) {
   const swText = { ...SWITCH_TEXT, ...switchText }
   const [pageW, pageH] = PAPER_FORMATS[paperKey]
@@ -850,12 +859,12 @@ export function buildPlan({
     labels: true, switches: true, trackNames: true, mainPoints: true,
     kilometrage: false, ...show,
   }
-  const clip = { x: MARGIN_MM, y: MARGIN_MM, w: pageW - 2 * MARGIN_MM, h: pageH - 2 * MARGIN_MM }
+  const clip = { x: MARGIN_MM, y: MARGIN_MM, w: pageW - 2 * MARGIN_MM - reserve, h: pageH - 2 * MARGIN_MM }
 
   const built = sheets.map((sheet, i) => {
     const withTransform = {
       ...sheet,
-      transform: makeTransform(sheet.center, pageW, pageH, scaleDen, sheet.rotDeg),
+      transform: makeTransform(sheet.center, pageW, pageH, scaleDen, sheet.rotDeg, reserve),
     }
     const items = []
 
@@ -874,7 +883,7 @@ export function buildPlan({
         { tracks, switches, kmLines, show: shown, comma, scaleDen, switchText: swText }), clip),
     })
 
-    items.push(...frameItems(pageW, pageH))
+    items.push(...frameItems(pageW, pageH, reserve))
     items.push(...scaleBarItems(pageH, scaleDen, comma))
     items.push(...northArrowItems(sheet.rotDeg))
     if (titleBlock) {
@@ -888,3 +897,13 @@ export function buildPlan({
 
   return { pageW, pageH, sheets: built }
 }
+
+/** Building blocks for other plan kinds that share the sheet furniture. */
+export {
+  path as pathItem, text as textItem, line as lineItem, circlePath, cullItems, frameItems, fitSize,
+}
+
+/** The title block a plan asks for — detailed or compact. */
+export const titleBlockFor = (pageW, pageH, block, sheet) => (block.full
+  ? fullTitleBlockItems(pageW, pageH, block, sheet)
+  : titleBlockItems(pageW, pageH, block, sheet))
