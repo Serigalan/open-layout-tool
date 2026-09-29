@@ -658,7 +658,7 @@
   "elevation_vcurve_hint": "Radius of the vertical curve at the gradient change in m; 0 removes it.",
   "plan_titleblock": "Title block",
   "plan_titleblock_compact": "Compact",
-  "plan_titleblock_full": "Detailed (client, project management, contractor, planner)",
+  "plan_titleblock_full": "Detailed",
   "plan_subtitle": "Plan title",
   "plan_party_owner": "Client",
   "plan_party_lead": "Project management",
@@ -689,7 +689,6 @@
   "plan_party_contractor": "Contractor",
   "plan_range": "Section (second title line)",
   "plan_range_hint": "empty: kilometrage of the sheet, where known",
-  "plan_index": "Index",
   "plan_code": "Code",
   "plan_sketch": "Location sketch",
   "plan_sketch_caption": "Location:",
@@ -712,5 +711,8 @@
   "plan_staff_checked_short": "checked",
   "plan_kind_schematic_short": "Overview plan",
   "plan_block_epsg": "EPSG:",
-  "plan_block_format": "Format:"
+  "plan_block_format": "Format:",
+  "plan_party_signs": "Line for place, date and signature",
+  "plan_notes": "Notes below the planner",
+  "plan_notes_hint": "one line per field (max. 6), e.g.\nPosition: ETRS89/UTM (EPSG 25832)\nHeights: DHHN2016"
 }

@@ -658,7 +658,7 @@
   "elevation_vcurve_hint": "Radius der Ausrundung am Neigungswechsel in m; 0 entfernt sie.",
   "plan_titleblock": "Schriftfeld",
   "plan_titleblock_compact": "Kompakt",
-  "plan_titleblock_full": "Ausführlich (Bauherr, Projektleitung, Auftragnehmer, Planung)",
+  "plan_titleblock_full": "Ausführlich",
   "plan_subtitle": "Plantitel",
   "plan_party_owner": "Bauherr",
   "plan_party_lead": "Projektleitung",
@@ -689,7 +689,6 @@
   "plan_party_contractor": "Auftragnehmer",
   "plan_range": "Abschnitt (zweite Titelzeile)",
   "plan_range_hint": "leer: km-Bereich des Blatts, wo bekannt",
-  "plan_index": "Index",
   "plan_code": "Kürzel",
   "plan_sketch": "Lageskizze",
   "plan_sketch_caption": "Lageskizze:",
@@ -712,5 +711,8 @@
   "plan_staff_checked_short": "gepr.",
   "plan_kind_schematic_short": "Übersichtsplan",
   "plan_block_epsg": "EPSG:",
-  "plan_block_format": "Format:"
+  "plan_block_format": "Format:",
+  "plan_party_signs": "Zeile für Ort, Datum und Unterschrift",
+  "plan_notes": "Zusatzangaben unter Planung",
+  "plan_notes_hint": "eine Zeile je Feld (max. 6), z. B.\nLagesystem: ETRS89/UTM (EPSG 25832)\nHöhensystem: DHHN2016"
 }

@@ -7,6 +7,7 @@ const block = (over = {}) => ({
   full: true, title: 'GSH Erfurt - Bebra', subtitle: 'Streckenband', range: 'km 190,0 bis km 200,0',
   rows: [['1:1000', 'Blatt {i} / {n}']],
   footer: [['Maßstab 1:1000'], ['Blatt {i} / {n}'], []],
+  scale: 'M 1:1000',
   code: 'MS',
   parties: ['Bauherr:', 'Projektleitung:', 'Auftragnehmer:', 'Planung:'].map((label, i) => ({
     label, lines: [`Firma ${i}`, 'Strasse 1'], signs: i !== 2,
@@ -48,6 +49,28 @@ describe('full title block', () => {
     expect(dotted).toHaveLength(6)
     const x0 = 840 - FRAME.right - 180
     expect(dotted.some(d => d.d[0][1] > x0 + 90 && d.d[0][1] < x0 + 135)).toBe(false)
+  })
+
+  it('states the scale in the cell above the code', () => {
+    const x0 = 840 - FRAME.right - 180
+    const y0 = 297 - FRAME.bottom - 134
+    const scale = build(block()).find(i => i.type === 'text' && i.parts[0].t === 'M 1:1000')
+    expect(scale.x).toBeCloseTo(x0 + 9)
+    expect(scale.y).toBeGreaterThan(y0 + 99)
+    expect(scale.y).toBeLessThan(y0 + 104)
+  })
+
+  it('writes the notes into the rows below the planner, one each', () => {
+    const x0 = 840 - FRAME.right - 180
+    const y0 = 297 - FRAME.bottom - 134
+    const notes = ['Lagesystem: EPSG 25832', 'Höhensystem: DHHN2016']
+    const items = build(block({ notes })).filter(i => i.type === 'text' && notes.includes(i.parts[0].t))
+    expect(items).toHaveLength(2)
+    items.forEach((item, k) => {
+      expect(item.x).toBeGreaterThan(x0 + 130)
+      expect(item.y).toBeGreaterThan(y0 + 35 + k * 8)
+      expect(item.y).toBeLessThan(y0 + 43 + k * 8)
+    })
   })
 
   it('takes the kilometrage of the sheet when no section is given', () => {
@@ -181,6 +204,14 @@ describe('stored title block', () => {
     expect(toIsoDate('2026-04-15')).toBe('2026-04-15')
     expect(normalizeHeader({ staff: { drawn: { date: '04/2026', name: 'J. Wolf' } } }).staff.drawn)
       .toEqual({ date: '2026-04-01', name: 'J. Wolf' })
+  })
+
+  it('lets every party sign but the contractor until told otherwise', () => {
+    const parties = normalizeHeader({ parties: { lead: { address: 'DB', signs: false } } }).parties
+    expect(parties.owner.signs).toBe(true)
+    expect(parties.lead).toEqual({ address: 'DB', logo: null, signs: false })
+    expect(parties.contractor.signs).toBe(false)
+    expect(normalizeHeader(null).notes).toBe('')
   })
 
   it('keeps the chosen block style, and falls back to the simple one', () => {

@@ -1,7 +1,7 @@
 /**
  * The editable fields of a plan's title block. The parties follow the columns
- * of the block from left to right; only those that sign get the lines for
- * place, date and signature.
+ * of the block from left to right; `signs` is whether a party gets the lines
+ * for place, date and signature until the user says otherwise.
  */
 export const PARTIES = [
   { key: 'owner',      labelKey: 'plan_party_owner',      signs: true },
@@ -16,6 +16,9 @@ export const STAFF = [
 ]
 
 export const BLOCK_STYLES = ['compact', 'full']
+
+/** The free rows below the planner's column, one line of the notes each. */
+export const NOTE_ROWS = 6
 
 const pad = (n) => String(n).padStart(2, '0')
 
@@ -43,10 +46,10 @@ export const emptyHeader = () => ({
   style: 'compact',
   subtitle: '',
   range: '',
-  index: '',
   code: '',
+  notes: '',
   sketch: null,
-  parties: Object.fromEntries(PARTIES.map(p => [p.key, { address: '', logo: null }])),
+  parties: Object.fromEntries(PARTIES.map(p => [p.key, { address: '', logo: null, signs: p.signs }])),
   staff: Object.fromEntries(STAFF.map(s => [s.key, { date: '', name: '' }])),
 })
 
@@ -57,8 +60,8 @@ export const normalizeHeader = (stored) => {
     style: BLOCK_STYLES.includes(stored?.style) ? stored.style : 'compact',
     subtitle: stored?.subtitle ?? '',
     range: stored?.range ?? '',
-    index: stored?.index ?? '',
     code: stored?.code ?? '',
+    notes: stored?.notes ?? '',
     sketch: stored?.sketch ?? null,
     parties: Object.fromEntries(PARTIES.map(p => [p.key, { ...base.parties[p.key], ...stored?.parties?.[p.key] }])),
     staff: Object.fromEntries(STAFF.map(s => {

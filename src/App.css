@@ -1704,6 +1704,21 @@
   user-select: none;
 }
 
+/* A file picker is a label styled as a button, and a check box row is a label
+   too: inside a form field neither takes the field caption's look. */
+.form-field label.panel-btn {
+  font-size: 14px;
+  font-weight: normal;
+  color: white;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.form-field label.transition-curve-row {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .transition-curve-row span {
   font-family: system-ui, sans-serif;
   font-size: 13px;

@@ -815,7 +815,7 @@ const FOCUS_COLOR = '#ec0016'
 /*
  * The rules of the full block, in block millimetres from its top left corner,
  * as [x1, y1, x2, y2]: the four party columns, the location sketch with the
- * revision table beside it and two free rows below, and the strip with index,
+ * revision table beside it and two free rows below, and the strip with scale,
  * staff, plan title and the three cells at the foot.
  */
 const RULES_THICK = [
@@ -834,6 +834,8 @@ const RULES_THIN = [
 const RULES_TABLE = [43, 51, 59, 67, 75].map(y => [130, y, 180, y])
 /** Where the location sketch is drawn, clear of its caption. */
 const SKETCH_BOX = { x: 2, y: 41, w: 126, h: 40.5 }
+/** The free rows below the planner's column, for notes such as the reference systems. */
+const NOTES_BOX = { x: 130, y: 35, w: 50, row: 8, rows: 6 }
 
 /**
  * The network in a box, north up, with the part the sheet shows in red. Points
@@ -879,9 +881,10 @@ function sketchItems(sketch, focus, box) {
  * The title block of a construction drawing, laid out as the DB Streckenband
  * sheet it copies: a column each for client, project management, contractor
  * and planner (heading, logo, address and — where the party signs — lines for
- * place, date and signature); the location sketch beside an empty revision
- * table; and at the foot index, code, who drew, edited and checked the sheet,
- * the plan title in three lines and three cells for scale, sheet and the rest.
+ * place, date and signature); the location sketch beside a table whose rows
+ * take free notes; and at the foot scale, code, who drew, edited and checked
+ * the sheet, the plan title in three lines and three cells for format, sheet
+ * and the rest.
  * The caller supplies every text and image.
  */
 function fullTitleBlockItems(pageW, pageH, block, sheet) {
@@ -931,7 +934,11 @@ function fullTitleBlockItems(pageW, pageH, block, sheet) {
 
   put(2, 39.2, block.sketchCaption, 2.8)
 
-  centred(9, 102.45, block.index || '-', 2.47, 16)
+  ;(block.notes ?? []).slice(0, NOTES_BOX.rows).forEach((l, k) => {
+    put(NOTES_BOX.x + 1.5, NOTES_BOX.y + k * NOTES_BOX.row + 4.9, l, fitSize(l, 2.47, NOTES_BOX.w - 3))
+  })
+
+  centred(9, 102.6, block.scale || '-', 2.82, 16)
   centred(9, 111, block.code, 5.64, 16)
   ;(block.staff ?? []).slice(0, 3).forEach((row, k) => {
     const y = 102.4 + k * 5
@@ -1010,7 +1017,7 @@ function northArrowItems(rotDeg) {
  * @param {string}  o.paperKey   key of PAPER_FORMATS
  * @param {number}  o.scaleDen   scale denominator
  * @param {object}  o.titleBlock { title, rows: [[left, right]], legend }; {i}/{n} = sheet.
- *                          With `full`: { title, range, subtitle, index, code, parties,
+ *                          With `full`: { title, range, subtitle, scale, code, notes, parties,
  *                          staff, footer: [[lines] × 3], sketch | sketchImage, ...captions }
  * @param {object}  o.show       which annotations to draw
  * @param {Array}   o.basemaps   per sheet: { dataUrl, xMm, yMm, wMm, hMm } or null

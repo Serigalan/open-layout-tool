@@ -255,23 +255,25 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     // Without a plan title of its own the third title line names the plan kind.
     subtitle: h.subtitle || plan.kind,
     range: h.range,
-    index: h.index,
+    // The cell above the code states the scale; a schematic plan has none.
+    scale: plan.scale === '-' ? '-' : `M ${plan.scale}`,
     code: h.code,
+    notes: h.notes.split('\n').map(l => l.trim()).filter(Boolean),
     // The cells at the foot state what the simple block states, in the same words.
     footer: [
-      [`${t('plan_block_scale')} ${plan.scale}`, `${t('plan_block_format')} ${plan.format}`],
+      [`${t('plan_block_format')} ${plan.format}`],
       [plan.lines[0]],
       [`${t('plan_block_epsg')} ${plan.epsg}`, ...plan.lines.slice(1)],
     ],
     sketchImage: h.sketch,
     sketch: h.sketch ? null : sketchLines(current),
     sketchCaption: t('plan_sketch_caption'),
-    parties: PARTIES.map(({ key, labelKey, signs }) => ({
-      label: `${t(labelKey)}:`,
-      lines: h.parties[key].address.split('\n').map(l => l.trim()).filter(Boolean),
-      logo: h.parties[key].logo,
-      signs,
-    })),
+    parties: PARTIES.map(({ key, labelKey }) => {
+      const party = h.parties[key]
+      const lines = party.address.split('\n').map(l => l.trim()).filter(Boolean)
+      // Lines to sign on only under a column that names someone.
+      return { label: `${t(labelKey)}:`, lines, logo: party.logo, signs: party.signs && (lines.length > 0 || !!party.logo) }
+    }),
     staff: STAFF.map(({ key, labelKey }) => ({ label: t(labelKey), ...staffRow(h, key) })),
     dateCaption: t('plan_place_date'),
     signCaption: t('plan_signature'),
