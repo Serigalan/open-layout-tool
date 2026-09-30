@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { loadTracks, replaceAllTracks } from '../../../storage'
-import { TYPE_NAMES, SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
+import { SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackHover from '../../../hooks/useTrackHover'
 import TrackFields from '../TrackFields'
@@ -8,6 +8,7 @@ import StatusField from '../StatusField'
 import { trackStatus } from '../../../utils/planStatus'
 import HeightDatumField from '../HeightDatumField'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, DEFAULT_HEIGHT_EPSG, mapIsLive } from '../../../utils/mapConstants'
+import { trackTypeName } from '../../../utils/trackGroups'
 
 export default function EditPropertiesForm({ t, map, project, onCommitted, onTrackSaved }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -51,7 +52,7 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
       setName(track.name ?? '')
       setStatus(trackStatus(track))
       setField('owner',       track.owner       ?? 'DB')
-      setField('type',        TYPE_NAMES[track.trackType]   ?? 'line_track')
+      setField('type',        trackTypeName(track, 'line_track'))
       setField('lineNumber',  track.lineNumber  ?? '')
       setField('lineName',    track.lineName    ?? '')
       setField('side',        SIDE_NAMES[track.side]        ?? 'sorting')

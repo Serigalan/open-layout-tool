@@ -11,6 +11,7 @@ import {
   GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
 } from '../../utils/gaugeProfiles'
 import useTrackHover from '../../hooks/useTrackHover'
+import GroupedTrackList from './GroupedTrackList'
 
 /**
  * The cross section of a track, at a station of it: the clearance profile the
@@ -124,17 +125,9 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
       {!track && <p>{t('cross_section_hint')}</p>}
 
       {tracks.length > 0 && (
-        <div className="create-element-options">
-          {tracks.map((tr) => (
-            <button
-              key={tr.id}
-              className={`create-element-btn${trackId === tr.id ? ' active' : ''}`}
-              onClick={() => setTrackId(tr.id)}
-            >
-              {tr.name || tr.id.slice(0, 8)}
-            </button>
-          ))}
-        </div>
+        <GroupedTrackList t={t} tracks={tracks}
+          isActive={(tr) => tr.id === trackId}
+          onPick={(tr) => setTrackId(tr.id)} />
       )}
 
       <div className="element-form">

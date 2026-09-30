@@ -454,6 +454,92 @@
   color: var(--color-primary);
 }
 
+/* A project's tracks under the line or station they belong to. */
+.track-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.track-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.track-group-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  background: none;
+  border: none;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a2e;
+  cursor: pointer;
+  text-align: left;
+}
+
+.track-group-toggle:hover .track-group-title {
+  color: var(--color-primary);
+}
+
+.track-group-caret {
+  display: inline-block;
+  width: 10px;
+  color: #888;
+  transition: transform 0.15s;
+}
+
+.track-group-caret.open {
+  transform: rotate(90deg);
+}
+
+.track-group-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-group-count {
+  font-weight: 400;
+  font-size: 11px;
+  color: #888;
+}
+
+.track-group-all {
+  padding: 2px 6px;
+  background: none;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  color: #555;
+  cursor: pointer;
+}
+
+.track-group-all:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.track-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 16px;
+}
+
+.create-element-btn.track-group-item {
+  padding: 6px 10px;
+}
+
 .element-form {
   display: flex;
   flex-direction: column;

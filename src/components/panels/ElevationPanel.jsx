@@ -4,6 +4,7 @@ import { fillHeights } from '../../utils/elevationFill'
 import useTrackPick from '../../hooks/useTrackPick'
 import { chosenTerrainSource } from '../../utils/elevationSource'
 import TerrainSourceSelect from '../TerrainSourceSelect'
+import GroupedTrackList from './GroupedTrackList'
 
 /**
  * Vertical alignment: pick a track to see its profile in the overlay, and
@@ -47,17 +48,9 @@ export default function ElevationPanel({ t, map, project, profileTrackId, onShow
       <h2>{t('elevation_title')}</h2>
       <p>{t('elevation_hint')}</p>
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
-      <div className="create-element-options">
-        {tracks.map((track) => (
-          <button
-            key={track.id}
-            className={`create-element-btn${profileTrackId === track.id ? ' active' : ''}`}
-            onClick={() => onShowProfile?.(track.id)}
-          >
-            {track.name || track.id.slice(0, 8)}
-          </button>
-        ))}
-      </div>
+      <GroupedTrackList t={t} tracks={tracks}
+        isActive={(track) => track.id === profileTrackId}
+        onPick={(track) => onShowProfile?.(track.id)} />
       <div className="form-field" style={{ marginTop: 12 }}>
         <label>{t('terrain_source')}</label>
         <TerrainSourceSelect t={t} value={terrainSource} onChange={setTerrainSource} />

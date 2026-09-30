@@ -175,6 +175,14 @@ export const ChangeDirectionIcon = () => (
   </MenuIcon>
 )
 
+// Tracks gathered under one line or station: the bracket that holds them.
+export const AssignTracksIcon = () => (
+  <MenuIcon>
+    <path d="M4 3 H2 V13 H4" />
+    <path d="M7 4 H14 M7 8 H14 M7 12 H14" />
+  </MenuIcon>
+)
+
 export const DeleteTrackIcon = () => (
   <MenuIcon>
     <path d="M3 4 H13 M6 4 V2 H10 V4 M5 4 V13 H11 V4" />

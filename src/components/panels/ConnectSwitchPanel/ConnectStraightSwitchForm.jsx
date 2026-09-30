@@ -4,7 +4,8 @@ import {
 } from '../../../storage'
 import { elementPath } from '../../../utils/lineLookup'
 import { computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, nodeUtm } from '../../../utils/elementUtils'
-import { TYPE_NAMES, SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
+import { SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
+import { trackTypeName } from '../../../utils/trackGroups'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import useDerivedField from '../../../hooks/useDerivedField'
@@ -203,7 +204,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
 
       // Main track: pre-populate from selected track; its name follows from these
       setMainField('owner',       track.owner       ?? 'DB')
-      setMainField('type',        TYPE_NAMES[track.trackType]   ?? 'station_track')
+      setMainField('type',        trackTypeName(track, 'station_track'))
       setMainField('lineNumber',  track.lineNumber  ?? '')
       setMainField('lineName',    track.lineName    ?? '')
       setMainField('side',        SIDE_NAMES[track.side]        ?? 'sorting')

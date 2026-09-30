@@ -3,7 +3,8 @@ import {
   loadTracks, saveTrack, saveSwitch, addElementToTrack, generateId, recalcAbsLengths, withUndo,
 } from '../../../storage'
 import { resolveEndBearing, nodeUtm } from '../../../utils/elementUtils'
-import { TYPE_NAMES, SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
+import { SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
+import { trackTypeName } from '../../../utils/trackGroups'
 import {
   CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius,
   computeCrossingGeometryFromPortA, crossingElements,
@@ -138,7 +139,7 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
       // The new legs inherit the picked track's metadata: the main route
       // continues its line over the crossing.
       setField('owner',       track.owner       ?? 'DB')
-      setField('type',        TYPE_NAMES[track.trackType]   ?? 'line_track')
+      setField('type',        trackTypeName(track, 'line_track'))
       setField('lineNumber',  track.lineNumber  ?? '')
       setField('lineName',    track.lineName    ?? '')
       setField('side',        SIDE_NAMES[track.side]        ?? 'sorting')

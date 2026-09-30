@@ -14,6 +14,7 @@ import { fetchBasemapImage } from '../../utils/rasterBasemap'
 import { sketchLines } from '../../utils/planSketch'
 import { STATUSES } from '../../utils/planStatus'
 import { downloadBlob } from '../../utils/fileUtils'
+import { groupHeading, groupTracks, trackListLabel } from '../../utils/trackGroups'
 
 /**
  * Backdrops a plan can be drawn over. A plain map is the safe default; an
@@ -376,8 +377,12 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
           <label>{t(kind === 'schematic' ? 'plan_reference_track' : 'plan_lead_track')}</label>
           <select value={leadTrackId} onChange={e => setLeadTrackId(e.target.value)}>
             <option value="">{t('plan_lead_auto')}</option>
-            {namedTracks.map(tr => (
-              <option key={tr.id} value={tr.id}>{tr.name || tr.id.slice(0, 8)}</option>
+            {groupTracks(namedTracks).map(group => (
+              <optgroup key={group.key} label={groupHeading(t, group)}>
+                {group.tracks.map(tr => (
+                  <option key={tr.id} value={tr.id}>{trackListLabel(tr)}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>

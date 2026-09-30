@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { loadTracks } from '../../../storage'
+import GroupedTrackList from '../GroupedTrackList'
 import useTrackPick from '../../../hooks/useTrackPick'
 import EditLengthForm from './EditLengthForm'
 import EditPropertiesForm from './EditPropertiesForm'
@@ -8,9 +9,10 @@ import DeleteForm from './DeleteForm'
 import DeleteTrackForm from './DeleteTrackForm'
 import DeleteSwitchForm from './DeleteSwitchForm'
 import SwitchStatusForm from './SwitchStatusForm'
+import AssignTracksForm from './AssignTracksForm'
 import {
   BackIcon, EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
-  ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon, PhysicsIcon, RegelwerkIcon,
+  ChangeDirectionIcon, AssignTracksIcon, DeleteTrackIcon, DeleteSwitchIcon, PhysicsIcon, RegelwerkIcon,
 } from '../../../components/icons'
 
 export default function EditElementPanel({ t, map, project, trackTableId, onTrackSaved, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints }) {
@@ -56,6 +58,14 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
     </>
   )
 
+  if (page === 'assign_tracks') return (
+    <>
+      {backButton()}
+      <h2>{t('edit_assign_tracks')}</h2>
+      <AssignTracksForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+    </>
+  )
+
   if (page === 'delete') return (
     <>
       {backButton()}
@@ -71,17 +81,9 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
         {backButton(() => onShowTrackTable?.(null))}
         <h2>{t('edit_element_edit_tracks')}</h2>
         <p>{t('edit_tracks_hint')}</p>
-        <div className="create-element-options">
-          {tracks.map((track) => (
-            <button
-              key={track.id}
-              className="create-element-btn"
-              onClick={() => onShowTrackTable?.(track)}
-            >
-              {track.name || track.id.slice(0, 8)}
-            </button>
-          ))}
-        </div>
+        <GroupedTrackList t={t} tracks={tracks}
+          isActive={(track) => track.id === trackTableId}
+          onPick={(track) => onShowTrackTable?.(track)} />
       </>
     )
   }
@@ -142,6 +144,10 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
         <button className="create-element-btn" onClick={() => goto('edit_properties')}>
           <EditPropertiesIcon />
           {t('edit_track_properties')}
+        </button>
+        <button className="create-element-btn" onClick={() => goto('assign_tracks')}>
+          <AssignTracksIcon />
+          {t('edit_assign_tracks')}
         </button>
         <button className="create-element-btn" onClick={() => goto('change_direction')}>
           <ChangeDirectionIcon />

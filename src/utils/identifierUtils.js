@@ -7,9 +7,10 @@ export const TYPE_NAMES    = { 1: 'line_track', 2: 'station_track' }
 export const SIDE_NAMES    = { 1: 'sorting', 2: 'non_sorting' }
 
 /**
- * Returns the metadata fields relevant to the selected track type, plus the
- * height datum every track has. Fields from the other type are explicitly set
- * to null. Empty strings are stored as null.
+ * Returns the type and the metadata fields relevant to it, plus the height
+ * datum every track has. Fields of the other type are left as they are — a
+ * station track keeps the line number its kilometrage is read off. Empty
+ * strings are stored as null.
  */
 export function buildTypeFields(fields) {
   const str = v => (v != null && String(v).trim() !== '' ? String(v).trim() : null)
@@ -18,6 +19,7 @@ export function buildTypeFields(fields) {
 
   if (fields.type === 'line_track') {
     return {
+      trackType:  Number(TYPE_CODES.line_track),
       lineNumber: num(fields.lineNumber),
       lineName:   str(fields.lineName),
       side:       fields.side ? Number(SIDE_CODES[fields.side]) : null,
@@ -25,6 +27,7 @@ export function buildTypeFields(fields) {
     }
   }
   return {
+    trackType:   Number(TYPE_CODES.station_track),
     stationName: str(fields.stationName),
     uicStation:  str(fields.uicStation),
     trackNumber: num(fields.trackNumber),
