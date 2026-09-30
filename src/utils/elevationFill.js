@@ -38,20 +38,26 @@ function unifyJoints(projectId, written) {
 
 /**
  * The stations of a track the terrain still has to be read for: all of them
- * for a track without a vertical alignment, and the stretch past its last
- * point for a track that has grown — an element appended to it. A point the
- * user deleted is not read again; only new track is.
+ * for a track without a vertical alignment, the stretch past its last point
+ * for a track that has grown — an element appended to it — and the stretch
+ * before its first point where an imported gradient begins behind the track's
+ * begin. A point the user deleted is not read again; only track without
+ * heights is.
  */
 export function stationsToRead(track, force = false) {
   const length = trackLength(track)
   if (!(length > 0)) return []
   const heights = track.heights
   if (force || !(heights?.length >= 2)) return heightStations(length)
+  const first = heights[0].station
   const last = heights[heights.length - 1].station
-  if (length - last <= STATION_TOL) return []
-  // The grown stretch, stationed from the last point on, its own start left to
-  // the point that is already there.
-  return heightStations(length - last).slice(1).map(s => last + s)
+  // The stretch before the first point, where an imported gradient begins
+  // behind the track's begin, its own end left to the point already there…
+  const before = first > STATION_TOL ? heightStations(first).slice(0, -1) : []
+  // …and the grown stretch, stationed from the last point on, its own start
+  // left to the point that is already there.
+  const after = length - last > STATION_TOL ? heightStations(length - last).slice(1).map(s => last + s) : []
+  return [...before, ...after]
 }
 
 /**
@@ -88,7 +94,7 @@ export async function fillHeights(projectId, { force = false, trackId = null, so
     if (!track || Math.abs(trackLength(track) - job.length) > STATION_TOL) continue
     const kept = force ? [] : (track.heights ?? [])
     if (!force && kept.length && stationsToRead(track, false).length !== job.points.length) continue
-    byTrack.set(job.trackId, [...kept, ...fresh])
+    byTrack.set(job.trackId, [...kept, ...fresh].sort((a, b) => a.station - b.station))
     updated++
   }
   if (byTrack.size) setHeightsForTracks(projectId, byTrack, { undo: force })

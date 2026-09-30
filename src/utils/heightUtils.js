@@ -10,11 +10,15 @@ import { HEIGHT_POINT_SPACING, HEIGHT_SPLIT_MIN } from './mapConstants'
 // [m] and rv the radius of the vertical curve rounding the gradient change
 // there, absent where there is none. Ascending in station, the first at 0 and
 // the last at the track's length — the two that meet the neighbouring tracks.
+// An imported gradient can cover less than its track: then a stretch at either
+// end has no heights yet, its outermost point is no joint, and the stretch is
+// left to be read from the terrain on request (elevationFill).
 // The heights are design values — stated by hand, or read from the terrain on
 // request and edited from there; never filled in behind the user's back. A
 // track without a gradient has no `heights` at all.
 
 const STATION_TOL = 1e-6   // m — two stations this close are the same point
+const JOINT_TOL = 0.01     // m — a height point this close to a track end sits on its joint
 
 export const trackLength = (track) => (track.elements ?? []).reduce((s, el) => s + (el.length ?? 0), 0)
 
@@ -86,6 +90,12 @@ export function heightAt(heights, station) {
  */
 export function splitHeights(heights, sJ) {
   if (!heights?.length) return [undefined, undefined]
+  // A cut outside the stretch the heights cover leaves them whole on their own
+  // side: the other half gets none rather than a height made up for it.
+  if (sJ < heights[0].station - STATION_TOL) {
+    return [undefined, heights.map(p => ({ ...p, station: p.station - sJ }))]
+  }
+  if (sJ > heights[heights.length - 1].station + STATION_TOL) return [heights, undefined]
   // Where a point already sits on the cut it stays that point on both halves,
   // with everything it carries; otherwise the halves meet at the interpolated
   // height.
@@ -194,17 +204,21 @@ export function neighbourStub({ track, endpoint }) {
 
 // ── Joints: the point where tracks meet carries one height ──────────────────
 
-/** The index of a track's height point at one of its ends, or null without heights. */
+/**
+ * The index of a track's height point at one of its ends, or null without
+ * heights there — also where the heights stop short of that end.
+ */
 const endIndex = (track, end) => {
-  const n = track?.heights?.length ?? 0
-  return n ? (end === 'BEGIN' ? 0 : n - 1) : null
+  const h = track?.heights ?? []
+  if (!h.length) return null
+  if (end === 'BEGIN') return h[0].station <= JOINT_TOL ? 0 : null
+  return trackLength(track) - h[h.length - 1].station <= JOINT_TOL ? h.length - 1 : null
 }
 
 /** Which end of a track a height point index is at, or null for one in between. */
 export function endOfIndex(track, index) {
-  const n = track?.heights?.length ?? 0
-  if (index === 0) return 'BEGIN'
-  if (n && index === n - 1) return 'END'
+  if (index === 0 && endIndex(track, 'BEGIN') === 0) return 'BEGIN'
+  if (index > 0 && index === endIndex(track, 'END')) return 'END'
   return null
 }
 

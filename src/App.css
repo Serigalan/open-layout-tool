@@ -1871,6 +1871,43 @@
   color: #1a1a2e;
 }
 
+/* ProVI import — the archive's axes to pick from, one row each. */
+.provi-axis-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 2px 0;
+}
+
+.provi-axis-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+  user-select: none;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+}
+
+.provi-axis-row:hover {
+  background: #f0f0f8;
+}
+
+.provi-axis-name {
+  font-weight: 600;
+  color: #1a1a2e;
+  min-width: 64px;
+}
+
+.provi-axis-title {
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Info panel — one row per panel: icon + heading + description */
 .info-panel-list {
   display: flex;

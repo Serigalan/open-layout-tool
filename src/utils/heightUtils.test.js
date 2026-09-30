@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { heightAt, gradientAt, verticalCurve } from './heightUtils'
+import { heightAt, gradientAt, verticalCurve, splitHeights, endOfIndex } from './heightUtils'
 
 describe('gradientAt — the height a track is built at', () => {
   // +10 ‰ up to a crest at 100 m, −10 ‰ down from it, rounded with R 2000:
@@ -33,5 +33,31 @@ describe('gradientAt — the height a track is built at', () => {
     expect(gradientAt(plain, 100)).toBeCloseTo(101, 9)
     expect(gradientAt(undefined, 10)).toBe(null)
     expect(gradientAt([], 10)).toBe(null)
+  })
+})
+
+describe('heights that cover only part of their track', () => {
+  // An imported gradient beginning 100 m into a 400 m track and ending at 300 m.
+  const heights = [{ station: 100, z: 10 }, { station: 200, z: 12, rv: 4000 }, { station: 300, z: 11 }]
+  const track = { elements: [{ length: 400 }], heights }
+
+  it('split where they are leave the other half without any', () => {
+    expect(splitHeights(heights, 50)).toEqual([undefined,
+      [{ station: 50, z: 10 }, { station: 150, z: 12, rv: 4000 }, { station: 250, z: 11 }]])
+    expect(splitHeights(heights, 350)).toEqual([heights, undefined])
+  })
+
+  it('split inside them meet at the interpolated height, as always', () => {
+    const [a, b] = splitHeights(heights, 150)
+    expect(a).toEqual([{ station: 100, z: 10 }, { station: 150, z: 11 }])
+    expect(b).toEqual([{ station: 0, z: 11 }, { station: 50, z: 12, rv: 4000 }, { station: 150, z: 11 }])
+  })
+
+  it('have no point on a joint where they stop short of the end', () => {
+    expect(endOfIndex(track, 0)).toBe(null)
+    expect(endOfIndex(track, 2)).toBe(null)
+    const whole = { elements: [{ length: 400 }], heights: [{ station: 0, z: 1 }, { station: 400, z: 2 }] }
+    expect(endOfIndex(whole, 0)).toBe('BEGIN')
+    expect(endOfIndex(whole, 1)).toBe('END')
   })
 })

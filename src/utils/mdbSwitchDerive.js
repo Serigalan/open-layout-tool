@@ -82,8 +82,11 @@ export function offsetOnElement(el, pt, epsg) {
     : projectOnArcUtm(start, p, el.bearing, asRadius(el.radius))
   const s = Math.min(el.length ?? 0, Math.max(0, hit.along))
   // Beyond either end the foot of the perpendicular is off the element, so what
-  // is measured is the distance to the end itself.
-  if (hit.along >= 0 && hit.along <= (el.length ?? 0)) return { s, dist: Math.abs(hit.perp) }
+  // is measured is the distance to the end itself. A transition's projection
+  // stops at its ends instead of running past them, so for it an end says
+  // nothing about the point lying square to it — it is measured to the end too.
+  const atEnd = el.elementType === 2 && (s <= 0 || s >= (el.length ?? 0))
+  if (!atEnd && hit.along >= 0 && hit.along <= (el.length ?? 0)) return { s, dist: Math.abs(hit.perp) }
   const foot = pointAtStationUtm(el, s, epsg)
   return { s, dist: Math.hypot(foot.easting - pt[0], foot.northing - pt[1]) }
 }

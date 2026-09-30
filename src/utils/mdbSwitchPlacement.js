@@ -211,7 +211,7 @@ function pointIndex(payload) {
   return coords
 }
 
-function locatorFor(coords, systems, tracks) {
+function locatorFor(coords, systems, tracks, project = projectOnTrack) {
   const byEpsg = new Map()
   for (const t of tracks) {
     if (!byEpsg.has(t.epsg)) byEpsg.set(t.epsg, [])
@@ -227,7 +227,7 @@ function locatorFor(coords, systems, tracks) {
       const through = []
       const starting = []
       for (const track of byEpsg.get(epsg) ?? []) {
-        const hit = projectOnTrack(track, pt)
+        const hit = project(track, pt)
         if (!hit || hit.dist > tol) continue
         const total = trackLength(track)
         if (hit.station <= END_TOL) starting.push({ track, endpoint: 'BEGIN' })
@@ -457,11 +457,19 @@ function noteUnplaced(tracks, coords, systems, unit, reason) {
  * host has already been parted by an earlier switch is therefore looked up
  * again each round rather than from a list made once.
  *
+ * A file that says which tracks a switch joins narrows the search with
+ * `tracksFor(unit, tracks)`: where the survey delivers variants of one track
+ * lying on top of each other, the nearest track is not necessarily the one the
+ * switch belongs to. `project(track, point)` → { dist, station } replaces the
+ * projection onto the elements' chords, which is fast and good enough for the
+ * database's short elements but not where an arc is long enough to leave its
+ * chord by more than the tolerance.
+ *
  * Returns { tracks, switches, errors } — the tracks as they are after every
  * placement, ready to be saved as they are.
  */
 export function placeMdbSwitches(payload, tracks, units,
-  { existingSwitches = [], newId, derive = false } = {}) {
+  { existingSwitches = [], newId, derive = false, tracksFor = null, project = projectOnTrack } = {}) {
   const errors = []
   const switches = []
   const makeId = newId ?? generateId
@@ -525,7 +533,7 @@ export function placeMdbSwitches(payload, tracks, units,
     // its Weichenanfang — the database states the latter, the former follows
     // from the corners.
     const crossing = unit.kind !== 'turnout'
-    const found = locatorFor(coords, systems, current)(unit,
+    const found = locatorFor(coords, systems, tracksFor ? tracksFor(unit, current) : current, project)(unit,
       crossing ? (sys) => crossingCentre(coords, unit, sys) : null,
       crossing ? CROSSING_TOL : PLACE_TOL)
     if (found.reason) { give(unit, `${found.reason} – nicht gesetzt.`); continue }
@@ -540,7 +548,7 @@ export function placeMdbSwitches(payload, tracks, units,
       if (shape.reason) { give(unit, `${shape.reason} – nicht gesetzt.`); continue }
       const off = axisNote(found, shape)
       if (off) errors.push(`${unitLabel(unit)} (${unit.label}): ${off}`)
-      placed = placeOne({ ...found, ...shape }, unit, type, current, makeId)
+      placed = placeOne({ ...found, ...shape }, unit, type, current, makeId, project)
     }
     if (placed.error) { give(unit, placed.error); continue }
     current = placed.tracks
@@ -625,7 +633,7 @@ function placeAtToe(found, unit, type, tracks) {
   }
 }
 
-function placeOne(found, unit, type, tracks, makeId) {
+function placeOne(found, unit, type, tracks, makeId, project = projectOnTrack) {
   const { host, branch } = found
   const track = tracks.find(t => t.id === host.track.id) ?? host.track
   const straightLen = switchStraightLength(type)
@@ -635,7 +643,7 @@ function placeOne(found, unit, type, tracks, makeId) {
   // branch runs away from the toe, so the smaller angle against the track's own
   // direction at the toe is the one the turnout faces.
   const branchBearing = outwardBearing(branch.track, branch.endpoint)
-  const hit = projectOnTrack(track, found.point)
+  const hit = project(track, found.point)
   const at = elementAtStation(track.elements, hit.station)
   if (!at) return { error: 'Weichenpunkt liegt nicht auf dem Gleis – nicht gesetzt.' }
   const reversed = angleTo(branchBearing, at.el.bearing) > 90

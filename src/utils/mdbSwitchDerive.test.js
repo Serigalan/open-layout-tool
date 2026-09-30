@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { parseMdbPayload, mdbSwitchInventory, buildAllTracksFromMdb } from './mdbImport'
 import { placeMdbSwitches } from './mdbSwitchPlacement'
 import {
-  formFromGeometry, formInCatalogue, offsetOnTrack, deriveMdbTurnouts, AXIS_TOL,
+  formFromGeometry, formInCatalogue, offsetOnTrack, offsetOnElement, deriveMdbTurnouts, AXIS_TOL,
 } from './mdbSwitchDerive'
+import { computeClothoidUtm } from './clothoidUtils'
+import { pointAtStationUtm } from './heightUtils'
 import { endPointStraightUtm, endPointCurvedUtm } from './elementUtils'
 
 /**
@@ -258,5 +260,24 @@ describe('how far a point is from a track', () => {
       90, arcLen(190) / 2, 190)
     expect(offsetOnTrack(zweig, xy(mid)).dist).toBeLessThan(1e-6)
     expect(offsetOnTrack(zweig, xy(mid)).station).toBeCloseTo(arcLen(190) / 2, 6)
+  })
+
+  it('measures a point past the end of a transition to that end', () => {
+    // A clothoid from straight into R 500 over 60 m, heading east. A point 30 m
+    // beyond its end, level with it, is 30 m from the element — not the few
+    // centimetres a projection stopped at the end would read square to it.
+    const start = { easting: 1000, northing: 2000, zone: 25832 }
+    const cl = computeClothoidUtm(start, 90, 60, null, 500)
+    const el = { elementType: 2, transitionType: 'clothoid', r1: null, r2: 500, bearing: 90, length: 60,
+      startNode: [1000, 2000], endNode: [cl.endUtm.easting, cl.endUtm.northing], geometry: { coordinates: cl.coords } }
+    const [ex, ey] = el.endNode
+    const beyond = offsetOnElement(el, [ex + 30, ey], 25832)
+    expect(beyond.s).toBe(60)
+    expect(beyond.dist).toBeCloseTo(30, 6)
+    // A point on it, in the middle, is still found where it is.
+    const mid = pointAtStationUtm(el, 30, 25832)
+    const on = offsetOnElement(el, [mid.easting, mid.northing], 25832)
+    expect(on.dist).toBeLessThan(1e-6)
+    expect(on.s).toBeCloseTo(30, 6)
   })
 })

@@ -19,6 +19,7 @@ import { linkAllJoints } from '../../utils/trackLinkUtils'
 import { transformTrackToPlane } from '../../utils/planeTransform'
 import { loadGridsFor } from '../../utils/ntv2Grid'
 import { convertMdbOnServer, OptimizerError } from '../../utils/optimizerService'
+import ProviImportSection from './ProviImportSection'
 
 /**
  * How long the way to OSRD stays offered after an export [ms]. The file is in
@@ -795,6 +796,16 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
             ))}
           </div>
         )}
+      </ExchangeSection>
+
+      <ExchangeSection title={t('data_exchange_provi')} description={t('data_exchange_provi_desc')}>
+        <ProviImportSection
+          t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+          onReport={(source, counts, lines) => {
+            setReports(saveImportReport(project.id, { source, ...counts, lines }))
+            setOpenReport(null)
+          }}
+        />
       </ExchangeSection>
 
       <ExchangeSection
