@@ -2342,6 +2342,52 @@
   margin-top: 8px;
 }
 
+/* Deleting from the topology diagram: the selected track in a bar under the
+   header, a network from its section head, a loose track from its row. */
+.topology-graph-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 16px;
+  background: #fff8f0;
+  border-bottom: 1px solid #f0e0cc;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.topology-graph-toolbar-note {
+  color: #8a5a00;
+}
+
+.topology-graph-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.topology-graph-loose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topology-delete-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid #d62828;
+  border-radius: 3px;
+  background: #fff;
+  color: #d62828;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.topology-delete-btn:hover {
+  background: #d62828;
+  color: #fff;
+}
+
 /* The colour a switch's track is highlighted in, on the map and in the diagram. */
 .topology-swatch {
   display: inline-block;

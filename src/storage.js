@@ -399,6 +399,15 @@ export function deleteTrack(projectId, trackId) {
   persist(projectId)
 }
 
+/**
+ * Delete several tracks at once — a whole network from the topology diagram —
+ * as one undo step, each the way deleteTrack takes one: its switches and
+ * their own branch tracks with it.
+ */
+export function deleteTracks(projectId, trackIds) {
+  withUndo(() => { for (const id of trackIds) deleteTrack(projectId, id) })
+}
+
 export function saveTrack(projectId, track) {
   pushUndo()
   const project = getCache().find((p) => p.id === projectId)

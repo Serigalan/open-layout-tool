@@ -88,7 +88,8 @@ describe('the topology graph', () => {
   it('lays a network out on an even grid with nothing drawn over anything else', () => {
     const { tracks, switches, marks } = station()
     const [cluster] = topologyClusters(buildTopologyGraph(tracks, switches, marks)).clusters
-    const { pos, routes, labels } = layoutClusterEven(cluster)
+    const { pos, routes, labels, planar } = layoutClusterEven(cluster)
+    expect(planar).toBe(true)
 
     // Every node and every point a track passes through on a spot of its own.
     const spots = [...pos.values(), ...[...routes.values()].flatMap(r => r.slice(1, -1))].map(p => `${p.x},${p.y}`)

@@ -842,6 +842,7 @@ export default function App() {
           onClose={() => setRegelwerkOverlay(null)} />}
         {topologyGraphOpen && topology && <TopologyGraphOverlay project={project} version={marksVersion}
           selection={topologySelection} onSelect={pickInTopologyDiagram}
+          onDeleted={() => { setTopologySelection(null); handleTrackSaved() }}
           onClose={() => setTopologyGraphOpen(false)} t={t} />}
         {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
         {discardAsk && (

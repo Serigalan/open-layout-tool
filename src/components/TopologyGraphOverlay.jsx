@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
-import { loadTracks, loadSwitches, loadEndMarks } from '../storage'
+import { useMemo, useState } from 'react'
+import { loadTracks, loadSwitches, loadEndMarks, deleteTrack, deleteTracks, switchesOnTrack } from '../storage'
+import ConfirmModal from './ConfirmModal'
 import {
   buildTopologyGraph, topologyClusters, layoutClusterEven, selectionHighlight,
 } from '../utils/topologyGraph'
@@ -24,8 +25,13 @@ const GREY = '#8a8a8a'
  * with the tracks it connects, each in a colour of its own, a track with the
  * switches it runs into, are highlighted in both — and the map zooms to them
  * (App, through `onSelect`).
+ *
+ * Tracks can be deleted here: the selected one, or one without any
+ * connection, at once — Ctrl+Z brings it back; a whole network only after
+ * asking. `onDeleted` tells App the project changed.
  */
-export default function TopologyGraphOverlay({ project, version, selection, onSelect, onClose, t }) {
+export default function TopologyGraphOverlay({ project, version, selection, onSelect, onDeleted, onClose, t }) {
+  const [confirmNetwork, setConfirmNetwork] = useState(null)   // { n, cluster }
   const data = useMemo(() => {
     if (!project) return null
     const tracks = loadTracks(project.id)
@@ -56,6 +62,20 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
   const isSelected = (kind, id) => selection?.kind === kind && selection.id === id
   const toggle = (kind, id) => onSelect?.(isSelected(kind, id) ? null : { kind, id })
 
+  const selectedTrack = selection?.kind === 'track'
+    ? loadTracks(project.id).find(tr => tr.id === selection.id) ?? null
+    : null
+  const goingWith = selectedTrack ? switchesOnTrack(project.id, selectedTrack.id).map(sw => sw.name ?? '?') : []
+  const removeTrack = (trackId) => {
+    deleteTrack(project.id, trackId)
+    onDeleted?.()
+  }
+  const removeNetwork = () => {
+    deleteTracks(project.id, confirmNetwork.cluster.edges.map(e => e.trackId))
+    setConfirmNetwork(null)
+    onDeleted?.()
+  }
+
   return (
     <div className="track-table-overlay topology-graph-overlay">
       <div className="track-table-header">
@@ -67,15 +87,35 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
         </span>
         <button className="track-table-close" onClick={onClose}>✕</button>
       </div>
+      {selectedTrack && (
+        <div className="topology-graph-toolbar">
+          <span>
+            <strong>{t('topology_track')} {selectedTrack.name ?? selectedTrack.id.slice(0, 8)}</strong>
+            {goingWith.length > 0 && (
+              <span className="topology-graph-toolbar-note">
+                {' · '}{fill('topology_delete_goes_with', { names: goingWith.join(', ') })}
+              </span>
+            )}
+          </span>
+          <button type="button" className="topology-delete-btn" onClick={() => removeTrack(selectedTrack.id)}>
+            {t('topology_delete_track')}
+          </button>
+        </div>
+      )}
       <div className="track-table-scroll topology-graph-scroll">
         <Legend t={t} />
         {data.clusters.map((cluster, i) => (
           <section key={i} className="topology-graph-section">
-            <h4>{fill('topology_cluster', {
-              n: i + 1,
-              tracks: cluster.edges.length,
-              switches: cluster.nodes.filter(n => n.kind === 'switch').length,
-            })}</h4>
+            <div className="topology-graph-section-head">
+              <h4>{fill('topology_cluster', {
+                n: i + 1,
+                tracks: cluster.edges.length,
+                switches: cluster.nodes.filter(n => n.kind === 'switch').length,
+              })}</h4>
+              <button type="button" className="topology-delete-btn" onClick={() => setConfirmNetwork({ n: i + 1, cluster })}>
+                {t('topology_delete_network')}
+              </button>
+            </div>
             <div className="topology-graph-wrap">
               <ClusterDiagram cluster={cluster} highlighted={highlighted} onToggle={toggle} />
             </div>
@@ -85,13 +125,29 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
           <section className="topology-graph-section">
             <h4>{fill('topology_loose', { n: data.loose.length })}</h4>
             {data.loose.map(edge => (
-              <LooseTrack key={edge.trackId} edge={edge} nodes={data.nodes}
-                color={highlighted.colors[edge.trackId]} onToggle={toggle} />
+              <div key={edge.trackId} className="topology-graph-loose">
+                <LooseTrack edge={edge} nodes={data.nodes} color={highlighted.colors[edge.trackId]} onToggle={toggle} />
+                <button type="button" className="topology-delete-btn" onClick={() => removeTrack(edge.trackId)}>
+                  {t('topology_delete_track')}
+                </button>
+              </div>
             ))}
           </section>
         )}
         {!data.clusters.length && !data.loose.length && <p className="selecting-hint">{t('topology_graph_empty')}</p>}
       </div>
+      {confirmNetwork && (
+        <ConfirmModal
+          t={t}
+          message={fill('topology_delete_network_confirm', {
+            n: confirmNetwork.n,
+            tracks: confirmNetwork.cluster.edges.length,
+            switches: confirmNetwork.cluster.nodes.filter(nd => nd.kind === 'switch' || nd.kind === 'link').length,
+          })}
+          onConfirm={removeNetwork}
+          onCancel={() => setConfirmNetwork(null)}
+        />
+      )}
     </div>
   )
 }

@@ -4,7 +4,7 @@ import {
   undo, canUndo, loadImportReports, saveImportReport, clearImportReports,
   loadPlanHeader, savePlanHeader, exportProjectsPayload,
   saveEndMark, loadEndMarks, deleteEndMark, deleteElement, reverseTrackDirection, deleteTrack,
-  commitSwitchConnection,
+  commitSwitchConnection, deleteTracks,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 
@@ -42,6 +42,22 @@ describe('withUndo', () => {
     expect(loadSwitches('p1')).toHaveLength(0)
     // One step for the whole switch — not one per mutation.
     expect(canUndo()).toBe(false)
+  })
+})
+
+describe('deleting a whole network', () => {
+  it('takes its tracks and their switches in one undo step', () => {
+    saveProject({ id: 'net2', tracks: [], switches: [] })
+    for (const id of ['a', 'b', 'c', 'far']) saveTrack('net2', { id, elements: [] })
+    saveSwitch('net2', { switchId: 'w', portA_trackId: 'a', portA_endpoint: 'END', portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'c', portB2_endpoint: 'BEGIN' })
+
+    deleteTracks('net2', ['a', 'b', 'c'])
+    expect(loadTracks('net2').map(t => t.id)).toEqual(['far'])
+    expect(loadSwitches('net2')).toHaveLength(0)
+
+    undo()
+    expect(loadTracks('net2').map(t => t.id).sort()).toEqual(['a', 'b', 'c', 'far'])
+    expect(loadSwitches('net2')).toHaveLength(1)
   })
 })
 

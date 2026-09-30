@@ -793,5 +793,9 @@
   "topology_legend_link": "Systemwechsel",
   "topology_legend_joint": "Stoß",
   "info_topology": "Zeigt das Gleisnetz als Topologie: Gleise als Linien, Weichen als Kreise, offene Gleisenden rot, über einer blassen Karte. Ein Gleisende ist angeschlossen oder frei. Eine Weiche anklicken hebt ihre Gleise farbig hervor, ein Gleis anklicken seine Weichen. Die topologischen Verbindungen lassen sich je zusammenhängendem Netz als Schema mit gleichen Abständen anzeigen; ein Klick darin zoomt die Karte auf die Gleise. Offene Enden können als Betrachtungsgrenze markiert werden.",
-  "topology_track": "Gleis"
+  "topology_track": "Gleis",
+  "topology_delete_track": "Gleis löschen",
+  "topology_delete_goes_with": "mit gelöscht: {names}",
+  "topology_delete_network": "Netz löschen",
+  "topology_delete_network_confirm": "Netz {n} mit {tracks} Gleisen und {switches} Weichen löschen? Strg+Z macht es rückgängig."
 }
