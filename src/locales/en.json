@@ -752,5 +752,20 @@
   "plan_party_signs": "Line for place, date and signature",
   "plan_system_position": "Horizontal reference",
   "plan_system_height": "Height reference",
-  "plan_system_format": "Sheet size"
+  "plan_system_format": "Sheet size",
+  "buffer_stop_create": "Buffer stop",
+  "buffer_stop_edit": "Edit buffer stop",
+  "buffer_stop_pick": "Click a free track end",
+  "buffer_stop_pick_existing": "Click a buffer stop",
+  "buffer_stop_none": "The project has no free track end.",
+  "buffer_stop_none_existing": "The project has no buffer stop.",
+  "buffer_stop_at": "{track}, {end}",
+  "buffer_stop_type": "Buffer stop type",
+  "buffer_stop_brake": "Braking distance behind the buffer stop (m)",
+  "buffer_stop_hint": "The buffer stop is 2.20 m long and stands on the track; behind it the braking distance runs to the track end. The track itself does not change.",
+  "buffer_stop_brake_invalid": "The braking distance must be a number of 0 or more.",
+  "buffer_stop_too_short": "The track is too short: buffer stop and braking distance need {need} m, the track has {have} m.",
+  "buffer_stop_delete": "Remove buffer stop",
+  "end_begin": "Begin",
+  "end_end": "End"
 }

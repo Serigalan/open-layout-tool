@@ -3,10 +3,11 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { translations } from './locales/i18n'
 import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
-import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from './utils/mapConstants'
+import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from './utils/mapConstants'
 import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
-import { loadTracks, loadSwitches, loadPlatforms, loadSettings, saveSettings, canUndo, undo } from './storage'
+import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, loadSettings, saveSettings, canUndo, undo } from './storage'
+import { bufferStopFeatures } from './utils/bufferStopGeometry'
 import { resolveEndBearing, displayCoords } from './utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from './utils/mapRenderUtils'
 import { updateLabels, clearTrackLabels, createTrackLabel, SWITCH_LABEL_MIN_ZOOM } from './utils/labelUtils'
@@ -44,6 +45,7 @@ function updateMapColors(map, color) {
   if (map.getLayer('tracks-layer'))         map.setPaintProperty('tracks-layer',         'line-color', c)
   if (map.getLayer('switch-fills-layer'))   map.setPaintProperty('switch-fills-layer',   'fill-color', c)
   if (map.getLayer('tracks-markers-layer')) map.setPaintProperty('tracks-markers-layer', 'icon-color', c)
+  if (map.getLayer('buffer-stops-layer'))   map.setPaintProperty('buffer-stops-layer',   'line-color', c)
 }
 
 /**
@@ -186,8 +188,14 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
       })),
   }
 
+  // Buffer stops stand on track ends (trackEndMarks): face and body solid and
+  // heavier than the track, the brake length behind them dashed — white gaps
+  // laid over the track line, which is already drawn there.
+  const bufferStopGeoJSON = { type: 'FeatureCollection', features: bufferStopFeatures(tracks, loadEndMarks(project.id)) }
+
   if (map.getSource('tracks-source')) {
     map.getSource('tracks-source').setData(lineGeoJSON)
+    map.getSource('buffer-stops-source')?.setData(bufferStopGeoJSON)
     map.getSource('tracks-markers-source').setData(pointGeoJSON)
     map.getSource('switch-fills-source')?.setData(switchFillGeoJSON)
     map.getSource('switch-lcs-source')?.setData(switchLcsGeoJSON)
@@ -217,6 +225,21 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
         'line-color': c,
         'line-width': ZOOM_LINE_WIDTH,
       },
+    })
+    map.addSource('buffer-stops-source', { type: 'geojson', data: bufferStopGeoJSON, maxzoom: GEOJSON_MAXZOOM })
+    map.addLayer({
+      id: 'buffer-stops-brake-layer',
+      type: 'line',
+      source: 'buffer-stops-source',
+      filter: ['==', ['get', 'part'], 'brake'],
+      paint: { 'line-color': '#ffffff', 'line-width': ZOOM_LINE_WIDTH, 'line-dasharray': [1.5, 1.5] },
+    })
+    map.addLayer({
+      id: 'buffer-stops-layer',
+      type: 'line',
+      source: 'buffer-stops-source',
+      filter: ['!=', ['get', 'part'], 'brake'],
+      paint: { 'line-color': c, 'line-width': ZOOM_LINE_WIDTH_BUFFER_STOP },
     })
     map.addSource('tracks-markers-source', { type: 'geojson', data: pointGeoJSON, maxzoom: GEOJSON_MAXZOOM })
     map.addSource('switch-fills-source', { type: 'geojson', data: switchFillGeoJSON, maxzoom: GEOJSON_MAXZOOM })

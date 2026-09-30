@@ -752,5 +752,20 @@
   "plan_party_signs": "Zeile für Ort, Datum und Unterschrift",
   "plan_system_position": "Lagesystem",
   "plan_system_height": "Höhensystem",
-  "plan_system_format": "Blattformat"
+  "plan_system_format": "Blattformat",
+  "buffer_stop_create": "Prellbock",
+  "buffer_stop_edit": "Prellbock bearbeiten",
+  "buffer_stop_pick": "Freies Gleisende anklicken",
+  "buffer_stop_pick_existing": "Prellbock anklicken",
+  "buffer_stop_none": "Im Projekt gibt es kein freies Gleisende.",
+  "buffer_stop_none_existing": "Im Projekt steht kein Prellbock.",
+  "buffer_stop_at": "{track}, {end}",
+  "buffer_stop_type": "Prellbocktyp",
+  "buffer_stop_brake": "Bremsweg hinter dem Prellbock (m)",
+  "buffer_stop_hint": "Der Prellbock ist 2,20 m lang und steht im Gleis; dahinter liegt bis zum Gleisende der Bremsweg. Das Gleis selbst ändert sich nicht.",
+  "buffer_stop_brake_invalid": "Der Bremsweg muss eine Zahl ab 0 sein.",
+  "buffer_stop_too_short": "Das Gleis ist zu kurz: Prellbock und Bremsweg brauchen {need} m, das Gleis hat {have} m.",
+  "buffer_stop_delete": "Prellbock entfernen",
+  "end_begin": "Anfang",
+  "end_end": "Ende"
 }

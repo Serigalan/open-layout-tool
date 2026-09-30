@@ -80,6 +80,18 @@ export const CreateParallelTrackIcon = () => (
   </MenuIcon>
 )
 
+// A buffer stop at the end of a track: the track up to the buffer face, the
+// bar across it, the body behind, and the brake length beyond, fainter.
+export const BufferStopIcon = () => (
+  <MenuIcon>
+    <path d="M2 8 H8" />
+    <path d="M8 4 V12" />
+    <path d="M8 6 H11 V10 H8" />
+    <path d="M11 8 H14" opacity="0.55" />
+    <IconNode cx={2} cy={8} />
+  </MenuIcon>
+)
+
 // Connect element panel — the piece that joins two existing ends.
 export const ConnectStraightIcon = () => (
   <MenuIcon>

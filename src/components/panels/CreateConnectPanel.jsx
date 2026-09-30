@@ -3,11 +3,12 @@ import LineForm from './CreateElementPanel/LineForm'
 import CurvedLineForm from './CreateElementPanel/CurvedLineForm'
 import ParallelLineForm from './CreateElementPanel/ParallelLineForm'
 import ParallelTrackForm from './CreateElementPanel/ParallelTrackForm'
+import BufferStopForm from './CreateElementPanel/BufferStopForm'
 import ConnectStraightForm from './ConnectElementPanel/ConnectStraightForm'
 import ConnectCurvedForm from './ConnectElementPanel/ConnectCurvedForm'
 import {
   BackIcon, CreateLineIcon, CreateArcIcon, CreateParallelIcon, CreateParallelTrackIcon,
-  ConnectStraightIcon, ConnectCurvedIcon,
+  ConnectStraightIcon, ConnectCurvedIcon, BufferStopIcon,
 } from '../icons'
 
 // The gray line between the two tool groups, the same separator the layers
@@ -64,6 +65,14 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
     </>
   )
 
+  if (page === 'buffer_stop') return (
+    <>
+      <BackButton t={t} onBack={back} />
+      <h2>{t('buffer_stop_create')}</h2>
+      <BufferStopForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={back} />
+    </>
+  )
+
   if (page === 'connect_straight') return (
     <>
       <BackButton t={t} onBack={back} />
@@ -99,6 +108,10 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
         <button className="create-element-btn" onClick={() => setPage('parallel_track')}>
           <CreateParallelTrackIcon />
           {t('create_parallel_track')}
+        </button>
+        <button className="create-element-btn" onClick={() => setPage('buffer_stop')}>
+          <BufferStopIcon />
+          {t('buffer_stop_create')}
         </button>
       </div>
       <hr style={SEPARATOR} />

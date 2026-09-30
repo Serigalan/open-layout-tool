@@ -128,6 +128,8 @@ export function lineWidthAt(zoom) {
 export const ZOOM_LINE_WIDTH          = lineWidthTimes(1)
 export const ZOOM_LINE_WIDTH_HOVER    = lineWidthTimes(2)
 export const ZOOM_LINE_WIDTH_SELECTED = lineWidthTimes(1.5)
+/** A buffer stop's body and face — the track pen, drawn heavier so the stop reads at a glance. */
+export const ZOOM_LINE_WIDTH_BUFFER_STOP = lineWidthTimes(2.5)
 
 /** Stroke of the element-end markers at icon-size 1: the widest track line (see markerImages). */
 export const MARKER_STROKE = LINE_WIDTH_STOPS[LINE_WIDTH_STOPS.length - 1]

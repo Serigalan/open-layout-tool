@@ -5,6 +5,7 @@ import { reverseElement } from './utils/elementUtils'
 import { elementBelongsToSwitch, portsOf } from './utils/switchModel'
 import { rebuildSwitchSymbol } from './utils/switchUtils'
 import { joinHeights, reverseHeights, splitHeights, trackLength } from './utils/heightUtils'
+import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
 
 export const STORAGE_KEY = 'olt_projects'
@@ -149,9 +150,19 @@ export function withUndo(fn) {
   }
 }
 
+// A track end mark lives only as long as its end is free (trackEndMarks): any
+// write that takes the track away or connects a switch to that end drops it.
+// Done here rather than in each writer, because every writer comes by here.
+function pruneMarksOf(project) {
+  if (!project?.endMarks?.length) return
+  const kept = pruneEndMarks(project.endMarks, project.tracks, project.switches)
+  if (kept !== project.endMarks) project.endMarks = kept
+}
+
 // Mark a project dirty (or, without id, everything incl. deletion re-sync) and
 // schedule the async flush. The localStorage backend writes synchronously.
 function persist(projectId = null) {
+  if (projectId) pruneMarksOf(getCache().find(p => p.id === projectId))
   if (_backend === 'ls') {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: SCHEMA_VERSION, projects: dehydrateProjects(_cache) }))
     return
@@ -448,11 +459,17 @@ function flipSwitchEndpoints(switches, trackId) {
   })
 }
 
-export function remapSwitchTrackIds(projectId, remap) {
+/**
+ * Repoint switch ports and end marks after tracks were renamed, split or
+ * joined. `consumed` names the ends that stopped being ends in the change — a
+ * splice joins two — whose marks have to go rather than follow the remap.
+ */
+export function remapSwitchTrackIds(projectId, remap, { consumed = [] } = {}) {
   pushUndo()
   const project = getCache().find(p => p.id === projectId)
   if (!project) return
   project.switches = remapSwitches(project.switches, remap)
+  project.endMarks = remapEndMarks(project.endMarks, remap, consumed)
   persist(projectId)
 }
 
@@ -566,10 +583,9 @@ export function deleteElement(projectId, trackId, elementIndex) {
   if (after.length > 0)  newTracks.push(makeTrack(track, after,  afterId, tailH))
 
   project.tracks   = (project.tracks ?? []).filter((t) => t.id !== trackId).concat(newTracks)
-  project.switches = remapSwitches(project.switches ?? [], [{
-    oldId: trackId,
-    newId: [beforeId, afterId],
-  }])
+  const remap = [{ oldId: trackId, newId: [beforeId, afterId] }]
+  project.switches = remapSwitches(project.switches ?? [], remap)
+  project.endMarks = remapEndMarks(project.endMarks, remap)
   persist(projectId)
 }
 
@@ -609,6 +625,7 @@ export function reverseTrackDirection(projectId, trackId) {
   const reversed = reverseTrack(track)
   project.tracks = project.tracks.map(t => (t.id === trackId ? reversed : t))
   project.switches = flipSwitchEndpoints(project.switches, trackId)
+  project.endMarks = flipEndMarks(project.endMarks, trackId)
   persist(projectId)
 }
 
@@ -731,6 +748,32 @@ export function deleteKmLine(projectId, lineNumber) {
   persist(projectId)
 }
 
+/** The marks on free track ends — buffer stops and boundaries (trackEndMarks). */
+export function loadEndMarks(projectId) {
+  return getCache().find((p) => p.id === projectId)?.endMarks ?? []
+}
+
+/** Put a mark on its end, replacing whatever mark stood there. One undo step. */
+export function saveEndMark(projectId, mark) {
+  pushUndo()
+  const project = getCache().find((p) => p.id === projectId)
+  if (!project) return
+  const key = endKey(mark.trackId, mark.endpoint)
+  project.endMarks = [
+    ...(project.endMarks ?? []).filter(m => m.id !== mark.id && endKey(m.trackId, m.endpoint) !== key),
+    mark,
+  ]
+  persist(projectId)
+}
+
+export function deleteEndMark(projectId, markId) {
+  pushUndo()
+  const project = getCache().find((p) => p.id === projectId)
+  if (!project) return
+  project.endMarks = (project.endMarks ?? []).filter(m => m.id !== markId)
+  persist(projectId)
+}
+
 export function loadSwitches(projectId) {
   return getCache().find((p) => p.id === projectId)?.switches ?? []
 }
@@ -772,7 +815,10 @@ export function commitSwitchConnection(projectId, { removeTrackIds, addTracks, a
   if (!project) return
   const removeSet = new Set(removeTrackIds)
   project.tracks = (project.tracks ?? []).filter((t) => !removeSet.has(t.id)).concat(addTracks ?? [])
-  if (remap?.length) project.switches = remapSwitches(project.switches ?? [], remap)
+  if (remap?.length) {
+    project.switches = remapSwitches(project.switches ?? [], remap)
+    project.endMarks = remapEndMarks(project.endMarks, remap)
+  }
   project.switches = [...(project.switches ?? []), ...(addSwitches ?? [])]
   persist(projectId)
 }
@@ -806,7 +852,10 @@ export function commitSwitchDeletion(projectId, { switchId, removeTrackIds, upda
   // The record first, then the remap: the switch that is going has no ports
   // left to repoint, and leaving it in would point them at the joined track.
   project.switches = (project.switches ?? []).filter(sw => sw.switchId !== switchId)
-  if (remap?.length) project.switches = remapSwitches(project.switches, remap)
+  if (remap?.length) {
+    project.switches = remapSwitches(project.switches, remap)
+    project.endMarks = remapEndMarks(project.endMarks, remap)
+  }
   if (project.platforms?.length) {
     project.platforms = project.platforms.filter(p => !removeSet.has(p.trackId))
   }

@@ -287,10 +287,13 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
       replaceAllTracks(project.id, newTracks)
       // arrPrefix is folded in reversed, so the arrival track's BEGIN becomes
       // the merged track's END; the departure side keeps its direction.
+      // The departure track is cut behind the picked element and the arrival
+      // track likewise, so the two ends beyond the cut are gone — whatever
+      // stood on them (a buffer stop) goes with them.
       remapSwitchTrackIds(project.id, [
         { oldId: dep.trackId, newId: mergedId },
         { oldId: arr.trackId, newId: mergedId, flip: true },
-      ])
+      ], { consumed: [{ trackId: dep.trackId, endpoint: 'END' }, { trackId: arr.trackId, endpoint: 'END' }] })
       onTrackSaved?.()
       clearPreview()
       setPhase('select_first')
@@ -422,7 +425,10 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
     remapSwitchTrackIds(project.id, [
       { oldId: dep.trackId, newId: mergedId },
       { oldId: arr.trackId, newId: mergedId, flip: arc.reverseArr },
-    ])
+    ], { consumed: [
+      { trackId: dep.trackId, endpoint: 'END' },
+      { trackId: arr.trackId, endpoint: arc.reverseArr ? 'END' : 'BEGIN' },
+    ] })
     onTrackSaved?.()
     clearPreview()
     setPhase('select_first')

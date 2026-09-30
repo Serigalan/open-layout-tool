@@ -3,7 +3,10 @@ import {
   withUndo, saveProject, saveTrack, saveSwitch, loadTracks, loadSwitches,
   undo, canUndo, loadImportReports, saveImportReport, clearImportReports,
   loadPlanHeader, savePlanHeader, exportProjectsPayload,
+  saveEndMark, loadEndMarks, deleteEndMark, deleteElement, reverseTrackDirection, deleteTrack,
+  commitSwitchConnection,
 } from './storage'
+import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 
 // Outside the browser storage degrades to the localStorage backend — a stub
 // is all the node environment has to offer it.
@@ -101,5 +104,55 @@ describe('the title block of a project\'s plans', () => {
     expect(undo()).toBe(true)
     expect(loadTracks('h1')).toHaveLength(0)
     expect(loadPlanHeader('h1').subtitle).toBe('neu')
+  })
+})
+
+describe('buffer stops and boundaries in the store', () => {
+  const el = (length) => ({ elementType: 0, length, bearing: 90, startNode: [0, 0], endNode: [length, 0] })
+  const setup = (id) => {
+    saveProject({ id, tracks: [{ id: 't', elements: [el(10), el(20), el(30)] }], switches: [] })
+    saveEndMark(id, newBufferStop('t', 'BEGIN', 4))
+    saveEndMark(id, newBoundary('t', 'END'))
+  }
+  const where = (id) => loadEndMarks(id).map(m => [m.kind, m.trackId === 't' ? 't' : 'new', m.endpoint]).sort()
+
+  it('keeps one mark per end, the latest', () => {
+    setup('em1')
+    saveEndMark('em1', newBufferStop('t', 'END', 8))
+    expect(loadEndMarks('em1').map(m => [m.kind, m.endpoint]).sort())
+      .toEqual([['buffer_stop', 'BEGIN'], ['buffer_stop', 'END']])
+    deleteEndMark('em1', loadEndMarks('em1')[0].id)
+    expect(loadEndMarks('em1')).toHaveLength(1)
+  })
+
+  it('reverses with its track', () => {
+    setup('em2')
+    reverseTrackDirection('em2', 't')
+    expect(where('em2')).toEqual([['boundary', 't', 'BEGIN'], ['buffer_stop', 't', 'END']])
+  })
+
+  it('stays on the outer end of each half when an element is deleted', () => {
+    setup('em3')
+    deleteElement('em3', 't', 1)
+    const tracks = loadTracks('em3')
+    const marks = loadEndMarks('em3')
+    const head = tracks.find(t => t.elements[0].length === 10)
+    const tail = tracks.find(t => t.elements[0].length === 30)
+    expect(marks.find(m => m.kind === 'buffer_stop')).toMatchObject({ trackId: head.id, endpoint: 'BEGIN' })
+    expect(marks.find(m => m.kind === 'boundary')).toMatchObject({ trackId: tail.id, endpoint: 'END' })
+  })
+
+  it('goes with its track, and when a switch takes its end', () => {
+    setup('em4')
+    commitSwitchConnection('em4', {
+      removeTrackIds: [], addTracks: [], remap: [],
+      addSwitches: [{ switchId: 's', kind: 'link', portA_trackId: 't', portA_endpoint: 'END', portB_trackId: 'x', portB_endpoint: 'BEGIN' }],
+    })
+    expect(where('em4')).toEqual([['buffer_stop', 't', 'BEGIN']])
+    deleteTrack('em4', 't')
+    expect(loadEndMarks('em4')).toEqual([])
+    // Undo brings back the track and the mark with it.
+    undo()
+    expect(loadEndMarks('em4')).toHaveLength(1)
   })
 })
