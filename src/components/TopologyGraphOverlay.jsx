@@ -27,11 +27,12 @@ const GREY = '#8a8a8a'
  * (App, through `onSelect`).
  *
  * Tracks can be deleted here: the selected one, or one without any
- * connection, at once — Ctrl+Z brings it back; a whole network only after
- * asking. `onDeleted` tells App the project changed.
+ * connection, at once — Ctrl+Z brings it back; a whole network, or all the
+ * tracks without any connection together, only after asking. `onDeleted`
+ * tells App the project changed.
  */
 export default function TopologyGraphOverlay({ project, version, selection, onSelect, onDeleted, onClose, t }) {
-  const [confirmNetwork, setConfirmNetwork] = useState(null)   // { n, cluster }
+  const [confirmDelete, setConfirmDelete] = useState(null)   // { trackIds, message }
   const data = useMemo(() => {
     if (!project) return null
     const tracks = loadTracks(project.id)
@@ -70,9 +71,21 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
     deleteTrack(project.id, trackId)
     onDeleted?.()
   }
-  const removeNetwork = () => {
-    deleteTracks(project.id, confirmNetwork.cluster.edges.map(e => e.trackId))
-    setConfirmNetwork(null)
+  const askNetwork = (n, cluster) => setConfirmDelete({
+    trackIds: cluster.edges.map(e => e.trackId),
+    message: fill('topology_delete_network_confirm', {
+      n,
+      tracks: cluster.edges.length,
+      switches: cluster.nodes.filter(nd => nd.kind === 'switch' || nd.kind === 'link').length,
+    }),
+  })
+  const askLoose = () => setConfirmDelete({
+    trackIds: data.loose.map(e => e.trackId),
+    message: fill('topology_delete_loose_confirm', { n: data.loose.length }),
+  })
+  const removeConfirmed = () => {
+    deleteTracks(project.id, confirmDelete.trackIds)
+    setConfirmDelete(null)
     onDeleted?.()
   }
 
@@ -112,7 +125,7 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
                 tracks: cluster.edges.length,
                 switches: cluster.nodes.filter(n => n.kind === 'switch').length,
               })}</h4>
-              <button type="button" className="topology-delete-btn" onClick={() => setConfirmNetwork({ n: i + 1, cluster })}>
+              <button type="button" className="topology-delete-btn" onClick={() => askNetwork(i + 1, cluster)}>
                 {t('topology_delete_network')}
               </button>
             </div>
@@ -123,7 +136,12 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
         ))}
         {data.loose.length > 0 && (
           <section className="topology-graph-section">
-            <h4>{fill('topology_loose', { n: data.loose.length })}</h4>
+            <div className="topology-graph-section-head">
+              <h4>{fill('topology_loose', { n: data.loose.length })}</h4>
+              <button type="button" className="topology-delete-btn" onClick={askLoose}>
+                {t('topology_delete_loose')}
+              </button>
+            </div>
             {data.loose.map(edge => (
               <div key={edge.trackId} className="topology-graph-loose">
                 <LooseTrack edge={edge} nodes={data.nodes} color={highlighted.colors[edge.trackId]} onToggle={toggle} />
@@ -136,16 +154,12 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
         )}
         {!data.clusters.length && !data.loose.length && <p className="selecting-hint">{t('topology_graph_empty')}</p>}
       </div>
-      {confirmNetwork && (
+      {confirmDelete && (
         <ConfirmModal
           t={t}
-          message={fill('topology_delete_network_confirm', {
-            n: confirmNetwork.n,
-            tracks: confirmNetwork.cluster.edges.length,
-            switches: confirmNetwork.cluster.nodes.filter(nd => nd.kind === 'switch' || nd.kind === 'link').length,
-          })}
-          onConfirm={removeNetwork}
-          onCancel={() => setConfirmNetwork(null)}
+          message={confirmDelete.message}
+          onConfirm={removeConfirmed}
+          onCancel={() => setConfirmDelete(null)}
         />
       )}
     </div>

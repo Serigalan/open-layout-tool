@@ -797,5 +797,7 @@
   "topology_delete_track": "Gleis löschen",
   "topology_delete_goes_with": "mit gelöscht: {names}",
   "topology_delete_network": "Netz löschen",
-  "topology_delete_network_confirm": "Netz {n} mit {tracks} Gleisen und {switches} Weichen löschen? Strg+Z macht es rückgängig."
+  "topology_delete_network_confirm": "Netz {n} mit {tracks} Gleisen und {switches} Weichen löschen? Strg+Z macht es rückgängig.",
+  "topology_delete_loose": "Alle löschen",
+  "topology_delete_loose_confirm": "Alle {n} Gleise ohne Verbindung löschen? Strg+Z macht es rückgängig."
 }
