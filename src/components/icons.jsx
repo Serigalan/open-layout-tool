@@ -356,6 +356,17 @@ export const LayerIcon = () => (
   </svg>
 )
 
+// Topology — tracks as lines between nodes, one of them a large switch circle.
+export const TopologyIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <path d="M2 12 H7 M11 12 H16 M9 10 L13.5 4" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+    <circle cx="9" cy="12" r="2.6" stroke="white" strokeWidth="1.5"/>
+    <circle cx="2" cy="12" r="1.5" fill="white"/>
+    <circle cx="16" cy="12" r="1.5" fill="white"/>
+    <circle cx="14.5" cy="3.2" r="1.5" fill="white" opacity="0.7"/>
+  </svg>
+)
+
 export const PlaceIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16">
     <circle cx="8" cy="14" r="2" fill="white"/>

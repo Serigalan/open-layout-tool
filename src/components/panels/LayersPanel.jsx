@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { BASEMAPS, LANDESVERMESSUNG_STATES } from '../../basemaps'
 import { KM_COLOR, KM_OTHER_COLOR, KM_JUMP_COLOR } from '../../utils/kmLineLayer'
 import { OverlayThumbnail } from '../icons'
-import TopologyEndsList from './TopologyEndsList'
 
 const THUMBNAIL = {
   liberty:    '/liberty.webp',
@@ -33,8 +32,8 @@ const KM_OVERLAY_ENTRIES = [
   ['other', 'overlay_km_lines_other'],
 ]
 
-export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, topology, onTopologyChange, map, project, onTrackSaved, version, t }) {
-  const anyOverlay = kmOverlays.db || kmOverlays.other || topology
+export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, t }) {
+  const anyOverlay = kmOverlays.db || kmOverlays.other
   const [lvExpanded, setLvExpanded] = useState(activeBasemap.startsWith('lv-'))
   const [overlaysExpanded, setOverlaysExpanded] = useState(anyOverlay)
 
@@ -118,13 +117,6 @@ export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays
             </label>
           ))}
           {kmLinesError && <p className="overlay-error">{t('overlay_km_lines_missing')}</p>}
-          {/* Not a layer of its own but another way of drawing the project's
-              tracks: lines, switches as circles, open ends in red (AP 9.3). */}
-          <label className="transition-curve-row overlay-item">
-            <input type="checkbox" checked={!!topology} onChange={(e) => onTopologyChange?.(e.target.checked)} />
-            <span>{t('overlay_topology')}</span>
-          </label>
-          {topology && <TopologyEndsList t={t} map={map} project={project} onTrackSaved={onTrackSaved} version={version} />}
         </div>
       )}
     </>

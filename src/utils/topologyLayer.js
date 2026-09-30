@@ -30,9 +30,22 @@ const HIDDEN = [
 const SOURCE_NODES = 'topology-nodes-source'
 const SOURCE_ENDS  = 'topology-ends-source'
 const LAYERS = [
-  'topology-switches-layer', 'topology-links-layer',
+  'topology-veil-layer', 'topology-highlight-layer',
+  'topology-switches-layer', 'topology-switch-selected-layer', 'topology-links-layer',
   'topology-bars-layer', 'topology-ends-ring-layer', 'topology-ends-layer',
 ]
+
+/** How much of the basemap the view lets through: Liberty, very pale. */
+const VEIL_OPACITY = 0.8
+export const TOPOLOGY_HIGHLIGHT = '#ff8c00'
+
+// What is highlighted, kept here so a redraw — a basemap change throws every
+// layer away — puts it back.
+let highlight = { trackIds: [], switchId: '' }
+const highlightFilters = () => ({
+  tracks: ['in', ['get', 'trackId'], ['literal', highlight.trackIds]],
+  node: ['==', ['get', 'switchId'], highlight.switchId || '__none__'],
+})
 
 const SQUARE_IMAGE   = 'topology-link-square'
 const BAR_BLACK      = 'topology-bar-buffer-stop'
@@ -109,6 +122,20 @@ export function topologyGeoJSON(tracks, switches, endMarks) {
 function addLayers(map) {
   map.addSource(SOURCE_NODES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, maxzoom: GEOJSON_MAXZOOM })
   map.addSource(SOURCE_ENDS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, maxzoom: GEOJSON_MAXZOOM })
+  // A white veil over the basemap and everything the basemap brought (the
+  // kilometrage overlays included), under the tracks: the map stays for
+  // orientation and nothing on it competes with the network.
+  map.addLayer({
+    id: 'topology-veil-layer', type: 'background',
+    paint: { 'background-color': '#ffffff', 'background-opacity': VEIL_OPACITY },
+  }, 'tracks-layer')
+  const f = highlightFilters()
+  map.addLayer({
+    id: 'topology-highlight-layer', type: 'line', source: 'tracks-source',
+    filter: f.tracks,
+    layout: { 'line-cap': 'round' },
+    paint: { 'line-color': TOPOLOGY_HIGHLIGHT, 'line-width': 7, 'line-opacity': 0.85 },
+  })
   map.addLayer({
     id: 'topology-bars-layer', type: 'symbol', source: SOURCE_ENDS,
     filter: ['in', ['get', 'state'], ['literal', ['buffer_stop', 'boundary']]],
@@ -128,6 +155,16 @@ function addLayers(map) {
       'circle-color': '#ffffff',
       'circle-stroke-width': 3,
       'circle-stroke-color': '#303383',
+    },
+  })
+  map.addLayer({
+    id: 'topology-switch-selected-layer', type: 'circle', source: SOURCE_NODES,
+    filter: f.node,
+    paint: {
+      'circle-radius': SWITCH_RADIUS + 2,
+      'circle-opacity': 0,
+      'circle-stroke-width': 4,
+      'circle-stroke-color': TOPOLOGY_HIGHLIGHT,
     },
   })
   map.addLayer({
@@ -180,4 +217,31 @@ export function showTopology(map, { on, tracks, switches, endMarks, color }) {
   const data = topologyGeoJSON(tracks, switches, endMarks)
   map.getSource(SOURCE_NODES).setData(data.nodes)
   map.getSource(SOURCE_ENDS).setData(data.ends)
+  applyHighlight(map)
+}
+
+function applyHighlight(map) {
+  if (!map?.getLayer('topology-highlight-layer')) return
+  const f = highlightFilters()
+  map.setFilter('topology-highlight-layer', f.tracks)
+  map.setFilter('topology-switch-selected-layer', f.node)
+}
+
+/**
+ * Highlight the tracks a switch connects, and the switch itself (AP 9.5).
+ * Null clears it.
+ */
+export function highlightTopologySwitch(map, switchId, trackIds = []) {
+  highlight = { trackIds: switchId ? trackIds : [], switchId: switchId ?? '' }
+  applyHighlight(map)
+}
+
+/** The switch or link under a point on the map, or null. */
+export function topologySwitchAt(map, point, tolerance = 4) {
+  const layers = ['topology-switches-layer', 'topology-links-layer'].filter(id => map?.getLayer(id))
+  if (!layers.length) return null
+  const hit = map.queryRenderedFeatures([
+    [point.x - tolerance, point.y - tolerance], [point.x + tolerance, point.y + tolerance],
+  ], { layers })[0]
+  return hit?.properties?.switchId || null
 }

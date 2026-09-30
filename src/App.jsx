@@ -5,10 +5,11 @@ import { translations } from './locales/i18n'
 import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
 import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from './utils/mapConstants'
 import ConfirmModal from './components/ConfirmModal'
-import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
+import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
 import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, loadSettings, saveSettings, canUndo, undo } from './storage'
 import { bufferStopFeatures } from './utils/bufferStopGeometry'
-import { showTopology } from './utils/topologyLayer'
+import { showTopology, highlightTopologySwitch } from './utils/topologyLayer'
+import { switchTrackIds } from './utils/topologyGraph'
 import { resolveEndBearing, displayCoords } from './utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from './utils/mapRenderUtils'
 import { updateLabels, clearTrackLabels, createTrackLabel, SWITCH_LABEL_MIN_ZOOM } from './utils/labelUtils'
@@ -18,6 +19,8 @@ import { ensureKmLines } from './utils/kmLineSource'
 import useKmLineHover from './hooks/useKmLineHover'
 import StartPage from './components/StartPage'
 import LayersPanel from './components/panels/LayersPanel'
+import TopologyPanel from './components/panels/TopologyPanel'
+import TopologyGraphOverlay from './components/TopologyGraphOverlay'
 import CreateConnectPanel from './components/panels/CreateConnectPanel'
 import ConnectSwitchPanel from './components/panels/ConnectSwitchPanel'
 import SpliceOptimizePanel from './components/panels/SpliceOptimizePanel'
@@ -315,8 +318,10 @@ function renderTracksOnMap(map, project, { fit = false, topology = false } = {})
 }
 
 
-function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, topology, onTopologyChange, marksVersion, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
-  if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} topology={topology} onTopologyChange={onTopologyChange} map={map} project={project} onTrackSaved={onTrackSaved} version={marksVersion} t={t} />
+function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, marksVersion, selectedSwitchId, onSelectSwitch, topologyGraphOpen, onShowTopologyGraph, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
+  if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
+  if (view === 'topology') return <TopologyPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} version={marksVersion}
+    selectedSwitchId={selectedSwitchId} onSelectSwitch={onSelectSwitch} graphOpen={topologyGraphOpen} onShowGraph={onShowTopologyGraph} />
   if (view === 'places')   return <CreateConnectPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'settings') return <SettingsPanel language={language} onLanguageChange={onLanguageChange} color={color} onColorChange={onColorChange} t={t} />
   if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} onCloseConstraints={onCloseConstraints} />
@@ -347,10 +352,13 @@ export default function App() {
     return { db: s.kmLines ?? true, other: s.kmLinesOther ?? false }
   })
   const [kmLinesError, setKmLinesError] = useState(false)
-  // The topology view (AP 9.3) — a way of looking, not a setting of the
-  // project, so it starts off every time.
-  const [topology, setTopology] = useState(false)
+  // The topology view (AP 9.3) is on while its panel is open (AP 9.5): a way of
+  // looking, not a setting of the project. The ref is what the map callbacks
+  // read. The basemap the view replaced with Liberty is kept to go back to.
   const topologyRef = useRef(false)
+  const basemapBeforeTopology = useRef(null)
+  const [selectedSwitchId, setSelectedSwitchId] = useState(null)
+  const [topologyGraphOpen, setTopologyGraphOpen] = useState(false)
   const [project, setProject] = useState(null)
   const [trackTable, setTrackTable] = useState(null)
   // The element a map click picked when the table was opened — the table
@@ -397,11 +405,22 @@ export default function App() {
     }
   }, [color])
 
-  const handleTopologyChange = useCallback((on) => {
-    topologyRef.current = on
-    setTopology(on)
-    if (map.current && projectRef.current) renderTracksOnMap(map.current, projectRef.current, { topology: on })
-  }, [])
+  const topology = activeView === 'topology'
+  useEffect(() => {
+    topologyRef.current = topology
+    if (map.current?.isStyleLoaded() && projectRef.current) {
+      renderTracksOnMap(map.current, projectRef.current, { topology })
+    }
+  }, [topology])
+
+  // A switch picked in the topology view (on the map or in the diagram): the
+  // tracks it connects are highlighted.
+  useEffect(() => {
+    const sw = selectedSwitchId && projectRef.current
+      ? loadSwitches(projectRef.current.id).find(s => s.switchId === selectedSwitchId)
+      : null
+    highlightTopologySwitch(map.current, sw ? selectedSwitchId : null, sw ? switchTrackIds(sw) : [])
+  }, [selectedSwitchId])
 
   // setStyle throws the whole style away, so the overlays have to be put back
   // on every style that loads; the ref is what those callbacks read.
@@ -588,6 +607,11 @@ export default function App() {
 
   const handleIconClick = (panel) => {
     const next = activeView === panel ? null : panel
+    // The topology view is drawn over a pale Liberty; whatever basemap was up
+    // comes back when the view is left.
+    if (next === 'topology' && activeView !== 'topology' && activeBasemap !== 'liberty') {
+      basemapBeforeTopology.current = activeBasemap
+    }
     // The track table is opened from the edit panel and belongs to it; the
     // profile overlay likewise to the elevation panel.
     const go = () => {
@@ -602,6 +626,16 @@ export default function App() {
       if (next !== 'elevation') setProfileTrackId(null)
       if (next !== 'plan') setPlanPreview(null)
       if (next !== 'platform') setCrossSectionAt(null)
+      if (next === 'topology' && activeBasemap !== 'liberty') handleBasemapChange('liberty')
+      if (next !== 'topology') {
+        // The selection and the diagram belong to the view and go with it.
+        setSelectedSwitchId(null)
+        setTopologyGraphOpen(false)
+      }
+      if (next !== 'topology' && activeView === 'topology' && basemapBeforeTopology.current) {
+        handleBasemapChange(basemapBeforeTopology.current)
+        basemapBeforeTopology.current = null
+      }
     }
     if (next !== 'edit') closeTrackTable(go); else go()
   }
@@ -645,6 +679,13 @@ export default function App() {
             title={t('tooltip_layers')}
           >
             <LayerIcon />
+          </button>
+          <button
+            className={`sidebar-icon-btn ${activeView === 'topology' ? 'active' : ''}`}
+            onClick={() => handleIconClick('topology')}
+            title={t('topology_title')}
+          >
+            <TopologyIcon />
           </button>
           <button
             className={`sidebar-icon-btn ${activeView === 'places' ? 'active' : ''}`}
@@ -746,9 +787,11 @@ export default function App() {
             kmOverlays={kmOverlays}
             onKmOverlayChange={handleKmOverlayChange}
             kmLinesError={kmLinesError}
-            topology={topology}
-            onTopologyChange={handleTopologyChange}
             marksVersion={marksVersion}
+            selectedSwitchId={selectedSwitchId}
+            onSelectSwitch={setSelectedSwitchId}
+            topologyGraphOpen={topologyGraphOpen}
+            onShowTopologyGraph={setTopologyGraphOpen}
             language={language}
             onLanguageChange={handleLanguageChange}
             color={color}
@@ -784,6 +827,9 @@ export default function App() {
         {physicsOpen && <PhysicsOverlay t={t} onClose={() => setPhysicsOpen(false)} />}
         {regelwerkOverlay && <RegelwerkOverlay t={t} regelwerkId={regelwerkOverlay.regelwerkId}
           onClose={() => setRegelwerkOverlay(null)} />}
+        {topologyGraphOpen && topology && <TopologyGraphOverlay project={project} version={marksVersion}
+          selectedSwitchId={selectedSwitchId} onSelectSwitch={setSelectedSwitchId}
+          onClose={() => setTopologyGraphOpen(false)} t={t} />}
         {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
         {discardAsk && (
           <ConfirmModal

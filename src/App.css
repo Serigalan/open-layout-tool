@@ -2264,8 +2264,9 @@
 }
 
 .topology-ends-action {
-  font: inherit;
+  font-family: system-ui, sans-serif;
   font-size: 11px;
+  align-self: flex-start;
   color: #555;
   background: #f3f3f3;
   border: 1px solid #ccc;
@@ -2276,4 +2277,66 @@
 
 .topology-ends-action:hover {
   background: #e6e6e6;
+}
+
+/* The topological connections (AP 9.6): the element table's popup shell, one
+   section per connected network, each diagram scrolling sideways on its own —
+   a long line is many columns wide. */
+.topology-graph-scroll {
+  padding: 8px 16px 16px;
+}
+
+.topology-graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 11px;
+  color: #555;
+  margin-bottom: 6px;
+}
+
+.topology-graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.topology-graph-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a2e;
+  margin: 12px 0 4px;
+}
+
+.topology-graph-wrap {
+  overflow-x: auto;
+  border: 1px solid #eee;
+  border-radius: 4px;
+}
+
+.topology-graph-svg {
+  display: block;
+}
+
+.topology-graph-label {
+  font-family: system-ui, sans-serif;
+  font-size: 9px;
+  fill: #666;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+}
+
+.topology-graph-node-label {
+  fill: #1a1a2e;
+  font-weight: 600;
+}
+
+.topology-graph-node {
+  cursor: pointer;
+}
+
+.topology-selected {
+  margin-top: 8px;
 }
