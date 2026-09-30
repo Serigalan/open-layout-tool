@@ -41,11 +41,16 @@ export const TOPOLOGY_HIGHLIGHT = '#ff8c00'
 
 // What is highlighted, kept here so a redraw — a basemap change throws every
 // layer away — puts it back.
-let highlight = { trackIds: [], switchIds: [] }
+let highlight = { trackIds: [], switchIds: [], colors: {} }
 const highlightFilters = () => ({
   tracks: ['in', ['get', 'trackId'], ['literal', highlight.trackIds]],
   node: ['in', ['get', 'switchId'], ['literal', highlight.switchIds]],
 })
+/** Each highlighted track in its own colour (topologyGraph.selectionHighlight). */
+const highlightColor = () => {
+  const pairs = Object.entries(highlight.colors ?? {}).flat()
+  return pairs.length ? ['match', ['get', 'trackId'], ...pairs, TOPOLOGY_HIGHLIGHT] : TOPOLOGY_HIGHLIGHT
+}
 
 const SQUARE_IMAGE   = 'topology-link-square'
 const BAR_BLACK      = 'topology-bar-buffer-stop'
@@ -133,7 +138,7 @@ function addLayers(map) {
     id: 'topology-highlight-layer', type: 'line', source: 'tracks-source',
     filter: f.tracks,
     layout: { 'line-cap': 'round' },
-    paint: { 'line-color': TOPOLOGY_HIGHLIGHT, 'line-width': 7, 'line-opacity': 0.85 },
+    paint: { 'line-color': highlightColor(), 'line-width': 7, 'line-opacity': 0.9 },
   })
   map.addLayer({
     id: 'topology-bars-layer', type: 'symbol', source: SOURCE_ENDS,
@@ -213,16 +218,17 @@ function applyHighlight(map) {
   if (!map?.getLayer('topology-highlight-layer')) return
   const f = highlightFilters()
   map.setFilter('topology-highlight-layer', f.tracks)
+  map.setPaintProperty('topology-highlight-layer', 'line-color', highlightColor())
   map.setFilter('topology-switch-selected-layer', f.node)
 }
 
 /**
  * Highlight tracks and switches (AP 9.5): a selected switch with the tracks it
- * connects, or a selected track with the switches it runs into. Empty lists
- * clear it.
+ * connects, each in the colour `colors` gives it, or a selected track with the
+ * switches it runs into. Empty lists clear it.
  */
-export function highlightTopology(map, { trackIds = [], switchIds = [] } = {}) {
-  highlight = { trackIds, switchIds }
+export function highlightTopology(map, { trackIds = [], switchIds = [], colors = {} } = {}) {
+  highlight = { trackIds, switchIds, colors }
   applyHighlight(map)
 }
 
@@ -254,4 +260,32 @@ export function topologySelectionAt(map, point) {
   if (switchId) return { kind: 'switch', id: switchId }
   const trackId = topologyTrackAt(map, point)
   return trackId ? { kind: 'track', id: trackId } : null
+}
+
+/**
+ * Zoom the map to tracks picked in the topology diagram — the diagram has no
+ * geography, the map is where they are. The diagram covers the lower half of
+ * the map, so they are framed in the upper half, as the element table frames
+ * its element; the padding is clamped so it never outgrows a small map pane.
+ */
+export function zoomToTopologyTracks(map, tracks) {
+  if (!map) return
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity
+  for (const track of tracks ?? []) {
+    for (const el of track.elements ?? []) {
+      for (const [lng, lat] of el.geometry?.coordinates ?? []) {
+        west = Math.min(west, lng); east = Math.max(east, lng)
+        south = Math.min(south, lat); north = Math.max(north, lat)
+      }
+    }
+  }
+  if (!Number.isFinite(west)) return
+  const canvas = map.getCanvas()
+  const bottom = Math.min(Math.round(canvas.clientHeight / 2) + 40, Math.max(0, canvas.clientHeight - 140))
+  const side   = Math.min(60, Math.max(0, Math.floor(canvas.clientWidth / 2) - 40))
+  map.fitBounds([[west, south], [east, north]], {
+    padding: { top: Math.min(60, bottom), bottom, left: side, right: side },
+    maxZoom: 17,
+    duration: 500,
+  })
 }

@@ -8,7 +8,7 @@ import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
 import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, loadSettings, saveSettings, canUndo, undo } from './storage'
 import { bufferStopFeatures } from './utils/bufferStopGeometry'
-import { showTopology, highlightTopology } from './utils/topologyLayer'
+import { showTopology, highlightTopology, zoomToTopologyTracks } from './utils/topologyLayer'
 import { selectionHighlight } from './utils/topologyGraph'
 import { resolveEndBearing, displayCoords } from './utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from './utils/mapRenderUtils'
@@ -422,6 +422,16 @@ export default function App() {
     highlightTopology(map.current, selectionHighlight(topologySelection, switches))
   }, [topologySelection])
 
+  // A pick in the diagram also takes the map to what it highlights: a switch's
+  // tracks, or the track itself.
+  const pickInTopologyDiagram = useCallback((selection) => {
+    setTopologySelection(selection)
+    const p = projectRef.current
+    if (!selection || !p) return
+    const { trackIds } = selectionHighlight(selection, loadSwitches(p.id))
+    zoomToTopologyTracks(map.current, loadTracks(p.id).filter(tr => trackIds.includes(tr.id)))
+  }, [])
+
   // setStyle throws the whole style away, so the overlays have to be put back
   // on every style that loads; the ref is what those callbacks read.
   const kmOverlaysRef = useRef(kmOverlays)
@@ -828,7 +838,7 @@ export default function App() {
         {regelwerkOverlay && <RegelwerkOverlay t={t} regelwerkId={regelwerkOverlay.regelwerkId}
           onClose={() => setRegelwerkOverlay(null)} />}
         {topologyGraphOpen && topology && <TopologyGraphOverlay project={project} version={marksVersion}
-          selection={topologySelection} onSelect={setTopologySelection}
+          selection={topologySelection} onSelect={pickInTopologyDiagram}
           onClose={() => setTopologyGraphOpen(false)} t={t} />}
         {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
         {discardAsk && (

@@ -2338,34 +2338,16 @@
   cursor: pointer;
 }
 
-/* The two arrangements of the diagram, side by side in its header. */
-.topology-graph-mode {
-  display: inline-flex;
-  margin-left: auto;
-  margin-right: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.topology-graph-mode button {
-  border: none;
-  background: #fff;
-  font-size: 11px;
-  padding: 3px 8px;
-  cursor: pointer;
-  color: #333;
-}
-
-.topology-graph-mode button + button {
-  border-left: 1px solid #ccc;
-}
-
-.topology-graph-mode button.active {
-  background: var(--color-primary);
-  color: #fff;
-}
-
 .topology-selected {
   margin-top: 8px;
+}
+
+/* The colour a switch's track is highlighted in, on the map and in the diagram. */
+.topology-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
 }

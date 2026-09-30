@@ -792,8 +792,6 @@
   "topology_legend_switch": "Weiche / Kreuzung",
   "topology_legend_link": "Systemwechsel",
   "topology_legend_joint": "Stoß",
-  "info_topology": "Zeigt das Gleisnetz als Topologie: Gleise als Linien, Weichen als Kreise, offene Gleisenden rot, über einer blassen Karte. Ein Gleisende ist angeschlossen oder frei. Eine Weiche anklicken hebt ihre Gleise hervor, ein Gleis anklicken seine Weichen. Die topologischen Verbindungen lassen sich je zusammenhängendem Netz als Schema anzeigen, mit gleichen Abständen oder nach Lage. Offene Enden können als Betrachtungsgrenze markiert werden.",
-  "topology_track": "Gleis",
-  "topology_layout_even": "Gleiche Abstände",
-  "topology_layout_terrain": "Nach Lage"
+  "info_topology": "Zeigt das Gleisnetz als Topologie: Gleise als Linien, Weichen als Kreise, offene Gleisenden rot, über einer blassen Karte. Ein Gleisende ist angeschlossen oder frei. Eine Weiche anklicken hebt ihre Gleise farbig hervor, ein Gleis anklicken seine Weichen. Die topologischen Verbindungen lassen sich je zusammenhängendem Netz als Schema mit gleichen Abständen anzeigen; ein Klick darin zoomt die Karte auf die Gleise. Offene Enden können als Betrachtungsgrenze markiert werden.",
+  "topology_track": "Gleis"
 }

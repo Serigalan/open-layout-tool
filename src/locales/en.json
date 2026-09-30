@@ -792,8 +792,6 @@
   "topology_legend_switch": "Switch / crossing",
   "topology_legend_link": "Change of coordinate system",
   "topology_legend_joint": "Joint",
-  "info_topology": "Shows the track network as a topology: tracks as lines, switches as circles, open track ends in red, over a pale map. A track end is connected or free. Clicking a switch highlights its tracks, clicking a track its switches. The topological connections can be shown as a diagram, one per connected network, evenly spaced or by position. Open ends can be marked as the boundary of the planning area.",
-  "topology_track": "Track",
-  "topology_layout_even": "Even spacing",
-  "topology_layout_terrain": "By position"
+  "info_topology": "Shows the track network as a topology: tracks as lines, switches as circles, open track ends in red, over a pale map. A track end is connected or free. Clicking a switch highlights its tracks in colour, clicking a track its switches. The topological connections can be shown as an evenly spaced diagram, one per connected network; a click in it zooms the map to the tracks. Open ends can be marked as the boundary of the planning area.",
+  "topology_track": "Track"
 }

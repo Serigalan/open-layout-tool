@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks } from '../../storage'
 import { topologySelectionAt } from '../../utils/topologyLayer'
 import { classifyTrackEnds } from '../../utils/topology'
+import { selectionHighlight } from '../../utils/topologyGraph'
 import { portsOf, switchKindLabelKey } from '../../utils/switchModel'
 import { mapIsLive } from '../../utils/mapConstants'
 import TopologyEndsList from './TopologyEndsList'
@@ -19,9 +20,10 @@ const END_STATE_KEY = {
  * (AP 9.5). While it is open the map shows the network and nothing else — the
  * tracks as lines, switches as circles, open ends in red, over a pale Liberty
  * (App switches both on with the panel). A click on a switch highlights the
- * tracks it connects, a click on a track the switches it runs into; either is
- * named here, each name a step on to that switch or track. The button opens
- * the diagram of the connections, cluster by cluster (AP 9.6).
+ * tracks it connects, each in a colour of its own, a click on a track the
+ * switches it runs into; either is named here, each name a step on to that
+ * switch or track. The button opens the diagram of the connections, cluster
+ * by cluster (AP 9.6).
  */
 export default function TopologyPanel({
   t, map, project, onTrackSaved, version, selection, onSelect, graphOpen, onShowGraph,
@@ -49,8 +51,9 @@ export default function TopologyPanel({
     if (selection.kind === 'switch') {
       const sw = switches.find(s => s.switchId === selection.id)
       if (!sw) return null
+      const { colors } = selectionHighlight(selection, switches)
       return {
-        kind: 'switch', sw,
+        kind: 'switch', sw, colors,
         ports: portsOf(sw)
           .filter(p => sw[p.trackKey])
           .map(p => ({ port: p.port, trackId: sw[p.trackKey], track: byId.get(sw[p.trackKey]), endpoint: sw[p.endKey] })),
@@ -93,6 +96,7 @@ export default function TopologyPanel({
           <ul className="form-list">
             {selected.ports.map(p => (
               <li key={p.port}>
+                <span className="topology-swatch" style={{ background: selected.colors[p.trackId] }} />
                 {p.port}:{' '}
                 {p.track
                   ? <button type="button" className="link-joint-btn" onClick={() => pickTrack(p.trackId)}>{p.track.name ?? p.trackId.slice(0, 8)}</button>

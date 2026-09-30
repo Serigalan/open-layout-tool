@@ -139,85 +139,10 @@ function clusterAxes(nodes) {
   }
 }
 
-/** Nodes closer than this along the cluster's axis [m] share a column. */
-const SAME_COLUMN = 0.5
-
 /**
- * A schematic layout of one cluster, as a track plan draws one: the nodes in
- * columns by the order they come in along the cluster's main direction, evenly
- * spaced whatever the distances; and in rows, the main line at 0 and every
- * node that would sit on top of a neighbour pushed off to the side it lies on
- * in the terrain. Returns Map(nodeId → { x, y }) in grid units.
- *
- * The rows are settled by relaxation: every track pulls its two nodes towards
- * one row, every pair of nodes in neighbouring columns closer than one row
- * pushes apart. Only rows move; the columns are fixed from the start, so this
- * stays cheap for a cluster of thousands of nodes.
- */
-export function layoutCluster(cluster, { iterations = 120 } = {}) {
-  const nodes = cluster.nodes
-  const { along, across } = clusterAxes(nodes)
-
-  // Columns by rank.
-  const order = nodes.map((_, i) => i).sort((a, b) => along[a] - along[b])
-  const col = new Array(nodes.length)
-  let c = -1, last = -Infinity
-  for (const i of order) {
-    if (along[i] - last > SAME_COLUMN) c += 1
-    col[i] = c
-    last = along[i]
-  }
-
-  const index = new Map(nodes.map((n, i) => [n.id, i]))
-  const row = new Array(nodes.length).fill(0)
-  const byCol = new Map()
-  nodes.forEach((_, i) => {
-    if (!byCol.has(col[i])) byCol.set(col[i], [])
-    byCol.get(col[i]).push(i)
-  })
-  const links = cluster.edges.map(e => [index.get(e.from), index.get(e.to)]).filter(([a, b]) => a !== b)
-  // Two nodes a track runs between may sit side by side on one row — that is
-  // what a line looks like. Any other pair in neighbouring columns may not: a
-  // track would run through the one to reach the other.
-  const joined = new Set(links.flatMap(([a, b]) => [`${a}|${b}`, `${b}|${a}`]))
-
-  for (let it = 0; it < iterations; it++) {
-    const push = new Array(nodes.length).fill(0)
-    for (const [a, b] of links) {
-      const d = row[b] - row[a]
-      push[a] += 0.25 * d
-      push[b] -= 0.25 * d
-    }
-    for (let i = 0; i < nodes.length; i++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        for (const j of byCol.get(col[i] + dc) ?? []) {
-          if (j <= i || (dc !== 0 && joined.has(`${i}|${j}`))) continue
-          const d = row[j] - row[i]
-          if (Math.abs(d) >= 1) continue
-          // Apart towards the side each lies on in the terrain.
-          const side = Math.sign(across[j] - across[i]) || (j > i ? 1 : -1)
-          const f = 0.5 * (1 - Math.abs(d)) * (dc === 0 ? 1.5 : 1)
-          push[i] -= side * f
-          push[j] += side * f
-        }
-      }
-    }
-    for (let i = 0; i < nodes.length; i++) row[i] += Math.max(-0.5, Math.min(0.5, push[i]))
-  }
-
-  // Rows as whole numbers, the main line on 0 — nearest row, then shifted so
-  // the most common row is the middle one.
-  const rounded = row.map(r => Math.round(r))
-  const counts = new Map()
-  for (const r of rounded) counts.set(r, (counts.get(r) ?? 0) + 1)
-  const main = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0]
-  return new Map(nodes.map((n, i) => [n.id, { x: col[i], y: rounded[i] - main }]))
-}
-
-/**
- * A layout on an even grid with nothing drawn over anything else (the second
- * way the diagram can be arranged): every step between two columns and two
- * rows is the same, however long the tracks are.
+ * A layout of one cluster on an even grid with nothing drawn over anything
+ * else: every step between two columns and two rows is the same, however long
+ * the tracks are.
  *
  * It is a layered drawing. The nodes keep the order they come in along the
  * line; every track runs at least two columns, with its name on the grid
@@ -432,21 +357,35 @@ function fitRising(values) {
 }
 
 /**
+ * The colours the tracks of a selected switch are told apart by, one per port
+ * — on the map and in the diagram alike. Neither the red of an open end nor
+ * the dark blue of an ordinary track is among them.
+ */
+export const TOPOLOGY_TRACK_COLORS = ['#ff8c00', '#1f9e3a', '#d0308f', '#0f9fb5', '#7b3fbf', '#a0662b']
+
+/**
  * What a selection in the topology view highlights: a switch, the tracks it
- * connects; a track, itself and the switches it runs into.
+ * connects, each in a colour of its own; a track, itself and the switches it
+ * runs into.
  *
  *   selection  { kind: 'switch'|'track', id } or null
- *   returns    { trackIds: [], switchIds: [] }
+ *   returns    { trackIds: [], switchIds: [], colors: { trackId → colour } }
  */
 export function selectionHighlight(selection, switches) {
-  if (!selection) return { trackIds: [], switchIds: [] }
+  const none = { trackIds: [], switchIds: [], colors: {} }
+  if (!selection) return none
+  const colored = (trackIds) => Object.fromEntries(
+    trackIds.map((id, k) => [id, TOPOLOGY_TRACK_COLORS[k % TOPOLOGY_TRACK_COLORS.length]]))
   if (selection.kind === 'switch') {
     const sw = (switches ?? []).find(s => s.switchId === selection.id)
-    return sw ? { trackIds: switchTrackIds(sw), switchIds: [sw.switchId] } : { trackIds: [], switchIds: [] }
+    if (!sw) return none
+    const trackIds = switchTrackIds(sw)
+    return { trackIds, switchIds: [sw.switchId], colors: colored(trackIds) }
   }
   return {
     trackIds: [selection.id],
     switchIds: (switches ?? []).filter(sw => switchTrackIds(sw).includes(selection.id)).map(sw => sw.switchId),
+    colors: colored([selection.id]),
   }
 }
 

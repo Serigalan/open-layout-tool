@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  buildTopologyGraph, topologyClusters, layoutCluster, layoutClusterEven, selectionHighlight, switchTrackIds,
+  buildTopologyGraph, topologyClusters, layoutClusterEven, selectionHighlight, switchTrackIds, TOPOLOGY_TRACK_COLORS,
 } from './topologyGraph'
 import { newBufferStop } from './trackEndMarks'
 import { newSwitchFields } from './switchModel'
@@ -80,20 +80,6 @@ describe('the topology graph', () => {
     expect(loose.map(e => e.trackId)).toEqual(['far'])
   })
 
-  it('lays a network out in columns along the line, no two nodes on one spot', () => {
-    const { tracks, switches, marks } = station()
-    const [cluster] = topologyClusters(buildTopologyGraph(tracks, switches, marks)).clusters
-    const pos = layoutCluster(cluster)
-    const spots = [...pos.values()].map(p => `${p.x},${p.y}`)
-    expect(new Set(spots).size).toBe(spots.length)
-    // West to east: a's free end first, the buffer stop last, all on the main row.
-    const endOf = (id) => pos.get(cluster.nodes.find(n => n.id === id).id)
-    const edges = Object.fromEntries(cluster.edges.map(e => [e.trackId, e]))
-    expect(endOf(edges.a.from).x).toBe(0)
-    expect(endOf(edges.c.to).x).toBe(Math.max(...[...pos.values()].map(p => p.x)))
-    expect(endOf(edges.a.from).y).toBe(0)
-  })
-
   it('names the tracks a switch connects', () => {
     const { switches } = station()
     expect(switchTrackIds(switches[0])).toEqual(['a', 'side', 'main'])
@@ -123,14 +109,20 @@ describe('the topology graph', () => {
     expect(pos.get(edges.a.from).x).toBe(0)
   })
 
-  it('highlights a switch with its tracks, and a track with its switches', () => {
+  it('highlights a switch with its tracks, each in its own colour, and a track with its switches', () => {
     const { switches } = station()
     const [w1, w2] = switches
-    expect(selectionHighlight({ kind: 'switch', id: w1.switchId }, switches))
-      .toEqual({ trackIds: ['a', 'side', 'main'], switchIds: [w1.switchId] })
-    expect(selectionHighlight({ kind: 'track', id: 'main' }, switches))
-      .toEqual({ trackIds: ['main'], switchIds: [w1.switchId, w2.switchId] })
-    expect(selectionHighlight({ kind: 'track', id: 'c' }, switches)).toEqual({ trackIds: ['c'], switchIds: [] })
-    expect(selectionHighlight(null, switches)).toEqual({ trackIds: [], switchIds: [] })
+    const bySwitch = selectionHighlight({ kind: 'switch', id: w1.switchId }, switches)
+    expect(bySwitch.trackIds).toEqual(['a', 'side', 'main'])
+    expect(bySwitch.switchIds).toEqual([w1.switchId])
+    expect(Object.keys(bySwitch.colors)).toEqual(['a', 'side', 'main'])
+    expect(new Set(Object.values(bySwitch.colors)).size).toBe(3)
+    expect(Object.values(bySwitch.colors).every(c => TOPOLOGY_TRACK_COLORS.includes(c))).toBe(true)
+    const byTrack = selectionHighlight({ kind: 'track', id: 'main' }, switches)
+    expect(byTrack.trackIds).toEqual(['main'])
+    expect(byTrack.switchIds).toEqual([w1.switchId, w2.switchId])
+    expect(byTrack.colors).toEqual({ main: TOPOLOGY_TRACK_COLORS[0] })
+    expect(selectionHighlight({ kind: 'track', id: 'c' }, switches).switchIds).toEqual([])
+    expect(selectionHighlight(null, switches)).toEqual({ trackIds: [], switchIds: [], colors: {} })
   })
 })
