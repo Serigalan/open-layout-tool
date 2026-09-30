@@ -315,8 +315,8 @@ function renderTracksOnMap(map, project, { fit = false, topology = false } = {})
 }
 
 
-function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, topology, onTopologyChange, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
-  if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} topology={topology} onTopologyChange={onTopologyChange} t={t} />
+function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, topology, onTopologyChange, marksVersion, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
+  if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} topology={topology} onTopologyChange={onTopologyChange} map={map} project={project} onTrackSaved={onTrackSaved} version={marksVersion} t={t} />
   if (view === 'places')   return <CreateConnectPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'settings') return <SettingsPanel language={language} onLanguageChange={onLanguageChange} color={color} onColorChange={onColorChange} t={t} />
   if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} onCloseConstraints={onCloseConstraints} />
@@ -364,6 +364,11 @@ export default function App() {
   // Bumped whenever the store is moved under an open overlay — an undo does
   // that — so it can re-read instead of writing its own stale copy back out.
   const [storeVersion, setStoreVersion] = useState(0)
+  // Bumped after every write and every undo, for the lists that only read the
+  // store (the open track ends under the topology view). Not storeVersion:
+  // that one tells an open element table its data moved under it, which a
+  // write the table made itself must not.
+  const [marksVersion, setMarksVersion] = useState(0)
   const [profileTrackId, setProfileTrackId] = useState(null)   // track shown in the profile overlay
   const [planPreview, setPlanPreview] = useState(null)         // { plan, filenameBase } shown as a sheet preview
   const [crossSectionAt, setCrossSectionAt] = useState(null)   // { trackId, station } drawn in the cross-section overlay
@@ -502,6 +507,7 @@ export default function App() {
 
   const handleTrackSaved = () => {
     if (map.current && project) renderTracksOnMap(map.current, project, { topology: topologyRef.current })
+    setMarksVersion(v => v + 1)
     setUndoAvailable(canUndo())
     setHeightsVersion(v => v + 1)
     // The gradient is not read from the terrain behind the user's back: a
@@ -513,6 +519,7 @@ export default function App() {
     if (!undo()) return
     setUndoAvailable(canUndo())
     setStoreVersion(v => v + 1)   // whatever is open on it reads the store again
+    setMarksVersion(v => v + 1)
     setHeightsVersion(v => v + 1)   // an undone height edit must leave the profile too
     if (map.current && projectRef.current) {
       renderTracksOnMap(map.current, projectRef.current, { topology: topologyRef.current })
@@ -741,6 +748,7 @@ export default function App() {
             kmLinesError={kmLinesError}
             topology={topology}
             onTopologyChange={handleTopologyChange}
+            marksVersion={marksVersion}
             language={language}
             onLanguageChange={handleLanguageChange}
             color={color}

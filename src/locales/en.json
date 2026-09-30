@@ -770,5 +770,13 @@
   "end_end": "End",
   "edit_track_end": "Edit Track End",
   "data_exchange_mdb_buffer_stops": "Buffer stops: {{n}} placed on free track ends, {{missed}} without a free track end nearby. The database states neither type nor braking distance – they stand at the track end with no braking distance until set under Edit → Edit buffer stop.",
-  "overlay_topology": "Track topology"
+  "overlay_topology": "Track topology",
+  "topology_open_ends": "Open track ends: {n}",
+  "topology_no_open_ends": "No open track ends.",
+  "topology_state_open": "free",
+  "topology_state_near": "almost connected",
+  "topology_mark_boundary": "Boundary",
+  "topology_mark_boundary_hint": "Mark as the boundary of the planning area: the line runs on here but is not drawn. The end then no longer counts as open.",
+  "topology_boundaries": "Boundaries of the planning area: {n}",
+  "topology_lift_boundary": "lift"
 }

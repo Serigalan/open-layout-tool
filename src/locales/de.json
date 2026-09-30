@@ -770,5 +770,13 @@
   "end_end": "Ende",
   "edit_track_end": "Gleisende bearbeiten",
   "data_exchange_mdb_buffer_stops": "Prellböcke: {{n}} auf freie Gleisenden gesetzt, {{missed}} ohne freies Gleisende in der Nähe. Die MDB nennt weder Typ noch Bremsweg – sie stehen mit Bremsweg 0 am Gleisende, bis sie unter Bearbeiten → Prellbock bearbeiten eingestellt werden.",
-  "overlay_topology": "Topologie der Gleise"
+  "overlay_topology": "Topologie der Gleise",
+  "topology_open_ends": "Offene Gleisenden: {n}",
+  "topology_no_open_ends": "Keine offenen Gleisenden.",
+  "topology_state_open": "frei",
+  "topology_state_near": "fast angeschlossen",
+  "topology_mark_boundary": "Betrachtungsgrenze",
+  "topology_mark_boundary_hint": "Als Betrachtungsgrenze markieren: die Strecke geht hier weiter, ist aber nicht gezeichnet. Das Ende zählt dann nicht mehr als offen.",
+  "topology_boundaries": "Betrachtungsgrenzen: {n}",
+  "topology_lift_boundary": "aufheben"
 }

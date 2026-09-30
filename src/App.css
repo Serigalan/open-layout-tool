@@ -2238,3 +2238,42 @@
 .link-joint-crs {
   font-weight: 600;
 }
+
+/* The open track ends under the topology view (AP 9.4): the count in red while
+   there are any, and a list that scrolls rather than pushing the panel on
+   for a whole database's worth of ends. */
+.topology-ends {
+  font-family: system-ui, sans-serif;
+  margin-top: 6px;
+}
+
+.topology-ends-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  margin: 4px 0 2px;
+}
+
+.topology-ends-open {
+  color: #d62828;
+}
+
+.topology-ends-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.topology-ends-action {
+  font: inherit;
+  font-size: 11px;
+  color: #555;
+  background: #f3f3f3;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 0 5px;
+  cursor: pointer;
+}
+
+.topology-ends-action:hover {
+  background: #e6e6e6;
+}
