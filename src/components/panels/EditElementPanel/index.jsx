@@ -10,9 +10,11 @@ import DeleteTrackForm from './DeleteTrackForm'
 import DeleteSwitchForm from './DeleteSwitchForm'
 import SwitchStatusForm from './SwitchStatusForm'
 import AssignTracksForm from './AssignTracksForm'
+import BufferStopForm from '../CreateElementPanel/BufferStopForm'
 import {
   BackIcon, EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
   ChangeDirectionIcon, AssignTracksIcon, DeleteTrackIcon, DeleteSwitchIcon, PhysicsIcon, RegelwerkIcon,
+  BufferStopIcon,
 } from '../../../components/icons'
 
 export default function EditElementPanel({ t, map, project, trackTableId, onTrackSaved, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints }) {
@@ -115,6 +117,15 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
     </>
   )
 
+  if (page === 'buffer_stop') return (
+    <>
+      {backButton()}
+      <h2>{t('buffer_stop_edit')}</h2>
+      <BufferStopForm t={t} map={map} project={project} edit
+        onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+    </>
+  )
+
   if (page === 'change_direction') return (
     <>
       {backButton()}
@@ -165,6 +176,11 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
         <button className="create-element-btn" onClick={() => goto('delete_switch')}>
           <DeleteSwitchIcon />
           {t('switch_delete')}
+        </button>
+        <span className="create-element-section">{t('edit_track_end')}</span>
+        <button className="create-element-btn" onClick={() => goto('buffer_stop')}>
+          <BufferStopIcon />
+          {t('buffer_stop_edit')}
         </button>
       </div>
       {/* Not an object on the map but the rules every object is held to, so

@@ -9,7 +9,9 @@ import { formatKm } from './kmLineMath'
 import {
   trackPathUtm, mainPoints, switchSymbolUtm, trackPointAt, isArc, isTransition,
 } from './planGeometry'
-import { pointAtStationUtm } from './heightUtils'
+import { pointAtStationUtm, trackLength } from './heightUtils'
+import { BUFFER_STOP, bufferStopStations } from './trackEndMarks'
+import { FACE_HALF_WIDTH } from './bufferStopGeometry'
 import { cantExceptionOf, computeCantDef, worstCantOf } from './mapConstants'
 
 /**
@@ -67,6 +69,7 @@ export const STYLE = {
   mainTextGap:     3.2,   // text distance from the axis [mm]
   elementTextGap:  3.0,
   trackNameGap:    5.0,
+  bufferStopHalf:  1.5,   // half-width of a buffer stop's body [m, true to scale]
 }
 
 /** Average glyph width in em — the same estimate the map labels use. */
@@ -471,7 +474,7 @@ function labelPath(track, station, spanM, side, gap, size, rotDeg, transform, to
 
 /** Everything drawn from the tracks themselves, clipped to the drawing area. */
 function trackItems(sheet, ctx) {
-  const { tracks, switches, show, comma, scaleDen, switchText, kmLines } = ctx
+  const { tracks, switches, show, comma, scaleDen, switchText, kmLines, endMarks = [] } = ctx
   const transform = sheet.transform
   const items = []
   const mmPerM = 1000 / scaleDen
@@ -655,6 +658,29 @@ function trackItems(sheet, ctx) {
           STYLE.sizeTrack, 1, STYLE.trackNameGap),
       }))
     }
+  }
+
+  // Buffer stops, true to scale: the bar across the track at the face and the
+  // body behind it filled. The brake length is the axis running on to the
+  // track end, already drawn.
+  const trackOf = new Map(tracks.map(tr => [tr.id, tr]))
+  for (const mark of endMarks) {
+    const track = mark.kind === BUFFER_STOP && trackOf.get(mark.trackId)
+    if (!track) continue
+    const st = bufferStopStations(trackLength(track), mark)
+    const face = trackPointAt(track, st.face)
+    const back = trackPointAt(track, mark.endpoint === 'BEGIN' ? st.body[0] : st.body[1])
+    if (!face || !back) continue
+    const across = (at, half) => {
+      const r = at.bearing * Math.PI / 180
+      const dx = half * Math.cos(r), dy = -half * Math.sin(r)
+      return [[at.point[0] - dx, at.point[1] - dy], [at.point[0] + dx, at.point[1] + dy]]
+    }
+    const [f1, f2] = across(face, STYLE.bufferStopHalf)
+    const [b1, b2] = across(back, STYLE.bufferStopHalf)
+    items.push(path(mapPath(polyPath([f1, f2, b2, b1]), transform), { fill: STYLE.ink, stroke: null }))
+    const [c1, c2] = across(face, FACE_HALF_WIDTH).map(p => transform(p[0], p[1]))
+    items.push(line(c1[0], c1[1], c2[0], c2[1], { width: STYLE.axis }))
   }
 
   // Where the next sheet takes over.
@@ -1044,7 +1070,7 @@ function northArrowItems(rotDeg) {
  * @returns {{ pageW, pageH, sheets: Array<{ index, count, items }> }}
  */
 export function buildPlan({
-  tracks, switches = [], kmLines = [], sheets, paperKey, scaleDen, titleBlock,
+  tracks, switches = [], kmLines = [], endMarks = [], sheets, paperKey, scaleDen, titleBlock,
   show = {}, basemaps = [], basemapOpacity = 0.4, comma = true, switchText = {},
   reserve = titleBlock ? TITLE_COLUMN_MM : 0,
 }) {
@@ -1075,7 +1101,7 @@ export function buildPlan({
       type: 'group',
       clip,
       items: cullItems(trackItems(withTransform,
-        { tracks, switches, kmLines, show: shown, comma, scaleDen, switchText: swText }), clip),
+        { tracks, switches, kmLines, endMarks, show: shown, comma, scaleDen, switchText: swText }), clip),
     })
 
     items.push(...scaleBarItems(pageH, scaleDen, comma))

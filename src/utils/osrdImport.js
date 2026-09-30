@@ -10,7 +10,7 @@ import {
   switchLabelGeometry, bauform,
 } from './switchUtils'
 import { newSwitchFields, switchElementMark, LINK_KIND } from './switchModel'
-import { kindForOsrdType } from './alignmentCodec'
+import { kindForOsrdType, bufferStopsToEndMarks } from './alignmentCodec'
 import { computeClothoidUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT } from './mapConstants'
@@ -517,5 +517,9 @@ export function parseOsrdRailJson(data) {
     })
     .filter(Boolean)
 
-  return { tracks, errors, infra, switches }
+  // Buffer stops become marks on their track ends (trackEndMarks); the
+  // passthrough copy of each is replaced by the regenerated one on export.
+  const endMarks = bufferStopsToEndMarks(infra.buffer_stops, trackById)
+
+  return { tracks, errors, infra, switches, endMarks }
 }

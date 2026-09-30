@@ -6,6 +6,9 @@
 
 import { transitionCantEnds } from './clothoidUtils'
 import { portsOf } from './switchModel'
+import {
+  BUFFER_STOP, BUFFER_STOP_LENGTH, BUFFER_STOP_TYPES, DEFAULT_BUFFER_STOP_TYPE, bufferStopStations,
+} from './trackEndMarks'
 
 export const DEG2GON = 10 / 9
 export const GON2DEG = 9 / 10
@@ -270,4 +273,59 @@ export function switchesToPorts(switches, trackMap, foreign = []) {
   const generated = new Set(out.flatMap(s => [s.id, s.extensions?.sncf?.label].filter(Boolean)))
   return [...out, ...foreign.filter(s =>
     !generated.has(s.id) && !generated.has(s.extensions?.sncf?.label))]
+}
+
+/**
+ * The buffer stops of a project as RailJSON `buffer_stops`: one per mark, at
+ * its buffer face — the point a train meets, which is what OSRD's position
+ * states. Type and brake length ride in `extensions.olt`; ones an imported
+ * file brought along stay unless a generated stop takes their id.
+ */
+export function endMarksToBufferStops(endMarks, trackMap, foreign = []) {
+  const out = []
+  for (const mark of endMarks ?? []) {
+    const track = mark.kind === BUFFER_STOP && trackMap[mark.trackId]
+    if (!track) continue
+    out.push({
+      id: mark.id,
+      track: mark.trackId,
+      position: round3(bufferStopStations(totalLength(track), mark).face),
+      extensions: { olt: { type: mark.type ?? null, brake_length: mark.brakeLength ?? 0, end: mark.endpoint } },
+    })
+  }
+  const generatedIds = new Set(out.map(b => b.id))
+  return [...out, ...(foreign ?? []).filter(b => !generatedIds.has(b.id))]
+}
+
+/** How far from a track end [m] a buffer stop from another program may stand to be taken as that end's. */
+export const BUFFER_STOP_REACH = 50
+
+/**
+ * The buffer stops of a RailJSON file back as end marks. One this app wrote
+ * says which end it stands at and its brake length; one from elsewhere is
+ * taken for the nearer track end when it stands within BUFFER_STOP_REACH of
+ * it, its brake length being what lies between it and that end. Anything else
+ * is left to the file's passthrough, which hands it back on export.
+ */
+export function bufferStopsToEndMarks(bufferStops, trackMap) {
+  const marks = []
+  for (const bs of bufferStops ?? []) {
+    const track = trackMap[bs?.track]
+    const position = Number(bs?.position)
+    if (!track || !bs.id || !Number.isFinite(position)) continue
+    const total = totalLength(track)
+    const olt = bs.extensions?.olt ?? {}
+    const endpoint = olt.end === 'BEGIN' || olt.end === 'END'
+      ? olt.end
+      : (position <= total / 2 ? 'BEGIN' : 'END')
+    const behind = endpoint === 'BEGIN' ? position : total - position
+    if (olt.end == null && behind > BUFFER_STOP_REACH) continue
+    const stated = Number(olt.brake_length)
+    const brakeLength = Number.isFinite(stated) && stated >= 0
+      ? stated
+      : Math.max(0, Math.round((behind - BUFFER_STOP_LENGTH) * 10) / 10)
+    const type = BUFFER_STOP_TYPES.includes(Number(olt.type)) ? Number(olt.type) : DEFAULT_BUFFER_STOP_TYPE
+    marks.push({ id: bs.id, kind: BUFFER_STOP, trackId: track.id, endpoint, type, brakeLength })
+  }
+  return marks
 }

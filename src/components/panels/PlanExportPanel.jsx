@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadTracks, loadSwitches, loadKmLines, loadPlatforms, loadPlanHeader, savePlanHeader } from '../../storage'
+import { loadTracks, loadSwitches, loadKmLines, loadPlatforms, loadPlanHeader, savePlanHeader, loadEndMarks } from '../../storage'
 import PlanHeaderFields from './PlanHeaderFields'
 import { PARTIES, STAFF, normalizeHeader, todayIso } from '../../utils/planHeader'
 import { BASEMAPS } from '../../basemaps'
@@ -214,6 +214,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
       tracks: current,
       switches: loadSwitches(project.id),
       kmLines: loadKmLines(project.id),
+      endMarks: loadEndMarks(project.id),
       sheets: layout.sheets,
       paperKey, scaleDen, show, basemaps, reserve,
       basemapOpacity: backdrop.opacity ?? 0.4,

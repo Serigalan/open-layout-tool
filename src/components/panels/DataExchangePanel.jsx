@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { loadTracks, loadSwitches, loadProjects, importProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports } from '../../storage'
+import { loadTracks, loadSwitches, loadProjects, importProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
 import { parseProjectsPayload, PayloadError } from '../../utils/persistenceUtils'
 import { parseRecords, buildElements } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'
@@ -13,7 +13,7 @@ import { EPSG_OPTIONS, crsDatum, crsLabel } from '../../utils/coordinateUtils'
 import useTrackHover from '../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
-import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, buildAllTracksFromMdb, mdbSwitchInventory } from '../../utils/mdbImport'
+import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, buildAllTracksFromMdb, mdbSwitchInventory, mdbBufferStops, matchMdbBufferStops } from '../../utils/mdbImport'
 import { placeMdbSwitches } from '../../utils/mdbSwitchPlacement'
 import { linkAllJoints } from '../../utils/trackLinkUtils'
 import { transformTrackToPlane } from '../../utils/planeTransform'
@@ -535,11 +535,23 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     }
     if (fanned) notes.push(t('data_exchange_mdb_fanned').replace('{{n}}', fanned))
 
+    // Buffer stops (Satzart 31, form „Prellbock") go on the free track end
+    // they stand at. The file names no type and no brake length, so each
+    // stands right at its end until someone sets it (ROADMAP decision 79).
+    const stops = mdbBufferStops(payload)
+    const buffered = matchMdbBufferStops(stops, afterTracks, [...afterSwitches, ...links])
+    if (stops.length) {
+      notes.push(t('data_exchange_mdb_buffer_stops')
+        .replace('{{n}}', buffered.marks.length)
+        .replace('{{missed}}', buffered.missed))
+    }
+
     keep(notes, { tracks: addTracks.length, switches: placed.switches.length })
     // One commit, one undo step — a whole database is thousands of tracks, and
     // saving them one at a time would leave as many steps behind.
     commitSwitchConnection(project.id, {
       removeTrackIds: [], addTracks, addSwitches: [...placed.switches, ...links], remap: [],
+      addEndMarks: buffered.marks,
     })
     setBusy(false)
     onTrackSaved?.()
@@ -574,7 +586,7 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const { tracks: parsed, errors, infra, switches } = parseOsrdRailJson(JSON.parse(ev.target.result))
+        const { tracks: parsed, errors, infra, switches, endMarks } = parseOsrdRailJson(JSON.parse(ev.target.result))
         setOsrdErrors(errors)
         if (!parsed.length) return
         const existingIds = new Set(loadTracks(project.id).map(tr => tr.id))
@@ -603,6 +615,13 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
           portA_trackId:  sw.portA_trackId  ? remapId(sw.portA_trackId)  : sw.portA_trackId,
           portB1_trackId: sw.portB1_trackId ? remapId(sw.portB1_trackId) : sw.portB1_trackId,
           portB2_trackId: sw.portB2_trackId ? remapId(sw.portB2_trackId) : sw.portB2_trackId,
+        }))
+        // Buffer stops stand on the imported track ends; one whose id the
+        // project already uses (the same file imported twice) gets a new one,
+        // or it would take the place of the first.
+        const markIds = new Set(loadEndMarks(project.id).map(m => m.id))
+        endMarks.forEach(mark => saveEndMark(project.id, {
+          ...mark, id: markIds.has(mark.id) ? generateId() : mark.id, trackId: remapId(mark.trackId),
         }))
 
         // Keep everything the app does not model, so an export hands it back.

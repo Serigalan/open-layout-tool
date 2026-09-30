@@ -767,5 +767,7 @@
   "buffer_stop_too_short": "Das Gleis ist zu kurz: Prellbock und Bremsweg brauchen {need} m, das Gleis hat {have} m.",
   "buffer_stop_delete": "Prellbock entfernen",
   "end_begin": "Anfang",
-  "end_end": "Ende"
+  "end_end": "Ende",
+  "edit_track_end": "Gleisende bearbeiten",
+  "data_exchange_mdb_buffer_stops": "Prellböcke: {{n}} auf freie Gleisenden gesetzt, {{missed}} ohne freies Gleisende in der Nähe. Die MDB nennt weder Typ noch Bremsweg – sie stehen mit Bremsweg 0 am Gleisende, bis sie unter Bearbeiten → Prellbock bearbeiten eingestellt werden."
 }

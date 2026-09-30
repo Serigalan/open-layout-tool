@@ -220,3 +220,82 @@ describe('topology', () => {
     expect(stateOf(ends, 'c', 'BEGIN')).toBe('link')
   })
 })
+
+describe('buffer stops on the plan', () => {
+  it('draws the body filled and the face across, true to scale', async () => {
+    const { buildPlan } = await import('./planModel')
+    const tr = straight('t', 0, 0, 90, 100)   // due east from the origin
+    const plan = (endMarks) => buildPlan({
+      tracks: [tr], endMarks, show: { labels: false, trackNames: false, mainPoints: false },
+      sheets: [{ center: { e: 50, n: 0 }, rotDeg: 0, index: 0, count: 1 }],
+      paperKey: '297x840', scaleDen: 1000, reserve: 0,
+    }).sheets[0].items.find(i => i.type === 'group').items
+    const without = plan([])
+    const withStop = plan([newBufferStop('t', 'END', 4)])
+    const added = withStop.filter(i => !without.some(w => JSON.stringify(w) === JSON.stringify(i)))
+    const body = added.find(i => i.fill)
+    const bar = added.find(i => !i.fill)
+    expect(body).toBeTruthy()
+    expect(bar).toBeTruthy()
+    // 2.20 m of body is 2.2 mm at 1:1000, 3.5 m of bar is 3.5 mm.
+    const xs = body.d.filter(c => c[0] !== 'Z').map(c => c[1])
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(2.2, 3)
+    const [, [, x1, y1], [, x2, y2]] = [null, ...bar.d]
+    expect(Math.hypot(x2 - x1, y2 - y1)).toBeCloseTo(3.5, 3)
+  })
+})
+
+describe('buffer stops in RailJSON', () => {
+  it('go out at their face and come back to the same end', async () => {
+    const { buildInfra } = await import('./exchangeExport')
+    const { parseOsrdRailJson } = await import('./osrdImport')
+    const tr = straight('t', E0, N0, 90, 100)
+    const marks = [newBufferStop('t', 'END', 8, 6.5), newBufferStop('t', 'BEGIN', 4), newBoundary('t', 'END')]
+    const infra = buildInfra([tr], [], [], {}, marks)
+    expect(infra.buffer_stops).toHaveLength(2)
+    expect(infra.buffer_stops[0]).toMatchObject({ track: 't', position: 100 - 6.5 - BUFFER_STOP_LENGTH })
+    const { endMarks } = parseOsrdRailJson(infra)
+    expect(endMarks.map(m => [m.endpoint, m.type, m.brakeLength]).sort())
+      .toEqual([['BEGIN', 4, 4], ['END', 8, 6.5]])
+    expect(endMarks.map(m => m.id).sort()).toEqual(marks.slice(0, 2).map(m => m.id).sort())
+  })
+
+  it('takes a stop from another program for the nearer end, when it stands close to it', async () => {
+    const { bufferStopsToEndMarks } = await import('./alignmentCodec')
+    const tr = straight('t', E0, N0, 90, 200)
+    const marks = bufferStopsToEndMarks([
+      { id: 'a', track: 't', position: 200 },       // at the end: no brake length
+      { id: 'b', track: 't', position: 10 },        // 10 m in from BEGIN
+      { id: 'c', track: 't', position: 100 },       // mid-track: not an end's
+      { id: 'd', track: 'gone', position: 0 },
+    ], { t: tr })
+    expect(marks.map(m => [m.id, m.endpoint, m.brakeLength])).toEqual([['a', 'END', 0], ['b', 'BEGIN', 7.8]])
+  })
+
+  it('hands foreign stops back that it did not take', async () => {
+    const { endMarksToBufferStops } = await import('./alignmentCodec')
+    const tr = straight('t', E0, N0, 90, 100)
+    const m = newBufferStop('t', 'END', 4)
+    const out = endMarksToBufferStops([m], { t: tr }, [{ id: m.id, track: 't', position: 1 }, { id: 'x', track: 't', position: 50 }])
+    expect(out.map(b => b.id)).toEqual([m.id, 'x'])
+  })
+})
+
+describe('buffer stops from the MDB', () => {
+  it('put the node of form „Prellbock" on the track end it stands at', async () => {
+    const { parseMdbPayload, buildAllTracksFromMdb, mdbBufferStops, matchMdbBufferStops } = await import('./mdbImport')
+    const fixture = (await import('../test/fixtures/mdb_thueringen.json')).default
+    const payload = parseMdbPayload(fixture)
+    const stops = mdbBufferStops(payload)
+    expect(stops).toHaveLength(1)
+    expect(stops[0].lngLat).not.toBeNull()
+    const { tracks } = buildAllTracksFromMdb(payload)
+    const ids = tracks.map((tr, i) => ({ ...tr, id: tr.id ?? `t${i}` }))
+    const { marks, missed } = matchMdbBufferStops(stops, ids, [])
+    expect(missed).toBe(0)
+    expect(marks).toHaveLength(1)
+    expect(marks[0]).toMatchObject({ kind: 'buffer_stop', brakeLength: 0 })
+    // The chain begins at the node the stop is at.
+    expect(marks[0].endpoint).toBe('BEGIN')
+  })
+})

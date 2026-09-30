@@ -808,8 +808,9 @@ export function updateSwitch(projectId, switchId, patch) {
  * @param {object[]} ops.addTracks       new track objects (with ids)
  * @param {object[]} ops.addSwitches     new switch records
  * @param {object[]} ops.remap           remapSwitches entries for existing switches
+ * @param {object[]} [ops.addEndMarks]   buffer stops / boundaries on the new tracks' ends
  */
-export function commitSwitchConnection(projectId, { removeTrackIds, addTracks, addSwitches, remap }) {
+export function commitSwitchConnection(projectId, { removeTrackIds, addTracks, addSwitches, remap, addEndMarks }) {
   pushUndo()
   const project = getCache().find((p) => p.id === projectId)
   if (!project) return
@@ -820,6 +821,7 @@ export function commitSwitchConnection(projectId, { removeTrackIds, addTracks, a
     project.endMarks = remapEndMarks(project.endMarks, remap)
   }
   project.switches = [...(project.switches ?? []), ...(addSwitches ?? [])]
+  if (addEndMarks?.length) project.endMarks = [...(project.endMarks ?? []), ...addEndMarks]
   persist(projectId)
 }
 

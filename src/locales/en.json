@@ -767,5 +767,7 @@
   "buffer_stop_too_short": "The track is too short: buffer stop and braking distance need {need} m, the track has {have} m.",
   "buffer_stop_delete": "Remove buffer stop",
   "end_begin": "Begin",
-  "end_end": "End"
+  "end_end": "End",
+  "edit_track_end": "Edit Track End",
+  "data_exchange_mdb_buffer_stops": "Buffer stops: {{n}} placed on free track ends, {{missed}} without a free track end nearby. The database states neither type nor braking distance – they stand at the track end with no braking distance until set under Edit → Edit buffer stop."
 }

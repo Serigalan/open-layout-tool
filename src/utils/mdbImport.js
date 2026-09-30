@@ -6,6 +6,10 @@ import {
   TYPE_STRAIGHT, TYPE_KINK, TYPE_ARC, TYPE_CLOTHOID, TYPE_BLOSS,
   CANT_CONSTANT,
 } from './gleislageCsvImport'
+import { utmToWgs84 } from './coordinateUtils'
+import { classifyTrackEnds, freeEnds } from './topology'
+import { JOINT_TOL } from './trackLinkUtils'
+import { newBufferStop, DEFAULT_BUFFER_STOP_TYPE } from './trackEndMarks'
 
 /**
  * Adapter for the DB ASCII interface delivered as an Access database (Satzarten
@@ -572,4 +576,57 @@ export function mdbSwitchInventory(payload) {
 
   units.sort((a, b) => a.bst.localeCompare(b.bst) || a.name.localeCompare(b.name, undefined, { numeric: true }))
   return { units, errors }
+}
+
+/**
+ * The buffer stops of the database: Satzart 31 names them as nodes of form
+ * „Prellbock", with the point address (PAD) of the node. Each comes back with
+ * that point in WGS84 — taken from the first Lagesystem of the point this tool
+ * knows — so it can be matched to a track end once the tracks are built,
+ * whatever plane they end up in.
+ */
+export function mdbBufferStops(payload) {
+  const byPad = new Map()
+  for (const p of payload?.points ?? []) {
+    if (!Number.isFinite(p?.y) || !Number.isFinite(p?.x)) continue
+    const epsg = epsgForLagesystem(p.sys)
+    if (!epsg || byPad.has(p.pad)) continue
+    byPad.set(p.pad, utmToWgs84(p.y, p.x, epsg))
+  }
+  const out = []
+  for (const n of payload?.nodes ?? []) {
+    if (String(n?.form ?? '').trim().toLowerCase() !== 'prellbock') continue
+    out.push({ knoten: n.knoten, pad: n.pad, lngLat: byPad.get(n.pad) ?? null })
+  }
+  return out
+}
+
+/**
+ * Put the database's buffer stops on the free track ends they stand at: the
+ * nearest one within JOINT_TOL. The file states neither type nor brake length,
+ * so a stop comes in with the first type and no brake length — standing right
+ * at the track end until someone sets it (ROADMAP Phase 9, open points).
+ *
+ * Returns { marks, missed } — the stops no free end was found for are counted
+ * for the report.
+ */
+export function matchMdbBufferStops(stops, tracks, switches) {
+  const free = freeEnds(classifyTrackEnds(tracks, switches, []))
+  const taken = new Set()
+  const marks = []
+  let missed = 0
+  for (const stop of stops ?? []) {
+    let best = null, bestD = JOINT_TOL
+    for (const end of stop.lngLat ? free : []) {
+      const key = `${end.trackId}|${end.endpoint}`
+      if (taken.has(key)) continue
+      const k = Math.cos(stop.lngLat[1] * Math.PI / 180)
+      const d = Math.hypot((end.lngLat[0] - stop.lngLat[0]) * 111320 * k, (end.lngLat[1] - stop.lngLat[1]) * 110574)
+      if (d <= bestD) { best = end; bestD = d }
+    }
+    if (!best) { missed += 1; continue }
+    taken.add(`${best.trackId}|${best.endpoint}`)
+    marks.push(newBufferStop(best.trackId, best.endpoint, DEFAULT_BUFFER_STOP_TYPE, 0))
+  }
+  return { marks, missed }
 }

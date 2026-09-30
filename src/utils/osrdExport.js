@@ -1,8 +1,8 @@
-import { loadTracks, loadSwitches, loadPlatforms, loadProjects } from '../storage'
+import { loadTracks, loadSwitches, loadPlatforms, loadProjects, loadEndMarks } from '../storage'
 import {
   exact, round3, buildCoords, totalLength,
   horizontalElements, startAnchor, endAnchor, switchesToPorts,
-  platformsToOperationalPoints,
+  platformsToOperationalPoints, endMarksToBufferStops,
 } from './alignmentCodec'
 
 // The OSRD instance this tool's exports are meant for — used by the Data
@@ -98,5 +98,7 @@ export function exportToOsrd(projectId) {
     // brought along stay unless a generated point takes their id.
     operational_points: platformsToOperationalPoints(
       platforms, trackMap, project?.osrd?.operational_points ?? []),
+    buffer_stops: endMarksToBufferStops(
+      loadEndMarks(projectId), trackMap, project?.osrd?.buffer_stops ?? []),
   }
 }

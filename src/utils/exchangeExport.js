@@ -1,7 +1,8 @@
-import { loadTracks, loadSwitches, loadPlatforms, loadProjects } from '../storage'
+import { loadTracks, loadSwitches, loadPlatforms, loadProjects, loadEndMarks } from '../storage'
 import {
   exact, round3, round4, buildCoords, totalLength,
   horizontalElements, startAnchor, endAnchor, switchesToPorts, platformsToOperationalPoints,
+  endMarksToBufferStops,
 } from './alignmentCodec'
 import { tangentLength } from './heightUtils'
 import { DEFAULT_HEIGHT_EPSG } from './mapConstants'
@@ -94,7 +95,7 @@ function oltExtension(track) {
  * an imported file carried at the infra level (see osrdImport) and is handed
  * back unchanged, apart from the objects regenerated here.
  */
-export function buildInfra(tracks, switches, platforms = [], foreign = {}) {
+export function buildInfra(tracks, switches, platforms = [], foreign = {}, endMarks = []) {
   const trackMap = Object.fromEntries(tracks.map(t => [t.id, t]))
 
   // ── track_sections ──────────────────────────────────────────────────────
@@ -134,6 +135,7 @@ export function buildInfra(tracks, switches, platforms = [], foreign = {}) {
   const generated = {
     switches: () => switchesToPorts(switches, trackMap, rest.switches ?? []),
     operational_points: () => platformsToOperationalPoints(platforms, trackMap, rest.operational_points ?? []),
+    buffer_stops: () => endMarksToBufferStops(endMarks, trackMap, rest.buffer_stops ?? []),
   }
   for (const key of INFRA_LISTS) out[key] = generated[key] ? generated[key]() : (rest[key] ?? [])
   for (const [key, value] of Object.entries(rest)) if (!(key in out)) out[key] = value
@@ -143,5 +145,6 @@ export function buildInfra(tracks, switches, platforms = [], foreign = {}) {
 export function exportExchange(projectId) {
   const project = loadProjects().find(p => p.id === projectId)
   return buildInfra(
-    loadTracks(projectId), loadSwitches(projectId), loadPlatforms(projectId), project?.osrd ?? {})
+    loadTracks(projectId), loadSwitches(projectId), loadPlatforms(projectId), project?.osrd ?? {},
+    loadEndMarks(projectId))
 }
