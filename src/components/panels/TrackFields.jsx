@@ -1,5 +1,6 @@
 import { TYPE_CODES, SIDE_CODES } from '../../utils/identifierUtils'
 import StationNameInput from './StationNameInput'
+import useLineNameSuggestion from '../../hooks/useLineNameSuggestion'
 
 const OWNERS = ['DB', 'SNCF', 'other']
 
@@ -15,6 +16,7 @@ export default function TrackFields({ t, fields, setField, name, onNameChange, n
   const { owner, type, lineNumber, lineName, side, stationName, uicStation, trackNumber } = fields
   const hasNameField = onNameChange !== undefined
   const lineErr = lineNumError(owner, lineNumber)
+  useLineNameSuggestion(lineNumber, lineName, setField, type === 'line_track')
 
   return (
     <>

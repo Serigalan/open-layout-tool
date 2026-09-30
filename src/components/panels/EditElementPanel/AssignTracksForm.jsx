@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { loadTracks, replaceAllTracks } from '../../../storage'
 import useTrackPick from '../../../hooks/useTrackPick'
 import useNearbyLines from '../../../hooks/useNearbyLines'
+import useLineNameSuggestion from '../../../hooks/useLineNameSuggestion'
 import {
   assignTracks, assignmentFields, groupTitle, groupTracks, plannedNames, trackGroupKey, trackListLabel,
 } from '../../../utils/trackGroups'
@@ -90,6 +91,7 @@ export default function AssignTracksForm({ t, map, project, onTrackSaved, onComm
 
   const setField = (name, value) => { setError(null); setEntry(prev => ({ ...prev, [name]: value })) }
   const changeKind = (next) => { setError(null); setKind(next); setChoice(NEW) }
+  useLineNameSuggestion(entry.lineNumber, entry.lineName, setField, kind === 'line' && !chosen)
 
   const target = () => {
     if (kind === 'none') return { kind: null }

@@ -205,6 +205,18 @@ export async function identifyTrackLine(geometry, lineNumber = null) {
   }
 }
 
+/**
+ * The name of line `lineNumber` as its file carries it, or null where there is
+ * no such line or it has none. Only numbers are looked up — anything else is
+ * no line file's name.
+ */
+export async function lineNameOf(lineNumber) {
+  const key = String(lineNumber ?? '').trim()
+  if (!/^\d+$/.test(key)) return null
+  const file = await loadLineFile(key)
+  return file?.lineName ?? null
+}
+
 /** Digits the kilometrage of a name is written with: km 29,12 is `02912`. */
 const KM_NAME_DIGITS = 5
 
