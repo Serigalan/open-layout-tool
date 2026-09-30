@@ -299,3 +299,25 @@ describe('buffer stops from the MDB', () => {
     expect(marks[0].endpoint).toBe('BEGIN')
   })
 })
+
+describe('the topology view', () => {
+  it('draws switches and links as nodes, and only the ends that say something', async () => {
+    const { topologyGeoJSON } = await import('./topologyLayer')
+    const a  = straight('a', E0, N0, 90, 100)
+    const [toeE, toeN] = a.elements[0].endNode
+    const b1 = straight('b1', toeE, toeN, 80, 60)
+    const b2 = straight('b2', toeE, toeN, 90, 60)
+    const [lE, lN] = b2.elements[0].endNode
+    const c  = straight('c', lE, lN, 90, 40)
+    const sw = turnout(['a', 'END'], ['b1', 'BEGIN'], ['b2', 'BEGIN'])
+    const link = { ...newSwitchFields(LINK_KIND), portA_trackId: 'b2', portA_endpoint: 'END', portB_trackId: 'c', portB_endpoint: 'BEGIN' }
+    const { nodes, ends } = topologyGeoJSON([a, b1, b2, c], [sw, link],
+      [newBufferStop('c', 'END', 4), newBoundary('a', 'BEGIN')])
+    expect(nodes.features.map(f => f.properties.link)).toEqual([false, true])
+    expect(ends.features.map(f => `${f.properties.trackId}|${f.properties.endpoint}|${f.properties.state}`).sort())
+      .toEqual(['a|BEGIN|boundary', 'b1|END|open', 'c|END|buffer_stop'])
+    // The bar across c's end: c runs due east, so it is turned a quarter.
+    const bar = ends.features.find(f => f.properties.state === 'buffer_stop')
+    expect(bar.properties.rotate).toBeCloseTo(270, 6)
+  })
+})

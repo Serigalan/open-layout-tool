@@ -8,6 +8,7 @@ import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
 import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, loadSettings, saveSettings, canUndo, undo } from './storage'
 import { bufferStopFeatures } from './utils/bufferStopGeometry'
+import { showTopology } from './utils/topologyLayer'
 import { resolveEndBearing, displayCoords } from './utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from './utils/mapRenderUtils'
 import { updateLabels, clearTrackLabels, createTrackLabel, SWITCH_LABEL_MIN_ZOOM } from './utils/labelUtils'
@@ -73,7 +74,7 @@ function switchElementLabel(tr, el) {
   return [{ t: 'r' }, { t: sub, sub: true }, { t: ` = ${value}` }]
 }
 
-function renderTracksOnMap(map, project, { fit = false } = {}) {
+function renderTracksOnMap(map, project, { fit = false, topology = false } = {}) {
   if (!map || !project) return
   const tracks = loadTracks(project.id)
   // Labels are language-dependent and this runs outside the component tree, so
@@ -296,6 +297,11 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
     })
   }
 
+  // The topology view shows the connections and nothing else (AP 9.3): no
+  // labels, and its own layers in place of the detailed ones.
+  if (topology) clearTrackLabels()
+  showTopology(map, { on: topology, tracks, switches, endMarks: loadEndMarks(project.id), color: getColor() })
+
   updateLabels(map)
   map.once('idle', () => updateLabels(map))
 
@@ -309,8 +315,8 @@ function renderTracksOnMap(map, project, { fit = false } = {}) {
 }
 
 
-function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
-  if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
+function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, topology, onTopologyChange, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
+  if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} topology={topology} onTopologyChange={onTopologyChange} t={t} />
   if (view === 'places')   return <CreateConnectPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
   if (view === 'settings') return <SettingsPanel language={language} onLanguageChange={onLanguageChange} color={color} onColorChange={onColorChange} t={t} />
   if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} onCloseConstraints={onCloseConstraints} />
@@ -341,6 +347,10 @@ export default function App() {
     return { db: s.kmLines ?? true, other: s.kmLinesOther ?? false }
   })
   const [kmLinesError, setKmLinesError] = useState(false)
+  // The topology view (AP 9.3) — a way of looking, not a setting of the
+  // project, so it starts off every time.
+  const [topology, setTopology] = useState(false)
+  const topologyRef = useRef(false)
   const [project, setProject] = useState(null)
   const [trackTable, setTrackTable] = useState(null)
   // The element a map click picked when the table was opened — the table
@@ -376,7 +386,17 @@ export default function App() {
 
   useEffect(() => {
     if (map.current?.isStyleLoaded()) updateMapColors(map.current, color)
+    // The topology symbols carry the colour too.
+    if (topologyRef.current && map.current && projectRef.current) {
+      renderTracksOnMap(map.current, projectRef.current, { topology: true })
+    }
   }, [color])
+
+  const handleTopologyChange = useCallback((on) => {
+    topologyRef.current = on
+    setTopology(on)
+    if (map.current && projectRef.current) renderTracksOnMap(map.current, projectRef.current, { topology: on })
+  }, [])
 
   // setStyle throws the whole style away, so the overlays have to be put back
   // on every style that loads; the ref is what those callbacks read.
@@ -456,7 +476,7 @@ export default function App() {
     map.current.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-right')
     map.current.once('style.load', () => {
       if (projectRef.current) {
-        renderTracksOnMap(map.current, projectRef.current, { fit: true })
+        renderTracksOnMap(map.current, projectRef.current, { fit: true, topology: topologyRef.current })
       }
       restoreKmLines()
     })
@@ -477,11 +497,11 @@ export default function App() {
   // Element and switch labels are language-dependent, so a language change has
   // to redraw them.
   useEffect(() => {
-    if (map.current && projectRef.current) renderTracksOnMap(map.current, projectRef.current)
+    if (map.current && projectRef.current) renderTracksOnMap(map.current, projectRef.current, { topology: topologyRef.current })
   }, [language])
 
   const handleTrackSaved = () => {
-    if (map.current && project) renderTracksOnMap(map.current, project)
+    if (map.current && project) renderTracksOnMap(map.current, project, { topology: topologyRef.current })
     setUndoAvailable(canUndo())
     setHeightsVersion(v => v + 1)
     // The gradient is not read from the terrain behind the user's back: a
@@ -495,7 +515,7 @@ export default function App() {
     setStoreVersion(v => v + 1)   // whatever is open on it reads the store again
     setHeightsVersion(v => v + 1)   // an undone height edit must leave the profile too
     if (map.current && projectRef.current) {
-      renderTracksOnMap(map.current, projectRef.current)
+      renderTracksOnMap(map.current, projectRef.current, { topology: topologyRef.current })
     }
   }, [])
   // The map's keyboard shortcut reads the handler through a ref, so the listener
@@ -539,7 +559,7 @@ export default function App() {
         console.log('[App] Style loaded for:', basemapId)
         // The new style's colour scale starts on its default range.
         updateElevationRange(map.current, { force: true })
-        renderTracksOnMap(map.current, project)
+        renderTracksOnMap(map.current, project, { topology: topologyRef.current })
         restoreKmLines()
       })
     } catch (err) {
@@ -719,6 +739,8 @@ export default function App() {
             kmOverlays={kmOverlays}
             onKmOverlayChange={handleKmOverlayChange}
             kmLinesError={kmLinesError}
+            topology={topology}
+            onTopologyChange={handleTopologyChange}
             language={language}
             onLanguageChange={handleLanguageChange}
             color={color}

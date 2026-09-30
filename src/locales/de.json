@@ -769,5 +769,6 @@
   "end_begin": "Anfang",
   "end_end": "Ende",
   "edit_track_end": "Gleisende bearbeiten",
-  "data_exchange_mdb_buffer_stops": "Prellböcke: {{n}} auf freie Gleisenden gesetzt, {{missed}} ohne freies Gleisende in der Nähe. Die MDB nennt weder Typ noch Bremsweg – sie stehen mit Bremsweg 0 am Gleisende, bis sie unter Bearbeiten → Prellbock bearbeiten eingestellt werden."
+  "data_exchange_mdb_buffer_stops": "Prellböcke: {{n}} auf freie Gleisenden gesetzt, {{missed}} ohne freies Gleisende in der Nähe. Die MDB nennt weder Typ noch Bremsweg – sie stehen mit Bremsweg 0 am Gleisende, bis sie unter Bearbeiten → Prellbock bearbeiten eingestellt werden.",
+  "overlay_topology": "Topologie der Gleise"
 }
