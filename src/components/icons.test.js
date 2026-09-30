@@ -133,12 +133,11 @@ describe('the panel menu icon rule (AP 4.3)', () => {
 })
 
 // The sidebar rule: 24 grid shown at 20 px, stroke 2, white — the sidebar and
-// the info panel put these on the primary colour. Home and the elevation
-// profile keep their older drawings and are not named here.
+// the info panel put these on the primary colour.
 const SIDEBAR_ICONS = [
   'LayerIcon', 'TopologyIcon', 'PlaceIcon', 'ConnectSwitchIcon', 'SpliceElementIcon',
-  'StationIcon', 'EditElementIcon', 'DataExchangeIcon', 'PlanExportIcon',
-  'UndoIcon', 'InfoIcon', 'SettingsIcon',
+  'ElevationIcon', 'StationIcon', 'EditElementIcon', 'DataExchangeIcon', 'PlanExportIcon',
+  'UndoIcon', 'HomeIcon', 'InfoIcon', 'SettingsIcon',
 ]
 
 describe('the sidebar icon rule', () => {

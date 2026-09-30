@@ -353,8 +353,7 @@ export const OverlayThumbnail = ({ kmColor, kmOtherColor, kmJumpColor }) => (
 // One rule for the primary sidebar, the counterpart of the menu icon rule
 // above: drawn on a 24 grid, shown at 20 px, one stroke width (2), round ends,
 // nodes as filled dots of radius 2. White, because the sidebar and the info
-// panel always put them on the primary colour. Home and elevation profile keep
-// their older drawings until they are redrawn to it.
+// panel always put them on the primary colour.
 const SIDEBAR_ICON_SIZE = 20
 const SIDEBAR_ICON_STROKE = 2
 const SIDEBAR_ICON_NODE = 2
@@ -410,10 +409,13 @@ export const SettingsIcon = () => (
   </SidebarIcon>
 )
 
+// Home — the house as before, now as an outline: roof, chimney, body.
 export const HomeIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="white" viewBox="0 0 16 16">
-    <path d="M8.707 1.5a1 1 0 0 0-1.414 0L.646 8.146a.5.5 0 0 0 .708.708L2 8.207V13.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V8.207l.646.647a.5.5 0 0 0 .708-.708L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293zM13 7.207V13.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V7.207l5-5z"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M2 11.5 L12 3 L22 11.5" />
+    <path d="M16 6.4 V3.5 H18.5 V8.5" />
+    <path d="M5 9 V19.5 A1.5 1.5 0 0 0 6.5 21 H17.5 A1.5 1.5 0 0 0 19 19.5 V9" />
+  </SidebarIcon>
 )
 
 export const EditElementIcon = () => (
@@ -508,12 +510,14 @@ export const StationIcon = () => (
   </SidebarIcon>
 )
 
+// Elevation profile — the gradient over the ground line, its grade changes as
+// nodes.
 export const ElevationIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <path d="M3 20 H21" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-    <path d="M3 16 L8 11 L12 13 L17 6 L21 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    <circle cx="8" cy="11" r="1.7" fill="white"/>
-    <circle cx="12" cy="13" r="1.7" fill="white"/>
-    <circle cx="17" cy="6" r="1.7" fill="white"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M3 20 H21" />
+    <path d="M3 16 L8 11 L12 13 L17 6 L21 9" />
+    <SidebarNode cx={8} cy={11} />
+    <SidebarNode cx={12} cy={13} />
+    <SidebarNode cx={17} cy={6} />
+  </SidebarIcon>
 )
