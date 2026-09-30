@@ -132,6 +132,31 @@ describe('the panel menu icon rule (AP 4.3)', () => {
   }
 })
 
+// The sidebar rule: 24 grid shown at 20 px, stroke 2, white — the sidebar and
+// the info panel put these on the primary colour. Home and the elevation
+// profile keep their older drawings and are not named here.
+const SIDEBAR_ICONS = [
+  'LayerIcon', 'TopologyIcon', 'PlaceIcon', 'ConnectSwitchIcon', 'SpliceElementIcon',
+  'StationIcon', 'EditElementIcon', 'DataExchangeIcon', 'PlanExportIcon',
+  'UndoIcon', 'InfoIcon', 'SettingsIcon',
+]
+
+describe('the sidebar icon rule', () => {
+  for (const name of SIDEBAR_ICONS) {
+    it(`${name} is 20 px on the 24 grid, stroke 2, white`, () => {
+      const markup = renderToStaticMarkup(icons[name]())
+      expect(markup).toContain('width="20"')
+      expect(markup).toContain('height="20"')
+      expect(markup).toContain('viewBox="0 0 24 24"')
+      expect(markup).toContain('color="white"')
+      expect(markup).toContain('stroke="currentColor"')
+      expect(markup).toContain('stroke-width="2"')
+      expect(markup).not.toMatch(/stroke="(?!currentColor|none)[a-z]/)
+      expect(markup).not.toMatch(/fill="(?!currentColor|none)[a-z]/)
+    })
+  }
+})
+
 // The panels compose, they do not draw — that is what keeps the set uniform.
 // A new panel reaches for icons.jsx instead of pasting an svg.
 const panelsDir = join(dirname(fileURLToPath(import.meta.url)), 'panels')

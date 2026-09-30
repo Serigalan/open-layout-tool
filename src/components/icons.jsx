@@ -4,9 +4,9 @@
 // one stroke width (1.5), one node radius (1.5) — and a drawing that stays
 // inside the box, nodes fully visible. The rule lives on the svg root and in
 // IconNode, not in each drawing: a drawing states its geometry and nothing
-// else. The sidebar icons below are white on the primary colour and keep their
-// own sizes; these follow the button wherever it renders them. The rule is
-// enforced by icons.test.js over every icon named there.
+// else. The sidebar icons below follow a rule of their own (SidebarIcon);
+// these follow the button wherever it renders them. Both rules are enforced by
+// icons.test.js over every icon named there.
 
 const MENU_ICON_SIZE = 16
 const MENU_ICON_STROKE = 1.5
@@ -348,41 +348,66 @@ export const OverlayThumbnail = ({ kmColor, kmOtherColor, kmJumpColor }) => (
   </svg>
 )
 
+// ── Sidebar icons ────────────────────────────────────────────────────────────
+//
+// One rule for the primary sidebar, the counterpart of the menu icon rule
+// above: drawn on a 24 grid, shown at 20 px, one stroke width (2), round ends,
+// nodes as filled dots of radius 2. White, because the sidebar and the info
+// panel always put them on the primary colour. Home and elevation profile keep
+// their older drawings until they are redrawn to it.
+const SIDEBAR_ICON_SIZE = 20
+const SIDEBAR_ICON_STROKE = 2
+const SIDEBAR_ICON_NODE = 2
+
+const SidebarNode = ({ cx, cy }) => (
+  <circle cx={cx} cy={cy} r={SIDEBAR_ICON_NODE} fill="currentColor" stroke="none" />
+)
+
+const SidebarIcon = ({ children }) => (
+  <svg width={SIDEBAR_ICON_SIZE} height={SIDEBAR_ICON_SIZE} viewBox="0 0 24 24" color="white"
+    fill="none" stroke="currentColor" strokeWidth={SIDEBAR_ICON_STROKE} strokeLinecap="round" strokeLinejoin="round"
+  >
+    {children}
+  </svg>
+)
+
+// Layers — a folded map: the panel is first of all where the basemap is picked.
 export const LayerIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-    <path d="M12 2L2 7l10 5 10-5-10-5z" fill="white" opacity="0.9"/>
-    <path d="M2 12l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M2 17l10 5 10-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.7"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M3 6 L9 3.5 L15 6 L21 3.5 V18 L15 20.5 L9 18 L3 20.5 Z" />
+    <path d="M9 3.5 V18 M15 6 V20.5" />
+  </SidebarIcon>
 )
 
-// Topology — tracks as lines between nodes, one of them a large switch circle.
+// Topology — as the diagram draws it: tracks as edges, the switch a circle.
 export const TopologyIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-    <path d="M2 12 H7 M11 12 H16 M9 10 L13.5 4" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-    <circle cx="9" cy="12" r="2.6" stroke="white" strokeWidth="1.5"/>
-    <circle cx="2" cy="12" r="1.5" fill="white"/>
-    <circle cx="16" cy="12" r="1.5" fill="white"/>
-    <circle cx="14.5" cy="3.2" r="1.5" fill="white" opacity="0.7"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M3 16 H8.5 M13.5 16 H21 M12.8 14.2 L19 6" />
+    <circle cx="11" cy="16" r="2.5" />
+    <SidebarNode cx={3} cy={16} />
+    <SidebarNode cx={21} cy={16} />
+    <SidebarNode cx={19} cy={6} />
+  </SidebarIcon>
 )
 
+// Create element — an arc between its two nodes, and the cross that says new.
 export const PlaceIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16">
-    <circle cx="8" cy="14" r="2" fill="white"/>
-    <path d="M8 14 V2" stroke="white" strokeWidth="1.5"/>
-    <circle cx="8" cy="2" r="2" fill="white"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M4 20 Q6 9 20 8" />
+    <SidebarNode cx={4} cy={20} />
+    <SidebarNode cx={20} cy={8} />
+    <path d="M6 2.5 V8.5 M3 5.5 H9" />
+  </SidebarIcon>
 )
 
+// Settings — sliders, kept apart from the tool icons around them.
 export const SettingsIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="3" stroke="white" strokeWidth="2"/>
-    <path
-      d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-      stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-    />
-  </svg>
+  <SidebarIcon>
+    <path d="M3 6 H7 M11 6 H21 M3 12 H14 M18 12 H21 M3 18 H5 M9 18 H21" />
+    <circle cx="9" cy="6" r="2" />
+    <circle cx="16" cy="12" r="2" />
+    <circle cx="7" cy="18" r="2" />
+  </SidebarIcon>
 )
 
 export const HomeIcon = () => (
@@ -392,17 +417,18 @@ export const HomeIcon = () => (
 )
 
 export const EditElementIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M16.5 3.5 a2.3 2.3 0 0 1 3.25 3.25 L7.5 19 L2.5 20.5 L4 15.5 Z" />
+    <path d="M14.5 5.5 L17.75 8.75" />
+  </SidebarIcon>
 )
 
+// Data exchange — both ways: import and export.
 export const DataExchangeIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <path d="M12 3v12M7 11l5 5 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M5 20h14" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M4 8 H20 M16 4 L20 8 L16 12" />
+    <path d="M20 16 H4 M8 12 L4 16 L8 20" />
+  </SidebarIcon>
 )
 
 export const LogoIcon = ({ className }) => (
@@ -417,24 +443,23 @@ export const LogoIcon = ({ className }) => (
   </svg>
 )
 
+// Switches — the through track, and the branch leaving it for the parallel one.
 export const ConnectSwitchIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16">
-    <circle cx="4" cy="14" r="2" fill="white"/>
-    <path d="M4 14 V2" stroke="white" strokeWidth="1.5"/>
-    <circle cx="4" cy="2" r="2" fill="white"/>
-    <path d="M4 14 A10 10 0 0 1 12 4" fill="none" stroke="white" strokeWidth="1.5"/>
-    <circle cx="12" cy="4" r="2" fill="white"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M2 18 H22" />
+    <path d="M6 18 C11 18 12 8 17 8 H22" />
+    <SidebarNode cx={6} cy={18} />
+  </SidebarIcon>
 )
 
+// Splice — two offset track ends, and the dashed piece that will join them.
 export const SpliceElementIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16">
-    <path d="M5 16 V11" stroke="white" strokeWidth="1.5"/>
-    <circle cx="5" cy="11" r="2" fill="white"/>
-    <path d="M5 11 A6 6 0 0 1 11 5" fill="none" stroke="white" strokeWidth="1.5"/>
-    <circle cx="11" cy="5" r="2" fill="white"/>
-    <path d="M11 5 H16" stroke="white" strokeWidth="1.5"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M2 18 H7 M17 6 H22" />
+    <path d="M7 18 C12 18 12 6 17 6" strokeDasharray="2.5 2.6" />
+    <SidebarNode cx={7} cy={18} />
+    <SidebarNode cx={17} cy={6} />
+  </SidebarIcon>
 )
 
 export const ExternalLinkIcon = ({ color = 'currentColor', size = 14 }) => (
@@ -446,35 +471,41 @@ export const ExternalLinkIcon = ({ color = 'currentColor', size = 14 }) => (
 )
 
 export const UndoIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 454.839 454.839" fill="white">
-    <path d="M404.908,283.853c0,94.282-76.71,170.986-170.986,170.986h-60.526c-10.03,0-18.158-8.127-18.158-18.157v-6.053c0-10.031,8.127-18.158,18.158-18.158h60.526c70.917,0,128.618-57.701,128.618-128.618c0-70.917-57.701-128.618-128.618-128.618H122.255l76.905,76.905c8.26,8.257,8.26,21.699,0,29.956c-8.015,8.009-21.964,7.997-29.961,0L56.137,149.031c-4.001-4.001-6.206-9.321-6.206-14.981c0-5.656,2.205-10.979,6.206-14.978L169.205,6.002c7.997-8.003,21.958-8.003,29.956,0c8.26,8.255,8.26,21.699,0,29.953l-76.905,76.911h111.666C328.198,112.866,404.908,189.573,404.908,283.853z"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M9 14 L4 9 L9 4" />
+    <path d="M4 9 H14.5 A5.5 5.5 0 0 1 14.5 20 H11" />
+  </SidebarIcon>
 )
 
 export const InfoIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2"/>
-    <line x1="12" y1="8" x2="12" y2="8" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
-    <line x1="12" y1="12" x2="12" y2="16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-  </svg>
+  <SidebarIcon>
+    <circle cx="12" cy="12" r="9.5" />
+    <path d="M12 11 V17" />
+    <circle cx="12" cy="7.5" r="1.4" fill="currentColor" stroke="none" />
+  </SidebarIcon>
 )
 
+// Plan export — the printer the drawing goes out through.
 export const PlanExportIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <path d="M6 2 H14 L19 7 V22 H6 Z" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-    <path d="M14 2 V7 H19" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
-    <path d="M9 13 L12 16 L16 11" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
+  <SidebarIcon>
+    <path d="M6 9 V3 H18 V9" />
+    <path d="M6 18 H4 A2 2 0 0 1 2 16 V11 A2 2 0 0 1 4 9 H20 A2 2 0 0 1 22 11 V16 A2 2 0 0 1 20 18 H18" />
+    <path d="M6 14 H18 V22 H6 Z" />
+  </SidebarIcon>
 )
 
-// The merged platform and cross section panel: a station — the building its
-// platforms belong to, with the track and its section running through it.
+// The merged platform and cross section panel: a cross section — the ballast
+// bed with its two rails, and the platform beside it. Both faces tinted, the
+// ballast stronger, so bed and platform read as two bodies.
 export const StationIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M23.5 19.5V6L18 .5H6L.5 6v13.5m3.5 4 2-3m14 3-2-3" />
-    <path d="M20.5 20.5h-17V8L7 4.5h10L20.5 8z" />
-    <path d="M9.5 8.5h5v12h-5zm0 5h5m-8-4v4m11-4v4M3 22.5h18M6.5 17v.5m11-.5v.5" />
-  </svg>
+  <SidebarIcon>
+    <path d="M1.5 21 H22.5" />
+    <path d="M3 21 L6 16 H13 L16 21" fill="currentColor" fillOpacity={0.5} />
+    <rect x="7" y="13" width="2" height="3" fill="currentColor" stroke="none" />
+    <rect x="10.5" y="13" width="2" height="3" fill="currentColor" stroke="none" />
+    <path d="M17 21 V11 H22.5" />
+    <rect x="17" y="11" width="5.5" height="10" fill="currentColor" fillOpacity={0.3} stroke="none" />
+  </SidebarIcon>
 )
 
 export const ElevationIcon = () => (
