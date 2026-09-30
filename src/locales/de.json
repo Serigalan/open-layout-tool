@@ -773,14 +773,13 @@
   "topology_open_ends": "Offene Gleisenden: {n}",
   "topology_no_open_ends": "Keine offenen Gleisenden.",
   "topology_state_open": "frei",
-  "topology_state_near": "fast angeschlossen",
   "topology_mark_boundary": "Betrachtungsgrenze",
   "topology_mark_boundary_hint": "Als Betrachtungsgrenze markieren: die Strecke geht hier weiter, ist aber nicht gezeichnet. Das Ende zählt dann nicht mehr als offen.",
   "topology_boundaries": "Betrachtungsgrenzen: {n}",
   "topology_lift_boundary": "aufheben",
   "buffer_stop_section": "Prellbock erstellen",
   "topology_title": "Topologie",
-  "topology_hint": "Weiche anklicken: die angeschlossenen Gleise werden hervorgehoben.",
+  "topology_hint": "Weiche anklicken: die angeschlossenen Gleise werden hervorgehoben. Gleis anklicken: die Weichen, an die es anschließt.",
   "topology_graph_show": "Topologische Verbindungen anzeigen",
   "topology_graph_hide": "Topologische Verbindungen ausblenden",
   "topology_track_gone": "Gleis fehlt",
@@ -793,5 +792,8 @@
   "topology_legend_switch": "Weiche / Kreuzung",
   "topology_legend_link": "Systemwechsel",
   "topology_legend_joint": "Stoß",
-  "info_topology": "Zeigt das Gleisnetz als Topologie: Gleise als Linien, Weichen als Kreise, offene Gleisenden rot, über einer blassen Karte. Eine Weiche anklicken hebt ihre Gleise hervor; die topologischen Verbindungen lassen sich je zusammenhängendem Netz als Schema anzeigen. Offene Enden können als Betrachtungsgrenze markiert werden."
+  "info_topology": "Zeigt das Gleisnetz als Topologie: Gleise als Linien, Weichen als Kreise, offene Gleisenden rot, über einer blassen Karte. Ein Gleisende ist angeschlossen oder frei. Eine Weiche anklicken hebt ihre Gleise hervor, ein Gleis anklicken seine Weichen. Die topologischen Verbindungen lassen sich je zusammenhängendem Netz als Schema anzeigen, mit gleichen Abständen oder nach Lage. Offene Enden können als Betrachtungsgrenze markiert werden.",
+  "topology_track": "Gleis",
+  "topology_layout_even": "Gleiche Abstände",
+  "topology_layout_terrain": "Nach Lage"
 }

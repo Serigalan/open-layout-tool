@@ -187,8 +187,8 @@ describe('topology', () => {
     expect(stateOf(ends, 'c', 'END')).toBe('buffer_stop')
     expect(stateOf(ends, 'a', 'BEGIN')).toBe('open')
     expect(stateOf(ends, 'b1', 'END')).toBe('open')
-    // Half a metre from the toe, and not in the switch's ports.
-    expect(stateOf(ends, 'd', 'END')).toBe('near')
+    // Half a metre from the toe, and not in the switch's ports: close is not connected.
+    expect(stateOf(ends, 'd', 'END')).toBe('open')
     expect(stateOf(ends, 'd', 'BEGIN')).toBe('open')
   })
 
@@ -205,8 +205,9 @@ describe('topology', () => {
     const q = straight('q', e, n, 90, 50)
     const r = straight('r', e, n, 60, 50)
     const ends = classifyTrackEnds([p, q, r], [], [])
-    expect(stateOf(ends, 'p', 'END')).toBe('near')
-    expect(stateOf(ends, 'q', 'BEGIN')).toBe('near')
+    expect(stateOf(ends, 'p', 'END')).toBe('open')
+    expect(stateOf(ends, 'q', 'BEGIN')).toBe('open')
+    expect(stateOf(ends, 'r', 'BEGIN')).toBe('open')
   })
 
   it('sets a turnout on its toe and tells a link apart', () => {

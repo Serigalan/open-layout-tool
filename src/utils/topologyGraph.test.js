@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { buildTopologyGraph, topologyClusters, layoutCluster, switchTrackIds } from './topologyGraph'
+import {
+  buildTopologyGraph, topologyClusters, layoutCluster, layoutClusterEven, selectionHighlight, switchTrackIds,
+} from './topologyGraph'
 import { newBufferStop } from './trackEndMarks'
 import { newSwitchFields } from './switchModel'
 import { endPointStraightUtm } from './elementUtils'
@@ -95,5 +97,40 @@ describe('the topology graph', () => {
   it('names the tracks a switch connects', () => {
     const { switches } = station()
     expect(switchTrackIds(switches[0])).toEqual(['a', 'side', 'main'])
+  })
+
+  it('lays a network out on an even grid with nothing drawn over anything else', () => {
+    const { tracks, switches, marks } = station()
+    const [cluster] = topologyClusters(buildTopologyGraph(tracks, switches, marks)).clusters
+    const { pos, routes, labels } = layoutClusterEven(cluster)
+
+    // Every node and every point a track passes through on a spot of its own.
+    const spots = [...pos.values(), ...[...routes.values()].flatMap(r => r.slice(1, -1))].map(p => `${p.x},${p.y}`)
+    expect(new Set(spots).size).toBe(spots.length)
+    for (const e of cluster.edges) {
+      const route = routes.get(e.trackId)
+      // From one node to the other, one column at a time, two at least.
+      expect([route[0], route.at(-1)]).toEqual(expect.arrayContaining([pos.get(e.from), pos.get(e.to)]))
+      expect(route.length).toBeGreaterThanOrEqual(3)
+      for (let k = 1; k < route.length; k++) expect(route[k].x - route[k - 1].x).toBe(1)
+      expect(route).toContainEqual(labels.get(e.trackId))
+    }
+    // The two tracks between W1 and W2 part in the middle.
+    const edges = Object.fromEntries(cluster.edges.map(e => [e.trackId, e]))
+    expect(labels.get('main')).not.toEqual(labels.get('side'))
+    // The line runs straight: a, b and c on the main row.
+    for (const id of ['a', 'b', 'c']) expect(routes.get(id).every(p => p.y === 0)).toBe(true)
+    expect(pos.get(edges.a.from).x).toBe(0)
+  })
+
+  it('highlights a switch with its tracks, and a track with its switches', () => {
+    const { switches } = station()
+    const [w1, w2] = switches
+    expect(selectionHighlight({ kind: 'switch', id: w1.switchId }, switches))
+      .toEqual({ trackIds: ['a', 'side', 'main'], switchIds: [w1.switchId] })
+    expect(selectionHighlight({ kind: 'track', id: 'main' }, switches))
+      .toEqual({ trackIds: ['main'], switchIds: [w1.switchId, w2.switchId] })
+    expect(selectionHighlight({ kind: 'track', id: 'c' }, switches)).toEqual({ trackIds: ['c'], switchIds: [] })
+    expect(selectionHighlight(null, switches)).toEqual({ trackIds: [], switchIds: [] })
   })
 })

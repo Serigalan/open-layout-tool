@@ -1,27 +1,37 @@
 import { useEffect, useMemo } from 'react'
-import { loadTracks, loadSwitches } from '../../storage'
-import { topologySwitchAt } from '../../utils/topologyLayer'
+import { loadTracks, loadSwitches, loadEndMarks } from '../../storage'
+import { topologySelectionAt } from '../../utils/topologyLayer'
+import { classifyTrackEnds } from '../../utils/topology'
 import { portsOf, switchKindLabelKey } from '../../utils/switchModel'
 import { mapIsLive } from '../../utils/mapConstants'
 import TopologyEndsList from './TopologyEndsList'
+
+/** What an end that holds no switch port is, in the panel's words. */
+const END_STATE_KEY = {
+  joint: 'topology_legend_joint',
+  buffer_stop: 'buffer_stop_create',
+  boundary: 'topology_mark_boundary',
+  open: 'topology_state_open',
+}
 
 /**
  * The topology of the project, as a panel of its own beside the map layers
  * (AP 9.5). While it is open the map shows the network and nothing else — the
  * tracks as lines, switches as circles, open ends in red, over a pale Liberty
  * (App switches both on with the panel). A click on a switch highlights the
- * tracks it connects and names them here; the button opens the diagram of the
- * connections, cluster by cluster (AP 9.6).
+ * tracks it connects, a click on a track the switches it runs into; either is
+ * named here, each name a step on to that switch or track. The button opens
+ * the diagram of the connections, cluster by cluster (AP 9.6).
  */
 export default function TopologyPanel({
-  t, map, project, onTrackSaved, version, selectedSwitchId, onSelectSwitch, graphOpen, onShowGraph,
+  t, map, project, onTrackSaved, version, selection, onSelect, graphOpen, onShowGraph,
 }) {
-  // Clicking the map: a switch selects it, anywhere else clears the selection.
+  // Clicking the map: a switch or a track selects it, anywhere else clears the selection.
   useEffect(() => {
     const m = map?.current
     if (!m) return
-    const onClick = (e) => onSelectSwitch?.(topologySwitchAt(m, e.point))
-    const onMove = (e) => { m.getCanvas().style.cursor = topologySwitchAt(m, e.point) ? 'pointer' : '' }
+    const onClick = (e) => onSelect?.(topologySelectionAt(m, e.point))
+    const onMove = (e) => { m.getCanvas().style.cursor = topologySelectionAt(m, e.point) ? 'pointer' : '' }
     m.on('click', onClick)
     m.on('mousemove', onMove)
     return () => {
@@ -29,22 +39,42 @@ export default function TopologyPanel({
       m.off('mousemove', onMove)
       if (mapIsLive(map, m)) m.getCanvas().style.cursor = ''
     }
-  }, [map, onSelectSwitch])
+  }, [map, onSelect])
 
   const selected = useMemo(() => {
-    if (!selectedSwitchId || !project) return null
-    const sw = loadSwitches(project.id).find(s => s.switchId === selectedSwitchId)
-    if (!sw) return null
-    const byId = new Map(loadTracks(project.id).map(tr => [tr.id, tr]))
+    if (!selection || !project) return null
+    const tracks = loadTracks(project.id)
+    const switches = loadSwitches(project.id)
+    const byId = new Map(tracks.map(tr => [tr.id, tr]))
+    if (selection.kind === 'switch') {
+      const sw = switches.find(s => s.switchId === selection.id)
+      if (!sw) return null
+      return {
+        kind: 'switch', sw,
+        ports: portsOf(sw)
+          .filter(p => sw[p.trackKey])
+          .map(p => ({ port: p.port, trackId: sw[p.trackKey], track: byId.get(sw[p.trackKey]), endpoint: sw[p.endKey] })),
+      }
+    }
+    const track = byId.get(selection.id)
+    if (!track) return null
+    const ends = classifyTrackEnds(tracks, switches, loadEndMarks(project.id)).filter(e => e.trackId === track.id)
     return {
-      sw,
-      ports: portsOf(sw)
-        .filter(p => sw[p.trackKey])
-        .map(p => ({ port: p.port, track: byId.get(sw[p.trackKey]), endpoint: sw[p.endKey] })),
+      kind: 'track', track,
+      ends: ['BEGIN', 'END'].map(endpoint => {
+        const sw = switches.find(s => portsOf(s).some(p => s[p.trackKey] === track.id && s[p.endKey] === endpoint))
+        const port = sw && portsOf(sw).find(p => sw[p.trackKey] === track.id && sw[p.endKey] === endpoint).port
+        const state = ends.find(e => e.endpoint === endpoint)?.state
+        return { endpoint, sw, port, state }
+      }),
     }
     // `version` stands for the store, which the memo cannot see.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSwitchId, project, version])
+  }, [selection, project, version])
+
+  const pickTrack = (trackId) => onSelect?.({ kind: 'track', id: trackId })
+  const pickSwitch = (switchId) => onSelect?.({ kind: 'switch', id: switchId })
+  const endLabel = (endpoint) => t(endpoint === 'BEGIN' ? 'end_begin' : 'end_end')
 
   return (
     <>
@@ -55,7 +85,7 @@ export default function TopologyPanel({
         {t(graphOpen ? 'topology_graph_hide' : 'topology_graph_show')}
       </button>
 
-      {selected && (
+      {selected?.kind === 'switch' && (
         <div className="element-form topology-selected">
           <p style={{ margin: 0 }}>
             <strong>{t(switchKindLabelKey(selected.sw.kind))} {selected.sw.name ?? ''}</strong>
@@ -63,12 +93,41 @@ export default function TopologyPanel({
           <ul className="form-list">
             {selected.ports.map(p => (
               <li key={p.port}>
-                {p.port}: {p.track?.name ?? t('topology_track_gone')}
-                {' · '}{t(p.endpoint === 'BEGIN' ? 'end_begin' : 'end_end')}
+                {p.port}:{' '}
+                {p.track
+                  ? <button type="button" className="link-joint-btn" onClick={() => pickTrack(p.trackId)}>{p.track.name ?? p.trackId.slice(0, 8)}</button>
+                  : t('topology_track_gone')}
+                {' · '}{endLabel(p.endpoint)}
               </li>
             ))}
           </ul>
-          <button className="topology-ends-action" onClick={() => onSelectSwitch?.(null)}>
+          <button className="topology-ends-action" onClick={() => onSelect?.(null)}>
+            {t('topology_clear_selection')}
+          </button>
+        </div>
+      )}
+
+      {selected?.kind === 'track' && (
+        <div className="element-form topology-selected">
+          <p style={{ margin: 0 }}>
+            <strong>{t('topology_track')} {selected.track.name ?? selected.track.id.slice(0, 8)}</strong>
+          </p>
+          <ul className="form-list">
+            {selected.ends.map(end => (
+              <li key={end.endpoint}>
+                {endLabel(end.endpoint)}:{' '}
+                {end.sw
+                  ? <>
+                      <button type="button" className="link-joint-btn" onClick={() => pickSwitch(end.sw.switchId)}>
+                        {t(switchKindLabelKey(end.sw.kind))} {end.sw.name ?? ''}
+                      </button>
+                      {' · '}{end.port}
+                    </>
+                  : t(END_STATE_KEY[end.state] ?? 'topology_state_open')}
+              </li>
+            ))}
+          </ul>
+          <button className="topology-ends-action" onClick={() => onSelect?.(null)}>
             {t('topology_clear_selection')}
           </button>
         </div>

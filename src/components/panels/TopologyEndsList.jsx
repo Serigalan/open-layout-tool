@@ -64,7 +64,6 @@ export default function TopologyEndsList({ t, map, project, onTrackSaved, versio
           {open.map(end => (
             <li key={`${end.trackId}|${end.endpoint}`}>
               <button type="button" className="link-joint-btn" onClick={() => show(end)}>{label(end)}</button>
-              {' · '}{t(end.state === 'near' ? 'topology_state_near' : 'topology_state_open')}
               {' '}
               <button type="button" className="topology-ends-action" onClick={() => markBoundary(end)}
                 title={t('topology_mark_boundary_hint')}>

@@ -773,14 +773,13 @@
   "topology_open_ends": "Open track ends: {n}",
   "topology_no_open_ends": "No open track ends.",
   "topology_state_open": "free",
-  "topology_state_near": "almost connected",
   "topology_mark_boundary": "Boundary",
   "topology_mark_boundary_hint": "Mark as the boundary of the planning area: the line runs on here but is not drawn. The end then no longer counts as open.",
   "topology_boundaries": "Boundaries of the planning area: {n}",
   "topology_lift_boundary": "lift",
   "buffer_stop_section": "Create Buffer Stop",
   "topology_title": "Topology",
-  "topology_hint": "Click a switch: the tracks connected to it are highlighted.",
+  "topology_hint": "Click a switch: the tracks connected to it are highlighted. Click a track: the switches it runs into.",
   "topology_graph_show": "Show topological connections",
   "topology_graph_hide": "Hide topological connections",
   "topology_track_gone": "track missing",
@@ -793,5 +792,8 @@
   "topology_legend_switch": "Switch / crossing",
   "topology_legend_link": "Change of coordinate system",
   "topology_legend_joint": "Joint",
-  "info_topology": "Shows the track network as a topology: tracks as lines, switches as circles, open track ends in red, over a pale map. Clicking a switch highlights its tracks; the topological connections can be shown as a diagram, one per connected network. Open ends can be marked as the boundary of the planning area."
+  "info_topology": "Shows the track network as a topology: tracks as lines, switches as circles, open track ends in red, over a pale map. A track end is connected or free. Clicking a switch highlights its tracks, clicking a track its switches. The topological connections can be shown as a diagram, one per connected network, evenly spaced or by position. Open ends can be marked as the boundary of the planning area.",
+  "topology_track": "Track",
+  "topology_layout_even": "Even spacing",
+  "topology_layout_terrain": "By position"
 }

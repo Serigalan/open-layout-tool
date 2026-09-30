@@ -32,7 +32,7 @@ const SOURCE_ENDS  = 'topology-ends-source'
 const LAYERS = [
   'topology-veil-layer', 'topology-highlight-layer',
   'topology-switches-layer', 'topology-switch-selected-layer', 'topology-links-layer',
-  'topology-bars-layer', 'topology-ends-ring-layer', 'topology-ends-layer',
+  'topology-bars-layer', 'topology-ends-layer',
 ]
 
 /** How much of the basemap the view lets through: Liberty, very pale. */
@@ -41,10 +41,10 @@ export const TOPOLOGY_HIGHLIGHT = '#ff8c00'
 
 // What is highlighted, kept here so a redraw — a basemap change throws every
 // layer away — puts it back.
-let highlight = { trackIds: [], switchId: '' }
+let highlight = { trackIds: [], switchIds: [] }
 const highlightFilters = () => ({
   tracks: ['in', ['get', 'trackId'], ['literal', highlight.trackIds]],
-  node: ['==', ['get', 'switchId'], highlight.switchId || '__none__'],
+  node: ['in', ['get', 'switchId'], ['literal', highlight.switchIds]],
 })
 
 const SQUARE_IMAGE   = 'topology-link-square'
@@ -93,8 +93,7 @@ function ensureImages(map, color) {
 
 /**
  * What the topology view draws, as GeoJSON: the switch and link nodes, and
- * the track ends that say something — open (red), near (red with a ring),
- * buffer stop (black bar), boundary (grey bar). Ends at a switch, a link or a
+ * the track ends that say something — open (red), buffer stop (black bar), boundary (grey bar). Ends at a switch, a link or a
  * plain joint are what the lines already show and are left out.
  */
 export function topologyGeoJSON(tracks, switches, endMarks) {
@@ -103,7 +102,7 @@ export function topologyGeoJSON(tracks, switches, endMarks) {
     properties: { link: n.link, switchId: n.switchId ?? '' },
     geometry: { type: 'Point', coordinates: n.lngLat },
   }))
-  const shown = new Set(['open', 'near', 'buffer_stop', 'boundary'])
+  const shown = new Set(['open', 'buffer_stop', 'boundary'])
   const ends = classifyTrackEnds(tracks, switches, endMarks)
     .filter(e => shown.has(e.state))
     .map(e => ({
@@ -173,18 +172,8 @@ function addLayers(map) {
     layout: { 'icon-image': SQUARE_IMAGE, 'icon-allow-overlap': true, 'icon-ignore-placement': true },
   })
   map.addLayer({
-    id: 'topology-ends-ring-layer', type: 'circle', source: SOURCE_ENDS,
-    filter: ['==', ['get', 'state'], 'near'],
-    paint: {
-      'circle-radius': 11,
-      'circle-opacity': 0,
-      'circle-stroke-width': 2,
-      'circle-stroke-color': TOPOLOGY_RED,
-    },
-  })
-  map.addLayer({
     id: 'topology-ends-layer', type: 'circle', source: SOURCE_ENDS,
-    filter: ['in', ['get', 'state'], ['literal', ['open', 'near']]],
+    filter: ['==', ['get', 'state'], 'open'],
     paint: {
       'circle-radius': 6,
       'circle-color': TOPOLOGY_RED,
@@ -228,20 +217,41 @@ function applyHighlight(map) {
 }
 
 /**
- * Highlight the tracks a switch connects, and the switch itself (AP 9.5).
- * Null clears it.
+ * Highlight tracks and switches (AP 9.5): a selected switch with the tracks it
+ * connects, or a selected track with the switches it runs into. Empty lists
+ * clear it.
  */
-export function highlightTopologySwitch(map, switchId, trackIds = []) {
-  highlight = { trackIds: switchId ? trackIds : [], switchId: switchId ?? '' }
+export function highlightTopology(map, { trackIds = [], switchIds = [] } = {}) {
+  highlight = { trackIds, switchIds }
   applyHighlight(map)
+}
+
+/** The first feature of `layers` under a point on the map, or null. */
+function featureAt(map, point, layers, tolerance) {
+  const shown = layers.filter(id => map?.getLayer(id))
+  if (!shown.length) return null
+  return map.queryRenderedFeatures([
+    [point.x - tolerance, point.y - tolerance], [point.x + tolerance, point.y + tolerance],
+  ], { layers: shown })[0] ?? null
 }
 
 /** The switch or link under a point on the map, or null. */
 export function topologySwitchAt(map, point, tolerance = 4) {
-  const layers = ['topology-switches-layer', 'topology-links-layer'].filter(id => map?.getLayer(id))
-  if (!layers.length) return null
-  const hit = map.queryRenderedFeatures([
-    [point.x - tolerance, point.y - tolerance], [point.x + tolerance, point.y + tolerance],
-  ], { layers })[0]
-  return hit?.properties?.switchId || null
+  return featureAt(map, point, ['topology-switches-layer', 'topology-links-layer'], tolerance)?.properties?.switchId || null
+}
+
+/** The track under a point on the map, or null — the switches come first, so ask this second. */
+export function topologyTrackAt(map, point, tolerance = 5) {
+  return featureAt(map, point, ['tracks-layer'], tolerance)?.properties?.trackId || null
+}
+
+/**
+ * What a click at a point selects in the topology view: a switch or link,
+ * else a track, else nothing — { kind: 'switch'|'track', id } or null.
+ */
+export function topologySelectionAt(map, point) {
+  const switchId = topologySwitchAt(map, point)
+  if (switchId) return { kind: 'switch', id: switchId }
+  const trackId = topologyTrackAt(map, point)
+  return trackId ? { kind: 'track', id: trackId } : null
 }

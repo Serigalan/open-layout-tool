@@ -2333,8 +2333,37 @@
   font-weight: 600;
 }
 
-.topology-graph-node {
+.topology-graph-node,
+.topology-graph-track {
   cursor: pointer;
+}
+
+/* The two arrangements of the diagram, side by side in its header. */
+.topology-graph-mode {
+  display: inline-flex;
+  margin-left: auto;
+  margin-right: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.topology-graph-mode button {
+  border: none;
+  background: #fff;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  color: #333;
+}
+
+.topology-graph-mode button + button {
+  border-left: 1px solid #ccc;
+}
+
+.topology-graph-mode button.active {
+  background: var(--color-primary);
+  color: #fff;
 }
 
 .topology-selected {
