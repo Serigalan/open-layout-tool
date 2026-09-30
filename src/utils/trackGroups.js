@@ -1,4 +1,6 @@
 import { TYPE_CODES } from './identifierUtils'
+import { kmTrackName } from './lineLookup'
+import { nextTrackName } from '../storage'
 
 /**
  * Tracks by what they belong to — the line (Strecke) a line track runs on,
@@ -145,9 +147,81 @@ export function assignmentFields(target) {
   return { trackType: undefined, lineNumber: null, lineName: null, stationName: null, uicStation: null }
 }
 
-/** `tracks` with those whose id is in `ids` assigned to `target` (see assignmentFields). */
-export function assignTracks(tracks, ids, target) {
+/**
+ * `tracks` with those whose id is in `ids` assigned to `target` (see
+ * assignmentFields). `names` (id → name) renames them as it goes, and
+ * `trackNumbers` (id → number, '' for none) states their track numbers — what
+ * a station track's name is built from.
+ */
+export function assignTracks(tracks, ids, target, { names = null, trackNumbers = null } = {}) {
   const wanted = new Set(ids)
   const fields = assignmentFields(target)
-  return tracks.map(track => (wanted.has(track.id) ? { ...track, ...fields } : track))
+  return tracks.map((track) => {
+    if (!wanted.has(track.id)) return track
+    const out = { ...track, ...fields }
+    if (names?.has(track.id)) out.name = names.get(track.id)
+    if (trackNumbers && track.id in trackNumbers) {
+      const number = text(trackNumbers[track.id])
+      // `3a` stays as written; a plain number is stored as one, as the forms do.
+      out.trackNumber = /^\d+$/.test(number) ? Number(number) : number || null
+    }
+    return out
+  })
+}
+
+/**
+ * The names the tracks `ids` take on `target`, as `{ names, fallback,
+ * clashes }`: `names` maps id → name, `fallback` holds the ids named without
+ * what the name should be built from, `clashes` those whose name another
+ * track already has.
+ *
+ * On a line the name is the line number and the kilometrage of the track's
+ * middle, `6344.02912` (see kmTrackName) — `kmById` says where each lies, null
+ * where the line does not reach it; those are numbered on, `6344.001`. In a
+ * station it is the station and the track number, `Könnern.3`, from
+ * `numberById`; a track without one is numbered on, `Könnern.001`.
+ *
+ * The names of the other tracks are taken; the ones renamed give theirs up.
+ * On a line a taken name moves on by ten metres, so none clash; in a station
+ * a number given twice, or a name some other track has, does.
+ */
+export function plannedNames(tracks, ids, target, { kmById = {}, numberById = {} } = {}) {
+  const wanted = new Set(ids)
+  const taken = new Set(tracks.filter(tr => !wanted.has(tr.id)).map(tr => tr.name).filter(Boolean))
+  const names = new Map()
+  const fallback = new Set()
+  const clashes = new Set()
+
+  if (target?.kind === 'line') {
+    const number = text(target.lineNumber)
+    // Nearest the start of the line first, so the steps a clash takes run the
+    // same way as the kilometrage.
+    const order = [...ids].sort((a, b) => (kmById[a] ?? Infinity) - (kmById[b] ?? Infinity))
+    for (const id of order) {
+      const km = kmById[id]
+      const name = km != null ? kmTrackName(number, km, taken) : nextTrackName(number, [...taken])
+      if (km == null) fallback.add(id)
+      names.set(id, name)
+      taken.add(name)
+    }
+  } else if (target?.kind === 'station') {
+    const prefix = text(target.stationName) || text(target.uicStation)
+    const numbered = ids.filter(id => text(numberById[id]))
+    const seen = new Map()
+    for (const id of numbered) {
+      const name = `${prefix}.${text(numberById[id])}`
+      if (taken.has(name)) clashes.add(id)
+      if (seen.has(name)) { clashes.add(id); clashes.add(seen.get(name)) }
+      seen.set(name, id)
+      names.set(id, name)
+    }
+    for (const name of seen.keys()) taken.add(name)
+    for (const id of ids.filter(id => !text(numberById[id]))) {
+      const name = nextTrackName(prefix, [...taken])
+      fallback.add(id)
+      names.set(id, name)
+      taken.add(name)
+    }
+  }
+  return { names, fallback, clashes }
 }

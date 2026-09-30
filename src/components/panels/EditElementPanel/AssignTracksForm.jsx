@@ -2,13 +2,18 @@ import { useEffect, useState } from 'react'
 import { loadTracks, replaceAllTracks } from '../../../storage'
 import useTrackPick from '../../../hooks/useTrackPick'
 import useNearbyLines from '../../../hooks/useNearbyLines'
-import { assignTracks, assignmentFields, groupTitle, groupTracks, trackGroupKey } from '../../../utils/trackGroups'
+import {
+  assignTracks, assignmentFields, groupTitle, groupTracks, plannedNames, trackGroupKey, trackListLabel,
+} from '../../../utils/trackGroups'
+import { elementsPath, identifyTrackLine } from '../../../utils/lineLookup'
 import { FILTER_NONE, mapIsLive } from '../../../utils/mapConstants'
 import GroupedTrackList from '../GroupedTrackList'
 import StationNameInput from '../StationNameInput'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
 const NEW = 'new'
+/** How long the line number has to hold still before the tracks are measured against it. */
+const SETTLE_MS = 300
 
 const filterForTracks = (ids) => ['in', ['get', 'trackId'], ['literal', ids]]
 
@@ -17,6 +22,10 @@ const filterForTracks = (ids) => ['in', ['get', 'trackId'], ['literal', ids]]
  * the tracks are picked from the grouped list or on the map, the line or
  * station from those the project already has, or entered anew. Taking tracks
  * out of whatever they were in is the third choice.
+ *
+ * Their names can be given anew on the way: on a line from the line number and
+ * the kilometrage of each track's middle (`6344.02912`), in a station from the
+ * station and each track's number (`Könnern.3`), shown before they are taken.
  *
  * The form stays open after a commit — the list regroups at once, and the
  * next tracks are usually just picked for the next line or station.
@@ -28,6 +37,9 @@ export default function AssignTracksForm({ t, map, project, onTrackSaved, onComm
   const [entry, setEntry]       = useState({ lineNumber: '', lineName: '', stationName: '', uicStation: '' })
   const [error, setError]       = useState(null)
   const [done, setDone]         = useState(null)
+  const [rename, setRename]     = useState(false)
+  const [numbers, setNumbers]   = useState({})    // id → track number as typed
+  const [kmLookup, setKmLookup] = useState({ key: null, km: {} })
   const lineOptions = useNearbyLines(map)
 
   const tracks = loadTracks(project.id)
@@ -84,18 +96,57 @@ export default function AssignTracksForm({ t, map, project, onTrackSaved, onComm
     if (chosen) return chosen
     return { kind, ...entry }
   }
+  const to = target()
+  const ids = tracks.filter(tr => selected.has(tr.id)).map(tr => tr.id)
+  const renaming = rename && to.kind != null && ids.length > 0
+
+  // Where on the line each track lies — what its name is built from — asked
+  // for once the selection and the line number hold still.
+  const kmLine = renaming && to.kind === 'line' ? String(to.lineNumber ?? '').trim() : ''
+  const kmKey = kmLine ? `${kmLine}|${selectedKey}` : null
+  useEffect(() => {
+    if (!kmLine || !selectedKey) return
+    let live = true
+    const timer = setTimeout(() => {
+      const all = loadTracks(project.id)
+      Promise.all(selectedKey.split('|').map(async (id) => {
+        const track = all.find(tr => tr.id === id)
+        const geometry = track ? elementsPath(track.elements, track.epsg) : null
+        const hit = geometry ? await identifyTrackLine(geometry, kmLine).catch(() => null) : null
+        return [id, hit?.km ?? null]
+      })).then((entries) => {
+        if (live) setKmLookup({ key: `${kmLine}|${selectedKey}`, km: Object.fromEntries(entries) })
+      })
+    }, SETTLE_MS)
+    return () => { live = false; clearTimeout(timer) }
+  }, [kmLine, selectedKey, project.id])
+  const kmPending = kmKey != null && kmLookup.key !== kmKey
+
+  const numberOf = (track) => numbers[track.id] ?? (track.trackNumber != null ? String(track.trackNumber) : '')
+  const numberById = Object.fromEntries(tracks.filter(tr => selected.has(tr.id)).map(tr => [tr.id, numberOf(tr)]))
+  // A line without a number, a station without a name, names nothing yet; the
+  // commit says what is missing.
+  const nameable = to.kind === 'line' ? /^\d+$/.test(kmLine)
+    : String(to.stationName ?? '').trim() !== '' || String(to.uicStation ?? '').trim() !== ''
+  const plan = renaming && !kmPending && nameable
+    ? plannedNames(tracks, ids, to, { kmById: kmLookup.km, numberById })
+    : null
 
   const handleCommit = () => {
-    const ids = [...selected].filter(id => tracks.some(tr => tr.id === id))
     if (!ids.length) { setError('assign_error_no_tracks'); return }
-    const to = target()
     if (to.kind === 'line' && !/^\d+$/.test(String(to.lineNumber ?? '').trim())) {
       setError('assign_error_line_number'); return
     }
     if (to.kind === 'station' && !String(to.stationName ?? '').trim() && !String(to.uicStation ?? '').trim()) {
       setError('assign_error_station_name'); return
     }
-    replaceAllTracks(project.id, assignTracks(tracks, ids, to))
+    if (renaming && !plan) return
+    if (plan?.clashes.size) { setError('assign_error_name_clash'); return }
+    replaceAllTracks(project.id, assignTracks(tracks, ids, to, {
+      names: plan?.names ?? null,
+      // The numbers a station track's name was built from are its own now.
+      trackNumbers: renaming && to.kind === 'station' ? numberById : null,
+    }))
     onTrackSaved?.()
     setSelected(new Set())
     setError(null)
@@ -104,6 +155,7 @@ export default function AssignTracksForm({ t, map, project, onTrackSaved, onComm
     // next tracks are put there by picking it rather than typing it again.
     setChoice(trackGroupKey(assignmentFields(to)) ?? NEW)
     setEntry({ lineNumber: '', lineName: '', stationName: '', uicStation: '' })
+    setNumbers({})
   }
 
   const doneText = (d) => {
@@ -192,11 +244,54 @@ export default function AssignTracksForm({ t, map, project, onTrackSaved, onComm
         )}
       </div>
 
+      {kind !== 'none' && (
+        <div className="element-form">
+          <label className="transition-curve-row">
+            <input type="checkbox" checked={rename} onChange={(e) => { setError(null); setRename(e.target.checked) }} />
+            <span>{t('assign_rename')}</span>
+          </label>
+          {rename && (
+            <p className="selecting-hint" style={{ margin: 0 }}>
+              {t(kind === 'line' ? 'assign_rename_line_hint' : 'assign_rename_station_hint')}
+            </p>
+          )}
+          {renaming && (
+            <div className="rename-rows">
+              {tracks.filter(tr => selected.has(tr.id)).map((tr) => {
+                const next = plan?.names.get(tr.id)
+                const clash = plan?.clashes.has(tr.id)
+                const fallback = plan?.fallback.has(tr.id)
+                return (
+                  <div key={tr.id} className="rename-row">
+                    {kind === 'station' && (
+                      <input type="text" inputMode="numeric" className="rename-number" value={numberOf(tr)}
+                        placeholder={t('track_number')} title={t('track_number')}
+                        onChange={(e) => { setError(null); setNumbers(prev => ({ ...prev, [tr.id]: e.target.value })) }} />
+                    )}
+                    <span className="rename-old">{trackListLabel(tr)}</span>
+                    <span className="rename-arrow" aria-hidden="true">→</span>
+                    <span className={`rename-new${clash ? ' clash' : ''}${fallback ? ' fallback' : ''}`}
+                      title={fallback ? t(kind === 'line' ? 'assign_rename_no_km' : 'assign_rename_no_number') : undefined}>
+                      {next ?? '…'}
+                    </span>
+                  </div>
+                )
+              })}
+              {plan?.fallback.size > 0 && (
+                <span className="rename-note">
+                  {t(kind === 'line' ? 'assign_rename_no_km' : 'assign_rename_no_number')}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {error && <p className="form-error">{t(error)}</p>}
       {done && !error && <p className="selecting-hint">{doneText(done)}</p>}
 
       <button className="panel-btn panel-btn-full" style={{ marginTop: 8 }}
-        disabled={selected.size === 0} onClick={handleCommit}>
+        disabled={selected.size === 0 || kmPending} onClick={handleCommit}>
         {t('assign_commit')}
       </button>
       <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>

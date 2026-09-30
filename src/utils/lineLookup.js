@@ -205,15 +205,20 @@ export async function identifyTrackLine(geometry, lineNumber = null) {
   }
 }
 
+/** Digits the kilometrage of a name is written with: km 29,12 is `02912`. */
+const KM_NAME_DIGITS = 5
+
 /**
  * `6340.12393` — the line number and the kilometrage in steps of ten metres,
- * the first such name not among `takenNames`. A name already given moves on to
- * the next ten metres (`6340.12394`), so every name stays unique and still says
- * roughly where its track lies.
+ * five digits wide (km 29,12 on line 6344 is `6344.02912`), the first such
+ * name not among `takenNames`. A name already given moves on to the next ten
+ * metres (`6340.12394`), so every name stays unique and still says roughly
+ * where its track lies.
  */
 export function kmTrackName(lineNumber, km, takenNames = []) {
   const taken = new Set(takenNames)
+  const name = (step) => `${lineNumber}.${step < 0 ? '-' : ''}${String(Math.abs(step)).padStart(KM_NAME_DIGITS, '0')}`
   let step = Math.round(km / 10)
-  while (taken.has(`${lineNumber}.${step}`)) step++
-  return `${lineNumber}.${step}`
+  while (taken.has(name(step))) step++
+  return name(step)
 }

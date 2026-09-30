@@ -24,6 +24,10 @@ export default function StationNameInput({ value, onChange, onSelectSuggestion }
   const [suggestions, setSuggestions] = useState([])
   const [open, setOpen] = useState(false)
   const containerRef = useRef(null)
+  // The name a suggestion just put into the field. The search that follows
+  // the new value would find that very station and open the list again — so
+  // a second click was needed to close it — which is why it stays shut for it.
+  const pickedRef = useRef(null)
 
   useEffect(() => {
     loadUicStations()
@@ -45,7 +49,9 @@ export default function StationNameInput({ value, onChange, onSelectSuggestion }
         }
       }
       setSuggestions(matches)
-      setOpen(matches.length > 0)
+      const picked = pickedRef.current === value
+      pickedRef.current = null
+      setOpen(matches.length > 0 && !picked)
     }, 80)
     return () => clearTimeout(timer)
   }, [value])
@@ -75,6 +81,7 @@ export default function StationNameInput({ value, onChange, onSelectSuggestion }
               key={s.uic}
               onMouseDown={(e) => {
                 e.preventDefault()
+                pickedRef.current = s.name
                 onSelectSuggestion(s)
                 setOpen(false)
               }}
