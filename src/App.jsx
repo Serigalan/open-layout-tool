@@ -637,11 +637,10 @@ export default function App() {
       if (next !== 'plan') setPlanPreview(null)
       if (next !== 'platform') setCrossSectionAt(null)
       if (next === 'topology' && activeBasemap !== 'liberty') handleBasemapChange('liberty')
-      if (next !== 'topology') {
-        // The selection and the diagram belong to the view and go with it.
-        setTopologySelection(null)
-        setTopologyGraphOpen(false)
-      }
+      // The diagram comes up with the view, every time it is opened; the
+      // selection belongs to the view and goes with it.
+      setTopologyGraphOpen(next === 'topology')
+      if (next !== 'topology') setTopologySelection(null)
       if (next !== 'topology' && activeView === 'topology' && basemapBeforeTopology.current) {
         handleBasemapChange(basemapBeforeTopology.current)
         basemapBeforeTopology.current = null

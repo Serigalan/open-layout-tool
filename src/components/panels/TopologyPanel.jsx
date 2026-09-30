@@ -22,8 +22,8 @@ const END_STATE_KEY = {
  * (App switches both on with the panel). A click on a switch highlights the
  * tracks it connects, each in a colour of its own, a click on a track the
  * switches it runs into; either is named here, each name a step on to that
- * switch or track. The button opens the diagram of the connections, cluster
- * by cluster (AP 9.6).
+ * switch or track. The diagram of the connections, cluster by cluster
+ * (AP 9.6), comes up with the panel; the button hides it and brings it back.
  */
 export default function TopologyPanel({
   t, map, project, onTrackSaved, version, selection, onSelect, graphOpen, onShowGraph,
