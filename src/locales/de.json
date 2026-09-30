@@ -778,5 +778,6 @@
   "topology_mark_boundary": "Betrachtungsgrenze",
   "topology_mark_boundary_hint": "Als Betrachtungsgrenze markieren: die Strecke geht hier weiter, ist aber nicht gezeichnet. Das Ende zählt dann nicht mehr als offen.",
   "topology_boundaries": "Betrachtungsgrenzen: {n}",
-  "topology_lift_boundary": "aufheben"
+  "topology_lift_boundary": "aufheben",
+  "buffer_stop_section": "Prellbock erstellen"
 }

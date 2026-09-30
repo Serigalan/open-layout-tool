@@ -25,9 +25,10 @@ function BackButton({ t, onBack }) {
 }
 
 /**
- * Creating and connecting in one panel: the menu keeps both headings, separated
- * by the gray line, and a tool click opens that tool's form. The two groups
- * share the panel the way the switch panel's tools do — one menu, one back.
+ * Creating, connecting and buffer stops in one panel: the menu keeps the three
+ * headings, separated by the gray line, and a tool click opens that tool's
+ * form. The groups share the panel the way the switch panel's tools do — one
+ * menu, one back.
  */
 export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
   const [page, setPage] = useState('menu')
@@ -109,10 +110,6 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
           <CreateParallelTrackIcon />
           {t('create_parallel_track')}
         </button>
-        <button className="create-element-btn" onClick={() => setPage('buffer_stop')}>
-          <BufferStopIcon />
-          {t('buffer_stop_create')}
-        </button>
       </div>
       <hr style={SEPARATOR} />
       <h2>{t('connect_element')}</h2>
@@ -124,6 +121,14 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
         <button className="create-element-btn" onClick={() => setPage('connect_curved')}>
           <ConnectCurvedIcon />
           {t('connect_curved')}
+        </button>
+      </div>
+      <hr style={SEPARATOR} />
+      <h2>{t('buffer_stop_section')}</h2>
+      <div className="create-element-options">
+        <button className="create-element-btn" onClick={() => setPage('buffer_stop')}>
+          <BufferStopIcon />
+          {t('buffer_stop_create')}
         </button>
       </div>
     </>

@@ -778,5 +778,6 @@
   "topology_mark_boundary": "Boundary",
   "topology_mark_boundary_hint": "Mark as the boundary of the planning area: the line runs on here but is not drawn. The end then no longer counts as open.",
   "topology_boundaries": "Boundaries of the planning area: {n}",
-  "topology_lift_boundary": "lift"
+  "topology_lift_boundary": "lift",
+  "buffer_stop_section": "Create Buffer Stop"
 }
