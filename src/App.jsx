@@ -409,7 +409,11 @@ export default function App() {
   const topology = activeView === 'topology'
   useEffect(() => {
     topologyRef.current = topology
-    if (map.current?.isStyleLoaded() && projectRef.current) {
+    // Drawn as soon as the tracks are on the map — not on isStyleLoaded(),
+    // which stays false while any tile is still loading and so skipped the
+    // switch on the first open. A style still coming in (the change to
+    // Liberty) draws it from its own style.load, through the ref.
+    if (map.current?.getLayer('tracks-layer') && projectRef.current) {
       renderTracksOnMap(map.current, projectRef.current, { topology })
     }
   }, [topology])
