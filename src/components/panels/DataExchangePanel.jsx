@@ -52,11 +52,13 @@ function trackLabel(track) {
   return parts.length ? parts.join(' · ') : track.id
 }
 
-export default function DataExchangePanel({ t, map, project, onProjectImported, onTrackSaved }) {
+export default function DataExchangePanel({ t, map, project, onProjectImported, onTrackSaved, onShowCompare }) {
   const tracks = project ? loadTracks(project.id) : []
   const trackCount = tracks.length
   const [before, after] = t('data_exchange_project_desc').split('{{tracks}}')
   const importInputRef = useRef(null)
+  const compareInputRef = useRef(null)
+  const [compareError, setCompareError] = useState(null)
 
   const [phase, setPhase]               = useState('idle')
   const [selectedIds, setSelectedIds]   = useState(new Set())
@@ -212,6 +214,34 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     } else {
       setConflicts(rest)
     }
+  }
+
+  // The open project against an exported file of it (AP 10.3): the file is
+  // the earlier state, the project as it is now the later one. A file with
+  // several projects is compared by the one with this project's id, or its
+  // first.
+  const handleCompareFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    setCompareError(null)
+    reader.onload = (ev) => {
+      try {
+        const { projects } = parseProjectsPayload(JSON.parse(ev.target.result))
+        const theirs = projects.find(p => p.id === project?.id) ?? projects[0]
+        if (!theirs) { setCompareError(t('compare_no_project')); return }
+        const { image: _image, ...before } = theirs
+        const current = loadProjects().find(p => p.id === project?.id)
+        onShowCompare?.({
+          before, after: current,
+          beforeLabel: `${t('compare_file_label')} ${file.name}`, afterLabel: t('compare_current_label'),
+        })
+      } catch (err) {
+        setCompareError(codedErrorText(err, 'invalid_payload'))
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
   }
 
   const handleProjectExport = () => {
@@ -727,6 +757,24 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
         {importError && (
           <p style={{ margin: '6px 0 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
             {importError}
+          </p>
+        )}
+      </ExchangeSection>
+
+      <ExchangeSection title={t('compare_with_file')} description={t('compare_with_file_desc')}>
+        <input
+          ref={compareInputRef}
+          type="file"
+          accept=".json,application/json"
+          style={{ display: 'none' }}
+          onChange={handleCompareFile}
+        />
+        <button className="panel-btn panel-btn-full" disabled={!project} onClick={() => compareInputRef.current?.click()}>
+          {t('compare_with_file')}
+        </button>
+        {compareError && (
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+            {compareError}
           </p>
         )}
       </ExchangeSection>

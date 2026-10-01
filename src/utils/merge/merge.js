@@ -59,7 +59,7 @@ export function mergeProject({ base, mine, theirs, remapsMine = [], remapsTheirs
     const ids = [...mi.keys(), ...[...ti.keys()].filter(id => !mi.has(id)), ...[...bi.keys()].filter(id => !mi.has(id) && !ti.has(id))]
     for (const id of ids) {
       const b = bi.get(id), m = mi.get(id), t = ti.get(id)
-      const label = objectLabel(name, m ?? t ?? b)
+      const label = objectLabel(name, b ?? m ?? t)
 
       if (m && t) {
         if (!b && !sameValue(m, t)) {

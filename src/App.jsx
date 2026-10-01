@@ -38,6 +38,7 @@ import PlanPreviewOverlay from './components/PlanPreviewOverlay'
 import ElevationOverlay from './components/ElevationOverlay'
 import CrossSectionOverlay from './components/CrossSectionOverlay'
 import ElevationLegend from './components/ElevationLegend'
+import CompareOverlay from './components/collab/CompareOverlay'
 import './App.css'
 
 // Basemaps whose colours mean elevation, and which therefore get a legend.
@@ -318,7 +319,7 @@ function renderTracksOnMap(map, project, { fit = false, topology = false } = {})
 }
 
 
-function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, marksVersion, topologySelection, onTopologySelect, topologyGraphOpen, onShowTopologyGraph, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
+function PanelContent({ onShowCompare, view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, marksVersion, topologySelection, onTopologySelect, topologyGraphOpen, onShowTopologyGraph, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
   if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
   if (view === 'topology') return <TopologyPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} version={marksVersion}
     selection={topologySelection} onSelect={onTopologySelect} graphOpen={topologyGraphOpen} onShowGraph={onShowTopologyGraph} />
@@ -329,7 +330,7 @@ function PanelContent({ view, activeBasemap, onBasemapChange, kmOverlays, onKmOv
   if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowRegelwerk={onShowRegelwerk} />
   if (view === 'elevation') return <ElevationPanel t={t} map={map} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
   if (view === 'platform') return <PlatformCrossSectionPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
-  if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onProjectImported={onProjectImported} onTrackSaved={onTrackSaved} />
+  if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onProjectImported={onProjectImported} onTrackSaved={onTrackSaved} onShowCompare={onShowCompare} />
   if (view === 'plan')     return <PlanExportPanel t={t} project={project} language={language} onShowPlanPreview={onShowPlanPreview} />
   if (view === 'info')     return <InfoPanel t={t} />
   return null
@@ -392,6 +393,8 @@ export default function App() {
   // [min, max] the elevation colour scale is fitted to — drives the legend.
   const [elevationRange, setElevationRange] = useState(null)
   const [undoAvailable, setUndoAvailable] = useState(false)
+  // Two states over each other (AP 10.3): { before, after, beforeLabel, afterLabel, drawUnchanged }.
+  const [compare, setCompare] = useState(null)
 
   useEffect(() => {
     const s = loadSettings()
@@ -769,7 +772,7 @@ export default function App() {
           </button>
           <button
             className="sidebar-icon-btn"
-            onClick={() => closeTrackTable(() => setView('start'))}
+            onClick={() => closeTrackTable(() => { setCompare(null); setView('start') })}
             title={t('tooltip_home')}
           >
             <HomeIcon />
@@ -824,6 +827,7 @@ export default function App() {
             onShowPlanPreview={setPlanPreview}
             crossSectionAt={crossSectionAt}
             onShowCrossSection={setCrossSectionAt}
+            onShowCompare={setCompare}
           />
         </aside>
       )}
@@ -844,6 +848,7 @@ export default function App() {
           selection={topologySelection} onSelect={pickInTopologyDiagram}
           onDeleted={() => { setTopologySelection(null); handleTrackSaved() }}
           onClose={() => setTopologyGraphOpen(false)} t={t} />}
+        {compare && <CompareOverlay map={map} t={t} {...compare} onClose={() => setCompare(null)} />}
         {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
         {discardAsk && (
           <ConfirmModal

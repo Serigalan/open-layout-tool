@@ -30,16 +30,22 @@ const GREY = '#8a8a8a'
  * connection, at once — Ctrl+Z brings it back; a whole network, or all the
  * tracks without any connection together, only after asking. `onDeleted`
  * tells App the project changed.
+ *
+ * A comparison (AP 10.3) draws another record read-only: `source` gives its
+ * { tracks, switches, endMarks }, `trackStyles` the colour of each track by
+ * its status ({ color, dashed }), and there is nothing to delete.
  */
-export default function TopologyGraphOverlay({ project, version, selection, onSelect, onDeleted, onClose, t }) {
+export default function TopologyGraphOverlay({ project, version, selection, onSelect, onDeleted, onClose, t, source = null, trackStyles = null, title = null }) {
+  const readOnly = Boolean(source)
   const [confirmDelete, setConfirmDelete] = useState(null)   // { trackIds, message }
   const data = useMemo(() => {
-    if (!project) return null
-    const tracks = loadTracks(project.id)
-    const switches = loadSwitches(project.id)
-    const graph = buildTopologyGraph(tracks, switches, loadEndMarks(project.id))
+    if (!project && !source) return null
+    const tracks = source ? source.tracks : loadTracks(project.id)
+    const switches = source ? source.switches : loadSwitches(project.id)
+    const graph = buildTopologyGraph(tracks, switches, source ? source.endMarks : loadEndMarks(project.id))
     const { clusters, loose } = topologyClusters(graph)
     return {
+      tracks,
       switches,
       clusters: clusters.map(c => ({
         ...c,
@@ -50,12 +56,12 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
     }
     // `version` stands for the store, which the memo cannot see.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, version])
+  }, [project, version, source])
 
   const highlighted = useMemo(() => {
     const h = selectionHighlight(selection, data?.switches)
-    return { colors: h.colors, switches: new Set(h.switchIds) }
-  }, [data, selection])
+    return { colors: h.colors, switches: new Set(h.switchIds), styles: trackStyles ?? {} }
+  }, [data, selection, trackStyles])
 
   if (!data) return null
   const fill = (key, values) =>
@@ -63,8 +69,8 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
   const isSelected = (kind, id) => selection?.kind === kind && selection.id === id
   const toggle = (kind, id) => onSelect?.(isSelected(kind, id) ? null : { kind, id })
 
-  const selectedTrack = selection?.kind === 'track'
-    ? loadTracks(project.id).find(tr => tr.id === selection.id) ?? null
+  const selectedTrack = selection?.kind === 'track' && !readOnly
+    ? data.tracks.find(tr => tr.id === selection.id) ?? null
     : null
   const goingWith = selectedTrack ? switchesOnTrack(project.id, selectedTrack.id).map(sw => sw.name ?? '?') : []
   const removeTrack = (trackId) => {
@@ -93,7 +99,7 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
     <div className="track-table-overlay topology-graph-overlay">
       <div className="track-table-header">
         <span className="track-table-title">
-          {t('topology_graph_title')}
+          {title ?? t('topology_graph_title')}
           <span className="track-table-subtitle">
             {fill('topology_graph_summary', { clusters: data.clusters.length, loose: data.loose.length })}
           </span>
@@ -125,9 +131,11 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
                 tracks: cluster.edges.length,
                 switches: cluster.nodes.filter(n => n.kind === 'switch').length,
               })}</h4>
-              <button type="button" className="topology-delete-btn" onClick={() => askNetwork(i + 1, cluster)}>
-                {t('topology_delete_network')}
-              </button>
+              {!readOnly && (
+                <button type="button" className="topology-delete-btn" onClick={() => askNetwork(i + 1, cluster)}>
+                  {t('topology_delete_network')}
+                </button>
+              )}
             </div>
             <div className="topology-graph-wrap">
               <ClusterDiagram cluster={cluster} highlighted={highlighted} onToggle={toggle} />
@@ -138,16 +146,21 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
           <section className="topology-graph-section">
             <div className="topology-graph-section-head">
               <h4>{fill('topology_loose', { n: data.loose.length })}</h4>
-              <button type="button" className="topology-delete-btn" onClick={askLoose}>
-                {t('topology_delete_loose')}
-              </button>
+              {!readOnly && (
+                <button type="button" className="topology-delete-btn" onClick={askLoose}>
+                  {t('topology_delete_loose')}
+                </button>
+              )}
             </div>
             {data.loose.map(edge => (
               <div key={edge.trackId} className="topology-graph-loose">
-                <LooseTrack edge={edge} nodes={data.nodes} color={highlighted.colors[edge.trackId]} onToggle={toggle} />
-                <button type="button" className="topology-delete-btn" onClick={() => removeTrack(edge.trackId)}>
-                  {t('topology_delete_track')}
-                </button>
+                <LooseTrack edge={edge} nodes={data.nodes} color={highlighted.colors[edge.trackId]}
+                  status={highlighted.styles[edge.trackId]} onToggle={toggle} />
+                {!readOnly && (
+                  <button type="button" className="topology-delete-btn" onClick={() => removeTrack(edge.trackId)}>
+                    {t('topology_delete_track')}
+                  </button>
+                )}
               </div>
             ))}
           </section>
@@ -244,14 +257,17 @@ function placeLabels(items, segments, nodeBoxes) {
 
 /**
  * A track's line, with a wider invisible one over it to click it by; drawn
- * broad in `color` while highlighted.
+ * broad in `color` while highlighted. In a comparison `status` colours it by
+ * what happened to it, dashed when it is gone.
  */
-function TrackPath({ edge, d, color, onToggle }) {
+function TrackPath({ edge, d, color, status, onToggle }) {
+  const stroke = color ?? status?.color
   return (
     <g className="topology-graph-track" onClick={() => onToggle('track', edge.trackId)}>
       <title>{edge.name ?? edge.trackId}</title>
-      <path d={d} fill="none" strokeWidth={color ? 5 : 2.5} strokeLinecap="round" strokeLinejoin="round"
-        style={color ? { stroke: color } : PRIMARY} />
+      <path d={d} fill="none" strokeWidth={stroke ? 5 : 2.5} strokeLinecap="round" strokeLinejoin="round"
+        strokeDasharray={status?.dashed ? '7 6' : undefined}
+        style={stroke ? { stroke } : PRIMARY} />
       <path d={d} fill="none" stroke="transparent" strokeWidth={12} />
     </g>
   )
@@ -318,7 +334,8 @@ function ClusterDiagram({ cluster, highlighted, onToggle }) {
   return (
     <svg width={width} height={height} className="topology-graph-svg">
       {edgePaths.map(({ e, d }) => (
-        <TrackPath key={e.trackId} edge={e} d={d} color={highlighted.colors[e.trackId]} onToggle={onToggle} />
+        <TrackPath key={e.trackId} edge={e} d={d} color={highlighted.colors[e.trackId]}
+          status={highlighted.styles[e.trackId]} onToggle={onToggle} />
       ))}
       {edgePaths.map(({ e, lx, ly }) => (
         lx != null && <text key={`l-${e.trackId}`} x={lx} y={ly - 5} className="topology-graph-label">{e.name ?? ''}</text>
@@ -342,11 +359,11 @@ function ClusterDiagram({ cluster, highlighted, onToggle }) {
 }
 
 /** A track connected to nothing: its two ends and its name, on one row. */
-function LooseTrack({ edge, nodes, color, onToggle }) {
+function LooseTrack({ edge, nodes, color, status, onToggle }) {
   const a = nodes.get(edge.from), b = nodes.get(edge.to)
   return (
     <svg width={320} height={26} className="topology-graph-svg">
-      <TrackPath edge={edge} d="M 16 13 L 176 13" color={color} onToggle={onToggle} />
+      <TrackPath edge={edge} d="M 16 13 L 176 13" color={color} status={status} onToggle={onToggle} />
       <NodeGlyph node={a} x={16} y={13} />
       <NodeGlyph node={b} x={176} y={13} />
       <text x={192} y={17} className="topology-graph-label" style={{ textAnchor: 'start' }}>{edge.name ?? ''}</text>
