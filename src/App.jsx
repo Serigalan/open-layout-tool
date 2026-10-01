@@ -50,6 +50,7 @@ import CheckInDialog from './components/collab/CheckInDialog'
 import LoginPage from './components/collab/LoginPage'
 import PasswordForm from './components/collab/PasswordForm'
 import WorkingCopyBar from './components/collab/WorkingCopyBar'
+import AdminPage from './components/collab/AdminPage'
 import './App.css'
 
 // How often the open app asks whether the server has moved on [ms].
@@ -927,6 +928,9 @@ export default function App() {
       </div>
     )
   }
+  if (view === 'admin' && session.user.role === 'admin') {
+    return <AdminPage user={session.user} onBack={() => setView('start')} t={t} language={language} />
+  }
   if (view === 'viewer' && viewer) {
     return (
       <div className="layout">
@@ -959,6 +963,7 @@ export default function App() {
   if (view === 'start' || !project) {
     return <StartPage user={session.user} onOpenVariant={handleOpenVariant} onSignOut={handleSignOut}
       onCompare={showComparison} onMerge={startVariantMerge} note={homeNote}
+      onAdmin={() => { setHomeNote(null); setView('admin') }}
       t={t} language={language} onLanguageChange={handleLanguageChange} />
   }
 

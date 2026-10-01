@@ -500,3 +500,49 @@
 .home-variant-buttons { display: flex; gap: 6px; align-items: center; margin-left: auto; }
 .home-archived-toggle { margin-top: 12px; color: var(--collab-muted); }
 .home-project-head .home-menu { margin-left: auto; }
+
+/* ── the user administration ─────────────────────────────────────────── */
+
+.admin-users { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.admin-user {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--collab-border);
+  border-radius: 10px;
+  background: var(--collab-bg);
+}
+.admin-user.inactive { opacity: 0.65; }
+.admin-user-who { display: flex; flex-direction: column; min-width: 160px; flex: 1 1 160px; overflow-wrap: anywhere; }
+.admin-user-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 2 1 260px; }
+.admin-user-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-last { font-size: 12px; }
+.admin-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  padding: 2px 8px;
+  border: 1px solid var(--collab-border);
+  color: var(--collab-muted);
+}
+.admin-badge.admin { color: var(--color-primary); border-color: var(--color-primary); }
+.admin-badge.active { color: var(--collab-ok); border-color: var(--collab-ok); }
+.admin-badge.off { color: var(--collab-danger); border-color: var(--collab-danger); }
+.admin-badge.pending { color: var(--collab-warn); border-color: var(--collab-warn); }
+.admin-notice { line-height: 1.6; }
+.admin-password {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--collab-hover);
+  color: var(--collab-fg);
+  user-select: all;
+}
+.admin-password-row { display: flex; gap: 6px; align-items: center; }
+.admin-password-row input { flex: 1; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .admin-badge.admin { color: #9aa2ff; border-color: #9aa2ff; }
+}
