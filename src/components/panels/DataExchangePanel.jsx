@@ -817,16 +817,6 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
         )}
       </ExchangeSection>
 
-      <ExchangeSection title={t('data_exchange_provi')} description={t('data_exchange_provi_desc')}>
-        <ProviImportSection
-          t={t} map={map} project={project} onTrackSaved={onTrackSaved}
-          onReport={(source, counts, lines) => {
-            setReports(saveImportReport(project.id, { source, ...counts, lines }))
-            setOpenReport(null)
-          }}
-        />
-      </ExchangeSection>
-
       <ExchangeSection
         title={t('data_exchange_osrd')}
         description={t('data_exchange_osrd_desc')}
@@ -891,6 +881,16 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
           with the design data itself: element chain and heights). */}
       {exchangeOpen && (
         <>
+        <ExchangeSection title={t('data_exchange_provi')} description={t('data_exchange_provi_desc')}>
+          <ProviImportSection
+            t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+            onReport={(source, counts, lines) => {
+              setReports(saveImportReport(project.id, { source, ...counts, lines }))
+              setOpenReport(null)
+            }}
+          />
+        </ExchangeSection>
+
           <ExchangeSection title={t('data_exchange_csv')} description={t('data_exchange_csv_desc')}>
             <input
               ref={csvInputRef}
