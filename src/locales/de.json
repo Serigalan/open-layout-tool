@@ -948,5 +948,20 @@
   "collab_err_title_required": "Bitte einen Titel angeben.",
   "collab_err_name_required": "Bitte einen Namen angeben.",
   "collab_err_too_large": "Die Datei ist zu groß.",
-  "collab_err_image_type": "Dieses Bildformat wird nicht unterstützt."
+  "collab_err_image_type": "Dieses Bildformat wird nicht unterstützt.",
+  "home_compare_title": "Varianten vergleichen",
+  "home_compare_before": "Früherer Stand",
+  "home_compare_after": "Späterer Stand",
+  "home_merge_title": "Varianten zusammenführen",
+  "home_merge_desc": "Die Änderungen der Quelle seit dem letzten gemeinsamen Stand werden in das Ziel übernommen. Das Ziel bekommt eine neue Revision.",
+  "home_merge_source": "Quelle (Änderungen von)",
+  "home_merge_target": "Ziel (übernimmt sie)",
+  "merge_up_to_date": "„{target}“ hat bereits alle Änderungen von „{source}“.",
+  "merge_message": "Zusammengeführt: {source} → {target}",
+  "merge_done": "„{source}“ in „{target}“ zusammengeführt (rev {n}).",
+  "merge_target_moved": "Das Ziel wurde inzwischen geändert — bitte erneut zusammenführen.",
+  "viewer_readonly": "schreibgeschützt",
+  "viewer_back": "Zurück",
+  "collab_err_local_changes": "Die Ziel-Variante hat in diesem Browser nicht eingecheckte Änderungen — bitte zuerst einchecken.",
+  "collab_err_no_common_base": "Die beiden Varianten haben keinen gemeinsamen Stand."
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { diffEntries, diffProject, primary } from '../../utils/merge'
 import {
-  COMPARE_COLORS, clearFeatures, comparisonFeatures, comparisonTopology, drawable, showFeatures,
+  COMPARE_COLORS, clearFeatures, comparisonFeatures, comparisonTopology, drawable, showFeaturesSoon,
   trackStylesOf, zoomToFeatures,
 } from '../../utils/compareLayer'
 import TopologyGraphOverlay from '../TopologyGraphOverlay'
@@ -21,7 +21,7 @@ const KINDS = ['added', 'changed', 'removed']
  * the tracks neither touched are drawn too, for a comparison of states the
  * map does not show of itself.
  */
-export default function CompareOverlay({ map, before, after, beforeLabel, afterLabel, drawUnchanged = false, onClose, t }) {
+export default function CompareOverlay({ map, mapVersion = 0, before, after, beforeLabel, afterLabel, drawUnchanged = false, onClose, t }) {
   const data = useMemo(() => {
     const entries = diffEntries(diffProject(before, after))
     const hb = drawable(primary(before)), ha = drawable(primary(after))
@@ -38,11 +38,10 @@ export default function CompareOverlay({ map, before, after, beforeLabel, afterL
   useEffect(() => {
     const m = map?.current
     if (!m) return undefined
-    const put = () => { try { showFeatures(m, LAYER, data.features) } catch { m.once('idle', put) } }
-    put()
+    const stop = showFeaturesSoon(m, LAYER, data.features)
     if (drawUnchanged) zoomToFeatures(m, data.features, { maxZoom: 15 })
-    return () => { try { clearFeatures(m, LAYER) } catch { /* map already gone */ } }
-  }, [map, data, drawUnchanged])
+    return () => { stop(); try { clearFeatures(m, LAYER) } catch { /* map already gone */ } }
+  }, [map, mapVersion, data, drawUnchanged])
 
   const counts = Object.fromEntries(KINDS.map(k => [k, data.entries.filter(e => e.kind === k).length]))
   const pick = (e) => {

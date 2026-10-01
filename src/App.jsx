@@ -9,6 +9,10 @@ import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, D
 import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, loadSettings, saveSettings, canUndo, undo, loadProjects, closeWorkingCopy, currentWorkingCopy, flushPendingWrites } from './storage'
 import { api, setUnauthorizedHandler } from './api/client'
 import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, serverHead } from './utils/workingCopySync'
+import { commitVariantMerge, loadComparison, prepareVariantMerge } from './utils/variantMerge'
+import { clearFeatures, comparisonFeatures, drawable, showFeaturesSoon, zoomToFeatures } from './utils/compareLayer'
+import { diffEntries, diffProject } from './utils/merge'
+import { fill } from './components/collab/mergeText'
 import { bufferStopFeatures } from './utils/bufferStopGeometry'
 import { showTopology, highlightTopology, zoomToTopologyTracks } from './utils/topologyLayer'
 import { selectionHighlight } from './utils/topologyGraph'
@@ -416,6 +420,15 @@ export default function App() {
   const [syncDialog, setSyncDialog] = useState(null)
   const [syncBusy, setSyncBusy] = useState(false)
   const [syncNote, setSyncNote] = useState(null)
+  // Read-only on the map, without a working copy (AP 10.8, 10.10): two states
+  // compared, or a merge of one variant into another being decided —
+  // { kind: 'compare', title, subtitle, before, after, beforeLabel, afterLabel }
+  // | { kind: 'merge', title, subtitle, prepared, sourceName, targetName }.
+  const [viewer, setViewer] = useState(null)
+  // Counts the maps made: a map made anew (Strict Mode makes the first one
+  // twice) has none of what an effect drew on the one before.
+  const [mapVersion, setMapVersion] = useState(0)
+  const [homeNote, setHomeNote] = useState(null)
 
   useEffect(() => {
     const s = loadSettings()
@@ -531,6 +544,21 @@ export default function App() {
     return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', onFocus) }
   }, [wc])
 
+  // A merge being decided shows on the map what it brings into the target:
+  // the target as it is, pale, and the changes coloured as in a comparison.
+  useEffect(() => {
+    if (viewer?.kind !== 'merge') return undefined
+    const m = map.current
+    if (!m) return undefined
+    const { target } = viewer.prepared
+    const merged = viewer.prepared.result.merged
+    const features = comparisonFeatures(drawable(target.payload), drawable(merged),
+      diffEntries(diffProject(target.payload, merged)), { unchanged: true })
+    const stop = showFeaturesSoon(m, 'merge-preview', features)
+    zoomToFeatures(m, features, { maxZoom: 15, covered: 0.62 })
+    return () => { stop(); try { clearFeatures(m, 'merge-preview') } catch { /* map gone */ } }
+  }, [viewer, mapVersion])
+
   // Leaving the tab with changes not checked in is asked about by the browser.
   useEffect(() => {
     if (!wcChanges.length) return undefined
@@ -554,6 +582,7 @@ export default function App() {
       center: [10.0, 51.0],
       zoom: 5,
     })
+    setMapVersion(v => v + 1)
     map.current.addControl(
       new maplibregl.NavigationControl({
         visualizePitch: true,
@@ -636,6 +665,7 @@ export default function App() {
   }, [])
 
   const handleOpenVariant = async (serverProject, variant) => {
+    setHomeNote(null)
     const p = await openVariant(variant.id)
     setWc({ project: serverProject, variant })
     setWcHead(null)
@@ -648,9 +678,64 @@ export default function App() {
   const goHome = async () => {
     setCompare(null)
     setSyncDialog(null)
+    // The next project opens on the info panel, not on whatever this one had open.
+    if (activeView === 'topology' && basemapBeforeTopology.current) {
+      handleBasemapChange(basemapBeforeTopology.current)
+      basemapBeforeTopology.current = null
+    }
+    setActiveView('info')
+    setTopologyGraphOpen(false)
+    setTopologySelection(null)
     await closeWorkingCopy()
     setWc(null)
     setProject(null)
+    setView('start')
+  }
+
+  // ── comparing and merging variants (AP 10.8) ──
+  const showComparison = async (serverProject, a, b) => {
+    setHomeNote(null)
+    const { before, after } = await loadComparison(a.id, b.id)
+    setViewer({
+      kind: 'compare', title: serverProject.title, subtitle: t('compare_title'),
+      before: before.payload, after: after.payload,
+      beforeLabel: `${a.name} · ${fill(t, 'wc_rev', { n: before.revision.number })}`,
+      afterLabel: `${b.name} · ${fill(t, 'wc_rev', { n: after.revision.number })}`,
+    })
+    setView('viewer')
+  }
+
+  const startVariantMerge = async (serverProject, source, target) => {
+    setHomeNote(null)
+    const prepared = await prepareVariantMerge(source.id, target.id)
+    if (prepared.upToDate) return 'up_to_date'
+    setViewer({
+      kind: 'merge', title: serverProject.title, prepared, sourceName: source.name, targetName: target.name,
+      subtitle: fill(t, 'compare_from_to', { before: source.name, after: target.name }),
+    })
+    setView('viewer')
+    return 'shown'
+  }
+
+  const applyVariantMerge = async (record) => {
+    setSyncBusy(true)
+    try {
+      const res = await commitVariantMerge(viewer.prepared, record,
+        fill(t, 'merge_message', { source: viewer.sourceName, target: viewer.targetName }))
+      setHomeNote(res.stale
+        ? t('merge_target_moved')
+        : fill(t, 'merge_done', { source: viewer.sourceName, target: viewer.targetName, n: res.revision.number }))
+      closeViewer()
+    } catch (err) {
+      setHomeNote(err.body?.errors?.length ? t('checkin_refused') : t('collab_err_generic'))
+      closeViewer()
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  const closeViewer = () => {
+    setViewer(null)
     setView('start')
   }
 
@@ -842,8 +927,38 @@ export default function App() {
       </div>
     )
   }
+  if (view === 'viewer' && viewer) {
+    return (
+      <div className="layout">
+        <div style={{ flex: 1, position: 'relative' }}>
+          <div className="map-container" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
+          <div className="wc-bar" role="status">
+            <span className="wc-where">
+              <strong>{viewer.title}</strong>
+              <span className="wc-sep">›</span>
+              <span>{viewer.subtitle}</span>
+            </span>
+            <span className="wc-rev">{t('viewer_readonly')}</span>
+            <span className="wc-actions">
+              <button type="button" className="wc-btn" onClick={closeViewer} disabled={syncBusy}>{t('viewer_back')}</button>
+            </span>
+          </div>
+          {viewer.kind === 'compare' && (
+            <CompareOverlay map={map} mapVersion={mapVersion} t={t} before={viewer.before} after={viewer.after} drawUnchanged
+              beforeLabel={viewer.beforeLabel} afterLabel={viewer.afterLabel} onClose={closeViewer} />
+          )}
+          {viewer.kind === 'merge' && (
+            <ConflictDialog map={map} mapVersion={mapVersion} t={t} result={viewer.prepared.result} busy={syncBusy}
+              title={t('home_merge_title')} mineLabel={viewer.targetName} theirsLabel={viewer.sourceName}
+              onCancel={closeViewer} onApply={applyVariantMerge} />
+          )}
+        </div>
+      </div>
+    )
+  }
   if (view === 'start' || !project) {
     return <StartPage user={session.user} onOpenVariant={handleOpenVariant} onSignOut={handleSignOut}
+      onCompare={showComparison} onMerge={startVariantMerge} note={homeNote}
       t={t} language={language} onLanguageChange={handleLanguageChange} />
   }
 
@@ -1020,9 +1135,9 @@ export default function App() {
           selection={topologySelection} onSelect={pickInTopologyDiagram}
           onDeleted={() => { setTopologySelection(null); handleTrackSaved() }}
           onClose={() => setTopologyGraphOpen(false)} t={t} />}
-        {compare && <CompareOverlay map={map} t={t} {...compare} onClose={() => setCompare(null)} />}
+        {compare && <CompareOverlay map={map} mapVersion={mapVersion} t={t} {...compare} onClose={() => setCompare(null)} />}
         {syncDialog?.kind === 'merge' && (
-          <ConflictDialog map={map} t={t} result={syncDialog.prepared.result} busy={syncBusy}
+          <ConflictDialog map={map} mapVersion={mapVersion} t={t} result={syncDialog.prepared.result} busy={syncBusy}
             title={t('wc_merge_title')} mineLabel={t('wc_working_copy')}
             theirsLabel={`${t('wc_server')} (${syncDialog.prepared.head.author.name})`}
             onCancel={() => setSyncDialog(null)} onApply={applyMerge} />

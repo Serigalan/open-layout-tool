@@ -948,5 +948,20 @@
   "collab_err_title_required": "Please give a title.",
   "collab_err_name_required": "Please give a name.",
   "collab_err_too_large": "The file is too large.",
-  "collab_err_image_type": "This image format is not supported."
+  "collab_err_image_type": "This image format is not supported.",
+  "home_compare_title": "Compare variants",
+  "home_compare_before": "Earlier state",
+  "home_compare_after": "Later state",
+  "home_merge_title": "Merge variants",
+  "home_merge_desc": "The source's changes since the last common state are taken into the target. The target gets a new revision.",
+  "home_merge_source": "Source (changes from)",
+  "home_merge_target": "Target (takes them over)",
+  "merge_up_to_date": "“{target}” already has every change of “{source}”.",
+  "merge_message": "Merged: {source} → {target}",
+  "merge_done": "Merged “{source}” into “{target}” (rev {n}).",
+  "merge_target_moved": "The target changed meanwhile — please merge again.",
+  "viewer_readonly": "read-only",
+  "viewer_back": "Back",
+  "collab_err_local_changes": "The target variant has changes in this browser that are not checked in — please check them in first.",
+  "collab_err_no_common_base": "The two variants have no common state."
 }

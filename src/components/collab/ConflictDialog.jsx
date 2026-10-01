@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { resolve, validationConflicts } from '../../utils/merge'
-import { clearFeatures, drawable, findObject, objectFeatures, showFeatures, zoomToFeatures, COMPARE_COLORS } from '../../utils/compareLayer'
+import { clearFeatures, drawable, findObject, objectFeatures, showFeaturesSoon, zoomToFeatures, COMPARE_COLORS } from '../../utils/compareLayer'
 import { conflictText, entryText, fill, findingText, valueText } from './mergeText'
 import './collab.css'
 
@@ -17,7 +17,7 @@ const LAYER = 'conflict'
  * (dehydrated). The validation conflicts are worked out anew after every
  * choice: taking a side can solve one and bring up another.
  */
-export default function ConflictDialog({ map, result, title, mineLabel, theirsLabel, onCancel, onApply, busy = false, t }) {
+export default function ConflictDialog({ map, mapVersion = 0, result, title, mineLabel, theirsLabel, onCancel, onApply, busy = false, t }) {
   const fieldConflicts = useMemo(() => result.conflicts.filter(c => c.kind !== 'validation'), [result])
   const [choices, setChoices] = useState({})
   const [selected, setSelected] = useState(null)
@@ -58,14 +58,12 @@ export default function ConflictDialog({ map, result, title, mineLabel, theirsLa
     if (!c || c.collection === 'project') { try { clearFeatures(m, LAYER) } catch { /* map gone */ } return undefined }
     const features = ['mine', 'theirs'].flatMap(side => objectFeatures(
       sides[side], c.collection, findObject(sides[side], c.collection, c.objectId), side))
-    try {
-      showFeatures(m, LAYER, features)
-      zoomToFeatures(m, features, { covered: 0.62 })
-    } catch { /* style still loading: the next pick draws it */ }
-    return undefined
+    const stop = showFeaturesSoon(m, LAYER, features)
+    zoomToFeatures(m, features, { covered: 0.62 })
+    return stop
     // validationRows is derived from `seen` and `live`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, selected, sides, fieldConflicts, seen, live])
+  }, [map, mapVersion, selected, sides, fieldConflicts, seen, live])
   useEffect(() => () => { try { clearFeatures(map?.current, LAYER) } catch { /* map gone */ } }, [map])
 
   const choose = (id, side) => setChoices(prev => ({ ...prev, [id]: side }))

@@ -115,6 +115,21 @@ export function showFeatures(map, id, features) {
     paint: { 'circle-color': ['get', 'color'], 'circle-radius': 7, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } })
 }
 
+/**
+ * showFeatures as soon as the map's style takes sources — it refuses them
+ * while the style is still coming in, and 'idle' can be long in coming while
+ * tiles load. Returns a function that stops trying.
+ */
+export function showFeaturesSoon(map, id, features) {
+  let timer = null
+  let tries = 0
+  const attempt = () => {
+    try { showFeatures(map, id, features) } catch { if (++tries < 200) timer = setTimeout(attempt, 150) }
+  }
+  attempt()
+  return () => clearTimeout(timer)
+}
+
 /** Take the features under `id` off the map. */
 export function clearFeatures(map, id) {
   if (!map?.getStyle?.()) return

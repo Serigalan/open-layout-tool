@@ -33,11 +33,11 @@ const errorText = (t, code) => {
  * project renames, exports (a variant's head) and deletes it (its admin or
  * creator only). Branching, comparing and merging act on its variants.
  */
-export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onCompare, onMerge, onHistory, t, language, onLanguageChange }) {
+export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onCompare, onMerge, onHistory, note = null, t, language, onLanguageChange }) {
   const [projects, setProjects] = useState(null)
   const [local, setLocal] = useState(new Map())   // variantId → number of local changes
   const [error, setError] = useState(null)
-  const [notice, setNotice] = useState(null)
+  const [notice, setNotice] = useState(note)
   const [dialog, setDialog] = useState(null)      // { kind, project?, variant? }
   const [opening, setOpening] = useState(null)
   const [userMenu, setUserMenu] = useState(false)
@@ -178,6 +178,14 @@ export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onC
       {dialog?.kind === 'branch' && (
         <BranchDialog t={t} project={dialog.project} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
       )}
+      {(dialog?.kind === 'compare' || dialog?.kind === 'merge') && (
+        <PairDialog t={t} kind={dialog.kind} project={dialog.project} onCancel={() => setDialog(null)}
+          onSubmit={async (a, b) => {
+            const outcome = await (dialog.kind === 'compare' ? onCompare(dialog.project, a, b) : onMerge(dialog.project, a, b))
+            setDialog(null)
+            if (outcome === 'up_to_date') setNotice(fill(t, 'merge_up_to_date', { source: a.name, target: b.name }))
+          }} />
+      )}
       {dialog?.kind === 'variant' && (
         <VariantDialog t={t} variant={dialog.variant} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
       )}
@@ -250,8 +258,8 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, onOpen,
       </ul>
       <div className="home-project-actions">
         <button type="button" className="collab-btn" onClick={() => onDialog({ kind: 'branch', project })}>{t('home_branch')}</button>
-        {onCompare && <button type="button" className="collab-btn" disabled={!many} onClick={() => onCompare(project)}>{t('home_compare')}</button>}
-        {onMerge && <button type="button" className="collab-btn" disabled={!many} onClick={() => onMerge(project)}>{t('home_merge')}</button>}
+        {onCompare && <button type="button" className="collab-btn" disabled={!many} onClick={() => onDialog({ kind: 'compare', project })}>{t('home_compare')}</button>}
+        {onMerge && <button type="button" className="collab-btn" disabled={!many} onClick={() => onDialog({ kind: 'merge', project })}>{t('home_merge')}</button>}
       </div>
     </li>
   )
@@ -423,6 +431,40 @@ function VariantDialog({ variant, onCancel, onDone, t }) {
       <label className="collab-check">
         <input type="checkbox" checked={archived} onChange={e => setArchived(e.target.checked)} />
         {t('home_variant_archived')}
+      </label>
+    </FormDialog>
+  )
+}
+
+/**
+ * Two variants of a project: the two states to compare (earlier, later), or
+ * the source whose changes go into the target.
+ */
+function PairDialog({ kind, project, onCancel, onSubmit, t }) {
+  const variants = project.variants.filter(v => !v.archived)
+  const byId = new Map(variants.map(v => [v.id, v]))
+  // A merge goes from a variant's parent into it by default, a comparison the same way round.
+  const child = variants.find(v => v.parentVariantId && byId.has(v.parentVariantId)) ?? variants[1] ?? variants[0]
+  const [a, setA] = useState(child?.parentVariantId && byId.has(child.parentVariantId) ? child.parentVariantId : variants[0]?.id)
+  const [b, setB] = useState(child?.id ?? variants[0]?.id)
+  const { busy, error, run } = useAction(t)
+  const merge = kind === 'merge'
+  return (
+    <FormDialog title={t(merge ? 'home_merge_title' : 'home_compare_title')} submitLabel={t(merge ? 'home_merge' : 'home_compare')}
+      busy={busy} canSubmit={a && b && a !== b} error={error} onCancel={onCancel} t={t}
+      onSubmit={() => run(() => onSubmit(byId.get(a), byId.get(b)))}>
+      {merge && <p className="collab-muted">{t('home_merge_desc')}</p>}
+      <label className="collab-field">
+        <span>{t(merge ? 'home_merge_source' : 'home_compare_before')}</span>
+        <select value={a} onChange={e => setA(e.target.value)}>
+          {variants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+      </label>
+      <label className="collab-field">
+        <span>{t(merge ? 'home_merge_target' : 'home_compare_after')}</span>
+        <select value={b} onChange={e => setB(e.target.value)}>
+          {variants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
       </label>
     </FormDialog>
   )
