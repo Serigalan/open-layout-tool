@@ -494,3 +494,9 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
   cursor: pointer;
 }
+
+.collab-ok { margin: 0 0 10px; color: var(--collab-ok); font-size: 13px; }
+.home-variant.archived { opacity: 0.6; }
+.home-variant-buttons { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+.home-archived-toggle { margin-top: 12px; color: var(--collab-muted); }
+.home-project-head .home-menu { margin-left: auto; }
