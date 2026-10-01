@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks, deleteTrack, deleteTracks, switchesOnTrack } from '../storage'
 import ConfirmModal from './ConfirmModal'
-import {
-  buildTopologyGraph, topologyClusters, layoutClusterEven, selectionHighlight,
-} from '../utils/topologyGraph'
+import { buildTopologyGraph, topologyClusters, selectionHighlight } from '../utils/topologyGraph'
+import { layoutClusterLanes } from '../utils/topologyLanes'
 import { TOPOLOGY_RED, TOPOLOGY_HIGHLIGHT } from '../utils/topologyLayer'
 
 const PAD    = 28     // px around a diagram
@@ -17,9 +16,9 @@ const GREY = '#8a8a8a'
  * The topological connections of the project and nothing else (AP 9.6): no
  * map, no geometry — nodes where tracks meet or end, and the tracks between
  * them. Each cluster of tracks connected among themselves is drawn as a
- * section of its own, on an even grid with nothing drawn over anything else
- * (topologyGraph.layoutClusterEven); the tracks connected to nothing are
- * gathered in a last section.
+ * section of its own, every line through it on a row of its own and the
+ * crossovers between them (topologyLanes.layoutClusterLanes); the tracks
+ * connected to nothing are gathered in a last section.
  *
  * Clicking a switch or a track selects it here and on the map alike: a switch
  * with the tracks it connects, each in a colour of its own, a track with the
@@ -49,7 +48,7 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
       switches,
       clusters: clusters.map(c => ({
         ...c,
-        layout: layoutClusterEven(c),
+        layout: layoutClusterLanes(c),
       })),
       loose,
       nodes: graph.nodes,

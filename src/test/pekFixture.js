@@ -46,3 +46,22 @@ export function loadPek() {
   }
   return JSON.parse(cached)
 }
+
+/**
+ * The same line as it stands, at larger scale (113 tracks, 69 switches, two
+ * double-track networks with crossovers) — schema version 2 already, as the
+ * app exported it. Looked for under OLT_PEK_BESTAND_FIXTURE or the project
+ * notes; tests that need it are skipped where it is not there.
+ */
+const BESTAND_PATH = [
+  process.env.OLT_PEK_BESTAND_FIXTURE,
+  join(homedir(), '.claude/projects/-root-open-layout-tool/memory/testdata/PEK_Halle_Koennern_Bestand.json'),
+].filter(Boolean).find(p => existsSync(p)) ?? null
+
+export const hasPekBestand = BESTAND_PATH !== null
+
+/** A fresh copy of the Bestand project record (dehydrated), or null. */
+export function loadPekBestand() {
+  if (!BESTAND_PATH) return null
+  return JSON.parse(readFileSync(BESTAND_PATH, 'utf8')).projects[0]
+}
