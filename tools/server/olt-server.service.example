@@ -1,0 +1,19 @@
+# systemd unit for the Open Layout Tool server (phase 10).
+# Copy next to the deployment (e.g. WEBSITE/olt-server.service), adjust the
+# paths, then: systemctl link …/olt-server.service && systemctl enable --now olt-server
+[Unit]
+Description=Open Layout Tool — project server (users, variants, revisions)
+After=network.target
+
+[Service]
+WorkingDirectory=/root/open-layout-tool/tools/server
+ExecStart=/usr/bin/node /root/open-layout-tool/tools/server/bin/olt-server.mjs serve
+Environment=OLT_SERVER_DB=/root/open-layout-tool/WEBSITE/olt-server/olt.sqlite
+# Only the Caddy container's network reaches it, never the public interface.
+Environment=OLT_SERVER_HOST=172.18.0.1
+Environment=OLT_SERVER_PORT=8787
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

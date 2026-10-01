@@ -1,0 +1,22 @@
+{
+  "name": "olt-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Open Layout Tool — users, projects, variants and revisions (phase 10)",
+  "type": "module",
+  "bin": {
+    "olt-server": "./bin/olt-server.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node ./bin/olt-server.mjs serve"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@node-rs/argon2": "^2.2.1",
+    "better-sqlite3": "^13.0.3",
+    "fastify": "^5.12.5"
+  }
+}
