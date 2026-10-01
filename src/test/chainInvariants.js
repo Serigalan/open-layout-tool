@@ -1,6 +1,8 @@
 import { expect } from 'vitest'
 import { wgs84ToUTM } from '../utils/coordinateUtils'
-import { resolveEndBearing } from '../utils/elementUtils'
+import {
+  JOINT_TOL, BEARING_TOL, absLengthErrors, epsgMismatches, nodeGaps, tangentBreaks, untrueLengths,
+} from '../utils/chainChecks'
 import { SAGITTA_ELEMENT, cantExceptionOf, cantLimit, worstCantOf } from '../utils/mapConstants'
 import { switchParts } from '../utils/switchDelete'
 
@@ -10,21 +12,12 @@ import { switchParts } from '../utils/switchDelete'
  * assertion so a failure names the rule that broke, not just the chain.
  */
 
-/** Two nodes are the same node below this [m]. */
-export const JOINT_TOL = 0.001
-
-/** Two tangents are the same tangent below this [°]. */
-export const BEARING_TOL = 1e-6
-
-const signedBearingDelta = (a, b) => Math.abs(((a - b + 540) % 360) - 180)
+export { JOINT_TOL, BEARING_TOL } from '../utils/chainChecks'
 
 /** Every element ends where the next begins. */
 export function expectNodesJoin(elements, tol = JOINT_TOL) {
-  for (let i = 0; i < elements.length - 1; i++) {
-    const [eE, eN] = elements[i].endNode
-    const [sE, sN] = elements[i + 1].startNode
-    expect(Math.hypot(eE - sE, eN - sN),
-      `element ${i} endNode to element ${i + 1} startNode`).toBeLessThan(tol)
+  for (const { index, gap } of nodeGaps(elements, tol)) {
+    expect(gap, `element ${index} endNode to element ${index + 1} startNode`).toBeLessThan(tol)
   }
 }
 
@@ -34,19 +27,16 @@ export function expectNodesJoin(elements, tol = JOINT_TOL) {
  * put there deliberately, so a chain that has one is not checked with this.
  */
 export function expectTangentsContinuous(elements, epsg, tol = BEARING_TOL) {
-  for (let i = 0; i < elements.length - 1; i++) {
-    expect(signedBearingDelta(resolveEndBearing(elements[i], epsg), elements[i + 1].bearing),
-      `element ${i} end bearing to element ${i + 1} bearing`).toBeLessThan(tol)
+  for (const { index, delta } of tangentBreaks(elements, epsg, tol)) {
+    expect(delta, `element ${index} end bearing to element ${index + 1} bearing`).toBeLessThan(tol)
   }
 }
 
 /** absLength is the running sum of the lengths before it, inclusive. */
 export function expectAbsLengthsRunning(elements, tol = 1e-6) {
-  let running = 0
-  elements.forEach((el, i) => {
-    running += el.length
-    expect(el.absLength, `absLength of element ${i}`).toBeCloseTo(running, -Math.log10(tol))
-  })
+  for (const { index, absLength, expected } of absLengthErrors(elements, tol)) {
+    expect(absLength, `absLength of element ${index}`).toBeCloseTo(expected, -Math.log10(tol))
+  }
 }
 
 /**
@@ -56,26 +46,19 @@ export function expectAbsLengthsRunning(elements, tol = 1e-6) {
  * checked by the chord it cannot be shorter than.
  */
 export function expectLengthsTrue(elements, tol = JOINT_TOL) {
-  elements.forEach((el, i) => {
-    const chord = Math.hypot(el.endNode[0] - el.startNode[0], el.endNode[1] - el.startNode[1])
-    if (el.radius != null) {
-      const absR = Math.abs(el.radius)
-      const expected = 2 * absR * Math.asin(Math.min(1, chord / (2 * absR)))
-      expect(el.length, `arc length of element ${i}`).toBeCloseTo(expected, 3)
-    } else if (el.elementType === 2) {
-      expect(el.length, `transition ${i} is at least its chord`).toBeGreaterThanOrEqual(chord - tol)
-    } else {
-      expect(el.length, `straight length of element ${i}`).toBeCloseTo(chord, 6)
-    }
-  })
+  for (const { index, length, expected } of untrueLengths(elements, tol)) {
+    const el = elements[index]
+    if (el.radius != null) expect(length, `arc length of element ${index}`).toBeCloseTo(expected, 3)
+    else if (el.elementType === 2) expect(length, `transition ${index} is at least its chord`).toBeGreaterThanOrEqual(expected - tol)
+    else expect(length, `straight length of element ${index}`).toBeCloseTo(expected, 6)
+  }
 }
 
 /** One CRS per track, and every element of it states that one. */
 export function expectEpsgThroughout(track) {
   expect(track.epsg, 'track epsg').toBeTruthy()
-  for (const [i, el] of (track.elements ?? []).entries()) {
-    if (el.epsg === undefined) continue
-    expect(el.epsg, `epsg of element ${i}`).toBe(track.epsg)
+  for (const { index, epsg } of epsgMismatches(track)) {
+    expect(epsg, `epsg of element ${index}`).toBe(track.epsg)
   }
 }
 

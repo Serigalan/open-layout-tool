@@ -64,6 +64,10 @@ let _backend = 'idb'         // 'idb' | 'ls'
 const MAX_UNDO = 20
 let _undoStack = []
 let _undoDepth = 0
+// The id log (decision 93): per project, what splitting and joining made of
+// which track ids since the working copy's base — [{ from, to: [ids] }]. A
+// merge reads it to carry the other side's references onto the new tracks.
+let _idLog = new Map()
 
 // Write-behind state (idb backend)
 let _dirty = new Set()       // project ids to (re)write
@@ -129,8 +133,39 @@ const withoutHeader = (key, value) => (key === 'planHeader' ? undefined : value)
 
 function pushUndo() {
   if (_undoDepth > 0) return
-  _undoStack.push(JSON.stringify(getCache(), withoutHeader))
+  _undoStack.push({
+    cache: JSON.stringify(getCache(), withoutHeader),
+    idLog: JSON.stringify([..._idLog]),
+  })
   if (_undoStack.length > MAX_UNDO) _undoStack.shift()
+}
+
+/** The id log of a project: [{ from, to: [ids] }], oldest first. */
+export function loadIdLog(projectId) {
+  return _idLog.get(projectId) ?? []
+}
+
+/** Replace a project's id log — empty once its changes are checked in. */
+export function setIdLog(projectId, log) {
+  if (log?.length) _idLog.set(projectId, [...log]); else _idLog.delete(projectId)
+}
+
+/**
+ * Append the id changes of one remap (the entries remapSwitches takes) to the
+ * log. Only ids that changed and pieces the project now has are logged: a
+ * rename onto itself (a flip) is no id change, and a split that left no piece
+ * on one side names a track that never came to be.
+ */
+function logRemap(project, remap) {
+  if (!project || !remap?.length) return
+  const present = new Set((project.tracks ?? []).map(t => t.id))
+  const entries = []
+  for (const { oldId, newId } of remap) {
+    const to = (Array.isArray(newId) ? newId : [newId]).filter(id => id && present.has(id))
+    if (!oldId || !to.length || (to.length === 1 && to[0] === oldId)) continue
+    entries.push({ from: oldId, to })
+  }
+  if (entries.length) _idLog.set(project.id, [...loadIdLog(project.id), ...entries])
 }
 
 /**
@@ -220,7 +255,9 @@ export function undo() {
   if (_undoStack.length === 0) return false
   // The headers are not part of the snapshot, so they are kept as they are now.
   const headers = new Map(getCache().filter(p => p.planHeader).map(p => [p.id, p.planHeader]))
-  _cache = JSON.parse(_undoStack.pop())
+  const snapshot = _undoStack.pop()
+  _cache = JSON.parse(snapshot.cache)
+  _idLog = new Map(JSON.parse(snapshot.idLog))
   for (const p of _cache) if (headers.has(p.id)) p.planHeader = headers.get(p.id)
   persist()
   return true
@@ -479,6 +516,7 @@ export function remapSwitchTrackIds(projectId, remap, { consumed = [] } = {}) {
   if (!project) return
   project.switches = remapSwitches(project.switches, remap)
   project.endMarks = remapEndMarks(project.endMarks, remap, consumed)
+  logRemap(project, remap)
   persist(projectId)
 }
 
@@ -595,6 +633,7 @@ export function deleteElement(projectId, trackId, elementIndex) {
   const remap = [{ oldId: trackId, newId: [beforeId, afterId] }]
   project.switches = remapSwitches(project.switches ?? [], remap)
   project.endMarks = remapEndMarks(project.endMarks, remap)
+  logRemap(project, remap)
   persist(projectId)
 }
 
@@ -828,6 +867,7 @@ export function commitSwitchConnection(projectId, { removeTrackIds, addTracks, a
   if (remap?.length) {
     project.switches = remapSwitches(project.switches ?? [], remap)
     project.endMarks = remapEndMarks(project.endMarks, remap)
+    logRemap(project, remap)
   }
   project.switches = [...(project.switches ?? []), ...(addSwitches ?? [])]
   if (addEndMarks?.length) project.endMarks = [...(project.endMarks ?? []), ...addEndMarks]
@@ -866,6 +906,7 @@ export function commitSwitchDeletion(projectId, { switchId, removeTrackIds, upda
   if (remap?.length) {
     project.switches = remapSwitches(project.switches, remap)
     project.endMarks = remapEndMarks(project.endMarks, remap)
+    logRemap(project, remap)
   }
   if (project.platforms?.length) {
     project.platforms = project.platforms.filter(p => !removeSet.has(p.trackId))

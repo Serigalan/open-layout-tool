@@ -4,6 +4,7 @@ import {
 } from './collections'
 import { primary } from './diff'
 import { carryReferences, remapKind } from './remap'
+import { newFindings, validateProject } from '../validateProject'
 
 /**
  * Three-way merge of two states of a project against the state both came from
@@ -16,14 +17,22 @@ import { carryReferences, remapKind } from './remap'
  *   remapsMine / remapsTheirs – the id logs ({ from, to: [ids] }) of the
  *            splits and joins each side made since base (decision 93)
  *
- * Returns { merged, conflicts, applied }:
+ * Returns { merged, conflicts, warnings, applied, context }:
  *   merged    – the dehydrated record, every conflict decided for `mine`
  *   conflicts – [{ id, kind, collection, objectId, field, label, base, mine,
  *               theirs, hint }], `field` null where the conflict is about the
  *               object as a whole (deleted against changed); the values are
- *               what the field (or object) is on each side, `undefined` absent
+ *               what the field (or object) is on each side, `undefined` absent.
+ *               Last come the validation conflicts (rule 7, see
+ *               validationConflicts), one per object a new error names.
+ *   warnings  – validation warnings the merge brought in (not in `mine`)
  *   applied   – what was taken over from `theirs`:
  *               [{ collection, id, label, kind: added|removed|changed|carried, fields }]
+ *   context   – the three states and both id logs, which resolve needs
+ *
+ * The derived geometry (rule 6) is not rebuilt here: the result is a
+ * dehydrated record, and whoever adopts it hydrates it (hydrateProjects) —
+ * validation needs only the plane data.
  *
  * Nothing here repairs. Where both sides changed the same thing differently it
  * is a conflict, decided by choosing a side (resolve), never by mixing them.
@@ -87,27 +96,70 @@ export function mergeProject({ base, mine, theirs, remapsMine = [], remapsTheirs
     merged[name] = [...out.values()]
   }
 
-  const context = { base: B, mine: M, theirs: T, remapsMine, remapsTheirs }
+  const context = {
+    base: B, mine: M, theirs: T, remapsMine, remapsTheirs,
+    // What mine already fails: only what the merge adds to that is its doing.
+    known: validateProject(M),
+  }
   const { project, carried } = carry(merged, context)
   for (const c of carried) {
     applied.push({ collection: c.collection, id: c.id, label: null, kind: 'carried', from: c.from, to: c.to })
   }
-  return { merged: project, conflicts, applied, context }
+  const checked = validationConflicts(project, context)
+  return { merged: project, conflicts: [...conflicts, ...checked.conflicts], warnings: checked.warnings, applied, context }
+}
+
+/**
+ * The errors a merged record has that `mine` did not (rule 7), as conflicts —
+ * one per object they name, decided like a deletion by taking the whole object
+ * from one side: id `object:<collection>:<id>`, `mine` and `theirs` the object
+ * on each side (`undefined` where a side has none), `findings` the errors.
+ * Errors `mine` already had are not the merge's doing and do not block it.
+ * Also returns the warnings that are new against `mine`.
+ */
+export function validationConflicts(record, context) {
+  const { errors, warnings } = validateProject(record)
+  const fresh = newFindings(errors, context.known?.errors)
+  const byObject = new Map()
+  for (const f of fresh) {
+    const collection = f.collection
+    const id = `object:${collection}:${f.id}`
+    if (!byObject.has(id)) {
+      const find = (p) => (p[collection] ?? []).find(o => keyOf(collection, o) === String(f.id))
+      byObject.set(id, {
+        id, kind: 'validation', collection, objectId: String(f.id), field: null, label: f.label,
+        base: find(context.base), mine: find(context.mine), theirs: find(context.theirs), findings: [],
+      })
+    }
+    byObject.get(id).findings.push(f)
+  }
+  return { conflicts: [...byObject.values()], warnings: newFindings(warnings, context.known?.warnings) }
 }
 
 /**
  * The record with every conflict decided: `choices` maps a conflict id to
- * 'mine' or 'theirs' (unnamed ones stay 'mine'). The references are carried
- * over again afterwards — taking a side can bring back one that names a track
- * the other side split.
+ * 'mine' or 'theirs' (unnamed field conflicts stay 'mine'). A choice under an
+ * `object:<collection>:<id>` id — what a validation conflict offers — takes
+ * that whole object from the side named, whichever validation found it. The
+ * references are carried over again afterwards — taking a side can bring back
+ * one that names a track the other side split.
  */
 export function resolve(mergeResult, choices = {}) {
+  const { context } = mergeResult
   const record = structuredClone(mergeResult.merged)
   for (const c of mergeResult.conflicts) {
-    if ((choices[c.id] ?? 'mine') !== 'theirs') continue
+    if (c.kind === 'validation' || (choices[c.id] ?? 'mine') !== 'theirs') continue
     applyChoice(record, c, c.theirs)
   }
-  return carry(record, mergeResult.context).project
+  for (const [id, side] of Object.entries(choices)) {
+    const m = /^object:([^:]+):(.+)$/.exec(id)
+    if (!m) continue
+    const [, collection, objectId] = m
+    const from = side === 'theirs' ? context.theirs : context.mine
+    const value = (from[collection] ?? []).find(o => keyOf(collection, o) === objectId)
+    applyChoice(record, { collection, objectId, field: null }, value)
+  }
+  return carry(record, context).project
 }
 
 /** Write the value of one side of a conflict into the record. */

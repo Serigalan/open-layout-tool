@@ -4,7 +4,7 @@ import {
   undo, canUndo, loadImportReports, saveImportReport, clearImportReports,
   loadPlanHeader, savePlanHeader, exportProjectsPayload,
   saveEndMark, loadEndMarks, deleteEndMark, deleteElement, reverseTrackDirection, deleteTrack,
-  commitSwitchConnection, deleteTracks,
+  commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 
@@ -170,5 +170,49 @@ describe('buffer stops and boundaries in the store', () => {
     // Undo brings back the track and the mark with it.
     undo()
     expect(loadEndMarks('em4')).toHaveLength(1)
+  })
+})
+
+describe('the id log of splits and joins (decision 93)', () => {
+  const el = (length) => ({ elementType: 0, length, bearing: 90, startNode: [0, 0], endNode: [length, 0] })
+
+  it('a split logs the old id and both pieces, and undo takes the entry back', () => {
+    saveProject({ id: 'log1', tracks: [{ id: 't', elements: [el(10), el(20), el(30)] }], switches: [] })
+    expect(loadIdLog('log1')).toEqual([])
+    deleteElement('log1', 't', 1)
+    const ids = loadTracks('log1').map(t => t.id)
+    expect(loadIdLog('log1')).toEqual([{ from: 't', to: ids }])
+    undo()
+    expect(loadIdLog('log1')).toEqual([])
+  })
+
+  it('a split at the end logs only the piece there is', () => {
+    saveProject({ id: 'log2', tracks: [{ id: 't', elements: [el(10), el(20)] }], switches: [] })
+    deleteElement('log2', 't', 1)
+    const [only] = loadTracks('log2')
+    expect(loadIdLog('log2')).toEqual([{ from: 't', to: [only.id] }])
+  })
+
+  it('a join logs the track that went into the one that stays; a flip in place is no id change', () => {
+    saveProject({ id: 'log3', tracks: [{ id: 'head', elements: [el(10)] }], switches: [] })
+    remapSwitchTrackIds('log3', [
+      { oldId: 'tail', newId: 'head' },
+      { oldId: 'head', newId: 'head', flip: true },
+    ])
+    expect(loadIdLog('log3')).toEqual([{ from: 'tail', to: ['head'] }])
+    remapSwitchTrackIds('log3', [{ oldId: 'other', newId: 'head', flip: true }])
+    expect(loadIdLog('log3')).toHaveLength(2)
+    undo()
+    expect(loadIdLog('log3')).toEqual([{ from: 'tail', to: ['head'] }])
+  })
+
+  it('a switch laid into a track logs the split commitSwitchConnection makes', () => {
+    saveProject({ id: 'log4', tracks: [{ id: 'line', elements: [el(10)] }], switches: [] })
+    commitSwitchConnection('log4', {
+      removeTrackIds: ['line'],
+      addTracks: [{ id: 'l1', elements: [el(4)] }, { id: 'l2', elements: [el(6)] }],
+      addSwitches: [], remap: [{ oldId: 'line', newId: ['l1', 'l2'] }],
+    })
+    expect(loadIdLog('log4')).toEqual([{ from: 'line', to: ['l1', 'l2'] }])
   })
 })

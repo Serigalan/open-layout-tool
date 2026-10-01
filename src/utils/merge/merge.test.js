@@ -224,3 +224,35 @@ describe('the merge module under plain Node', () => {
     expect(JSON.parse(out.stdout.trim())).toEqual(['undefined', 'b', 0])
   })
 })
+
+describe.skipIf(!hasPek)('mergeProject — validation (rules 6 and 7)', () => {
+  it('an error the merge brings in is a conflict on the object, decided by taking it from one side', () => {
+    const base = loadPek(), mine = loadPek(), theirs = loadPek()
+    const victim = '29223a76'
+    const id = base.tracks.find(t => t.id.startsWith(victim)).id
+    // Mine deletes a short track; theirs puts a platform on it.
+    mine.tracks = mine.tracks.filter(t => t.id !== id)
+    theirs.platforms.push({ id: 'pf-v', trackId: id, startStation: 1, endStation: 10, side: 'left' })
+    const r = mergeProject({ base, mine, theirs })
+    const v = r.conflicts.filter(c => c.kind === 'validation')
+    // The switches naming the deleted track were already broken in mine: not
+    // the merge's doing. The platform is.
+    expect(v).toEqual([expect.objectContaining({
+      id: 'object:platforms:pf-v', collection: 'platforms', mine: undefined,
+      findings: [expect.objectContaining({ code: 'platform_track_missing' })],
+    })])
+    const resolved = resolve(r, { 'object:platforms:pf-v': 'mine' })
+    expect(resolved.platforms.find(p => p.id === 'pf-v')).toBeUndefined()
+  })
+
+  it('warnings the merge brings in are listed: the same track drawn on both sides', () => {
+    const base = loadPek(), mine = loadPek(), theirs = loadPek()
+    const copy = (p, id) => ({ ...structuredClone(trackOf(p, A)), id })
+    mine.tracks.push(copy(mine, 'drawn-by-me'))
+    theirs.tracks.push(copy(theirs, 'drawn-by-them'))
+    const r = mergeProject({ base, mine, theirs })
+    expect(r.conflicts).toEqual([])
+    expect(r.warnings.filter(w => w.code === 'tracks_overlap').map(w => [w.id, w.params.otherId].sort()))
+      .toContainEqual(['drawn-by-me', 'drawn-by-them'])
+  })
+})
