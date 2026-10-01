@@ -7,7 +7,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=/root/open-layout-tool/tools/server
-ExecStart=/usr/bin/node /root/open-layout-tool/tools/server/bin/olt-server.mjs serve
+ExecStart=/usr/local/bin/node /root/open-layout-tool/tools/server/bin/olt-server.mjs serve
 Environment=OLT_SERVER_DB=/root/open-layout-tool/WEBSITE/olt-server/olt.sqlite
 # Only the Caddy container's network reaches it, never the public interface.
 Environment=OLT_SERVER_HOST=172.18.0.1

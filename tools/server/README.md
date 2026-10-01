@@ -37,22 +37,29 @@ From the repository root, with the rest: `npm test` (vitest runs
 
 ## Behind Caddy
 
-The API is served under `/api/` on the app's own origin (no CORS). Everything
-else that costs or reveals something — the optimizer, the tiles, the terrain —
-sits behind the sign-in through `forward_auth` against `GET /api/me`, so the
-Python service itself stays as it is (decision 102):
+The API is served under `/api/` on the app's own origin (no CORS). The
+optimizer and terrain (`/optimizer/*`) and the km line data (`/data/km*`) sit
+behind the sign-in through `forward_auth` against `GET /api/me` — forward_auth
+sends the request's own headers, the session cookie with them — so the Python
+service itself stays as it is (decision 102). As deployed:
 
     online.open-layout-tool.org {
         handle /api/* {
             reverse_proxy 172.18.0.1:8787
         }
-        @guarded path /optimizer/* /data/*
-        forward_auth @guarded 172.18.0.1:8787 {
-            uri /api/me
-            copy_headers Cookie
-        }
         handle_path /optimizer/* {
+            forward_auth 172.18.0.1:8787 {
+                uri /api/me
+            }
             reverse_proxy 172.18.0.1:8099
+        }
+        @kmdata path /data/km/* /data/km_linie.pmtiles
+        handle @kmdata {
+            forward_auth 172.18.0.1:8787 {
+                uri /api/me
+            }
+            root * /srv/open-layout-tool
+            file_server
         }
         handle {
             root * /srv/open-layout-tool
@@ -60,5 +67,9 @@ Python service itself stays as it is (decision 102):
         }
     }
 
-The app's own files (the HTML and the JavaScript) stay public: the sign-in
-page is part of them, and they hold no data.
+The app's own files (the HTML and the JavaScript) stay public, and so do the
+NTv2 grids under `/data/*.tif`: the sign-in page is part of the app, and the
+app loads the grid before anyone has signed in.
+
+A daily copy of the database is the job of a systemd timer running
+`olt-server backup <file>` (see `olt-server.service.example`).
