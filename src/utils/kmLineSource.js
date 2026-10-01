@@ -1,4 +1,4 @@
-import { loadTracks, loadKmLines, saveKmLine, deleteKmLine, generateId } from '../storage'
+import { loadTracks, loadKmLines, saveKmLine, deleteKmLine } from '../storage'
 
 /**
  * Getting the kilometrage lines a project needs onto the project.
@@ -148,8 +148,11 @@ export async function ensureKmLines(projectId) {
     }
     const clipped = clipRuns(file.chainage, box)
     if (clipped.length) {
+      // The id follows from the line number: two people fetching the same
+      // line for the same tracks get the same record, which a merge then
+      // takes as one rather than as two new ones that differ.
       saveKmLine(projectId, {
-        id: generateId(),
+        id: `km-${file.lineNumber}`,
         lineNumber: file.lineNumber,
         crs: file.crs ?? 'EPSG:4326',
         clip: box,

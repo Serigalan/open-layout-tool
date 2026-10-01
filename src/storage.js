@@ -1,18 +1,13 @@
-import {
-  SCHEMA_VERSION, extractImages, hydrateProjects, dehydrateProjects,
-} from './utils/persistenceUtils'
+import { SCHEMA_VERSION, hydrateProjects, dehydrateProjects } from './utils/persistenceUtils'
 import { reverseElement } from './utils/elementUtils'
-import { elementBelongsToSwitch, portsOf } from './utils/switchModel'
+import { elementBelongsToSwitch, portsOf, unmarkSwitchElement } from './utils/switchModel'
 import { rebuildSwitchSymbol } from './utils/switchUtils'
 import { joinHeights, reverseHeights, splitHeights, trackLength } from './utils/heightUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
 
-export const STORAGE_KEY = 'olt_projects'
 const SETTINGS_KEY = 'olt_settings'
-const IMAGE_KEY_PREFIX = 'olt_image_'
 const REPORT_KEY_PREFIX = 'olt_reports_'
-const PLAN_HEADER_KEY_PREFIX = 'olt_planheader_'
 
 export function loadSettings() {
   try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') } catch { return {} }
@@ -24,14 +19,11 @@ export function saveSettings(patch) {
 
 /**
  * The title block of a plan — parties with logo and address, who drew and
- * checked it — as the project's metadata, `project.planHeader`, so it travels
- * with the project into a backup. A header kept by an earlier version under
- * its own localStorage key is read until the project first saves one.
+ * checked it — as the project's metadata, `project.planHeader`. It is part of
+ * the variant's record and versioned with it (decision 101).
  */
 export function loadPlanHeader(projectId) {
-  const project = getCache().find(p => p.id === projectId)
-  if (project?.planHeader) return project.planHeader
-  try { return JSON.parse(localStorage.getItem(PLAN_HEADER_KEY_PREFIX + projectId) ?? 'null') } catch { return null }
+  return getCache().find(p => p.id === projectId)?.planHeader ?? null
 }
 
 /**
@@ -45,7 +37,6 @@ export function savePlanHeader(projectId, header) {
   project.planHeader = header
   try {
     persist(projectId)
-    localStorage.removeItem(PLAN_HEADER_KEY_PREFIX + projectId)
     return true
   } catch { return false }
 }
@@ -54,13 +45,15 @@ export function generateId() {
   return crypto.randomUUID()
 }
 
-// In-memory cache – single source of truth for all synchronous callers.
-// Persistence is IndexedDB via an async write-behind flush (see persist/flush);
-// localStorage remains only as legacy source (one-time takeover) and as
-// fallback backend when IndexedDB is unavailable.
+// In-memory cache – single source of truth for all synchronous callers. It
+// holds the one project that is open: the working copy of a variant (phase
+// 10), whose record and base are written behind to IndexedDB (see
+// persist/flush). Where IndexedDB is unavailable the copy lives in memory only.
 let _cache = null
-let _images = new Map()      // projectId → data-URL string
-let _backend = 'idb'         // 'idb' | 'ls'
+let _backend = 'idb'         // 'idb' | 'memory'
+// The open working copy: { variantId, projectId, base, basePayload } — the
+// revision it rests on (meta) and that revision's record.
+let _wc = null
 const MAX_UNDO = 20
 let _undoStack = []
 let _undoDepth = 0
@@ -70,62 +63,104 @@ let _undoDepth = 0
 let _idLog = new Map()
 
 // Write-behind state (idb backend)
-let _dirty = new Set()       // project ids to (re)write
-let _deleted = new Set()     // project ids to remove
-let _syncAll = false         // also remove idb records missing from the cache (undo)
+let _dirty = false
 let _flushTimer = null
 let _flushChain = Promise.resolve()
 
-// Read the localStorage store ({ version, projects }) plus the per-project
-// image keys — only used by the localStorage fallback backend.
-function readLocalStorageStore() {
-  let raw = null
-  try {
-    raw = JSON.parse(localStorage.getItem(STORAGE_KEY))
-  } catch {
-    raw = null
-  }
-  const projects = Array.isArray(raw?.projects) ? raw.projects : []
-  const images = []
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (key?.startsWith(IMAGE_KEY_PREFIX)) {
-      images.push({ id: key.slice(IMAGE_KEY_PREFIX.length), image: localStorage.getItem(key) })
-    }
-  }
-  return { projects, images }
-}
-
-function adoptStore({ projects, images }) {
-  _cache = hydrateProjects(projects)
-  _images = new Map(images.map(({ id, image }) => [id, image]))
-}
-
 /**
- * Load the store into memory — await this once before rendering the app.
- * Source of truth is IndexedDB; if it is unavailable, fall back to the
- * localStorage backend entirely.
+ * Open the store — await this once before rendering the app. Nothing is read
+ * here: a working copy is loaded when its variant is opened.
  */
 export async function initStorage() {
   if (_cache !== null) return
+  _cache = []
   try {
     await idb.openDb()
-    adoptStore(await idb.readAll())
     registerLifecycleFlush()
   } catch (err) {
-    console.error('IndexedDB unavailable – falling back to localStorage persistence', err)
-    _backend = 'ls'
-    adoptStore(readLocalStorageStore())
+    console.error('IndexedDB unavailable – the working copy is kept in memory only', err)
+    _backend = 'memory'
   }
 }
 
 function getCache() {
-  if (_cache !== null) return _cache
-  // initStorage() was not awaited (unexpected) — degrade to the synchronous
-  // localStorage backend so callers keep working.
-  _backend = 'ls'
-  adoptStore(readLocalStorageStore())
+  if (_cache === null) { _cache = []; _backend = 'memory' }
   return _cache
+}
+
+// ── the working copy (phase 10) ─────────────────────────────────────────────
+
+/**
+ * Make a variant's working copy the open project: `project` its record
+ * (dehydrated), `base` the revision it rests on and `basePayload` that
+ * revision's record, `idLog` the splits and joins since. Undo starts empty.
+ */
+export function openWorkingCopy({ variantId, project, base, basePayload, idLog = [] }) {
+  getCache()
+  _cache = hydrateProjects([structuredClone(project)])
+  _wc = { variantId, projectId: project.id, base, basePayload }
+  _idLog = new Map(idLog.length ? [[project.id, [...idLog]]] : [])
+  _undoStack = []
+  persist(project.id)
+  return _cache[0]
+}
+
+/** The open working copy: { variantId, projectId, base, basePayload, project (dehydrated), idLog }, or null. */
+export function currentWorkingCopy() {
+  if (!_wc) return null
+  const project = getCache().find(p => p.id === _wc.projectId)
+  if (!project) return null
+  return { ..._wc, project: dehydrateProjects([project])[0], idLog: loadIdLog(_wc.projectId) }
+}
+
+/**
+ * Put a merged record in place of the working copy, resting on `base` now.
+ * Undo is emptied: a step back must not take back the other side's changes.
+ */
+export function adoptWorkingCopy({ project, base, basePayload, idLog }) {
+  if (!_wc) return null
+  const log = idLog ?? loadIdLog(_wc.projectId)
+  return openWorkingCopy({ variantId: _wc.variantId, project, base, basePayload, idLog: log })
+}
+
+/** The working copy was checked in as `base`: it rests on it now, and its id log is spent. */
+export function markCheckedIn({ base, basePayload }) {
+  if (!_wc) return
+  _wc = { ..._wc, base, basePayload }
+  setIdLog(_wc.projectId, [])
+  persist(_wc.projectId)
+}
+
+/** Close the open working copy (it stays in IndexedDB). */
+export async function closeWorkingCopy() {
+  await flushPendingWrites()
+  _cache = []
+  _wc = null
+  _idLog = new Map()
+  _undoStack = []
+}
+
+/** A variant's stored working copy, or null. */
+export async function loadWorkingCopy(variantId) {
+  if (_backend !== 'idb') return null
+  try { return await idb.getWorkingCopy(variantId) } catch { return null }
+}
+
+/** Every stored working copy (for the start page's status). */
+export async function listWorkingCopies() {
+  if (_backend !== 'idb') return []
+  try { return await idb.getAllWorkingCopies() } catch { return [] }
+}
+
+/** Throw a variant's working copy away. */
+export async function discardWorkingCopy(variantId) {
+  if (_wc?.variantId === variantId) await closeWorkingCopy()
+  if (_backend === 'idb') await idb.deleteWorkingCopy(variantId)
+}
+
+/** Empty the undo stack. */
+export function clearUndo() {
+  _undoStack = []
 }
 
 /** A project's plan header stays out of the snapshots — see savePlanHeader. */
@@ -194,20 +229,12 @@ function pruneMarksOf(project) {
   if (kept !== project.endMarks) project.endMarks = kept
 }
 
-// Mark a project dirty (or, without id, everything incl. deletion re-sync) and
-// schedule the async flush. The localStorage backend writes synchronously.
+// Mark the working copy dirty and schedule the async flush. A project that is
+// not the open working copy (the tests' saveProject) lives in memory only.
 function persist(projectId = null) {
   if (projectId) pruneMarksOf(getCache().find(p => p.id === projectId))
-  if (_backend === 'ls') {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: SCHEMA_VERSION, projects: dehydrateProjects(_cache) }))
-    return
-  }
-  if (projectId) {
-    _dirty.add(projectId)
-  } else {
-    _syncAll = true
-    getCache().forEach(p => _dirty.add(p.id))
-  }
+  if (_backend !== 'idb' || !_wc) return
+  _dirty = true
   scheduleFlush()
 }
 
@@ -216,23 +243,19 @@ function scheduleFlush() {
   _flushTimer = setTimeout(() => flushPendingWrites(), 0)
 }
 
-/** Start writing all pending changes to IndexedDB; resolves when done. */
+/** Start writing the working copy to IndexedDB; resolves when done. */
 export function flushPendingWrites() {
   if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null }
-  if (_backend !== 'idb' || (_dirty.size === 0 && _deleted.size === 0 && !_syncAll)) return _flushChain
-  const byId    = new Map(getCache().map(p => [p.id, p]))
-  const dirty   = [..._dirty].filter(id => byId.has(id));  _dirty.clear()
-  const deleted = [..._deleted].filter(id => !byId.has(id)); _deleted.clear()
-  const syncAll = _syncAll; _syncAll = false
-  const puts    = dehydrateProjects(dirty.map(id => byId.get(id)))
-  const keepIds = syncAll ? new Set(byId.keys()) : null
+  if (_backend !== 'idb' || !_dirty || !_wc) return _flushChain
+  _dirty = false
+  const wc = currentWorkingCopy()
+  if (!wc) return _flushChain
+  const record = { ...wc, updatedAt: new Date().toISOString() }
   _flushChain = _flushChain
-    .then(() => idb.writeProjects({ puts, deletes: deleted, keepIds }))
+    .then(() => idb.putWorkingCopy(record))
     .catch(err => {
       console.error('Persisting to IndexedDB failed – retrying on next change', err)
-      dirty.forEach(id => _dirty.add(id))
-      deleted.forEach(id => _deleted.add(id))
-      if (syncAll) _syncAll = true
+      _dirty = true
     })
   return _flushChain
 }
@@ -259,7 +282,7 @@ export function undo() {
   _cache = JSON.parse(snapshot.cache)
   _idLog = new Map(JSON.parse(snapshot.idLog))
   for (const p of _cache) if (headers.has(p.id)) p.planHeader = headers.get(p.id)
-  persist()
+  persist(_wc?.projectId)
   return true
 }
 
@@ -282,7 +305,8 @@ export function updateProject(projectId, patch) {
 }
 
 /**
- * What an import had to say, kept so it can be read again.
+ * What an import had to say, kept so it can be read again — per variant
+ * where a working copy is open (the variants of a project share its id).
  *
  * An import of a whole database writes thousands of lines — what it could not
  * place, what it had to infer from the alignment because the file does not
@@ -299,9 +323,11 @@ export function updateProject(projectId, patch) {
 const REPORTS_KEPT = 8
 const REPORT_LINES = 4000
 
+const reportKey = (projectId) => REPORT_KEY_PREFIX + (_wc?.projectId === projectId ? _wc.variantId : projectId)
+
 export function loadImportReports(projectId) {
   try {
-    const raw = JSON.parse(localStorage.getItem(REPORT_KEY_PREFIX + projectId) ?? '[]')
+    const raw = JSON.parse(localStorage.getItem(reportKey(projectId)) ?? '[]')
     return Array.isArray(raw) ? raw : []
   } catch { return [] }
 }
@@ -314,7 +340,7 @@ export function saveImportReport(projectId, report) {
     cut: Math.max(0, (report.lines ?? []).length - REPORT_LINES),
   }
   const all = [entry, ...loadImportReports(projectId)].slice(0, REPORTS_KEPT)
-  const write = (list) => localStorage.setItem(REPORT_KEY_PREFIX + projectId, JSON.stringify(list))
+  const write = (list) => localStorage.setItem(reportKey(projectId), JSON.stringify(list))
   try {
     write(all)
     return all
@@ -327,69 +353,16 @@ export function saveImportReport(projectId, report) {
 }
 
 export function clearImportReports(projectId) {
-  try { localStorage.removeItem(REPORT_KEY_PREFIX + projectId) } catch { /* already gone */ }
-}
-
-// Project images live outside the project records so they are not
-// re-serialized on every track mutation and do not ride through the undo
-// snapshots. In-memory map for synchronous reads, persisted per project.
-export function loadProjectImage(projectId) {
-  getCache()
-  return _images.get(projectId) ?? null
-}
-
-export function saveProjectImage(projectId, dataUrl) {
-  getCache()
-  if (dataUrl) _images.set(projectId, dataUrl)
-  else _images.delete(projectId)
-  if (_backend === 'idb') {
-    idb.writeImage(projectId, dataUrl ?? null).catch(err => console.error('Persisting image failed', err))
-  } else if (dataUrl) {
-    localStorage.setItem(IMAGE_KEY_PREFIX + projectId, dataUrl)
-  } else {
-    localStorage.removeItem(IMAGE_KEY_PREFIX + projectId)
-  }
+  try { localStorage.removeItem(reportKey(projectId)) } catch { /* already gone */ }
 }
 
 /**
- * Merge projects into the store (same id replaces). Embedded images are moved
- * to their own store and derived geometry is rebuilt.
+ * The open project as a file ({ version, projects }), dehydrated. Its image
+ * goes by the hash the server keeps it under (`imageHash`).
  */
-export function importProjects(projects) {
-  pushUndo()
-  extractImages(projects).forEach(({ id, image }) => saveProjectImage(id, image))
-  hydrateProjects(projects)
-  const existing = getCache()
-  const importedIds = new Set(projects.map(p => p.id))
-  _cache = [...existing.filter(p => !importedIds.has(p.id)), ...projects]
-  projects.forEach(p => persist(p.id))
-}
-
-/** Self-contained export payload (images embedded); ids: Set to filter, or null for all. */
 export function exportProjectsPayload(ids = null) {
   const projects = getCache().filter(p => !ids || ids.has(p.id))
-  return {
-    version: SCHEMA_VERSION,
-    projects: dehydrateProjects(projects).map(p => {
-      const image = loadProjectImage(p.id)
-      return image ? { ...p, image } : p
-    }),
-  }
-}
-
-export function deleteProject(id) {
-  pushUndo()
-  _cache = getCache().filter((p) => p.id !== id)
-  saveProjectImage(id, null)
-  try { localStorage.removeItem(PLAN_HEADER_KEY_PREFIX + id) } catch { /* already gone */ }
-  clearImportReports(id)
-  if (_backend === 'idb') {
-    _deleted.add(id)
-    _dirty.delete(id)
-    scheduleFlush()
-  } else {
-    persist()
-  }
+  return { version: SCHEMA_VERSION, projects: dehydrateProjects(projects) }
 }
 
 export function loadTracks(projectId) {
@@ -405,8 +378,9 @@ export function switchesOnTrack(projectId, trackId) {
  * Delete a track. A switch that references it loses its reason to exist and goes
  * with it — together with the branch track carrying that switch's own geometry
  * (a track whose elements are all switchBranch). The ordinary tracks on the
- * switch's other ports stay; only the switch itself disappears. A platform is
- * stationed along its track and cannot outlive it either.
+ * switch's other ports stay, their elements without that switch's marks; only
+ * the switch itself disappears. A platform is stationed along its track and
+ * cannot outlive it either.
  */
 export function deleteTrack(projectId, trackId) {
   pushUndo()
@@ -428,7 +402,13 @@ export function deleteTrack(projectId, trackId) {
   const removed = new Set([trackId])
   doomed.forEach(sw => portTracks(sw).forEach(id => { if (isBranchTrack(id, sw)) removed.add(id) }))
 
-  project.tracks   = tracks.filter(t => !removed.has(t.id))
+  // The tracks that stay keep their geometry, but no longer a switch's marks:
+  // an element naming a switch that is gone would point at nothing.
+  const goneIds = new Set([...doomed].map(sw => sw.switchId).filter(Boolean))
+  project.tracks   = tracks.filter(t => !removed.has(t.id)).map(t => (
+    (t.elements ?? []).some(el => el.switchId && goneIds.has(el.switchId))
+      ? { ...t, elements: t.elements.map(el => (el.switchId && goneIds.has(el.switchId) ? unmarkSwitchElement(el) : el)) }
+      : t))
   project.switches = switches.filter(sw => !doomed.has(sw))
   if (project.platforms?.length) {
     project.platforms = project.platforms.filter(p => !removed.has(p.trackId))

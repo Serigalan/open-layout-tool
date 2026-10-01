@@ -10,4 +10,9 @@ export default defineConfig({
   // served over https anyway, so this only affects local development.
   plugins: [react(), basicSsl()],
   base: './',
+  // The project server (tools/server) answers under /api on the app's own
+  // origin, as it does behind Caddy in production.
+  server: {
+    proxy: { '/api': { target: process.env.OLT_API_TARGET ?? 'http://127.0.0.1:8787' } },
+  },
 })

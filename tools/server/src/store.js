@@ -33,15 +33,15 @@ export function createStore(db, { now = () => Date.now() } = {}) {
     renameVariant: db.prepare('UPDATE variant SET name = ? WHERE id = ?'),
     archiveVariant: db.prepare('UPDATE variant SET archived = ? WHERE id = ?'),
     revisionMeta:  db.prepare(`SELECT r.id, r.project_id, r.number, r.variant_id, r.parent_id, r.merge_parent_id, r.author_id,
-                                      r.created_at, r.message, u.name AS author_name
+                                      r.created_at, r.message, r.image_hash, u.name AS author_name
                                FROM revision r JOIN user u ON u.id = r.author_id WHERE r.id = ?`),
     revisionFull:  db.prepare('SELECT * FROM revision WHERE id = ?'),
     graph:         db.prepare('SELECT id, parent_id, merge_parent_id, remaps FROM revision WHERE project_id = ?'),
     nextNumber:    db.prepare('SELECT COALESCE(MAX(number), 0) + 1 FROM revision WHERE project_id = ?').pluck(),
     insertRevision: db.prepare(`INSERT INTO revision (project_id, number, variant_id, parent_id, merge_parent_id, author_id, created_at,
-                                                      message, schema_version, payload, remaps, error_keys)
+                                                      message, schema_version, payload, remaps, error_keys, image_hash)
                                 VALUES (@project_id, @number, @variant_id, @parent_id, @merge_parent_id, @author_id, @created_at,
-                                        @message, @schema_version, @payload, @remaps, @error_keys)`),
+                                        @message, @schema_version, @payload, @remaps, @error_keys, @image_hash)`),
     blob:          db.prepare('SELECT * FROM blob WHERE hash = ?'),
     insertBlob:    db.prepare('INSERT OR IGNORE INTO blob (hash, mime, size, data, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)'),
   }
@@ -53,6 +53,7 @@ export function createStore(db, { now = () => Date.now() } = {}) {
       id: r.id, projectId: r.project_id, number: r.number, variantId: r.variant_id,
       parentId: r.parent_id, mergeParentId: r.merge_parent_id,
       author: { id: r.author_id, name: r.author_name }, createdAt: r.created_at, message: r.message,
+      imageHash: r.image_hash ?? null,
     }
   }
 
@@ -77,6 +78,7 @@ export function createStore(db, { now = () => Date.now() } = {}) {
       parent_id: parentId, merge_parent_id: mergeParentId, author_id: authorId, created_at: iso(),
       message: String(message ?? ''), schema_version: SCHEMA_VERSION, payload: pack(payload),
       remaps: JSON.stringify(remaps ?? []), error_keys: JSON.stringify(errorKeys),
+      image_hash: typeof payload?.imageHash === 'string' ? payload.imageHash : null,
     })
     return Number(lastInsertRowid)
   }
@@ -109,9 +111,11 @@ export function createStore(db, { now = () => Date.now() } = {}) {
           }
           return publicVariant(v, revisionMeta(v.head_revision_id), parentAhead)
         })
+        // The project's picture is the one its first variant names.
         return {
           id: p.id, title: p.title, description: p.description ?? '',
           createdBy: { id: p.created_by, name: p.creator_name }, createdAt: p.created_at, variants,
+          imageHash: variants[0]?.head?.imageHash ?? null,
         }
       })
     },

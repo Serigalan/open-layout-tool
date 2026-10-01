@@ -100,9 +100,10 @@ export const sameValue = (a, b) => canonical(a) === canonical(b)
 /**
  * What a person calls an object, for the conflict texts: a track by its line
  * and track number (or its name), a switch by its name or label, a platform by
- * its station name.
+ * its station name, an end mark by its track and end (`tracksById` finds the
+ * track, which may be gone from the state the mark is in).
  */
-export function objectLabel(collection, obj) {
+export function objectLabel(collection, obj, tracksById = null) {
   if (!obj) return null
   if (collection === 'tracks') {
     if (obj.lineNumber != null && obj.trackNumber != null) return `${obj.lineNumber}-${obj.trackNumber}`
@@ -111,5 +112,9 @@ export function objectLabel(collection, obj) {
   if (collection === 'switches') return obj.name ?? obj.label ?? obj.switchId
   if (collection === 'platforms') return [obj.stationName, obj.code].filter(Boolean).join(' ') || obj.id
   if (collection === 'kmLines') return String(obj.lineNumber)
+  if (collection === 'endMarks' && tracksById) {
+    const track = tracksById.get(obj.trackId)
+    if (track) return `${objectLabel('tracks', track)} ${obj.endpoint}`
+  }
   return obj.id ?? null
 }

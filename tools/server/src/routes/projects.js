@@ -70,8 +70,8 @@ export default async function projectRoutes(api) {
   })
 
   // An image, stored once by the hash of its bytes; the record names the hash.
-  api.put('/projects/:id/blobs', opts, async (req) => {
-    projectOr404(req.params.id)
+  // Not bound to a project: a new project brings its picture along at once.
+  api.put('/blobs', opts, async (req) => {
     const { mime, data } = req.body ?? {}
     if (!/^image\/(png|jpeg|gif|webp|svg\+xml)$/.test(String(mime))) throw new ApiError(422, 'image_type')
     const bytes = Buffer.from(String(data ?? ''), 'base64')
@@ -116,6 +116,13 @@ export default async function projectRoutes(api) {
     if (req.body?.archived !== undefined) store.archiveVariant(v.id, Boolean(req.body.archived))
     const now = store.variant(v.id)
     return { variant: publicVariant(now, store.revisionMeta(now.head_revision_id)) }
+  })
+
+  // A variant without its record — what the open app polls to tell whether
+  // the server has moved on.
+  api.get('/variants/:id', opts, async (req) => {
+    const v = variantOr404(req.params.id)
+    return { variant: publicVariant(v, store.revisionMeta(v.head_revision_id)) }
   })
 
   api.get('/variants/:id/head', opts, async (req) => {

@@ -5,11 +5,13 @@ import {
   loadPlanHeader, savePlanHeader, exportProjectsPayload,
   saveEndMark, loadEndMarks, deleteEndMark, deleteElement, reverseTrackDirection, deleteTrack,
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
+  openWorkingCopy, currentWorkingCopy, markCheckedIn, adoptWorkingCopy, closeWorkingCopy, loadProjects,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 
-// Outside the browser storage degrades to the localStorage backend — a stub
-// is all the node environment has to offer it.
+// Outside the browser the store keeps its project in memory; the import
+// reports and the settings still go to localStorage — a stub is all the node
+// environment has to offer it.
 beforeAll(() => {
   const store = new Map()
   globalThis.localStorage = {
@@ -105,13 +107,10 @@ describe('the reports an import leaves behind', () => {
 describe('the title block of a project\'s plans', () => {
   it('is kept on the project, travels with its export, and stays out of undo', () => {
     saveProject({ id: 'h1', tracks: [], switches: [] })
-    // What an earlier version kept under its own key is read until the project has its own.
-    localStorage.setItem('olt_planheader_h1', JSON.stringify({ subtitle: 'alt' }))
-    expect(loadPlanHeader('h1').subtitle).toBe('alt')
+    expect(loadPlanHeader('h1')).toBeNull()
 
     expect(savePlanHeader('h1', { subtitle: 'Streckenband' })).toBe(true)
     expect(loadPlanHeader('h1').subtitle).toBe('Streckenband')
-    expect(localStorage.getItem('olt_planheader_h1')).toBeNull()
     const exported = exportProjectsPayload(new Set(['h1'])).projects[0]
     expect(exported.planHeader.subtitle).toBe('Streckenband')
 
@@ -214,5 +213,63 @@ describe('the id log of splits and joins (decision 93)', () => {
       addSwitches: [], remap: [{ oldId: 'line', newId: ['l1', 'l2'] }],
     })
     expect(loadIdLog('log4')).toEqual([{ from: 'line', to: ['l1', 'l2'] }])
+  })
+})
+
+describe('deleting a track with a switch on it', () => {
+  it('leaves no element on the tracks that stay naming the switch that went', () => {
+    const el = (props = {}) => ({ elementType: 0, length: 10, bearing: 90, startNode: [0, 0], endNode: [10, 0], ...props })
+    saveProject({ id: 'unmark', tracks: [
+      { id: 'a', elements: [el()] },
+      { id: 'b', elements: [el({ switchBranch: true, switchId: 'w', switchRoute: 'branch' })] },
+      { id: 'c', elements: [el({ switchBranch: true, switchId: 'w', switchRoute: 'main' }), el()] },
+    ], switches: [] })
+    saveSwitch('unmark', { switchId: 'w', kind: 'turnout', portA_trackId: 'a', portA_endpoint: 'END', portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'c', portB2_endpoint: 'BEGIN' })
+    deleteTrack('unmark', 'a')
+    expect(loadSwitches('unmark')).toEqual([])
+    // b was nothing but the switch's own geometry and goes with it; c stays, unmarked.
+    expect(loadTracks('unmark').map(t => t.id)).toEqual(['c'])
+    expect(loadTracks('unmark')[0].elements.some(e => e.switchId || e.switchBranch)).toBe(false)
+  })
+})
+
+describe('the working copy of a variant (AP 10.6)', () => {
+  const el = (length) => ({ elementType: 0, length, absLength: length, bearing: 90, startNode: [0, 0], endNode: [length, 0] })
+  const record = () => ({ id: 'wp', title: 'P', tracks: [{ id: 't', epsg: 25832, elements: [el(10), el(20)] }], switches: [] })
+  const base = { id: 7, number: 3 }
+
+  it('is the one open project, rests on its base, and knows its own changes and splits', async () => {
+    await closeWorkingCopy()
+    openWorkingCopy({ variantId: 'v1', project: record(), base, basePayload: record() })
+    expect(loadProjects().map(p => p.id)).toEqual(['wp'])
+    expect(canUndo()).toBe(false)
+    deleteElement('wp', 't', 1)
+    const wc = currentWorkingCopy()
+    expect(wc).toMatchObject({ variantId: 'v1', projectId: 'wp', base })
+    expect(wc.project.tracks.map(t => t.id)).not.toContain('t')
+    expect(wc.project.tracks[0].elements[0].geometry).toBeUndefined()   // dehydrated
+    expect(wc.idLog).toEqual([{ from: 't', to: [wc.project.tracks[0].id] }])
+  })
+
+  it('once checked in rests on the new revision, and its id log is spent', () => {
+    const wc = currentWorkingCopy()
+    markCheckedIn({ base: { id: 8, number: 4 }, basePayload: wc.project })
+    expect(currentWorkingCopy()).toMatchObject({ base: { id: 8 }, idLog: [] })
+  })
+
+  it('takes a merged record in place, without undo into the other side\'s changes', () => {
+    saveTrack('wp', { id: 'x', elements: [] })
+    expect(canUndo()).toBe(true)
+    const merged = { ...record(), title: 'merged' }
+    adoptWorkingCopy({ project: merged, base: { id: 9, number: 5 }, basePayload: merged })
+    expect(loadProjects()[0].title).toBe('merged')
+    expect(currentWorkingCopy().base.id).toBe(9)
+    expect(canUndo()).toBe(false)
+  })
+
+  it('keeps the import reports per variant', () => {
+    saveImportReport('wp', { source: 'mdb', lines: [] })
+    expect(localStorage.getItem('olt_reports_v1')).not.toBeNull()
+    expect(localStorage.getItem('olt_reports_wp')).toBeNull()
   })
 })

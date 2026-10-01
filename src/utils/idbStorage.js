@@ -1,14 +1,22 @@
-// Thin promise wrapper around IndexedDB for the project store.
+// Thin promise wrapper around IndexedDB for the working copies (phase 10).
 //
-// DB `olt`, two object stores:
-//   projects – keyPath `id`, one record per (dehydrated) project
-//   images   – key = projectId, value = data-URL string
+// DB `olt`, version 2, one object store in use:
+//   workingCopies – keyPath `variantId`, one record per variant a user has
+//                   opened: { variantId, projectId, base, basePayload,
+//                   project, idLog, updatedAt } — the record being edited
+//                   (dehydrated), the revision it rests on and that
+//                   revision's record, for merging against.
 //
-// storage.js keeps the synchronous in-memory cache and calls these from its
+// The stores of version 1 (`projects`, `images`) are left as they are and no
+// longer read: there is no taking over of local projects (decision 95), and
+// leaving them costs nothing that deleting them could give back.
+//
+// storage.js keeps the synchronous in-memory copy and calls these from its
 // write-behind flush; nothing here is imported by UI code.
 
 const DB_NAME = 'olt'
-const DB_VERSION = 1
+const DB_VERSION = 2
+const WORKING = 'workingCopies'
 
 let _dbPromise = null
 
@@ -32,8 +40,7 @@ export function openDb() {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
     request.onupgradeneeded = () => {
       const db = request.result
-      if (!db.objectStoreNames.contains('projects')) db.createObjectStore('projects', { keyPath: 'id' })
-      if (!db.objectStoreNames.contains('images'))   db.createObjectStore('images')
+      if (!db.objectStoreNames.contains(WORKING)) db.createObjectStore(WORKING, { keyPath: 'variantId' })
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror   = () => reject(request.error)
@@ -41,43 +48,34 @@ export function openDb() {
   return _dbPromise
 }
 
-/** Read the full store: { projects: [...], images: [{ id, image }] } */
-export async function readAll() {
+/** One working copy, or null. */
+export async function getWorkingCopy(variantId) {
   const db = await openDb()
-  const tx = db.transaction(['projects', 'images'], 'readonly')
-  const projects  = await req(tx.objectStore('projects').getAll())
-  const imgStore  = tx.objectStore('images')
-  const imgKeys   = await req(imgStore.getAllKeys())
-  const imgValues = await req(imgStore.getAll())
+  const tx = db.transaction(WORKING, 'readonly')
+  const record = await req(tx.objectStore(WORKING).get(variantId))
   await txDone(tx)
-  return { projects, images: imgKeys.map((id, i) => ({ id, image: imgValues[i] })) }
+  return record ?? null
 }
 
-/**
- * Apply one atomic batch to the `projects` store.
- *   puts    – project records to write (put by id)
- *   deletes – project ids to remove
- *   keepIds – when given, additionally remove every record whose id is not in
- *             the set (used to re-sync after undo/import)
- */
-export async function writeProjects({ puts = [], deletes = [], keepIds = null }) {
+/** Every working copy. */
+export async function getAllWorkingCopies() {
   const db = await openDb()
-  const tx = db.transaction('projects', 'readwrite')
-  const store = tx.objectStore('projects')
-  for (const p of puts) store.put(p)
-  for (const id of deletes) store.delete(id)
-  if (keepIds) {
-    const existing = await req(store.getAllKeys())
-    for (const id of existing) if (!keepIds.has(id)) store.delete(id)
-  }
+  const tx = db.transaction(WORKING, 'readonly')
+  const records = await req(tx.objectStore(WORKING).getAll())
+  await txDone(tx)
+  return records
+}
+
+export async function putWorkingCopy(record) {
+  const db = await openDb()
+  const tx = db.transaction(WORKING, 'readwrite')
+  tx.objectStore(WORKING).put(record)
   await txDone(tx)
 }
 
-/** Write (dataUrl string) or remove (null) one project image. */
-export async function writeImage(projectId, dataUrl) {
+export async function deleteWorkingCopy(variantId) {
   const db = await openDb()
-  const tx = db.transaction('images', 'readwrite')
-  if (dataUrl) tx.objectStore('images').put(dataUrl, projectId)
-  else         tx.objectStore('images').delete(projectId)
+  const tx = db.transaction(WORKING, 'readwrite')
+  tx.objectStore(WORKING).delete(variantId)
   await txDone(tx)
 }

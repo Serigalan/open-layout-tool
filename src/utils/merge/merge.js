@@ -49,6 +49,9 @@ export function mergeProject({ base, mine, theirs, remapsMine = [], remapsTheirs
   })
   const merged = Object.fromEntries(projectOut)
 
+  // The tracks of all three states, for naming an end mark by its track.
+  const allTracks = new Map([...(B.tracks ?? []), ...(T.tracks ?? []), ...(M.tracks ?? [])].map(t => [t.id, t]))
+
   // ── the collections ──
   for (const name of COLLECTION_NAMES) {
     const bi = indexCollection(B, name), mi = indexCollection(M, name), ti = indexCollection(T, name)
@@ -59,7 +62,7 @@ export function mergeProject({ base, mine, theirs, remapsMine = [], remapsTheirs
     const ids = [...mi.keys(), ...[...ti.keys()].filter(id => !mi.has(id)), ...[...bi.keys()].filter(id => !mi.has(id) && !ti.has(id))]
     for (const id of ids) {
       const b = bi.get(id), m = mi.get(id), t = ti.get(id)
-      const label = objectLabel(name, b ?? m ?? t)
+      const label = objectLabel(name, b ?? m ?? t, allTracks)
 
       if (m && t) {
         if (!b && !sameValue(m, t)) {
@@ -126,8 +129,11 @@ export function validationConflicts(record, context) {
     const id = `object:${collection}:${f.id}`
     if (!byObject.has(id)) {
       const find = (p) => (p[collection] ?? []).find(o => keyOf(collection, o) === String(f.id))
+      const obj = find(context.mine) ?? find(context.theirs) ?? find(record)
+      const tracks = new Map([context.base, context.theirs, context.mine, record].flatMap(p => p.tracks ?? []).map(t => [t.id, t]))
       byObject.set(id, {
-        id, kind: 'validation', collection, objectId: String(f.id), field: null, label: f.label,
+        id, kind: 'validation', collection, objectId: String(f.id), field: null,
+        label: obj ? objectLabel(collection, obj, tracks) : f.label,
         base: find(context.base), mine: find(context.mine), theirs: find(context.theirs), findings: [],
       })
     }

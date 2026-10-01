@@ -20,7 +20,9 @@ export const fieldName = (t, field) => translated(t, `field_${field}`, field)
 /** "Gleis 6050-1", "Weiche switch.001", "Projekt: Titel". */
 export function objectName(t, collection, label, id) {
   if (collection === 'project') return `${collectionName(t, 'project')}: ${fieldName(t, label ?? id)}`
-  return `${collectionName(t, collection)} ${label ?? String(id).slice(0, 8)}`
+  const name = String(label ?? String(id).slice(0, 8))
+    .replace(/ BEGIN$/, ` · ${t('end_begin')}`).replace(/ END$/, ` · ${t('end_end')}`)
+  return `${collectionName(t, collection)} ${name}`
 }
 
 const round = (v, digits = 3) => (Number.isFinite(v) ? Math.round(v * 10 ** digits) / 10 ** digits : v)

@@ -196,16 +196,27 @@ describe('variants and revisions', () => {
 describe('images', () => {
   it('are stored once by hash and served back', async () => {
     const { max } = await start()
-    const { project } = await newProject(max)
     const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex')
-    const put = await max('PUT', `/api/projects/${project.id}/blobs`, { mime: 'image/png', data: png.toString('base64') })
+    const put = await max('PUT', '/api/blobs', { mime: 'image/png', data: png.toString('base64') })
     expect(put.statusCode).toBe(200)
     const { hash } = put.json()
     expect(hash).toMatch(/^[0-9a-f]{64}$/)
-    expect((await max('PUT', `/api/projects/${project.id}/blobs`, { mime: 'image/png', data: png.toString('base64') })).json().hash).toBe(hash)
+    expect((await max('PUT', '/api/blobs', { mime: 'image/png', data: png.toString('base64') })).json().hash).toBe(hash)
     const get = await max('GET', `/api/blobs/${hash}`)
     expect(get.headers['content-type']).toBe('image/png')
     expect(get.rawPayload.equals(png)).toBe(true)
-    expect((await max('PUT', `/api/projects/${project.id}/blobs`, { mime: 'text/html', data: 'PGI+' })).statusCode).toBe(422)
+    expect((await max('PUT', '/api/blobs', { mime: 'text/html', data: 'PGI+' })).statusCode).toBe(422)
+
+    // A project whose record names it shows it in the list.
+    await newProject(max, { tracks: [], imageHash: hash })
+    expect((await max('GET', '/api/projects')).json().projects[0].imageHash).toBe(hash)
+  })
+
+  it('a variant can be asked for its head without the record', async () => {
+    const { max } = await start()
+    const { variantId, revisionId } = await newProject(max)
+    const res = (await max('GET', `/api/variants/${variantId}`)).json()
+    expect(res.variant.head.id).toBe(revisionId)
+    expect(res.payload).toBeUndefined()
   })
 })

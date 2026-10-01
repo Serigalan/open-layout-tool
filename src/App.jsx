@@ -6,7 +6,9 @@ import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
 import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from './utils/mapConstants'
 import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
-import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, loadSettings, saveSettings, canUndo, undo } from './storage'
+import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, loadSettings, saveSettings, canUndo, undo, loadProjects, closeWorkingCopy, currentWorkingCopy, flushPendingWrites } from './storage'
+import { api, setUnauthorizedHandler } from './api/client'
+import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, serverHead } from './utils/workingCopySync'
 import { bufferStopFeatures } from './utils/bufferStopGeometry'
 import { showTopology, highlightTopology, zoomToTopologyTracks } from './utils/topologyLayer'
 import { selectionHighlight } from './utils/topologyGraph'
@@ -39,7 +41,15 @@ import ElevationOverlay from './components/ElevationOverlay'
 import CrossSectionOverlay from './components/CrossSectionOverlay'
 import ElevationLegend from './components/ElevationLegend'
 import CompareOverlay from './components/collab/CompareOverlay'
+import ConflictDialog from './components/collab/ConflictDialog'
+import CheckInDialog from './components/collab/CheckInDialog'
+import LoginPage from './components/collab/LoginPage'
+import PasswordForm from './components/collab/PasswordForm'
+import WorkingCopyBar from './components/collab/WorkingCopyBar'
 import './App.css'
+
+// How often the open app asks whether the server has moved on [ms].
+const SERVER_POLL = 2 * 60 * 1000
 
 // Basemaps whose colours mean elevation, and which therefore get a legend.
 const ELEVATION_BASEMAPS = new Set(['elevation', 'dgm5'])
@@ -319,7 +329,7 @@ function renderTracksOnMap(map, project, { fit = false, topology = false } = {})
 }
 
 
-function PanelContent({ onShowCompare, view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, marksVersion, topologySelection, onTopologySelect, topologyGraphOpen, onShowTopologyGraph, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, onProjectImported, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
+function PanelContent({ onShowCompare, view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, marksVersion, topologySelection, onTopologySelect, topologyGraphOpen, onShowTopologyGraph, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
   if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
   if (view === 'topology') return <TopologyPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} version={marksVersion}
     selection={topologySelection} onSelect={onTopologySelect} graphOpen={topologyGraphOpen} onShowGraph={onShowTopologyGraph} />
@@ -330,7 +340,7 @@ function PanelContent({ onShowCompare, view, activeBasemap, onBasemapChange, kmO
   if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowRegelwerk={onShowRegelwerk} />
   if (view === 'elevation') return <ElevationPanel t={t} map={map} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
   if (view === 'platform') return <PlatformCrossSectionPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
-  if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onProjectImported={onProjectImported} onTrackSaved={onTrackSaved} onShowCompare={onShowCompare} />
+  if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowCompare={onShowCompare} />
   if (view === 'plan')     return <PlanExportPanel t={t} project={project} language={language} onShowPlanPreview={onShowPlanPreview} />
   if (view === 'info')     return <InfoPanel t={t} />
   return null
@@ -395,6 +405,17 @@ export default function App() {
   const [undoAvailable, setUndoAvailable] = useState(false)
   // Two states over each other (AP 10.3): { before, after, beforeLabel, afterLabel, drawUnchanged }.
   const [compare, setCompare] = useState(null)
+  // Who is signed in (AP 10.6): status 'loading' | 'anon' | 'user'.
+  const [session, setSession] = useState({ status: 'loading', user: null })
+  // The open working copy: the server's project and variant it belongs to.
+  const [wc, setWc] = useState(null)
+  // Its state against the server: local changes, and the head when it moved on.
+  const [wcChanges, setWcChanges] = useState([])
+  const [wcHead, setWcHead] = useState(null)
+  // Check in / update: { kind: 'checkin', errors } | { kind: 'merge', prepared, then } | null.
+  const [syncDialog, setSyncDialog] = useState(null)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [syncNote, setSyncNote] = useState(null)
 
   useEffect(() => {
     const s = loadSettings()
@@ -482,6 +503,42 @@ export default function App() {
 
   const t = useCallback((key) => translations[language]?.[key] ?? key, [language])
 
+  // Signed in or not: the app opens nothing without a session (decision 88).
+  useEffect(() => {
+    setUnauthorizedHandler(() => setSession({ status: 'anon', user: null }))
+    api.me()
+      .then(({ user }) => setSession({ status: 'user', user }))
+      .catch(() => setSession({ status: 'anon', user: null }))
+  }, [])
+
+  // The working copy's own changes, after every write and undo.
+  useEffect(() => {
+    setWcChanges(wc ? localChanges() : [])
+  }, [wc, marksVersion, storeVersion])
+
+  // Whether the server has moved on: on opening, every few minutes, and when
+  // the tab comes back.
+  useEffect(() => {
+    if (!wc) return undefined
+    let alive = true
+    const check = () => serverHead(wc.variant.id)
+      .then(head => { if (alive) setWcHead(head) })
+      .catch(() => {})
+    check()
+    const timer = setInterval(check, SERVER_POLL)
+    const onFocus = () => { if (document.visibilityState === 'visible') check() }
+    document.addEventListener('visibilitychange', onFocus)
+    return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', onFocus) }
+  }, [wc])
+
+  // Leaving the tab with changes not checked in is asked about by the browser.
+  useEffect(() => {
+    if (!wcChanges.length) return undefined
+    const onBeforeUnload = (e) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [wcChanges.length])
+
   useKmLineHover(map, kmOverlays.db || kmOverlays.other, t)
 
   const mapContainer = useCallback((node) => {
@@ -565,9 +622,101 @@ export default function App() {
   // (registered once) always calls the current one.
   useEffect(() => { handleUndoRef.current = handleUndo }, [handleUndo])
 
-  const handleProjectImported = () => {
+  /** The store was replaced under the app (a merge adopted): read it again. */
+  const reloadFromStore = useCallback(() => {
+    const p = loadProjects()[0] ?? null
+    projectRef.current = p
+    setProject(p)
+    setUndoAvailable(canUndo())
+    setStoreVersion(v => v + 1)
+    setMarksVersion(v => v + 1)
+    setHeightsVersion(v => v + 1)
+    setTrackTable(null)
+    if (map.current && p) renderTracksOnMap(map.current, p, { topology: topologyRef.current })
+  }, [])
+
+  const handleOpenVariant = async (serverProject, variant) => {
+    const p = await openVariant(variant.id)
+    setWc({ project: serverProject, variant })
+    setWcHead(null)
+    setSyncNote(null)
+    setUndoAvailable(false)
+    setProject(p)
+    setView('map')
+  }
+
+  const goHome = async () => {
+    setCompare(null)
+    setSyncDialog(null)
+    await closeWorkingCopy()
+    setWc(null)
     setProject(null)
     setView('start')
+  }
+
+  const handleSignOut = async () => {
+    await flushPendingWrites()
+    try { await api.logout() } catch { /* the session is gone either way */ }
+    setSession({ status: 'anon', user: null })
+    setView('start')
+  }
+
+  // ── check in and update (AP 10.6) ──
+  const wcBase = wc ? currentWorkingCopy()?.base ?? null : null
+  const serverNewer = Boolean(wcHead && wcBase && wcHead.id !== wcBase.id)
+
+  /**
+   * Merge the server's head into the working copy and show the result; `then`
+   * runs once the user took it over (checking in again, after a stale base).
+   */
+  const startUpdate = async (then = null) => {
+    setSyncBusy(true)
+    setSyncNote(null)
+    try {
+      const prepared = await prepareUpdate()
+      if (!prepared) {
+        setSyncNote(t('wc_up_to_date'))
+        if (then) await then()
+        return
+      }
+      setSyncDialog({ kind: 'merge', prepared, then })
+    } catch {
+      setSyncNote(t('collab_err_generic'))
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  const applyMerge = async (record) => {
+    const { prepared, then } = syncDialog
+    adoptUpdate(prepared, record)
+    setWcHead(prepared.head)
+    setSyncDialog(null)
+    reloadFromStore()
+    if (then) await then()
+  }
+
+  const submitCheckIn = async (message) => {
+    setSyncBusy(true)
+    try {
+      const res = await checkIn(message)
+      if (res.stale) {
+        // Someone checked in first: merge their head in, then try again.
+        setSyncDialog(null)
+        setSyncBusy(false)
+        await startUpdate(() => submitCheckIn(message))
+        return
+      }
+      setSyncDialog(null)
+      setWcHead(res.revision)
+      setWcChanges(localChanges())
+      setSyncNote(t('wc_checked_in'))
+    } catch (err) {
+      setSyncDialog({ kind: 'checkin', errors: err.body?.errors ?? [] })
+      if (!err.body?.errors) setSyncNote(t('collab_err_generic'))
+    } finally {
+      setSyncBusy(false)
+    }
   }
 
   const handleLanguageChange = (lang) => {
@@ -681,8 +830,21 @@ export default function App() {
     else closeTrackTable(() => setTrackTable(null))
   }, [closeTrackTable])
 
-  if (view === 'start') {
-    return <StartPage onOpenProject={(p) => { setProject(p); setView('map') }} t={t} language={language} onLanguageChange={handleLanguageChange} />
+  if (session.status === 'loading') return <div className="collab-page collab-center"><p className="collab-muted">{t('home_loading')}</p></div>
+  if (session.status === 'anon') {
+    return <LoginPage t={t} language={language} onLanguageChange={handleLanguageChange}
+      onSignedIn={(user) => { setSession({ status: 'user', user }); setView('start') }} />
+  }
+  if (session.user.mustChangePassword) {
+    return (
+      <div className="collab-page collab-center">
+        <PasswordForm forced t={t} onDone={(user) => setSession({ status: 'user', user })} />
+      </div>
+    )
+  }
+  if (view === 'start' || !project) {
+    return <StartPage user={session.user} onOpenVariant={handleOpenVariant} onSignOut={handleSignOut}
+      t={t} language={language} onLanguageChange={handleLanguageChange} />
   }
 
   return (
@@ -772,7 +934,7 @@ export default function App() {
           </button>
           <button
             className="sidebar-icon-btn"
-            onClick={() => closeTrackTable(() => { setCompare(null); setView('start') })}
+            onClick={() => closeTrackTable(goHome)}
             title={t('tooltip_home')}
           >
             <HomeIcon />
@@ -821,7 +983,6 @@ export default function App() {
             onShowPhysics={handleShowPhysics}
             onShowRegelwerk={handleShowRegelwerk}
             onCloseConstraints={handleCloseConstraints}
-            onProjectImported={handleProjectImported}
             profileTrackId={profileTrackId}
             onShowProfile={setProfileTrackId}
             onShowPlanPreview={setPlanPreview}
@@ -834,6 +995,17 @@ export default function App() {
 
       <div style={{ flex: 1, position: 'relative' }}>
         <div className="map-container" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
+        {wc && (
+          <WorkingCopyBar t={t} projectTitle={wc.project.title} variantName={wc.variant.name} base={wcBase}
+            changes={wcChanges.length} serverNewer={serverNewer} busy={syncBusy}
+            onCheckIn={() => setSyncDialog({ kind: 'checkin', errors: [] })}
+            onUpdate={() => startUpdate()}
+            onShowChanges={() => setCompare({
+              before: currentWorkingCopy().basePayload, after: currentWorkingCopy().project,
+              beforeLabel: `${wc.variant.name} · ${t('wc_base')}`, afterLabel: t('wc_working_copy'),
+            })} />
+        )}
+        {syncNote && <button type="button" className="wc-note" onClick={() => setSyncNote(null)}>{syncNote}</button>}
         {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} t={t} />}
         {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map}
           storeVersion={storeVersion} initialRow={trackTableInitialRow} onPickTrack={setTrackTable} onDirtyChange={setTableDirty}
@@ -849,6 +1021,16 @@ export default function App() {
           onDeleted={() => { setTopologySelection(null); handleTrackSaved() }}
           onClose={() => setTopologyGraphOpen(false)} t={t} />}
         {compare && <CompareOverlay map={map} t={t} {...compare} onClose={() => setCompare(null)} />}
+        {syncDialog?.kind === 'merge' && (
+          <ConflictDialog map={map} t={t} result={syncDialog.prepared.result} busy={syncBusy}
+            title={t('wc_merge_title')} mineLabel={t('wc_working_copy')}
+            theirsLabel={`${t('wc_server')} (${syncDialog.prepared.head.author.name})`}
+            onCancel={() => setSyncDialog(null)} onApply={applyMerge} />
+        )}
+        {syncDialog?.kind === 'checkin' && (
+          <CheckInDialog t={t} changes={wcChanges} errors={syncDialog.errors} busy={syncBusy}
+            onCancel={() => setSyncDialog(null)} onSubmit={submitCheckIn} />
+        )}
         {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
         {discardAsk && (
           <ConfirmModal

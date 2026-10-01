@@ -183,8 +183,12 @@ function segDist(px, py, ax, ay, bx, by) {
  * OVERLAP_DIST over more than OVERLAP_LENGTH of one of them — the one case no
  * id comparison finds, two people having drawn the same track. Tracks that
  * meet at a switch are left out: a turnout's routes leave each other slowly
- * enough to run within half a metre for ten or twenty metres. Only tracks in
- * the same plane (epsg) are compared.
+ * enough to run within half a metre for ten or twenty metres. Two tracks that
+ * part from a common end do the same where no switch joins them (any longer:
+ * it was deleted), so a stretch that begins or ends at an end both share
+ * counts only once it covers half the shorter track — a track drawn twice
+ * lies on the other all along. Only tracks in the same plane (epsg) are
+ * compared.
  */
 export function overlappingTracks(tracks, switches = []) {
   const together = new Set()
@@ -194,6 +198,17 @@ export function overlappingTracks(tracks, switches = []) {
   }
 
   const samples = new Map(tracks.map(t => [t.id, samplePlane(t)]))
+  const lengths = new Map(tracks.map(t => [t.id, (t.elements ?? []).reduce((sum, e) => sum + (e.length ?? 0), 0)]))
+  const ends = new Map(tracks.map(t => {
+    const pts = samples.get(t.id)
+    return [t.id, pts.length ? [pts[0], pts[pts.length - 1]] : []]
+  }))
+  const SHARED = 1   // [m] a stretch this close to an end both tracks have starts there
+  const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) < SHARED
+  const fromSharedEnd = (a, b, run) => ends.get(a).some(ea => ends.get(b).some(eb => near(ea, eb)
+    && (near(ea, run.start) || near(ea, run.end))))
+  const keep = (a, b, run) => !fromSharedEnd(a, b, run)
+    || run.to - run.from >= 0.5 * Math.min(lengths.get(a), lengths.get(b))
   const grid = new Map()
   const cellKey = (epsg, cx, cy) => `${epsg}|${cx}|${cy}`
   for (const t of tracks) {
@@ -217,29 +232,29 @@ export function overlappingTracks(tracks, switches = []) {
     const runs = new Map()      // other id → { from, to }
     for (const p of samples.get(t.id)) {
       const cx = Math.floor(p.x / CELL), cy = Math.floor(p.y / CELL)
-      const near = new Map()
+      const close = new Map()
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           for (const seg of grid.get(cellKey(t.epsg, cx + dx, cy + dy)) ?? []) {
             if (seg.id === t.id || together.has(`${t.id}|${seg.id}`)) continue
             const d = segDist(p.x, p.y, seg.a.x, seg.a.y, seg.b.x, seg.b.y)
-            if (d < (near.get(seg.id) ?? Infinity)) near.set(seg.id, d)
+            if (d < (close.get(seg.id) ?? Infinity)) close.set(seg.id, d)
           }
         }
       }
       for (const [other, run] of runs) {
-        if (!((near.get(other) ?? Infinity) < OVERLAP_DIST)) {
-          record(found, t.id, other, run)
+        if (!((close.get(other) ?? Infinity) < OVERLAP_DIST)) {
+          if (keep(t.id, other, run)) record(found, t.id, other, run)
           runs.delete(other)
         }
       }
-      for (const [other, d] of near) {
+      for (const [other, d] of close) {
         if (d >= OVERLAP_DIST) continue
         const run = runs.get(other)
-        if (run) run.to = p.station; else runs.set(other, { from: p.station, to: p.station })
+        if (run) { run.to = p.station; run.end = p } else runs.set(other, { from: p.station, to: p.station, start: p, end: p })
       }
     }
-    for (const [other, run] of runs) record(found, t.id, other, run)
+    for (const [other, run] of runs) if (keep(t.id, other, run)) record(found, t.id, other, run)
   }
   return [...found.values()]
 }

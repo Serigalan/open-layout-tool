@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { loadTracks, loadSwitches, loadProjects, importProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
+import { loadTracks, loadSwitches, loadProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
 import { parseProjectsPayload, PayloadError } from '../../utils/persistenceUtils'
 import { parseRecords, buildElements } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'
@@ -52,18 +52,15 @@ function trackLabel(track) {
   return parts.length ? parts.join(' · ') : track.id
 }
 
-export default function DataExchangePanel({ t, map, project, onProjectImported, onTrackSaved, onShowCompare }) {
+export default function DataExchangePanel({ t, map, project, onTrackSaved, onShowCompare }) {
   const tracks = project ? loadTracks(project.id) : []
   const trackCount = tracks.length
   const [before, after] = t('data_exchange_project_desc').split('{{tracks}}')
-  const importInputRef = useRef(null)
   const compareInputRef = useRef(null)
   const [compareError, setCompareError] = useState(null)
 
   const [phase, setPhase]               = useState('idle')
   const [selectedIds, setSelectedIds]   = useState(new Set())
-  const [conflicts, setConflicts]       = useState([])   // [{existing, imported}, ...]
-  const resolvedRef                     = useRef([])
   const [trackConflicts, setTrackConflicts] = useState([])   // [{existing, imported}, ...]
   const [epsg, setEpsg]                 = useState('5683')
   const [esnErrors, setEsnErrors]       = useState([])
@@ -108,7 +105,6 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const osrdLinkTimer                   = useRef(null)
   const exchangeInputRef                = useRef(null)
   const [exchangeOpen, setExchangeOpen] = useState(false)
-  const [importError, setImportError]       = useState(null)   // why a project file was refused
   // What the imports of this project had to say, kept in the store so it
   // survives the panel being closed and the page being reloaded.
   const [reports, setReports]           = useState([])
@@ -161,59 +157,6 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
   const codedErrorText = (err, fallback) => {
     const code = err instanceof PayloadError ? err.code : fallback
     return t(`data_exchange_import_err_${code}`)
-  }
-
-  // Take imported projects into the store. Ids that are already here are
-  // asked about one by one; nothing is written until every conflict is
-  // answered.
-  const ingestProjects = (incoming) => {
-    const existing = loadProjects()
-    const existingIds = new Set(existing.map(p => p.id))
-    const conflicting = incoming.filter(p => existingIds.has(p.id))
-    const noConflict  = incoming.filter(p => !existingIds.has(p.id))
-
-    if (conflicting.length === 0) {
-      importProjects(incoming)
-      onProjectImported?.()
-      return
-    }
-    resolvedRef.current = noConflict
-    setConflicts(conflicting.map(imp => ({
-      imported: imp,
-      existing: existing.find(p => p.id === imp.id),
-    })))
-  }
-
-  const handleProjectImport = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    setImportError(null)
-    reader.onload = (ev) => {
-      try {
-        ingestProjects(parseProjectsPayload(JSON.parse(ev.target.result)).projects)
-      } catch (err) {
-        // A file this tool will not take — broken JSON, or a project from
-        // before the current model. Both say so rather than doing nothing.
-        setImportError(codedErrorText(err, 'invalid_payload'))
-      }
-    }
-    reader.readAsText(file)
-    e.target.value = ''
-  }
-
-  const resolveConflict = (keepImported) => {
-    const [current, ...rest] = conflicts
-    const chosen = keepImported ? current.imported : current.existing
-    resolvedRef.current = [...resolvedRef.current, chosen]
-    if (rest.length === 0) {
-      importProjects(resolvedRef.current)
-      resolvedRef.current = []
-      setConflicts([])
-      onProjectImported?.()
-    } else {
-      setConflicts(rest)
-    }
   }
 
   // The open project against an exported file of it (AP 10.3): the file is
@@ -711,26 +654,6 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
     )
   }
 
-  if (conflicts.length > 0) {
-    const { existing } = conflicts[0]
-    const msg = t('import_conflict_message').replace('{{title}}', existing.title ?? existing.id)
-    return (
-      <div className="modal-overlay">
-        <div className="modal" onClick={e => e.stopPropagation()}>
-          <p className="modal-message">{msg}</p>
-          <div className="modal-actions">
-            <button className="modal-btn modal-btn-cancel" onClick={() => resolveConflict(false)}>
-              {t('import_keep_existing')}
-            </button>
-            <button className="modal-btn modal-btn-confirm" onClick={() => resolveConflict(true)}>
-              {t('import_keep_imported')}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <>
       <h2>{t('data_exchange')}</h2>
@@ -739,26 +662,9 @@ export default function DataExchangePanel({ t, map, project, onProjectImported, 
         title={t('data_exchange_project')}
         description={before + trackCount + after}
       >
-        <div style={{ display: 'flex', gap: 6 }}>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={handleProjectImport}
-          />
-          <button className="panel-btn panel-btn-full" style={{ flex: 1 }} onClick={() => importInputRef.current?.click()}>
-            {t('data_exchange_import')}
-          </button>
-          <button className="panel-btn panel-btn-full" style={{ flex: 1 }} onClick={handleProjectExport}>
-            {t('data_exchange_export')}
-          </button>
-        </div>
-        {importError && (
-          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
-            {importError}
-          </p>
-        )}
+        <button className="panel-btn panel-btn-full" onClick={handleProjectExport}>
+          {t('data_exchange_export')}
+        </button>
       </ExchangeSection>
 
       <ExchangeSection title={t('compare_with_file')} description={t('compare_with_file_desc')}>

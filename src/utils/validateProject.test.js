@@ -147,3 +147,17 @@ describe.skipIf(!hasPek)('validateProject — PEK Halle–Könnern', () => {
     expect(warnings.map(w => w.code).sort()).toEqual(['chain_gap', 'chain_length', 'chain_length', 'chain_length'])
   })
 })
+
+describe('overlappingTracks — tracks parting from a common end', () => {
+  it('does not take two tracks that leave one node apart for a track drawn twice', () => {
+    // Two routes from one node, the second turning away slowly (a turnout whose switch is gone).
+    const straightA = straightTrack('a', { n: 4, len: 50 })
+    const curve = { id: 'b', name: 'b', epsg: 25832, elements: [] }
+    const R = 300, L = 150
+    const end = [R * Math.sin(L / R), R - R * Math.cos(L / R)]
+    curve.elements.push({ elementType: 1, bearing: 90, radius: -R, length: L, absLength: L, startNode: [0, 0], endNode: [end[0], end[1]] })
+    expect(overlappingTracks([straightA, curve], [])).toEqual([])
+    // A copy of `a` from the same node is a track drawn twice.
+    expect(overlappingTracks([straightA, { ...straightTrack('a2', { n: 4, len: 50 }) }], [])).toHaveLength(1)
+  })
+})
