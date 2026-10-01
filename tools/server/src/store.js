@@ -22,7 +22,7 @@ export function createStore(db, { now = () => Date.now() } = {}) {
     projects:      db.prepare(`SELECT p.*, u.name AS creator_name FROM project p JOIN user u ON u.id = p.created_by
                                WHERE p.deleted_at IS NULL ORDER BY p.title COLLATE NOCASE`),
     project:       db.prepare('SELECT * FROM project WHERE id = ? AND deleted_at IS NULL'),
-    insertProject: db.prepare('INSERT INTO project (id, title, description, created_by, created_at) VALUES (?, ?, ?, ?, ?)'),
+    insertProject: db.prepare('INSERT INTO project (id, title, description, created_by, created_at, template) VALUES (?, ?, ?, ?, ?, ?)'),
     patchProject:  db.prepare('UPDATE project SET title = COALESCE(?, title), description = COALESCE(?, description) WHERE id = ?'),
     deleteProject: db.prepare('UPDATE project SET deleted_at = ? WHERE id = ?'),
     variants:      db.prepare('SELECT * FROM variant WHERE project_id = ? ORDER BY created_at, rowid'),
@@ -113,7 +113,7 @@ export function createStore(db, { now = () => Date.now() } = {}) {
         })
         // The project's picture is the one its first variant names.
         return {
-          id: p.id, title: p.title, description: p.description ?? '',
+          id: p.id, title: p.title, description: p.description ?? '', template: Boolean(p.template),
           createdBy: { id: p.created_by, name: p.creator_name }, createdAt: p.created_at, variants,
           imageHash: variants[0]?.head?.imageHash ?? null,
         }
@@ -121,12 +121,12 @@ export function createStore(db, { now = () => Date.now() } = {}) {
     },
 
     /** A new project with its first variant "Bestand" at revision 1, holding `payload`. */
-    createProject({ title, description, payload, authorId, errorKeys, variantName = 'Bestand' }) {
+    createProject({ title, description, payload, authorId, errorKeys, variantName = 'Bestand', template = false }) {
       const projectId = randomUUID()
       const variantId = randomUUID()
       const record = { ...payload, id: projectId, title, ...(description ? { description } : {}) }
       return db.transaction(() => {
-        q.insertProject.run(projectId, title, description ?? null, authorId, iso())
+        q.insertProject.run(projectId, title, description ?? null, authorId, iso(), template ? 1 : 0)
         const revisionId = insertRevision({
           projectId, variantId, parentId: null, authorId, message: '', payload: record, errorKeys,
         })

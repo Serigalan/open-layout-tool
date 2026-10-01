@@ -67,6 +67,24 @@ describe('projects', () => {
     expect((await max('GET', '/api/projects')).json().projects).toEqual([])
   })
 
+  it('a template is the admin\'s; everyone branches a variant of their own off it', async () => {
+    const { max, ada } = await start()
+    expect((await max('POST', '/api/projects', { title: 'Vorlage', template: true })).statusCode).toBe(403)
+    const { project, variantId, revisionId } = (await ada('POST', '/api/projects', { title: 'Vorlage', template: true })).json()
+    expect(project).toMatchObject({ template: true, variants: [expect.objectContaining({ name: 'Vorlage' })] })
+    const h = await head(max, variantId)
+    const edit = { base: revisionId, payload: { ...h.payload, title: 'x' }, remaps: [] }
+    expect((await max('POST', `/api/variants/${variantId}/revisions`, edit)).json()).toEqual({ error: 'template_admin' })
+    expect((await max('PATCH', `/api/variants/${variantId}`, { name: 'x' })).statusCode).toBe(403)
+    expect((await max('PATCH', `/api/projects/${project.id}`, { title: 'x' })).statusCode).toBe(403)
+    expect((await max('DELETE', `/api/projects/${project.id}`)).statusCode).toBe(403)
+
+    const own = (await max('POST', `/api/projects/${project.id}/variants`, { name: 'Meine', fromVariant: variantId })).json().variant
+    expect((await max('POST', `/api/variants/${own.id}/revisions`, edit)).statusCode).toBe(201)
+    expect((await max('PATCH', `/api/variants/${own.id}`, { name: 'Meine 2' })).statusCode).toBe(200)
+    expect((await ada('POST', `/api/variants/${variantId}/revisions`, edit)).statusCode).toBe(201)
+  })
+
   it('needs a session', async () => {
     ctx = await setup()
     expect((await ctx.app.inject({ method: 'GET', url: '/api/projects' })).statusCode).toBe(401)

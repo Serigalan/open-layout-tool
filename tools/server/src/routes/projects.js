@@ -11,7 +11,8 @@ const text = (v, max = 500) => (v == null ? undefined : String(v).trim().slice(0
 /**
  * Projects, variants, revisions and images (AP 10.5). Every active user sees
  * and edits every project (decision 99); deleting a project is the admin's or
- * its creator's.
+ * its creator's. A template is the admin's alone — the project and its root
+ * variants; everyone branches variants of their own off it and edits those.
  */
 export default async function projectRoutes(api) {
   const store = createStore(api.db, { now: api.now })
@@ -27,6 +28,12 @@ export default async function projectRoutes(api) {
     const v = store.variant(id)
     if (!v || !store.project(v.project_id)) throw new ApiError(404, 'not_found')
     return v
+  }
+  // The template itself: a template project, or one of its root variants.
+  const adminForTemplate = (user, project, variant = null) => {
+    if (project.template && (!variant || !variant.parent_variant_id) && user.role !== 'admin') {
+      throw new ApiError(403, 'template_admin')
+    }
   }
   const revisionOr404 = (id) => {
     const r = store.revisionMeta(Number(id))
@@ -44,18 +51,20 @@ export default async function projectRoutes(api) {
     const title = text(req.body?.title, 200)
     if (!title) throw new ApiError(422, 'title_required')
     const description = text(req.body?.description, 4000) ?? ''
+    const template = Boolean(req.body?.template)
+    if (template && req.user.role !== 'admin') throw new ApiError(403, 'template_admin')
     const given = req.body?.payload
     const { record, errors, warnings } = checkRecord(given ?? { tracks: [], switches: [], platforms: [] })
     const ids = store.createProject({
       title, description, payload: record, authorId: req.user.id, errorKeys: errors.map(e => e.key),
-      variantName: text(req.body?.variantName, 100) || 'Bestand',
+      variantName: text(req.body?.variantName, 100) || (template ? 'Vorlage' : 'Bestand'), template,
     })
     const project = store.listProjects().find(p => p.id === ids.projectId)
     return reply.code(201).send({ project, ...ids, errors, warnings })
   })
 
   api.patch('/projects/:id', opts, async (req) => {
-    projectOr404(req.params.id)
+    adminForTemplate(req.user, projectOr404(req.params.id))
     const title = text(req.body?.title, 200)
     if (title === '') throw new ApiError(422, 'title_required')
     store.patchProject(req.params.id, { title, description: text(req.body?.description, 4000) })
@@ -64,6 +73,7 @@ export default async function projectRoutes(api) {
 
   api.delete('/projects/:id', opts, async (req, reply) => {
     const p = projectOr404(req.params.id)
+    adminForTemplate(req.user, p)
     if (req.user.role !== 'admin' && p.created_by !== req.user.id) throw new ApiError(403, 'not_allowed')
     store.deleteProject(p.id)
     return reply.code(204).send()
@@ -110,6 +120,7 @@ export default async function projectRoutes(api) {
 
   api.patch('/variants/:id', opts, async (req) => {
     const v = variantOr404(req.params.id)
+    adminForTemplate(req.user, store.project(v.project_id), v)
     const name = text(req.body?.name, 100)
     if (name === '') throw new ApiError(422, 'name_required')
     if (name) store.renameVariant(v.id, name)
@@ -164,6 +175,7 @@ export default async function projectRoutes(api) {
   // already had is refused with them (422).
   api.post('/variants/:id/revisions', opts, async (req, reply) => {
     const v = variantOr404(req.params.id)
+    adminForTemplate(req.user, store.project(v.project_id), v)
     const { base, mergeParent, message, payload, remaps } = req.body ?? {}
     if (!Number.isInteger(base)) throw new ApiError(422, 'base_required')
     if (base !== v.head_revision_id) return reply.code(409).send({ error: 'stale_base', head: store.revisionMeta(v.head_revision_id) })

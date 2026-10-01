@@ -685,6 +685,17 @@ export default function App() {
     setView('map')
   }
 
+  // A template only its admin edits: everyone else looks at its head, read-only.
+  const viewVariant = async (serverProject, variant) => {
+    setHomeNote(null)
+    const { payload, revision } = await api.head(variant.id)
+    setViewer({
+      kind: 'view', title: serverProject.title, record: payload,
+      subtitle: `${variant.name} · ${fill(t, 'wc_rev', { n: revision.number })}`,
+    })
+    setView('viewer')
+  }
+
   const goHome = async () => {
     setCompare(null)
     setSyncDialog(null)
@@ -1001,7 +1012,7 @@ export default function App() {
     )
   }
   if (view === 'start' || !project) {
-    return <StartPage user={session.user} onOpenVariant={handleOpenVariant} onSignOut={handleSignOut}
+    return <StartPage user={session.user} onOpenVariant={handleOpenVariant} onViewVariant={viewVariant} onSignOut={handleSignOut}
       onCompare={showComparison} onMerge={startVariantMerge} note={homeNote}
       onAdmin={() => { setHomeNote(null); setView('admin') }} onHistory={showHistory}
       t={t} language={language} onLanguageChange={handleLanguageChange} />

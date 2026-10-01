@@ -32,8 +32,12 @@ const errorText = (t, code) => {
  * in a backup file — the only place whole projects come in. The "⋯" menu of a
  * project renames, exports (a variant's head) and deletes it (its admin or
  * creator only). Branching, comparing and merging act on its variants.
+ *
+ * Below them the templates: everyone branches a variant of their own off one;
+ * the template itself — its root variants — only an admin edits, everyone
+ * else looks at it read-only.
  */
-export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onCompare, onMerge, onHistory, note = null, t, language, onLanguageChange }) {
+export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOut, onAdmin, onCompare, onMerge, onHistory, note = null, t, language, onLanguageChange }) {
   const [projects, setProjects] = useState(null)
   const [local, setLocal] = useState(new Map())   // variantId → number of local changes
   const [error, setError] = useState(null)
@@ -66,6 +70,14 @@ export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onC
     }
   }
 
+  const view = async (project, variant) => {
+    try {
+      await onViewVariant(project, variant)
+    } catch (err) {
+      setError(err.code ?? 'generic')
+    }
+  }
+
   // A backup file: every project in it becomes a server project of its own,
   // its picture uploaded on the way.
   const handleImport = async (e) => {
@@ -95,7 +107,15 @@ export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onC
     }
   }
 
-  const canDelete = (p) => user.role === 'admin' || p.createdBy?.id === user.id
+  const isAdmin = user.role === 'admin'
+  const canDelete = (p) => isAdmin || (!p.template && p.createdBy?.id === user.id)
+  const regular = projects?.filter(p => !p.template)
+  const templates = projects?.filter(p => p.template)
+  const card = (p) => (
+    <ProjectCard key={p.id} project={p} local={local} opening={opening} showArchived={showArchived}
+      canDelete={canDelete(p)} canEdit={isAdmin || !p.template} onOpen={open} onView={view}
+      onDialog={setDialog} onCompare={onCompare} onMerge={onMerge} onHistory={onHistory} t={t} language={language} />
+  )
 
   return (
     <div className="collab-page home">
@@ -105,12 +125,10 @@ export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onC
           <h1>Open Layout Tool</h1>
         </div>
         <div className="home-user">
-          {Object.keys(languageLabels).map(lang => (
-            <button key={lang} type="button" className={`collab-link ${language === lang ? 'active' : ''}`} onClick={() => onLanguageChange(lang)}>
-              {languageLabels[lang]}
-            </button>
-          ))}
-          {user.role === 'admin' && onAdmin && <button type="button" className="collab-btn" onClick={onAdmin}>{t('home_admin')}</button>}
+          <select className="home-language" value={language} aria-label={t('home_language')} onChange={e => onLanguageChange(e.target.value)}>
+            {Object.entries(languageLabels).map(([lang, label]) => <option key={lang} value={lang}>{label}</option>)}
+          </select>
+          {isAdmin && onAdmin && <button type="button" className="collab-btn" onClick={onAdmin}>{t('home_admin')}</button>}
           <div className="home-menu">
             <button type="button" className="collab-btn" aria-haspopup="menu" aria-expanded={userMenu} onClick={() => setUserMenu(v => !v)}>
               {user.name} ▾
@@ -137,13 +155,9 @@ export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onC
         {error && <p className="collab-error" role="alert">{errorText(t, error)}</p>}
         {notice && <p className="collab-ok" role="status">{notice}</p>}
         {projects === null && !error && <p className="collab-muted">{t('home_loading')}</p>}
-        {projects?.length === 0 && <p className="collab-muted">{t('home_empty')}</p>}
+        {regular?.length === 0 && <p className="collab-muted">{t('home_empty')}</p>}
         <ul className="home-projects">
-          {(projects ?? []).map(p => (
-            <ProjectCard key={p.id} project={p} local={local} opening={opening} showArchived={showArchived}
-              canDelete={canDelete(p)} onOpen={open} onDialog={setDialog} onCompare={onCompare} onMerge={onMerge}
-              onHistory={onHistory} t={t} language={language} />
-          ))}
+          {(regular ?? []).map(card)}
         </ul>
         {projects?.some(p => p.variants.some(v => v.archived)) && (
           <label className="collab-check home-archived-toggle">
@@ -152,17 +166,34 @@ export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onC
           </label>
         )}
 
-        <details className="home-guide">
-          <summary>{t('start_guideline')}</summary>
-          <p>
-            <a href="./Leitfaden_Trassierung.pdf" download="Leitfaden_Trassierung.pdf" className="collab-link">{t('start_guideline_download')}</a>
-          </p>
+        <section className="home-section">
+          <div className="home-section-head">
+            <h2>{t('home_templates')}</h2>
+            {isAdmin && (
+              <div className="home-section-actions">
+                <button type="button" className="collab-btn collab-btn-primary" onClick={() => setDialog({ kind: 'new', template: true })}>{t('home_new')}</button>
+              </div>
+            )}
+          </div>
+          {templates?.length === 0 && <p className="collab-muted">{t('home_templates_empty')}</p>}
+          <ul className="home-projects">
+            {(templates ?? []).map(card)}
+          </ul>
+        </section>
+
+        <section className="home-section home-guide">
+          <div className="home-section-head">
+            <h2>{t('start_guideline')}</h2>
+            <div className="home-section-actions">
+              <a href="./Leitfaden_Trassierung.pdf" download="Leitfaden_Trassierung.pdf" className="collab-btn">{t('start_guideline_download')}</a>
+            </div>
+          </div>
           <iframe src={GUIDE_PAGES[language] ?? GUIDE_PAGES.de} title={t('start_guideline')} />
-        </details>
+        </section>
       </main>
 
       {dialog?.kind === 'new' && (
-        <NewProjectDialog t={t} onCancel={() => setDialog(null)} onCreated={async () => { setDialog(null); await reload() }} />
+        <NewProjectDialog t={t} template={Boolean(dialog.template)} onCancel={() => setDialog(null)} onCreated={async () => { setDialog(null); await reload() }} />
       )}
       {dialog?.kind === 'rename' && (
         <RenameProjectDialog t={t} project={dialog.project} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
@@ -200,7 +231,7 @@ export default function StartPage({ user, onOpenVariant, onSignOut, onAdmin, onC
   )
 }
 
-function ProjectCard({ project, local, opening, showArchived, canDelete, onOpen, onDialog, onCompare, onMerge, onHistory, t, language }) {
+function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit, onOpen, onView, onDialog, onCompare, onMerge, onHistory, t, language }) {
   const rows = useMemo(() => variantTree(project.variants.filter(v => showArchived || !v.archived)), [project, showArchived])
   const [menu, setMenu] = useState(false)
   const image = blobUrl(project.imageHash)
@@ -223,7 +254,7 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, onOpen,
             aria-expanded={menu} onClick={() => setMenu(v => !v)}>⋯</button>
           {menu && (
             <div className="home-menu-list" role="menu" onMouseLeave={() => setMenu(false)}>
-              {item(t('home_rename'), 'rename')}
+              {canEdit && item(t('home_rename'), 'rename')}
               {item(t('start_export'), 'export')}
               {canDelete && item(t('start_delete'), 'delete', { danger: true })}
             </div>
@@ -234,6 +265,8 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, onOpen,
         {rows.map(({ variant: v, depth }) => {
           const changes = local.get(v.id) ?? 0
           const parent = v.parentVariantId ? byId.get(v.parentVariantId) : null
+          // A template's own variant, for anyone but an admin: looked at, not edited.
+          const readOnly = !canEdit && !v.parentVariantId
           return (
             <li key={v.id} className={`home-variant ${v.archived ? 'archived' : ''}`} style={{ '--depth': depth }}>
               <div className="home-variant-main">
@@ -243,9 +276,13 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, onOpen,
                 </span>
                 <span className="home-variant-buttons">
                   {onHistory && <button type="button" className="collab-btn collab-btn-small" onClick={() => onHistory(project, v)}>{t('home_history')}</button>}
-                  <button type="button" className="collab-btn collab-btn-small" title={t('home_variant_menu')}
-                    onClick={() => onDialog({ kind: 'variant', project, variant: v })}>✎</button>
-                  <button type="button" className="collab-btn" disabled={opening === v.id} onClick={() => onOpen(project, v)}>{t('home_open')}</button>
+                  {!readOnly && (
+                    <button type="button" className="collab-btn collab-btn-small" title={t('home_variant_menu')}
+                      onClick={() => onDialog({ kind: 'variant', project, variant: v })}>✎</button>
+                  )}
+                  {readOnly
+                    ? <button type="button" className="collab-btn collab-btn-primary" onClick={() => onView(project, v)}>{t('home_view')}</button>
+                    : <button type="button" className="collab-btn collab-btn-primary" disabled={opening === v.id} onClick={() => onOpen(project, v)}>{t('home_open')}</button>}
                 </span>
               </div>
               {changes > 0 && <div className="home-variant-local">● {fill(t, 'home_local_changes', { n: changes })}</div>}
@@ -302,7 +339,7 @@ function ConfirmDialog({ message, confirmLabel, onConfirm, onCancel, t, danger }
   )
 }
 
-function NewProjectDialog({ onCancel, onCreated, t }) {
+function NewProjectDialog({ onCancel, onCreated, t, template = false }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [file, setFile] = useState(null)
@@ -315,11 +352,11 @@ function NewProjectDialog({ onCancel, onCreated, t }) {
       const { hash } = await api.uploadImage(image.mime, image.data)
       payload = { tracks: [], switches: [], platforms: [], imageHash: hash }
     }
-    await api.createProject({ title: title.trim(), description: description.trim(), ...(payload ? { payload } : {}) })
+    await api.createProject({ title: title.trim(), description: description.trim(), template, ...(payload ? { payload } : {}) })
     await onCreated()
   })
   return (
-    <FormDialog title={t('home_new_title')} submitLabel={t('start_create_btn')} busy={busy} canSubmit={Boolean(title.trim())} error={error}
+    <FormDialog title={t(template ? 'home_new_template_title' : 'home_new_title')} submitLabel={t('start_create_btn')} busy={busy} canSubmit={Boolean(title.trim())} error={error}
       onCancel={onCancel} onSubmit={submit} t={t}>
       <label className="collab-field">
         <span>{t('start_field_title')} *</span>
