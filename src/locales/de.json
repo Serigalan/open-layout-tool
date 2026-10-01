@@ -992,5 +992,19 @@
   "admin_err_last_admin": "Der letzte aktive Admin kann seine Rolle nicht abgeben und nicht deaktiviert werden.",
   "admin_err_login_taken": "Dieser Benutzername ist vergeben.",
   "admin_err_login_invalid": "Benutzername: 2–64 Zeichen, Buchstaben, Ziffern und . _ @ -",
-  "admin_err_password_too_short": "Das Startpasswort ist kürzer als 12 Zeichen."
+  "admin_err_password_too_short": "Das Startpasswort ist kürzer als 12 Zeichen.",
+  "history_title": "Historie",
+  "history_head": "Kopf",
+  "history_merge": "Zusammenführung",
+  "history_inherited": "aus „{variant}“",
+  "history_no_message": "ohne Kommentar",
+  "history_view": "Ansehen",
+  "history_compare": "Mit Kopf vergleichen",
+  "history_restore": "Wiederherstellen",
+  "history_restore_confirm": "Den Stand von rev {n} wiederherstellen?",
+  "history_restore_desc": "Er wird als neue Revision auf den Kopf gesetzt. Was danach kam, bleibt in der Historie erhalten.",
+  "history_restore_message": "Wiederhergestellt: Stand von rev {n}",
+  "history_restored": "Stand von rev {n} als rev {m} wiederhergestellt.",
+  "history_err_stale": "Die Variante wurde gerade geändert — bitte erneut versuchen.",
+  "history_err_invalid_record": "Der alte Stand ist mit dem heutigen Server nicht mehr gültig."
 }

@@ -10,7 +10,7 @@ import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, loadSettings, sa
 import { api, setUnauthorizedHandler } from './api/client'
 import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, serverHead } from './utils/workingCopySync'
 import { commitVariantMerge, loadComparison, prepareVariantMerge } from './utils/variantMerge'
-import { clearFeatures, comparisonFeatures, drawable, showFeaturesSoon, zoomToFeatures } from './utils/compareLayer'
+import { clearFeatures, comparisonFeatures, drawable, recordFeatures, showFeaturesSoon, zoomToFeatures } from './utils/compareLayer'
 import { diffEntries, diffProject } from './utils/merge'
 import { fill } from './components/collab/mergeText'
 import { bufferStopFeatures } from './utils/bufferStopGeometry'
@@ -51,6 +51,7 @@ import LoginPage from './components/collab/LoginPage'
 import PasswordForm from './components/collab/PasswordForm'
 import WorkingCopyBar from './components/collab/WorkingCopyBar'
 import AdminPage from './components/collab/AdminPage'
+import HistoryPage from './components/collab/HistoryPage'
 import './App.css'
 
 // How often the open app asks whether the server has moved on [ms].
@@ -430,6 +431,8 @@ export default function App() {
   // twice) has none of what an effect drew on the one before.
   const [mapVersion, setMapVersion] = useState(0)
   const [homeNote, setHomeNote] = useState(null)
+  // Whose history is shown (AP 10.10): { project, variant }.
+  const [historyFor, setHistoryFor] = useState(null)
 
   useEffect(() => {
     const s = loadSettings()
@@ -547,16 +550,22 @@ export default function App() {
 
   // A merge being decided shows on the map what it brings into the target:
   // the target as it is, pale, and the changes coloured as in a comparison.
+  // A revision looked at on its own is drawn whole.
   useEffect(() => {
-    if (viewer?.kind !== 'merge') return undefined
+    if (viewer?.kind !== 'merge' && viewer?.kind !== 'view') return undefined
     const m = map.current
     if (!m) return undefined
-    const { target } = viewer.prepared
-    const merged = viewer.prepared.result.merged
-    const features = comparisonFeatures(drawable(target.payload), drawable(merged),
-      diffEntries(diffProject(target.payload, merged)), { unchanged: true })
+    let features
+    if (viewer.kind === 'view') {
+      features = recordFeatures(drawable(viewer.record))
+    } else {
+      const { target } = viewer.prepared
+      const merged = viewer.prepared.result.merged
+      features = comparisonFeatures(drawable(target.payload), drawable(merged),
+        diffEntries(diffProject(target.payload, merged)), { unchanged: true })
+    }
     const stop = showFeaturesSoon(m, 'merge-preview', features)
-    zoomToFeatures(m, features, { maxZoom: 15, covered: 0.62 })
+    zoomToFeatures(m, features, { maxZoom: 15, covered: viewer.kind === 'view' ? 0 : 0.62 })
     return () => { stop(); try { clearFeatures(m, 'merge-preview') } catch { /* map gone */ } }
   }, [viewer, mapVersion])
 
@@ -736,8 +745,35 @@ export default function App() {
   }
 
   const closeViewer = () => {
+    setView(viewer?.back ?? 'start')
     setViewer(null)
-    setView('start')
+  }
+
+  // ── history (AP 10.10) ──
+  const showHistory = (serverProject, variant) => {
+    setHomeNote(null)
+    setHistoryFor({ project: serverProject, variant })
+    setView('history')
+  }
+
+  const viewRevision = async (rev) => {
+    const { payload } = await api.revision(rev.id)
+    setViewer({
+      kind: 'view', back: 'history', title: historyFor.project.title, record: payload,
+      subtitle: `${historyFor.variant.name} · ${fill(t, 'wc_rev', { n: rev.number })}`,
+    })
+    setView('viewer')
+  }
+
+  const compareWithHead = async (rev, head) => {
+    const [before, after] = await Promise.all([api.revision(rev.id), api.revision(head.id)])
+    setViewer({
+      kind: 'compare', back: 'history', title: historyFor.project.title, subtitle: t('compare_title'),
+      before: before.payload, after: after.payload,
+      beforeLabel: fill(t, 'wc_rev', { n: rev.number }),
+      afterLabel: `${fill(t, 'wc_rev', { n: head.number })} (${t('history_head')})`,
+    })
+    setView('viewer')
   }
 
   const handleSignOut = async () => {
@@ -928,6 +964,10 @@ export default function App() {
       </div>
     )
   }
+  if (view === 'history' && historyFor) {
+    return <HistoryPage project={historyFor.project} variant={historyFor.variant} t={t} language={language}
+      onBack={() => setView('start')} onView={viewRevision} onCompareWithHead={compareWithHead} />
+  }
   if (view === 'admin' && session.user.role === 'admin') {
     return <AdminPage user={session.user} onBack={() => setView('start')} t={t} language={language} />
   }
@@ -963,7 +1003,7 @@ export default function App() {
   if (view === 'start' || !project) {
     return <StartPage user={session.user} onOpenVariant={handleOpenVariant} onSignOut={handleSignOut}
       onCompare={showComparison} onMerge={startVariantMerge} note={homeNote}
-      onAdmin={() => { setHomeNote(null); setView('admin') }}
+      onAdmin={() => { setHomeNote(null); setView('admin') }} onHistory={showHistory}
       t={t} language={language} onLanguageChange={handleLanguageChange} />
   }
 

@@ -992,5 +992,19 @@
   "admin_err_last_admin": "The last active admin cannot give up the role or be deactivated.",
   "admin_err_login_taken": "This user name is taken.",
   "admin_err_login_invalid": "User name: 2–64 characters, letters, digits and . _ @ -",
-  "admin_err_password_too_short": "The start password is shorter than 12 characters."
+  "admin_err_password_too_short": "The start password is shorter than 12 characters.",
+  "history_title": "History",
+  "history_head": "head",
+  "history_merge": "merge",
+  "history_inherited": "from “{variant}”",
+  "history_no_message": "no comment",
+  "history_view": "View",
+  "history_compare": "Compare with head",
+  "history_restore": "Restore",
+  "history_restore_confirm": "Restore the state of rev {n}?",
+  "history_restore_desc": "It is put on top of the head as a new revision. What came after stays in the history.",
+  "history_restore_message": "Restored: state of rev {n}",
+  "history_restored": "State of rev {n} restored as rev {m}.",
+  "history_err_stale": "The variant was just changed — please try again.",
+  "history_err_invalid_record": "The old state is no longer valid with today's server."
 }

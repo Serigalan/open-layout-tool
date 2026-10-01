@@ -546,3 +546,24 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .admin-badge.admin { color: #9aa2ff; border-color: #9aa2ff; }
 }
+
+/* ── the history of a variant ────────────────────────────────────────── */
+
+.history-where { margin-left: 4px; overflow-wrap: anywhere; }
+.history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.history-rev {
+  border: 1px solid var(--collab-border);
+  border-left: 4px solid var(--color-primary);
+  border-radius: 8px;
+  background: var(--collab-bg);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.history-rev.merge { border-left-color: var(--collab-warn); }
+.history-rev.inherited { border-left-color: var(--collab-border); opacity: 0.85; }
+.history-rev-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; font-size: 13px; }
+.history-rev-number { font-weight: 700; }
+.history-rev-message { font-size: 13.5px; overflow-wrap: anywhere; }
+.history-rev-actions { display: flex; flex-wrap: wrap; gap: 6px; }

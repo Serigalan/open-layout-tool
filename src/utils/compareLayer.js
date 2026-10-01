@@ -17,6 +17,7 @@ export const COMPARE_COLORS = {
   changed:   '#f08a00',
   removed:   '#8a8a8a',
   unchanged: '#9aa3b5',
+  plain:     '#303383',
   mine:      '#1f6fd1',
   theirs:    '#c2185b',
 }
@@ -88,6 +89,15 @@ export function comparisonFeatures(before, after, entries, { unchanged = false }
     for (const t of after.tracks ?? []) {
       if (!touched.has(`tracks|${t.id}`)) features.unshift(...objectFeatures(after, 'tracks', t, 'unchanged'))
     }
+  }
+  return features
+}
+
+/** Everything a hydrated record holds that has a place on the map, in one colour — a state looked at on its own. */
+export function recordFeatures(record) {
+  const features = []
+  for (const name of ['platforms', 'tracks', 'switches', 'endMarks']) {
+    for (const obj of record[name] ?? []) features.push(...objectFeatures(record, name, obj, 'plain'))
   }
   return features
 }
