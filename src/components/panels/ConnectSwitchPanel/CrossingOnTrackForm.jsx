@@ -248,7 +248,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       <>
         <p>{t('crossing_on_track_hint')}</p>
         {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
-        <button className="panel-btn panel-btn-full" style={{ marginTop: 8, background: '#888' }} onClick={handleCancel}>
+        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
           {t('btn_cancel')}
         </button>
       </>
@@ -337,11 +337,10 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       {nameError && <p className="form-error">{t('track_name_exists')}</p>}
       {placeError && <p className="form-error">{placeError}</p>}
 
-      <button className="panel-btn panel-btn-full" onClick={handleCommit} disabled={!!placeError}
-        style={{ opacity: placeError ? 0.5 : 1 }}>
+      <button className="panel-btn panel-btn-full" onClick={handleCommit} disabled={!!placeError}>
         {t('btn_commit')}
       </button>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={handleCancel}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
         {t('btn_cancel')}
       </button>
     </>

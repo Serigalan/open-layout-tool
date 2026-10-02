@@ -97,7 +97,7 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
             )}
           </div>
         ))}
-        <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+        <button className="panel-btn panel-btn-full mt-2"
           onClick={() => addRange(field, defaultType)}>
           {t('cross_section_add_range')}
         </button>
@@ -144,12 +144,12 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
           <ClearanceScanSection track={track} onShowCrossSection={onShowCrossSection} />
 
           {!shown && (
-            <button className="panel-btn panel-btn-full" style={{ marginTop: 8 }}
+            <button className="panel-btn panel-btn-full mt-8"
               onClick={() => onShowCrossSection?.({ trackId, station: crossSectionAt?.station ?? 0 })}>
               {t('cross_section_show')}
             </button>
           )}
-          <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={clear}>
+          <button className="panel-btn panel-btn-full mt-2 secondary" onClick={clear}>
             {t('btn_cancel')}
           </button>
         </>

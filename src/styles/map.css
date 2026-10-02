@@ -1,0 +1,58 @@
+/* The map pane and what sits on the map: the elevation legend. */
+
+/* Map: the pane beside the panels, the map filling it, overlays above it */
+.map-pane {
+  flex: 1;
+  position: relative;
+}
+
+/* Two classes: MapLibre's own .maplibregl-map sets position: relative. */
+.map-pane > .map-container {
+  position: absolute;
+  inset: 0;
+}
+
+/* Elevation legend — top left of the map, clear of the navigation control and
+   of the track table that covers the lower half. */
+.elevation-legend {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--color-text);
+  pointer-events: none;
+}
+
+.elevation-legend-title {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+
+.elevation-legend-body {
+  display: flex;
+  gap: 6px;
+}
+
+.elevation-legend-bar {
+  width: 14px;
+  height: 120px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 2px;
+}
+
+.elevation-legend-ticks {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 122px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}

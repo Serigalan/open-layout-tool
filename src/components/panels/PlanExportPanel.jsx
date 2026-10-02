@@ -321,7 +321,7 @@ export default function PlanExportPanel({ onShowPlanPreview }) {
   return (
     <>
       <h2>{t('plan_title')}</h2>
-      <p style={{ fontSize: 12, color: '#888', marginTop: 0 }}>{t('plan_intro')}</p>
+      <p className="msg-hint m-0">{t('plan_intro')}</p>
 
       <div className="element-form">
         <div className="form-field">
@@ -466,16 +466,16 @@ export default function PlanExportPanel({ onShowPlanPreview }) {
       </div>
 
       {status && (
-        <p style={{ color: status.error ? '#e74c3c' : '#5b9bd5', fontSize: 12, marginTop: 4 }}>
+        <p className={status.error ? 'msg-error' : 'msg-info'}>
           {status.msg}
         </p>
       )}
 
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 8, opacity: busy ? 0.5 : 1 }}
+      <button className="panel-btn panel-btn-full mt-8"
         onClick={handlePreview} disabled={busy}>
         {busy ? t('plan_busy') : t('plan_preview_btn')}
       </button>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, opacity: busy ? 0.5 : 1 }}
+      <button className="panel-btn panel-btn-full mt-2"
         onClick={handleExport} disabled={busy}>
         {t('plan_export_btn')}
       </button>

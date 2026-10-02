@@ -7,8 +7,6 @@ import { useI18n } from '../../locales/i18nContext'
 
 // The gray line between the two tool groups, the same separator the layers
 // panel draws between its basemap groups.
-const SEPARATOR = { margin: '10px 0', border: 'none', borderTop: '1px solid #ddd' }
-
 function BackButton({ onBack }) {
   const { t } = useI18n()
   return (
@@ -65,7 +63,7 @@ export default function PlatformCrossSectionPanel({ crossSectionAt, onShowCrossS
           {t('platform_new')}
         </button>
       </div>
-      <hr style={SEPARATOR} />
+      <hr className="divider divider-wide" />
       <h2>{t('cross_section_title')}</h2>
       <div className="create-element-options">
         <button className="create-element-btn" onClick={() => setPage('cross_section')}>
@@ -73,7 +71,7 @@ export default function PlatformCrossSectionPanel({ crossSectionAt, onShowCrossS
           {t('cross_section_show')}
         </button>
       </div>
-      <hr style={SEPARATOR} />
+      <hr className="divider divider-wide" />
       <h2>{t('pointcloud_title')}</h2>
       <div className="create-element-options">
         <button className="create-element-btn" onClick={() => setPage('point_clouds')}>

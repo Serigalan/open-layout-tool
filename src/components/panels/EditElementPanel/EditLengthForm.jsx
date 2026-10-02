@@ -13,6 +13,7 @@ import { useMap } from '../../../map/MapContext'
 import usePreview from '../../../map/usePreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import useMapEvents from '../../../map/useMapEvents'
+import { PALETTE } from '../../../styles/palette'
 
 // Layer definitions for usePreview
 const EDIT_PREVIEW_LAYERS = [
@@ -22,7 +23,7 @@ const EDIT_PREVIEW_LAYERS = [
       id: EDIT_LINES_LAYER,
       type: 'line',
       paint: {
-        'line-color': '#ff8c00',
+        'line-color': PALETTE.mapHover,
         'line-width': ZOOM_LINE_WIDTH,
       },
     },
@@ -39,7 +40,7 @@ const EDIT_PREVIEW_LAYERS = [
         'icon-allow-overlap': true,
         'icon-size': ZOOM_ICON_SIZE,
       },
-      paint: { 'icon-color': '#ff8c00' },
+      paint: { 'icon-color': PALETTE.mapHover },
     },
   },
 ]
@@ -137,11 +138,11 @@ export default function EditLengthForm({ onCommitted }) {
           {fill('table_edit_reach', { tracks: String(plan.touchedTrackIds.length), switches: String(plan.touchedSwitchIds.length) })}
         </p>
       )}
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 8, opacity: plan?.error ? 0.5 : 1 }}
+      <button className="panel-btn panel-btn-full mt-8"
         onClick={handleCommit} disabled={!!plan?.error}>
         {t('btn_commit')}
       </button>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
         {t('btn_cancel')}
       </button>
     </>

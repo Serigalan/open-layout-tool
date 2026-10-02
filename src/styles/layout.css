@@ -1,0 +1,57 @@
+/* The page: the flex row of sidebar, panel and map, and the icon sidebar. */
+
+.layout {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+
+/* Primary icon sidebar */
+.sidebar-primary {
+  width: 52px;
+  flex-shrink: 0;
+  background: var(--color-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  z-index: 10;
+}
+
+.sidebar-top,
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  padding: 0;
+}
+
+.sidebar-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sidebar-icon-btn.active {
+  background: rgba(255, 255, 255, 0.2);
+}

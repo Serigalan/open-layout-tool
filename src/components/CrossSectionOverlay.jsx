@@ -23,6 +23,7 @@ import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import { useProject } from '../hooks/useStore'
 import usePreview from '../map/usePreview'
+import { PALETTE } from '../styles/palette'
 
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
@@ -33,17 +34,17 @@ const DEFAULT_REACH = 20
 const MAX_REACH = 100
 /** Wait after the last move of the slider before the terrain is read [ms]. */
 const TERRAIN_DEBOUNCE = 250
-const TERRAIN_COLOR = '#2e8b3a'
+const TERRAIN_COLOR = PALETTE.terrain
 /** Terrain is read at least this far either side of the track [m]. */
 const MIN_TERRAIN_HALF = 40
-const ASSUMED_COLOR = '#8a8a8a'
+const ASSUMED_COLOR = PALETTE.assumed
 /** Slice thickness of the point cloud unless the user says otherwise [cm]. */
 const DEFAULT_THICKNESS = 10
 const MAX_THICKNESS = 100
 /** How far beyond the reach the point cloud is still read [m] — the drawing runs past the outer tracks. */
 const CLOUD_MARGIN = 5
-const CLOUD_COLOR = '#7a5a14'
-const CLEAR_COLOR = '#1f7a3a'
+const CLOUD_COLOR = PALETTE.cloud
+const CLEAR_COLOR = PALETTE.clear
 /** How far the drawing can be zoomed out and in, relative to the fitted view. */
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 200
@@ -59,7 +60,7 @@ const MARKER_LAYERS = [{
   sourceId: LINE_SOURCE,
   layer: {
     id: 'cross-section-line-layer', type: 'line',
-    paint: { 'line-color': '#a52a1f', 'line-width': 1.5, 'line-dasharray': [3, 2] },
+    paint: { 'line-color': PALETTE.mapSelected, 'line-width': 1.5, 'line-dasharray': [3, 2] },
   },
 }, {
   sourceId: MARKER_SOURCE,
@@ -67,9 +68,9 @@ const MARKER_LAYERS = [{
     id: 'cross-section-marker-layer', type: 'circle',
     paint: {
       'circle-radius': 6,
-      'circle-color': '#a52a1f',
+      'circle-color': PALETTE.mapSelected,
       'circle-stroke-width': 2,
-      'circle-stroke-color': '#ffffff',
+      'circle-stroke-color': PALETTE.white,
     },
   },
 }]
@@ -442,7 +443,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
       .map(p => heightName(p.cloud.heightEpsg)))]
     const mm = (d) => Math.round(d).toLocaleString()
     let check = null
-    if (!clearance) check = { text: t('cross_section_clearance_no_gradient'), color: '#888' }
+    if (!clearance) check = { text: t('cross_section_clearance_no_gradient'), color: PALETTE.muted }
     else if (clearance.inside) {
       check = {
         text: fill('cross_section_clearance_hit', { n: clearance.inside.toLocaleString(), mm: mm(clearance.deepest.distance) }),
@@ -485,7 +486,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
         <title>{t('cross_section_view_hint')}</title>
         {/* the horizontal through this track's running plane, so the cant is
             visible as the angle it is */}
-        <line x1={MARGIN / 2} x2={size.w - MARGIN / 2} y1={Y(0)} y2={Y(0)} stroke="#e4e4ec" strokeDasharray="6 4" />
+        <line x1={MARGIN / 2} x2={size.w - MARGIN / 2} y1={Y(0)} y2={Y(0)} stroke={PALETTE.topOfRail} strokeDasharray="6 4" />
         {/* the ground along the section line */}
         {terrainState.runs?.map((r, i) => (
           <path key={`g${i}`} d={path(r)} fill="none" stroke={TERRAIN_COLOR} strokeWidth="1.2" />
@@ -501,7 +502,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
               <path d={`${path(p.gauge)} Z`} fill={isMain ? 'rgba(108,92,231,0.07)' : 'rgba(108,92,231,0.03)'}
                 stroke="var(--color-primary)" strokeWidth={isMain ? 1.5 : 1} />
               {p.areas.map((a, i) => (
-                <path key={`a${i}`} d={`${path(a)} Z`} fill="#ffffff" fillOpacity="0.6"
+                <path key={`a${i}`} d={`${path(a)} Z`} fill={PALETTE.white} fillOpacity="0.6"
                   stroke="var(--color-primary)" strokeWidth="1" strokeDasharray="5 4" opacity="0.8" />
               ))}
               {/* the platforms beside the track, level while the track leans */}
@@ -510,21 +511,21 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
               ))}
               {/* the superstructure carrying it */}
               {p.sleeper.length > 0 && (
-                <path d={`${path(p.sleeper)} Z`} fill="#d9d4cc" fillOpacity={cloudCount ? 0.45 : 1} stroke="#8d867a" strokeWidth="1" />
+                <path d={`${path(p.sleeper)} Z`} fill={PALETTE.sleeper} fillOpacity={cloudCount ? 0.45 : 1} stroke={PALETTE.sleeperEdge} strokeWidth="1" />
               )}
               {p.rails.map((r, i) => (
-                <path key={`r${i}`} d={`${path(r)} Z`} fill="#6b6b6b" fillOpacity={cloudCount ? 0.35 : 1} stroke="#333" strokeWidth="1" />
+                <path key={`r${i}`} d={`${path(r)} Z`} fill={PALETTE.rail} fillOpacity={cloudCount ? 0.35 : 1} stroke={PALETTE.textStrong} strokeWidth="1" />
               ))}
               {/* the running plane between the running circles */}
               <line x1={X(p.runningCircles[0][0])} y1={Y(p.runningCircles[0][1])}
-                x2={X(p.runningCircles[1][0])} y2={Y(p.runningCircles[1][1])} stroke="#333" strokeWidth="2" />
+                x2={X(p.runningCircles[1][0])} y2={Y(p.runningCircles[1][1])} stroke={PALETTE.textStrong} strokeWidth="2" />
               {/* where the gauge is measured — as ticks, because at this scale
                   the 32.5 mm between face and running circle is a hair's breadth */}
               {p.ticks.map(([[y1, z1], [y2, z2]], i) => (
-                <line key={`f${i}`} x1={X(y1)} y1={Y(z1)} x2={X(y2)} y2={Y(z2)} stroke="#333" strokeWidth="1.5" />
+                <line key={`f${i}`} x1={X(y1)} y1={Y(z1)} x2={X(y2)} y2={Y(z2)} stroke={PALETTE.textStrong} strokeWidth="1.5" />
               ))}
               {p.runningCircles.map(([y, z], i) => (
-                <circle key={`c${i}`} cx={X(y)} cy={Y(z)} r="3.5" fill="#a52a1f" />
+                <circle key={`c${i}`} cx={X(y)} cy={Y(z)} r="3.5" fill={PALETTE.mapSelected} />
               ))}
             </g>
           )
@@ -532,7 +533,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
         {/* heights: of every track's gradient under it, of every platform edge over it */}
         {placed.map((p, n) => (
           <text key={`l${p.track.id}|${p.station}`} x={X(p.axis[0])} y={Y(bottomOf(p)) + 14}
-            fontSize="11" textAnchor="middle" fill={p.level.assumed ? ASSUMED_COLOR : '#444'}
+            fontSize="11" textAnchor="middle" fill={p.level.assumed ? ASSUMED_COLOR : PALETTE.textDark}
             fontStyle={p.level.assumed ? 'italic' : undefined}>
             <tspan x={X(p.axis[0])}>{trackLabel(p, n === 0)}</tspan>
             <tspan x={X(p.axis[0])} dy="13">{`u=${Math.round(Math.abs(p.state?.cant ?? 0))}`}</tspan>
@@ -544,30 +545,30 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
           const ys = outline.map(q => q[0]), top = Math.max(...outline.map(q => q[1]))
           return (
             <text key={`b${p.track.id}|${i}`} x={X((Math.min(...ys) + Math.max(...ys)) / 2)} y={Y(top) - 5}
-              fontSize="11" textAnchor="middle" fill="#444">
+              fontSize="11" textAnchor="middle" fill={PALETTE.textDark}>
               {`BK ${fmt(p.z + height / 1000)} m`}
             </text>
           )
         }))}
-        <text x={X(0)} y={Y(zMax) - 8} fontSize="11" fill="#777" textAnchor="middle">
+        <text x={X(0)} y={Y(zMax) - 8} fontSize="11" fill={PALETTE.label} textAnchor="middle">
           {`${t(gaugeProfileLabelKey(profile.id))} · ${LICHTRAUM_SOURCE}`}
         </text>
-        <text x={MARGIN / 2} y={size.h - 8} fontSize="11" fill={terrainState.runs ? TERRAIN_COLOR : '#888'}>
+        <text x={MARGIN / 2} y={size.h - 8} fontSize="11" fill={terrainState.runs ? TERRAIN_COLOR : PALETTE.muted}>
           {terrainState.text}
         </text>
         {cloudState && (
           <text x={MARGIN / 2} y={16} fontSize="11" fill={CLOUD_COLOR}
-            stroke="#fff" strokeWidth="3" paintOrder="stroke" strokeLinejoin="round">
+            stroke={PALETTE.white} strokeWidth="3" paintOrder="stroke" strokeLinejoin="round">
             <tspan x={MARGIN / 2}>{cloudState.text}</tspan>
             {cloudState.check && (
               <tspan x={MARGIN / 2} dy="13" fill={cloudState.check.color} fontWeight="600">{cloudState.check.text}</tspan>
             )}
             {cloudState.check && clearance && (
-              <tspan x={MARGIN / 2} dy="13" fill="#888">
+              <tspan x={MARGIN / 2} dy="13" fill={PALETTE.muted}>
                 {fill('cross_section_clearance_band', { mm: String(BOTTOM_BAND) })}
               </tspan>
             )}
-            {cloudState.datum && <tspan x={MARGIN / 2} dy="13" fill="#b35c00">{cloudState.datum}</tspan>}
+            {cloudState.datum && <tspan x={MARGIN / 2} dy="13" fill={PALETTE.datumNote}>{cloudState.datum}</tspan>}
           </text>
         )}
         {/* the point reaching deepest into the outline, or the nearest outside it */}
@@ -576,7 +577,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
             <circle cx={X(p.y * 1000)} cy={Y((p.z - zRef) * 1000)} r="6" fill="none"
               stroke={clearance.inside ? INTRUSION_COLOR : CLEAR_COLOR} strokeWidth="1.5" />
             <text x={X(p.y * 1000) + 9} y={Y((p.z - zRef) * 1000) - 6} fontSize="11"
-              fill={clearance.inside ? INTRUSION_COLOR : CLEAR_COLOR} stroke="#fff" strokeWidth="3" paintOrder="stroke">
+              fill={clearance.inside ? INTRUSION_COLOR : CLEAR_COLOR} stroke={PALETTE.white} strokeWidth="3" paintOrder="stroke">
               {`${Math.round(p.distance)} mm`}
             </text>
           </g>

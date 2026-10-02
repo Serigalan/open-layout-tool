@@ -1,0 +1,137 @@
+/* Point clouds: the import form, the list, the text preview, the cloud under the cross section. */
+
+/* Point clouds (Phase 11): the import form, its progress, the list. */
+.pointcloud-import,
+.pointcloud-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pointcloud-progress progress {
+  width: 100%;
+}
+
+.pointcloud-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.panel-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pointcloud-meta {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: #666;
+}
+
+.pointcloud-list-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-m);
+  margin: 14px 0 4px;
+}
+
+.pointcloud-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border-soft);
+  font-family: var(--font-ui);
+  font-size: var(--fs-m);
+}
+
+.pointcloud-item .pointcloud-actions {
+  margin-top: 4px;
+}
+
+.pointcloud-item .modal-btn {
+  padding: 4px 10px;
+  font-size: var(--fs-s);
+}
+
+.pointcloud-storage {
+  margin-top: 10px;
+}
+
+/* The first points of a cloud file as text, before it is imported. */
+.pointcloud-text-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 4px 10px;
+  font-size: var(--fs-s);
+}
+
+.pointcloud-text-modal {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  gap: 12px;
+  font-family: var(--font-ui);
+}
+
+.pointcloud-text {
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  max-height: 60vh;
+  padding: 8px 10px;
+  background: #f6f6f8;
+  border: 1px solid #e2e2e6;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--fs-s);
+  line-height: 1.45;
+  tab-size: 16;
+  white-space: pre;
+  user-select: text;
+}
+
+/* The point cloud under the cross section's drawing (AP 11.4): same box, the
+   SVG over it. */
+.cross-section-cloud {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.profile-body .cross-section-svg {
+  position: relative;
+}
+
+.cross-section-coloring {
+  font-size: var(--fs-s);
+}
+
+/* With the point cloud's controls the header's row runs out of room on a
+   narrower window: it wraps instead of squeezing the texts into columns. */
+.cross-section-header {
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.cross-section-header .track-table-title,
+.cross-section-header .profile-hint {
+  white-space: nowrap;
+}
+
+.cross-section-header .profile-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
+}
+
+.clearance-stretches {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clearance-stretch {
+  font-size: var(--fs-s);
+  color: var(--color-danger);
+}

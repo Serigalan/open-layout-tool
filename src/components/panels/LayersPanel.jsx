@@ -16,17 +16,6 @@ const THUMBNAIL = {
 
 const GROUPS = ['worldwide', 'france', 'germany']
 
-const GROUP_LABEL = {
-  fontSize: 11,
-  fontWeight: 600,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  color: '#888',
-  margin: '6px 0 6px',
-}
-
-const SEPARATOR = { margin: '10px 0', border: 'none', borderTop: '1px solid #ddd' }
-
 /** The overlays the list offers, in its order: key into `kmOverlays` and label. */
 const KM_OVERLAY_ENTRIES = [
   ['db', 'overlay_km_lines'],
@@ -48,8 +37,8 @@ export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays
         const items = BASEMAPS.filter((b) => b.group === group)
         return (
           <div key={group}>
-            {i > 0 && <hr style={SEPARATOR} />}
-            <p style={GROUP_LABEL}>{t(`layers_group_${group}`)}</p>
+            {i > 0 && <hr className="divider divider-wide" />}
+            <p className="layers-group-label">{t(`layers_group_${group}`)}</p>
             <div className="basemap-grid">
               {items.map((basemap) => (
                 <button
@@ -96,7 +85,7 @@ export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays
           what is switched on and off are the overlays inside it. The gap is the
           one the tiles keep between themselves, so it reads as the next entry
           rather than a section of its own. */}
-      <div className="basemap-grid" style={{ marginTop: 8 }}>
+      <div className="basemap-grid mt-8">
         <button
           className={`basemap-tile basemap-tile-full ${anyOverlay ? 'active' : ''}`}
           onClick={() => setOverlaysExpanded((v) => !v)}

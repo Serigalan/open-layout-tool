@@ -45,7 +45,7 @@ export default function SwitchCantField({ cant, onCant, reason, onReason, label,
             type="text" value={reason}
             placeholder={t('switch_cant_exception_placeholder')}
             onChange={e => onReason(e.target.value)}
-            style={reason.trim() ? undefined : { borderColor: '#c0392b' }}
+            className={reason.trim() ? undefined : 'input-error'}
           />
           <span className="selecting-hint">{t('switch_cant_exception_hint')}</span>
         </div>

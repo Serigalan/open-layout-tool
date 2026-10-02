@@ -44,7 +44,7 @@ function ExchangeSection({ title, description, children }) {
     <div className="element-form">
       <span className="create-element-section">{title}</span>
       {description && (
-        <p style={{ margin: 0, fontSize: 12, color: '#555', fontFamily: 'system-ui, sans-serif', lineHeight: 1.4 }}>
+        <p className="msg-hint">
           {description}
         </p>
       )}
@@ -58,14 +58,14 @@ function EsnFileSlot({ label, inputRef, accept, onChange, file, pickLabel, remov
   return (
     <div className="form-field">
       <label>{label}</label>
-      <input ref={inputRef} type="file" accept={accept} style={{ display: 'none' }} onChange={onChange} />
+      <input hidden ref={inputRef} type="file" accept={accept} onChange={onChange} />
       {file ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ flex: 1, minWidth: 0, fontFamily: 'system-ui, sans-serif' }}>
-            <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={file.name}>
+        <div className="row">
+          <div className="grow">
+            <div className="file-slot-name text-ellipsis" title={file.name}>
               {file.name}
             </div>
-            <div style={{ fontSize: 11, color: '#666' }}>{file.detail}</div>
+            <div className="msg-hint msg-small">{file.detail}</div>
           </div>
           <button className="panel-btn" onClick={onRemove} title={removeLabel}>✕</button>
         </div>
@@ -716,49 +716,47 @@ export default function DataExchangePanel({ onShowCompare }) {
       </ExchangeSection>
 
       <ExchangeSection title={t('compare_with_file')} description={t('compare_with_file_desc')}>
-        <input
+        <input hidden
           ref={compareInputRef}
           type="file"
           accept=".json,application/json"
-          style={{ display: 'none' }}
+
           onChange={handleCompareFile}
         />
         <button className="panel-btn panel-btn-full" disabled={!project} onClick={() => compareInputRef.current?.click()}>
           {t('compare_with_file')}
         </button>
         {compareError && (
-          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+          <p className="msg-error msg-small">
             {compareError}
           </p>
         )}
       </ExchangeSection>
 
       <ExchangeSection title={t('data_exchange_tracks')}>
-        <input
+        <input hidden
           ref={trackImportRef}
           type="file"
           accept=".json,application/json"
-          style={{ display: 'none' }}
+
           onChange={handleTracksImport}
         />
         <button className="panel-btn panel-btn-full" disabled={!project} onClick={() => trackImportRef.current?.click()}>
           {t('data_exchange_import')}
         </button>
         {tracksImportError && (
-          <p style={{ color: '#e74c3c', fontSize: 12, margin: '4px 0' }}>{tracksImportError}</p>
+          <p className="msg-error">{tracksImportError}</p>
         )}
-        <hr style={{ border: 'none', borderTop: '1px solid #ddd', margin: '6px 0' }} />
-        <div style={{ display: 'flex', gap: 6 }}>
+        <hr className="divider" />
+        <div className="row">
           <button
-            className="panel-btn panel-btn-full"
-            style={{ flex: 1, background: phase === 'selecting' ? 'var(--color-primary)' : undefined }}
+            className={`panel-btn panel-btn-full grow ${phase === 'selecting' ? 'active' : ''}`}
             onClick={() => setPhase(p => p === 'selecting' ? 'idle' : 'selecting')}
           >
             {t('data_exchange_select')}
           </button>
           <button
-            className="panel-btn panel-btn-full"
-            style={{ flex: 1, opacity: selectedIds.size ? 1 : 0.4 }}
+            className="panel-btn panel-btn-full grow"
             onClick={handleTracksExport}
             disabled={!selectedIds.size}
           >
@@ -766,19 +764,11 @@ export default function DataExchangePanel({ onShowCompare }) {
           </button>
         </div>
         {selectedTracks.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
+          <div className="mt-4 stack-tight">
             {selectedTracks.map(tr => (
-              <div
-                key={tr.id}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '3px 8px', borderRadius: 4, background: '#e8e8f4',
-                  fontSize: 12, fontFamily: 'system-ui, sans-serif', color: 'var(--color-primary)',
-                }}
-              >
+              <div key={tr.id} className="chip">
                 <span>{trackLabel(tr)}</span>
-                <span
-                  style={{ cursor: 'pointer', marginLeft: 6, color: '#999', fontWeight: 700 }}
+                <span className="chip-remove"
                   onClick={() => setSelectedIds(prev => { const n = new Set(prev); n.delete(tr.id); return n })}
                 >
                   ×
@@ -829,7 +819,7 @@ export default function DataExchangePanel({ onShowCompare }) {
               {HEIGHT_DATUMS.map(d => <option key={d.epsg} value={d.epsg}>{`EPSG ${d.epsg} – ${d.label}`}</option>)}
             </select>
             {gra.code && (
-              <span style={{ fontSize: 11, color: '#666', fontFamily: 'system-ui, sans-serif' }}>
+              <span className="msg-hint msg-small">
                 {fill('data_exchange_vermesn_height_code', { code: gra.code })}
               </span>
             )}
@@ -843,17 +833,17 @@ export default function DataExchangePanel({ onShowCompare }) {
           {t('data_exchange_import')}
         </button>
         {esnDone && (
-          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#27ae60', fontFamily: 'system-ui, sans-serif' }}>{esnDone}</p>
+          <p className="msg-ok msg-small">{esnDone}</p>
         )}
         {(esnErrors.length > 0 || esnNotes.length > 0) && (
-          <div style={{ marginTop: 6 }}>
+          <div className="mt-6">
             {esnErrors.map((err, i) => (
-              <p key={i} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+              <p className="msg-error msg-small" key={i} >
                 {err}
               </p>
             ))}
             {esnNotes.map((note, i) => (
-              <p key={`n${i}`} style={{ margin: '2px 0', fontSize: 11, color: '#b9770e', fontFamily: 'system-ui, sans-serif' }}>
+              <p className="msg-warn msg-small" key={`n${i}`} >
                 {note}
               </p>
             ))}
@@ -869,30 +859,22 @@ export default function DataExchangePanel({ onShowCompare }) {
           href={OSRD_URL}
           target="_blank"
           rel="noreferrer"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            color: 'var(--color-primary)', fontFamily: 'system-ui, sans-serif', fontSize: 13,
-            fontWeight: 500, textDecoration: 'none',
-          }}
+          className="external-link"
         >
           {t('data_exchange_osrd_open')}
           <ExternalLinkIcon color="var(--color-primary)" />
         </a>
-        <input ref={osrdInputRef} type="file" accept=".json,application/json"
-          style={{ display: 'none' }} onChange={handleOsrdImport} />
+        <input hidden ref={osrdInputRef} type="file" accept=".json,application/json"
+           onChange={handleOsrdImport} />
         {/* While the export is fresh the section shows the way on to OSRD in
             place of its own two buttons: that is the only thing there is to do
             with the file that just landed. */}
         {osrdExported ? (
           <a
-            className="panel-btn panel-btn-full"
             href={OSRD_URL}
             target="_blank"
             rel="noreferrer"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 5, textDecoration: 'none', boxSizing: 'border-box',
-            }}
+            className="panel-btn panel-btn-full link-as-btn"
           >
             {t('data_exchange_osrd_continue')}
             <ExternalLinkIcon color="currentColor" />
@@ -902,16 +884,16 @@ export default function DataExchangePanel({ onShowCompare }) {
             <button className="panel-btn panel-btn-full" onClick={handleOsrdExport}>
               {t('data_exchange_export')}
             </button>
-            <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+            <button className="panel-btn panel-btn-full mt-2"
               onClick={() => osrdInputRef.current?.click()}>
               {t('data_exchange_import')}
             </button>
           </>
         )}
         {osrdErrors.length > 0 && (
-          <div style={{ marginTop: 6 }}>
+          <div className="mt-6">
             {osrdErrors.map((msg, i) => (
-              <div key={i} style={{ color: '#e74c3c', fontSize: 12, fontFamily: 'system-ui, sans-serif' }}>
+              <div className="msg-error" key={i} >
                 {msg}
               </div>
             ))}
@@ -935,11 +917,11 @@ export default function DataExchangePanel({ onShowCompare }) {
         </ExchangeSection>
 
           <ExchangeSection title={t('data_exchange_csv')} description={t('data_exchange_csv_desc')}>
-            <input
+            <input hidden
               ref={csvInputRef}
               type="file"
               accept=".csv,text/csv"
-              style={{ display: 'none' }}
+
               onChange={handleCsvFile}
             />
             <button
@@ -951,16 +933,15 @@ export default function DataExchangePanel({ onShowCompare }) {
             </button>
             {csvStrecken.length > 0 && (
               <>
-                <input
+                <input hidden
                   ref={cantInputRef}
                   type="file"
                   accept=".csv,text/csv"
-                  style={{ display: 'none' }}
+
                   onChange={handleCantFile}
                 />
                 <button
-                  className="panel-btn panel-btn-full"
-                  style={{ marginTop: 2 }}
+                  className="panel-btn panel-btn-full mt-2"
                   disabled={csvBusy}
                   onClick={() => cantInputRef.current?.click()}
                 >
@@ -968,7 +949,7 @@ export default function DataExchangePanel({ onShowCompare }) {
                     ? fill('data_exchange_csv_cant_loaded', { n: cantCount })
                     : t('data_exchange_csv_cant')}
                 </button>
-                <div className="form-field" style={{ marginTop: 6 }}>
+                <div className="form-field mt-6">
                   <label>{t('data_exchange_csv_source_crs')}</label>
                   <select className="settings-select" value={csvSourceEpsg}
                     onChange={e => setCsvSourceEpsg(e.target.value)}>
@@ -995,16 +976,16 @@ export default function DataExchangePanel({ onShowCompare }) {
                     ))}
                   </select>
                 </div>
-                <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+                <button className="panel-btn panel-btn-full mt-2"
                   disabled={!csvStrecke} onClick={handleCsvImport}>
                   {t('data_exchange_import')}
                 </button>
               </>
             )}
             {csvErrors.length > 0 && (
-              <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto' }}>
+              <div className="mt-6 scroll-list">
                 {csvErrors.map((err, i) => (
-                  <p key={i} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+                  <p className="msg-error msg-small" key={i} >
                     {err}
                   </p>
                 ))}
@@ -1012,11 +993,11 @@ export default function DataExchangePanel({ onShowCompare }) {
             )}
           </ExchangeSection>
           <ExchangeSection title={t('data_exchange_mdb')} description={t('data_exchange_mdb_desc')}>
-            <input
+            <input hidden
               ref={mdbInputRef}
               type="file"
               accept=".mdb,.MDB,application/x-msaccess"
-              style={{ display: 'none' }}
+
               onChange={handleMdbFile}
             />
             <button
@@ -1033,7 +1014,7 @@ export default function DataExchangePanel({ onShowCompare }) {
             )}
             {mdbStrecken.length > 0 && (
               <>
-                <div className="form-field" style={{ marginTop: 6 }}>
+                <div className="form-field mt-6">
                   <label>{t('data_exchange_csv_line')}</label>
                   <select className="settings-select" value={mdbStrecke}
                     onChange={e => setMdbStrecke(e.target.value)}>
@@ -1050,16 +1031,16 @@ export default function DataExchangePanel({ onShowCompare }) {
                     onChange={e => setMdbSwitches(e.target.checked)} />
                   <span>{t('data_exchange_mdb_switches')}</span>
                 </label>
-                <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+                <button className="panel-btn panel-btn-full mt-2"
                   disabled={!mdbStrecke} onClick={handleMdbImport}>
                   {t('data_exchange_import')}
                 </button>
               </>
             )}
             {mdbErrors.length > 0 && (
-              <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto' }}>
+              <div className="mt-6 scroll-list">
                 {mdbErrors.map((err, i) => (
-                  <p key={i} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+                  <p className="msg-error msg-small" key={i} >
                     {err}
                   </p>
                 ))}
@@ -1070,8 +1051,8 @@ export default function DataExchangePanel({ onShowCompare }) {
             title={t('data_exchange_dbref')}
             description={t('data_exchange_dbref_desc')}
           >
-            <input ref={dbrefInputRef} type="file" accept=".mdb,.accdb,application/x-msaccess"
-              style={{ display: 'none' }} onChange={handleDbrefFile} />
+            <input hidden ref={dbrefInputRef} type="file" accept=".mdb,.accdb,application/x-msaccess"
+               onChange={handleDbrefFile} />
             <button className="panel-btn panel-btn-full" disabled={!project || dbrefBusy}
               onClick={() => dbrefInputRef.current?.click()}
             >
@@ -1084,7 +1065,7 @@ export default function DataExchangePanel({ onShowCompare }) {
             )}
             {dbrefStrecken.length > 0 && (
               <>
-                <div className="form-field" style={{ marginTop: 6 }}>
+                <div className="form-field mt-6">
                   <label>{t('data_exchange_csv_line')}</label>
                   <select className="settings-select" value={dbrefStrecke}
                     onChange={e => setDbrefStrecke(e.target.value)}>
@@ -1096,7 +1077,7 @@ export default function DataExchangePanel({ onShowCompare }) {
                     ))}
                   </select>
                 </div>
-                <div className="form-field" style={{ marginTop: 6 }}>
+                <div className="form-field mt-6">
                   <label>{t('data_exchange_dbref_target')}</label>
                   <select className="settings-select" value={dbrefTarget}
                     onChange={e => setDbrefTarget(e.target.value)}>
@@ -1110,16 +1091,16 @@ export default function DataExchangePanel({ onShowCompare }) {
                     onChange={e => setDbrefSwitches(e.target.checked)} />
                   <span>{t('data_exchange_mdb_switches')}</span>
                 </label>
-                <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+                <button className="panel-btn panel-btn-full mt-2"
                   disabled={!dbrefStrecke || dbrefBusy} onClick={handleDbrefImport}>
                   {t('data_exchange_import')}
                 </button>
               </>
             )}
             {dbrefErrors.length > 0 && (
-              <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto' }}>
+              <div className="mt-6 scroll-list">
                 {dbrefErrors.map((err, i) => (
-                  <p key={i} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+                  <p className="msg-error msg-small" key={i} >
                     {err}
                   </p>
                 ))}
@@ -1135,7 +1116,7 @@ export default function DataExchangePanel({ onShowCompare }) {
             )}
             {reports.map((r, i) => (
               <div key={r.at}>
-                <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+                <button className="panel-btn panel-btn-full mt-2"
                   aria-expanded={openReport === i}
                   onClick={() => setOpenReport(openReport === i ? null : i)}>
                   {fill('data_exchange_reports_entry', { when: new Date(r.at).toLocaleString(), source: r.source ?? '', n: r.lines?.length ?? 0 })}
@@ -1145,9 +1126,9 @@ export default function DataExchangePanel({ onShowCompare }) {
                     <p className="selecting-hint">
                       {fill('data_exchange_reports_result', { tracks: r.tracks ?? 0, switches: r.switches ?? 0 })}
                     </p>
-                    <div style={{ marginTop: 4, maxHeight: 220, overflowY: 'auto' }}>
+                    <div className="mt-4 scroll-list-tall">
                       {(r.lines ?? []).map((line, j) => (
-                        <p key={j} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
+                        <p className="msg-error msg-small" key={j} >
                           {line}
                         </p>
                       ))}
@@ -1157,7 +1138,7 @@ export default function DataExchangePanel({ onShowCompare }) {
                         </p>
                       )}
                     </div>
-                    <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+                    <button className="panel-btn panel-btn-full mt-2"
                       onClick={() => downloadText(
                         [r.source, new Date(r.at).toISOString(), '', ...(r.lines ?? [])].join('\n'),
                         `import-${new Date(r.at).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`)}>
@@ -1168,7 +1149,7 @@ export default function DataExchangePanel({ onShowCompare }) {
               </div>
             ))}
             {reports.length > 0 && (
-              <button className="panel-btn panel-btn-full" style={{ marginTop: 6 }}
+              <button className="panel-btn panel-btn-full mt-6"
                 onClick={() => { clearImportReports(); setReports([]); setOpenReport(null) }}>
                 {t('data_exchange_reports_clear')}
               </button>
@@ -1181,9 +1162,9 @@ export default function DataExchangePanel({ onShowCompare }) {
             <button className="panel-btn panel-btn-full" disabled={!project} onClick={handleExchangeExport}>
               {t('data_exchange_export')}
             </button>
-            <input ref={exchangeInputRef} type="file" accept=".json,application/json"
-              style={{ display: 'none' }} onChange={handleOsrdImport} />
-            <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+            <input hidden ref={exchangeInputRef} type="file" accept=".json,application/json"
+               onChange={handleOsrdImport} />
+            <button className="panel-btn panel-btn-full mt-2"
               disabled={!project} onClick={() => exchangeInputRef.current?.click()}>
               {t('data_exchange_import')}
             </button>

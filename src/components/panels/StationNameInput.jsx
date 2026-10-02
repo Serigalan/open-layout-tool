@@ -65,14 +65,13 @@ export default function StationNameInput({ value, onChange, onSelectSuggestion }
   }, [])
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+    <div ref={containerRef} className="station-name-input">
       <input
         type="text"
         value={value}
         onChange={onChange}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         autoComplete="off"
-        style={{ width: '100%', boxSizing: 'border-box' }}
       />
       {open && (
         <ul className="uic-suggestions">

@@ -19,6 +19,7 @@ import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
 import usePreview from '../../map/usePreview'
 import Modal from '../Modal'
+import { PALETTE } from '../../styles/palette'
 
 /**
  * Every plane a cloud may be stated in — all of them projStringFor knows, not
@@ -45,7 +46,7 @@ const OUTLINE_LAYERS = [{
   sourceId: OUTLINE_SOURCE,
   layer: {
     id: 'pointcloud-outline-layer', type: 'line',
-    paint: { 'line-color': '#c0601a', 'line-width': 1.5, 'line-dasharray': [2, 1.5] },
+    paint: { 'line-color': PALETTE.cloudOutline, 'line-width': 1.5, 'line-dasharray': [2, 1.5] },
   },
 }]
 const count = (n) => Number(n).toLocaleString()
@@ -205,7 +206,7 @@ export default function PointCloudPanel() {
           {t('pointcloud_import')}
         </button>
       )}
-      <input ref={fileRef} type="file" accept=".laz,.las" style={{ display: 'none' }} onChange={onFile} />
+      <input hidden ref={fileRef} type="file" accept=".laz,.las" onChange={onFile} />
 
       {pick && (
         <div className="pointcloud-import">

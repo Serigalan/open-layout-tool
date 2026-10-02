@@ -134,11 +134,10 @@ export default function ParallelTrackForm({ onDone }) {
               about the track it was drawn beside. */}
           {elements && <RuleFindings elements={elements} />}
           <button className="panel-btn panel-btn-full"
-            style={{ opacity: (elements && !blocked) ? 1 : 0.5 }}
             disabled={!elements || blocked} onClick={handleCommit}>
             {t('btn_commit')}
           </button>
-          <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onDone}>
+          <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onDone}>
             {t('btn_cancel')}
           </button>
         </>

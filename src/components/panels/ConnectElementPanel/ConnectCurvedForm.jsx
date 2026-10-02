@@ -303,10 +303,10 @@ export default function ConnectCurvedForm({ onCommitted }) {
           <>
             <RuleFindings element={element} />
             <button className="panel-btn panel-btn-full" onClick={handleCommit}
-              disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
+              disabled={blocked}>
               {t('btn_commit')}
             </button>
-            <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>
+            <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
               {t('btn_cancel')}
             </button>
           </>

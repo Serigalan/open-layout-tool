@@ -46,10 +46,10 @@ export default function TrackFields({ fields, setField, name, onNameChange, name
               type="number"
               value={lineNumber}
               onChange={(e) => setField('lineNumber', e.target.value)}
-              style={lineErr ? { borderColor: '#e74c3c' } : undefined}
+              className={lineErr ? 'input-error' : undefined}
             />
             {lineErr && (
-              <span style={{ color: '#e74c3c', fontSize: '11px', fontFamily: 'system-ui, sans-serif' }}>
+              <span className="msg-error msg-small">
                 {t(lineErr === 'db' ? 'line_number_error_db' : 'line_number_error_sncf')}
               </span>
             )}
@@ -87,9 +87,9 @@ export default function TrackFields({ fields, setField, name, onNameChange, name
                 type="text"
                 value={name ?? ''}
                 onChange={(e) => onNameChange(e.target.value)}
-                style={nameError ? { borderColor: 'red' } : undefined}
+                className={nameError ? 'input-error' : undefined}
               />
-              {nameError && <span style={{ color: '#e74c3c', fontSize: '11px', fontFamily: 'system-ui, sans-serif' }}>{t('track_name_exists')}</span>}
+              {nameError && <span className="msg-error msg-small">{t('track_name_exists')}</span>}
             </div>
           )}
           <div className="form-field">
@@ -131,9 +131,9 @@ export default function TrackFields({ fields, setField, name, onNameChange, name
                 type="text"
                 value={name ?? ''}
                 onChange={(e) => onNameChange(e.target.value)}
-                style={nameError ? { borderColor: 'red' } : undefined}
+                className={nameError ? 'input-error' : undefined}
               />
-              {nameError && <span style={{ color: '#e74c3c', fontSize: '11px', fontFamily: 'system-ui, sans-serif' }}>{t('track_name_exists')}</span>}
+              {nameError && <span className="msg-error msg-small">{t('track_name_exists')}</span>}
             </div>
           )}
         </>

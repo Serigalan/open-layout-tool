@@ -1,0 +1,827 @@
+/* The panel pane and what the panels are made of: headings, buttons, fields, lists, the basemap grid, settings. */
+
+/* Secondary panel */
+.sidebar-secondary {
+  width: 320px;
+  flex-shrink: 0;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 20px;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  border-right: 2px solid var(--color-border);
+  overflow-y: auto;
+  z-index: 9;
+  box-sizing: border-box;
+}
+
+.sidebar-secondary h2 {
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.sidebar-secondary p {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-text-soft);
+  margin: 0;
+}
+
+.panel-btn {
+  align-self: flex-start;
+  padding: 8px 16px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  /* Stated rather than left to the browser: a button takes the platform's own
+     form font, an anchor styled as one takes the page's, and the two do not
+     match. */
+  font-family: var(--font-ui);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.panel-btn:hover {
+  background: #2428a0;
+}
+
+.panel-btn-danger {
+  background: var(--color-error);
+}
+
+.panel-btn-danger:hover {
+  background: var(--color-danger);
+}
+
+.panel-btn-full {
+  align-self: stretch;
+  width: 100%;
+  text-align: center;
+}
+
+.preview-tooltip .maplibregl-popup-content {
+  background: rgba(30, 30, 40, 0.85);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  box-shadow: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.preview-tooltip .maplibregl-popup-tip {
+  border-top-color: rgba(30, 30, 40, 0.85);
+}
+
+/* Kilometrage readout of the DB overlay — in the overlay's own colour, so it
+   is never read as belonging to the project's geometry. */
+.km-tooltip .maplibregl-popup-content {
+  background: rgba(15, 118, 110, 0.92);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  box-shadow: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.km-tooltip .maplibregl-popup-tip {
+  border-top-color: rgba(15, 118, 110, 0.92);
+}
+
+.overlay-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Same box as .lv-state-btn, so the two expandable lists in the germany group
+   read as one family — this one just holds a checkbox instead of a button. */
+.overlay-item {
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 6px 10px;
+}
+
+/* The kilometrage lines around the view, offered where a track's line number
+   is asked for. */
+.line-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.line-suggestion {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+  color: #333;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.line-suggestion:hover { background: #f0f0f4; }
+
+.line-suggestion.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.line-suggestion-distance {
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.line-suggestion.active .line-suggestion-distance { color: var(--color-primary); }
+
+.overlay-error {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  margin: 6px 0 0;
+  color: var(--color-map-selected);
+}
+
+.track-label-svg {
+  fill: var(--color-primary);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  stroke: #fff;
+  stroke-width: 3px;
+  paint-order: stroke fill;
+}
+
+.selecting-hint {
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+  color: #6c5ce7;
+  margin: 0;
+  font-style: italic;
+}
+
+.form-error {
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+  color: var(--color-danger);
+  margin: 0;
+}
+
+/* What a dialog says it is about to do, item by item (switch deletion). */
+.form-list {
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+  color: #333;
+  margin: 4px 0 8px;
+  padding-left: 18px;
+}
+
+.form-list li {
+  margin: 2px 0;
+}
+
+.input-error {
+  border-color: var(--color-danger) !important;
+  outline-color: var(--color-danger) !important;
+}
+
+.form-error-required {
+  font-weight: 600;
+  color: var(--color-danger);
+}
+
+/* Basemap tile grid */
+.basemap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.basemap-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 4px;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.basemap-tile:hover {
+  border-color: #aaa;
+}
+
+.basemap-tile.active {
+  border-color: var(--color-primary);
+}
+
+.basemap-thumbnail {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.basemap-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: #333;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.basemap-tile.active .basemap-label {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.basemap-tile-full {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  gap: 10px;
+  justify-content: flex-start;
+  padding: 6px 8px;
+  /* This tile only opens a list, it never becomes "the" active basemap the
+     way the photo tiles do, so it keeps a light border rather than the
+     transparent one .basemap-tile defaults to — otherwise it would vanish
+     into the panel background while unmarked. */
+  border-color: #ddd;
+}
+
+.basemap-tile-full .basemap-thumbnail {
+  width: 60px;
+  aspect-ratio: 4 / 3;
+  flex-shrink: 0;
+}
+
+.lv-state-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lv-state-btn {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: var(--fs-s);
+  cursor: pointer;
+  color: #333;
+  transition: background 0.1s;
+}
+
+.lv-state-btn:hover:not(:disabled) {
+  background: #f0f0f4;
+}
+
+.lv-state-btn.active {
+  color: var(--color-primary);
+  font-weight: 600;
+  border-color: var(--color-primary);
+}
+
+.lv-state-btn:disabled {
+  color: #bbb;
+  cursor: default;
+}
+
+/* Back button */
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  font-family: var(--font-ui);
+  font-size: var(--fs-m);
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0 0 4px;
+  margin-bottom: 4px;
+}
+
+.back-btn:hover {
+  text-decoration: underline;
+}
+
+/* Create Element */
+.create-element-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.create-element-section {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+  margin-top: 8px;
+  margin-bottom: -2px;
+}
+
+.create-element-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-m);
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.create-element-btn:hover {
+  background: #eeeef8;
+  border-color: var(--color-primary);
+}
+
+/* Physics/Regelwerk in the edit panel: pinned to the bottom of the screen
+   rather than the last two entries in a list that might scroll.
+   `.sidebar-secondary` is itself a flex column reaching the full height of
+   the viewport, so `margin-top: auto` on this direct child pushes it all the
+   way down, with a rule above it to keep it visibly apart from the menu. */
+.edit-panel-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* The MathJax-rendered glyphs (v², §) sit a size below the button label by
+   default — align them the way an inline formula sits next to its text. */
+.edit-panel-footer .create-element-btn svg {
+  flex-shrink: 0;
+}
+
+.create-element-btn.active {
+  background: #eeeef8;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+/* A project's tracks under the line or station they belong to. */
+.track-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.track-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.track-group-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  background: none;
+  border: none;
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.track-group-toggle:hover .track-group-title {
+  color: var(--color-primary);
+}
+
+.track-group-caret {
+  display: inline-block;
+  width: 10px;
+  color: var(--color-muted);
+  transition: transform 0.15s;
+}
+
+.track-group-caret.open {
+  transform: rotate(90deg);
+}
+
+.track-group-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-group-count {
+  font-weight: 400;
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+.track-group-all {
+  padding: 2px 6px;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--color-text-soft);
+  cursor: pointer;
+}
+
+.track-group-all:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.track-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 16px;
+}
+
+/* The names tracks take when they are assigned: old → new, one per row. */
+.rename-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+}
+
+.rename-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rename-row input.rename-number {
+  width: 44px;
+  flex-shrink: 0;
+  padding: 3px 5px;
+}
+
+.rename-old {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-muted);
+}
+
+.rename-arrow {
+  color: var(--color-muted);
+}
+
+.rename-new {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.rename-new.fallback {
+  font-style: italic;
+}
+
+.rename-new.clash {
+  color: var(--color-error);
+}
+
+.rename-note {
+  font-size: var(--fs-xs);
+  font-style: italic;
+  color: var(--color-muted);
+}
+
+.create-element-btn.track-group-item {
+  padding: 6px 10px;
+}
+
+.element-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f9f9f9;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.form-field label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--color-text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-field select,
+.form-field input {
+  padding: 5px 8px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  font-size: var(--fs-m);
+  font-family: var(--font-ui);
+  color: var(--color-text);
+  background: white;
+}
+
+.form-field input[readonly] {
+  background: var(--color-surface-alt);
+  color: var(--color-muted);
+}
+
+/* A proposed value the user has overridden: says so, and offers it back. */
+.field-override {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: #6c5ce7;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.uic-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  z-index: 100;
+  max-height: 220px;
+  overflow-y: auto;
+  font-family: var(--font-ui);
+}
+
+.uic-suggestions li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: var(--fs-s);
+  gap: 8px;
+}
+
+.uic-suggestions li:hover {
+  background: #eeeef8;
+}
+
+.uic-suggestion-name {
+  color: var(--color-text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uic-suggestion-uic {
+  color: var(--color-muted);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.form-field select:focus,
+.form-field input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.toggle-switch-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.toggle-switch-wrap span {
+  font-family: var(--font-ui);
+  font-size: var(--fs-m);
+  transition: color 0.2s, font-weight 0.2s;
+  user-select: none;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #ccc;
+  border-radius: 24px;
+  transition: background 0.25s;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.25s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--color-primary);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.coord-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.coord-prefix {
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+  font-weight: 600;
+  color: var(--color-text-soft);
+  min-width: 16px;
+}
+
+.coord-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Settings */
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-m);
+  font-weight: 500;
+  color: #333;
+}
+
+.settings-select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: var(--font-ui);
+  color: var(--color-text);
+  background: #f9f9f9;
+  cursor: pointer;
+}
+
+.settings-select:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.settings-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settings-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+.settings-color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.settings-color-swatch.active {
+  border-color: #fff;
+  outline: 2px solid #333;
+}
+
+/* The two words of a direction toggle (facing/trailing): the chosen one in
+   the project colour. */
+.toggle-label { color: var(--color-faint); font-weight: 400; }
+.toggle-label.active { color: var(--color-primary); font-weight: 600; }
+
+/* Small pieces several panels share. */
+.link-btn { background: none; border: none; padding: 0; text-decoration: underline; cursor: pointer; }
+.list-row { font-size: var(--fs-s); padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border-soft); }
+.divider { border: none; border-top: 1px solid var(--color-border); margin: var(--space-3) 0; }
+.stack-tight { display: flex; flex-direction: column; gap: 3px; }
+.full-width { width: 100%; }
+.panel-btn.active { background: var(--color-primary); }
+.chip {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 3px var(--space-4); border-radius: 4px; background: #e8e8f4;
+  font-size: var(--fs-s); color: var(--color-primary);
+}
+.chip-remove { margin-left: var(--space-3); font-weight: 700; color: var(--color-muted); cursor: pointer; }
+.file-slot-name { font-size: var(--fs-s); }
+.station-name-input { position: relative; width: 100%; }
+.station-name-input input { width: 100%; box-sizing: border-box; }
+.plan-date-input { width: 45%; min-width: 0; }
+.plan-logo-thumb { max-height: 28px; max-width: 80px; background: var(--color-surface); }
+.plan-sketch-thumb { max-height: 40px; max-width: 120px; background: var(--color-surface); }
+
+.external-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--color-primary); font-size: var(--fs-m); font-weight: 500; text-decoration: none;
+}
+.link-as-btn { display: flex; align-items: center; justify-content: center; gap: 5px; text-decoration: none; box-sizing: border-box; }
+
+/* A field whose value the dialog refuses. */
+input.input-error, select.input-error, textarea.input-error { border-color: var(--color-error); }
+
+.divider-wide { margin: 10px 0; }
+.layers-group-label {
+  font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--color-muted); margin: var(--space-3) 0;
+}
+.icon-glyph { color: currentcolor; }
+.icon-glyph-physics { vertical-align: -.025ex; }
+.icon-glyph-paragraph { vertical-align: -.452ex; }

@@ -56,7 +56,7 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
       <p className="selecting-hint">{t('clearance_scan_hint')}</p>
       {run ? (
         <>
-          <progress max={1} value={run.share} style={{ width: '100%' }} />
+          <progress className="full-width" max={1} value={run.share} />
           <button className="panel-btn panel-btn-danger panel-btn-full" onClick={() => abortRef.current?.abort()}>
             {t('btn_cancel')}
           </button>

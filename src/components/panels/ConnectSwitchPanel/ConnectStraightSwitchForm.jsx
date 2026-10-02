@@ -384,14 +384,14 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
   return (
     <>
       <div className="toggle-switch-wrap">
-        <span style={{ color: !trailing ? 'var(--color-primary)' : '#aaa', fontWeight: !trailing ? 600 : 400 }}>
+        <span className={`toggle-label${!trailing ? ' active' : ''}`}>
           {t('switch_facing')}
         </span>
         <label className="toggle-switch">
           <input type="checkbox" checked={trailing} onChange={e => setTrailing(e.target.checked)} />
           <span className="toggle-slider" />
         </label>
-        <span style={{ color: trailing ? 'var(--color-primary)' : '#aaa', fontWeight: trailing ? 600 : 400 }}>
+        <span className={`toggle-label${trailing ? ' active' : ''}`}>
           {t('switch_trailing')}
         </span>
       </div>
@@ -483,10 +483,10 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
         <>
           {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
           {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
-          <button className="panel-btn panel-btn-full" style={{ marginTop: 8, opacity: (cantErr || defErr) ? 0.5 : 1 }} onClick={handleCommit} disabled={!!cantErr || defErr}>
+          <button className="panel-btn panel-btn-full mt-8" onClick={handleCommit} disabled={!!cantErr || defErr}>
             {t('btn_commit')}
           </button>
-          <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={handleCancel}>
+          <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
             {t('btn_cancel')}
           </button>
         </>

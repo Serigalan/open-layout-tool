@@ -15,6 +15,7 @@ import { useI18n } from '../../locales/i18nContext'
 import usePreview from '../../map/usePreview'
 import useMapPick, { useSelectedOnMap } from '../../map/useMapPick'
 import useMapEvents from '../../map/useMapEvents'
+import { PALETTE } from '../../styles/palette'
 
 const PREVIEW_FILL_SOURCE = 'platform-preview-fill-source'
 const PREVIEW_LINE_SOURCE = 'platform-preview-line-source'
@@ -33,7 +34,7 @@ const PREVIEW_LAYERS = [
     sourceId: PREVIEW_LINE_SOURCE,
     layer: {
       id: 'platform-preview-line-layer', type: 'line',
-      paint: { 'line-color': '#ff8c00', 'line-width': 2, 'line-dasharray': [4, 3] },
+      paint: { 'line-color': PALETTE.mapHover, 'line-width': 2, 'line-dasharray': [4, 3] },
     },
   },
 ]
@@ -319,20 +320,20 @@ export default function PlatformPanel() {
 
       {!valid && <p className="form-error">{t('platform_error_range')}</p>}
 
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 8, opacity: valid ? 1 : 0.5 }}
+      <button className="panel-btn panel-btn-full mt-8"
         onClick={handleCommit} disabled={!valid}>
         {t('btn_commit')}
       </button>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
+      <button className="panel-btn panel-btn-full mt-2"
         onClick={() => { setStart(''); setEnd(''); setPicking('start') }}>
         {t('platform_repick')}
       </button>
       {editingId && (
-        <button className="panel-btn panel-btn-full panel-btn-danger" style={{ marginTop: 2 }} onClick={handleDelete}>
+        <button className="panel-btn panel-btn-full panel-btn-danger mt-2" onClick={handleDelete}>
           {t('platform_delete')}
         </button>
       )}
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={reset}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={reset}>
         {t('btn_cancel')}
       </button>
     </>

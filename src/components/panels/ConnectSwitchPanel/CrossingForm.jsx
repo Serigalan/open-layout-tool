@@ -238,7 +238,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
         <p>{t('crossing_hint_select')}</p>
         {pickError && <p className="form-error">{t(pickError)}</p>}
         {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
-        <button className="panel-btn panel-btn-full" style={{ marginTop: 8, background: '#888' }} onClick={handleCancel}>
+        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
           {t('btn_cancel')}
         </button>
       </>
@@ -318,7 +318,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
       <button className="panel-btn panel-btn-full" onClick={handleCommit}>
         {t('btn_commit')}
       </button>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={handleCancel}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
         {t('btn_cancel')}
       </button>
     </>

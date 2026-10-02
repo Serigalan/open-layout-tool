@@ -14,6 +14,7 @@ import { useMap } from '../../map/MapContext'
 import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
 import usePreview from '../../map/usePreview'
 import useMapPick from '../../map/useMapPick'
+import { PALETTE } from '../../styles/palette'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
 const OPTIMIZE_PREVIEW_LAYER  = 'optimize-preview-layer'
@@ -23,7 +24,7 @@ const OPTIMIZE_PREVIEW_LAYERS = [{
   layer: {
     id: OPTIMIZE_PREVIEW_LAYER, type: 'line',
     paint: {
-      'line-color': '#ff8c00',
+      'line-color': PALETTE.mapHover,
       'line-width': ZOOM_LINE_WIDTH,
       'line-dasharray': [6, 4],
     },
@@ -230,7 +231,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
         <h2>{title}</h2>
         <p>{t(mode === 'element' ? 'optimize_hint_select_element' : 'optimize_hint_select')}</p>
         {selectHint && (
-          <p style={{ color: '#e74c3c', fontSize: 12, marginTop: 4 }}>{selectHint}</p>
+          <p className="msg-error">{selectHint}</p>
         )}
       </>
     )
@@ -266,7 +267,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
           {grenzwert === 'discretion' && (
             // The catalogue says of every warning that it needs a written
             // justification — the panel says so before the run, not after.
-            <span style={{ fontSize: 11, color: '#c8860d', marginTop: 2 }}>
+            <span className="msg-warn msg-small">
               {t('optimize_grenzwert_discretion_hint')}
             </span>
           )}
@@ -283,69 +284,65 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
             )}
             {/* The same popup the edit panel opens, on the regelwerk this
                 run would use — one viewer, not a second copy of the table. */}
-            <button type="button" onClick={() => onShowRegelwerk?.(regelwerkId || regelwerke[0].id)} style={{
-              fontSize: 11, marginTop: 2, background: 'none', border: 'none', padding: 0,
-              color: '#5b9bd5', textDecoration: 'underline', cursor: 'pointer',
-            }}>
+            <button className="link-btn msg-info msg-small" type="button" onClick={() => onShowRegelwerk?.(regelwerkId || regelwerke[0].id)}>
               {t('optimize_regelwerk_show')}
             </button>
           </div>
         )}
       </div>
 
-      <div className="element-form" style={{ marginTop: 8 }}>
+      <div className="element-form mt-8">
         {catalogDrift && (
-          <p style={{ color: '#e74c3c', fontSize: 12 }}>{t('optimizer_catalog_drift')}</p>
+          <p className="msg-error">{t('optimizer_catalog_drift')}</p>
         )}
         {reachable === false ? (
           // The run happens on the server and nowhere else; without one the
           // panel says so rather than offering a button that cannot work.
-          <p style={{ color: '#e74c3c', fontSize: 12 }}>{t('optimize_err_unavailable')}</p>
+          <p className="msg-error">{t('optimize_err_unavailable')}</p>
         ) : (
           <button
             className="panel-btn panel-btn-full"
             onClick={handleRun}
             disabled={running || !trackId}
-            style={{ opacity: running ? 0.5 : 1 }}
           >
             {t('optimize_run')}
           </button>
         )}
         {running && (
-          <p style={{ color: '#5b9bd5', fontSize: 12, marginTop: 4 }}>{t('optimize_running')}</p>
+          <p className="msg-info">{t('optimize_running')}</p>
         )}
         {runError && (
-          <p style={{ color: '#e74c3c', fontSize: 12, marginTop: 4 }}>{runError}</p>
+          <p className="msg-error">{runError}</p>
         )}
         {result && (
-          <div style={{ marginTop: 4 }}>
+          <div className="mt-4">
             {result.report.map((r, i) => (
-              <div key={i} style={{ fontSize: 12, fontFamily: 'system-ui, sans-serif', padding: '4px 0', borderBottom: '1px solid #eee' }}>
+              <div key={i} className="list-row">
                 <strong>{t('optimize_curve')} {r.group}{r.arcs > 1 ? `.${r.arc}` : ''}{r.target ? ` (${t('optimize_target')})` : ''}</strong>{' '}
                 {r.changed ? (
                   <>
                     r {Math.round(r.rAlt)} → {Math.round(r.rNeu)} m · u {r.uAlt} → {r.uNeu} mm<br />
                     v {r.vAlt.toFixed(0)} → {r.vNeu.toFixed(0)} km/h · {t('optimize_offset_used')} {r.offsetCm.toFixed(0)} cm
                     {grundText(t, r.grund) && (
-                      <><br /><span style={{ color: '#888' }}>{grundText(t, r.grund)}</span></>
+                      <><br /><span className="text-muted">{grundText(t, r.grund)}</span></>
                     )}
                   </>
                 ) : (
-                  <span style={{ color: '#888' }}>{t('optimize_unchanged')}</span>
+                  <span className="text-muted">{t('optimize_unchanged')}</span>
                 )}
               </div>
             ))}
             {result.skipped?.length > 0 && (
               // Part of the track was left alone. Saying so beats handing back
               // half an answer in silence — and beats the refusal it used to be.
-              <p style={{ fontSize: 12, color: '#c8860d', marginTop: 4 }}>
+              <p className="msg-warn">
                 {fill('optimize_skipped', { count: result.skipped.length, where: result.skipped
                     .map(s => s.from === s.to ? `#${s.from + 1}` : `#${s.from + 1}–${s.to + 1}`)
                     .join(', ') })}
                 {' '}{result.skipped[0].why}
               </p>
             )}
-            <p style={{ fontSize: 12, color: changed ? '#5b9bd5' : '#e74c3c', marginTop: 4 }}>
+            <p className={changed ? 'msg-info' : 'msg-error'}>
               {changed
                 ? <>{t('optimize_done')}: v {result.vBestand.toFixed(0)} → {result.vNeu.toFixed(0)} km/h
                     {' · '}{t('optimize_variant')}: {result.variant}
@@ -357,14 +354,13 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
       </div>
 
       <button
-        className="panel-btn panel-btn-full"
-        style={{ marginTop: 8, opacity: canCommit ? 1 : 0.5 }}
+        className="panel-btn panel-btn-full mt-8"
         onClick={handleCommit}
         disabled={!canCommit}
       >
         {t('btn_commit')}
       </button>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={handleCancel}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
         {t('btn_cancel')}
       </button>
     </>

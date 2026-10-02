@@ -51,7 +51,7 @@ export default function DeleteTrackForm({ onCommitted }) {
           </button>
         </>
       )}
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
         {t('btn_cancel')}
       </button>
 

@@ -332,7 +332,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       <>
         <p>{t('switch_on_track_hint')}</p>
         {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
-        <button className="panel-btn panel-btn-full" style={{ marginTop: 8, background: '#888' }} onClick={handleCancel}>
+        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
           {t('btn_cancel')}
         </button>
       </>
@@ -342,14 +342,14 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   return (
     <>
       <div className="toggle-switch-wrap">
-        <span style={{ color: !reversed ? 'var(--color-primary)' : '#aaa', fontWeight: !reversed ? 600 : 400 }}>
+        <span className={`toggle-label${!reversed ? ' active' : ''}`}>
           {t('switch_on_track_along')}
         </span>
         <label className="toggle-switch">
           <input type="checkbox" checked={reversed} onChange={e => setReversed(e.target.checked)} />
           <span className="toggle-slider" />
         </label>
-        <span style={{ color: reversed ? 'var(--color-primary)' : '#aaa', fontWeight: reversed ? 600 : 400 }}>
+        <span className={`toggle-label${reversed ? ' active' : ''}`}>
           {t('switch_on_track_against')}
         </span>
       </div>
@@ -439,11 +439,10 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
 
       <button className="panel-btn panel-btn-full" onClick={handleCommit}
-        disabled={!!placeError || !!cantErr || defErr}
-        style={{ opacity: (placeError || cantErr || defErr) ? 0.5 : 1 }}>
+        disabled={!!placeError || !!cantErr || defErr}>
         {t('btn_commit')}
       </button>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={handleCancel}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
         {t('btn_cancel')}
       </button>
     </>

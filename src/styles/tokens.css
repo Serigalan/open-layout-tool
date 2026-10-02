@@ -1,0 +1,82 @@
+/* Design tokens (R6.3): every colour, font size and spacing the app's own
+   styles use, named once. --color-primary is the project colour the user
+   picks (Settings); it is set on :root at run time. */
+
+:root {
+  --color-primary: #303383;
+
+  --color-text: #1a1a2e;
+  --color-text-soft: #555;
+  --color-muted: #888;
+  --color-faint: #aaa;
+  --color-border: #e0e0e0;
+  --color-border-soft: #eee;
+  --color-surface: #fff;
+  --color-surface-alt: #f5f5f5;
+
+  --color-error: #e74c3c;
+  --color-danger: #c0392b;
+  --color-warn: #b9770e;
+  --color-ok: #27ae60;
+  --color-info: #5b9bd5;
+
+  /* What the map draws a pick in: under the cursor, picked. */
+  --color-map-hover: #ff8c00;
+  --color-map-selected: #a52a1f;
+
+  --font-ui: system-ui, sans-serif;
+  --font-mono: ui-monospace, monospace;
+  --fs-xs: 11px;
+  --fs-s: 12px;
+  --fs-m: 13px;
+  --fs-l: 15px;
+
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+}
+
+body {
+  font-family: var(--font-ui);
+  color: var(--color-text);
+}
+
+/* ── Messages: what a form or panel says about its state ────────────────── */
+.msg-error, .msg-ok, .msg-warn, .msg-info, .msg-hint {
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+  line-height: 1.4;
+  margin: var(--space-2) 0 0;
+}
+.msg-error { color: var(--color-error); }
+.msg-ok    { color: var(--color-ok); }
+.msg-warn  { color: var(--color-warn); }
+.msg-info  { color: var(--color-info); }
+.msg-hint  { color: var(--color-muted); }
+.msg-small { font-size: var(--fs-xs); }
+
+/* ── Buttons: the panel button and its variants ─────────────────────────── */
+.panel-btn.secondary { background: var(--color-muted); }
+.panel-btn.secondary:hover { background: var(--color-text-soft); }
+.panel-btn.danger { background: var(--color-danger); }
+.panel-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Small layout helpers, for the few places that need no class of their own ── */
+.mt-2 { margin-top: var(--space-1); }
+.mt-4 { margin-top: var(--space-2); }
+.mt-6 { margin-top: var(--space-3); }
+.mt-8 { margin-top: var(--space-4); }
+.mt-12 { margin-top: var(--space-5); }
+.m-0 { margin: 0; }
+.row { display: flex; align-items: center; gap: var(--space-3); }
+.row-tight { display: flex; gap: var(--space-2); }
+.row-wide { display: flex; align-items: center; gap: var(--space-4); }
+.grow { flex: 1; min-width: 0; }
+.no-shrink { flex-shrink: 0; }
+.scroll-list { max-height: 160px; overflow-y: auto; }
+.scroll-list-tall { max-height: 220px; overflow-y: auto; }
+.clickable { cursor: pointer; }
+.text-muted { color: var(--color-muted); }
+.text-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

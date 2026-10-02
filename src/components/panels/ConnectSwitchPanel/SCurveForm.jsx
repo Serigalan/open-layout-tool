@@ -19,6 +19,7 @@ import { useI18n } from '../../../locales/i18nContext'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
+import { PALETTE } from '../../../styles/palette'
 
 // ── Preview layers (managed by usePreview) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'
@@ -40,8 +41,8 @@ const SCURVE_PREVIEW_LAYERS = [
     layer: {
       id: SCURVE_POINTS_LAYER, type: 'circle', source: SCURVE_POINTS_SOURCE,
       paint: {
-        'circle-radius': 4, 'circle-color': '#1A237E',
-        'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5,
+        'circle-radius': 4, 'circle-color': PALETTE.previewPoint,
+        'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 1.5,
       },
     },
   },
@@ -230,13 +231,13 @@ function trackLabel(track) {
 
 // Build the green/red preview: branch arc + middle element + branch arc
 function buildPreviewGeoJSON(result) {
-  const colour = result.valid ? '#2E7D32' : '#C62828'
+  const colour = result.valid ? PALETTE.valid : PALETTE.invalid
   return {
     type: 'FeatureCollection',
     features: [
       { type: 'Feature', properties: { colour },
         geometry: { type: 'LineString', coordinates: result.arc1Coords ?? [] } },
-      { type: 'Feature', properties: { colour: '#1565C0' },
+      { type: 'Feature', properties: { colour: PALETTE.previewLine },
         geometry: { type: 'LineString', coordinates: result.midCoords } },
       { type: 'Feature', properties: { colour },
         geometry: { type: 'LineString', coordinates: result.arc2Coords ?? [] } },
@@ -511,7 +512,7 @@ export default function SCurveForm({ onCommitted }) {
         </div>
 
         {result?.valid && (
-          <div className="element-form" style={{ marginTop: 8 }}>
+          <div className="element-form mt-8">
             <div className="form-field">
               <label>{t('scurve_switch_type')}</label>
               <input type="text" readOnly value={result.switchType.label} />
@@ -553,7 +554,7 @@ export default function SCurveForm({ onCommitted }) {
           </div>
         )}
 
-        <p style={{ color: result?.valid ? '#5b9bd5' : '#e74c3c', fontSize: 12, marginTop: 4 }}>
+        <p className={result?.valid ? 'msg-info' : 'msg-error'}>
           {result?.valid ? t('scurve_valid') : t(REASON_MSG[result?.reason] ?? 'scurve_invalid')}
         </p>
         {carveError != null && (
@@ -563,16 +564,14 @@ export default function SCurveForm({ onCommitted }) {
         )}
 
         <button
-          className="panel-btn panel-btn-full"
-          style={{ marginTop: 8, opacity: result?.valid ? 1 : 0.5 }}
+          className="panel-btn panel-btn-full mt-8"
           onClick={handleCommit}
           disabled={!result?.valid}
         >
           {t('btn_commit')}
         </button>
         <button
-          className="panel-btn panel-btn-full"
-          style={{ marginTop: 2, background: '#888' }}
+          className="panel-btn panel-btn-full mt-2 secondary"
           onClick={handleCancel}
         >
           {t('btn_cancel')}
@@ -586,17 +585,17 @@ export default function SCurveForm({ onCommitted }) {
     <>
       <p>{phase === 'select_first' ? t('scurve_hint_first') : t('scurve_hint_second')}</p>
       {picks.length > 0 && (
-        <p style={{ fontSize: 12, color: '#5b9bd5', marginTop: 4 }}>
+        <p className="msg-info">
           {t('scurve_line1')}: {picks[0].label}
         </p>
       )}
       {pickStatus && (
-        <p style={{ color: pickStatus.error ? '#e74c3c' : '#888', fontSize: 12, marginTop: 4 }}>
+        <p className={pickStatus.error ? 'msg-error' : 'msg-hint'}>
           {pickStatus.msg}
         </p>
       )}
       {phase === 'select_second' && (
-        <button className="panel-btn panel-btn-full" style={{ marginTop: 8, background: '#888' }} onClick={handleCancel}>
+        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
           {t('btn_cancel')}
         </button>
       )}

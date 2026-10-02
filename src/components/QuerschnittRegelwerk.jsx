@@ -3,6 +3,7 @@ import {
   LICHTRAUM_SOURCE,
 } from '../utils/gaugeProfiles'
 import { useI18n } from '../locales/i18nContext'
+import { PALETTE } from '../styles/palette'
 
 /**
  * DB Ril 800.0130, Streckenquerschnitte auf Erdkörpern, read-only inside the
@@ -57,26 +58,26 @@ function ProfileDrawing({ profile }) {
         <path d={`${path(ring)} Z`} fill="rgba(48,51,131,0.08)" stroke="var(--color-primary)"
           strokeWidth="1.6" {...line} />
         {areas.map((a, i) => (
-          <path key={i} d={`${path(a)} Z`} fill="#ffffff" fillOpacity="0.7"
+          <path key={i} d={`${path(a)} Z`} fill={PALETTE.white} fillOpacity="0.7"
             stroke="var(--color-primary)" strokeWidth="1" strokeDasharray="5 4" {...line} />
         ))}
 
         {/* track centre and top of rail, the two lines everything is measured from */}
-        <line x1="0" y1={-zMax - 250} x2="0" y2={DIM_GAP / 2} stroke="#888" strokeWidth="1"
+        <line x1="0" y1={-zMax - 250} x2="0" y2={DIM_GAP / 2} stroke={PALETTE.muted} strokeWidth="1"
           strokeDasharray="10 4 2 4" {...line} />
-        <line x1={-yMax - 200} y1="0" x2={yMax + 200} y2="0" stroke="#333" strokeWidth="1.4" {...line} />
-        <text x={-yMax - 200} y={-TEXT * 0.5} fontSize={TEXT} fill="#555">{t('constraints_querschnitt_so')}</text>
-        <text x={TEXT * 0.4} y={-zMax - 150} fontSize={TEXT} fill="#555">{t('constraints_querschnitt_gleismitte')}</text>
+        <line x1={-yMax - 200} y1="0" x2={yMax + 200} y2="0" stroke={PALETTE.textStrong} strokeWidth="1.4" {...line} />
+        <text x={-yMax - 200} y={-TEXT * 0.5} fontSize={TEXT} fill={PALETTE.textSoft}>{t('constraints_querschnitt_so')}</text>
+        <text x={TEXT * 0.4} y={-zMax - 150} fontSize={TEXT} fill={PALETTE.textSoft}>{t('constraints_querschnitt_gleismitte')}</text>
 
         {widths.map((w, i) => {
           const z = DIM_GAP + i * DIM_STEP
           return (
-            <g key={`w${w}`} stroke="#555" strokeWidth="1">
+            <g key={`w${w}`} stroke={PALETTE.textSoft} strokeWidth="1">
               <line x1="0" y1={z} x2={w} y2={z} {...line} />
               <line x1="0" y1={z - TICK} x2="0" y2={z + TICK} {...line} />
               <line x1={w} y1={z - TICK} x2={w} y2={z + TICK} {...line} />
               <line x1={w} y1="0" x2={w} y2={z} strokeDasharray="3 3" opacity="0.5" {...line} />
-              <text x={w / 2} y={z - TEXT * 0.3} fontSize={TEXT} fill="#333" stroke="none"
+              <text x={w / 2} y={z - TEXT * 0.3} fontSize={TEXT} fill={PALETTE.textStrong} stroke="none"
                 textAnchor="middle">{w}</text>
             </g>
           )
@@ -86,12 +87,12 @@ function ProfileDrawing({ profile }) {
           const x = yMax + DIM_GAP + i * DIM_STEP
           const edge = Math.max(...profile.points.filter(([, z]) => z === h).map(([y]) => y))
           return (
-            <g key={`h${h}`} stroke="#555" strokeWidth="1">
+            <g key={`h${h}`} stroke={PALETTE.textSoft} strokeWidth="1">
               <line x1={x} y1="0" x2={x} y2={-h} {...line} />
               <line x1={x - TICK} y1="0" x2={x + TICK} y2="0" {...line} />
               <line x1={x - TICK} y1={-h} x2={x + TICK} y2={-h} {...line} />
               <line x1={edge} y1={-h} x2={x} y2={-h} strokeDasharray="3 3" opacity="0.5" {...line} />
-              <text x={x - TEXT * 0.3} y={-h / 2} fontSize={TEXT} fill="#333" stroke="none"
+              <text x={x - TEXT * 0.3} y={-h / 2} fontSize={TEXT} fill={PALETTE.textStrong} stroke="none"
                 textAnchor="middle" transform={`rotate(-90 ${x - TEXT * 0.3} ${-h / 2})`}>{h}</text>
             </g>
           )

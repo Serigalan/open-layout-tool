@@ -1,0 +1,193 @@
+/* The longitudinal profile and the cross section overlays, and the cross-section panel. */
+
+/* ── Longitudinal profile overlay ─────────────────────────────────────────── */
+.profile-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: #fff;
+  border-top: 2px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  font-family: var(--font-ui);
+}
+
+/* Grab the top edge to change the overlay's height. */
+.profile-resize {
+  position: absolute;
+  top: -5px;
+  left: 0;
+  right: 0;
+  height: 10px;
+  cursor: ns-resize;
+  z-index: 1;
+}
+
+.profile-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.profile-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-s);
+  color: var(--color-text-soft);
+}
+
+.profile-edit .track-table-input {
+  width: 90px;
+}
+
+/* Discreet entry point at the bottom of a panel — a section that is there when
+   it is wanted and out of the way otherwise. */
+.panel-dot-row {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+.panel-dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #ccc;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.panel-dot:hover {
+  background: #999;
+  transform: scale(1.25);
+}
+
+.panel-dot.active {
+  background: var(--color-primary);
+}
+
+.profile-delete-btn {
+  background: var(--color-error);
+}
+
+.profile-delete-btn:hover:not(:disabled) {
+  background: var(--color-danger);
+}
+
+.profile-delete-btn:disabled {
+  background: #ccc;
+  cursor: default;
+}
+
+.profile-hint {
+  font-size: var(--fs-s);
+  color: var(--color-muted);
+}
+
+.profile-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-svg {
+  display: block;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.profile-svg.dragging {
+  cursor: grabbing;
+}
+
+/* How far either side other tracks are looked for — a number, a few digits wide. */
+.profile-edit .cross-section-reach {
+  width: 56px;
+}
+
+.cross-section-svg {
+  display: block;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.cross-section-svg.dragging {
+  cursor: grabbing;
+}
+
+/* The station the section is taken at — walked with the slider, stated beside
+   it, and marked on the map by the overlay's dot. */
+.cross-section-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--color-border-soft);
+}
+
+.cross-section-slider input[type="range"] {
+  flex: 1;
+  accent-color: var(--color-primary);
+}
+
+.cross-section-step {
+  flex: none;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--color-primary);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.cross-section-step:hover:not(:disabled) {
+  background: #f3f1fd;
+}
+
+.cross-section-step:disabled {
+  color: #bbb;
+  cursor: default;
+}
+
+.cross-section-slider-label {
+  font-size: var(--fs-s);
+  color: var(--color-text-soft);
+  white-space: nowrap;
+}
+
+/* One superstructure stretch: type, from, to and the button that drops it. */
+.range-row {
+  display: grid;
+  grid-template-columns: 1fr 72px 72px 18px;
+  gap: 4px;
+  align-items: center;
+}
+
+.range-use {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+.profile-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  font-size: var(--fs-m);
+}

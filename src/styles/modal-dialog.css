@@ -1,0 +1,22 @@
+/* The parts of a dialog Modal.jsx adds: its title, the primary button, the bare variant. */
+
+/* The dialog itself (components/Modal.jsx) */
+.modal:focus { outline: none; }
+.modal-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 17px;
+}
+.modal-btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+.modal-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* A dialog whose content brings its own card (the password form). */
+.modal.modal-bare {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  width: auto;
+}

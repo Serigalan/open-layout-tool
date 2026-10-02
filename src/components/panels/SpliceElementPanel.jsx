@@ -17,6 +17,7 @@ import { useI18n } from '../../locales/i18nContext'
 import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
 import usePreview from '../../map/usePreview'
 import useMapPick from '../../map/useMapPick'
+import { PALETTE } from '../../styles/palette'
 
 const SPLICE_PREVIEW_SOURCE = 'splice-preview-source'
 const SPLICE_PREVIEW_LAYER  = 'splice-preview-layer'
@@ -27,7 +28,7 @@ const SPLICE_PREVIEW_LAYERS = [{
   layer: {
     id: SPLICE_PREVIEW_LAYER, type: 'line',
     paint: {
-      'line-color': '#ff8c00',
+      'line-color': PALETTE.mapHover,
       'line-width': ZOOM_LINE_WIDTH,
       'line-dasharray': [6, 4],
     },
@@ -525,7 +526,7 @@ export default function SpliceElementPanel() {
           )}
         </div>
         {status && (
-          <p style={{ color: status.error ? '#e74c3c' : '#5b9bd5', fontSize: 12, marginTop: 4 }}>
+          <p className={status.error ? 'msg-error' : 'msg-info'}>
             {status.msg}
           </p>
         )}
@@ -533,16 +534,14 @@ export default function SpliceElementPanel() {
             that was typed. */}
         {inserted && <RuleFindings element={inserted} />}
         <button
-          className="panel-btn panel-btn-full"
-          style={{ marginTop: 8, opacity: (canCommit && !blocked) ? 1 : 0.5 }}
+          className="panel-btn panel-btn-full mt-8"
           onClick={handleCommit}
           disabled={!canCommit || blocked}
         >
           {t('btn_commit')}
         </button>
         <button
-          className="panel-btn panel-btn-full"
-          style={{ marginTop: 2, background: '#888' }}
+          className="panel-btn panel-btn-full mt-2 secondary"
           onClick={handleCancel}
         >
           {t('btn_cancel')}
@@ -557,17 +556,17 @@ export default function SpliceElementPanel() {
       <h2>{t('splice_element')}</h2>
       <p>{phase === 'select_first' ? t('splice_hint_first') : t('splice_hint_second')}</p>
       {picks.length > 0 && (
-        <p style={{ fontSize: 12, color: '#5b9bd5', marginTop: 4 }}>
+        <p className="msg-info">
           {t('splice_first_selected')}: {picks[0].label}
         </p>
       )}
       {status && (
-        <p style={{ color: status.error ? '#e74c3c' : '#888', fontSize: 12, marginTop: 4 }}>
+        <p className={status.error ? 'msg-error' : 'msg-hint'}>
           {status.msg}
         </p>
       )}
       {phase === 'select_second' && (
-        <button className="panel-btn panel-btn-full" style={{ marginTop: 8, background: '#888' }} onClick={handleCancel}>
+        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
           {t('btn_cancel')}
         </button>
       )}

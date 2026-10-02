@@ -14,6 +14,7 @@ import useWorkingCopy from './shell/useWorkingCopy'
 import useViewer from './shell/useViewer'
 import MapWorkspace from './shell/MapWorkspace'
 import ViewerView from './shell/ViewerView'
+import { PALETTE } from './styles/palette'
 
 export default function App() {
   return <I18nProvider><Shell /></I18nProvider>
@@ -36,7 +37,7 @@ function Shell() {
   const viewer = useViewer({ t, fill, go: setPage, say: setHomeNote })
 
   useEffect(() => {
-    document.documentElement.style.setProperty('--color-primary', loadSettings().color ?? '#303383')
+    document.documentElement.style.setProperty('--color-primary', loadSettings().color ?? PALETTE.primaryDefault)
   }, [])
 
   if (session.status === 'loading') {

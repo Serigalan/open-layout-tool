@@ -13,7 +13,6 @@ import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
 
-const noteStyle = { margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }
 
 /**
  * The ProVI import: a zip archive of axes, each becoming one track with its
@@ -135,8 +134,8 @@ export default function ProviImportSection({ onReport }) {
 
   return (
     <>
-      <input ref={inputRef} type="file" accept=".zip,application/zip"
-        style={{ display: 'none' }} onChange={handleFile} />
+      <input hidden ref={inputRef} type="file" accept=".zip,application/zip"
+         onChange={handleFile} />
       <button className="panel-btn panel-btn-full" disabled={!project || busy != null}
         onClick={() => inputRef.current?.click()}>
         {busy === 'reading' ? t('data_exchange_provi_reading') : t('data_exchange_provi_choose')}
@@ -169,7 +168,7 @@ export default function ProviImportSection({ onReport }) {
               </label>
             ))}
           </div>
-          <button className="panel-btn panel-btn-full" style={{ marginTop: 4 }}
+          <button className="panel-btn panel-btn-full mt-4"
             disabled={!project || !chosen.size || busy != null} onClick={runImport}>
             {busy === 'importing'
               ? t('data_exchange_provi_importing')
@@ -178,8 +177,8 @@ export default function ProviImportSection({ onReport }) {
         </>
       )}
       {notes.length > 0 && (
-        <div style={{ marginTop: 6, maxHeight: 160, overflowY: 'auto' }}>
-          {notes.map((line, i) => <p key={i} style={noteStyle}>{line}</p>)}
+        <div className="mt-6 scroll-list">
+          {notes.map((line, i) => <p key={i} className="msg-error msg-small">{line}</p>)}
         </div>
       )}
     </>

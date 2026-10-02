@@ -3,16 +3,16 @@ import { loadTracks, loadSwitches, loadEndMarks, deleteTrack, deleteTracks, swit
 import ConfirmModal from './ConfirmModal'
 import { buildTopologyGraph, topologyClusters, selectionHighlight } from '../utils/topologyGraph'
 import { layoutClusterLanes } from '../utils/topologyLanes'
-import { TOPOLOGY_RED, TOPOLOGY_HIGHLIGHT } from '../utils/topologyLayer'
+import { TOPOLOGY_RED } from '../utils/topologyLayer'
 import { useI18n } from '../locales/i18nContext'
 import { useProject } from '../hooks/useStore'
+import { PALETTE } from '../styles/palette'
 
 const PAD    = 28     // px around a diagram
 const STEP_X = 56     // px between columns — a track two columns at least, its name on the middle one
 const STEP_Y = 44     // px between rows
 
-const PRIMARY = { stroke: 'var(--color-primary)' }
-const GREY = '#8a8a8a'
+const GREY = PALETTE.assumed
 
 /**
  * The topological connections of the project and nothing else (AP 9.6): no
@@ -184,8 +184,8 @@ function NodeGlyph({ node, x, y, selected, onSelect }) {
     return (
       <g className="topology-graph-node" onClick={onSelect}>
         <title>{node.name ?? ''}</title>
-        <circle cx={x} cy={y} r={9} fill="#fff" strokeWidth={selected ? 4 : 2.5}
-          style={selected ? { stroke: TOPOLOGY_HIGHLIGHT } : PRIMARY} />
+        <circle cx={x} cy={y} r={9} fill={PALETTE.white} strokeWidth={selected ? 4 : 2.5}
+          className={selected ? 'topology-graph-highlight' : 'topology-graph-primary'} />
       </g>
     )
   }
@@ -193,17 +193,17 @@ function NodeGlyph({ node, x, y, selected, onSelect }) {
     return (
       <g className="topology-graph-node" onClick={onSelect}>
         <title>{node.name ?? ''}</title>
-        <rect x={x - 6} y={y - 6} width={12} height={12} fill="#fff" strokeWidth={selected ? 4 : 2.5}
-          style={selected ? { stroke: TOPOLOGY_HIGHLIGHT } : PRIMARY} />
+        <rect x={x - 6} y={y - 6} width={12} height={12} fill={PALETTE.white} strokeWidth={selected ? 4 : 2.5}
+          className={selected ? 'topology-graph-highlight' : 'topology-graph-primary'} />
       </g>
     )
   }
-  if (node.kind === 'joint') return <circle cx={x} cy={y} r={2.5} style={{ fill: 'var(--color-primary)' }} />
-  if (node.state === 'buffer_stop') return <line x1={x} y1={y - 7} x2={x} y2={y + 7} stroke="#000" strokeWidth={3} />
+  if (node.kind === 'joint') return <circle cx={x} cy={y} r={2.5} className="topology-graph-joint" />
+  if (node.state === 'buffer_stop') return <line x1={x} y1={y - 7} x2={x} y2={y + 7} stroke={PALETTE.black} strokeWidth={3} />
   if (node.state === 'boundary') return <line x1={x} y1={y - 7} x2={x} y2={y + 7} stroke={GREY} strokeWidth={3} />
   return (
     <g>
-      <circle cx={x} cy={y} r={4.5} fill={TOPOLOGY_RED} stroke="#fff" strokeWidth={1.5} />
+      <circle cx={x} cy={y} r={4.5} fill={TOPOLOGY_RED} stroke={PALETTE.white} strokeWidth={1.5} />
     </g>
   )
 }
@@ -266,7 +266,7 @@ function TrackPath({ edge, d, color, status, onToggle }) {
       <title>{edge.name ?? edge.trackId}</title>
       <path d={d} fill="none" strokeWidth={stroke ? 5 : 2.5} strokeLinecap="round" strokeLinejoin="round"
         strokeDasharray={status?.dashed ? '7 6' : undefined}
-        style={stroke ? { stroke } : PRIMARY} />
+        className={stroke ? undefined : 'topology-graph-primary'} style={stroke ? { stroke } : undefined} />
       <path d={d} fill="none" stroke="transparent" strokeWidth={12} />
     </g>
   )
@@ -365,7 +365,7 @@ function LooseTrack({ edge, nodes, color, status, onToggle }) {
       <TrackPath edge={edge} d="M 16 13 L 176 13" color={color} status={status} onToggle={onToggle} />
       <NodeGlyph node={a} x={16} y={13} />
       <NodeGlyph node={b} x={176} y={13} />
-      <text x={192} y={17} className="topology-graph-label" style={{ textAnchor: 'start' }}>{edge.name ?? ''}</text>
+      <text x={192} y={17} className="topology-graph-label topology-graph-label-start">{edge.name ?? ''}</text>
     </svg>
   )
 }

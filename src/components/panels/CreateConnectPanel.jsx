@@ -14,8 +14,6 @@ import { useI18n } from '../../locales/i18nContext'
 
 // The gray line between the two tool groups, the same separator the layers
 // panel draws between its basemap groups.
-const SEPARATOR = { margin: '10px 0', border: 'none', borderTop: '1px solid #ddd' }
-
 function BackButton({ onBack }) {
   const { t } = useI18n()
   return (
@@ -114,7 +112,7 @@ export default function CreateConnectPanel() {
           {t('create_parallel_track')}
         </button>
       </div>
-      <hr style={SEPARATOR} />
+      <hr className="divider divider-wide" />
       <h2>{t('connect_element')}</h2>
       <div className="create-element-options">
         <button className="create-element-btn" onClick={() => setPage('connect_straight')}>
@@ -126,7 +124,7 @@ export default function CreateConnectPanel() {
           {t('connect_curved')}
         </button>
       </div>
-      <hr style={SEPARATOR} />
+      <hr className="divider divider-wide" />
       <h2>{t('buffer_stop_section')}</h2>
       <div className="create-element-options">
         <button className="create-element-btn" onClick={() => setPage('buffer_stop')}>

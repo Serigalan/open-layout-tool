@@ -54,15 +54,15 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
       <GroupedTrackList tracks={tracks}
         isActive={(track) => track.id === profileTrackId}
         onPick={(track) => onShowProfile?.(track.id)} />
-      <div className="form-field" style={{ marginTop: 12 }}>
+      <div className="form-field mt-12">
         <label>{t('terrain_source')}</label>
         <TerrainSourceSelect value={terrainSource} onChange={setTerrainSource} />
       </div>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 4 }}
+      <button className="panel-btn panel-btn-full mt-4"
         disabled={busy || !profileTrackId} onClick={() => run({ force: true, trackId: profileTrackId })}>
         {t('elevation_reload_track')}
       </button>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }}
+      <button className="panel-btn panel-btn-full mt-2 secondary"
         disabled={busy} onClick={() => run({})}>
         {t('elevation_load_missing')}
       </button>

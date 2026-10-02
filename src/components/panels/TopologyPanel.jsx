@@ -82,7 +82,7 @@ export default function TopologyPanel({ selection, onSelect, graphOpen, onShowGr
 
       {selected?.kind === 'switch' && (
         <div className="element-form topology-selected">
-          <p style={{ margin: 0 }}>
+          <p className="m-0">
             <strong>{t(switchKindLabelKey(selected.sw.kind))} {selected.sw.name ?? ''}</strong>
           </p>
           <ul className="form-list">
@@ -105,7 +105,7 @@ export default function TopologyPanel({ selection, onSelect, graphOpen, onShowGr
 
       {selected?.kind === 'track' && (
         <div className="element-form topology-selected">
-          <p style={{ margin: 0 }}>
+          <p className="m-0">
             <strong>{t('topology_track')} {selected.track.name ?? selected.track.id.slice(0, 8)}</strong>
           </p>
           <ul className="form-list">

@@ -259,7 +259,7 @@ export default function AssignTracksForm({ onCommitted }) {
             <span>{t('assign_rename')}</span>
           </label>
           {rename && (
-            <p className="selecting-hint" style={{ margin: 0 }}>
+            <p className="selecting-hint m-0">
               {t(kind === 'line' ? 'assign_rename_line_hint' : 'assign_rename_station_hint')}
             </p>
           )}
@@ -298,11 +298,11 @@ export default function AssignTracksForm({ onCommitted }) {
       {error && <p className="form-error">{t(error)}</p>}
       {done && !error && <p className="selecting-hint">{doneText(done)}</p>}
 
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 8 }}
+      <button className="panel-btn panel-btn-full mt-8"
         disabled={selected.size === 0 || kmPending} onClick={handleCommit}>
         {t('assign_commit')}
       </button>
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
         {t('btn_back')}
       </button>
     </>

@@ -22,4 +22,11 @@ describe('architecture', () => {
       .map(p => relative(SRC, p))
     expect(offenders).toEqual([])
   })
+  it('puts no colour value in a component, and few inline styles (R6.3)', () => {
+    const jsx = sources('.').filter(p => p.endsWith('.jsx'))
+    const hex = jsx.filter(p => /['"]#[0-9a-fA-F]{3,8}['"]/.test(readFileSync(p, 'utf8'))).map(p => relative(SRC, p))
+    expect(hex).toEqual([])
+    const inline = jsx.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/style=\{/g)?.length ?? 0), 0)
+    expect(inline).toBeLessThan(30)
+  })
 })

@@ -1,0 +1,189 @@
+/* The physics and regelwerk popups: the rules, their limits and formulas, the clearance profiles. */
+
+/* ── Constraints popup ───────────────────────────────────────────────────────
+   The same shell as the element table (it is the same kind of popup, and says
+   so by carrying its classes), with one difference that matters: these cells
+   hold prose — a reason, a derivation — so they wrap instead of running off to
+   the right the way a row of numbers may. */
+/* Fills the map pane top to bottom rather than sitting over just its lower
+   half/two-thirds — but stays *inside* that pane: both sidebars (the icon
+   rail and whichever panel is open) stay visible at the edge, unlike the
+   element table this shell is otherwise borrowed from. `position: absolute`
+   is inherited from `.track-table-overlay`; only `top`/`height` need
+   overriding here to reach all the way up. */
+.constraints-overlay {
+  top: 0;
+  height: auto;
+}
+
+.constraints-scroll {
+  padding: 0 16px 16px;
+}
+
+/* There is more than one regelwerk, so the heading says which — the selector
+   sits beside it rather than out by the close button, because it names what
+   the heading is about. The subtitle keeps its distance through the gap, so
+   its own margin would be a second one. */
+.constraints-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.constraints-title .track-table-subtitle {
+  margin-left: 0;
+}
+
+/* A regelwerk's name is a sentence, not a word ("DB Ril 800 (Entwurfs…)"), so
+   the selector takes the width it needs up to a limit rather than the 160 px
+   a table cell's input is given. */
+.constraints-select {
+  width: auto;
+  max-width: 320px;
+}
+
+.constraints-section {
+  font-size: var(--fs-m);
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 14px 0 4px;
+}
+
+.constraints-subsection {
+  font-size: var(--fs-s);
+  font-weight: 600;
+  color: var(--color-text-soft);
+  margin: 12px 0 4px;
+}
+
+.constraints-hint,
+.constraints-error {
+  font-size: var(--fs-s);
+  margin: 0 0 6px;
+}
+
+.constraints-hint {
+  color: var(--color-muted);
+}
+
+.constraints-error {
+  color: var(--color-error);
+}
+
+.constraints-table th {
+  padding-left: 0;
+}
+
+.constraints-table td {
+  white-space: normal;
+  vertical-align: top;
+  padding-left: 0;
+  padding-right: 16px;
+}
+
+/* The value itself stays on one line; anything said about it goes underneath,
+   which is what makes the lines below blocks rather than a second column of
+   mostly empty cells. */
+.constraints-value {
+  white-space: nowrap;
+  font-weight: 600;
+  min-width: 90px;
+}
+
+.constraints-where {
+  color: var(--color-muted);
+}
+
+/* A limit as the catalogue writes it — an expression, not prose. Set apart
+   from the words around it, one per line, because two of them run together
+   read as one. */
+.constraints-expr {
+  display: block;
+  margin-top: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  color: var(--color-text);
+  white-space: normal;
+}
+
+/* The ladder of severities, as a legend above the rules that use it. */
+.constraints-severities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+}
+
+.constraints-severity {
+  font-size: var(--fs-s);
+  font-weight: 600;
+  max-width: 260px;
+}
+
+.constraints-note,
+.constraints-math,
+.constraints-app-mismatch {
+  display: block;
+  margin-top: 3px;
+  font-weight: 400;
+  white-space: normal;
+}
+
+.constraints-note {
+  font-size: var(--fs-xs);
+  color: var(--color-muted);
+}
+
+/* The set formula, rendered by the browser's own MathML. It brings its own
+   typography — this only gives it room and a size to be read at, and never a
+   monospace font, which is the one thing a formula must not be. */
+.constraints-math {
+  margin: 5px 0 2px;
+  font-size: var(--fs-l);
+  color: var(--color-text);
+}
+
+/* The app holds a handful of these values itself, for the dialogs that judge a
+   cant on every keystroke. Agreeing is a quiet note; disagreeing — a service
+   deployed from another commit than this bundle — is the one thing on this
+   read-only page a reader has to act on. */
+.constraints-app-mismatch {
+  font-size: var(--fs-xs);
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* The clearance profiles of Ril 800.0130A01, drawn to scale side by side —
+   one column each on a narrow screen, where two would be too small to read. */
+.querschnitt-profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+}
+
+.querschnitt-figure {
+  flex: 1 1 280px;
+  max-width: 440px;
+  margin: 0;
+}
+
+.querschnitt-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 6px 0;
+}
+
+.querschnitt-points td:first-child {
+  white-space: nowrap;
+  color: var(--color-muted);
+}
+
+.transition-curve-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}

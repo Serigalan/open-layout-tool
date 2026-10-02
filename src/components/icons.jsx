@@ -1,3 +1,4 @@
+import { PALETTE } from '../styles/palette'
 // ── Panel menu icons ────────────────────────────────────────────────────────
 //
 // One rule for every icon a panel button carries (AP 4.3): 16 × 16, currentColor,
@@ -218,7 +219,7 @@ export const DeleteSwitchIcon = () => (
 // font-size instead of carrying a fixed pixel size against it.
 export const PhysicsIcon = () => (
   <svg width="2.085ex" height="2.025ex" viewBox="0 -883.9 921.6 894.9" aria-hidden="true"
-    style={{ verticalAlign: '-.025ex', color: 'currentcolor' }}>
+    className="icon-glyph icon-glyph-physics">
     <g stroke="currentColor" fill="currentColor" strokeWidth={0}>
       <g stroke="none">
         <path d="M173-380q0-25-19-25-24 0-50 29t-43 89q-1 1-2 3t-1 3-2 2-3 1-4 0-8 0H27q-6-6-6-9 0-7 8-29t24-52 44-51 63-22q42 0 65 24t24 56q0 17-3 26 0 6-15 44t-31 89-18 89q0 27 5 44 13 43 63 43 37 0 69-34t50-79 29-83 11-55q0-23-8-40t-18-26-18-18-8-22q0-22 19-41t41-19q19 0 34 18t16 58q0 27-12 83t-37 125-71 119-106 51q-64 0-102-33-37-32-37-95 0-31 8-64t41-117q22-64 22-82" />
@@ -232,7 +233,7 @@ export const PhysicsIcon = () => (
 // for the same reason: a set typeface character, not a stroke drawing.
 export const RegelwerkIcon = () => (
   <svg width="1ex" height="2.149ex" viewBox="0 -750 442 950" aria-hidden="true"
-    style={{ verticalAlign: '-.452ex', color: 'currentcolor' }}>
+    className="icon-glyph icon-glyph-paragraph">
     <g stroke="currentColor" fill="currentColor" strokeWidth={0}>
       <text fontSize={884} fontFamily="serif">§</text>
     </g>
@@ -348,13 +349,13 @@ export const PointCloudIcon = () => (
 // other drawing — the panels compose, they do not draw.
 export const OverlayThumbnail = ({ kmColor, kmOtherColor, kmJumpColor }) => (
   <svg className="basemap-thumbnail" viewBox="0 0 60 45" aria-hidden="true">
-    <rect width="60" height="45" fill="#f4f4f6" />
-    <line x1="5" y1="41" x2="55" y2="23" stroke={kmOtherColor ?? '#78716c'} strokeWidth="1.4" strokeDasharray="3 2" />
-    <line x1="5" y1="29" x2="55" y2="9" stroke={kmColor ?? '#0f766e'} strokeWidth="1.6" />
+    <rect width="60" height="45" fill={PALETTE.iconBackground} />
+    <line x1="5" y1="41" x2="55" y2="23" stroke={kmOtherColor ?? PALETTE.kmLineOther} strokeWidth="1.4" strokeDasharray="3 2" />
+    <line x1="5" y1="29" x2="55" y2="9" stroke={kmColor ?? PALETTE.kmLine} strokeWidth="1.6" />
     {[[5, 29], [17.5, 24], [42.5, 14], [55, 9]].map(([x, y]) => (
-      <circle key={x} cx={x} cy={y} r="1.9" fill={kmColor ?? '#0f766e'} stroke="#fff" strokeWidth="0.7" />
+      <circle key={x} cx={x} cy={y} r="1.9" fill={kmColor ?? PALETTE.kmLine} stroke={PALETTE.white} strokeWidth="0.7" />
     ))}
-    <circle cx="30" cy="19" r="2.4" fill={kmJumpColor ?? '#b3261e'} stroke="#fff" strokeWidth="0.8" />
+    <circle cx="30" cy="19" r="2.4" fill={kmJumpColor ?? PALETTE.kmJump} stroke={PALETTE.white} strokeWidth="0.8" />
   </svg>
 )
 
@@ -450,7 +451,7 @@ export const LogoIcon = ({ className }) => (
       <filter id="a" width="1.06" height="1.06" x="-.03" y="-.03" colorInterpolationFilters="sRGB"><feGaussianBlur stdDeviation="1.593"/></filter>
     </defs>
     <rect width="128" height="128" x="3.824" y="5.157" filter="url(#a)" opacity=".187" ry="16.444"/>
-    <path fill="#fff" d="M0 0h78.915l19.771-26.296 3.25-19.276v-45.82l-47.735-34.352H-.169l-23.64 28.814v52.564z" clipPath="url(#b)" transform="matrix(1.0179 0 0 -1.0179 28.06 0)"/>
+    <path fill={PALETTE.white} d="M0 0h78.915l19.771-26.296 3.25-19.276v-45.82l-47.735-34.352H-.169l-23.64 28.814v52.564z" clipPath="url(#b)" transform="matrix(1.0179 0 0 -1.0179 28.06 0)"/>
     <path fill="currentColor" d="M46.824 93.076c-2.117 9.151-3.23 18.972-3.23 29.574v5.357h18.492c-3.231-14.731-8.801-26.115-15.262-34.931zM3.823 64.172V86.38a70.557 70.557 0 0 1 10.583 5.134c9.47 5.803 16.71 14.061 21.612 24.328V81.246c-3.788-3.348-7.687-6.138-11.474-8.37-7.241-4.24-14.37-6.919-20.72-8.704zm39.659 13.726C48.272 65.4 55.29 54.462 64.648 45.2V.002H43.482zm5.904 6.25c5.904 6.92 11.251 15.4 15.262 26.003V56.36c-6.684 8.035-11.809 17.298-15.262 27.788zM116.003.002H72.112v38.502c13.145-10.49 27.515-16.182 39.658-19.307 2.005-.558 4.122.67 4.567 2.678.557 2.009-.668 4.018-2.673 4.576-12.7 3.236-28.184 9.597-41.441 21.985v35.489c3.23-7.031 7.464-13.057 12.7-18.303 10.471-10.378 23.394-15.735 33.977-18.525 2.005-.558 4.121.67 4.567 2.678.557 2.009-.668 4.018-2.674 4.576-5.235 1.339-11.251 3.46-17.044 6.696C82.583 72.542 72.334 92.74 72.334 122.65v5.357h43.78c8.69 0 15.708-7.031 15.708-15.736V15.737c-.111-8.705-7.13-15.735-15.819-15.735zM28.331 66.515c2.451 1.451 5.013 3.125 7.576 5.134V.002H19.53c-8.69 0-15.708 7.03-15.708 15.735V56.36c7.353 1.785 15.93 4.91 24.508 10.155zM9.839 97.652c-2.005-1.228-4.01-2.232-6.016-3.125v17.744c0 8.705 7.019 15.736 15.708 15.736h12.922c-4.01-13.615-11.585-23.883-22.614-30.355z"/>
   </svg>
 )
@@ -475,7 +476,7 @@ export const SpliceElementIcon = () => (
 )
 
 export const ExternalLinkIcon = ({ color = 'currentColor', size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+  <svg className="no-shrink" width={size} height={size} viewBox="0 0 24 24" fill="none">
     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     <polyline points="15 3 21 3 21 9" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     <line x1="10" y1="14" x2="21" y2="3" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -485,7 +486,7 @@ export const ExternalLinkIcon = ({ color = 'currentColor', size = 14 }) => (
 // Language — Font Awesome Free 7.3.1 "language" (CC BY 4.0), filled, on the
 // colour of whatever it sits in.
 export const LanguageIcon = ({ size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 640 640" fill="currentColor" aria-hidden="true" style={{ flexShrink: 0 }}>
+  <svg className="no-shrink" width={size} height={size} viewBox="0 0 640 640" fill="currentColor" aria-hidden="true">
     <path d="M192 64C209.7 64 224 78.3 224 96L224 128L352 128C369.7 128 384 142.3 384 160C384 177.7 369.7 192 352 192L342.4 192L334 215.1C317.6 260.3 292.9 301.6 261.8 337.1C276 345.9 290.8 353.7 306.2 360.6L356.6 383L418.8 243C423.9 231.4 435.4 224 448 224C460.6 224 472.1 231.4 477.2 243L605.2 531C612.4 547.2 605.1 566.1 589 573.2C572.9 580.3 553.9 573.1 546.8 557L526.8 512L369.3 512L349.3 557C342.1 573.2 323.2 580.4 307.1 573.2C291 566 283.7 547.1 290.9 531L330.7 441.5L280.3 419.1C257.3 408.9 235.3 396.7 214.5 382.7C193.2 399.9 169.9 414.9 145 427.4L110.3 444.6C94.5 452.5 75.3 446.1 67.4 430.3C59.5 414.5 65.9 395.3 81.7 387.4L116.2 370.1C132.5 361.9 148 352.4 162.6 341.8C148.8 329.1 135.8 315.4 123.7 300.9L113.6 288.7C102.3 275.1 104.1 254.9 117.7 243.6C131.3 232.3 151.5 234.1 162.8 247.7L173 259.9C184.5 273.8 197.1 286.7 210.4 298.6C237.9 268.2 259.6 232.5 273.9 193.2L274.4 192L64.1 192C46.3 192 32 177.7 32 160C32 142.3 46.3 128 64 128L160 128L160 96C160 78.3 174.3 64 192 64zM448 334.8L397.7 448L498.3 448L448 334.8z" />
   </svg>
 )

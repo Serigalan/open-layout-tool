@@ -10,6 +10,7 @@ import { chosenTerrainSource } from '../utils/elevationSource'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
+import { PALETTE } from '../styles/palette'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
 const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
@@ -321,26 +322,26 @@ export default function ElevationOverlay({ trackId, onClose }) {
           <clipPath id="profile-clip"><rect x={MARGIN.left} y={MARGIN.top} width={plotW} height={plotH} /></clipPath>
         </defs>
         {/* grid */}
-        {sTicks.map(s => <line key={`gs${s}`} x1={X(s)} x2={X(s)} y1={MARGIN.top} y2={bottom} stroke="#eee" />)}
-        {zTicks.map(z => <line key={`gz${z}`} x1={MARGIN.left} x2={right} y1={Y(z)} y2={Y(z)} stroke="#eee" />)}
+        {sTicks.map(s => <line key={`gs${s}`} x1={X(s)} x2={X(s)} y1={MARGIN.top} y2={bottom} stroke={PALETTE.gridLine} />)}
+        {zTicks.map(z => <line key={`gz${z}`} x1={MARGIN.left} x2={right} y1={Y(z)} y2={Y(z)} stroke={PALETTE.gridLine} />)}
         {/* axes */}
-        <line x1={MARGIN.left} x2={right} y1={bottom} y2={bottom} stroke="#999" />
-        <line x1={MARGIN.left} x2={MARGIN.left} y1={MARGIN.top} y2={bottom} stroke="#999" />
+        <line x1={MARGIN.left} x2={right} y1={bottom} y2={bottom} stroke={PALETTE.axis} />
+        <line x1={MARGIN.left} x2={MARGIN.left} y1={MARGIN.top} y2={bottom} stroke={PALETTE.axis} />
         {sTicks.map(s => (
-          <text key={`ts${s}`} x={X(s)} y={bottom + 16} fontSize="11" fill="#555" textAnchor="middle">{s.toFixed(decimals(sStep))}</text>
+          <text key={`ts${s}`} x={X(s)} y={bottom + 16} fontSize="11" fill={PALETTE.textSoft} textAnchor="middle">{s.toFixed(decimals(sStep))}</text>
         ))}
         {zTicks.map(z => (
-          <text key={`tz${z}`} x={MARGIN.left - 6} y={Y(z) + 4} fontSize="11" fill="#555" textAnchor="end">{z.toFixed(decimals(zStep))}</text>
+          <text key={`tz${z}`} x={MARGIN.left - 6} y={Y(z) + 4} fontSize="11" fill={PALETTE.textSoft} textAnchor="end">{z.toFixed(decimals(zStep))}</text>
         ))}
-        <text x={right} y={bottom + 28} fontSize="11" fill="#888" textAnchor="end">{t('elevation_station')} [m]</text>
-        <text x={MARGIN.left - 6} y={MARGIN.top - 12} fontSize="11" fill="#888" textAnchor="end">{t('elevation_height')} [m]</text>
+        <text x={right} y={bottom + 28} fontSize="11" fill={PALETTE.muted} textAnchor="end">{t('elevation_station')} [m]</text>
+        <text x={MARGIN.left - 6} y={MARGIN.top - 12} fontSize="11" fill={PALETTE.muted} textAnchor="end">{t('elevation_height')} [m]</text>
 
         <g clipPath="url(#profile-clip)">
           {/* element boundaries */}
           {[...profile.boundaries, { station: profile.length }].map((b, i) => (
             <g key={`b${i}`}>
-              <line x1={X(b.station)} x2={X(b.station)} y1={MARGIN.top} y2={bottom} stroke="#c8c8d8" strokeDasharray="3 3" />
-              {b.el && <text x={X(b.station) + 3} y={MARGIN.top + 11} fontSize="10" fill="#777">{typeLabel(b.el)}</text>}
+              <line x1={X(b.station)} x2={X(b.station)} y1={MARGIN.top} y2={bottom} stroke={PALETTE.elementBoundary} strokeDasharray="3 3" />
+              {b.el && <text x={X(b.station) + 3} y={MARGIN.top + 11} fontSize="10" fill={PALETTE.label}>{typeLabel(b.el)}</text>}
             </g>
           ))}
           {/* joined tracks */}
@@ -348,36 +349,36 @@ export default function ElevationOverlay({ trackId, onClose }) {
             const [a, b] = s.points
             return (
               <g key={`n${i}`}>
-                <line x1={X(a.station)} y1={Y(a.z)} x2={X(b.station)} y2={Y(b.z)} stroke="#999" strokeWidth="2" strokeDasharray="6 4" />
-                <circle cx={X(b.station)} cy={Y(b.z)} r="3" fill="#fff" stroke="#999" strokeWidth="1.5" />
-                <text x={X(b.station)} y={Y(b.z) - 8} fontSize="10" fill="#777" textAnchor="middle">{s.name}</text>
+                <line x1={X(a.station)} y1={Y(a.z)} x2={X(b.station)} y2={Y(b.z)} stroke={PALETTE.axis} strokeWidth="2" strokeDasharray="6 4" />
+                <circle cx={X(b.station)} cy={Y(b.z)} r="3" fill={PALETTE.white} stroke={PALETTE.axis} strokeWidth="1.5" />
+                <text x={X(b.station)} y={Y(b.z) - 8} fontSize="10" fill={PALETTE.label} textAnchor="middle">{s.name}</text>
               </g>
             )
           })}
           {/* the vertical curves rounding the gradient changes */}
           {curves.map((c, i) => (
-            <polyline key={`vc${i}`} fill="none" stroke="#c9c9c9" strokeWidth="2"
+            <polyline key={`vc${i}`} fill="none" stroke={PALETTE.verticalCurve} strokeWidth="2"
               points={c.map(p => `${X(p.station)},${Y(p.z)}`).join(' ')} />
           ))}
           {/* the track */}
           <polyline fill="none" stroke="var(--color-primary)" strokeWidth="2"
             points={points.map(p => `${X(p.station)},${Y(p.z)}`).join(' ')} />
           {grades.map((g, i) => (
-            <text key={`g${i}`} x={g.x} y={g.y + 14} fontSize="10" fill="#888" textAnchor="middle">
+            <text key={`g${i}`} x={g.x} y={g.y + 14} fontSize="10" fill={PALETTE.muted} textAnchor="middle">
               {gradeLabel(g.grade)}
             </text>
           ))}
           {labelled.map(p => (
-            <text key={`l${p.index}`} x={X(p.station)} y={Y(p.z) - 9} fontSize="10" fill="#333" textAnchor="middle">
-              {p.z.toFixed(2)}{p.rv != null && <tspan fill="#777"> R{Math.round(p.rv)}</tspan>}
+            <text key={`l${p.index}`} x={X(p.station)} y={Y(p.z) - 9} fontSize="10" fill={PALETTE.textStrong} textAnchor="middle">
+              {p.z.toFixed(2)}{p.rv != null && <tspan fill={PALETTE.label}> R{Math.round(p.rv)}</tspan>}
             </text>
           ))}
           {points.map(p => {
             const on = isSelected(p)
             return (
-              <circle key={`p${p.index}`} cx={X(p.station)} cy={Y(p.z)} r={on ? 5.5 : 3.5}
-                fill={on ? '#a52a1f' : '#fff'} stroke={on ? '#a52a1f' : 'var(--color-primary)'} strokeWidth="2"
-                style={{ cursor: 'pointer' }}
+              <circle className="clickable" key={`p${p.index}`} cx={X(p.station)} cy={Y(p.z)} r={on ? 5.5 : 3.5}
+                fill={on ? PALETTE.mapSelected : PALETTE.white} stroke={on ? PALETTE.mapSelected : 'var(--color-primary)'} strokeWidth="2"
+
                 onPointerDown={e => e.stopPropagation()} onClick={e => pick(p, e)} />
             )
           })}
@@ -385,7 +386,7 @@ export default function ElevationOverlay({ trackId, onClose }) {
         {band && (
           <rect x={Math.min(band.x0, band.x1)} y={Math.min(band.y0, band.y1)}
             width={Math.abs(band.x1 - band.x0)} height={Math.abs(band.y1 - band.y0)}
-            fill="rgba(165,42,31,0.08)" stroke="#a52a1f" strokeDasharray="4 3" />
+            fill="rgba(165,42,31,0.08)" stroke={PALETTE.mapSelected} strokeDasharray="4 3" />
         )}
       </svg>
     )

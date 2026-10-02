@@ -11,6 +11,7 @@ import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
 import usePreview from '../../../map/usePreview'
 import useMapEvents from '../../../map/useMapEvents'
+import { PALETTE } from '../../../styles/palette'
 
 /** How close (px) the cursor has to come to an end for it to be the one meant. */
 const PICK_PX = 14
@@ -24,14 +25,14 @@ const PREVIEW_LAYERS = [
     sourceId: BRAKE_SOURCE,
     layer: {
       id: 'buffer-stop-preview-brake-layer', type: 'line',
-      paint: { 'line-color': '#a52a1f', 'line-width': 3, 'line-dasharray': [1.5, 1] },
+      paint: { 'line-color': PALETTE.mapSelected, 'line-width': 3, 'line-dasharray': [1.5, 1] },
     },
   },
   {
     sourceId: SHAPE_SOURCE,
     layer: {
       id: 'buffer-stop-preview-layer', type: 'line',
-      paint: { 'line-color': '#a52a1f', 'line-width': 5 },
+      paint: { 'line-color': PALETTE.mapSelected, 'line-width': 5 },
     },
   },
   {
@@ -40,8 +41,8 @@ const PREVIEW_LAYERS = [
       id: 'buffer-stop-ends-layer', type: 'circle',
       paint: {
         'circle-radius': ['case', ['get', 'active'], 7, 5],
-        'circle-color': ['case', ['get', 'active'], '#ff8c00', '#6c5ce7'],
-        'circle-stroke-color': '#ffffff',
+        'circle-color': ['case', ['get', 'active'], PALETTE.mapHover, PALETTE.mapCandidate],
+        'circle-stroke-color': PALETTE.white,
         'circle-stroke-width': 1.5,
       },
     },
@@ -185,7 +186,7 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
     return (
       <>
         <p className="selecting-hint">{t(edit ? 'buffer_stop_none_existing' : 'buffer_stop_none')}</p>
-        <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>
+        <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
           {t('btn_cancel')}
         </button>
       </>
@@ -198,7 +199,7 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
 
       {picked && (
         <div className="element-form">
-          <p style={{ margin: 0 }}><strong>{endName(picked)}</strong></p>
+          <p className="m-0"><strong>{endName(picked)}</strong></p>
           <div className="form-field">
             <label>{t('buffer_stop_type')}</label>
             <select value={type} onChange={e => handleType(e.target.value)}>
@@ -222,17 +223,16 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
       )}
 
       {picked && (
-        <button className="panel-btn panel-btn-full" disabled={brakeInvalid || tooShort}
-          style={{ opacity: brakeInvalid || tooShort ? 0.5 : 1 }} onClick={handleCommit}>
+        <button className="panel-btn panel-btn-full" disabled={brakeInvalid || tooShort} onClick={handleCommit}>
           {t('btn_commit')}
         </button>
       )}
       {picked && mark && (
-        <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#c0392b' }} onClick={handleDelete}>
+        <button className="panel-btn panel-btn-full mt-2 danger" onClick={handleDelete}>
           {t('buffer_stop_delete')}
         </button>
       )}
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
         {t('btn_cancel')}
       </button>
     </>

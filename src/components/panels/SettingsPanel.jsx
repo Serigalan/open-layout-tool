@@ -1,10 +1,6 @@
 import { languageLabels } from '../../locales/i18n'
 import { useI18n } from '../../locales/i18nContext'
-
-const COLOR_SWATCHES = [
-  '#303383', '#786ABF', '#2980b9', '#16a085', '#27ae60',
-  '#f39c12', '#e67e22', '#e74c3c', '#8e44ad', '#2c3e50',
-]
+import { PROJECT_COLORS } from '../../styles/palette'
 
 export default function SettingsPanel({ color, onColorChange }) {
   const { language, t, setLanguage } = useI18n()
@@ -29,7 +25,7 @@ export default function SettingsPanel({ color, onColorChange }) {
       <div className="settings-row">
         <label className="settings-label">{t('settings_color_label')}</label>
         <div className="settings-color-swatches">
-          {COLOR_SWATCHES.map(c => (
+          {PROJECT_COLORS.map(c => (
             <button
               key={c}
               className={`settings-color-swatch${color === c ? ' active' : ''}`}

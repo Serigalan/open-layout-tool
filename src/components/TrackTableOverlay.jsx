@@ -496,7 +496,7 @@ export default function TrackTableOverlay({
           {current.name || current.id.slice(0, 8)}
           <span className="track-table-subtitle">{lengthText(trackLength)} m</span>
         </span>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="row-wide">
           <label className="track-table-cap" title={t('table_speed_cap_hint')}>
             {t('table_speed_cap')}
             <input className="track-table-input track-table-cap-input"

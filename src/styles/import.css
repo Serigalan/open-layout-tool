@@ -1,0 +1,108 @@
+/* Import forms: file pickers, the ProVI axis list; and the info panel. */
+
+/* A file picker is a label styled as a button, and a check box row is a label
+   too: inside a form field neither takes the field caption's look. */
+.form-field label.panel-btn {
+  font-size: 14px;
+  font-weight: normal;
+  color: white;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.form-field label.transition-curve-row {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.transition-curve-row span {
+  font-family: var(--font-ui);
+  font-size: var(--fs-m);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+/* ProVI import — the archive's axes to pick from, one row each. */
+.provi-axis-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 2px 0;
+}
+
+.provi-axis-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-ui);
+  font-size: var(--fs-s);
+}
+
+.provi-axis-row:hover {
+  background: #f0f0f8;
+}
+
+.provi-axis-name {
+  font-weight: 600;
+  color: var(--color-text);
+  min-width: 64px;
+}
+
+.provi-axis-title {
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Info panel — one row per panel: icon + heading + description */
+.info-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.info-panel-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.info-panel-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.info-panel-text p {
+  margin: 0;
+  font-size: var(--fs-s);
+  line-height: 1.4;
+  color: #666;
+}
+
+.info-panel-link {
+  color: var(--color-primary);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.info-panel-link svg {
+  vertical-align: middle;
+  margin-left: 3px;
+}
+
+.info-panel-link:hover {
+  text-decoration: underline;
+}

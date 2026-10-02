@@ -30,8 +30,9 @@ import ConflictDialog from '../components/collab/ConflictDialog'
 import CheckInDialog from '../components/collab/CheckInDialog'
 import WorkingCopyBar from '../components/collab/WorkingCopyBar'
 import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../map/layerIds'
+import { PALETTE } from '../styles/palette'
 
-const DEFAULT_COLOR = '#303383'
+const DEFAULT_COLOR = PALETTE.primaryDefault
 
 /**
  * The open project on the map (R2.3–R2.5): the sidebar and the panel made from

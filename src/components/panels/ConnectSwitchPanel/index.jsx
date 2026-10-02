@@ -118,7 +118,7 @@ export default function ConnectSwitchPanel() {
           <SwitchConnectionIcon />
           {t('scurve_title')}
         </button>
-        <hr style={SEPARATOR} />
+        <hr className="divider divider-wide" />
         <button className="create-element-btn" onClick={() => setPage('crossing')}>
           <CrossingIcon />
           {t('crossing')}
@@ -131,7 +131,7 @@ export default function ConnectSwitchPanel() {
           <CrossingOnTrackIcon />
           {t('crossing_on_track')}
         </button>
-        <hr style={SEPARATOR} />
+        <hr className="divider divider-wide" />
         <button className="create-element-btn" onClick={() => setPage('link')}>
           <SwitchLinkIcon />
           {t('switch_link')}

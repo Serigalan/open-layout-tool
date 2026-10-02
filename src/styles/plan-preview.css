@@ -1,0 +1,97 @@
+/* The plan sheet preview. */
+
+/* ── Plan preview ──────────────────────────────────────────────────────────
+   The sheet as it will be printed, drawn by the SVG backend of the plan
+   model. It covers the map area like the track table and the profile do. */
+.plan-preview-overlay {
+  position: absolute;
+  inset: 0;
+  background: #e8e8ec;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  font-family: var(--font-ui);
+}
+
+.plan-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.plan-preview-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.plan-preview-title span {
+  font-size: var(--fs-s);
+  color: var(--color-muted);
+}
+
+.plan-preview-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-preview-tools select {
+  font-family: var(--font-ui);
+  font-size: var(--fs-m);
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.plan-preview-tools .panel-btn {
+  align-self: auto;
+  padding: 6px 12px;
+  font-size: var(--fs-m);
+}
+
+.plan-preview-step,
+.plan-preview-close {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.plan-preview-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.plan-preview-close {
+  font-size: 20px;
+  margin-left: 4px;
+}
+
+.plan-preview-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+/* The sheet keeps its aspect ratio; the width is the zoom. */
+.plan-preview-sheet svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 10px 30px -14px rgba(0, 0, 0, 0.35);
+}

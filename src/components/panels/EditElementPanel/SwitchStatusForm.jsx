@@ -49,11 +49,11 @@ export default function SwitchStatusForm({ onCommitted }) {
         </div>
       )}
       {selected && (
-        <button className="panel-btn panel-btn-full" style={{ marginTop: 8 }} onClick={handleCommit}>
+        <button className="panel-btn panel-btn-full mt-8" onClick={handleCommit}>
           {t('btn_commit')}
         </button>
       )}
-      <button className="panel-btn panel-btn-full" style={{ marginTop: selected ? 2 : 8, background: '#888' }} onClick={onCommitted}>
+      <button className={`panel-btn panel-btn-full secondary ${selected ? 'mt-2' : 'mt-8'}`} onClick={onCommitted}>
         {t('btn_cancel')}
       </button>
     </>

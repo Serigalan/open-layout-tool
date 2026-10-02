@@ -1,0 +1,74 @@
+/* Dialogs over the page (components/Modal.jsx): the overlay, the box, its buttons. */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  padding: 28px 24px;
+  width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.modal-code {
+  font-family: monospace;
+  font-size: 14px;
+  background: #f0f0f4;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--color-text);
+}
+
+.modal-message {
+  font-family: var(--font-ui);
+  font-size: var(--fs-l);
+  color: var(--color-text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal-btn {
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: none;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal-btn-cancel {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.modal-btn-cancel:hover {
+  background: var(--color-border);
+}
+
+.modal-btn-confirm {
+  background: var(--color-error);
+  color: white;
+}
+
+.modal-btn-confirm:hover {
+  background: var(--color-danger);
+}

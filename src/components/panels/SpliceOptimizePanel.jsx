@@ -8,8 +8,6 @@ import { useI18n } from '../../locales/i18nContext'
 
 // The gray line between the two tool groups, the same separator the layers
 // panel draws between its basemap groups.
-const SEPARATOR = { margin: '10px 0', border: 'none', borderTop: '1px solid #ddd' }
-
 function BackButton({ onBack }) {
   const { t } = useI18n()
   return (
@@ -52,7 +50,7 @@ export default function SpliceOptimizePanel({ onShowRegelwerk }) {
           {t('splice_start')}
         </button>
       </div>
-      <hr style={SEPARATOR} />
+      <hr className="divider divider-wide" />
       <h2>{t('optimize_track')}</h2>
       <div className="create-element-options">
         <button className="create-element-btn" onClick={() => setPage('optimize_track')}>

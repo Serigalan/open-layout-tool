@@ -51,12 +51,12 @@ export default function PlanHeaderFields({ header, onChange, onError, simple = f
   const staffRows = STAFF.filter(({ key }) => !simple || SIMPLE_STAFF.includes(key)).map(({ key, labelKey }) => (
     <div className="form-field" key={key}>
       <label>{t(labelKey)}</label>
-      <div style={{ display: 'flex', gap: 4 }}>
+      <div className="row-tight">
         {/* The browser's calendar; the plan writes the day in the language's own form. */}
-        <input type="date" style={{ width: '45%', minWidth: 0 }} value={header.staff[key].date}
+        <input type="date" className="plan-date-input" value={header.staff[key].date}
           title={t('plan_staff_date')}
           onChange={e => setStaff(key, { date: e.target.value })} />
-        <input type="text" style={{ flex: 1, minWidth: 0 }} value={header.staff[key].name}
+        <input className="grow" type="text" value={header.staff[key].name}
           placeholder={t('plan_staff_name')}
           onChange={e => setStaff(key, { name: e.target.value })} />
       </div>
@@ -78,13 +78,13 @@ export default function PlanHeaderFields({ header, onChange, onError, simple = f
             <label>{t(labelKey)}</label>
             <textarea rows={4} value={party.address} placeholder={t('plan_address_hint')}
               onChange={e => setParty(key, { address: e.target.value })} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <div className="mt-4 row">
               {party.logo && (
-                <img src={party.logo.dataUrl} alt="" style={{ maxHeight: 28, maxWidth: 80, background: '#fff' }} />
+                <img src={party.logo.dataUrl} alt="" className="plan-logo-thumb" />
               )}
-              <label className="panel-btn" style={{ cursor: 'pointer' }}>
+              <label className="panel-btn clickable">
                 {party.logo ? t('plan_logo_change') : t('plan_logo_add')}
-                <input type="file" accept="image/*" style={{ display: 'none' }}
+                <input hidden type="file" accept="image/*"
                   onChange={e => { pickLogo(key, e.target.files?.[0]); e.target.value = '' }} />
               </label>
               {party.logo && (
@@ -94,7 +94,7 @@ export default function PlanHeaderFields({ header, onChange, onError, simple = f
               )}
             </div>
             {/* The lines are drawn only under a column that names someone. */}
-            <label className="transition-curve-row" style={{ marginTop: 4 }}>
+            <label className="transition-curve-row mt-4">
               <input type="checkbox" checked={party.signs}
                 onChange={e => setParty(key, { signs: e.target.checked })} />
               <span>{t('plan_party_signs')}</span>
@@ -105,13 +105,13 @@ export default function PlanHeaderFields({ header, onChange, onError, simple = f
 
       <div className="form-field">
         <label>{t('plan_sketch')}</label>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div className="row">
           {header.sketch && (
-            <img src={header.sketch.dataUrl} alt="" style={{ maxHeight: 40, maxWidth: 120, background: '#fff' }} />
+            <img src={header.sketch.dataUrl} alt="" className="plan-sketch-thumb" />
           )}
-          <label className="panel-btn" style={{ cursor: 'pointer' }}>
+          <label className="panel-btn clickable">
             {t('plan_sketch_add')}
-            <input type="file" accept="image/*" style={{ display: 'none' }}
+            <input hidden type="file" accept="image/*"
               onChange={e => { pickSketch(e.target.files?.[0]); e.target.value = '' }} />
           </label>
           {header.sketch && (
@@ -120,7 +120,7 @@ export default function PlanHeaderFields({ header, onChange, onError, simple = f
             </button>
           )}
         </div>
-        {!header.sketch && <p style={{ fontSize: 11, color: '#888', margin: '4px 0 0' }}>{t('plan_sketch_auto')}</p>}
+        {!header.sketch && <p className="msg-hint msg-small">{t('plan_sketch_auto')}</p>}
       </div>
 
       {staffRows}

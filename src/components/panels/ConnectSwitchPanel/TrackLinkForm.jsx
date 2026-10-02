@@ -135,7 +135,7 @@ export default function TrackLinkForm({ onCommitted }) {
           case where there are no joints to list. */}
       {fanned > 0 && <p className="selecting-hint">{fill('switch_link_fanned', { n: fanned })}</p>}
 
-      <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onCommitted}>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
         {t('btn_cancel')}
       </button>
     </>

@@ -13,7 +13,7 @@ export default function SwitchNumberField({ number, onChange, name, taken }) {
         <input
           type="number" min="1" step="1" value={number}
           onChange={e => onChange(Math.max(1, Math.round(Number(e.target.value) || 0)))}
-          style={taken ? { borderColor: '#e74c3c' } : undefined}
+          className={taken ? 'input-error' : undefined}
         />
         {taken && <span className="form-error">{t('switch_number_exists')}</span>}
       </div>
