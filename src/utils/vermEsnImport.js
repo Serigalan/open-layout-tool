@@ -176,27 +176,33 @@ export function buildElements(records, epsg) {
  * The tangent polygon of a Verm.ESN gradient file: [{ station, z, rv? }],
  * ascending, stationed along the axis like the TRA file's elements.
  *
- * Layout: a header one record long whose first float64 is `num`, then
- * `num + 1` records of station, height, radius of the vertical curve, tangent
- * length (all float64) and point number (int32). The radius is signed by crest
- * or sag; the model holds its magnitude.
+ * Layout: a header one record long whose first float64 is `num`, then `num`
+ * points of station, height, radius of the vertical curve, tangent length (all
+ * float64) and point number (int32). The radius is signed by crest or sag; the
+ * model holds its magnitude.
+ *
+ * Behind the points the files met so far carry a closing record that is no
+ * point of the gradient (its station jumps back into the middle) and padding.
+ * Reading also stops at the first record whose station does not move on, in
+ * case `num` ever counts that closing record too.
  */
 export function parseGradient(arrayBuffer) {
   const view = new DataView(arrayBuffer)
   if (view.byteLength < GRA_RECORD_SIZE) return []
   const num = view.getFloat64(0, true)
   const fits = Math.floor((view.byteLength - GRA_RECORD_SIZE) / GRA_RECORD_SIZE)
-  const count = Number.isInteger(num) && num >= 0 ? Math.min(num + 1, fits) : fits
+  const count = Number.isInteger(num) && num >= 0 ? Math.min(num, fits) : fits
   const out = []
   for (let i = 0; i < count; i++) {
     const offset = GRA_RECORD_SIZE + i * GRA_RECORD_SIZE
     const station = view.getFloat64(offset, true)
     const z = view.getFloat64(offset + 8, true)
     const rv = Math.abs(view.getFloat64(offset + 16, true))
-    if (!Number.isFinite(station) || !Number.isFinite(z)) continue
+    if (!Number.isFinite(station) || !Number.isFinite(z)) break
+    if (out.length && !(station > out[out.length - 1].station)) break
     out.push({ station, z, ...(rv > 0 ? { rv } : {}) })
   }
-  return out.sort((a, b) => a.station - b.station)
+  return out
 }
 
 /**

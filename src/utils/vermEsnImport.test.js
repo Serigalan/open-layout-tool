@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { parseRecords, buildElements, parseGradient, gradientHeights } from './vermEsnImport'
 
-/** A GRA file: header (num = records − 1), then station, height, radius, tangent length, point number. */
-function graBuffer(rows) {
+/** A GRA file: header (num = number of points), then station, height, radius, tangent length, point number. */
+function graBuffer(rows, num = rows.length) {
   const buf = new ArrayBuffer(36 * (rows.length + 1))
   const view = new DataView(buf)
-  view.setFloat64(0, rows.length - 1, true)
+  view.setFloat64(0, num, true)
   rows.forEach(([station, z, rv = 0, t = 0, nr = 0], i) => {
     const o = 36 * (i + 1)
     view.setFloat64(o, station, true)
@@ -41,6 +41,17 @@ describe('parseGradient', () => {
       { station: 1200, z: 82, rv: 5000 },
       { station: 1500, z: 79 },
     ])
+  })
+
+  it('leaves out the closing record behind the gradient', () => {
+    // As in the delivered files: num points, then a record whose station
+    // jumps back (and a padding record).
+    const rows = [[0, 508.032], [164, 508.36, -2037.351, 25], [404, 502.95],
+      [1426.98, 1460.58, 1516.58, 2060, 1000], [0, 0]]
+    expect(parseGradient(graBuffer(rows, 3)).map(p => p.station)).toEqual([0, 164, 404])
+    // A header that counts the closing record as well still ends at the last point.
+    rows[3][0] = 100
+    expect(parseGradient(graBuffer(rows, 4)).map(p => p.station)).toEqual([0, 164, 404])
   })
 
   it('stops at the end of the file when the header promises more', () => {
