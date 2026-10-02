@@ -69,5 +69,12 @@ python3 -m venv .venv
 ## Verifikation
 
 ```bash
-.venv/bin/python tests/verify.py
+.venv/bin/python tests/verify.py           # Kernel, Läufe, Regelprüfung der Vorschläge
+.venv/bin/python tests/verify_service.py   # der HTTP-Dienst
+.venv/bin/python tests/vectors.py          # gemeinsame Testvektoren mit der App
 ```
+
+`tests/vectors.py` liest `src/constraints/tests/` — Ausdrücke der Regelsprache und
+Elementketten mit den erwarteten Befunden des Regelkatalogs. Die App liest dieselben
+Dateien (`ruleExpr.vectors.test.js`, `trassierungCheck.vectors.test.js`); weichen
+JavaScript und Python voneinander ab, schlägt eine der beiden Seiten fehl.
