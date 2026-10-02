@@ -581,6 +581,13 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
     )
   }
 
+  // One metre on or back, to the next whole metre — from 30.4 to 31 or 30 —
+  // so stepping walks the stations a surveyor would read off.
+  const stepTo = (dir) => {
+    const next = dir > 0 ? Math.floor(station + 1e-6) + 1 : Math.ceil(station - 1e-6) - 1
+    onAtChange?.({ ...at, station: clamp(next, 0, total) })
+  }
+
   const state = main.state
   return (
     <div className="profile-overlay" style={heightPx ? { height: heightPx } : undefined}>
@@ -644,10 +651,14 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
         {drawing()}
       </div>
       <div className="cross-section-slider">
+        <button className="cross-section-step" disabled={station <= 0} onClick={() => stepTo(-1)}
+          title={t('cross_section_step_back')}>◀</button>
         <input
           type="range" min={0} max={total} step={0.1} value={station}
           onChange={e => onAtChange?.({ ...at, station: Number(e.target.value) })}
         />
+        <button className="cross-section-step" disabled={station >= total} onClick={() => stepTo(1)}
+          title={t('cross_section_step_forward')}>▶</button>
         <span className="cross-section-slider-label">{`${station.toFixed(1)} / ${total.toFixed(1)} m`}</span>
       </div>
     </div>

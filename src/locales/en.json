@@ -638,6 +638,8 @@
   "cross_section_show": "Show cross section",
   "cross_section_hint": "Pick a track from the list or click it on the map – the overlay's slider walks the section along it.",
   "cross_section_station": "Station",
+  "cross_section_step_back": "One metre back",
+  "cross_section_step_forward": "One metre on",
   "cross_section_profile_section": "Clearance",
   "cross_section_profile": "Clearance profile (per project)",
   "cross_section_rails": "Rails",

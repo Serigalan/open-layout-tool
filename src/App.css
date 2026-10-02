@@ -1650,6 +1650,28 @@
   accent-color: var(--color-primary);
 }
 
+.cross-section-step {
+  flex: none;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--color-primary);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.cross-section-step:hover:not(:disabled) {
+  background: #f3f1fd;
+}
+
+.cross-section-step:disabled {
+  color: #bbb;
+  cursor: default;
+}
+
 .cross-section-slider-label {
   font-size: 12px;
   color: #555;
