@@ -19,6 +19,10 @@ import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import { buildCrossingOnTrack, crossingOnTrackPlacement } from '../../../utils/commands/switches'
+import CommitBar from '../../form/CommitBar'
+import ReadOnlyField from '../../form/ReadOnlyField'
+import FormSection from '../../form/FormSection'
+import useFormPhase from '../../form/useFormPhase'
 
 /**
  * A crossing or crossing switch laid INTO an existing track (AP 3.3) — the
@@ -47,8 +51,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
   const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
-  const [phase, setPhase]         = useState('select')
-  const [pick, setPick]           = useState(null)   // { trackId }
+  const { phase, pick, begin, reset: resetPhase } = useFormPhase()   // pick: { trackId }
   const [station, setStation]     = useState('')     // crossing point along the track [m]
   const [crossSide, setCrossSide] = useState('right') // which side the cross route leaves on
   const [formIdx, setFormIdx]     = useState(() =>
@@ -83,9 +86,8 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       // The click is projected onto the element in the track's own plane and
       // stated as a station along the whole track — the crossing point.
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
-      setPick({ trackId })
+      begin({ trackId })
       setStation(String(Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000))
-      setPhase('editing')
     },
   })
 
@@ -140,7 +142,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
     : '–'
 
 
-  const handleCancel = () => { preview.clear(); setPhase('select'); setPick(null); onCommitted?.() }
+  const handleCancel = () => { preview.clear(); resetPhase(); onCommitted?.() }
 
   const handleCommit = () => {
     setErrors([])
@@ -181,17 +183,13 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
 
   return (
     <>
-      <div className="element-form">
-        <span className="create-element-section">{t('section_geometry')}</span>
+      <FormSection title={t('section_geometry')}>
         <div className="form-field">
           <label>{t('crossing_on_track_station')}</label>
           <input type="number" step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
             onChange={e => setStation(e.target.value)} />
         </div>
-        <div className="form-field">
-          <label>{t('crossing_on_track_elements')}</label>
-          <input type="text" readOnly value={elementsText} />
-        </div>
+        <ReadOnlyField label={t('crossing_on_track_elements')} value={elementsText} />
         <div className="form-field">
           <label>{t('crossing_form')}</label>
           <select value={formIdx} onChange={e => setFormIdx(Number(e.target.value))}>
@@ -207,51 +205,31 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
           </select>
         </div>
         {ahead && (
-          <div className="form-field">
-            <label>{t('bearing')}</label>
-            <input type="text" readOnly value={ahead.bearing.toFixed(3)} />
-          </div>
+          <ReadOnlyField label={t('bearing')} value={ahead.bearing.toFixed(3)} />
         )}
-        <div className="form-field">
-          <label>{t('crossing_angle')}</label>
-          <input type="text" readOnly value={`1:${form.ratio} (${alpha.toFixed(2)}°)`} />
-        </div>
-        <div className="form-field">
-          <label>{t('crossing_end_distance')}</label>
-          <input type="text" readOnly value={`${endDist.toFixed(2)} m`} />
-        </div>
+        <ReadOnlyField label={t('crossing_angle')} value={`1:${form.ratio} (${alpha.toFixed(2)}°)`} />
+        <ReadOnlyField label={t('crossing_end_distance')} value={`${endDist.toFixed(2)} m`} />
         {form.R != null && (
-          <div className="form-field">
-            <label>{t('field_radius')}</label>
-            <input type="text" readOnly value={`${form.R} m`} />
-          </div>
+          <ReadOnlyField label={t('field_radius')} value={`${form.R} m`} />
         )}
         {crossingLegRadius(form) != null && (
-          <div className="form-field">
-            <label>{t('crossing_leg_radius')}</label>
-            <input type="text" readOnly value={`${crossingLegRadius(form)} m`} />
-          </div>
+          <ReadOnlyField label={t('crossing_leg_radius')} value={`${crossingLegRadius(form)} m`} />
         )}
         {form.Ri != null && (
-          <div className="form-field">
-            <label>{t('crossing_inner_radius')}</label>
-            <input type="text" readOnly value={`${form.Ri} m`} />
-          </div>
+          <ReadOnlyField label={t('crossing_inner_radius')} value={`${form.Ri} m`} />
         )}
         <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
-      </div>
+      </FormSection>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('switch_meta_data')}</span>
+      <FormSection title={t('switch_meta_data')}>
         <SwitchNumberField number={switchNo.number} onChange={switchNo.setNumber}
           name={switchNo.name} taken={switchNo.taken} />
-      </div>
+      </FormSection>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('section_meta_cross')}</span>
+      <FormSection title={t('section_meta_cross')}>
         <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError} />
-      </div>
+      </FormSection>
 
       {errors.length > 0 && (
         <p className="form-error">
@@ -261,12 +239,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       {nameError && <p className="form-error">{t('track_name_exists')}</p>}
       {placeError && <p className="form-error">{placeError}</p>}
 
-      <button className="panel-btn panel-btn-full" onClick={handleCommit} disabled={!!placeError}>
-        {t('btn_commit')}
-      </button>
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
-        {t('btn_cancel')}
-      </button>
+      <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!!placeError} className="" />
     </>
   )
 }

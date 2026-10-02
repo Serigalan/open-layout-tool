@@ -19,6 +19,8 @@ import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { trackEndAnchor } from '../../../utils/trackModel'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildConnectCurved } from '../../../utils/commands/tracks'
+import CommitBar from '../../form/CommitBar'
+import ReadOnlyField from '../../form/ReadOnlyField'
 
 export default function ConnectCurvedForm({ onCommitted }) {
   const { t } = useI18n()
@@ -207,10 +209,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
               easting={startPoint.easting.toFixed(2)} northing={startPoint.northing.toFixed(2)} readOnly />
           )}
           {bearing !== null && (
-            <div className="form-field">
-              <label>{t('bearing')}</label>
-              <input type="number" readOnly value={Math.round(bearing * 1000) / 1000} />
-            </div>
+            <ReadOnlyField type="number" label={t('bearing')} value={Math.round(bearing * 1000) / 1000} />
           )}
 
           {hasArc && (
@@ -224,10 +223,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
                 <input type="number" step="0.001" value={signedRadius} onChange={e => handleRadiusChange(e.target.value)} />
               </div>
               {endBearing && (
-                <div className="form-field">
-                  <label>{t('end_bearing')}</label>
-                  <input type="number" readOnly value={endBearing} />
-                </div>
+                <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
               )}
               <div className="form-field">
                 <label>{t('field_speed')}</label>
@@ -236,10 +232,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
               <CantField value={cant} onChange={setCant}
                 min={-MAX_CANT} max={MAX_CANT}
                 speed={speed} radius={Math.abs(Number(signedRadius))} />
-              <div className="form-field">
-                <label>{t('cant_def')}</label>
-                <input type="number" readOnly value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />
-              </div>
+              <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />
               {endPoint && (
                 <UtmCoordFields label={t('utm_end')} zone={endPoint.zone}
                   easting={endPoint.easting.toFixed(2)} northing={endPoint.northing.toFixed(2)} readOnly />
@@ -259,13 +252,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
         return (
           <>
             <RuleFindings element={element} />
-            <button className="panel-btn panel-btn-full" onClick={handleCommit}
-              disabled={blocked}>
-              {t('btn_commit')}
-            </button>
-            <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-              {t('btn_cancel')}
-            </button>
+            <CommitBar onCommit={handleCommit} onCancel={onCommitted} disabled={blocked} className="" />
           </>
         )
       })()}

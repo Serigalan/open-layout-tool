@@ -14,6 +14,8 @@ import { useProject } from '../../../hooks/useStore'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { buildParallelTrack, trackMeta } from '../../../utils/commands/tracks'
+import CommitBar from '../../form/CommitBar'
+import FormSection from '../../form/FormSection'
 
 export default function ParallelTrackForm({ onDone }) {
   const { t } = useI18n()
@@ -92,21 +94,19 @@ export default function ParallelTrackForm({ onDone }) {
 
   return (
     <>
-      <div className="element-form">
-        <span className="create-element-section">{t('section_meta')}</span>
+      <FormSection title={t('section_meta')}>
         <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError} />
-      </div>
+      </FormSection>
 
       {!selecting && (
-        <div className="element-form">
-          <span className="create-element-section">{t('section_geometry')}</span>
+        <FormSection title={t('section_geometry')}>
           <div className="form-field">
             <label>{t('field_offset')}</label>
             <input type="number" step="0.01" value={offset} onChange={e => handleOffsetChange(e.target.value)} />
           </div>
           <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
-        </div>
+        </FormSection>
       )}
 
       {selecting && <p className="selecting-hint">{t('parallel_track_select')}</p>}
@@ -124,13 +124,7 @@ export default function ParallelTrackForm({ onDone }) {
               the catalogue has to say about it is mostly what it had to say
               about the track it was drawn beside. */}
           {elements && <RuleFindings elements={elements} />}
-          <button className="panel-btn panel-btn-full"
-            disabled={!elements || blocked} onClick={handleCommit}>
-            {t('btn_commit')}
-          </button>
-          <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onDone}>
-            {t('btn_cancel')}
-          </button>
+          <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={!elements || blocked} className="" />
         </>
       )}
     </>

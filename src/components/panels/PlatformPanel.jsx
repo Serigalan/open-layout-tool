@@ -16,6 +16,8 @@ import usePreview from '../../map/usePreview'
 import useMapPick, { useSelectedOnMap } from '../../map/useMapPick'
 import useMapEvents from '../../map/useMapEvents'
 import { PALETTE } from '../../styles/palette'
+import ReadOnlyField from '../form/ReadOnlyField'
+import FormSection from '../form/FormSection'
 
 const PREVIEW_FILL_SOURCE = 'platform-preview-fill-source'
 const PREVIEW_LINE_SOURCE = 'platform-preview-line-source'
@@ -225,12 +227,8 @@ export default function PlatformPanel() {
         </p>
       )}
 
-      <div className="element-form">
-        <span className="create-element-section">{t('section_geometry')}</span>
-        <div className="form-field">
-          <label>{t('platform_track')}</label>
-          <input type="text" readOnly value={trackLabel(track)} />
-        </div>
+      <FormSection title={t('section_geometry')}>
+        <ReadOnlyField label={t('platform_track')} value={trackLabel(track)} />
         <div className="form-field">
           <label>{t('platform_start')}</label>
           <input type="number" step="0.001" min="0" max={total} value={start}
@@ -241,10 +239,7 @@ export default function PlatformPanel() {
           <input type="number" step="0.001" min="0" max={total} value={end}
             onChange={e => { setEnd(e.target.value); setPicking(null) }} />
         </div>
-        <div className="form-field">
-          <label>{t('field_length')}</label>
-          <input type="text" readOnly value={valid ? `${platformLength(draft).toFixed(3)} m` : '–'} />
-        </div>
+        <ReadOnlyField label={t('field_length')} value={valid ? `${platformLength(draft).toFixed(3)} m` : '–'} />
         <div className="form-field">
           <label>{t('platform_side')}</label>
           <select value={side} onChange={e => setSide(e.target.value)}>
@@ -286,10 +281,7 @@ export default function PlatformPanel() {
             value={valid ? `${draft.backOffset.toFixed(2)} m` : '–'} />
         </div>
         {edgeStart != null && (
-          <div className="form-field">
-            <label>{t('platform_edge_elevation')}</label>
-            <input type="text" readOnly value={`${edgeStart.toFixed(3)} m … ${edgeEnd.toFixed(3)} m`} />
-          </div>
+          <ReadOnlyField label={t('platform_edge_elevation')} value={`${edgeStart.toFixed(3)} m … ${edgeEnd.toFixed(3)} m`} />
         )}
         {startPoint && (
           <UtmCoordFields label={t('platform_point_start')} zone={track.epsg} readOnly
@@ -299,10 +291,9 @@ export default function PlatformPanel() {
           <UtmCoordFields label={t('platform_point_end')} zone={track.epsg} readOnly
             easting={endPoint.utm.easting.toFixed(2)} northing={endPoint.utm.northing.toFixed(2)} />
         )}
-      </div>
+      </FormSection>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('section_meta')}</span>
+      <FormSection title={t('section_meta')}>
         <div className="form-field">
           <label>{t('station_name')}</label>
           <StationNameInput
@@ -316,7 +307,7 @@ export default function PlatformPanel() {
           <input type="text" value={code} maxLength={PLATFORM_CODE_MAX}
             onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, PLATFORM_CODE_MAX))} />
         </div>
-      </div>
+      </FormSection>
 
       {!valid && <p className="form-error">{t('platform_error_range')}</p>}
 

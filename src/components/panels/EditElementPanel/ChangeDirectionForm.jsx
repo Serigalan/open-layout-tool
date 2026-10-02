@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { reverseTrackDirection } from '../../../storage'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
+import CommitBar from '../../form/CommitBar'
 
 export default function ChangeDirectionForm({ onCommitted }) {
   const { t } = useI18n()
@@ -28,12 +29,7 @@ export default function ChangeDirectionForm({ onCommitted }) {
       }
       {selectedTrackId ? (
         <>
-          <button className="panel-btn panel-btn-full mt-8" onClick={handleCommit}>
-            {t('btn_commit')}
-          </button>
-          <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-            {t('btn_cancel')}
-          </button>
+          <CommitBar onCommit={handleCommit} onCancel={onCommitted} />
         </>
       ) : (
         <button className="panel-btn panel-btn-full mt-8 secondary" onClick={onCommitted}>

@@ -15,6 +15,7 @@ import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
 import usePreview from '../../map/usePreview'
 import useMapPick from '../../map/useMapPick'
 import { PALETTE } from '../../styles/palette'
+import ReadOnlyField from '../form/ReadOnlyField'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
 const OPTIMIZE_PREVIEW_LAYER  = 'optimize-preview-layer'
@@ -244,10 +245,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
       {backButton}
       <h2>{title}</h2>
       <div className="element-form">
-        <div className="form-field">
-          <label>{mode === 'element' ? t('optimize_mode_element') : 'Track'}</label>
-          <input type="text" readOnly value={label} />
-        </div>
+        <ReadOnlyField label={mode === 'element' ? t('optimize_mode_element') : 'Track'} value={label} />
         <div className="form-field">
           <label>{t('optimize_corridor')}: {corridorCm} cm</label>
           <input type="range" min="0" max="50" step="1" value={corridorCm}

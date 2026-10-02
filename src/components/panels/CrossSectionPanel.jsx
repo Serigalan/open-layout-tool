@@ -13,6 +13,8 @@ import GroupedTrackList from './GroupedTrackList'
 import ClearanceScanSection from './ClearanceScanSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
+import ReadOnlyField from '../form/ReadOnlyField'
+import FormSection from '../form/FormSection'
 
 /**
  * The cross section of a track, at a station of it: the clearance profile the
@@ -73,10 +75,7 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
     const total  = Math.round(trackLength(track) * 1000) / 1000
     return (
       <>
-        <div className="form-field">
-          <label>{t(field === 'rails' ? 'cross_section_rail_default' : 'cross_section_sleeper_default')}</label>
-          <input type="text" readOnly value={`${table[defaultType].label} · 0 – ${total} m`} />
-        </div>
+        <ReadOnlyField label={t(field === 'rails' ? 'cross_section_rail_default' : 'cross_section_sleeper_default')} value={`${table[defaultType].label} · 0 – ${total} m`} />
         {ranges.map((r, i) => (
           <div className="form-field" key={`${field}${i}`}>
             <label>{t('cross_section_range')}</label>
@@ -116,8 +115,7 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
           onPick={(tr) => setTrackId(tr.id)} />
       )}
 
-      <div className="element-form">
-        <span className="create-element-section">{t('cross_section_profile_section')}</span>
+      <FormSection title={t('cross_section_profile_section')}>
         <div className="form-field">
           <label>{t('cross_section_profile')}</label>
           <select value={currentProject()?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE}
@@ -127,19 +125,17 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
             ))}
           </select>
         </div>
-      </div>
+      </FormSection>
 
       {track && (
         <>
-          <div className="element-form">
-            <span className="create-element-section">{t('cross_section_rails')}</span>
+          <FormSection title={t('cross_section_rails')}>
             {rangeEditor('rails', RAILS, DEFAULT_RAIL)}
-          </div>
+          </FormSection>
 
-          <div className="element-form">
-            <span className="create-element-section">{t('cross_section_sleepers')}</span>
+          <FormSection title={t('cross_section_sleepers')}>
             {rangeEditor('sleepers', SLEEPERS, DEFAULT_SLEEPER)}
-          </div>
+          </FormSection>
 
           <ClearanceScanSection track={track} onShowCrossSection={onShowCrossSection} />
 

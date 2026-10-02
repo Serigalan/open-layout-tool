@@ -15,6 +15,8 @@ import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { trackEndAnchor } from '../../../utils/trackModel'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildConnectStraight } from '../../../utils/commands/tracks'
+import CommitBar from '../../form/CommitBar'
+import ReadOnlyField from '../../form/ReadOnlyField'
 
 export default function ConnectStraightForm({ onCommitted }) {
   const { t } = useI18n()
@@ -188,10 +190,7 @@ export default function ConnectStraightForm({ onCommitted }) {
               easting={startPoint.easting.toFixed(2)} northing={startPoint.northing.toFixed(2)} readOnly />
           )}
           {bearing !== null && (
-            <div className="form-field">
-              <label>{t('bearing')}</label>
-              <input type="number" readOnly value={Math.round(bearing * 1000) / 1000} />
-            </div>
+            <ReadOnlyField type="number" label={t('bearing')} value={Math.round(bearing * 1000) / 1000} />
           )}
           {(phase === 'done' || endPoint) && (
             <>
@@ -218,13 +217,7 @@ export default function ConnectStraightForm({ onCommitted }) {
         return (
           <>
             <RuleFindings element={element} />
-            <button className="panel-btn panel-btn-full" onClick={handleCommit}
-              disabled={blocked}>
-              {t('btn_commit')}
-            </button>
-            <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-              {t('btn_cancel')}
-            </button>
+            <CommitBar onCommit={handleCommit} onCancel={onCommitted} disabled={blocked} className="" />
           </>
         )
       })()}

@@ -27,6 +27,10 @@ import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildSwitchAtTrackEnd } from '../../../utils/commands/switches'
+import CommitBar from '../../form/CommitBar'
+import DirectionToggle from '../../form/DirectionToggle'
+import ReadOnlyField from '../../form/ReadOnlyField'
+import FormSection from '../../form/FormSection'
 
 // ── ConnectSwitchConnectionForm ──────────────────────────────────────────────
 
@@ -229,21 +233,9 @@ export default function ConnectSwitchConnectionForm({ onCommitted }) {
 
   return (
     <>
-      <div className="toggle-switch-wrap">
-        <span className={`toggle-label${!trailing ? ' active' : ''}`}>
-          {t('switch_facing')}
-        </span>
-        <label className="toggle-switch">
-          <input type="checkbox" checked={trailing} onChange={e => setTrailing(e.target.checked)} />
-          <span className="toggle-slider" />
-        </label>
-        <span className={`toggle-label${trailing ? ' active' : ''}`}>
-          {t('switch_trailing')}
-        </span>
-      </div>
+      <DirectionToggle value={trailing} onChange={setTrailing} left={t('switch_facing')} right={t('switch_trailing')} />
 
-      <div className="element-form">
-        <span className="create-element-section">{t('section_geometry')}</span>
+      <FormSection title={t('section_geometry')}>
         <div className="form-field">
           <label>{t('field_speed')}</label>
           <select value={speed} onChange={e => setSpeed(Number(e.target.value))}>
@@ -261,46 +253,31 @@ export default function ConnectSwitchConnectionForm({ onCommitted }) {
         </div>
         <SwitchCantField cant={cant} onCant={setCant}
           reason={cantReason} onReason={setCantReason} />
-        <div className="form-field">
-          <label>{t('cant_def')}</label>
-          <input type="number" readOnly value={computeCantDef(speed, switchType.R, cant)} />
-        </div>
-        <div className="form-field">
-          <label>{t('arc_length')}</label>
-          <input type="text" readOnly value={`~${arcLen.toFixed(1)} m`} />
-        </div>
-        <div className="form-field">
-          <label>{t('field_radius')}</label>
-          <input type="text" readOnly value={`${currentSw.R} m`} />
-        </div>
-        <div className="form-field">
-          <label>{t('switch_form')}</label>
-          <input type="text" readOnly value={currentSw.label} />
-        </div>
+        <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(speed, switchType.R, cant)} />
+        <ReadOnlyField label={t('arc_length')} value={`~${arcLen.toFixed(1)} m`} />
+        <ReadOnlyField label={t('field_radius')} value={`${currentSw.R} m`} />
+        <ReadOnlyField label={t('switch_form')} value={currentSw.label} />
         {/* Both tracks describe the same spot, so they share one height datum. */}
         <HeightDatumField value={fields.heightEpsg}
           onChange={v => { setField('heightEpsg', v); setMainField('heightEpsg', v) }} />
-      </div>
+      </FormSection>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('switch_meta_data')}</span>
+      <FormSection title={t('switch_meta_data')}>
         <SwitchNumberField number={switchNo.number} onChange={switchNo.setNumber}
           name={switchNo.name} taken={switchNo.taken} />
-      </div>
+      </FormSection>
 
       {!trailing && (
-        <div className="element-form">
-          <span className="create-element-section">{t('section_meta_main')}</span>
+        <FormSection title={t('section_meta_main')}>
           <TrackFields fields={mainFields} setField={setMainField} setErrors={setMainErrors} errors={mainErrors}
             name={mainName} onNameChange={(val) => { setMainName(val); setMainNameError(false) }} nameError={mainNameError} />
-        </div>
+        </FormSection>
       )}
 
-      <div className="element-form">
-        <span className="create-element-section">{t('section_meta_divergent')}</span>
+      <FormSection title={t('section_meta_divergent')}>
         <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={(val) => { setName(val); setNameError(false) }} nameError={nameError} />
-      </div>
+      </FormSection>
 
       {phase === 'select' && (
         <>
@@ -317,12 +294,7 @@ export default function ConnectSwitchConnectionForm({ onCommitted }) {
           <>
             {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
             {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
-            <button className="panel-btn panel-btn-full mt-8" onClick={handleCommit} disabled={!!cantErr || defErr}>
-              {t('btn_commit')}
-            </button>
-            <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
-              {t('btn_cancel')}
-            </button>
+            <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!!cantErr || defErr} />
           </>
         )
       })()}

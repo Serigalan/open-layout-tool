@@ -10,6 +10,8 @@ import { DEFAULT_HEIGHT_EPSG } from '../../../utils/mapConstants'
 import { trackTypeName } from '../../../utils/trackGroups'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
+import CommitBar from '../../form/CommitBar'
+import FormSection from '../../form/FormSection'
 
 export default function EditPropertiesForm({ onCommitted }) {
   const { t } = useI18n()
@@ -80,26 +82,19 @@ export default function EditPropertiesForm({ onCommitted }) {
         <p>{t('edit_element_hint')}</p>
       ) : (
         <>
-          <div className="element-form">
-            <span className="create-element-section">{t('section_meta')}</span>
+          <FormSection title={t('section_meta')}>
             <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
               name={name} onNameChange={(val) => { setName(val); setNameError(false) }} nameError={nameError} />
             <StatusField value={status} onChange={setStatus} />
-          </div>
-          <div className="element-form">
-            <span className="create-element-section">{t('section_geometry')}</span>
+          </FormSection>
+          <FormSection title={t('section_geometry')}>
             <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
-          </div>
+          </FormSection>
         </>
       )}
       {selectedTrackId ? (
         <>
-          <button className="panel-btn panel-btn-full mt-8" onClick={handleCommit}>
-            {t('btn_commit')}
-          </button>
-          <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-            {t('btn_cancel')}
-          </button>
+          <CommitBar onCommit={handleCommit} onCancel={onCommitted} />
         </>
       ) : (
         <button className="panel-btn panel-btn-full mt-8 secondary" onClick={onCommitted}>

@@ -18,6 +18,9 @@ import { useProject } from '../../../hooks/useStore'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { buildParallelLineTrack, trackMeta } from '../../../utils/commands/tracks'
+import CommitBar from '../../form/CommitBar'
+import FormSection from '../../form/FormSection'
+import ReadOnlyField from '../../form/ReadOnlyField'
 
 // Start/end of an element as UTM points. Uses the stored nodes when present,
 // otherwise falls back to the first/last geometry coordinate.
@@ -228,38 +231,24 @@ export default function ParallelLineForm({ onDone }) {
 
   return (
     <>
-      <div className="element-form">
-        <span className="create-element-section">{t('section_meta')}</span>
+      <FormSection title={t('section_meta')}>
         <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError}
           lineOptions={lineOptions} />
-      </div>
+      </FormSection>
 
       {points.length === 2 && (
-        <div className="element-form">
-          <span className="create-element-section">{t('section_geometry')}</span>
+        <FormSection title={t('section_geometry')}>
           <div className="form-field">
             <label>{t('field_offset')}</label>
             <input type="number" step="0.01" value={offset} onChange={e => handleOffsetChange(e.target.value)} />
           </div>
           {isArc ? (
             <>
-              <div className="form-field">
-                <label>{t('field_radius')}</label>
-                <input type="number" readOnly value={Math.abs(signedR).toFixed(2)} />
-              </div>
-              <div className="form-field">
-                <label>{t('arc_length')}</label>
-                <input type="number" readOnly value={length} />
-              </div>
-              <div className="form-field">
-                <label>{t('bearing')}</label>
-                <input type="number" readOnly value={bearing} />
-              </div>
-              <div className="form-field">
-                <label>{t('end_bearing')}</label>
-                <input type="number" readOnly value={endBearing} />
-              </div>
+              <ReadOnlyField type="number" label={t('field_radius')} value={Math.abs(signedR).toFixed(2)} />
+              <ReadOnlyField type="number" label={t('arc_length')} value={length} />
+              <ReadOnlyField type="number" label={t('bearing')} value={bearing} />
+              <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
             </>
           ) : (
             <>
@@ -282,7 +271,7 @@ export default function ParallelLineForm({ onDone }) {
             onChange={isArc ? undefined : (axis, val) => handleCoordChange('start', axis, val)} />
           <UtmCoordFields label="End" zone={epsg} easting={endE} northing={endN} readOnly={isArc}
             onChange={isArc ? undefined : (axis, val) => handleCoordChange('end', axis, val)} />
-        </div>
+        </FormSection>
       )}
 
       {selecting && <p className="selecting-hint">{t('create_selecting_element')}</p>}
@@ -303,13 +292,7 @@ export default function ParallelLineForm({ onDone }) {
         return (
         <>
           <RuleFindings element={element} />
-          <button className="panel-btn panel-btn-full" onClick={handleCommit}
-            disabled={blocked}>
-            {t('btn_commit')}
-          </button>
-          <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onDone}>
-            {t('btn_cancel')}
-          </button>
+          <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={blocked} className="" />
         </>
         )
       })()}

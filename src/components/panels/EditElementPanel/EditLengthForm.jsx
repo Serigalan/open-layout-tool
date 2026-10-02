@@ -14,6 +14,7 @@ import usePreview from '../../../map/usePreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import useMapEvents from '../../../map/useMapEvents'
 import { PALETTE } from '../../../styles/palette'
+import CommitBar from '../../form/CommitBar'
 
 // Layer definitions for usePreview
 const EDIT_PREVIEW_LAYERS = [
@@ -138,13 +139,7 @@ export default function EditLengthForm({ onCommitted }) {
           {fill('table_edit_reach', { tracks: String(plan.touchedTrackIds.length), switches: String(plan.touchedSwitchIds.length) })}
         </p>
       )}
-      <button className="panel-btn panel-btn-full mt-8"
-        onClick={handleCommit} disabled={!!plan?.error}>
-        {t('btn_commit')}
-      </button>
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-        {t('btn_cancel')}
-      </button>
+      <CommitBar onCommit={handleCommit} onCancel={onCommitted} disabled={!!plan?.error} />
     </>
   )
 }

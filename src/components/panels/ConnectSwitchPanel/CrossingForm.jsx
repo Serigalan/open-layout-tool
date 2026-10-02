@@ -21,6 +21,9 @@ import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildCrossingAtTrackEnd } from '../../../utils/commands/switches'
+import CommitBar from '../../form/CommitBar'
+import ReadOnlyField from '../../form/ReadOnlyField'
+import FormSection from '../../form/FormSection'
 
 /**
  * A crossing or crossing switch (AP 3.2), connected to the end of an existing
@@ -206,8 +209,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
 
   return (
     <>
-      <div className="element-form">
-        <span className="create-element-section">{t('section_geometry')}</span>
+      <FormSection title={t('section_geometry')}>
         <div className="form-field">
           <label>{t('crossing_form')}</label>
           <select value={formIdx} onChange={e => setFormIdx(Number(e.target.value))}>
@@ -222,50 +224,30 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
             <option value="left">{t('switch_side_left')}</option>
           </select>
         </div>
-        <div className="form-field">
-          <label>{t('bearing')}</label>
-          <input type="text" readOnly value={anchor.bearing.toFixed(3)} />
-        </div>
-        <div className="form-field">
-          <label>{t('crossing_angle')}</label>
-          <input type="text" readOnly value={`1:${form.ratio} (${alpha.toFixed(2)}°)`} />
-        </div>
-        <div className="form-field">
-          <label>{t('crossing_end_distance')}</label>
-          <input type="text" readOnly value={`${endDistance.toFixed(2)} m`} />
-        </div>
+        <ReadOnlyField label={t('bearing')} value={anchor.bearing.toFixed(3)} />
+        <ReadOnlyField label={t('crossing_angle')} value={`1:${form.ratio} (${alpha.toFixed(2)}°)`} />
+        <ReadOnlyField label={t('crossing_end_distance')} value={`${endDistance.toFixed(2)} m`} />
         {form.R != null && (
-          <div className="form-field">
-            <label>{t('field_radius')}</label>
-            <input type="text" readOnly value={`${form.R} m`} />
-          </div>
+          <ReadOnlyField label={t('field_radius')} value={`${form.R} m`} />
         )}
         {crossingLegRadius(form) != null && (
-          <div className="form-field">
-            <label>{t('crossing_leg_radius')}</label>
-            <input type="text" readOnly value={`${crossingLegRadius(form)} m`} />
-          </div>
+          <ReadOnlyField label={t('crossing_leg_radius')} value={`${crossingLegRadius(form)} m`} />
         )}
         {form.Ri != null && (
-          <div className="form-field">
-            <label>{t('crossing_inner_radius')}</label>
-            <input type="text" readOnly value={`${form.Ri} m`} />
-          </div>
+          <ReadOnlyField label={t('crossing_inner_radius')} value={`${form.Ri} m`} />
         )}
         <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
-      </div>
+      </FormSection>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('switch_meta_data')}</span>
+      <FormSection title={t('switch_meta_data')}>
         <SwitchNumberField number={switchNo.number} onChange={switchNo.setNumber}
           name={switchNo.name} taken={switchNo.taken} />
-      </div>
+      </FormSection>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('section_meta')}</span>
+      <FormSection title={t('section_meta')}>
         <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError} />
-      </div>
+      </FormSection>
 
       {errors.length > 0 && (
         <p className="form-error">
@@ -274,12 +256,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
       )}
       {nameError && <p className="form-error">{t('track_name_exists')}</p>}
 
-      <button className="panel-btn panel-btn-full" onClick={handleCommit}>
-        {t('btn_commit')}
-      </button>
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
-        {t('btn_cancel')}
-      </button>
+      <CommitBar onCommit={handleCommit} onCancel={handleCancel} className="" />
     </>
   )
 }

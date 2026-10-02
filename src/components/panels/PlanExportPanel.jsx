@@ -17,6 +17,7 @@ import { downloadBlob } from '../../utils/fileUtils'
 import { groupHeading, groupTracks, trackListLabel } from '../../utils/trackGroups'
 import { useI18n } from '../../locales/i18nContext'
 import { useProject } from '../../hooks/useStore'
+import FormSection from '../form/FormSection'
 
 /**
  * Backdrops a plan can be drawn over. A plain map is the safe default; an
@@ -414,8 +415,7 @@ export default function PlanExportPanel({ onShowPlanPreview }) {
         )}
       </div>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('plan_content')}</span>
+      <FormSection title={t('plan_content')}>
         {kind === 'schematic' ? (
           <>
             {SCHEMATIC_CONTENT_KEYS.map(([key, labelKey]) => (
@@ -451,10 +451,9 @@ export default function PlanExportPanel({ onShowPlanPreview }) {
             </div>
           </>
         )}
-      </div>
+      </FormSection>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('plan_titleblock')}</span>
+      <FormSection title={t('plan_titleblock')}>
         <div className="form-field">
           <select value={blockStyle} onChange={e => setBlockStyle(e.target.value)}>
             <option value="compact">{t('plan_titleblock_compact')}</option>
@@ -463,7 +462,7 @@ export default function PlanExportPanel({ onShowPlanPreview }) {
         </div>
         <PlanHeaderFields header={header} onChange={changeHeader} simple={blockStyle !== 'full'}
           onError={msg => setStatus({ msg, error: true })} />
-      </div>
+      </FormSection>
 
       {status && (
         <p className={status.error ? 'msg-error' : 'msg-info'}>

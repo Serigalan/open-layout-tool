@@ -15,6 +15,7 @@ import { useProject } from '../../../hooks/useStore'
 import { TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 import useMapPick from '../../../map/useMapPick'
 import { format } from '../../../locales/i18n'
+import FormSection from '../../form/FormSection'
 
 const NEW = 'new'
 /** How long the line number has to hold still before the tracks are measured against it. */
@@ -183,8 +184,7 @@ export default function AssignTracksForm({ onCommitted }) {
         onPickGroup={toggleGroup} />
       <p className="selecting-hint">{fill('assign_selected', { count: selected.size })}</p>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('assign_target')}</span>
+      <FormSection title={t('assign_target')}>
         <div className="form-field">
           <label>{t('assign_kind')}</label>
           <select value={kind} onChange={(e) => changeKind(e.target.value)}>
@@ -250,7 +250,7 @@ export default function AssignTracksForm({ onCommitted }) {
             </div>
           </>
         )}
-      </div>
+      </FormSection>
 
       {kind !== 'none' && (
         <div className="element-form">

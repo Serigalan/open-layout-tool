@@ -26,6 +26,7 @@ import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
 import useMapPick from '../../map/useMapPick'
 import ConfirmModal from '../ConfirmModal'
+import FormSection from '../form/FormSection'
 
 /**
  * How long the way to OSRD stays offered after an export [ms]. The file is in
@@ -41,15 +42,14 @@ const ALL_STRECKEN = '*'
 
 function ExchangeSection({ title, description, children }) {
   return (
-    <div className="element-form">
-      <span className="create-element-section">{title}</span>
+    <FormSection title={title}>
       {description && (
         <p className="msg-hint">
           {description}
         </p>
       )}
       {children}
-    </div>
+    </FormSection>
   )
 }
 

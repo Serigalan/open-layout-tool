@@ -18,6 +18,7 @@ import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
 import usePreview from '../../map/usePreview'
 import useMapPick from '../../map/useMapPick'
 import { PALETTE } from '../../styles/palette'
+import ReadOnlyField from '../form/ReadOnlyField'
 
 const SPLICE_PREVIEW_SOURCE = 'splice-preview-source'
 const SPLICE_PREVIEW_LAYER  = 'splice-preview-layer'
@@ -433,14 +434,8 @@ export default function SpliceElementPanel() {
       <>
         <h2>{t('splice_element')}</h2>
         <div className="element-form">
-          <div className="form-field">
-            <label>{t('splice_departure')}</label>
-            <input type="text" readOnly value={departure?.label ?? ''} />
-          </div>
-          <div className="form-field">
-            <label>{t('splice_arrival')}</label>
-            <input type="text" readOnly value={arrival?.label ?? ''} />
-          </div>
+          <ReadOnlyField label={t('splice_departure')} value={departure?.label ?? ''} />
+          <ReadOnlyField label={t('splice_arrival')} value={arrival?.label ?? ''} />
           {bothArcs && (
             <div className="form-field">
               <label>{t('splice_arc_join')}</label>
@@ -473,10 +468,7 @@ export default function SpliceElementPanel() {
                   written, and the offer below follows the same convention. */}
               <CantField value={cant} onChange={setCant}
                 min={0} max={MAX_CANT} speed={speed} radius={Math.abs(Number(radius))} />
-              <div className="form-field">
-                <label>{t('cant_def')}</label>
-                <input type="number" readOnly value={cantDef} />
-              </div>
+              <ReadOnlyField type="number" label={t('cant_def')} value={cantDef} />
             </>
           )}
           {!directTransition && (
@@ -516,11 +508,8 @@ export default function SpliceElementPanel() {
                 </>
               )}
               {directTransition && (
-                <div className="form-field">
-                  <label>{t('field_length')}</label>
-                  <input type="text" readOnly value={splice?.result?.transitionLength != null
+                <ReadOnlyField label={t('field_length')} value={splice?.result?.transitionLength != null
                     ? `${splice.result.transitionLength.toFixed(1)} m` : ''} />
-                </div>
               )}
             </>
           )}

@@ -22,6 +22,11 @@ import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import { buildSwitchOnTrack, switchOnTrackPlacement } from '../../../utils/commands/switches'
+import CommitBar from '../../form/CommitBar'
+import DirectionToggle from '../../form/DirectionToggle'
+import ReadOnlyField from '../../form/ReadOnlyField'
+import FormSection from '../../form/FormSection'
+import useFormPhase from '../../form/useFormPhase'
 
 
 // Display only — the stored values keep their full precision.
@@ -62,8 +67,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   const map = useMap()
   const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
-  const [phase, setPhase]           = useState('select')
-  const [pick, setPick]             = useState(null)   // { trackId }
+  const { phase, pick, begin, reset: resetPhase } = useFormPhase()   // pick: { trackId }
   const [station, setStation]       = useState('')     // toe position along the track [m]
   const [switchTypeIdx, setTypeIdx] = useState(DEFAULT_SWITCH_TYPE_IDX)
   const [side, setSide]             = useState('left')
@@ -93,9 +97,8 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       // The click is projected onto the element in the track's own plane and
       // stated as a station along the whole track, which the turnout is placed by.
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
-      setPick({ trackId })
+      begin({ trackId })
       setStation(String(Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000))
-      setPhase('editing')
     },
   })
 
@@ -174,7 +177,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   }, [placement, map, preview])
 
 
-  const handleCancel = () => { preview.clear(); setPhase('select'); setPick(null); onCommitted?.() }
+  const handleCancel = () => { preview.clear(); resetPhase(); onCommitted?.() }
 
   const handleCommit = () => {
     setErrors([])
@@ -219,30 +222,15 @@ export default function SwitchOnTrackForm({ onCommitted }) {
 
   return (
     <>
-      <div className="toggle-switch-wrap">
-        <span className={`toggle-label${!reversed ? ' active' : ''}`}>
-          {t('switch_on_track_along')}
-        </span>
-        <label className="toggle-switch">
-          <input type="checkbox" checked={reversed} onChange={e => setReversed(e.target.checked)} />
-          <span className="toggle-slider" />
-        </label>
-        <span className={`toggle-label${reversed ? ' active' : ''}`}>
-          {t('switch_on_track_against')}
-        </span>
-      </div>
+      <DirectionToggle value={reversed} onChange={setReversed} left={t('switch_on_track_along')} right={t('switch_on_track_against')} />
 
-      <div className="element-form">
-        <span className="create-element-section">{t('section_geometry')}</span>
+      <FormSection title={t('section_geometry')}>
         <div className="form-field">
           <label>{t('switch_on_track_station')}</label>
           <input type="number" step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
             onChange={e => setStation(e.target.value)} />
         </div>
-        <div className="form-field">
-          <label>{t('switch_on_track_elements')}</label>
-          <input type="text" readOnly value={elementsText} />
-        </div>
+        <ReadOnlyField label={t('switch_on_track_elements')} value={elementsText} />
         <SwitchFormField value={switchTypeIdx} onChange={i => {
           setTypeIdx(i); setSpeed(SWITCH_PICK_TYPES[i].speed)
         }} />
@@ -266,49 +254,29 @@ export default function SwitchOnTrackForm({ onCommitted }) {
           reason={cantReason} onReason={setCantReason} />
         {!plain && g && (
           <>
-            <div className="form-field">
-              <label>{t('switch_stem_radius')}</label>
-              <input type="text" readOnly value={radiusText(g.stemSegments, '–')} />
-            </div>
-            <div className="form-field">
-              <label>{t('switch_bauform')}</label>
-              <input type="text" readOnly value={t(`switch_bauform_${g.bauform}`)} />
-            </div>
-            <div className="form-field">
-              <label>{t('switch_stem_cant_def')}</label>
-              <input type="number" readOnly value={stemDef ?? 0} />
-            </div>
+            <ReadOnlyField label={t('switch_stem_radius')} value={radiusText(g.stemSegments, '–')} />
+            <ReadOnlyField label={t('switch_bauform')} value={t(`switch_bauform_${g.bauform}`)} />
+            <ReadOnlyField type="number" label={t('switch_stem_cant_def')} value={stemDef ?? 0} />
           </>
         )}
-        <div className="form-field">
-          <label>{plain ? t('cant_def') : t('switch_branch_cant_def')}</label>
-          <input type="number" readOnly value={cantDef} />
-        </div>
-        <div className="form-field">
-          <label>{t('arc_length')}</label>
-          <input type="text" readOnly value={`~${arcLen.toFixed(1)} m`} />
-        </div>
+        <ReadOnlyField type="number" label={plain ? t('cant_def') : t('switch_branch_cant_def')} value={cantDef} />
+        <ReadOnlyField label={t('arc_length')} value={`~${arcLen.toFixed(1)} m`} />
         {!plain && g && (
-          <div className="form-field">
-            <label>{t('switch_branch_radius')}</label>
-            <input type="text" readOnly value={radiusText(g.branchSegments, t('switch_branch_straight'))} />
-          </div>
+          <ReadOnlyField label={t('switch_branch_radius')} value={radiusText(g.branchSegments, t('switch_branch_straight'))} />
         )}
         <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
-      </div>
+      </FormSection>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('switch_meta_data')}</span>
+      <FormSection title={t('switch_meta_data')}>
         <SwitchNumberField number={switchNo.number} onChange={switchNo.setNumber}
           name={switchNo.name} taken={switchNo.taken} />
-      </div>
+      </FormSection>
 
-      <div className="element-form">
-        <span className="create-element-section">{t('section_meta_divergent')}</span>
+      <FormSection title={t('section_meta_divergent')}>
         <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={(v) => { setName(v); setNameError(false) }}
           nameError={nameError} />
-      </div>
+      </FormSection>
 
       {cantVaries && <p className="selecting-hint">{t('switch_in_cant_ramp')}</p>}
       {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
@@ -316,13 +284,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
       {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
 
-      <button className="panel-btn panel-btn-full" onClick={handleCommit}
-        disabled={!!placeError || !!cantErr || defErr}>
-        {t('btn_commit')}
-      </button>
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
-        {t('btn_cancel')}
-      </button>
+      <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!!placeError || !!cantErr || defErr} className="" />
     </>
   )
 }

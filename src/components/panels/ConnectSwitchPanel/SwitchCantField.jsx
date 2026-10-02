@@ -1,6 +1,7 @@
 import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION } from '../../../utils/mapConstants'
 import CantField from '../CantField'
 import { useI18n } from '../../../locales/i18nContext'
+import ReadOnlyField from '../../form/ReadOnlyField'
 
 /**
  * The cant of a turnout and, above 100 mm, the reason it is allowed to be there.
@@ -26,10 +27,7 @@ export default function SwitchCantField({ cant, onCant, reason, onReason, label,
     <>
       {readOnlyText != null
         ? (
-          <div className="form-field">
-            <label>{label ?? t('cant')}</label>
-            <input type="text" readOnly value={readOnlyText} />
-          </div>
+          <ReadOnlyField label={label ?? t('cant')} value={readOnlyText} />
         )
         : (
           /* No u_0 offer here: a turnout is not canted to balance one speed —

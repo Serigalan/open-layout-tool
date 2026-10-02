@@ -17,6 +17,8 @@ import { useProject } from '../../../hooks/useStore'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildLineTrack, trackMeta } from '../../../utils/commands/tracks'
+import CommitBar from '../../form/CommitBar'
+import FormSection from '../../form/FormSection'
 
 export default function LineForm({ onDone }) {
   const { t } = useI18n()
@@ -166,16 +168,14 @@ export default function LineForm({ onDone }) {
 
   return (
     <>
-      <div className="element-form">
-        <span className="create-element-section">{t('section_meta')}</span>
+      <FormSection title={t('section_meta')}>
         <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError}
           lineOptions={lineOptions} />
-      </div>
+      </FormSection>
 
       {points.length === 2 && (
-        <div className="element-form">
-          <span className="create-element-section">{t('section_geometry')}</span>
+        <FormSection title={t('section_geometry')}>
           <div className="form-field">
             <label>{t('field_length')}</label>
             <input type="number" step="0.001" value={length} onChange={e => handleLengthChange(e.target.value)} />
@@ -201,7 +201,7 @@ export default function LineForm({ onDone }) {
             onChange={(axis, val) => handleCoordChange('start', axis, val)} />
           <UtmCoordFields label="End" zone={epsg} easting={endE} northing={endN}
             onChange={(axis, val) => handleCoordChange('end', axis, val)} />
-        </div>
+        </FormSection>
       )}
 
       {selecting && <p className="selecting-hint">{selectingHint}</p>}
@@ -218,13 +218,7 @@ export default function LineForm({ onDone }) {
         return (
           <>
             <RuleFindings element={element} />
-            <button className="panel-btn panel-btn-full" onClick={handleCommit}
-              disabled={blocked}>
-              {t('btn_commit')}
-            </button>
-            <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onDone}>
-              {t('btn_cancel')}
-            </button>
+            <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={blocked} className="" />
           </>
         )
       })()}

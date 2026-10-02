@@ -5,6 +5,7 @@ import { gaugeProfile, gaugeProfileRing, gaugeProfileAreas, DEFAULT_GAUGE_PROFIL
 import { currentProject } from '../../storage'
 import { useI18n } from '../../locales/i18nContext'
 import { useProject } from '../../hooks/useStore'
+import FormSection from '../form/FormSection'
 
 
 /**
@@ -51,8 +52,7 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
   const shown = result?.trackId === track.id ? result : null
 
   return (
-    <div className="element-form">
-      <span className="create-element-section">{t('clearance_scan_title')}</span>
+    <FormSection title={t('clearance_scan_title')}>
       <p className="selecting-hint">{t('clearance_scan_hint')}</p>
       {run ? (
         <>
@@ -82,6 +82,6 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
             </div>
           )
       )}
-    </div>
+    </FormSection>
   )
 }

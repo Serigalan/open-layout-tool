@@ -23,6 +23,9 @@ import { useProject } from '../../../hooks/useStore'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildCurvedLineTrack, trackMeta } from '../../../utils/commands/tracks'
+import CommitBar from '../../form/CommitBar'
+import FormSection from '../../form/FormSection'
+import ReadOnlyField from '../../form/ReadOnlyField'
 
 export default function CurvedLineForm({ onDone }) {
   const { t } = useI18n()
@@ -183,16 +186,14 @@ export default function CurvedLineForm({ onDone }) {
 
   return (
     <>
-      <div className="element-form">
-        <span className="create-element-section">{t('section_meta')}</span>
+      <FormSection title={t('section_meta')}>
         <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError}
           lineOptions={lineOptions} />
-      </div>
+      </FormSection>
 
       {(signedRadius !== '' || hasPoints) && (
-        <div className="element-form">
-          <span className="create-element-section">{t('section_geometry')}</span>
+        <FormSection title={t('section_geometry')}>
           <div className="form-field">
             <label>Radius (m)</label>
             <input type="number" value={signedRadius} onChange={e => handleRadiusChange(e.target.value)} />
@@ -217,10 +218,7 @@ export default function CurvedLineForm({ onDone }) {
               </div>
               <CantField value={cant} onChange={setCant}
                 min={-MAX_CANT} max={MAX_CANT} speed={speed} radius={absR} />
-              <div className="form-field">
-                <label>{t('cant_def')}</label>
-                <input type="number" readOnly value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />
-              </div>
+              <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />
               <div className="form-field">
                 <label>{t('create_crs')}</label>
                 <select className="settings-select" value={startPoint.zone} onChange={e => handleEpsgChange(e.target.value)}>
@@ -236,7 +234,7 @@ export default function CurvedLineForm({ onDone }) {
                 easting={endPoint.easting.toFixed(2)} northing={endPoint.northing.toFixed(2)} readOnly />
             </>
           )}
-        </div>
+        </FormSection>
       )}
 
       {selecting && <p className="selecting-hint">{selectingHint}</p>}
@@ -254,13 +252,7 @@ export default function CurvedLineForm({ onDone }) {
         return (
           <>
             <RuleFindings element={element} />
-            <button className="panel-btn panel-btn-full" onClick={handleCommit}
-              disabled={blocked}>
-              {t('btn_commit')}
-            </button>
-            <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onDone}>
-              {t('btn_cancel')}
-            </button>
+            <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={blocked} className="" />
           </>
         )
       })()}

@@ -13,6 +13,7 @@ import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import { PALETTE } from '../../../styles/palette'
+import ReadOnlyField from '../../form/ReadOnlyField'
 
 // ── Preview layers (managed by usePreview) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'
@@ -211,14 +212,8 @@ export default function SCurveForm({ onCommitted }) {
     return (
       <>
         <div className="element-form">
-          <div className="form-field">
-            <label>{t('scurve_line1')}</label>
-            <input type="text" readOnly value={picks[0]?.label ?? ''} />
-          </div>
-          <div className="form-field">
-            <label>{t('scurve_line2')}</label>
-            <input type="text" readOnly value={picks[1]?.label ?? ''} />
-          </div>
+          <ReadOnlyField label={t('scurve_line1')} value={picks[0]?.label ?? ''} />
+          <ReadOnlyField label={t('scurve_line2')} value={picks[1]?.label ?? ''} />
 
           <div className="form-field">
             <label>{t('field_speed')}</label>
@@ -231,10 +226,7 @@ export default function SCurveForm({ onCommitted }) {
             </select>
           </div>
 
-          <div className="form-field">
-            <label>{t('scurve_gap')}</label>
-            <input type="text" readOnly value={result ? `${result.gap.toFixed(2)} m` : ''} />
-          </div>
+          <ReadOnlyField label={t('scurve_gap')} value={result ? `${result.gap.toFixed(2)} m` : ''} />
 
           <div className="form-field">
             <label>{t('scurve_shift')}: {shift} m</label>
@@ -245,44 +237,20 @@ export default function SCurveForm({ onCommitted }) {
 
         {result?.valid && (
           <div className="element-form mt-8">
-            <div className="form-field">
-              <label>{t('scurve_switch_type')}</label>
-              <input type="text" readOnly value={result.switchType.label} />
-            </div>
-            <div className="form-field">
-              <label>{t('scurve_angle')}</label>
-              <input type="text" readOnly value={`1:${result.switchType.ratio}  (${deg(result.w)}°)`} />
-            </div>
-            <div className="form-field">
-              <label>{t('scurve_delta')}</label>
-              <input type="text" readOnly value={`${deg(result.delta)}°`} />
-            </div>
-            <div className="form-field">
-              <label>{t('scurve_zgl')}</label>
-              <input type="text" readOnly value={`${result.Lg.toFixed(2)} m`} />
-            </div>
-            <div className="form-field">
-              <label>{t('scurve_mid_radius')}</label>
-              <input type="text" readOnly value={result.signedRg
+            <ReadOnlyField label={t('scurve_switch_type')} value={result.switchType.label} />
+            <ReadOnlyField label={t('scurve_angle')} value={`1:${result.switchType.ratio}  (${deg(result.w)}°)`} />
+            <ReadOnlyField label={t('scurve_delta')} value={`${deg(result.delta)}°`} />
+            <ReadOnlyField label={t('scurve_zgl')} value={`${result.Lg.toFixed(2)} m`} />
+            <ReadOnlyField label={t('scurve_mid_radius')} value={result.signedRg
                 ? `${Math.abs(result.signedRg).toFixed(0)} m`
                 : t('scurve_mid_straight')} />
-            </div>
-            <div className="form-field">
-              <label>{t('scurve_branch_radius')}</label>
-              <input type="text" readOnly value={[result.signedR1, result.signedR2]
+            <ReadOnlyField label={t('scurve_branch_radius')} value={[result.signedR1, result.signedR2]
                 .map(r => (r ? `${Math.abs(r).toFixed(0)} m` : t('scurve_mid_straight')))
                 .join('  /  ')} />
-            </div>
             {result.cantMid !== 0 && (
-              <div className="form-field">
-                <label>{t('scurve_cant')}</label>
-                <input type="text" readOnly value={`${Math.abs(result.cantMid)} mm`} />
-              </div>
+              <ReadOnlyField label={t('scurve_cant')} value={`${Math.abs(result.cantMid)} mm`} />
             )}
-            <div className="form-field">
-              <label>{t('scurve_total')}</label>
-              <input type="text" readOnly value={`${result.laenge.toFixed(2)} m`} />
-            </div>
+            <ReadOnlyField label={t('scurve_total')} value={`${result.laenge.toFixed(2)} m`} />
           </div>
         )}
 
