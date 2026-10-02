@@ -1,0 +1,10 @@
+# Rendered by deploy/setup.sh from deploy/templates/olt-server-backup.timer — edit the template, not this file.
+[Unit]
+Description=Open Layout Tool — daily copy of the project database
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

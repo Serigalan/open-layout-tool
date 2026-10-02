@@ -41,35 +41,9 @@ The API is served under `/api/` on the app's own origin (no CORS). The
 optimizer and terrain (`/optimizer/*`) and the km line data (`/data/km*`) sit
 behind the sign-in through `forward_auth` against `GET /api/me` — forward_auth
 sends the request's own headers, the session cookie with them — so the Python
-service itself stays as it is (decision 102). As deployed:
+service itself stays as it is (decision 102). `GET /api/health` answers without
+a session, for the deploy script's check.
 
-    online.open-layout-tool.org {
-        handle /api/* {
-            reverse_proxy 172.18.0.1:8787
-        }
-        handle_path /optimizer/* {
-            forward_auth 172.18.0.1:8787 {
-                uri /api/me
-            }
-            reverse_proxy 172.18.0.1:8099
-        }
-        @kmdata path /data/km/* /data/km_linie.pmtiles
-        handle @kmdata {
-            forward_auth 172.18.0.1:8787 {
-                uri /api/me
-            }
-            root * /srv/open-layout-tool
-            file_server
-        }
-        handle {
-            root * /srv/open-layout-tool
-            file_server
-        }
-    }
-
-The app's own files (the HTML and the JavaScript) stay public, and so do the
-NTv2 grids under `/data/*.tif`: the sign-in page is part of the app, and the
-app loads the grid before anyone has signed in.
-
-A daily copy of the database is the job of a systemd timer running
-`olt-server backup <file>` (see `olt-server.service.example`).
+The Caddy site, the systemd units (service and daily backup timer) and the
+scripts that install them are in `deploy/` at the repository root
+(`deploy/README.md`).

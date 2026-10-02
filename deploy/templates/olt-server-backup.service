@@ -1,0 +1,10 @@
+# Rendered by deploy/setup.sh from deploy/templates/olt-server-backup.service — edit the template, not this file.
+[Unit]
+Description=Open Layout Tool — daily copy of the project database
+
+[Service]
+Type=oneshot
+User=@OLT_USER@
+WorkingDirectory=@OLT_REPO@/tools/server
+Environment=OLT_SERVER_DB=@OLT_DB@
+ExecStart=/bin/sh -c '@OLT_NODE@ bin/olt-server.mjs backup "@OLT_BACKUPS@/olt-$(date +%%F).sqlite" && find "@OLT_BACKUPS@" -name "olt-*.sqlite" -mtime +@OLT_BACKUP_DAYS@ -delete'

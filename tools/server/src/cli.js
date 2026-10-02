@@ -9,6 +9,8 @@ import { createAuth, passwordAcceptable, randomPassword } from './auth.js'
  *   olt-server create-admin <login> [name] create an admin; the start password comes
  *                                          from OLT_ADMIN_PASSWORD or is generated and printed
  *   olt-server backup <file>               write a consistent copy of the database
+ *   olt-server user-count                  print how many users exist (setup asks this
+ *                                          before creating the first admin)
  *
  * The database is OLT_SERVER_DB (default ./olt.sqlite). Started through
  * bin/olt-server.mjs, which registers the module hook first.
@@ -55,7 +57,13 @@ async function main([command, ...args]) {
     console.log(`backup written to ${file}`)
     return
   }
-  throw new Error('usage: olt-server serve | create-admin <login> [name] | backup <file>')
+  if (command === 'user-count') {
+    const db = openDatabase(DB)
+    console.log(db.prepare('select count(*) as n from user').get().n)
+    db.close()
+    return
+  }
+  throw new Error('usage: olt-server serve | create-admin <login> [name] | backup <file> | user-count')
 }
 
 main(process.argv.slice(2)).catch(err => {

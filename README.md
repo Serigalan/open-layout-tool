@@ -20,7 +20,7 @@ An interactive web application for designing railway track layouts on a map — 
   labels, switch symbols, kilometrage, a title block and an optional map backdrop
 - **Data exchange** — import/export full projects or selected tracks as JSON, import Verm.ESN surveying data,
   and export to [OSRD](https://osrd.fr) format
-- **Project management** — create, open, and delete projects; data persists locally in the browser
+- **Project management** — projects with variants and revisions on a project server, users with sign-in
 
 ## Getting Started
 
@@ -30,6 +30,21 @@ npm run dev
 ```
 
 The dev server runs over HTTPS (with a self-signed certificate, which the browser will warn about once).
+It forwards `/api` to the project server (`tools/server`) and `/optimizer` to the optimizer service
+(`tools/optimizer`); see `deploy/README.md` for running both locally.
+
+## Running a server
+
+`deploy/` sets up a complete server from scratch — the app, the project server, the optimizer service,
+Caddy with TLS and a daily database backup — from one configuration file:
+
+```bash
+cp deploy/olt.env.example /etc/open-layout-tool/olt.env   # set OLT_DOMAIN
+deploy/setup.sh                                           # once
+deploy/deploy.sh --pull                                   # after every update
+```
+
+Details in [`deploy/README.md`](deploy/README.md).
 
 ## Credits
 

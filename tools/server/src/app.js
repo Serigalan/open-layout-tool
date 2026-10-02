@@ -63,6 +63,12 @@ export function buildApp({ db, secureCookie = true, now = () => Date.now(), logg
   })
 
   app.register(async (api) => {
+    // For the deploy script and monitoring: the process answers and the
+    // database can be read. Needs no session.
+    api.get('/health', async () => {
+      db.prepare('select 1').get()
+      return { status: 'ok' }
+    })
     api.register(authRoutes)
     api.register(adminRoutes)
     api.register(projectRoutes)

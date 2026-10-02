@@ -132,3 +132,12 @@ describe('users and roles', () => {
     expect((await ada('PATCH', `/api/admin/users/${id}`, { role: 'user' })).statusCode).toBe(200)
   })
 })
+
+describe('health', () => {
+  it('answers without a session', async () => {
+    ctx = await setup()
+    const res = await ctx.app.inject({ method: 'GET', url: '/api/health' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ status: 'ok' })
+  })
+})

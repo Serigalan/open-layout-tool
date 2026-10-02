@@ -1,0 +1,25 @@
+# Rendered by deploy/setup.sh from deploy/templates/olt-optimizer.service — edit the template, not this file.
+[Unit]
+Description=Open Layout Tool — optimizer, MDB conversion and terrain service
+After=network.target
+
+[Service]
+User=@OLT_USER@
+WorkingDirectory=@OLT_REPO@/tools/optimizer
+ExecStart=@OLT_VENV@/bin/olt-optimizer-serve
+Environment=OLT_OPTIMIZER_HOST=@OLT_BIND@
+Environment=OLT_OPTIMIZER_PORT=@OLT_OPTIMIZER_PORT@
+Environment=OLT_OPTIMIZER_ORIGINS=https://@OLT_DOMAIN@
+Environment=OLT_OPTIMIZER_TIMEOUT=@OLT_OPTIMIZER_TIMEOUT@
+Environment=OLT_OPTIMIZER_WORKERS=@OLT_OPTIMIZER_WORKERS@
+Environment=OLT_TERRAIN_CACHE=@OLT_TERRAIN_CACHE@
+# PROJ finds the NTv2 grids (DHDN ↔ DB_REF ↔ ETRS89) in $XDG_DATA_HOME/proj,
+# where setup.sh copies them from grids/; no downloads at run time.
+Environment=XDG_DATA_HOME=@OLT_DATA@/share
+Environment=PROJ_NETWORK=OFF
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

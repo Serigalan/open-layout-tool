@@ -1,0 +1,38 @@
+# Open Layout Tool — rendered by deploy/setup.sh from deploy/templates/Caddyfile.
+#
+# The app is usable only after signing in (phase 10): /api/* is the project
+# server. The optimizer and terrain service (/optimizer/*) and the km line data
+# (/data/km*) answer only with a valid session — Caddy asks the project server
+# (forward_auth against /api/me, which sees the request's own cookie). The app
+# files themselves and the NTv2 grids under /data/*.tif stay open: the sign-in
+# page is part of the app, and the app loads the grid before anyone signs in.
+@OLT_DOMAIN@ {
+	handle /api/* {
+		reverse_proxy @OLT_UPSTREAM@:@OLT_SERVER_PORT@
+	}
+
+	# /optimizer/optimize → the service sees /optimize (prefix cut off).
+	handle_path /optimizer/* {
+		forward_auth @OLT_UPSTREAM@:@OLT_SERVER_PORT@ {
+			uri /api/me
+		}
+		reverse_proxy @OLT_UPSTREAM@:@OLT_OPTIMIZER_PORT@
+	}
+
+	@kmdata path /data/km/* /data/km_linie.pmtiles
+	handle @kmdata {
+		forward_auth @OLT_UPSTREAM@:@OLT_SERVER_PORT@ {
+			uri /api/me
+		}
+		root * @OLT_SITE_ROOT@
+		file_server
+	}
+
+	handle {
+		root * @OLT_SITE_ROOT@
+		file_server
+	}
+
+	encode zstd gzip
+	log
+}
