@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadPlatforms } from '../storage'
 import { trackLength, gradientAt } from '../utils/heightUtils'
 import { utmToWgs84 } from '../utils/coordinateUtils'
@@ -13,7 +13,8 @@ import {
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/mapConstants'
 import { listClouds } from '../utils/pointCloud/cloudStore'
 import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
-import { drawCloudPoints, CLOUD_COLORINGS } from '../utils/pointCloud/cloudPaint'
+import { drawCloudPoints, CLOUD_COLORINGS, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
+import { checkClearance, BOTTOM_BAND } from '../utils/pointCloud/clearanceCheck'
 import {
   gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
   DEFAULT_GAUGE_PROFILE,
@@ -39,6 +40,7 @@ const MAX_THICKNESS = 100
 /** How far beyond the reach the point cloud is still read [m] — the drawing runs past the outer tracks. */
 const CLOUD_MARGIN = 5
 const CLOUD_COLOR = '#7a5a14'
+const CLEAR_COLOR = '#1f7a3a'
 const heightName = (epsg) => HEIGHT_DATUMS.find(d => d.epsg === Number(epsg))?.label ?? `EPSG ${epsg}`
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
@@ -237,7 +239,29 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
 
   // The last slice stays on screen while the next is read, so the drawing does
   // not flicker as the slider moves.
-  const cloudParts = cloudOn && slice ? slice.parts : []
+  const slicedParts = cloudOn && slice ? slice.parts : []
+
+  // The clearance check (AP 11.5) against this track's outline, at its
+  // gradient and cant. A track without a gradient has nothing to check against.
+  const mainZ = main?.z ?? null
+  const mainCant = main?.state?.cant ?? 0
+  const checks = useMemo(() => (mainZ == null
+    ? null
+    : slicedParts.map(p => checkClearance(p.points, { zTrack: mainZ, cant: mainCant, ring, areas }))),
+  // ring and areas follow the profile id; the arrays are new on every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [slicedParts, mainZ, mainCant, profile.id])
+  const cloudParts = slicedParts.map((p, n) => ({ ...p, flags: checks?.[n]?.flags }))
+  const clearance = checks && checks.length ? (() => {
+    let insideCount = 0, deepest = null, nearest = null
+    checks.forEach((c, n) => {
+      insideCount += c.inside
+      const at = (hit) => hit && { distance: hit.distance, y: slicedParts[n].points.y[hit.index], z: slicedParts[n].points.z[hit.index] }
+      if (c.deepest && (!deepest || c.deepest.distance > deepest.distance)) deepest = at(c.deepest)
+      if (c.nearest && (!nearest || c.nearest.distance < nearest.distance)) nearest = at(c.nearest)
+    })
+    return { inside: insideCount, deepest, nearest }
+  })() : null
 
   const terrainPoints = terrain?.key === terrainKey ? terrain.points : null
   // Every track at its gradient; one without stands a little over the ground,
@@ -334,7 +358,22 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
     const trackDatum = Number(track.heightEpsg) || DEFAULT_HEIGHT_EPSG
     const others = [...new Set(cloudParts.filter(p => p.points.count && Number(p.cloud.heightEpsg) !== trackDatum)
       .map(p => heightName(p.cloud.heightEpsg)))]
+    const mm = (d) => Math.round(d).toLocaleString()
+    let check = null
+    if (!clearance) check = { text: t('cross_section_clearance_no_gradient'), color: '#888' }
+    else if (clearance.inside) {
+      check = {
+        text: t('cross_section_clearance_hit').replace('{{n}}', clearance.inside.toLocaleString())
+          .replace('{{mm}}', mm(clearance.deepest.distance)),
+        color: INTRUSION_COLOR,
+      }
+    } else if (clearance.nearest) {
+      check = { text: t('cross_section_clearance_free').replace('{{mm}}', mm(clearance.nearest.distance)), color: CLEAR_COLOR }
+    } else if (cloudCount) {
+      check = { text: t('cross_section_clearance_far'), color: CLEAR_COLOR }
+    }
     return {
+      check,
       text: t('cross_section_cloud_count').replace('{{n}}', cloudCount.toLocaleString())
         .replace('{{half}}', String(thickness / 2)),
       datum: others.length
@@ -437,9 +476,28 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
           <text x={MARGIN / 2} y={16} fontSize="11" fill={CLOUD_COLOR}
             stroke="#fff" strokeWidth="3" paintOrder="stroke" strokeLinejoin="round">
             <tspan x={MARGIN / 2}>{cloudState.text}</tspan>
+            {cloudState.check && (
+              <tspan x={MARGIN / 2} dy="13" fill={cloudState.check.color} fontWeight="600">{cloudState.check.text}</tspan>
+            )}
+            {cloudState.check && clearance && (
+              <tspan x={MARGIN / 2} dy="13" fill="#888">
+                {t('cross_section_clearance_band').replace('{{mm}}', String(BOTTOM_BAND))}
+              </tspan>
+            )}
             {cloudState.datum && <tspan x={MARGIN / 2} dy="13" fill="#b35c00">{cloudState.datum}</tspan>}
           </text>
         )}
+        {/* the point reaching deepest into the outline, or the nearest outside it */}
+        {clearance && zRef != null && [clearance.deepest ?? clearance.nearest].filter(Boolean).map(p => (
+          <g key="nearest" className="cross-section-nearest">
+            <circle cx={X(p.y * 1000)} cy={Y((p.z - zRef) * 1000)} r="6" fill="none"
+              stroke={clearance.inside ? INTRUSION_COLOR : CLEAR_COLOR} strokeWidth="1.5" />
+            <text x={X(p.y * 1000) + 9} y={Y((p.z - zRef) * 1000) - 6} fontSize="11"
+              fill={clearance.inside ? INTRUSION_COLOR : CLEAR_COLOR} stroke="#fff" strokeWidth="3" paintOrder="stroke">
+              {`${Math.round(p.distance)} mm`}
+            </text>
+          </g>
+        ))}
       </svg>
     )
   }

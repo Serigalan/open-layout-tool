@@ -1057,5 +1057,16 @@
   "cross_section_cloud_loading": "Punktwolke wird gelesen …",
   "cross_section_cloud_failed": "Punktwolke konnte nicht gelesen werden",
   "cross_section_cloud_no_height": "Punktwolke nicht darstellbar: kein Gleis im Schnitt hat eine Höhe",
-  "cross_section_cloud_datum": "Höhen nicht umgerechnet: Wolke {{cloud}}, Gleis {{track}} (meist 1–3 cm Unterschied)"
+  "cross_section_cloud_datum": "Höhen nicht umgerechnet: Wolke {{cloud}}, Gleis {{track}} (meist 1–3 cm Unterschied)",
+  "cross_section_clearance_hit": "Lichtraum: {{n}} Punkte im Profil, bis {{mm}} mm tief",
+  "cross_section_clearance_free": "Lichtraum frei · kleinster Abstand {{mm}} mm",
+  "cross_section_clearance_far": "Lichtraum frei · kein Punkt näher als 2 m",
+  "cross_section_clearance_no_gradient": "Lichtraum nicht prüfbar: das Gleis hat keine Gradiente",
+  "cross_section_clearance_band": "Punkte unter {{mm}} mm über SO werden nicht geprüft (Schienen, Schotter)",
+  "clearance_scan_title": "Punktwolke: Lichtraum entlang des Gleises",
+  "clearance_scan_hint": "Prüft das ganze Gleis in Schritten von 50 cm gegen die Punktwolken auf diesem Gerät.",
+  "clearance_scan_start": "Gleis prüfen",
+  "clearance_scan_none": "Kein Eingriff in den Lichtraum ({{n}} Stationen geprüft).",
+  "clearance_scan_found": "Eingriffe in den Lichtraum an {{n}} Stellen:",
+  "clearance_scan_row": "{{n}} Punkte, bis {{mm}} mm"
 }

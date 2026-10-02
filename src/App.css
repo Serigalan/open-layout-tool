@@ -2045,3 +2045,14 @@
   justify-content: flex-end;
   row-gap: 6px;
 }
+
+.clearance-stretches {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clearance-stretch {
+  font-size: 12px;
+  color: #c0392b;
+}

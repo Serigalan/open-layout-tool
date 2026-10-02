@@ -1057,5 +1057,16 @@
   "cross_section_cloud_loading": "Reading point cloud …",
   "cross_section_cloud_failed": "Point cloud could not be read",
   "cross_section_cloud_no_height": "Point cloud cannot be shown: no track in the section has a height",
-  "cross_section_cloud_datum": "Heights not converted: cloud {{cloud}}, track {{track}} (usually 1–3 cm apart)"
+  "cross_section_cloud_datum": "Heights not converted: cloud {{cloud}}, track {{track}} (usually 1–3 cm apart)",
+  "cross_section_clearance_hit": "Clearance: {{n}} points inside the profile, up to {{mm}} mm deep",
+  "cross_section_clearance_free": "Clearance free · nearest point {{mm}} mm",
+  "cross_section_clearance_far": "Clearance free · no point closer than 2 m",
+  "cross_section_clearance_no_gradient": "Clearance cannot be checked: the track has no gradient",
+  "cross_section_clearance_band": "Points less than {{mm}} mm over top of rail are not checked (rails, ballast)",
+  "clearance_scan_title": "Point cloud: clearance along the track",
+  "clearance_scan_hint": "Checks the whole track in steps of 50 cm against the point clouds on this device.",
+  "clearance_scan_start": "Check track",
+  "clearance_scan_none": "Nothing reaches into the clearance ({{n}} stations checked).",
+  "clearance_scan_found": "Intrusions into the clearance at {{n}} places:",
+  "clearance_scan_row": "{{n}} points, up to {{mm}} mm"
 }

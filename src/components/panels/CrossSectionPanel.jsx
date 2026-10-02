@@ -12,6 +12,7 @@ import {
 } from '../../utils/gaugeProfiles'
 import useTrackHover from '../../hooks/useTrackHover'
 import GroupedTrackList from './GroupedTrackList'
+import ClearanceScanSection from './ClearanceScanSection'
 
 /**
  * The cross section of a track, at a station of it: the clearance profile the
@@ -154,6 +155,8 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
             <span className="create-element-section">{t('cross_section_sleepers')}</span>
             {rangeEditor('sleepers', SLEEPERS, DEFAULT_SLEEPER)}
           </div>
+
+          <ClearanceScanSection t={t} project={project} track={track} onShowCrossSection={onShowCrossSection} />
 
           {!shown && (
             <button className="panel-btn panel-btn-full" style={{ marginTop: 8 }}
