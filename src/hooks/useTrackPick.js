@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { elementUnderPoint, filterForTrack, FILTER_NONE, mapIsLive } from '../utils/mapConstants'
+import { TRACKS_HOVER_LAYER } from '../map/layerIds'
 
-const HOVER_LAYER = 'tracks-hover-layer'
 
 /**
  * Hook: picking a track on the map. While `active`, a click hands
@@ -29,8 +29,8 @@ export default function useTrackPick(map, active, onPick, { prefer = null, highl
     const onMove = (e) => {
       const hit = elementUnderPoint(m, e.point, prefer)
       m.getCanvas().style.cursor = hit ? 'pointer' : ''
-      if (highlight && m.getLayer(HOVER_LAYER)) {
-        m.setFilter(HOVER_LAYER, hit ? filterForTrack(hit.trackId) : FILTER_NONE)
+      if (highlight && m.getLayer(TRACKS_HOVER_LAYER)) {
+        m.setFilter(TRACKS_HOVER_LAYER, hit ? filterForTrack(hit.trackId) : FILTER_NONE)
       }
     }
 
@@ -43,7 +43,7 @@ export default function useTrackPick(map, active, onPick, { prefer = null, highl
       // what it borrowed, and only while there is still a map to give it to.
       if (!mapIsLive(map, m)) return
       m.getCanvas().style.cursor = ''
-      if (highlight && m.getLayer(HOVER_LAYER)) m.setFilter(HOVER_LAYER, FILTER_NONE)
+      if (highlight && m.getLayer(TRACKS_HOVER_LAYER)) m.setFilter(TRACKS_HOVER_LAYER, FILTER_NONE)
     }
   }, [map, active, prefer, highlight])
 }

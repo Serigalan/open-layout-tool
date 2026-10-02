@@ -8,6 +8,7 @@ import { resolveEndBearing, displayCoords } from '../utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderUtils'
 import { updateLabels, clearTrackLabels, createTrackLabel, SWITCH_LABEL_MIN_ZOOM } from '../utils/labelUtils'
 import { ensureMarkerImages, TRACK_MARKER_ICON_IMAGE } from '../utils/markerImages'
+import { BUFFER_STOPS_BRAKE_LAYER, BUFFER_STOPS_LAYER, BUFFER_STOPS_SOURCE, PLATFORMS_FILL_LAYER, PLATFORMS_OUTLINE_LAYER, PLATFORMS_SOURCE, SWITCH_FILLS_LAYER, SWITCH_FILLS_SOURCE, SWITCH_LCS_LAYER, SWITCH_LCS_SOURCE, TRACKS_HOVER_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER, TRACKS_SOURCE, TRACK_MARKERS_LAYER, TRACK_MARKERS_SOURCE } from './layerIds'
 
 // The project on the map: tracks, switch bodies, platforms, buffer stops, the
 // start/end markers and the labels — drawn from a project record. One source
@@ -17,10 +18,10 @@ import { ensureMarkerImages, TRACK_MARKER_ICON_IMAGE } from '../utils/markerImag
 export function updateMapColors(map, color) {
   if (!map) return
   const c = color ?? getColor()
-  if (map.getLayer('tracks-layer'))         map.setPaintProperty('tracks-layer',         'line-color', c)
-  if (map.getLayer('switch-fills-layer'))   map.setPaintProperty('switch-fills-layer',   'fill-color', c)
-  if (map.getLayer('tracks-markers-layer')) map.setPaintProperty('tracks-markers-layer', 'icon-color', c)
-  if (map.getLayer('buffer-stops-layer'))   map.setPaintProperty('buffer-stops-layer',   'line-color', c)
+  if (map.getLayer(TRACKS_LAYER))         map.setPaintProperty(TRACKS_LAYER,         'line-color', c)
+  if (map.getLayer(SWITCH_FILLS_LAYER))   map.setPaintProperty(SWITCH_FILLS_LAYER,   'fill-color', c)
+  if (map.getLayer(TRACK_MARKERS_LAYER)) map.setPaintProperty(TRACK_MARKERS_LAYER, 'icon-color', c)
+  if (map.getLayer(BUFFER_STOPS_LAYER))   map.setPaintProperty(BUFFER_STOPS_LAYER,   'line-color', c)
 }
 
 /**
@@ -165,76 +166,76 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
   // laid over the track line, which is already drawn there.
   const bufferStopGeoJSON = { type: 'FeatureCollection', features: bufferStopFeatures(tracks, project.endMarks ?? []) }
 
-  if (map.getSource('tracks-source')) {
-    map.getSource('tracks-source').setData(lineGeoJSON)
-    map.getSource('buffer-stops-source')?.setData(bufferStopGeoJSON)
-    map.getSource('tracks-markers-source').setData(pointGeoJSON)
-    map.getSource('switch-fills-source')?.setData(switchFillGeoJSON)
-    map.getSource('switch-lcs-source')?.setData(switchLcsGeoJSON)
-    map.getSource('platforms-source')?.setData(platformGeoJSON)
+  if (map.getSource(TRACKS_SOURCE)) {
+    map.getSource(TRACKS_SOURCE).setData(lineGeoJSON)
+    map.getSource(BUFFER_STOPS_SOURCE)?.setData(bufferStopGeoJSON)
+    map.getSource(TRACK_MARKERS_SOURCE).setData(pointGeoJSON)
+    map.getSource(SWITCH_FILLS_SOURCE)?.setData(switchFillGeoJSON)
+    map.getSource(SWITCH_LCS_SOURCE)?.setData(switchLcsGeoJSON)
+    map.getSource(PLATFORMS_SOURCE)?.setData(platformGeoJSON)
   } else {
     const c = getColor()
     // Added before the track layers so the tracks stay drawn on top of them.
-    map.addSource('platforms-source', { type: 'geojson', data: platformGeoJSON, maxzoom: GEOJSON_MAXZOOM })
+    map.addSource(PLATFORMS_SOURCE, { type: 'geojson', data: platformGeoJSON, maxzoom: GEOJSON_MAXZOOM })
     map.addLayer({
-      id: 'platforms-fill-layer',
+      id: PLATFORMS_FILL_LAYER,
       type: 'fill',
-      source: 'platforms-source',
+      source: PLATFORMS_SOURCE,
       paint: { 'fill-color': PLATFORM_FILL_COLOR, 'fill-opacity': PLATFORM_FILL_OPACITY },
     })
     map.addLayer({
-      id: 'platforms-outline-layer',
+      id: PLATFORMS_OUTLINE_LAYER,
       type: 'line',
-      source: 'platforms-source',
+      source: PLATFORMS_SOURCE,
       paint: { 'line-color': PLATFORM_OUTLINE_COLOR, 'line-width': 1.2 },
     })
-    map.addSource('tracks-source', { type: 'geojson', data: lineGeoJSON, maxzoom: GEOJSON_MAXZOOM })
+    map.addSource(TRACKS_SOURCE, { type: 'geojson', data: lineGeoJSON, maxzoom: GEOJSON_MAXZOOM })
     map.addLayer({
-      id: 'tracks-layer',
+      id: TRACKS_LAYER,
       type: 'line',
-      source: 'tracks-source',
+      source: TRACKS_SOURCE,
       paint: {
         'line-color': c,
         'line-width': ZOOM_LINE_WIDTH,
       },
     })
-    map.addSource('buffer-stops-source', { type: 'geojson', data: bufferStopGeoJSON, maxzoom: GEOJSON_MAXZOOM })
+    map.addSource(BUFFER_STOPS_SOURCE, { type: 'geojson', data: bufferStopGeoJSON, maxzoom: GEOJSON_MAXZOOM })
     map.addLayer({
-      id: 'buffer-stops-brake-layer',
+      id: BUFFER_STOPS_BRAKE_LAYER,
       type: 'line',
-      source: 'buffer-stops-source',
+      source: BUFFER_STOPS_SOURCE,
       filter: ['==', ['get', 'part'], 'brake'],
       paint: { 'line-color': '#ffffff', 'line-width': ZOOM_LINE_WIDTH, 'line-dasharray': [1.5, 1.5] },
     })
     map.addLayer({
-      id: 'buffer-stops-layer',
+      id: BUFFER_STOPS_LAYER,
       type: 'line',
-      source: 'buffer-stops-source',
+      source: BUFFER_STOPS_SOURCE,
       filter: ['!=', ['get', 'part'], 'brake'],
       paint: { 'line-color': c, 'line-width': ZOOM_LINE_WIDTH_BUFFER_STOP },
     })
-    map.addSource('tracks-markers-source', { type: 'geojson', data: pointGeoJSON, maxzoom: GEOJSON_MAXZOOM })
-    map.addSource('switch-fills-source', { type: 'geojson', data: switchFillGeoJSON, maxzoom: GEOJSON_MAXZOOM })
+    map.addSource(TRACK_MARKERS_SOURCE, { type: 'geojson', data: pointGeoJSON, maxzoom: GEOJSON_MAXZOOM })
+    map.addSource(SWITCH_FILLS_SOURCE, { type: 'geojson', data: switchFillGeoJSON, maxzoom: GEOJSON_MAXZOOM })
     map.addLayer({
-      id: 'switch-fills-layer',
+      id: SWITCH_FILLS_LAYER,
       type: 'fill',
-      source: 'switch-fills-source',
+      source: SWITCH_FILLS_SOURCE,
       paint: { 'fill-color': c, 'fill-opacity': 0.9 },
     })
-    map.addSource('switch-lcs-source', { type: 'geojson', data: switchLcsGeoJSON, maxzoom: GEOJSON_MAXZOOM })
+    map.addSource(SWITCH_LCS_SOURCE, { type: 'geojson', data: switchLcsGeoJSON, maxzoom: GEOJSON_MAXZOOM })
     map.addLayer({
-      id: 'switch-lcs-layer',
+      id: SWITCH_LCS_LAYER,
       type: 'line',
-      source: 'switch-lcs-source',
+      source: SWITCH_LCS_SOURCE,
       paint: { 'line-color': c, 'line-width': ZOOM_LINE_WIDTH, 'line-opacity': 0.7 },
     })
 
     ensureMarkerImages(map)
 
     map.addLayer({
-      id: 'tracks-markers-layer',
+      id: TRACK_MARKERS_LAYER,
       type: 'symbol',
-      source: 'tracks-markers-source',
+      source: TRACK_MARKERS_SOURCE,
       minzoom: MARKER_MIN_ZOOM,
       layout: {
         'icon-image': TRACK_MARKER_ICON_IMAGE,
@@ -246,9 +247,9 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
       paint: { 'icon-color': c },
     })
     map.addLayer({
-      id: 'tracks-hover-layer',
+      id: TRACKS_HOVER_LAYER,
       type: 'line',
-      source: 'tracks-source',
+      source: TRACKS_SOURCE,
       filter: FILTER_NONE,
       paint: {
         'line-color': '#ff8c00',
@@ -257,9 +258,9 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
       },
     })
     map.addLayer({
-      id: 'tracks-selected-layer',
+      id: TRACKS_SELECTED_LAYER,
       type: 'line',
-      source: 'tracks-source',
+      source: TRACKS_SOURCE,
       filter: FILTER_NONE,
       paint: {
         'line-color': '#a52a1f',

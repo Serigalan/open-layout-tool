@@ -4,6 +4,7 @@ import { resolveEndBearing } from '../utils/elementUtils'
 import { wgs84ToUTM, epsgForLngLat } from '../utils/coordinateUtils'
 import { setMarkerData } from '../utils/mapRenderUtils'
 import { FILTER_NONE, HIT_TOLERANCE, filterForElement } from '../utils/mapConstants'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../map/layerIds'
 
 /**
  * Hook: lets the user click a track element on the map.
@@ -23,11 +24,11 @@ export default function useElementSelection(map, project, phase, setPhase, nextP
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       if (features.length === 0) return
 
       const trackId = features[0].properties.trackId
-      m.setFilter('tracks-hover-layer', FILTER_NONE)
+      m.setFilter(TRACKS_HOVER_LAYER, FILTER_NONE)
 
       const tracks = loadTracks()
       const track = tracks.find(tr => tr.id === trackId)
@@ -35,7 +36,7 @@ export default function useElementSelection(map, project, phase, setPhase, nextP
 
       const lastElIdx = track.elements.length - 1
       const lastEl = track.elements[lastElIdx]
-      m.setFilter('tracks-selected-layer', filterForElement(trackId, lastElIdx))
+      m.setFilter(TRACKS_SELECTED_LAYER, filterForElement(trackId, lastElIdx))
 
       const endCoords = lastEl.geometry?.coordinates
       if (!endCoords || endCoords.length === 0) return

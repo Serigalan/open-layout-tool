@@ -18,8 +18,8 @@ import { catalogSpeedRange } from '../utils/regelkatalog'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import { useProject } from '../hooks/useStore'
+import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 
-const SELECTED_LAYER = 'tracks-selected-layer'
 
 // Fields that reshape the element geometry (and the downstream chain).
 const GEOM_KEYS = new Set(['length', 'bearing', 'radius'])
@@ -176,9 +176,9 @@ export default function TrackTableOverlay({
   // It is released again when the table closes or the row changes.
   useEffect(() => {
     const m = map?.current
-    if (!m?.getLayer(SELECTED_LAYER)) return
-    m.setFilter(SELECTED_LAYER, activeRow == null ? FILTER_NONE : filterForElement(track.id, activeRow))
-    return () => { if (mapIsLive(map, m) && m.getLayer(SELECTED_LAYER)) m.setFilter(SELECTED_LAYER, FILTER_NONE) }
+    if (!m?.getLayer(TRACKS_SELECTED_LAYER)) return
+    m.setFilter(TRACKS_SELECTED_LAYER, activeRow == null ? FILTER_NONE : filterForElement(track.id, activeRow))
+    return () => { if (mapIsLive(map, m) && m.getLayer(TRACKS_SELECTED_LAYER)) m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE) }
   }, [map, track.id, activeRow])
 
   // …and frame it. The geometry comes from the store, not from the working copy:

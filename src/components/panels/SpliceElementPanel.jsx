@@ -21,6 +21,7 @@ import { truncateHeights } from '../../utils/heightUtils'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../map/layerIds'
 
 const SPLICE_PREVIEW_SOURCE = 'splice-preview-source'
 const SPLICE_PREVIEW_LAYER  = 'splice-preview-layer'
@@ -96,7 +97,7 @@ export default function SpliceElementPanel() {
   useTrackHover(map, phase, 'select_second', project)
 
   // ── Setup / cleanup preview layer ─────────────────────────────────────────
-  usePreviewLayers(map, SPLICE_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
+  usePreviewLayers(map, SPLICE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // ── Click handler for select phases ──────────────────────────────────────
   useEffect(() => {
@@ -108,7 +109,7 @@ export default function SpliceElementPanel() {
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       if (!features.length) return
 
       const { trackId, elementIndex } = features[0].properties

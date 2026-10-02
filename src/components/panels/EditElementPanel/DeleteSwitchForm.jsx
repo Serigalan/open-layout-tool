@@ -6,6 +6,7 @@ import { FILTER_NONE, HIT_TOLERANCE, filterForSwitch, mapIsLive } from '../../..
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { SWITCH_FILLS_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 
 /**
  * Delete a turnout (AP 1.2). The switch is picked on the map — its body, or any
@@ -25,7 +26,7 @@ export default function DeleteSwitchForm({ onCommitted }) {
     const m = map?.current
     return () => {
       if (!mapIsLive(map, m)) return
-      m.setFilter('tracks-selected-layer', FILTER_NONE)
+      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
       m.getCanvas().style.cursor = ''
     }
   }, [map])
@@ -43,8 +44,8 @@ export default function DeleteSwitchForm({ onCommitted }) {
       // The body first — it is the switch itself; an element of one of its
       // routes names it just as well.
       const hit = [
-        ...m.queryRenderedFeatures(bbox, { layers: ['switch-fills-layer'] }),
-        ...m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] }),
+        ...m.queryRenderedFeatures(bbox, { layers: [SWITCH_FILLS_LAYER] }),
+        ...m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] }),
       ].find(f => f.properties?.switchId)
       if (!hit) return
 
@@ -53,7 +54,7 @@ export default function DeleteSwitchForm({ onCommitted }) {
       const plan = planSwitchDeletion(sw, loadTracks())
       if (!plan) return
 
-      m.setFilter('tracks-selected-layer', filterForSwitch(sw.switchId))
+      m.setFilter(TRACKS_SELECTED_LAYER, filterForSwitch(sw.switchId))
       setSelected({ sw, plan })
     }
 
@@ -65,7 +66,7 @@ export default function DeleteSwitchForm({ onCommitted }) {
     commitSwitchDeletion(selected.plan)
     setConfirming(false)
     setSelected(null)
-    map?.current?.setFilter('tracks-selected-layer', FILTER_NONE)
+    map?.current?.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
   }
 
   const fill = (key, values) =>

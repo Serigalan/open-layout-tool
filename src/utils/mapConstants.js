@@ -4,6 +4,7 @@ import {
   CANT_DEFICIENCY_COEFF as RW_CANT_DEFICIENCY_COEFF,
 } from './regelwerkDefaults'
 import { catalogLimit, catalogSpeedRange, IN_SWITCH_AREA } from './regelkatalog'
+import { TRACKS_LAYER } from '../map/layerIds'
 
 /** Sagitta (max deviation) constants for arc coordinate generation */
 export const SAGITTA_ELEMENT = 0.05  // element.geometry.coordinates — fine precision
@@ -83,7 +84,7 @@ export const filterForSwitch = (switchId) => ['==', ['get', 'switchId'], switchI
 export const HIT_TOLERANCE = 10
 
 /** The layer the project's own tracks are drawn on — what a click asks. */
-export const TRACKS_LAYER = 'tracks-layer'
+export { TRACKS_LAYER }
 
 /**
  * The track element under a point on the map — { trackId, elementIndex } — or

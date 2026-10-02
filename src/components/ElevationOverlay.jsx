@@ -9,8 +9,8 @@ import { fillHeights } from '../utils/elevationFill'
 import { chosenTerrainSource } from '../utils/elevationSource'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
+import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 
-const SELECTED_LAYER = 'tracks-selected-layer'
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
 const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
 const MIN_OVERLAY_PX = 140
@@ -132,10 +132,10 @@ export default function ElevationOverlay({ trackId, onClose }) {
     .filter(i => i != null))].sort((a, b) => a - b).join(',')
   useEffect(() => {
     const m = map?.current
-    if (!m?.getLayer(SELECTED_LAYER)) return
+    if (!m?.getLayer(TRACKS_SELECTED_LAYER)) return
     const idx = selectedElementsKey ? selectedElementsKey.split(',').map(Number) : []
-    m.setFilter(SELECTED_LAYER, idx.length ? filterForElements(trackId, idx) : FILTER_NONE)
-    return () => { if (mapIsLive(map, m) && m.getLayer(SELECTED_LAYER)) m.setFilter(SELECTED_LAYER, FILTER_NONE) }
+    m.setFilter(TRACKS_SELECTED_LAYER, idx.length ? filterForElements(trackId, idx) : FILTER_NONE)
+    return () => { if (mapIsLive(map, m) && m.getLayer(TRACKS_SELECTED_LAYER)) m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE) }
   }, [map, trackId, selectedElementsKey])
 
   // ── Zoom about the cursor (both axes, the exaggeration stays) ─────────────

@@ -1,5 +1,6 @@
 import { classifyTrackEnds, switchNodes } from './topology'
 import { GEOJSON_MAXZOOM, ZOOM_LINE_WIDTH } from './mapConstants'
+import { BUFFER_STOPS_BRAKE_LAYER, BUFFER_STOPS_LAYER, PLATFORMS_FILL_LAYER, PLATFORMS_OUTLINE_LAYER, SWITCH_FILLS_LAYER, SWITCH_LCS_LAYER, TRACKS_LAYER, TRACKS_SOURCE, TRACK_MARKERS_LAYER } from '../map/layerIds'
 
 /**
  * The topology view (ROADMAP AP 9.3): the tracks as plain lines in their true
@@ -22,9 +23,9 @@ const SWITCH_RADIUS = 13
 
 /** Layers of the ordinary drawing that the topology view hides. */
 const HIDDEN = [
-  'switch-fills-layer', 'switch-lcs-layer', 'tracks-markers-layer',
-  'platforms-fill-layer', 'platforms-outline-layer',
-  'buffer-stops-layer', 'buffer-stops-brake-layer',
+  SWITCH_FILLS_LAYER, SWITCH_LCS_LAYER, TRACK_MARKERS_LAYER,
+  PLATFORMS_FILL_LAYER, PLATFORMS_OUTLINE_LAYER,
+  BUFFER_STOPS_LAYER, BUFFER_STOPS_BRAKE_LAYER,
 ]
 
 const SOURCE_NODES = 'topology-nodes-source'
@@ -132,10 +133,10 @@ function addLayers(map) {
   map.addLayer({
     id: 'topology-veil-layer', type: 'background',
     paint: { 'background-color': '#ffffff', 'background-opacity': VEIL_OPACITY },
-  }, 'tracks-layer')
+  }, TRACKS_LAYER)
   const f = highlightFilters()
   map.addLayer({
-    id: 'topology-highlight-layer', type: 'line', source: 'tracks-source',
+    id: 'topology-highlight-layer', type: 'line', source: TRACKS_SOURCE,
     filter: f.tracks,
     layout: { 'line-cap': 'round' },
     paint: { 'line-color': highlightColor(), 'line-width': 7, 'line-opacity': 0.9 },
@@ -195,10 +196,10 @@ function addLayers(map) {
  * the style away.
  */
 export function showTopology(map, { on, tracks, switches, endMarks, color }) {
-  if (!map?.getLayer('tracks-layer')) return
+  if (!map?.getLayer(TRACKS_LAYER)) return
   const visibility = on ? 'none' : 'visible'
   for (const id of HIDDEN) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility)
-  map.setPaintProperty('tracks-layer', 'line-width', on ? LINE_WIDTH : ZOOM_LINE_WIDTH)
+  map.setPaintProperty(TRACKS_LAYER, 'line-width', on ? LINE_WIDTH : ZOOM_LINE_WIDTH)
 
   if (!on) {
     for (const id of LAYERS) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none')
@@ -248,7 +249,7 @@ export function topologySwitchAt(map, point, tolerance = 4) {
 
 /** The track under a point on the map, or null — the switches come first, so ask this second. */
 export function topologyTrackAt(map, point, tolerance = 5) {
-  return featureAt(map, point, ['tracks-layer'], tolerance)?.properties?.trackId || null
+  return featureAt(map, point, [TRACKS_LAYER], tolerance)?.properties?.trackId || null
 }
 
 /**

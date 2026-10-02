@@ -13,8 +13,8 @@ import StationNameInput from '../StationNameInput'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 
-const SELECTED_LAYER = 'tracks-selected-layer'
 const NEW = 'new'
 /** How long the line number has to hold still before the tracks are measured against it. */
 const SETTLE_MS = 300
@@ -85,13 +85,13 @@ export default function AssignTracksForm({ onCommitted }) {
   const selectedKey = [...selected].join('|')
   useEffect(() => {
     const m = map?.current
-    if (!m?.getLayer(SELECTED_LAYER)) return
-    m.setFilter(SELECTED_LAYER, selectedKey ? filterForTracks(selectedKey.split('|')) : FILTER_NONE)
+    if (!m?.getLayer(TRACKS_SELECTED_LAYER)) return
+    m.setFilter(TRACKS_SELECTED_LAYER, selectedKey ? filterForTracks(selectedKey.split('|')) : FILTER_NONE)
   }, [map, selectedKey])
   useEffect(() => {
     const m = map?.current
     return () => {
-      if (mapIsLive(map, m) && m.getLayer(SELECTED_LAYER)) m.setFilter(SELECTED_LAYER, FILTER_NONE)
+      if (mapIsLive(map, m) && m.getLayer(TRACKS_SELECTED_LAYER)) m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
     }
   }, [map])
 

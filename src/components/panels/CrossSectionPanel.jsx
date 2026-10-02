@@ -16,6 +16,7 @@ import ClearanceScanSection from './ClearanceScanSection'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
+import { TRACKS_LAYER } from '../../map/layerIds'
 
 /**
  * The cross section of a track, at a station of it: the clearance profile the
@@ -51,7 +52,7 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const feature = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })[0]
+      const feature = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })[0]
       if (!feature) return
       const { trackId: clickedId, elementIndex } = feature.properties
       const clicked = loadTracks().find(tr => tr.id === clickedId)

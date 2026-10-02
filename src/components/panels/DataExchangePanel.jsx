@@ -25,6 +25,7 @@ import ProviImportSection from './ProviImportSection'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../map/layerIds'
 
 /**
  * How long the way to OSRD stays offered after an export [ms]. The file is in
@@ -172,7 +173,7 @@ export default function DataExchangePanel({ onShowCompare }) {
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       if (!features.length) return
       const { trackId } = features[0].properties
       setSelectedIds(prev => {
@@ -190,8 +191,8 @@ export default function DataExchangePanel({ onShowCompare }) {
   useEffect(() => {
     const m = map?.current
     return () => {
-      if (!mapIsLive(map, m) || !m.getLayer('tracks-hover-layer')) return
-      m.setFilter('tracks-hover-layer', FILTER_NONE)
+      if (!mapIsLive(map, m) || !m.getLayer(TRACKS_HOVER_LAYER)) return
+      m.setFilter(TRACKS_HOVER_LAYER, FILTER_NONE)
       m.getCanvas().style.cursor = ''
     }
   }, [map])

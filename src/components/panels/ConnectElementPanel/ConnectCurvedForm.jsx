@@ -20,6 +20,7 @@ import { toWgs } from '../../../utils/coordinateUtils'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 
 export default function ConnectCurvedForm({ onCommitted }) {
   const { t } = useI18n()
@@ -58,8 +59,8 @@ export default function ConnectCurvedForm({ onCommitted }) {
       if (!mapIsLive(map, m)) return
       clearPreview(m)
       m.getCanvas().style.cursor = ''
-      m.setFilter('tracks-selected-layer', FILTER_NONE)
-      m.setFilter('tracks-hover-layer', FILTER_NONE)
+      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
+      m.setFilter(TRACKS_HOVER_LAYER, FILTER_NONE)
     }
   }, [map])
 
@@ -243,7 +244,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
 
     if (map?.current) {
       clearPreview(map.current)
-      map.current.setFilter('tracks-selected-layer', FILTER_NONE)
+      map.current.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
     }
     resetForm()
     onCommitted?.()

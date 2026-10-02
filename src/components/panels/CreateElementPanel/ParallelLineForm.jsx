@@ -17,6 +17,7 @@ import { elementPath } from '../../../utils/lineLookup'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 
 // Start/end of an element as UTM points. Uses the stored nodes when present,
 // otherwise falls back to the first/last geometry coordinate.
@@ -101,7 +102,7 @@ export default function ParallelLineForm({ onDone }) {
       if (!mapIsLive(map, m)) return
       clearPreview(m)
       m.getCanvas().style.cursor = ''
-      m.setFilter('tracks-selected-layer', FILTER_NONE)
+      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
     }
   }, [map])
 
@@ -159,7 +160,7 @@ export default function ParallelLineForm({ onDone }) {
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
         .filter(f => !f.properties.switchBranch)
       if (features.length === 0) return
 
@@ -174,7 +175,7 @@ export default function ParallelLineForm({ onDone }) {
 
       sourceRef.current = src
       setSpeed(el.speed ?? 80)
-      m.setFilter('tracks-selected-layer', filterForElement(trackId, elIdx))
+      m.setFilter(TRACKS_SELECTED_LAYER, filterForElement(trackId, elIdx))
       m.getCanvas().style.cursor = ''
       m.off('click', onClick)
       setSelecting(false)
@@ -301,7 +302,7 @@ export default function ParallelLineForm({ onDone }) {
 
     if (map?.current) {
       clearPreview(map.current)
-      map.current.setFilter('tracks-selected-layer', FILTER_NONE)
+      map.current.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
     }
     onDone?.()
   }

@@ -6,6 +6,7 @@ import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, mapIsLive } from '../../../
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 
 export default function DeleteTrackForm({ onCommitted }) {
   const { t } = useI18n()
@@ -22,7 +23,7 @@ export default function DeleteTrackForm({ onCommitted }) {
     const m = map?.current
     return () => {
       if (!mapIsLive(map, m)) return
-      m.setFilter('tracks-selected-layer', FILTER_NONE)
+      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
       m.getCanvas().style.cursor = ''
     }
   }, [map])
@@ -39,13 +40,13 @@ export default function DeleteTrackForm({ onCommitted }) {
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] }).filter(f => !f.properties.switchBranch)
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] }).filter(f => !f.properties.switchBranch)
       if (features.length === 0) return
       const { trackId } = features[0].properties
       const track = loadTracks().find(tr => tr.id === trackId)
       if (!track) return
 
-      m.setFilter('tracks-selected-layer', filterForTrack(trackId))
+      m.setFilter(TRACKS_SELECTED_LAYER, filterForTrack(trackId))
       setSelected({
         id:          trackId,
         name:        track.name || trackId.slice(0, 8),
@@ -62,7 +63,7 @@ export default function DeleteTrackForm({ onCommitted }) {
     deleteTrack(selected.id)
     setConfirming(false)
     setSelected(null)
-    map?.current?.setFilter('tracks-selected-layer', FILTER_NONE)
+    map?.current?.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
   }
 
   const fill = (key, values) =>

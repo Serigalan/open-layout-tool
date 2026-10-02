@@ -29,6 +29,7 @@ import CompareOverlay from '../components/collab/CompareOverlay'
 import ConflictDialog from '../components/collab/ConflictDialog'
 import CheckInDialog from '../components/collab/CheckInDialog'
 import WorkingCopyBar from '../components/collab/WorkingCopyBar'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../map/layerIds'
 
 const DEFAULT_COLOR = '#303383'
 
@@ -161,7 +162,7 @@ export default function MapWorkspace({ wc, onHome }) {
     // which stays false while any tile is still loading and so skipped the
     // switch on the first open. A style still coming in (the change to
     // Liberty) draws it from its own style.load, through the ref.
-    if (map.current?.getLayer('tracks-layer') && projectRef.current) {
+    if (map.current?.getLayer(TRACKS_LAYER) && projectRef.current) {
       renderTracksOnMap(map.current, projectRef.current, { topology })
     }
   }, [topology, map])
@@ -209,7 +210,7 @@ export default function MapWorkspace({ wc, onHome }) {
     if (before && parts.every((x, i) => x === before[i])) return
     // Before the style has loaded there is nothing to draw on yet; its
     // style.load handler draws the project as it is then.
-    if (map.current?.getLayer('tracks-layer')) {
+    if (map.current?.getLayer(TRACKS_LAYER)) {
       renderTracksOnMap(map.current, project, { topology: topologyRef.current })
     }
     if (!before || parts[0] !== before[0]) syncKmLines()
@@ -218,7 +219,7 @@ export default function MapWorkspace({ wc, onHome }) {
   // Element and switch labels are language-dependent, so a language change has
   // to redraw them.
   useEffect(() => {
-    if (map.current?.getLayer('tracks-layer') && projectRef.current) {
+    if (map.current?.getLayer(TRACKS_LAYER) && projectRef.current) {
       renderTracksOnMap(map.current, projectRef.current, { topology: topologyRef.current })
     }
   }, [language, map])
@@ -226,8 +227,8 @@ export default function MapWorkspace({ wc, onHome }) {
   // The track the element table shows is outlined on the map.
   const tableTrackId = overlay?.kind === 'trackTable' ? overlay.track.id : null
   useEffect(() => {
-    if (!map.current?.getLayer('tracks-hover-layer')) return
-    map.current.setFilter('tracks-hover-layer', tableTrackId ? ['==', ['get', 'trackId'], tableTrackId] : FILTER_NONE)
+    if (!map.current?.getLayer(TRACKS_HOVER_LAYER)) return
+    map.current.setFilter(TRACKS_HOVER_LAYER, tableTrackId ? ['==', ['get', 'trackId'], tableTrackId] : FILTER_NONE)
   }, [tableTrackId, map])
 
   // Ctrl+Z outside a field takes the last project step back.

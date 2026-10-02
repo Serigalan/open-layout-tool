@@ -28,6 +28,7 @@ import {
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../../map/layerIds'
 
 /**
  * A crossing or crossing switch laid INTO an existing track (AP 3.3) — the
@@ -80,7 +81,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
   const switchNo = useSwitchNumber(project.id, form.kind)
 
   useTrackHover(map, phase, 'select', project)
-  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
+  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // ── Pick a track and place the crossing point where it was clicked ────────
   useEffect(() => {
@@ -91,7 +92,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
         .filter(f => !f.properties.switchBranch)
       if (!features.length) return
       const { trackId, elementIndex } = features[0].properties

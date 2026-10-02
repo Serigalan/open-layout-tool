@@ -26,6 +26,7 @@ import {
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../../map/layerIds'
 
 /**
  * A crossing or crossing switch (AP 3.2), connected to the end of an existing
@@ -77,7 +78,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
   const switchNo = useSwitchNumber(project.id, form.kind)
 
   useTrackHover(map, phase, 'select', project)
-  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
+  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // The geometry as it would be committed — derived, so preview and commit
   // cannot disagree. The crossing point lies the form's end distance along the
@@ -96,7 +97,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       const { trackId, elementIndex } = features[0]?.properties ?? {}
       const track = features.length ? loadTracks().find(tr => tr.id === trackId) : null
       const el    = track?.elements?.[Number(elementIndex)]
@@ -128,7 +129,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       if (!features.length) return
       const { trackId, elementIndex } = features[0].properties
       const elIdx = Number(elementIndex)

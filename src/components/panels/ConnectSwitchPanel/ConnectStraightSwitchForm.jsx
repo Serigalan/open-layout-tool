@@ -31,6 +31,7 @@ import {
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../../map/layerIds'
 
 /**
  * Radius an element ends on, in its running direction — the curvature a switch
@@ -123,7 +124,7 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
   useTrackHover(map, phase, 'select', project)
 
   // ── Setup preview layers ──────────────────────────────────────────────────────────
-  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
+  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // ── Hover preview (select phase) ─────────────────────────────────────────
   useEffect(() => {
@@ -135,7 +136,7 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       if (features.length === 0) {
         m.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
         m.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
@@ -178,7 +179,7 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       if (!features.length) return
 
       const { trackId, elementIndex } = features[0].properties

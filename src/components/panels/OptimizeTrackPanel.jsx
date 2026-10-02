@@ -14,6 +14,7 @@ import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../ico
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../map/layerIds'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
 const OPTIMIZE_PREVIEW_LAYER  = 'optimize-preview-layer'
@@ -96,7 +97,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
   const runError = run?.key === runKey ? run.error ?? null : null
 
   useTrackHover(map, page === 'menu' ? 'menu' : phase, 'select', project)
-  usePreviewLayers(map, OPTIMIZE_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
+  usePreviewLayers(map, OPTIMIZE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // ── Track/element selection ────────────────────────────────────────────────
   useEffect(() => {
@@ -107,7 +108,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       if (!features.length) return
       const track = loadTracks().find(tr => tr.id === features[0].properties.trackId)
       if (!track) return

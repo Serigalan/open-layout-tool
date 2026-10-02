@@ -6,6 +6,7 @@ import { FILTER_NONE, HIT_TOLERANCE, filterForSwitch, mapIsLive } from '../../..
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { SWITCH_FILLS_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 
 /**
  * The planning status of a switch, picked on the map like a switch to delete.
@@ -24,7 +25,7 @@ export default function SwitchStatusForm({ onCommitted }) {
     const m = map?.current
     return () => {
       if (!mapIsLive(map, m)) return
-      m.setFilter('tracks-selected-layer', FILTER_NONE)
+      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
       m.getCanvas().style.cursor = ''
     }
   }, [map])
@@ -40,13 +41,13 @@ export default function SwitchStatusForm({ onCommitted }) {
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
       const hit = [
-        ...m.queryRenderedFeatures(bbox, { layers: ['switch-fills-layer'] }),
-        ...m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] }),
+        ...m.queryRenderedFeatures(bbox, { layers: [SWITCH_FILLS_LAYER] }),
+        ...m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] }),
       ].find(f => f.properties?.switchId)
       if (!hit) return
       const sw = loadSwitches().find(s => s.switchId === hit.properties.switchId)
       if (!sw) return
-      m.setFilter('tracks-selected-layer', filterForSwitch(sw.switchId))
+      m.setFilter(TRACKS_SELECTED_LAYER, filterForSwitch(sw.switchId))
       setSelected(sw)
       setStatus(sw.status ?? null)
     }

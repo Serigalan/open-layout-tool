@@ -20,6 +20,7 @@ import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../../map/layerIds'
 
 // ── Preview layers (managed by usePreviewLayers) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'
@@ -278,7 +279,7 @@ export default function SCurveForm({ onCommitted }) {
   useTrackHover(map, phase, 'select_second', project)
 
   // Setup / cleanup preview layers
-  usePreviewLayers(map, SCURVE_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
+  usePreviewLayers(map, SCURVE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   const clearPreview = useCallback(() => {
     if (!map?.current) return
@@ -302,7 +303,7 @@ export default function SCurveForm({ onCommitted }) {
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       if (!features.length) return
 
       const { trackId, elementIndex } = features[0].properties

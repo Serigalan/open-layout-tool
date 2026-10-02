@@ -36,6 +36,7 @@ import {
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../../map/layerIds'
 
 /** Track the toe must leave behind it, or the split would part off next to nothing [m]. */
 const MIN_BEHIND = 0.5
@@ -113,7 +114,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   const switchName = switchNo.name
 
   useTrackHover(map, phase, 'select', project)
-  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: ['tracks-hover-layer'], resetCursor: true })
+  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // ── Pick a track and place the toe where it was clicked ──────────────────
   useEffect(() => {
@@ -124,7 +125,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
         .filter(f => !f.properties.switchBranch)
       if (!features.length) return
       const { trackId, elementIndex } = features[0].properties

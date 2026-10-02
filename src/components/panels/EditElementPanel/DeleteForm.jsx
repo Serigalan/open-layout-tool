@@ -4,6 +4,7 @@ import { FILTER_NONE, HIT_TOLERANCE, filterForElement, mapIsLive } from '../../.
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 
 export default function DeleteForm({ onCommitted }) {
   const { t } = useI18n()
@@ -22,18 +23,18 @@ export default function DeleteForm({ onCommitted }) {
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] }).filter(f => !f.properties.switchBranch)
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] }).filter(f => !f.properties.switchBranch)
       if (features.length === 0) {
         setSelectedTrackId(null)
         setSelectedElementIndex(null)
-        m.setFilter('tracks-selected-layer', FILTER_NONE)
+        m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
         return
       }
       const { trackId, elementIndex } = features[0].properties
       const elIdx = Number(elementIndex)
       setSelectedTrackId(trackId)
       setSelectedElementIndex(elIdx)
-      m.setFilter('tracks-selected-layer', filterForElement(trackId, elIdx))
+      m.setFilter(TRACKS_SELECTED_LAYER, filterForElement(trackId, elIdx))
     }
 
     m.on('click', onClick)
@@ -41,7 +42,7 @@ export default function DeleteForm({ onCommitted }) {
       m.off('click', onClick)
       if (!mapIsLive(map, m)) return
       m.getCanvas().style.cursor = ''
-      m.setFilter('tracks-selected-layer', FILTER_NONE)
+      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
     }
   }, [map])
 
@@ -50,7 +51,7 @@ export default function DeleteForm({ onCommitted }) {
     deleteElement(selectedTrackId, selectedElementIndex)
     setSelectedTrackId(null)
     setSelectedElementIndex(null)
-    if (map?.current) map.current.setFilter('tracks-selected-layer', FILTER_NONE)
+    if (map?.current) map.current.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
     onCommitted?.()
   }
 

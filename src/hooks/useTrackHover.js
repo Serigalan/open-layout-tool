@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { loadTracks } from '../storage'
 import { FILTER_NONE, HIT_TOLERANCE, filterForElement, mapIsLive } from '../utils/mapConstants'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../map/layerIds'
 
 /**
  * Hook: highlights the hovered element on the tracks-hover-layer.
@@ -16,7 +17,7 @@ export default function useTrackHover(map, phase, selectPhase, project, excludeS
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
       const feature = features.find(f => {
         if (!excludeSwitchBranch || !project) return true
         const { trackId, elementIndex } = f.properties
@@ -26,10 +27,10 @@ export default function useTrackHover(map, phase, selectPhase, project, excludeS
       })
       if (feature) {
         const { trackId, elementIndex } = feature.properties
-        m.setFilter('tracks-hover-layer', filterForElement(trackId, elementIndex))
+        m.setFilter(TRACKS_HOVER_LAYER, filterForElement(trackId, elementIndex))
         m.getCanvas().style.cursor = 'pointer'
       } else {
-        m.setFilter('tracks-hover-layer', FILTER_NONE)
+        m.setFilter(TRACKS_HOVER_LAYER, FILTER_NONE)
         m.getCanvas().style.cursor = 'default'
       }
     }
@@ -38,8 +39,8 @@ export default function useTrackHover(map, phase, selectPhase, project, excludeS
     return () => {
       m.off('mousemove', onMove)
       if (!mapIsLive(map, m)) return
-      if (m.getLayer('tracks-hover-layer')) {
-        m.setFilter('tracks-hover-layer', FILTER_NONE)
+      if (m.getLayer(TRACKS_HOVER_LAYER)) {
+        m.setFilter(TRACKS_HOVER_LAYER, FILTER_NONE)
       }
     }
   }, [phase, map, selectPhase, project, excludeSwitchBranch])

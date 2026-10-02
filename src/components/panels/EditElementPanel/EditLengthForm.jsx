@@ -12,6 +12,7 @@ import {
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import { TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 
 // Layer definitions for usePreviewLayers
 const EDIT_PREVIEW_LAYERS = [
@@ -69,7 +70,7 @@ export default function EditLengthForm({ onCommitted }) {
   }, [map])
 
   // Setup / cleanup preview layers
-  usePreviewLayers(map, EDIT_PREVIEW_LAYERS, { resetFilters: ['tracks-selected-layer'], resetCursor: true })
+  usePreviewLayers(map, EDIT_PREVIEW_LAYERS, { resetFilters: [TRACKS_SELECTED_LAYER], resetCursor: true })
 
   // Update preview lines and markers when working tracks change
   useEffect(() => {
@@ -94,14 +95,14 @@ export default function EditLengthForm({ onCommitted }) {
       if (features.length === 0) {
         setSelectedTrackId(null)
         setSelectedElIdx(null)
-        m.setFilter('tracks-selected-layer', FILTER_NONE)
+        m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
         return
       }
       const { trackId, elementIndex } = features[0].properties
       const elIdx = Number(elementIndex)
       setSelectedTrackId(trackId)
       setSelectedElIdx(elIdx)
-      m.setFilter('tracks-selected-layer', filterForElement(trackId, elIdx))
+      m.setFilter(TRACKS_SELECTED_LAYER, filterForElement(trackId, elIdx))
 
       const track = workingRef.current.find(t => t.id === trackId)
       const el = track?.elements?.[elIdx]

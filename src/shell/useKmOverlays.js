@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { showKmOverlays } from '../utils/kmLineLayer'
 import { loadSettings, saveSettings } from '../utils/settings'
+import { PLATFORMS_FILL_LAYER } from '../map/layerIds'
 
 /**
  * The DB kilometrage overlays on the map — the DB network, and what lies
@@ -20,7 +21,7 @@ export default function useKmOverlays(map) {
   const restore = useCallback(() => {
     if (!map.current) return
     showKmOverlays(map.current, current.current, {
-      beforeId: 'platforms-fill-layer',
+      beforeId: PLATFORMS_FILL_LAYER,
       onError: () => setKmLinesError(true),
     })
   }, [map])

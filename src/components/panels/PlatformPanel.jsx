@@ -17,6 +17,7 @@ import StationNameInput from './StationNameInput'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
+import { TRACKS_HOVER_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../map/layerIds'
 
 const PREVIEW_FILL_SOURCE = 'platform-preview-fill-source'
 const PREVIEW_LINE_SOURCE = 'platform-preview-line-source'
@@ -90,7 +91,7 @@ export default function PlatformPanel() {
   useTrackHover(map, phase, 'select', project, true)
 
   usePreviewLayers(map, PREVIEW_LAYERS, {
-    resetFilters: ['tracks-hover-layer', 'tracks-selected-layer'],
+    resetFilters: [TRACKS_HOVER_LAYER, TRACKS_SELECTED_LAYER],
     resetCursor: true,
   })
 
@@ -110,12 +111,12 @@ export default function PlatformPanel() {
         [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
-      const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
         .filter(f => !f.properties.switchBranch)
       if (!features.length) return
       const id = features[0].properties.trackId
       if (!loadTracks().some(tr => tr.id === id)) return
-      m.setFilter('tracks-selected-layer', filterForTrack(id))
+      m.setFilter(TRACKS_SELECTED_LAYER, filterForTrack(id))
       setTrackId(id)
       setPhase('edit')
       setPicking('start')
@@ -137,7 +138,7 @@ export default function PlatformPanel() {
         [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
       ]
       // Only the selected track carries the stations the platform is built on.
-      const feature = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
+      const feature = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
         .find(f => f.properties.trackId === track.id)
       if (!feature) return
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
@@ -186,7 +187,7 @@ export default function PlatformPanel() {
     if (!m) return
     m.getSource(PREVIEW_FILL_SOURCE)?.setData(EMPTY_FC)
     m.getSource(PREVIEW_LINE_SOURCE)?.setData(EMPTY_FC)
-    m.setFilter('tracks-selected-layer', FILTER_NONE)
+    m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
   }
 
   const reset = () => {
@@ -198,7 +199,7 @@ export default function PlatformPanel() {
   }
 
   const loadForEdit = (platform) => {
-    map?.current?.setFilter('tracks-selected-layer', filterForTrack(platform.trackId))
+    map?.current?.setFilter(TRACKS_SELECTED_LAYER, filterForTrack(platform.trackId))
     setEditingId(platform.id)
     setTrackId(platform.trackId)
     setStart(fmt(platform.startStation))

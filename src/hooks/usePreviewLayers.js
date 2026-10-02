@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { FILTER_NONE, GEOJSON_MAXZOOM, mapIsLive } from '../utils/mapConstants'
+import { TRACKS_HOVER_LAYER, TRACKS_SELECTED_LAYER } from '../map/layerIds'
 
 const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
@@ -20,7 +21,7 @@ const EMPTY_FC = { type: 'FeatureCollection', features: [] }
  *        component) — it is read only on the first render.
  * @param {object} [opts] Extra cleanup steps on unmount:
  * @param {string[]} [opts.resetFilters] Layer ids whose filter is reset to
- *        FILTER_NONE (e.g. 'tracks-hover-layer', 'tracks-selected-layer').
+ *        FILTER_NONE (e.g. TRACKS_HOVER_LAYER, TRACKS_SELECTED_LAYER).
  * @param {boolean} [opts.resetCursor] Reset the map cursor to default.
  */
 export default function usePreviewLayers(map, defs, { resetFilters = [], resetCursor = false } = {}) {
