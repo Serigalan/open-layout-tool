@@ -1,14 +1,9 @@
 import { useEffect, useState } from 'react'
-import { loadTracks, saveTrack, saveSwitch, addElementToTrack, withUndo } from '../../../storage'
-import { generateId, SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
-import { recalcAbsLengths } from '../../../utils/trackModel'
+import { loadTracks, commitSwitchConnection } from '../../../storage'
+import { SIDE_NAMES } from '../../../utils/identifierUtils'
 import { resolveEndBearing, nodeUtm } from '../../../utils/elementUtils'
 import { trackTypeName } from '../../../utils/trackGroups'
-import {
-  CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius,
-  computeCrossingGeometryFromPortA, crossingElements,
-} from '../../../utils/switchUtils'
-import { newSwitchFields } from '../../../utils/switchModel'
+import { CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius, computeCrossingGeometryFromPortA } from '../../../utils/switchUtils'
 import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
 import { pickAt } from '../../../map/pick'
 import useTrackFields from '../../../hooks/useTrackFields'
@@ -25,6 +20,7 @@ import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import useMapEvents from '../../../map/useMapEvents'
+import { buildCrossingAtTrackEnd } from '../../../utils/commands/switches'
 
 /**
  * A crossing or crossing switch (AP 3.2), connected to the end of an existing
@@ -182,46 +178,9 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
     setNameError(false)
     if (!switchNo.claim()) return
 
-    const identity = { ...newSwitchFields(form.kind), name: switchNo.name, label: form.label }
-
-    // One element per leg and per connecting route, marked with its route —
-    // straight or arc as the form's geometry has it.
-    const els = crossingElements(g, identity)
-
-    // The legs run from the crossing point out to their ports, so the three new
-    // ones join the appended first leg end to end there.
-    const tracksOf = (el, trackName = null) => ({
-      id: generateId(), name: trackName, owner: fields.owner, ...buildTypeFields(fields),
-      epsg: anchor.epsg, coordinates: el.geometry.coordinates, elements: recalcAbsLengths([el]),
-    })
-
-    // One undo step for the whole crossing: appended leg, the three new legs,
-    // the slip tracks and the record together.
-    withUndo(() => {
-      // The main route's first leg is the picked track's own now: appended as its
-      // last element, from port A to the crossing point, so the join at the port
-      // is the joint the track already had.
-      addElementToTrack(anchor.trackId, els.A)
-
-      const legC = tracksOf(els.C, name)
-      const legB = tracksOf(els.B)
-      const legD = tracksOf(els.D)
-      const slipTracks = [els.slip1, els.slip2].filter(Boolean).map(el => tracksOf(el))
-
-      for (const tr of [legC, legB, legD, ...slipTracks]) saveTrack(tr)
-
-      saveSwitch({
-        ...identity,
-        number: switchNo.number,
-        // Port A names the track the crossing is connected to: its end node is
-        // the port, and the appended leg is the switch's own element there.
-        portA_trackId: anchor.trackId, portA_endpoint: 'END',
-        portB_trackId: legB.id, portB_endpoint: 'END',
-        portC_trackId: legC.id, portC_endpoint: 'BEGIN',
-        portD_trackId: legD.id, portD_endpoint: 'BEGIN',
-        fillCoords: g.fillCoords,
-      })
-    })
+    commitSwitchConnection(buildCrossingAtTrackEnd({
+      g, anchor, form, switchName: switchNo.name, switchNumber: switchNo.number, name, fields,
+    }))
 
     resetName()
     switchNo.reset()

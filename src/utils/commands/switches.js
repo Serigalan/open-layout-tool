@@ -2,7 +2,7 @@ import { generateId, buildTypeFields } from '../identifierUtils'
 import { recalcAbsLengths } from '../trackModel'
 import { computeCurvedValuesUtm, computeStraightValuesUtm } from '../elementUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
-import { computeSwitchGeometryUtm, piecesOnRadius, switchRouteVaries } from '../switchUtils'
+import { computeCrossingGeometryUtm, computeSwitchGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius, switchRouteVaries } from '../switchUtils'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../switchModel'
 import { cantExceptionFields, worstCantOf } from '../mapConstants'
 import { placeSwitchOnTrack } from '../switchPlacement'
@@ -250,4 +250,140 @@ export function buildSwitchAtTrackEnd({
       lcsCoords,
     }],
   }
+}
+
+/**
+ * The commit of a crossing at a track's end (CrossingForm, R4.2): the main
+ * route's first leg appended to the picked track — from port A to the
+ * crossing point, so the join at the port is the joint the track already
+ * had — the three other legs and the slip routes as new tracks, the record.
+ * `g` is the crossing geometry, `anchor` { trackId, epsg } the picked end.
+ */
+export function buildCrossingAtTrackEnd({ g, anchor, form, switchName, switchNumber, name, fields }) {
+  const identity = { ...newSwitchFields(form.kind), name: switchName, label: form.label }
+  // One element per leg and per connecting route, marked with its route —
+  // straight or arc as the form's geometry has it.
+  const els = crossingElements(g, identity)
+  // The legs run from the crossing point out to their ports, so the three new
+  // ones join the appended first leg end to end there.
+  const legTrack = (el, trackName = null) => ({
+    id: generateId(), name: trackName, owner: fields.owner, ...buildTypeFields(fields),
+    epsg: anchor.epsg, coordinates: el.geometry.coordinates, elements: recalcAbsLengths([el]),
+  })
+  const legC = legTrack(els.C, name)
+  const legB = legTrack(els.B)
+  const legD = legTrack(els.D)
+  const slipTracks = [els.slip1, els.slip2].filter(Boolean).map(el => legTrack(el))
+  return {
+    removeTrackIds: [],
+    append: [{ trackId: anchor.trackId, elements: [els.A] }],
+    addTracks: [legC, legB, legD, ...slipTracks],
+    addSwitches: [{
+      ...identity,
+      number: switchNumber,
+      // Port A names the track the crossing is connected to: its end node is
+      // the port, and the appended leg is the switch's own element there.
+      portA_trackId: anchor.trackId, portA_endpoint: 'END',
+      portB_trackId: legB.id, portB_endpoint: 'END',
+      portC_trackId: legC.id, portC_endpoint: 'BEGIN',
+      portD_trackId: legD.id, portD_endpoint: 'BEGIN',
+      fillCoords: g.fillCoords,
+    }],
+  }
+}
+
+/**
+ * The commit of a crossing laid into a track (CrossingOnTrackForm, R4.2): the
+ * host track parted at the crossing point with the main legs carved out of
+ * its halves, the cross legs and slip routes as new tracks, the record — or
+ * { noRoom } (the end distance) where a main leg finds no room.
+ * `ahead` is the dialog's placement of the crossing point on the host track.
+ */
+export function buildCrossingOnTrack({ g, ahead, track, tracks, form, endDist, switchName, switchNumber, name, fields }) {
+  const existingNames = new Set(tracks.map(tr => tr.name).filter(Boolean))
+  const identity = { ...newSwitchFields(form.kind), name: switchName, label: form.label }
+  const mainMark = switchElementMark(identity, 'main')
+
+  // Part the host track at the crossing point — the main route runs through
+  // it, on the joint it falls on or inside its element, as a turnout's toe
+  // parts it.
+  const split = ahead.joint != null
+    ? splitTrackAtJoint(track, ahead.joint, ahead.bearing, existingNames)
+    : splitElementAt(track, ahead.elIdx, ahead.toeUtm, ahead.bearing, existingNames)
+
+  // The legs are the crossing's own body on the host line: the elements the
+  // end distance reaches out to ports A and C, carved into the halves and
+  // marked 'main' — the same carve that marks a turnout's through route.
+  const carvedAhead  = carveSwitchRoute(split.ahead, split.aheadEndpoint, g.portC_utm, mainMark, endDist)
+  const carvedBehind = carveSwitchRoute(split.behind, split.behindEndpoint, g.portA_utm, mainMark, endDist)
+  if (!carvedAhead || !carvedBehind) return { noRoom: endDist }
+
+  // One element per cross leg and per connecting route, marked with its route
+  // — the same elements the end-anchored crossing commits. The main legs are
+  // the host's own, carved above.
+  const els = crossingElements(g, identity)
+  const tracksOf = (el, trackName = null) => ({
+    id: generateId(), name: trackName, owner: fields.owner, ...buildTypeFields(fields),
+    epsg: track.epsg, coordinates: el.geometry.coordinates, elements: recalcAbsLengths([el]),
+  })
+  const legB = tracksOf(els.B)
+  const legD = tracksOf(els.D, name)
+  const slipTracks = [els.slip1, els.slip2].filter(Boolean).map(el => tracksOf(el))
+
+  // The record keeps only the ports: the main route's name the parted halves
+  // of the host track — port A the one behind the point, port C the one
+  // ahead, each at the end that meets it — and the cross route's name its own
+  // two halves. Both routes are read back from the marked elements.
+  const switchRecord = {
+    ...identity,
+    number: switchNumber,
+    portA_trackId: carvedBehind.id, portA_endpoint: split.behindEndpoint,
+    portB_trackId: legB.id, portB_endpoint: 'END',
+    portC_trackId: carvedAhead.id, portC_endpoint: split.aheadEndpoint,
+    portD_trackId: legD.id, portD_endpoint: 'BEGIN',
+    fillCoords: g.fillCoords,
+  }
+
+  // One undo step for the whole crossing: the parted host track with its
+  // carved legs, the cross legs, the slips and the record.
+  return {
+    removeTrackIds: [track.id],
+    addTracks: [...split.tracks.map(tr => (
+      tr.id === carvedAhead.id ? carvedAhead : tr.id === carvedBehind.id ? carvedBehind : tr)),
+      legB, legD, ...slipTracks],
+    addSwitches: [switchRecord],
+    remap: [{ oldId: track.id, newId: split.tracks.map(tr => tr.id) }],
+  }
+}
+
+/**
+ * Where a crossing laid into `track` at `pointStation` lies — the main leg on
+ * both sides of the point, read in the track's own plane — and its geometry
+ * (CrossingOnTrackForm's preview and commit read the same).
+ *
+ * Returns { error: null } before there is a station, { error: { key, params } }
+ * where it cannot go there, else { error: null, ahead, back, geom }.
+ */
+export function crossingOnTrackPlacement({ track, pointStation, endDist, form, crossAngle }) {
+  if (!track || !Number.isFinite(pointStation)) return { error: null }
+  if (pointStation < 0 || pointStation > trackLength(track)) return { error: { key: 'switch_on_track_outside' } }
+  const why = (e) => ({ error: { key: e === 'switch_on_track_no_room' ? 'crossing_on_track_no_room' : e } })
+  const ahead = placeSwitchOnTrack(track, pointStation, false, endDist)
+  if (ahead.error) return why(ahead.error)
+  const back = placeSwitchOnTrack(track, pointStation, true, endDist)
+  if (back.error) return why(back.error)
+  // The track under the body is its main leg, so it has to be one: straight,
+  // or a Bogenkreuzungsweiche's arc — walked backwards, the same arc bends the
+  // other way. Anything else would leave the geometry beside the line it
+  // should be part of.
+  const legR = crossingLegSignedRadius(form, crossAngle)
+  if (!crossingLegFitsTrack(ahead.pieces, legR)
+    || !crossingLegFitsTrack(back.pieces, legR == null ? null : -legR)) {
+    return {
+      error: legR == null
+        ? { key: 'crossing_on_track_straight_only' }
+        : { key: 'crossing_on_track_leg_arc', params: { r: String(crossingLegRadius(form)) } },
+    }
+  }
+  return { error: null, ahead, back, geom: computeCrossingGeometryUtm(ahead.toeUtm, ahead.bearing, form, crossAngle) }
 }
