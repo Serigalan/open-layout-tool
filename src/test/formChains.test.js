@@ -1,12 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { recalcAbsLengths, rebuildCoords } from '../utils/trackModel'
-import {
-  computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
-  endPointStraightUtm, endPointCurvedUtm,
-} from '../utils/elementUtils'
-import { computeClothoidUtm } from '../utils/clothoidUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../utils/mapConstants'
-import { utmToWgs84 } from '../utils/coordinateUtils'
+import { buildConnectCurved, buildConnectStraight, buildCurvedLineTrack, buildLineTrack, trackOf } from '../utils/commands/tracks'
+import { endPointStraightUtm, endPointCurvedUtm } from '../utils/elementUtils'
 import {
   SWITCH_TYPES, computeSwitchGeometryUtm, switchRouteVaries, switchStraightLength,
 } from '../utils/switchUtils'
@@ -17,159 +12,85 @@ import {
 
 /**
  * The audit of "create element" and "connect element": the chains those forms
- * commit, built here from the very calls their handleCommit makes, checked
- * against the invariant checklist. A form is React and its commit writes to the
- * store, so what is reproduced is the element data it writes — which is the part
- * the invariants are about.
+ * commit, made by the functions their commits call (utils/commands), checked
+ * against the invariant checklist.
  */
 
 const EPSG = 25832
 const START = { easting: 500000, northing: 5600000, zone: EPSG }
-const toWgs = (utm) => utmToWgs84(utm.easting, utm.northing, utm.zone)
 
-/** A track the way a create form saves one. */
-const trackOf = (elements) => ({ id: 't1', epsg: EPSG, elements: recalcAbsLengths(elements) })
 
-// ── The elements each form commits ──────────────────────────────────────────
+// ── The commits, from the very functions the dialogs call (R4.2) ────────────
 
-/** CreateElementPanel/LineForm: one straight from two picked points. */
-function lineFormElement(startUtm, endUtm) {
-  const v = computeStraightValuesUtm(startUtm, endUtm)
-  return {
-    elementType: 0,
-    startNode: v.startNode, endNode: v.endNode,
-    bearing: v.bearing, length: v.length, absLength: v.length, speed: 100,
-    geometry: { type: 'LineString', coordinates: [toWgs(startUtm), toWgs(endUtm)] },
-  }
-}
-
-/** CreateElementPanel/CurvedLineForm: one arc through a fitted radius. */
-function curvedLineFormElement(startUtm, endUtm, signedR) {
-  const v = computeCurvedValuesUtm(startUtm, endUtm, signedR)
-  const renderCoords  = arcCoordsFromRadiusUtm(startUtm, endUtm, signedR, SAGITTA_TRACK)
-  const elementCoords = arcCoordsFromRadiusUtm(startUtm, endUtm, signedR, SAGITTA_ELEMENT)
-  return {
-    elementType: 1,
-    startNode: v.startNode, endNode: v.endNode,
-    bearing: v.bearing, endBearing: v.endBearing, length: v.length, absLength: v.length,
-    radius: v.radius, cant: 80, speed: 100,
-    geometry: { type: 'LineString', coordinates: elementCoords },
-    renderCoords,
-  }
-}
-
-/** The transition both connect forms put in front of what they append. */
-function transitionElement(startUtm, bearing, length, r1, r2, transitionType = 'clothoid') {
-  const cl  = computeClothoidUtm(startUtm, bearing, length, r1, r2, SAGITTA_ELEMENT, transitionType)
-  const clR = computeClothoidUtm(startUtm, bearing, length, r1, r2, SAGITTA_TRACK, transitionType)
-  return {
-    element: {
-      elementType: 2, transitionType,
-      startNode: [startUtm.easting, startUtm.northing],
-      endNode:   [cl.endUtm.easting, cl.endUtm.northing],
-      bearing, endBearing: cl.endBearing, length, absLength: length, speed: 100,
-      r1, r2,
-      geometry: { type: 'LineString', coordinates: cl.coords },
-      renderCoords: clR.coords,
-    },
-    endUtm: cl.endUtm,
-    endBearing: cl.endBearing,
-  }
-}
-
-/** ConnectElementPanel/ConnectStraightForm: a straight onto an end. */
-function connectStraightElement(startUtm, bearing, length) {
-  const endUtm = endPointStraightUtm(startUtm, bearing, length)
-  const v = computeStraightValuesUtm(startUtm, endUtm)
-  return {
-    element: {
-      elementType: 0,
-      startNode: v.startNode, endNode: v.endNode,
-      bearing: v.bearing, length: v.length, absLength: v.length, speed: 100,
-      geometry: { type: 'LineString', coordinates: [toWgs(startUtm), toWgs(endUtm)] },
-    },
-    endUtm,
-  }
-}
-
-/** ConnectElementPanel/ConnectCurvedForm: an arc onto an end. */
-function connectCurvedElement(startUtm, bearing, arcLen, signedR) {
-  const endUtm = endPointCurvedUtm(startUtm, bearing, arcLen, signedR)
-  const v = computeCurvedValuesUtm(startUtm, endUtm, signedR)
-  const fallback = [toWgs(startUtm), toWgs(endUtm)]
-  return {
-    element: {
-      elementType: 1,
-      startNode: v.startNode, endNode: v.endNode,
-      bearing, endBearing: v.endBearing, length: arcLen, absLength: arcLen,
-      radius: signedR, cant: 80, speed: 100,
-      geometry: { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(startUtm, endUtm, signedR, SAGITTA_ELEMENT) ?? fallback },
-      renderCoords: arcCoordsFromRadiusUtm(startUtm, endUtm, signedR, SAGITTA_TRACK) ?? fallback,
-    },
-    endUtm,
-  }
-}
+const SPEED = 100
+const endOf = (el) => ({ easting: el.endNode[0], northing: el.endNode[1], zone: EPSG })
+const lineTrack = (end) => buildLineTrack({ start: START, end, speed: SPEED, meta: {} })
+const curvedTrack = (end, signedR) => buildCurvedLineTrack({ start: START, end, signedR, speed: SPEED, cant: 80, meta: {} })
+/** A track with the elements a connect dialog appends at its end. */
+const appended = (track, elements) => trackOf([...track.elements, ...elements], EPSG)
+const lastOf = (track) => track.elements[track.elements.length - 1]
 
 // ── The audit ───────────────────────────────────────────────────────────────
 
 describe('create element', () => {
   it('LineForm commits a valid one-element track', () => {
-    expectValidTrack(trackOf([lineFormElement(START, endPointStraightUtm(START, 42, 300))]))
+    expectValidTrack(lineTrack(endPointStraightUtm(START, 42, 300)))
   })
 
   it('CurvedLineForm commits a valid one-element track, either hand', () => {
     for (const signedR of [600, -600]) {
-      const end = endPointCurvedUtm(START, 42, 250, signedR)
-      expectValidTrack(trackOf([curvedLineFormElement(START, end, signedR)]))
+      expectValidTrack(curvedTrack(endPointCurvedUtm(START, 42, 250, signedR), signedR))
     }
   })
 })
 
 describe('connect element — straight onto a curve, over a transition', () => {
   const R = -600
-  const arc = curvedLineFormElement(START, endPointCurvedUtm(START, 20, 250, R), R)
+  const arcTrack = curvedTrack(endPointCurvedUtm(START, 20, 250, R), R)
+  const arc = lastOf(arcTrack)
 
-  it('commits a chain that joins, runs tangentially and adds up', () => {
-    const arcEnd = { easting: arc.endNode[0], northing: arc.endNode[1], zone: EPSG }
-    const tr = transitionElement(arcEnd, arc.endBearing, 90, R, null)
-    const straight = connectStraightElement(tr.endUtm, tr.endBearing, 400)
-    expectValidTrack(trackOf([arc, tr.element, straight.element]))
-  })
-
-  it('the same with a Bloss transition', () => {
-    const arcEnd = { easting: arc.endNode[0], northing: arc.endNode[1], zone: EPSG }
-    const tr = transitionElement(arcEnd, arc.endBearing, 90, R, null, 'bloss')
-    const straight = connectStraightElement(tr.endUtm, tr.endBearing, 400)
-    expectValidTrack(trackOf([arc, tr.element, straight.element]))
-  })
+  for (const type of ['clothoid', 'bloss']) {
+    it(`commits a chain that joins, runs tangentially and adds up (${type})`, () => {
+      const els = buildConnectStraight({
+        start: endOf(arc), bearing: arc.endBearing, length: 400, speed: SPEED,
+        transition: { length: 90, type, fromRadius: R },
+      })
+      expect(els).toHaveLength(2)
+      expectValidTrack(appended(arcTrack, els))
+    })
+  }
 })
 
 describe('connect element — arc onto a straight, over a transition', () => {
   it('commits a chain that joins, runs tangentially and adds up', () => {
-    const straight = lineFormElement(START, endPointStraightUtm(START, 20, 300))
-    const straightEnd = { easting: straight.endNode[0], northing: straight.endNode[1], zone: EPSG }
-    const R = 800
-    const tr = transitionElement(straightEnd, straight.bearing, 80, null, R)
-    const arc = connectCurvedElement(tr.endUtm, tr.endBearing, 220, R)
-    expectValidTrack(trackOf([straight, tr.element, arc.element]))
+    const straightTrack = lineTrack(endPointStraightUtm(START, 20, 300))
+    const straight = lastOf(straightTrack)
+    const els = buildConnectCurved({
+      start: endOf(straight), bearing: straight.bearing, arcLength: 220, signedR: 800, speed: SPEED, cant: 80,
+      transition: { length: 80, fromRadius: null },
+    })
+    expectValidTrack(appended(straightTrack, els))
   })
 
   it('a reverse curve through the transition keeps its tangent', () => {
-    const arc1 = curvedLineFormElement(START, endPointCurvedUtm(START, 20, 200, 700), 700)
-    const arc1End = { easting: arc1.endNode[0], northing: arc1.endNode[1], zone: EPSG }
-    const tr = transitionElement(arc1End, arc1.endBearing, 120, 700, -700)
-    const arc2 = connectCurvedElement(tr.endUtm, tr.endBearing, 200, -700)
-    expectValidTrack(trackOf([arc1, tr.element, arc2.element]))
+    const arcTrack = curvedTrack(endPointCurvedUtm(START, 20, 200, 700), 700)
+    const arc = lastOf(arcTrack)
+    const els = buildConnectCurved({
+      start: endOf(arc), bearing: arc.endBearing, arcLength: 200, signedR: -700, speed: SPEED, cant: 80,
+      transition: { length: 120, fromRadius: 700 },
+    })
+    expectValidTrack(appended(arcTrack, els))
   })
 })
 
 describe('the committed chain survives a reload unchanged', () => {
   it('dehydrate then hydrate gives back the same nodes, bearings and lengths', () => {
-    const straight = lineFormElement(START, endPointStraightUtm(START, 20, 300))
-    const straightEnd = { easting: straight.endNode[0], northing: straight.endNode[1], zone: EPSG }
-    const tr  = transitionElement(straightEnd, straight.bearing, 80, null, 800)
-    const arc = connectCurvedElement(tr.endUtm, tr.endBearing, 220, 800)
-    const track = trackOf([straight, tr.element, arc.element])
+    const straightTrack = lineTrack(endPointStraightUtm(START, 20, 300))
+    const straight = lastOf(straightTrack)
+    const track = appended(straightTrack, buildConnectCurved({
+      start: endOf(straight), bearing: straight.bearing, arcLength: 220, signedR: 800, speed: SPEED, cant: 80,
+      transition: { length: 80, fromRadius: null },
+    }))
 
     const [reloaded] = hydrateProjects(dehydrateProjects(structuredClone([{ id: 'p1', tracks: [track] }])))
     const back = reloaded.tracks[0]
@@ -269,12 +190,12 @@ describe('the branch a switch dialog commits', () => {
 describe('track.coordinates', () => {
   it('are taken from renderCoords where an element has them, not from the fine polyline', () => {
     // The two paths that build them — rebuildCoords on a commit and
-    // buildTrackCoords on a reload — have to agree, or a track redraws at a
+    // hydrateProjects on a reload — have to agree, or a track redraws at a
     // different density after a reload than it was committed at.
     const R = 600
-    const arc = curvedLineFormElement(START, endPointCurvedUtm(START, 20, 250, R), R)
-    const track = trackOf([arc])
-    expect(rebuildCoords(track.elements)).toEqual(arc.renderCoords)
+    const track = curvedTrack(endPointCurvedUtm(START, 20, 250, R), R)
+    expect(track.coordinates).toEqual(track.elements[0].renderCoords)
+    expect(rebuildCoords(track.elements)).toEqual(track.elements[0].renderCoords)
 
     const [reloaded] = hydrateProjects(dehydrateProjects(structuredClone([{ id: 'p1', tracks: [track] }])))
     expect(reloaded.tracks[0].coordinates).toEqual(reloaded.tracks[0].elements[0].renderCoords)

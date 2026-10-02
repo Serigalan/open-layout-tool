@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { saveTrack, loadTracks } from '../../../storage'
-import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
-import { rebuildCoords, recalcAbsLengths } from '../../../utils/trackModel'
+import { rebuildCoords } from '../../../utils/trackModel'
 import { offsetTrackElements } from '../../../utils/parallelUtils'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
@@ -14,6 +13,7 @@ import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
+import { buildParallelTrack, trackMeta } from '../../../utils/commands/tracks'
 
 export default function ParallelTrackForm({ onDone }) {
   const { t } = useI18n()
@@ -84,16 +84,7 @@ export default function ParallelTrackForm({ onDone }) {
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
 
-    const els = recalcAbsLengths(elements)
-    saveTrack({
-      id:          generateId(),
-      name,
-      owner:       fields.owner,
-      ...buildTypeFields(fields),
-      coordinates: rebuildCoords(els),
-      epsg:     sourceRef.current?.epsg,
-      elements:    els,
-    })
+    saveTrack(buildParallelTrack({ elements, epsg: sourceRef.current?.epsg, meta: trackMeta(fields, name) }))
 
     draw.clear()
     onDone?.()

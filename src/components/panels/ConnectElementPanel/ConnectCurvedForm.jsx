@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { addElementToTrack, loadTracks } from '../../../storage'
+import { addElementsToTrack, loadTracks } from '../../../storage'
 import {
   computeCurvedValuesUtm, arcCoordsFromRadiusUtm, projectOnBearingUtm,
   endPointStraightUtm, endPointCurvedUtm,
 } from '../../../utils/elementUtils'
 import { wgs84ToUTM, toWgs } from '../../../utils/coordinateUtils'
 import { computeClothoidUtm } from '../../../utils/clothoidUtils'
-import { computeAutoC, computeCantDef, MAX_CANT, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
+import { computeAutoC, computeCantDef, MAX_CANT, SAGITTA_ELEMENT } from '../../../utils/mapConstants'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 import CantField from '../CantField'
@@ -18,6 +18,7 @@ import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { trackEndAnchor } from '../../../utils/trackModel'
 import useMapEvents from '../../../map/useMapEvents'
+import { buildConnectCurved } from '../../../utils/commands/tracks'
 
 export default function ConnectCurvedForm({ onCommitted }) {
   const { t } = useI18n()
@@ -167,54 +168,10 @@ export default function ConnectCurvedForm({ onCommitted }) {
     const r = Number(signedRadius)
     if (!r || !arcLength) return
 
-    const arcLen    = Number(arcLength)
-    const trackZone = selectedTrack.epsg
-    let arcStartUtm = startPoint
-    let arcStartBrg = bearing
-
-    if (transitionEnabled && transitionLength > 0) {
-      const cl   = computeClothoidUtm(startPoint, bearing, transitionLength, prevRadius, r, SAGITTA_ELEMENT, transitionType)
-      const clR  = computeClothoidUtm(startPoint, bearing, transitionLength, prevRadius, r, SAGITTA_TRACK, transitionType)
-      const sUtm = { easting: startPoint.easting, northing: startPoint.northing, zone: trackZone }
-      const eUtm = cl.endUtm
-      addElementToTrack(selectedTrack.id, {
-        elementType:  2,
-        startNode:    [sUtm.easting, sUtm.northing],
-        endNode:      [eUtm.easting, eUtm.northing],
-        bearing,
-        length:       transitionLength,
-        absLength:    transitionLength,
-        speed,
-        endBearing:   cl.endBearing,
-        r1:           prevRadius,
-        r2:           r,
-        transitionType,
-        geometry:     { type: 'LineString', coordinates: cl.coords },
-        renderCoords: clR.coords,
-      })
-      arcStartUtm = eUtm
-      arcStartBrg = cl.endBearing
-    }
-
-    const arcEndUtm      = endPointCurvedUtm(arcStartUtm, arcStartBrg, arcLen, r)
-    const arcCoords      = arcCoordsFromRadiusUtm(arcStartUtm, arcEndUtm, r, SAGITTA_ELEMENT)
-    const arcRenderCoords = arcCoordsFromRadiusUtm(arcStartUtm, arcEndUtm, r, SAGITTA_TRACK)
-    const v              = computeCurvedValuesUtm(arcStartUtm, arcEndUtm, r)
-    const fallback       = [toWgs(arcStartUtm), toWgs(arcEndUtm)]
-    addElementToTrack(selectedTrack.id, {
-      elementType:  1,
-      startNode:    v.startNode,
-      endNode:      v.endNode,
-      bearing:      arcStartBrg,
-      length:       arcLen,
-      absLength:    arcLen,
-      speed,
-      endBearing:   v.endBearing,
-      radius:       r,
-      cant,
-      geometry:     { type: 'LineString', coordinates: arcCoords    || fallback },
-      renderCoords: arcRenderCoords || fallback,
-    })
+    addElementsToTrack(selectedTrack.id, buildConnectCurved({
+      start: startPoint, bearing, arcLength: Number(arcLength), signedR: r, speed, cant,
+      transition: transitionEnabled ? { length: transitionLength, type: transitionType, fromRadius: prevRadius } : null,
+    }))
 
     draw.clear()
     resetForm()

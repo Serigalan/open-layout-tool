@@ -1,9 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { saveTrack, loadTracks } from '../../../storage'
-import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
 import { wgs84ToUTM, epsgForLngLat, toWgs } from '../../../utils/coordinateUtils'
 import { computeStraightValuesUtm, endPointStraightUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm, arcCenter } from '../../../utils/elementUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
+import { SAGITTA_TRACK } from '../../../utils/mapConstants'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import TrackFields from '../TrackFields'
@@ -18,6 +17,7 @@ import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
+import { buildParallelLineTrack, trackMeta } from '../../../utils/commands/tracks'
 
 // Start/end of an element as UTM points. Uses the stored nodes when present,
 // otherwise falls back to the first/last geometry coordinate.
@@ -218,54 +218,9 @@ export default function ParallelLineForm({ onDone }) {
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
 
-    const startUtm = points[0], endUtm = points[1]
-    const startWgs = toWgs(startUtm), endWgs = toWgs(endUtm)
-
-    let element, trackCoords, trackZone
-    if (isArc) {
-      const v      = computeCurvedValuesUtm(startUtm, endUtm, signedR)
-      const coords = arcCoordsFromRadiusUtm(startUtm, endUtm, signedR, SAGITTA_ELEMENT) || [startWgs, endWgs]
-      const render = arcCoordsFromRadiusUtm(startUtm, endUtm, signedR, SAGITTA_TRACK)   || coords
-      trackCoords = render
-      trackZone   = v.epsg
-      element = {
-        elementType: 1,
-        startNode:   v.startNode,
-        endNode:     v.endNode,
-        bearing:     v.bearing,
-        length:      v.length,
-        absLength:   v.length,
-        speed,
-        endBearing:  v.endBearing,
-        radius:      signedR,
-        geometry:     { type: 'LineString', coordinates: coords },
-        renderCoords: render,
-      }
-    } else {
-      const v = computeStraightValuesUtm(startUtm, endUtm)
-      trackCoords = [startWgs, endWgs]
-      trackZone   = v.epsg
-      element = {
-        elementType: 0,
-        startNode:   v.startNode,
-        endNode:     v.endNode,
-        bearing:     v.bearing,
-        length:      v.length,
-        absLength:   v.length,
-        speed,
-        geometry:    { type: 'LineString', coordinates: [startWgs, endWgs] },
-      }
-    }
-
-    saveTrack({
-      id:          generateId(),
-      name,
-      owner:       fields.owner,
-      ...buildTypeFields(fields),
-      coordinates: trackCoords,
-      epsg:     trackZone,
-      elements:    [element],
-    })
+    saveTrack(buildParallelLineTrack({
+      start: points[0], end: points[1], signedR: isArc ? signedR : null, speed, meta: trackMeta(fields, name),
+    }))
 
     draw.clear()
     onDone?.()

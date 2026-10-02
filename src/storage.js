@@ -543,25 +543,34 @@ export function deleteElement(trackId, elementIndex) {
   })
 }
 
-export function addElementToTrack(trackId, element) {
+/**
+ * Append elements to a track's end, as one undo step — what a connect dialog
+ * commits (a transition and the element after it are one change).
+ */
+export function addElementsToTrack(trackId, elements) {
   return mutate(p => {
     const track = (p.tracks ?? []).find(t => t.id === trackId)
-    if (!track) return p
-    const elements = track.elements ?? []
-    const last = elements[elements.length - 1]
-    const prevAbsLength = last ? (last.absLength ?? last.length) : 0
-    const elementWithAbs = { ...element, absLength: prevAbsLength + element.length }
-    // The same polyline rebuildCoords and the reload take, which is the coarse one
-    // wherever the element carries it: appending the fine one instead left the
-    // track drawn at one density until a reload replaced it with the other.
-    const coords = elementWithAbs.renderCoords ?? elementWithAbs.geometry?.coordinates
-    const updated = {
-      ...track,
-      elements: [...elements, elementWithAbs],
-      ...(coords?.length ? { coordinates: [...(track.coordinates ?? []), ...coords.slice(1)] } : {}),
+    if (!track || !elements?.length) return p
+    let els = track.elements ?? []
+    let coords = track.coordinates ?? []
+    for (const element of elements) {
+      const last = els[els.length - 1]
+      const prevAbsLength = last ? (last.absLength ?? last.length) : 0
+      const withAbs = { ...element, absLength: prevAbsLength + element.length }
+      els = [...els, withAbs]
+      // The same polyline rebuildCoords and the reload take, which is the coarse one
+      // wherever the element carries it: appending the fine one instead left the
+      // track drawn at one density until a reload replaced it with the other.
+      const c = withAbs.renderCoords ?? withAbs.geometry?.coordinates
+      if (c?.length) coords = [...coords, ...c.slice(1)]
     }
+    const updated = { ...track, elements: els, coordinates: coords }
     return { ...p, tracks: p.tracks.map(t => (t.id === trackId ? updated : t)) }
   })
+}
+
+export function addElementToTrack(trackId, element) {
+  return addElementsToTrack(trackId, [element])
 }
 
 /**

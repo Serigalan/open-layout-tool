@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { saveTrack, loadTracks } from '../../../storage'
-import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
 import { wgs84ToUTM, epsgForLngLat, EPSG_OPTIONS, toWgs } from '../../../utils/coordinateUtils'
 import {
   computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
   signedRadiusFrom3PointsUtm, endPointCurvedUtm,
 } from '../../../utils/elementUtils'
-import { computeAutoC, computeCantDef, MAX_CANT, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
+import { computeAutoC, computeCantDef, MAX_CANT } from '../../../utils/mapConstants'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 import CantField from '../CantField'
@@ -23,6 +22,7 @@ import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapEvents from '../../../map/useMapEvents'
+import { buildCurvedLineTrack, trackMeta } from '../../../utils/commands/tracks'
 
 export default function CurvedLineForm({ onDone }) {
   const { t } = useI18n()
@@ -163,33 +163,9 @@ export default function CurvedLineForm({ onDone }) {
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
 
-    const r             = Number(signedRadius)
-    const v             = computeCurvedValuesUtm(startPoint, endPoint, r)
-    const renderCoords  = arcCoordsFromRadiusUtm(startPoint, endPoint, r, SAGITTA_TRACK)   || [toWgs(startPoint), toWgs(endPoint)]
-    const elementCoords = arcCoordsFromRadiusUtm(startPoint, endPoint, r, SAGITTA_ELEMENT) || [toWgs(startPoint), toWgs(endPoint)]
-
-    saveTrack({
-      id:          generateId(),
-      name,
-      owner:       fields.owner,
-      ...buildTypeFields(fields),
-      coordinates: renderCoords,
-      epsg:     v.epsg,
-      elements: [{
-        elementType:  1,
-        startNode:    v.startNode,
-        endNode:      v.endNode,
-        bearing:      v.bearing,
-        length:       v.length,
-        absLength:    v.length,
-        speed,
-        endBearing:   v.endBearing,
-        radius:       v.radius,
-        cant,
-        geometry:     { type: 'LineString', coordinates: elementCoords },
-        renderCoords,
-      }],
-    })
+    saveTrack(buildCurvedLineTrack({
+      start: startPoint, end: endPoint, signedR: Number(signedRadius), speed, cant, meta: trackMeta(fields, name),
+    }))
 
     resetName()
     setNameError(false)

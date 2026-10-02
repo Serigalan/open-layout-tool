@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { saveTrack, loadTracks } from '../../../storage'
-import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
 import { wgs84ToUTM, epsgForLngLat, EPSG_OPTIONS, toWgs } from '../../../utils/coordinateUtils'
 import { computeStraightValuesUtm, endPointStraightUtm } from '../../../utils/elementUtils'
 import useTrackFields from '../../../hooks/useTrackFields'
@@ -17,6 +16,7 @@ import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapEvents from '../../../map/useMapEvents'
+import { buildLineTrack, trackMeta } from '../../../utils/commands/tracks'
 
 export default function LineForm({ onDone }) {
   const { t } = useI18n()
@@ -151,28 +151,7 @@ export default function LineForm({ onDone }) {
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
 
-    const startUtm = points[0], endUtm = points[1]
-    const v        = computeStraightValuesUtm(startUtm, endUtm)
-    const startWgs = toWgs(startUtm), endWgs = toWgs(endUtm)
-
-    saveTrack({
-      id:          generateId(),
-      name,
-      owner:       fields.owner,
-      ...buildTypeFields(fields),
-      coordinates: [startWgs, endWgs],
-      epsg:     v.epsg,
-      elements: [{
-        elementType: 0,
-        startNode:   v.startNode,
-        endNode:     v.endNode,
-        bearing:     v.bearing,
-        length:      v.length,
-        absLength:   v.length,
-        speed,
-        geometry:    { type: 'LineString', coordinates: [startWgs, endWgs] },
-      }],
-    })
+    saveTrack(buildLineTrack({ start: points[0], end: points[1], speed, meta: trackMeta(fields, name) }))
 
     setPoints([])
     resetName()

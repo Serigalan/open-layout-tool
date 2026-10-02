@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { addElementToTrack, loadTracks } from '../../../storage'
-import {
-  computeStraightValuesUtm, projectOnBearingUtm, endPointStraightUtm,
-} from '../../../utils/elementUtils'
+import { addElementsToTrack, loadTracks } from '../../../storage'
+import { projectOnBearingUtm, endPointStraightUtm } from '../../../utils/elementUtils'
 import { wgs84ToUTM, toWgs } from '../../../utils/coordinateUtils'
 import { computeClothoidUtm } from '../../../utils/clothoidUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
+import { SAGITTA_ELEMENT } from '../../../utils/mapConstants'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
 import RuleFindings from '../RuleFindings'
@@ -16,6 +14,7 @@ import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { trackEndAnchor } from '../../../utils/trackModel'
 import useMapEvents from '../../../map/useMapEvents'
+import { buildConnectStraight } from '../../../utils/commands/tracks'
 
 export default function ConnectStraightForm({ onCommitted }) {
   const { t } = useI18n()
@@ -145,47 +144,10 @@ export default function ConnectStraightForm({ onCommitted }) {
 
   const handleCommit = () => {
     if (!startPoint || !endPoint || !selectedTrack) return
-    const trackZone = selectedTrack.epsg
-
-    let lineStartUtm = startPoint
-
-    if (transitionEnabled && transitionLength > 0 && prevRadius !== null) {
-      const cl   = computeClothoidUtm(startPoint, bearing, transitionLength, prevRadius, null, SAGITTA_ELEMENT, transitionType)
-      const clR  = computeClothoidUtm(startPoint, bearing, transitionLength, prevRadius, null, SAGITTA_TRACK, transitionType)
-      const sUtm = { easting: startPoint.easting, northing: startPoint.northing, zone: trackZone }
-      const eUtm = cl.endUtm
-      addElementToTrack(selectedTrack.id, {
-        elementType:  2,
-        startNode:    [sUtm.easting, sUtm.northing],
-        endNode:      [eUtm.easting, eUtm.northing],
-        bearing,
-        length:       transitionLength,
-        absLength:    transitionLength,
-        speed,
-        endBearing:   cl.endBearing,
-        r1:           prevRadius,
-        r2:           null,
-        transitionType,
-        geometry:     { type: 'LineString', coordinates: cl.coords },
-        renderCoords: clR.coords,
-      })
-      lineStartUtm = eUtm
-    }
-
-    // All calculation in UTM, WGS84 only for geometry
-    const v        = computeStraightValuesUtm(lineStartUtm, endPoint)
-    const startWgs = toWgs(lineStartUtm)
-    const endWgs   = toWgs(endPoint)
-    addElementToTrack(selectedTrack.id, {
-      elementType: 0,
-      startNode:   v.startNode,
-      endNode:     v.endNode,
-      bearing:     v.bearing,
-      length:      v.length,
-      absLength:   v.length,
-      speed,
-      geometry:    { type: 'LineString', coordinates: [startWgs, endWgs] },
-    })
+    addElementsToTrack(selectedTrack.id, buildConnectStraight({
+      start: startPoint, bearing, length: Number(length), speed,
+      transition: transitionEnabled ? { length: transitionLength, type: transitionType, fromRadius: prevRadius } : null,
+    }))
 
     draw.clear()
     setPhase('select')
