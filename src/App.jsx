@@ -53,6 +53,7 @@ import WorkingCopyBar from './components/collab/WorkingCopyBar'
 import AdminPage from './components/collab/AdminPage'
 import HistoryPage from './components/collab/HistoryPage'
 import './App.css'
+import { isProjectUndo } from './utils/keyboard'
 
 // How often the open app asks whether the server has moved on [ms].
 const SERVER_POLL = 2 * 60 * 1000
@@ -503,7 +504,7 @@ export default function App() {
   useEffect(() => { onElevationRange(setElevationRange) }, [])
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      if (isProjectUndo(e)) {
         e.preventDefault()
         handleUndoRef.current?.()
       }
