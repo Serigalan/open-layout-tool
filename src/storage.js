@@ -200,15 +200,15 @@ export function clearUndo() {
   notify()
 }
 
-/** A project's plan header stays out of the snapshots — see savePlanHeader. */
-const withoutHeader = (key, value) => (key === 'planHeader' ? undefined : value)
-
+/**
+ * Keep the state before a change for undo. The record is immutable (R1.3), so
+ * a snapshot is the reference itself — no copy, whatever the project's size.
+ * The plan header is not restored by an undo (see savePlanHeader); undo puts
+ * the current one onto whatever it brings back.
+ */
 function pushUndo(project = _project, idLog = _idLog) {
   if (_undoDepth > 0 || !project) return
-  _undoStack.push({
-    project: JSON.stringify(project, withoutHeader),
-    idLog: JSON.stringify(idLog),
-  })
+  _undoStack.push({ project, idLog })
   if (_undoStack.length > MAX_UNDO) _undoStack.shift()
 }
 
@@ -315,10 +315,9 @@ export function undo() {
   if (_undoStack.length === 0) return false
   // The header is not part of the snapshot, so it is kept as it is now.
   const header = _project?.planHeader
-  const snapshot = _undoStack.pop()
-  const restored = JSON.parse(snapshot.project)
-  _idLog = JSON.parse(snapshot.idLog)
-  setProject(header ? { ...restored, planHeader: header } : restored)
+  const { project, idLog } = _undoStack.pop()
+  _idLog = idLog
+  setProject(project.planHeader === header ? project : { ...project, planHeader: header })
   return true
 }
 
