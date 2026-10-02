@@ -13,7 +13,7 @@ import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
-import { toWgs } from './createHelpers'
+import { toWgs } from '../../../utils/coordinateUtils'
 import { elementPath } from '../../../utils/lineLookup'
 
 // Start/end of an element as UTM points. Uses the stored nodes when present,

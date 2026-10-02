@@ -18,7 +18,7 @@ import TrackFields from '../TrackFields'
 import useNearbyLines from '../../../hooks/useNearbyLines'
 import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
-import { toWgs } from './createHelpers'
+import { toWgs } from '../../../utils/coordinateUtils'
 import { elementPath } from '../../../utils/lineLookup'
 
 export default function CurvedLineForm({ t, map, project, onTrackSaved }) {

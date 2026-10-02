@@ -16,7 +16,7 @@ import useDerivedField from '../../../hooks/useDerivedField'
 import useElementSelection from '../../../hooks/useElementSelection'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
-import { toWgs } from './connectHelpers'
+import { toWgs } from '../../../utils/coordinateUtils'
 
 export default function ConnectCurvedForm({ t, map, project, onTrackSaved, onCommitted }) {
   const [phase, setPhase]                   = useState('select')

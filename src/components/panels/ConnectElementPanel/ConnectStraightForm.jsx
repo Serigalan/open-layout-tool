@@ -11,7 +11,7 @@ import useTrackHover from '../../../hooks/useTrackHover'
 import useElementSelection from '../../../hooks/useElementSelection'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
-import { toWgs } from './connectHelpers'
+import { toWgs } from '../../../utils/coordinateUtils'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 

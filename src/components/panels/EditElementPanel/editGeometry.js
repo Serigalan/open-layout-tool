@@ -5,7 +5,7 @@ import {
   endPointStraightUtm, endPointCurvedUtm, nodeUtm, resolveEndBearing, displayCoords,
 } from '../../../utils/elementUtils'
 import { computeClothoidUtm } from '../../../utils/clothoidUtils'
-import { utmToWgs84 } from '../../../utils/coordinateUtils'
+import { toWgs } from '../../../utils/coordinateUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
 import { truncateHeights } from '../../../utils/heightUtils'
 import { switchParts } from '../../../utils/switchDelete'
@@ -22,7 +22,6 @@ export function nodesApproxEqual(a, b) {
 }
 
 const norm360 = (deg) => ((deg % 360) + 360) % 360
-const wgs = (p) => utmToWgs84(p.easting, p.northing, p.zone)
 
 /**
  * End bearing a straight keeps when its own direction changes by `newBearing`.
@@ -45,7 +44,7 @@ function shiftedKink(el, newBearing) {
  */
 function buildElement(el, startUtm, { bearing = el.bearing, length = el.length, radius = el.radius } = {}) {
   const startNode = [startUtm.easting, startUtm.northing]
-  const startWgs  = wgs(startUtm)
+  const startWgs  = toWgs(startUtm)
   if (el.elementType === 2 && el.r1 !== undefined) {
     const cl  = computeClothoidUtm(startUtm, bearing, length, el.r1, el.r2 ?? null, SAGITTA_ELEMENT, el.transitionType)
     const clR = computeClothoidUtm(startUtm, bearing, length, el.r1, el.r2 ?? null, SAGITTA_TRACK, el.transitionType)
@@ -59,7 +58,7 @@ function buildElement(el, startUtm, { bearing = el.bearing, length = el.length, 
   if (radius != null) {
     const endUtm = endPointCurvedUtm(startUtm, bearing, length, radius)
     const v      = computeCurvedValuesUtm(startUtm, endUtm, radius)
-    const chord  = [startWgs, wgs(endUtm)]
+    const chord  = [startWgs, toWgs(endUtm)]
     return {
       ...el, elementType: 1, bearing, length, radius,
       startNode, endNode: v.endNode, endBearing: v.endBearing,
@@ -73,7 +72,7 @@ function buildElement(el, startUtm, { bearing = el.bearing, length = el.length, 
     ...el, elementType: 0, bearing, length, radius: null,
     endBearing: shiftedKink(el, bearing),
     startNode, endNode: v.endNode,
-    geometry: { type: 'LineString', coordinates: [startWgs, wgs(endUtm)] },
+    geometry: { type: 'LineString', coordinates: [startWgs, toWgs(endUtm)] },
     // An arc cleared to a straight would otherwise keep drawing its old curve
     // in the track polyline (rebuildCoords prefers renderCoords).
     renderCoords: undefined,

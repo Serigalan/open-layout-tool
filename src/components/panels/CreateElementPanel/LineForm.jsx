@@ -12,7 +12,7 @@ import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
-import { toWgs } from './createHelpers'
+import { toWgs } from '../../../utils/coordinateUtils'
 import { elementPath } from '../../../utils/lineLookup'
 
 export default function LineForm({ t, map, project, onTrackSaved }) {

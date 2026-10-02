@@ -199,6 +199,9 @@ export function utmToWgs84(easting, northing, crs) {
   return project(projStringFor(crs), 'EPSG:4326', [easting, northing], crs, null)
 }
 
+/** A plane point `{ easting, northing, zone }` as WGS84 [lng, lat] for the map. */
+export const toWgs = (p) => utmToWgs84(p.easting, p.northing, p.zone)
+
 /**
  * A whole polyline out of one plane into WGS84 — the same conversion as
  * `utmToWgs84`, with the proj string built once instead of per vertex. A

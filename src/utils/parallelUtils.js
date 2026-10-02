@@ -1,4 +1,4 @@
-import { wgs84ToUTM, utmToWgs84 } from './coordinateUtils'
+import { wgs84ToUTM, toWgs } from './coordinateUtils'
 import {
   computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
 } from './elementUtils'
@@ -21,7 +21,6 @@ function nodeUtm(node, zone, fallbackWgs) {
   return wgs84ToUTM(fallbackWgs, zone)
 }
 
-const wgs = (p) => utmToWgs84(p.easting, p.northing, p.zone)
 
 /**
  * Offset a whole track's elements perpendicular by `dist` metres (positive =
@@ -56,7 +55,7 @@ export function offsetTrackElements(elements, dist, epsg) {
       // or flipped to the opposite side of the original curve.
       if ((el.radius >= 0 ? 1 : -1) * signedR < 0.5) return null
       const cv = computeCurvedValuesUtm(start, end, signedR)
-      const arc1 = arcCoordsFromRadiusUtm(start, end, signedR, SAGITTA_ELEMENT) || [wgs(start), wgs(end)]
+      const arc1 = arcCoordsFromRadiusUtm(start, end, signedR, SAGITTA_ELEMENT) || [toWgs(start), toWgs(end)]
       const arcR = arcCoordsFromRadiusUtm(start, end, signedR, SAGITTA_TRACK)   || arc1
       out.push({
         elementType: 1,
@@ -74,7 +73,7 @@ export function offsetTrackElements(elements, dist, epsg) {
       const kSum  = kappa(el.r1) + kappa(el.r2)
       const kSum2 = kappa(r1) + kappa(r2)
       const length = Math.abs(kSum2) < 1e-12 ? el.length : el.length * kSum / kSum2
-      const endWgs = wgs(end)
+      const endWgs = toWgs(end)
       const clE = computeClothoidUtm(start, sB, length, r1, r2, SAGITTA_ELEMENT, el.transitionType)
       const clR = computeClothoidUtm(start, sB, length, r1, r2, SAGITTA_TRACK, el.transitionType)
       out.push({
@@ -93,7 +92,7 @@ export function offsetTrackElements(elements, dist, epsg) {
         startNode: sv.startNode, endNode: sv.endNode,
         bearing: sv.bearing, length: sv.length, absLength: sv.length,
         speed: el.speed, cant: el.cant,
-        geometry: { type: 'LineString', coordinates: [wgs(start), wgs(end)] },
+        geometry: { type: 'LineString', coordinates: [toWgs(start), toWgs(end)] },
       })
     }
   }
