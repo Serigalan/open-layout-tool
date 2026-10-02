@@ -12,6 +12,11 @@ const ROLES = new Set(['admin', 'user'])
 export default async function adminRoutes(api) {
   const { auth } = api
   const opts = { preHandler: api.requireAdmin }
+  const q = {
+    setName:   api.db.prepare('UPDATE user SET name = ? WHERE id = ?'),
+    setRole:   api.db.prepare('UPDATE user SET role = ? WHERE id = ?'),
+    setActive: api.db.prepare('UPDATE user SET active = ? WHERE id = ?'),
+  }
 
   api.get('/admin/users', opts, async () => ({ users: auth.listUsers().map(publicUser) }))
 
@@ -36,9 +41,9 @@ export default async function adminRoutes(api) {
     if (password !== undefined && !passwordAcceptable(password)) throw new ApiError(422, 'password_too_short')
 
     api.db.transaction(() => {
-      if (name !== undefined) api.db.prepare('UPDATE user SET name = ? WHERE id = ?').run(String(name).trim() || user.login, user.id)
-      if (role !== undefined) api.db.prepare('UPDATE user SET role = ? WHERE id = ?').run(role, user.id)
-      if (active !== undefined) api.db.prepare('UPDATE user SET active = ? WHERE id = ?').run(active ? 1 : 0, user.id)
+      if (name !== undefined) q.setName.run(String(name).trim() || user.login, user.id)
+      if (role !== undefined) q.setRole.run(role, user.id)
+      if (active !== undefined) q.setActive.run(active ? 1 : 0, user.id)
     })()
     if (password !== undefined) await auth.setPassword(user.id, password, { mustChange: true })
     if (active === false || password !== undefined) auth.closeAllSessions(user.id)

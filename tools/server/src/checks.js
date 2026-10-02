@@ -1,7 +1,6 @@
-import { PayloadError, dehydrateProjects, parseProjectsPayload } from '../../../src/utils/persistenceUtils.js'
+import { PayloadError, SCHEMA_VERSION, dehydrateProjects, parseProjectsPayload } from '../../../src/utils/persistenceUtils.js'
 import { newFindings, validateProject } from '../../../src/utils/validateProject.js'
 import { ApiError } from './errors.js'
-import { SCHEMA_VERSION } from './store.js'
 
 /**
  * A record coming in, taken through the browser's own door (decision 91):
