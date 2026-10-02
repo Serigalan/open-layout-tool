@@ -74,7 +74,7 @@ export default function PointCloudPanel({ t, map, project }) {
   const [copied, setCopied] = useState(false)
   const fileRef = useRef(null)
 
-  const tracks = loadTracks(project.id)
+  const tracks = loadTracks()
   const target = projectPlane(tracks)
 
   const refresh = async () => {

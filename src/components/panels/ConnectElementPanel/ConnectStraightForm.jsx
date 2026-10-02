@@ -175,7 +175,7 @@ export default function ConnectStraightForm({ t, map, project, onTrackSaved, onC
       const clR  = computeClothoidUtm(startPoint, bearing, transitionLength, prevRadius, null, SAGITTA_TRACK, transitionType)
       const sUtm = { easting: startPoint.easting, northing: startPoint.northing, zone: trackZone }
       const eUtm = cl.endUtm
-      addElementToTrack(project.id, selectedTrack.id, {
+      addElementToTrack(selectedTrack.id, {
         elementType:  2,
         startNode:    [sUtm.easting, sUtm.northing],
         endNode:      [eUtm.easting, eUtm.northing],
@@ -197,7 +197,7 @@ export default function ConnectStraightForm({ t, map, project, onTrackSaved, onC
     const v        = computeStraightValuesUtm(lineStartUtm, endPoint)
     const startWgs = toWgs(lineStartUtm)
     const endWgs   = toWgs(endPoint)
-    addElementToTrack(project.id, selectedTrack.id, {
+    addElementToTrack(selectedTrack.id, {
       elementType: 0,
       startNode:   v.startNode,
       endNode:     v.endNode,

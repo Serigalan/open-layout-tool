@@ -41,7 +41,7 @@ const EDIT_PREVIEW_LAYERS = [
 ]
 
 export default function EditLengthForm({ t, map, project, onCommitted, onTrackSaved }) {
-  const [workingTracks, setWorkingTracks] = useState(() => loadTracks(project.id))
+  const [workingTracks, setWorkingTracks] = useState(() => loadTracks())
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [selectedElIdx, setSelectedElIdx] = useState(null)
   const [phase, setPhase] = useState('select')
@@ -127,7 +127,7 @@ export default function EditLengthForm({ t, map, project, onCommitted, onTrackSa
       // The drag shows what the change would do even where it reaches too far;
       // the reach is reported beside it, and the commit is what refuses.
       const next = planElementChange(
-        workingRef.current, loadSwitches(project.id), trackId, elIdx, { length: along })
+        workingRef.current, loadSwitches(), trackId, elIdx, { length: along })
       planRef.current = next
       setPlan(next)
       setWorkingTracks(next.tracks)
@@ -150,7 +150,7 @@ export default function EditLengthForm({ t, map, project, onCommitted, onTrackSa
   const handleCommit = () => {
     const last = planRef.current
     if (last?.error) return
-    commitTrackEdit(project.id, workingRef.current, last?.touchedSwitchIds ?? [])
+    commitTrackEdit(workingRef.current, last?.touchedSwitchIds ?? [])
     onTrackSaved?.()
     onCommitted?.()
   }

@@ -103,7 +103,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
       ]
       const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
       if (!features.length) return
-      const track = loadTracks(project.id).find(tr => tr.id === features[0].properties.trackId)
+      const track = loadTracks().find(tr => tr.id === features[0].properties.trackId)
       if (!track) return
       if (mode === 'element') {
         const elIdx = Number(features[0].properties.elementIndex)
@@ -166,7 +166,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
   )
 
   const handleRun = () => {
-    const track = loadTracks(project.id).find(tr => tr.id === trackId)
+    const track = loadTracks().find(tr => tr.id === trackId)
     if (!track || running) return
     const key = runKey
     setRun(null)
@@ -198,10 +198,10 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
   }
 
   const handleCommit = () => {
-    const track = loadTracks(project.id).find(tr => tr.id === trackId)
+    const track = loadTracks().find(tr => tr.id === trackId)
     if (!track || !result?.report.some(r => r.changed)) return
     const elements = recalcAbsLengths(result.elements)
-    updateTrack(project.id, {
+    updateTrack({
       ...track, elements, coordinates: rebuildCoords(elements),
       heights: reshapedHeights(track, elements),
       // The regelwerk this alignment was drawn under, and at which level —

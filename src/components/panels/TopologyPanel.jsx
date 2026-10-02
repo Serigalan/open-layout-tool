@@ -45,8 +45,8 @@ export default function TopologyPanel({
 
   const selected = useMemo(() => {
     if (!selection || !project) return null
-    const tracks = loadTracks(project.id)
-    const switches = loadSwitches(project.id)
+    const tracks = loadTracks()
+    const switches = loadSwitches()
     const byId = new Map(tracks.map(tr => [tr.id, tr]))
     if (selection.kind === 'switch') {
       const sw = switches.find(s => s.switchId === selection.id)
@@ -61,7 +61,7 @@ export default function TopologyPanel({
     }
     const track = byId.get(selection.id)
     if (!track) return null
-    const ends = classifyTrackEnds(tracks, switches, loadEndMarks(project.id)).filter(e => e.trackId === track.id)
+    const ends = classifyTrackEnds(tracks, switches, loadEndMarks()).filter(e => e.trackId === track.id)
     return {
       kind: 'track', track,
       ends: ['BEGIN', 'END'].map(endpoint => {

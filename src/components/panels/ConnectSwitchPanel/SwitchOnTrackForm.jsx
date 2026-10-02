@@ -123,7 +123,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
       if (!features.length) return
       const { trackId, elementIndex } = features[0].properties
       const elIdx = Number(elementIndex)
-      const track = loadTracks(project.id).find(tr => tr.id === trackId)
+      const track = loadTracks().find(tr => tr.id === trackId)
       if (!track?.elements?.[elIdx]) return
       setErrors([])
       // The click is projected onto the element in the track's own plane and
@@ -138,7 +138,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
   }, [phase, map, project.id, setErrors])
 
   // ── Derived geometry for the current settings ─────────────────────────────
-  const track = pick ? loadTracks(project.id).find(tr => tr.id === pick.trackId) : null
+  const track = pick ? loadTracks().find(tr => tr.id === pick.trackId) : null
   const sw    = SWITCH_PICK_TYPES[switchTypeIdx]
   const toeStation  = Number(station)
   const straightLen = switchStraightLength(sw)
@@ -240,7 +240,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
   const handleCommit = () => {
     setErrors([])
     if (lineNumberError || !g || !place || !track || placeError) return
-    const tracks = loadTracks(project.id)
+    const tracks = loadTracks()
     const existingNames = new Set(tracks.map(tr => tr.name).filter(Boolean))
 
     if (name && existingNames.has(name)) { setNameError(true); return }
@@ -327,7 +327,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
       labelCoords: g.labelCoords, bauform: g.bauform,
     }
 
-    commitSwitchConnection(project.id, {
+    commitSwitchConnection({
       removeTrackIds: [track.id],
       addTracks:      [...splitTracks, branchTrack],
       addSwitches:    [switchRecord],

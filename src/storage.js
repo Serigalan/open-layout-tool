@@ -3,64 +3,57 @@ import { elementBelongsToSwitch, unmarkSwitchElement } from './utils/switchModel
 import { rebuildSwitchSymbol } from './utils/switchUtils'
 import { splitHeights } from './utils/heightUtils'
 import { flipSwitchEndpoints, makeTrack, portTracks, referencesTrack, remapSwitches, reverseTrack } from './utils/trackModel'
+import { generateId } from './utils/identifierUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
 
 const REPORT_KEY_PREFIX = 'olt_reports_'
 
-/**
- * The title block of a plan — parties with logo and address, who drew and
- * checked it — as the project's metadata, `project.planHeader`. It is part of
- * the variant's record and versioned with it (decision 101).
- */
-export function loadPlanHeader(projectId) {
-  return getCache().find(p => p.id === projectId)?.planHeader ?? null
-}
-
-/**
- * Store the header on the project. Not an undo step: it is what the plans
- * are signed with, not the alignment, and its logos would ride through every
- * snapshot (see pushUndo). False when the store refused the write.
- */
-export function savePlanHeader(projectId, header) {
-  const project = getCache().find(p => p.id === projectId)
-  if (!project) return false
-  project.planHeader = header
-  try {
-    persist(projectId)
-    return true
-  } catch { return false }
-}
-
-// In-memory cache – single source of truth for all synchronous callers. It
-// holds the one project that is open: the working copy of a variant (phase
-// 10), whose record and base are written behind to IndexedDB (see
-// persist/flush). Where IndexedDB is unavailable the copy lives in memory only.
-let _cache = null
+// The project store: the one project that is open — the working copy of a
+// variant (phase 10) — held in memory as the single source of truth for every
+// synchronous caller, and written behind to IndexedDB (see persist/flush).
+// Where IndexedDB is unavailable the copy lives in memory only.
+//
+// The record is immutable (R1.3): every write makes a new project object, new
+// arrays for what it changes and shares everything else. That is what makes a
+// snapshot for undo a reference, and what lets React subscribe to it.
+let _project = null
 let _backend = 'idb'         // 'idb' | 'memory'
+let _opened = false
 // The open working copy: { variantId, projectId, base, basePayload } — the
 // revision it rests on (meta) and that revision's record.
 let _wc = null
 const MAX_UNDO = 20
 let _undoStack = []
 let _undoDepth = 0
-// The id log (decision 93): per project, what splitting and joining made of
-// which track ids since the working copy's base — [{ from, to: [ids] }]. A
-// merge reads it to carry the other side's references onto the new tracks.
-let _idLog = new Map()
+// The id log (decision 93): what splitting and joining made of which track ids
+// since the working copy's base — [{ from, to: [ids] }]. A merge reads it to
+// carry the other side's references onto the new tracks.
+let _idLog = []
 
 // Write-behind state (idb backend)
 let _dirty = false
 let _flushTimer = null
 let _flushChain = Promise.resolve()
 
+// In development and in the tests the record is frozen as it is written, so a
+// caller that changes a track in place — which would change every undo
+// snapshot sharing it — fails at once instead of corrupting history quietly.
+const FREEZE = import.meta.env?.DEV || import.meta.env?.MODE === 'test'
+function deepFreeze(value) {
+  if (!FREEZE || value === null || typeof value !== 'object' || Object.isFrozen(value)) return value
+  Object.freeze(value)
+  for (const key of Object.keys(value)) deepFreeze(value[key])
+  return value
+}
+
 /**
  * Open the store — await this once before rendering the app. Nothing is read
  * here: a working copy is loaded when its variant is opened.
  */
 export async function initStorage() {
-  if (_cache !== null) return
-  _cache = []
+  if (_opened) return
+  _opened = true
   try {
     await idb.openDb()
     registerLifecycleFlush()
@@ -70,9 +63,35 @@ export async function initStorage() {
   }
 }
 
-function getCache() {
-  if (_cache === null) { _cache = []; _backend = 'memory' }
-  return _cache
+function backend() {
+  if (!_opened) { _opened = true; _backend = 'memory' }
+  return _backend
+}
+
+/** The open project (the working copy's record, hydrated), or null. */
+export function currentProject() {
+  return _project
+}
+
+/**
+ * Apply one change to the open project: `fn` gets the project and returns the
+ * new one (or the same to change nothing). A step for undo unless `undo` is
+ * false; nothing at all — not even an undo step — when no project is open.
+ * Returns whether a project was there to change.
+ */
+function mutate(fn, { undo = true } = {}) {
+  if (!_project) return false
+  const before = _project, logBefore = _idLog
+  const next = fn(_project)
+  if (!next || next === before) { _idLog = logBefore; return true }
+  if (undo) pushUndo(before, logBefore)
+  setProject(withPrunedMarks(next))
+  return true
+}
+
+function setProject(project) {
+  _project = deepFreeze(project)
+  persist()
 }
 
 // ── the working copy (phase 10) ─────────────────────────────────────────────
@@ -83,21 +102,31 @@ function getCache() {
  * revision's record, `idLog` the splits and joins since. Undo starts empty.
  */
 export function openWorkingCopy({ variantId, project, base, basePayload, idLog = [] }) {
-  getCache()
-  _cache = hydrateProjects([structuredClone(project)])
+  backend()
   _wc = { variantId, projectId: project.id, base, basePayload }
-  _idLog = new Map(idLog.length ? [[project.id, [...idLog]]] : [])
+  _idLog = [...idLog]
   _undoStack = []
-  persist(project.id)
-  return _cache[0]
+  setProject(withPrunedMarks(hydrateProjects([structuredClone(project)])[0]))
+  return _project
+}
+
+/**
+ * Open a project that is no variant's working copy — kept in memory only, with
+ * an empty undo stack. What the tests and a throwaway preview use.
+ */
+export function openProject(project) {
+  backend()
+  _wc = null
+  _idLog = []
+  _undoStack = []
+  setProject(withPrunedMarks(project))
+  return _project
 }
 
 /** The open working copy: { variantId, projectId, base, basePayload, project (dehydrated), idLog }, or null. */
 export function currentWorkingCopy() {
-  if (!_wc) return null
-  const project = getCache().find(p => p.id === _wc.projectId)
-  if (!project) return null
-  return { ..._wc, project: dehydrateProjects([project])[0], idLog: loadIdLog(_wc.projectId) }
+  if (!_wc || !_project) return null
+  return { ..._wc, project: dehydrateProjects([structuredClone(_project)])[0], idLog: loadIdLog() }
 }
 
 /**
@@ -106,7 +135,7 @@ export function currentWorkingCopy() {
  */
 export function adoptWorkingCopy({ project, base, basePayload, idLog }) {
   if (!_wc) return null
-  const log = idLog ?? loadIdLog(_wc.projectId)
+  const log = idLog ?? loadIdLog()
   return openWorkingCopy({ variantId: _wc.variantId, project, base, basePayload, idLog: log })
 }
 
@@ -114,35 +143,35 @@ export function adoptWorkingCopy({ project, base, basePayload, idLog }) {
 export function markCheckedIn({ base, basePayload }) {
   if (!_wc) return
   _wc = { ..._wc, base, basePayload }
-  setIdLog(_wc.projectId, [])
-  persist(_wc.projectId)
+  setIdLog([])
+  persist()
 }
 
 /** Close the open working copy (it stays in IndexedDB). */
 export async function closeWorkingCopy() {
   await flushPendingWrites()
-  _cache = []
+  _project = null
   _wc = null
-  _idLog = new Map()
+  _idLog = []
   _undoStack = []
 }
 
 /** A variant's stored working copy, or null. */
 export async function loadWorkingCopy(variantId) {
-  if (_backend !== 'idb') return null
+  if (backend() !== 'idb') return null
   try { return await idb.getWorkingCopy(variantId) } catch { return null }
 }
 
 /** Every stored working copy (for the start page's status). */
 export async function listWorkingCopies() {
-  if (_backend !== 'idb') return []
+  if (backend() !== 'idb') return []
   try { return await idb.getAllWorkingCopies() } catch { return [] }
 }
 
 /** Throw a variant's working copy away. */
 export async function discardWorkingCopy(variantId) {
   if (_wc?.variantId === variantId) await closeWorkingCopy()
-  if (_backend === 'idb') await idb.deleteWorkingCopy(variantId)
+  if (backend() === 'idb') await idb.deleteWorkingCopy(variantId)
 }
 
 /** Empty the undo stack. */
@@ -153,23 +182,23 @@ export function clearUndo() {
 /** A project's plan header stays out of the snapshots — see savePlanHeader. */
 const withoutHeader = (key, value) => (key === 'planHeader' ? undefined : value)
 
-function pushUndo() {
-  if (_undoDepth > 0) return
+function pushUndo(project = _project, idLog = _idLog) {
+  if (_undoDepth > 0 || !project) return
   _undoStack.push({
-    cache: JSON.stringify(getCache(), withoutHeader),
-    idLog: JSON.stringify([..._idLog]),
+    project: JSON.stringify(project, withoutHeader),
+    idLog: JSON.stringify(idLog),
   })
   if (_undoStack.length > MAX_UNDO) _undoStack.shift()
 }
 
-/** The id log of a project: [{ from, to: [ids] }], oldest first. */
-export function loadIdLog(projectId) {
-  return _idLog.get(projectId) ?? []
+/** The id log of the open project: [{ from, to: [ids] }], oldest first. */
+export function loadIdLog() {
+  return _idLog
 }
 
-/** Replace a project's id log — empty once its changes are checked in. */
-export function setIdLog(projectId, log) {
-  if (log?.length) _idLog.set(projectId, [...log]); else _idLog.delete(projectId)
+/** Replace the id log — empty once its changes are checked in. */
+export function setIdLog(log) {
+  _idLog = [...(log ?? [])]
 }
 
 /**
@@ -187,7 +216,7 @@ function logRemap(project, remap) {
     if (!oldId || !to.length || (to.length === 1 && to[0] === oldId)) continue
     entries.push({ from: oldId, to })
   }
-  if (entries.length) _idLog.set(project.id, [...loadIdLog(project.id), ...entries])
+  if (entries.length) _idLog = [..._idLog, ...entries]
 }
 
 /**
@@ -198,29 +227,29 @@ function logRemap(project, remap) {
  * functions already are.
  */
 export function withUndo(fn) {
-  pushUndo()
+  const before = _project, logBefore = _idLog
   _undoDepth++
   try {
     return fn()
   } finally {
     _undoDepth--
+    if (_undoDepth === 0 && _project !== before) pushUndo(before, logBefore)
   }
 }
 
 // A track end mark lives only as long as its end is free (trackEndMarks): any
 // write that takes the track away or connects a switch to that end drops it.
 // Done here rather than in each writer, because every writer comes by here.
-function pruneMarksOf(project) {
-  if (!project?.endMarks?.length) return
+function withPrunedMarks(project) {
+  if (!project?.endMarks?.length) return project
   const kept = pruneEndMarks(project.endMarks, project.tracks, project.switches)
-  if (kept !== project.endMarks) project.endMarks = kept
+  return kept === project.endMarks ? project : { ...project, endMarks: kept }
 }
 
 // Mark the working copy dirty and schedule the async flush. A project that is
-// not the open working copy (the tests' saveProject) lives in memory only.
-function persist(projectId = null) {
-  if (projectId) pruneMarksOf(getCache().find(p => p.id === projectId))
-  if (_backend !== 'idb' || !_wc) return
+// not the open working copy (openProject) lives in memory only.
+function persist() {
+  if (backend() !== 'idb' || !_wc) return
   _dirty = true
   scheduleFlush()
 }
@@ -263,37 +292,18 @@ export function canUndo() {
 
 export function undo() {
   if (_undoStack.length === 0) return false
-  // The headers are not part of the snapshot, so they are kept as they are now.
-  const headers = new Map(getCache().filter(p => p.planHeader).map(p => [p.id, p.planHeader]))
+  // The header is not part of the snapshot, so it is kept as it is now.
+  const header = _project?.planHeader
   const snapshot = _undoStack.pop()
-  _cache = JSON.parse(snapshot.cache)
-  _idLog = new Map(JSON.parse(snapshot.idLog))
-  for (const p of _cache) if (headers.has(p.id)) p.planHeader = headers.get(p.id)
-  persist(_wc?.projectId)
+  const restored = JSON.parse(snapshot.project)
+  _idLog = JSON.parse(snapshot.idLog)
+  setProject(header ? { ...restored, planHeader: header } : restored)
   return true
 }
 
-export function loadProjects() {
-  return getCache()
-}
-
-/** The open project (the working copy's record, hydrated), or null. */
-export function currentProject() {
-  return getCache()[0] ?? null
-}
-
-export function saveProject(project) {
-  getCache().push(project)
-  persist(project.id)
-}
-
-/** Merge fields into a project record (used for the OSRD infra passthrough). */
-export function updateProject(projectId, patch) {
-  pushUndo()
-  const project = getCache().find(p => p.id === projectId)
-  if (!project) return
-  Object.assign(project, patch)
-  persist(projectId)
+/** Merge fields into the project record (used for the OSRD infra passthrough). */
+export function updateProject(patch) {
+  return mutate(p => ({ ...p, ...patch }))
 }
 
 /**
@@ -315,24 +325,26 @@ export function updateProject(projectId, patch) {
 const REPORTS_KEPT = 8
 const REPORT_LINES = 4000
 
-const reportKey = (projectId) => REPORT_KEY_PREFIX + (_wc?.projectId === projectId ? _wc.variantId : projectId)
+// Per variant where a working copy is open (the variants of a project share
+// its id), else per project.
+const reportKey = () => REPORT_KEY_PREFIX + (_wc?.variantId ?? _project?.id ?? 'none')
 
-export function loadImportReports(projectId) {
+export function loadImportReports() {
   try {
-    const raw = JSON.parse(localStorage.getItem(reportKey(projectId)) ?? '[]')
+    const raw = JSON.parse(localStorage.getItem(reportKey()) ?? '[]')
     return Array.isArray(raw) ? raw : []
   } catch { return [] }
 }
 
-export function saveImportReport(projectId, report) {
+export function saveImportReport(report) {
   const entry = {
     ...report,
     at: report.at ?? Date.now(),
     lines: (report.lines ?? []).slice(0, REPORT_LINES),
     cut: Math.max(0, (report.lines ?? []).length - REPORT_LINES),
   }
-  const all = [entry, ...loadImportReports(projectId)].slice(0, REPORTS_KEPT)
-  const write = (list) => localStorage.setItem(reportKey(projectId), JSON.stringify(list))
+  const all = [entry, ...loadImportReports()].slice(0, REPORTS_KEPT)
+  const write = (list) => localStorage.setItem(reportKey(), JSON.stringify(list))
   try {
     write(all)
     return all
@@ -340,44 +352,56 @@ export function saveImportReport(projectId, report) {
     try {
       write([{ ...entry, lines: entry.lines.slice(0, 200), cut: entry.lines.length - 200 }])
     } catch { /* nothing to be done; the import itself stands */ }
-    return loadImportReports(projectId)
+    return loadImportReports()
   }
 }
 
-export function clearImportReports(projectId) {
-  try { localStorage.removeItem(reportKey(projectId)) } catch { /* already gone */ }
+export function clearImportReports() {
+  try { localStorage.removeItem(reportKey()) } catch { /* already gone */ }
 }
 
 /**
  * The open project as a file ({ version, projects }), dehydrated. Its image
  * goes by the hash the server keeps it under (`imageHash`).
  */
-export function exportProjectsPayload(ids = null) {
-  const projects = getCache().filter(p => !ids || ids.has(p.id))
+export function exportProjectsPayload() {
+  const projects = _project ? [structuredClone(_project)] : []
   return { version: SCHEMA_VERSION, projects: dehydrateProjects(projects) }
 }
 
-export function loadTracks(projectId) {
-  return getCache().find((p) => p.id === projectId)?.tracks ?? []
-}
+// ── plan header ─────────────────────────────────────────────────────────────
 
-/** Switches that reference `trackId` on any of their three ports. */
-export function switchesOnTrack(projectId, trackId) {
-  return loadSwitches(projectId).filter(sw => referencesTrack(sw, trackId))
+/**
+ * The title block of a plan — parties with logo and address, who drew and
+ * checked it — as the project's metadata, `project.planHeader`. It is part of
+ * the variant's record and versioned with it (decision 101).
+ */
+export function loadPlanHeader() {
+  return _project?.planHeader ?? null
 }
 
 /**
- * Delete a track. A switch that references it loses its reason to exist and goes
- * with it — together with the branch track carrying that switch's own geometry
- * (a track whose elements are all switchBranch). The ordinary tracks on the
- * switch's other ports stay, their elements without that switch's marks; only
- * the switch itself disappears. A platform is stationed along its track and
- * cannot outlive it either.
+ * Store the header on the project. Not an undo step: it is what the plans
+ * are signed with, not the alignment, and its logos would ride through every
+ * snapshot (see pushUndo). False when there is no project.
  */
-export function deleteTrack(projectId, trackId) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
+export function savePlanHeader(header) {
+  return mutate(p => ({ ...p, planHeader: header }), { undo: false })
+}
+
+// ── tracks ──────────────────────────────────────────────────────────────────
+
+export function loadTracks() {
+  return _project?.tracks ?? []
+}
+
+/** Switches that reference `trackId` on any of their three ports. */
+export function switchesOnTrack(trackId) {
+  return loadSwitches().filter(sw => referencesTrack(sw, trackId))
+}
+
+/** The project without `trackId` — see deleteTrack. */
+function withoutTrack(project, trackId) {
   const tracks   = project.tracks ?? []
   const switches = project.switches ?? []
 
@@ -397,15 +421,27 @@ export function deleteTrack(projectId, trackId) {
   // The tracks that stay keep their geometry, but no longer a switch's marks:
   // an element naming a switch that is gone would point at nothing.
   const goneIds = new Set([...doomed].map(sw => sw.switchId).filter(Boolean))
-  project.tracks   = tracks.filter(t => !removed.has(t.id)).map(t => (
-    (t.elements ?? []).some(el => el.switchId && goneIds.has(el.switchId))
-      ? { ...t, elements: t.elements.map(el => (el.switchId && goneIds.has(el.switchId) ? unmarkSwitchElement(el) : el)) }
-      : t))
-  project.switches = switches.filter(sw => !doomed.has(sw))
-  if (project.platforms?.length) {
-    project.platforms = project.platforms.filter(p => !removed.has(p.trackId))
+  return {
+    ...project,
+    tracks: tracks.filter(t => !removed.has(t.id)).map(t => (
+      (t.elements ?? []).some(el => el.switchId && goneIds.has(el.switchId))
+        ? { ...t, elements: t.elements.map(el => (el.switchId && goneIds.has(el.switchId) ? unmarkSwitchElement(el) : el)) }
+        : t)),
+    switches: switches.filter(sw => !doomed.has(sw)),
+    ...(project.platforms?.length ? { platforms: project.platforms.filter(p => !removed.has(p.trackId)) } : {}),
   }
-  persist(projectId)
+}
+
+/**
+ * Delete a track. A switch that references it loses its reason to exist and goes
+ * with it — together with the branch track carrying that switch's own geometry
+ * (a track whose elements are all switchBranch). The ordinary tracks on the
+ * switch's other ports stay, their elements without that switch's marks; only
+ * the switch itself disappears. A platform is stationed along its track and
+ * cannot outlive it either.
+ */
+export function deleteTrack(trackId) {
+  return mutate(p => withoutTrack(p, trackId))
 }
 
 /**
@@ -413,92 +449,88 @@ export function deleteTrack(projectId, trackId) {
  * as one undo step, each the way deleteTrack takes one: its switches and
  * their own branch tracks with it.
  */
-export function deleteTracks(projectId, trackIds) {
-  withUndo(() => { for (const id of trackIds) deleteTrack(projectId, id) })
+export function deleteTracks(trackIds) {
+  return mutate(p => trackIds.reduce(withoutTrack, p))
 }
 
-export function saveTrack(projectId, track) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.tracks = [...(project.tracks ?? []), track]
-  persist(projectId)
+export function saveTrack(track) {
+  return mutate(p => ({ ...p, tracks: [...(p.tracks ?? []), track] }))
 }
 
-export function updateTrack(projectId, track) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.tracks = (project.tracks ?? []).map((t) => t.id === track.id ? track : t)
-  persist(projectId)
+export function updateTrack(track) {
+  return mutate(p => ({ ...p, tracks: (p.tracks ?? []).map(t => (t.id === track.id ? track : t)) }))
 }
-
 
 /**
  * Repoint switch ports and end marks after tracks were renamed, split or
  * joined. `consumed` names the ends that stopped being ends in the change — a
  * splice joins two — whose marks have to go rather than follow the remap.
  */
-export function remapSwitchTrackIds(projectId, remap, { consumed = [] } = {}) {
-  pushUndo()
-  const project = getCache().find(p => p.id === projectId)
-  if (!project) return
-  project.switches = remapSwitches(project.switches, remap)
-  project.endMarks = remapEndMarks(project.endMarks, remap, consumed)
-  logRemap(project, remap)
-  persist(projectId)
+export function remapSwitchTrackIds(remap, { consumed = [] } = {}) {
+  return mutate(p => {
+    const next = {
+      ...p,
+      switches: remapSwitches(p.switches, remap),
+      endMarks: remapEndMarks(p.endMarks, remap, consumed),
+    }
+    logRemap(next, remap)
+    return next
+  })
 }
 
-export function deleteElement(projectId, trackId, elementIndex) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  const track = (project.tracks ?? []).find((t) => t.id === trackId)
-  if (!track || !track.elements) return
+export function deleteElement(trackId, elementIndex) {
+  return mutate(p => {
+    const track = (p.tracks ?? []).find(t => t.id === trackId)
+    if (!track?.elements) return p
 
-  const idx    = Number(elementIndex)
-  const before = track.elements.slice(0, idx)
-  const after  = track.elements.slice(idx + 1)
+    const idx    = Number(elementIndex)
+    const before = track.elements.slice(0, idx)
+    const after  = track.elements.slice(idx + 1)
 
-  const beforeId = crypto.randomUUID()
-  const afterId  = crypto.randomUUID()
+    const beforeId = generateId()
+    const afterId  = generateId()
 
-  // The vertical alignment is stationed along the track: the stretch over the
-  // deleted element goes with it, the tail restarts at 0.
-  const cutAt   = before.reduce((sum, el) => sum + (el.length ?? 0), 0)
-  const [headH] = splitHeights(track.heights, cutAt)
-  const [, tailH] = splitHeights(track.heights, cutAt + (track.elements[idx]?.length ?? 0))
+    // The vertical alignment is stationed along the track: the stretch over the
+    // deleted element goes with it, the tail restarts at 0.
+    const cutAt   = before.reduce((sum, el) => sum + (el.length ?? 0), 0)
+    const [headH] = splitHeights(track.heights, cutAt)
+    const [, tailH] = splitHeights(track.heights, cutAt + (track.elements[idx]?.length ?? 0))
 
-  const newTracks = []
-  if (before.length > 0) newTracks.push(makeTrack(track, before, beforeId, headH))
-  if (after.length > 0)  newTracks.push(makeTrack(track, after,  afterId, tailH))
+    const newTracks = []
+    if (before.length > 0) newTracks.push(makeTrack(track, before, beforeId, headH))
+    if (after.length > 0)  newTracks.push(makeTrack(track, after,  afterId, tailH))
 
-  project.tracks   = (project.tracks ?? []).filter((t) => t.id !== trackId).concat(newTracks)
-  const remap = [{ oldId: trackId, newId: [beforeId, afterId] }]
-  project.switches = remapSwitches(project.switches ?? [], remap)
-  project.endMarks = remapEndMarks(project.endMarks, remap)
-  logRemap(project, remap)
-  persist(projectId)
+    const remap = [{ oldId: trackId, newId: [beforeId, afterId] }]
+    const next = {
+      ...p,
+      tracks:   (p.tracks ?? []).filter(t => t.id !== trackId).concat(newTracks),
+      switches: remapSwitches(p.switches ?? [], remap),
+      endMarks: remapEndMarks(p.endMarks, remap),
+    }
+    logRemap(next, remap)
+    return next
+  })
 }
 
-export function addElementToTrack(projectId, trackId, element) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  const track = (project.tracks ?? []).find((t) => t.id === trackId)
-  if (!track) return
-  const elements = track.elements ?? []
-  const prevAbsLength = elements.length > 0 ? (elements[elements.length - 1].absLength ?? elements[elements.length - 1].length) : 0
-  const elementWithAbs = { ...element, absLength: prevAbsLength + element.length }
-  track.elements = [...elements, elementWithAbs]
-  // The same polyline rebuildCoords and the reload take, which is the coarse one
-  // wherever the element carries it: appending the fine one instead left the
-  // track drawn at one density until a reload replaced it with the other.
-  const coords = elementWithAbs.renderCoords ?? elementWithAbs.geometry?.coordinates
-  if (coords && coords.length > 0) {
-    track.coordinates = [...(track.coordinates ?? []), ...coords.slice(1)]
-  }
-  persist(projectId)
+export function addElementToTrack(trackId, element) {
+  return mutate(p => {
+    const track = (p.tracks ?? []).find(t => t.id === trackId)
+    if (!track) return p
+    const elements = track.elements ?? []
+    const last = elements[elements.length - 1]
+    const prevAbsLength = last ? (last.absLength ?? last.length) : 0
+    const elementWithAbs = { ...element, absLength: prevAbsLength + element.length }
+    // The same polyline rebuildCoords and the reload take, which is the coarse one
+    // wherever the element carries it: appending the fine one instead left the
+    // track drawn at one density until a reload replaced it with the other.
+    const coords = elementWithAbs.renderCoords ?? elementWithAbs.geometry?.coordinates
+    const updated = {
+      ...track,
+      elements: [...elements, elementWithAbs],
+      ...(coords?.length ? { coordinates: [...(track.coordinates ?? []), ...coords.slice(1)] } : {}),
+    }
+    return { ...p, tracks: p.tracks.map(t => (t.id === trackId ? updated : t)) }
+  })
 }
 
 /**
@@ -508,17 +540,18 @@ export function addElementToTrack(projectId, trackId, element) {
  * derived from it) follow automatically from the new element order; the height
  * points are stationed along the track, so they mirror about its length.
  */
-export function reverseTrackDirection(projectId, trackId) {
-  pushUndo()
-  const project = getCache().find(p => p.id === projectId)
-  if (!project) return
-  const track = (project.tracks ?? []).find(t => t.id === trackId)
-  if (!track) return
-  const reversed = reverseTrack(track)
-  project.tracks = project.tracks.map(t => (t.id === trackId ? reversed : t))
-  project.switches = flipSwitchEndpoints(project.switches, trackId)
-  project.endMarks = flipEndMarks(project.endMarks, trackId)
-  persist(projectId)
+export function reverseTrackDirection(trackId) {
+  return mutate(p => {
+    const track = (p.tracks ?? []).find(t => t.id === trackId)
+    if (!track) return p
+    const reversed = reverseTrack(track)
+    return {
+      ...p,
+      tracks:   p.tracks.map(t => (t.id === trackId ? reversed : t)),
+      switches: flipSwitchEndpoints(p.switches, trackId),
+      endMarks: flipEndMarks(p.endMarks, trackId),
+    }
+  })
 }
 
 /**
@@ -526,35 +559,33 @@ export function reverseTrackDirection(projectId, trackId) {
  * automatic terrain fill passes undo: false, an automatic step must not
  * swallow the user's Ctrl+Z.
  */
-export function setTrackHeights(projectId, trackId, heights, opts = {}) {
-  return setHeightsForTracks(projectId, new Map([[trackId, heights]]), opts)
+export function setTrackHeights(trackId, heights, opts = {}) {
+  return setHeightsForTracks(new Map([[trackId, heights]]), opts)
 }
 
 /**
  * The same for several tracks at once (`byTrack`: trackId → heights), as one
- * undo step — the height where tracks meet belongs to all of them.
+ * undo step — the height where tracks meet belongs to all of them. False
+ * when none of the tracks is there.
  */
-export function setHeightsForTracks(projectId, byTrack, { undo = true } = {}) {
-  if (undo) pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return false
+export function setHeightsForTracks(byTrack, { undo = true } = {}) {
   let written = false
-  for (const [trackId, heights] of byTrack) {
-    const track = project.tracks?.find((t) => t.id === trackId)
-    if (!track) continue
-    if (heights?.length) track.heights = heights; else delete track.heights
-    written = true
-  }
-  if (written) persist(projectId)
+  mutate(p => {
+    const tracks = (p.tracks ?? []).map(t => {
+      if (!byTrack.has(t.id)) return t
+      written = true
+      const heights = byTrack.get(t.id)
+      if (heights?.length) return { ...t, heights }
+      const { heights: _h, ...rest } = t
+      return rest
+    })
+    return written ? { ...p, tracks } : p
+  }, { undo })
   return written
 }
 
-export function replaceAllTracks(projectId, tracks) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.tracks = tracks
-  persist(projectId)
+export function replaceAllTracks(tracks) {
+  return mutate(p => ({ ...p, tracks }))
 }
 
 /**
@@ -567,47 +598,37 @@ export function replaceAllTracks(projectId, tracks) {
  * geometry it used to have, which is precisely the case the editor's reach
  * limit exists for: what still gets through has to be drawn as it now is.
  */
-export function commitTrackEdit(projectId, tracks, switchIds = []) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.tracks = tracks
-  const rebuild = new Set(switchIds)
-  if (rebuild.size && project.switches?.length) {
-    const byId = Object.fromEntries((project.tracks ?? []).map(t => [t.id, t]))
-    project.switches = project.switches.map(sw => (
-      rebuild.has(sw.switchId) ? rebuildSwitchSymbol(sw, byId) : sw))
-  }
-  persist(projectId)
+export function commitTrackEdit(tracks, switchIds = []) {
+  return mutate(p => {
+    const rebuild = new Set(switchIds)
+    let switches = p.switches
+    if (rebuild.size && switches?.length) {
+      const byId = Object.fromEntries(tracks.map(t => [t.id, t]))
+      switches = switches.map(sw => (rebuild.has(sw.switchId) ? rebuildSwitchSymbol(sw, byId) : sw))
+    }
+    return { ...p, tracks, ...(switches ? { switches } : {}) }
+  })
 }
 
-export function loadPlatforms(projectId) {
-  return getCache().find((p) => p.id === projectId)?.platforms ?? []
+// ── platforms ───────────────────────────────────────────────────────────────
+
+export function loadPlatforms() {
+  return _project?.platforms ?? []
 }
 
-export function savePlatform(projectId, platform) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.platforms = [...(project.platforms ?? []), platform]
-  persist(projectId)
+export function savePlatform(platform) {
+  return mutate(p => ({ ...p, platforms: [...(p.platforms ?? []), platform] }))
 }
 
-export function updatePlatform(projectId, platform) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.platforms = (project.platforms ?? []).map((p) => p.id === platform.id ? platform : p)
-  persist(projectId)
+export function updatePlatform(platform) {
+  return mutate(p => ({ ...p, platforms: (p.platforms ?? []).map(q => (q.id === platform.id ? platform : q)) }))
 }
 
-export function deletePlatform(projectId, platformId) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.platforms = (project.platforms ?? []).filter((p) => p.id !== platformId)
-  persist(projectId)
+export function deletePlatform(platformId) {
+  return mutate(p => ({ ...p, platforms: (p.platforms ?? []).filter(q => q.id !== platformId) }))
 }
+
+// ── kilometrage lines ───────────────────────────────────────────────────────
 
 /**
  * The kilometrage lines the project references its main points against — one
@@ -618,73 +639,61 @@ export function deletePlatform(projectId, platformId) {
  * undo stack: undoing a track edit must not take a fetched line with it, and
  * fetching one must not eat an undo step.
  */
-export function loadKmLines(projectId) {
-  return getCache().find((p) => p.id === projectId)?.kmLines ?? []
+export function loadKmLines() {
+  return _project?.kmLines ?? []
 }
 
 /** Add or replace the line with this number. */
-export function saveKmLine(projectId, kmLine) {
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
+export function saveKmLine(kmLine) {
   const same = (l) => String(l.lineNumber) === String(kmLine.lineNumber)
-  project.kmLines = [...(project.kmLines ?? []).filter((l) => !same(l)), kmLine]
-  persist(projectId)
+  return mutate(p => ({ ...p, kmLines: [...(p.kmLines ?? []).filter(l => !same(l)), kmLine] }), { undo: false })
 }
 
 /** Drop a line number — what a line no track names any more. */
-export function deleteKmLine(projectId, lineNumber) {
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.kmLines = (project.kmLines ?? [])
-    .filter((l) => String(l.lineNumber) !== String(lineNumber))
-  persist(projectId)
+export function deleteKmLine(lineNumber) {
+  return mutate(p => ({
+    ...p, kmLines: (p.kmLines ?? []).filter(l => String(l.lineNumber) !== String(lineNumber)),
+  }), { undo: false })
 }
 
+// ── end marks ───────────────────────────────────────────────────────────────
+
 /** The marks on free track ends — buffer stops and boundaries (trackEndMarks). */
-export function loadEndMarks(projectId) {
-  return getCache().find((p) => p.id === projectId)?.endMarks ?? []
+export function loadEndMarks() {
+  return _project?.endMarks ?? []
 }
 
 /** Put a mark on its end, replacing whatever mark stood there. One undo step. */
-export function saveEndMark(projectId, mark) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
+export function saveEndMark(mark) {
   const key = endKey(mark.trackId, mark.endpoint)
-  project.endMarks = [
-    ...(project.endMarks ?? []).filter(m => m.id !== mark.id && endKey(m.trackId, m.endpoint) !== key),
-    mark,
-  ]
-  persist(projectId)
+  return mutate(p => ({
+    ...p,
+    endMarks: [
+      ...(p.endMarks ?? []).filter(m => m.id !== mark.id && endKey(m.trackId, m.endpoint) !== key),
+      mark,
+    ],
+  }))
 }
 
-export function deleteEndMark(projectId, markId) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.endMarks = (project.endMarks ?? []).filter(m => m.id !== markId)
-  persist(projectId)
+export function deleteEndMark(markId) {
+  return mutate(p => ({ ...p, endMarks: (p.endMarks ?? []).filter(m => m.id !== markId) }))
 }
 
-export function loadSwitches(projectId) {
-  return getCache().find((p) => p.id === projectId)?.switches ?? []
+// ── switches ────────────────────────────────────────────────────────────────
+
+export function loadSwitches() {
+  return _project?.switches ?? []
 }
 
-export function saveSwitch(projectId, sw) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.switches = [...(project.switches ?? []), sw]
-  persist(projectId)
+export function saveSwitch(sw) {
+  return mutate(p => ({ ...p, switches: [...(p.switches ?? []), sw] }))
 }
 
 /** Merge fields into one switch record, as one undo step. */
-export function updateSwitch(projectId, switchId, patch) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  project.switches = (project.switches ?? []).map(sw => (sw.switchId === switchId ? { ...sw, ...patch } : sw))
-  persist(projectId)
+export function updateSwitch(switchId, patch) {
+  return mutate(p => ({
+    ...p, switches: (p.switches ?? []).map(sw => (sw.switchId === switchId ? { ...sw, ...patch } : sw)),
+  }))
 }
 
 /**
@@ -694,7 +703,6 @@ export function updateSwitch(projectId, switchId, patch) {
  * an original line track are repointed via `remap` (a split repoints at the
  * second half; switches carry no per-port geometry to distinguish them).
  *
- * @param {string}   projectId
  * @param {object}   ops
  * @param {string[]} ops.removeTrackIds  ids of the two original line tracks
  * @param {object[]} ops.addTracks       new track objects (with ids)
@@ -702,20 +710,21 @@ export function updateSwitch(projectId, switchId, patch) {
  * @param {object[]} ops.remap           remapSwitches entries for existing switches
  * @param {object[]} [ops.addEndMarks]   buffer stops / boundaries on the new tracks' ends
  */
-export function commitSwitchConnection(projectId, { removeTrackIds, addTracks, addSwitches, remap, addEndMarks }) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  const removeSet = new Set(removeTrackIds)
-  project.tracks = (project.tracks ?? []).filter((t) => !removeSet.has(t.id)).concat(addTracks ?? [])
-  if (remap?.length) {
-    project.switches = remapSwitches(project.switches ?? [], remap)
-    project.endMarks = remapEndMarks(project.endMarks, remap)
-    logRemap(project, remap)
-  }
-  project.switches = [...(project.switches ?? []), ...(addSwitches ?? [])]
-  if (addEndMarks?.length) project.endMarks = [...(project.endMarks ?? []), ...addEndMarks]
-  persist(projectId)
+export function commitSwitchConnection({ removeTrackIds, addTracks, addSwitches, remap, addEndMarks }) {
+  return mutate(p => {
+    const removeSet = new Set(removeTrackIds)
+    let next = {
+      ...p,
+      tracks: (p.tracks ?? []).filter(t => !removeSet.has(t.id)).concat(addTracks ?? []),
+    }
+    if (remap?.length) {
+      next = { ...next, switches: remapSwitches(next.switches ?? [], remap), endMarks: remapEndMarks(next.endMarks, remap) }
+      logRemap(next, remap)
+    }
+    next = { ...next, switches: [...(next.switches ?? []), ...(addSwitches ?? [])] }
+    if (addEndMarks?.length) next = { ...next, endMarks: [...(next.endMarks ?? []), ...addEndMarks] }
+    return next
+  })
 }
 
 /**
@@ -728,32 +737,28 @@ export function commitSwitchConnection(projectId, { removeTrackIds, addTracks, a
  * A platform is stationed along its track and cannot outlive it, exactly as in
  * deleteTrack.
  *
- * @param {string}   projectId
  * @param {object}   plan
  * @param {string}   plan.switchId       the record to remove
  * @param {string[]} plan.removeTrackIds tracks that go entirely
  * @param {object[]} plan.updateTracks   tracks to replace in place (same ids)
  * @param {object[]} plan.remap          remapSwitches entries for the others
  */
-export function commitSwitchDeletion(projectId, { switchId, removeTrackIds, updateTracks, remap }) {
-  pushUndo()
-  const project = getCache().find((p) => p.id === projectId)
-  if (!project) return
-  const removeSet = new Set(removeTrackIds ?? [])
-  const updated   = new Map((updateTracks ?? []).map(t => [t.id, t]))
-  project.tracks = (project.tracks ?? [])
-    .filter(t => !removeSet.has(t.id))
-    .map(t => updated.get(t.id) ?? t)
-  // The record first, then the remap: the switch that is going has no ports
-  // left to repoint, and leaving it in would point them at the joined track.
-  project.switches = (project.switches ?? []).filter(sw => sw.switchId !== switchId)
-  if (remap?.length) {
-    project.switches = remapSwitches(project.switches, remap)
-    project.endMarks = remapEndMarks(project.endMarks, remap)
-    logRemap(project, remap)
-  }
-  if (project.platforms?.length) {
-    project.platforms = project.platforms.filter(p => !removeSet.has(p.trackId))
-  }
-  persist(projectId)
+export function commitSwitchDeletion({ switchId, removeTrackIds, updateTracks, remap }) {
+  return mutate(p => {
+    const removeSet = new Set(removeTrackIds ?? [])
+    const updated   = new Map((updateTracks ?? []).map(t => [t.id, t]))
+    // The record first, then the remap: the switch that is going has no ports
+    // left to repoint, and leaving it in would point them at the joined track.
+    let next = {
+      ...p,
+      tracks: (p.tracks ?? []).filter(t => !removeSet.has(t.id)).map(t => updated.get(t.id) ?? t),
+      switches: (p.switches ?? []).filter(sw => sw.switchId !== switchId),
+    }
+    if (remap?.length) {
+      next = { ...next, switches: remapSwitches(next.switches, remap), endMarks: remapEndMarks(next.endMarks, remap) }
+      logRemap(next, remap)
+    }
+    if (next.platforms?.length) next = { ...next, platforms: next.platforms.filter(q => !removeSet.has(q.trackId)) }
+    return next
+  })
 }

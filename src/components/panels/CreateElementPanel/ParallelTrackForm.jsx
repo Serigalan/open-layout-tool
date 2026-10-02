@@ -71,7 +71,7 @@ export default function ParallelTrackForm({ t, map, project, onTrackSaved }) {
       if (features.length === 0) return
 
       const { trackId } = features[0].properties
-      const track = loadTracks(project.id).find(tr => tr.id === trackId)
+      const track = loadTracks().find(tr => tr.id === trackId)
       if (!track?.elements?.length) return
 
       sourceRef.current = track
@@ -102,12 +102,12 @@ export default function ParallelTrackForm({ t, map, project, onTrackSaved }) {
   const handleCommit = () => {
     setErrors([])
     if (lineNumberError || !elements) return
-    const existingNames = new Set(loadTracks(project.id).map(t => t.name).filter(Boolean))
+    const existingNames = new Set(loadTracks().map(t => t.name).filter(Boolean))
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
 
     const els = recalcAbsLengths(elements)
-    saveTrack(project.id, {
+    saveTrack({
       id:          generateId(),
       name,
       owner:       fields.owner,

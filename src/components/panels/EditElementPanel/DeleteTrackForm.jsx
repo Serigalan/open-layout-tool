@@ -36,7 +36,7 @@ export default function DeleteTrackForm({ t, map, project, onTrackSaved, onCommi
       const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] }).filter(f => !f.properties.switchBranch)
       if (features.length === 0) return
       const { trackId } = features[0].properties
-      const track = loadTracks(project.id).find(tr => tr.id === trackId)
+      const track = loadTracks().find(tr => tr.id === trackId)
       if (!track) return
 
       m.setFilter('tracks-selected-layer', filterForTrack(trackId))
@@ -44,7 +44,7 @@ export default function DeleteTrackForm({ t, map, project, onTrackSaved, onCommi
         id:          trackId,
         name:        track.name || trackId.slice(0, 8),
         elements:    (track.elements ?? []).length,
-        switchNames: switchesOnTrack(project.id, trackId).map((sw, i) => sw.name || `#${i + 1}`),
+        switchNames: switchesOnTrack(trackId).map((sw, i) => sw.name || `#${i + 1}`),
       })
     }
 
@@ -53,7 +53,7 @@ export default function DeleteTrackForm({ t, map, project, onTrackSaved, onCommi
   }, [selected, map, project.id])
 
   const handleDelete = () => {
-    deleteTrack(project.id, selected.id)
+    deleteTrack(selected.id)
     setConfirming(false)
     setSelected(null)
     map?.current?.setFilter('tracks-selected-layer', FILTER_NONE)

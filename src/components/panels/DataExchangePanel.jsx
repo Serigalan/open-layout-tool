@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { loadTracks, loadSwitches, loadProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
+import { loadTracks, loadSwitches, currentProject, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
 import { generateId } from '../../utils/identifierUtils'
 import { recalcAbsLengths, rebuildCoords, nextTrackName } from '../../utils/trackModel'
 import { parseProjectsPayload, parseTracksPayload, PayloadError } from '../../utils/persistenceUtils'
@@ -80,7 +80,7 @@ function trackLabel(track) {
 }
 
 export default function DataExchangePanel({ t, map, project, onTrackSaved, onShowCompare }) {
-  const tracks = project ? loadTracks(project.id) : []
+  const tracks = project ? loadTracks() : []
   const trackCount = tracks.length
   const [before, after] = t('data_exchange_project_desc').split('{{tracks}}')
   const compareInputRef = useRef(null)
@@ -150,7 +150,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
 
   const projectId = project?.id
   useEffect(() => {
-    setReports(projectId ? loadImportReports(projectId) : [])
+    setReports(projectId ? loadImportReports() : [])
     setOpenReport(null)
   }, [projectId])
 
@@ -212,7 +212,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         const theirs = projects.find(p => p.id === project?.id) ?? projects[0]
         if (!theirs) { setCompareError(t('compare_no_project')); return }
         const { image: _image, ...before } = theirs
-        const current = loadProjects().find(p => p.id === project?.id)
+        const current = currentProject()
         onShowCompare?.({
           before, after: current,
           beforeLabel: `${t('compare_file_label')} ${file.name}`, afterLabel: t('compare_current_label'),
@@ -252,20 +252,20 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
     reader.onload = (ev) => {
       let incoming
       try {
-        const switchIds = new Set(loadSwitches(project.id).map(sw => sw.switchId))
+        const switchIds = new Set(loadSwitches().map(sw => sw.switchId))
         incoming = parseTracksPayload(JSON.parse(ev.target.result), { switchIds })
       } catch (err) {
         const code = err instanceof PayloadError ? err.code : 'invalid_payload'
         setTracksImportError(t(`tracks_import_err_${code}`))
         return
       }
-      const existingTracks = loadTracks(project.id)
+      const existingTracks = loadTracks()
       const existingIds = new Set(existingTracks.map(t => t.id))
 
       const conflicting = incoming.filter(t => existingIds.has(t.id))
       const noConflict  = incoming.filter(t => !existingIds.has(t.id))
 
-      noConflict.forEach(track => saveTrack(project.id, reconstructTrack(track)))
+      noConflict.forEach(track => saveTrack(reconstructTrack(track)))
 
       if (noConflict.length > 0) onTrackSaved?.()
 
@@ -282,7 +282,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
 
   const resolveTrackConflict = (keepImported) => {
     const [current, ...rest] = trackConflicts
-    if (keepImported) updateTrack(project.id, reconstructTrack(current.imported))
+    if (keepImported) updateTrack(reconstructTrack(current.imported))
     onTrackSaved?.()
     if (rest.length === 0) {
       setTrackConflicts([])
@@ -349,7 +349,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
     const length = recalced.reduce((sum, el) => sum + (el.length ?? 0), 0)
     const { heights, notes } = gra ? gradientHeights(gra.points, startStation, length) : { heights: null, notes: [] }
     setEsnNotes(notes)
-    saveTrack(project.id, {
+    saveTrack({
       id: generateId(), epsg: Number(epsg), coordinates: rebuildCoords(recalced), elements: recalced,
       ...(heights ? { heights, heightEpsg: Number(graHeightEpsg) } : {}),
     })
@@ -414,12 +414,12 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
       { sourceEpsg: Number(csvSourceEpsg), targetEpsg: Number(csvTargetEpsg) })
     setCsvErrors(errors)
     if (!parsed.length) return
-    const names = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
+    const names = new Set(loadTracks().map(tr => tr.name).filter(Boolean))
     parsed.forEach(tr => {
       const elements = recalcAbsLengths(tr.elements)
       const name = names.has(tr.name) ? nextTrackName(tr.name.split('.')[0], names) : tr.name
       names.add(name)
-      saveTrack(project.id, {
+      saveTrack({
         ...tr, id: generateId(), name, elements, coordinates: rebuildCoords(elements),
       })
     })
@@ -520,7 +520,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
     // — that is the run whose messages someone comes back to.
     const keep = (lines, counts) => {
       setErrors(lines)
-      setReports(saveImportReport(project.id, {
+      setReports(saveImportReport({
         source: `${source || 'MDB'} · ${strecke === ALL_STRECKEN
           ? t('data_exchange_reports_all') : strecke}`,
         ...counts, lines,
@@ -544,7 +544,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
     // would hand over a network that is wrong where it is quietest.
     const placed = withSwitches
       ? placeMdbSwitches(payload, built.tracks, inventory.units, {
-        newId: generateId, existingSwitches: loadSwitches(project.id), derive: true,
+        newId: generateId, existingSwitches: loadSwitches(), derive: true,
       })
       : { tracks: built.tracks, switches: [], errors: [] }
 
@@ -555,7 +555,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
       return
     }
 
-    const names = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
+    const names = new Set(loadTracks().map(tr => tr.name).filter(Boolean))
     const addTracks = placed.tracks.map(tr => {
       const elements = recalcAbsLengths(tr.elements)
       const name = !tr.name || names.has(tr.name)
@@ -613,7 +613,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
     keep(notes, { tracks: addTracks.length, switches: placed.switches.length })
     // One commit, one undo step — a whole database is thousands of tracks, and
     // saving them one at a time would leave as many steps behind.
-    commitSwitchConnection(project.id, {
+    commitSwitchConnection({
       removeTrackIds: [], addTracks, addSwitches: [...placed.switches, ...links], remap: [],
       addEndMarks: buffered.marks,
     })
@@ -653,8 +653,8 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         const { tracks: parsed, errors, infra, switches, endMarks } = parseOsrdRailJson(JSON.parse(ev.target.result))
         setOsrdErrors(errors)
         if (!parsed.length) return
-        const existingIds = new Set(loadTracks(project.id).map(tr => tr.id))
-        const existingNames = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
+        const existingIds = new Set(loadTracks().map(tr => tr.id))
+        const existingNames = new Set(loadTracks().map(tr => tr.name).filter(Boolean))
         const idMap = {}
         const imported = []
         parsed.forEach(tr => {
@@ -666,7 +666,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
           const id = existingIds.has(tr.id) ? generateId() : (tr.id ?? generateId())
           if (tr.id && id !== tr.id) idMap[tr.id] = id
           const track = { ...tr, id, name, elements, coordinates: rebuildCoords(elements) }
-          saveTrack(project.id, track)
+          saveTrack(track)
           imported.push(track)
         })
         // Switches the import could rebuild into the app's own model — they
@@ -674,7 +674,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         // regenerated on the next export, which is why the passthrough copy
         // below is dropped there by id.
         const remapId = (id) => idMap[id] ?? id
-        switches.forEach(sw => saveSwitch(project.id, {
+        switches.forEach(sw => saveSwitch({
           ...sw,
           portA_trackId:  sw.portA_trackId  ? remapId(sw.portA_trackId)  : sw.portA_trackId,
           portB1_trackId: sw.portB1_trackId ? remapId(sw.portB1_trackId) : sw.portB1_trackId,
@@ -683,8 +683,8 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         // Buffer stops stand on the imported track ends; one whose id the
         // project already uses (the same file imported twice) gets a new one,
         // or it would take the place of the first.
-        const markIds = new Set(loadEndMarks(project.id).map(m => m.id))
-        endMarks.forEach(mark => saveEndMark(project.id, {
+        const markIds = new Set(loadEndMarks().map(m => m.id))
+        endMarks.forEach(mark => saveEndMark({
           ...mark, id: markIds.has(mark.id) ? generateId() : mark.id, trackId: remapId(mark.trackId),
         }))
 
@@ -695,7 +695,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
           ports: Object.fromEntries(Object.entries(sw.ports ?? {}).map(([k, p]) =>
             [k, idMap[p?.track] ? { ...p, track: idMap[p.track] } : p])),
         })
-        updateProject(project.id, {
+        updateProject({
           osrd: { ...infra, ...(infra.switches ? { switches: infra.switches.map(remapPorts) } : {}) },
         })
         onTrackSaved?.()
@@ -712,7 +712,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
 
   const handleOsrdExport = () => {
     if (!project) return
-    downloadJSON(exportToOsrd(loadProjects().find(p => p.id === project.id)), `${project.title}_osrd.json`)
+    downloadJSON(exportToOsrd(currentProject()), `${project.title}_osrd.json`)
     clearTimeout(osrdLinkTimer.current)
     setOsrdExported(true)
     osrdLinkTimer.current = setTimeout(() => setOsrdExported(false), OSRD_LINK_TIMEOUT)
@@ -720,7 +720,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
 
   const handleExchangeExport = () => {
     if (!project) return
-    downloadJSON(exportExchange(loadProjects().find(p => p.id === project.id)), `${project.title}_trassierung.json`)
+    downloadJSON(exportExchange(currentProject()), `${project.title}_trassierung.json`)
   }
 
   const selectedTracks = tracks.filter(tr => selectedIds.has(tr.id))
@@ -972,7 +972,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
           <ProviImportSection
             t={t} map={map} project={project} onTrackSaved={onTrackSaved}
             onReport={(source, counts, lines) => {
-              setReports(saveImportReport(project.id, { source, ...counts, lines }))
+              setReports(saveImportReport({ source, ...counts, lines }))
               setOpenReport(null)
             }}
           />
@@ -1224,7 +1224,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
             ))}
             {reports.length > 0 && (
               <button className="panel-btn panel-btn-full" style={{ marginTop: 6 }}
-                onClick={() => { clearImportReports(project.id); setReports([]); setOpenReport(null) }}>
+                onClick={() => { clearImportReports(); setReports([]); setOpenReport(null) }}>
                 {t('data_exchange_reports_clear')}
               </button>
             )}

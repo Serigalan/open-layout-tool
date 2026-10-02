@@ -33,7 +33,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
   // tell one of its rows from another track, which this cannot, and two
   // handlers on one click would only fight over it.
   useTrackPick(map, page === 'edit_tracks' && !trackTableId, ({ trackId, elementIndex }) => {
-    const picked = loadTracks(project?.id ?? '').find(tr => tr.id === trackId)
+    const picked = loadTracks().find(tr => tr.id === trackId)
     if (picked) onShowTrackTable?.(picked, elementIndex)
   }, { highlight: true })
 
@@ -77,7 +77,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
   )
 
   if (page === 'edit_tracks') {
-    const tracks = loadTracks(project?.id ?? '') ?? []
+    const tracks = loadTracks() ?? []
     return (
       <>
         {backButton(() => onShowTrackTable?.(null))}

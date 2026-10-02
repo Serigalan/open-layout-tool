@@ -90,7 +90,7 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
       if (!features.length) return
       const { trackId, elementIndex } = features[0].properties
       const elIdx = Number(elementIndex)
-      const track = loadTracks(project.id).find(tr => tr.id === trackId)
+      const track = loadTracks().find(tr => tr.id === trackId)
       if (!track?.elements?.[elIdx]) return
       setErrors([])
       // The click is projected onto the element in the track's own plane and
@@ -105,7 +105,7 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
   }, [phase, map, project.id, setErrors])
 
   // ── Derived geometry for the current settings ─────────────────────────────
-  const track = pick ? loadTracks(project.id).find(tr => tr.id === pick.trackId) : null
+  const track = pick ? loadTracks().find(tr => tr.id === pick.trackId) : null
   const pointStation = Number(station)
 
   // Where the crossing lies and the geometry it produces — derived, so the
@@ -187,7 +187,7 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
   const handleCommit = () => {
     setErrors([])
     if (lineNumberError || !g || !ahead || !track || placeError) return
-    const tracks = loadTracks(project.id)
+    const tracks = loadTracks()
     const existingNames = new Set(tracks.map(tr => tr.name).filter(Boolean))
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
@@ -241,7 +241,7 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
 
     // One undo step for the whole crossing: the parted host track with its
     // carved legs, the cross legs, the slips and the record.
-    commitSwitchConnection(project.id, {
+    commitSwitchConnection({
       removeTrackIds: [track.id],
       addTracks: [...split.tracks.map(tr => (
         tr.id === carvedAhead.id ? carvedAhead : tr.id === carvedBehind.id ? carvedBehind : tr)),

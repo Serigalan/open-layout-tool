@@ -12,7 +12,7 @@ import { switchDesignation, nextSwitchNumber, switchNumbersInUse } from '../util
  * prefix, a turnout the switch one.
  */
 export default function useSwitchNumber(projectId, kind = null) {
-  const [number, setNumber] = useState(() => nextSwitchNumber(loadSwitches(projectId)))
+  const [number, setNumber] = useState(() => nextSwitchNumber(loadSwitches()))
   const [taken, setTaken] = useState(false)
 
   return {
@@ -21,12 +21,12 @@ export default function useSwitchNumber(projectId, kind = null) {
     taken,
     setNumber: (value) => { setNumber(value); setTaken(false) },
     claim: (alsoTaken = []) => {
-      const used = switchNumbersInUse(loadSwitches(projectId))
+      const used = switchNumbersInUse(loadSwitches())
       const free = Number.isInteger(number) && number > 0
         && !used.has(number) && !alsoTaken.includes(number)
       setTaken(!free)
       return free
     },
-    reset: () => { setNumber(nextSwitchNumber(loadSwitches(projectId))); setTaken(false) },
+    reset: () => { setNumber(nextSwitchNumber(loadSwitches())); setTaken(false) },
   }
 }

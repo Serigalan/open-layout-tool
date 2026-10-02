@@ -113,7 +113,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
         return
       }
       const { trackId, elementIndex } = features[0].properties
-      const track = loadTracks(project.id).find(tr => tr.id === trackId)
+      const track = loadTracks().find(tr => tr.id === trackId)
       const el    = track?.elements?.[Number(elementIndex)]
       if (!el) return
       // Only where one may actually go — the preview is the answer to "here?",
@@ -151,7 +151,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
 
       const { trackId, elementIndex } = features[0].properties
       const elIdx = Number(elementIndex)
-      const tracks = loadTracks(project.id)
+      const tracks = loadTracks()
       const track  = tracks.find(tr => tr.id === trackId)
       const el     = track?.elements?.[elIdx]
       if (!el) return
@@ -221,7 +221,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
     setMainErrors([])
     if (lineNumberError || (!trailing && mainLineNumberError)) return
 
-    const existingNames = new Set(loadTracks(project.id).map(t => t.name).filter(Boolean))
+    const existingNames = new Set(loadTracks().map(t => t.name).filter(Boolean))
     let hasError = false
     if (name && (existingNames.has(name) || (!trailing && name === mainName))) {
       setNameError(true); hasError = true
@@ -288,7 +288,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
       let portA_trackId, portB2_trackId
 
       if (trailing) {
-        addElementToTrack(project.id, selectedTrackIdRef.current, straightEl)
+        addElementToTrack(selectedTrackIdRef.current, straightEl)
         portA_trackId  = null
         portB2_trackId = selectedTrackIdRef.current
       } else {
@@ -302,14 +302,14 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
           coordinates: straightCoords,
           elements:    [straightEl],
         }
-        saveTrack(project.id, straightTrack)
+        saveTrack(straightTrack)
         portA_trackId  = sourceTrack.id
         portB2_trackId = straightId
       }
 
-      saveTrack(project.id, curvedTrack)
+      saveTrack(curvedTrack)
 
-      saveSwitch(project.id, {
+      saveSwitch({
         ...identity,
         number:         switchNo.number,
         trailing,

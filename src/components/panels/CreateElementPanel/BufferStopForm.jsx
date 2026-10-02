@@ -63,9 +63,9 @@ const keyOf = (end) => (end ? `${end.trackId}|${end.endpoint}` : null)
 export default function BufferStopForm({ t, map, project, onTrackSaved, onCommitted, edit = false }) {
   const [version, setVersion] = useState(0)
   const { tracks, candidates, marks } = useMemo(() => {
-    const tracks = loadTracks(project.id)
-    const marks = loadEndMarks(project.id)
-    const ends = classifyTrackEnds(tracks, loadSwitches(project.id), marks)
+    const tracks = loadTracks()
+    const marks = loadEndMarks()
+    const ends = classifyTrackEnds(tracks, loadSwitches(), marks)
     const candidates = edit ? ends.filter(e => e.state === BUFFER_STOP) : freeEnds(ends)
     return { tracks, candidates, marks }
     // `version` re-reads the store after a commit in place.
@@ -139,7 +139,7 @@ export default function BufferStopForm({ t, map, project, onTrackSaved, onCommit
       if (!end) return
       setPicked(end)
       if (edit) {
-        const existing = loadEndMarks(project.id).find(mk => mk.id === end.markId)
+        const existing = loadEndMarks().find(mk => mk.id === end.markId)
         if (existing) {
           setType(existing.type ?? DEFAULT_BUFFER_STOP_TYPE)
           setBrake(String(existing.brakeLength ?? 0))
@@ -181,14 +181,14 @@ export default function BufferStopForm({ t, map, project, onTrackSaved, onCommit
     const record = mark
       ? { ...mark, type, brakeLength: brakeValue }
       : newBufferStop(track.id, picked.endpoint, type, brakeValue)
-    saveEndMark(project.id, record)
+    saveEndMark(record)
     clearMap()
     finish()
   }
 
   const handleDelete = () => {
     if (!mark) return
-    deleteEndMark(project.id, mark.id)
+    deleteEndMark(mark.id)
     clearMap()
     finish()
   }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { loadTracks, updateTrack, updateProject } from '../../storage'
+import { loadTracks, updateTrack, updateProject, currentProject } from '../../storage'
 import { trackLength } from '../../utils/heightUtils'
 import { wgs84ToUTM } from '../../utils/coordinateUtils'
 import { stationFromClick } from '../../utils/platformUtils'
@@ -28,7 +28,7 @@ import ClearanceScanSection from './ClearanceScanSection'
 export default function CrossSectionPanel({ t, map, project, onTrackSaved, onShowCrossSection, crossSectionAt }) {
   const [trackId, setTrackId] = useState(null)
 
-  const tracks = loadTracks(project.id)
+  const tracks = loadTracks()
   const track  = tracks.find(tr => tr.id === trackId) ?? null
   const shown  = crossSectionAt != null && crossSectionAt.trackId === trackId
 
@@ -48,7 +48,7 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
       const feature = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })[0]
       if (!feature) return
       const { trackId: clickedId, elementIndex } = feature.properties
-      const clicked = loadTracks(project.id).find(tr => tr.id === clickedId)
+      const clicked = loadTracks().find(tr => tr.id === clickedId)
       if (!clicked) return
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], clicked.epsg)
       const station   = stationFromClick(clicked, Number(elementIndex), clickUtm)
@@ -63,7 +63,7 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
   // ── The superstructure stretches of the track ─────────────────────────────
   const writeRanges = (field, ranges) => {
     if (!track) return
-    updateTrack(project.id, { ...track, [field]: ranges.length ? ranges : undefined })
+    updateTrack({ ...track, [field]: ranges.length ? ranges : undefined })
     onTrackSaved?.()
   }
 
@@ -135,8 +135,8 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
         <span className="create-element-section">{t('cross_section_profile_section')}</span>
         <div className="form-field">
           <label>{t('cross_section_profile')}</label>
-          <select value={project.gaugeProfile ?? DEFAULT_GAUGE_PROFILE}
-            onChange={(e) => { updateProject(project.id, { gaugeProfile: e.target.value }); onTrackSaved?.() }}>
+          <select value={currentProject()?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE}
+            onChange={(e) => { updateProject({ gaugeProfile: e.target.value }); onTrackSaved?.() }}>
             {Object.entries(GAUGE_PROFILES).map(([key]) => (
               <option key={key} value={key}>{`${t(gaugeProfileLabelKey(key))} · ${LICHTRAUM_SOURCE}`}</option>
             ))}

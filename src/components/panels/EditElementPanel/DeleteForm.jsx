@@ -41,7 +41,7 @@ export default function DeleteForm({ t, map, project, onTrackSaved }) {
 
   const handleDelete = () => {
     if (selectedTrackId === null || selectedElementIndex === null || !project) return
-    deleteElement(project.id, selectedTrackId, selectedElementIndex)
+    deleteElement(selectedTrackId, selectedElementIndex)
     setSelectedTrackId(null)
     setSelectedElementIndex(null)
     if (map?.current) map.current.setFilter('tracks-selected-layer', FILTER_NONE)

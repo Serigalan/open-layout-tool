@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { loadTracks, loadPlatforms } from '../storage'
+import { loadTracks, loadPlatforms, currentProject } from '../storage'
 import { trackLength, gradientAt } from '../utils/heightUtils'
 import { utmToWgs84 } from '../utils/coordinateUtils'
 import { pointAtStation } from '../utils/platformUtils'
@@ -118,7 +118,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   const viewRef = useRef(null)
   const panRef = useRef(null)
 
-  const tracks = loadTracks(project.id)
+  const tracks = loadTracks()
   const track = tracks.find(tr => tr.id === at.trackId)
   const total = track ? Math.round(trackLength(track) * 10) / 10 : 0
   const station = track ? clamp(at.station ?? 0, 0, total) : 0
@@ -172,8 +172,8 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   }
 
   // ── What the section shows: this track and the ones beside it ─────────────
-  const allPlatforms = loadPlatforms(project.id)
-  const profile = gaugeProfile(project.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
+  const allPlatforms = loadPlatforms()
+  const profile = gaugeProfile(currentProject()?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
   const ring  = gaugeProfileRing(profile.points)
   const areas = gaugeProfileAreas(profile.einragungen)
 

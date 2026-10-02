@@ -95,7 +95,7 @@ export default function TrackTableOverlay({
 }) {
   // Keep the full track set as working state — a geometry edit propagates to
   // connected following elements/tracks, so we edit and persist all of them.
-  const [tracks, setTracks] = useState(() => loadTracks(project.id))
+  const [tracks, setTracks] = useState(() => loadTracks())
   const [draft, setDraft]   = useState(null)   // { row, key, value } – the cell being typed in
   // Row whose element the map highlights — picking a track starts on its first,
   // unless the pick itself named one (a click on the map): initialRow.
@@ -147,7 +147,7 @@ export default function TrackTableOverlay({
   const [seenVersion, setSeenVersion] = useState(storeVersion)
   if (seenVersion !== storeVersion) {
     setSeenVersion(storeVersion)
-    setTracks(loadTracks(project.id))
+    setTracks(loadTracks())
     setChanged([])
     setReached({ trackIds: [], switchIds: [] })
     setReachError(null)
@@ -185,7 +185,7 @@ export default function TrackTableOverlay({
     const picked = pickedOnMap.current
     pickedOnMap.current = null
     if (picked === activeRow) return
-    const el = loadTracks(project.id).find(tr => tr.id === track.id)?.elements?.[activeRow]
+    const el = loadTracks().find(tr => tr.id === track.id)?.elements?.[activeRow]
     const coords = el?.geometry?.coordinates
     if (!coords?.length) return
 
@@ -218,7 +218,7 @@ export default function TrackTableOverlay({
       setActiveRow(elementIndex)
       return
     }
-    const picked = loadTracks(project.id).find(tr => tr.id === trackId)
+    const picked = loadTracks().find(tr => tr.id === trackId)
     if (!picked || !onPickTrack) return
     pickedOnMap.current = elementIndex
     setPendingRow(elementIndex)
@@ -244,7 +244,7 @@ export default function TrackTableOverlay({
   // named by the record, which is where the kind and the form it was built from
   // stand. Read on each render rather than held — a name can change under an
   // open table.
-  const switchById = new Map(loadSwitches(project.id).map(sw => [sw.switchId, sw]))
+  const switchById = new Map(loadSwitches().map(sw => [sw.switchId, sw]))
 
   // Apply one cell edit. Geometry fields go through applyElementChange (which
   // recomputes coordinates/nodes/end bearing and re-chains); speed/cant are plain
@@ -267,7 +267,7 @@ export default function TrackTableOverlay({
       // first, and a change that reaches too far is refused rather than written
       // (AP 5.1). The cell falls back to the stored value on its own, since the
       // tracks it reads from are the ones that did not change.
-      const plan = planElementChange(tracks, loadSwitches(project.id), track.id, row, { [key]: value })
+      const plan = planElementChange(tracks, loadSwitches(), track.id, row, { [key]: value })
       if (plan.error) { setReachError(plan.error); return }
       setReachError(null)
       setNotice(null)
@@ -352,12 +352,12 @@ export default function TrackTableOverlay({
     // of the project, so writing it back whole would take the store with it.
     // The switches the edits reached get their symbols rebuilt in the same step
     // — they are derived from these very tracks.
-    const next = mergeElementEdits(loadTracks(project.id), tracks,
+    const next = mergeElementEdits(loadTracks(), tracks,
       { changed, reshaped: reached.trackIds })
-    commitTrackEdit(project.id, next, reached.switchIds)
+    commitTrackEdit(next, reached.switchIds)
     // Start again from what was written: the working copy is the store's again,
     // with no old field of a track left over from before it was opened.
-    setTracks(loadTracks(project.id))
+    setTracks(loadTracks())
     setChanged([])
     setNotice(null)
     setReached({ trackIds: [], switchIds: [] })

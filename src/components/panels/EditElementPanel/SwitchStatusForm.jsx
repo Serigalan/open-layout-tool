@@ -38,7 +38,7 @@ export default function SwitchStatusForm({ t, map, project, onTrackSaved, onComm
         ...m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] }),
       ].find(f => f.properties?.switchId)
       if (!hit) return
-      const sw = loadSwitches(project.id).find(s => s.switchId === hit.properties.switchId)
+      const sw = loadSwitches().find(s => s.switchId === hit.properties.switchId)
       if (!sw) return
       m.setFilter('tracks-selected-layer', filterForSwitch(sw.switchId))
       setSelected(sw)
@@ -50,11 +50,11 @@ export default function SwitchStatusForm({ t, map, project, onTrackSaved, onComm
   }, [selected, map, project.id])
 
   const derived = selected
-    ? switchStatus({ ...selected, status: null }, new Map(loadTracks(project.id).map(tr => [tr.id, tr])))
+    ? switchStatus({ ...selected, status: null }, new Map(loadTracks().map(tr => [tr.id, tr])))
     : null
 
   const handleCommit = () => {
-    updateSwitch(project.id, selected.switchId, { status: status ?? undefined })
+    updateSwitch(selected.switchId, { status: status ?? undefined })
     onTrackSaved?.()
     onCommitted?.()
   }

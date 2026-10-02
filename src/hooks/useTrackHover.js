@@ -20,7 +20,7 @@ export default function useTrackHover(map, phase, selectPhase, project, excludeS
       const feature = features.find(f => {
         if (!excludeSwitchBranch || !project) return true
         const { trackId, elementIndex } = f.properties
-        const track = loadTracks(project.id).find(t => t.id === trackId)
+        const track = loadTracks().find(t => t.id === trackId)
         const el = track?.elements?.[Number(elementIndex)]
         return !el?.switchBranch
       })

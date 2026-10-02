@@ -47,9 +47,9 @@ const gradeLabel = (perMille) => {
  */
 // `version` is passed by the parent purely to re-render this after a write to
 // the store — the profile is read from the store on every render.
-export default function ElevationOverlay({ trackId, project, map, onClose, onSaved, t }) {
-  const tracks   = loadTracks(project.id)
-  const switches = loadSwitches(project.id)
+export default function ElevationOverlay({ trackId, map, onClose, onSaved, t }) {
+  const tracks   = loadTracks()
+  const switches = loadSwitches()
   const track    = tracks.find(tr => tr.id === trackId)
 
   const [exaggeration, setExaggeration] = useState(10)
@@ -238,7 +238,7 @@ export default function ElevationOverlay({ trackId, project, map, onClose, onSav
     // Where tracks meet there is one point, whatever its index is on each of
     // them: it moves on all of them — over a switch too.
     const entries = selectedPoints.map(p => ({ trackId: track.id, index: p.index, ...patch }))
-    setHeightsForTracks(project.id, jointHeightUpdates(tracks, switches, entries))
+    setHeightsForTracks(jointHeightUpdates(tracks, switches, entries))
     onSaved?.()
   }
 
@@ -249,7 +249,7 @@ export default function ElevationOverlay({ trackId, project, map, onClose, onSav
   const remove = () => {
     if (!track || !deletable.length) return
     const drop = new Set(deletable.map(p => p.index))
-    setTrackHeights(project.id, track.id, (track.heights ?? []).filter((_, i) => !drop.has(i)))
+    setTrackHeights(track.id, (track.heights ?? []).filter((_, i) => !drop.has(i)))
     select([])
     onSaved?.()
   }
@@ -271,7 +271,7 @@ export default function ElevationOverlay({ trackId, project, map, onClose, onSav
     let state = null
     try {
       const r = await fillHeights(currentProject, { force: true, trackId, source: chosenTerrainSource() })
-      if (r.heights.size) setHeightsForTracks(project.id, r.heights)
+      if (r.heights.size) setHeightsForTracks(r.heights)
       if (!r.updated) state = 'missing'
     } catch {
       state = 'failed'

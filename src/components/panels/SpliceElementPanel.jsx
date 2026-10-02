@@ -107,7 +107,7 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
 
       const { trackId, elementIndex } = features[0].properties
       const elIdx  = Number(elementIndex)
-      const tracks = loadTracks(project.id)
+      const tracks = loadTracks()
       const track  = tracks.find(tr => tr.id === trackId)
       const el     = track?.elements?.[elIdx]
       if (!el) return
@@ -250,7 +250,7 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
     if (!arc) return
 
     const [dep, arr] = picks
-    const tracks = loadTracks(project.id)
+    const tracks = loadTracks()
     const depTrack = tracks.find(t => t.id === dep.trackId)
     const arrTrack = tracks.find(t => t.id === arr.trackId)
     if (!depTrack || !arrTrack) return
@@ -286,13 +286,13 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
         .filter(t => t.id !== dep.trackId && t.id !== arr.trackId)
         .concat(mergedTrack)
 
-      replaceAllTracks(project.id, newTracks)
+      replaceAllTracks(newTracks)
       // arrPrefix is folded in reversed, so the arrival track's BEGIN becomes
       // the merged track's END; the departure side keeps its direction.
       // The departure track is cut behind the picked element and the arrival
       // track likewise, so the two ends beyond the cut are gone — whatever
       // stood on them (a buffer stop) goes with them.
-      remapSwitchTrackIds(project.id, [
+      remapSwitchTrackIds([
         { oldId: dep.trackId, newId: mergedId },
         { oldId: arr.trackId, newId: mergedId, flip: true },
       ], { consumed: [{ trackId: dep.trackId, endpoint: 'END' }, { trackId: arr.trackId, endpoint: 'END' }] })
@@ -421,10 +421,10 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
       .filter(t => t.id !== dep.trackId && t.id !== arr.trackId)
       .concat(mergedTrack)
 
-    replaceAllTracks(project.id, newTracks)
+    replaceAllTracks(newTracks)
     // Reversed join (a corner): the arrival tail is folded in backwards, so its
     // BEGIN/END swap. Forward join (a continuation): its direction is kept.
-    remapSwitchTrackIds(project.id, [
+    remapSwitchTrackIds([
       { oldId: dep.trackId, newId: mergedId },
       { oldId: arr.trackId, newId: mergedId, flip: arc.reverseArr },
     ], { consumed: [

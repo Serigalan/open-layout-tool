@@ -92,7 +92,7 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
       ]
       const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] })
       const { trackId, elementIndex } = features[0]?.properties ?? {}
-      const track = features.length ? loadTracks(project.id).find(tr => tr.id === trackId) : null
+      const track = features.length ? loadTracks().find(tr => tr.id === trackId) : null
       const el    = track?.elements?.[Number(elementIndex)]
       // Only where one may actually go — the preview is the answer to "here?",
       // so it must not stand somewhere the commit would then refuse.
@@ -126,7 +126,7 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
       if (!features.length) return
       const { trackId, elementIndex } = features[0].properties
       const elIdx = Number(elementIndex)
-      const track  = loadTracks(project.id).find(tr => tr.id === trackId)
+      const track  = loadTracks().find(tr => tr.id === trackId)
       const el      = track?.elements?.[elIdx]
       if (!el) return
       const refusal = switchEndAnchorRefusal(track, elIdx)
@@ -197,7 +197,7 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
   const handleCommit = () => {
     setErrors([])
     if (lineNumberError || !g || !anchor) return
-    const existingNames = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
+    const existingNames = new Set(loadTracks().map(tr => tr.name).filter(Boolean))
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
     if (!switchNo.claim()) return
@@ -221,16 +221,16 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
       // The main route's first leg is the picked track's own now: appended as its
       // last element, from port A to the crossing point, so the join at the port
       // is the joint the track already had.
-      addElementToTrack(project.id, anchor.trackId, els.A)
+      addElementToTrack(anchor.trackId, els.A)
 
       const legC = tracksOf(els.C, name)
       const legB = tracksOf(els.B)
       const legD = tracksOf(els.D)
       const slipTracks = [els.slip1, els.slip2].filter(Boolean).map(el => tracksOf(el))
 
-      for (const tr of [legC, legB, legD, ...slipTracks]) saveTrack(project.id, tr)
+      for (const tr of [legC, legB, legD, ...slipTracks]) saveTrack(tr)
 
-      saveSwitch(project.id, {
+      saveSwitch({
         ...identity,
         number: switchNo.number,
         // Port A names the track the crossing is connected to: its end node is

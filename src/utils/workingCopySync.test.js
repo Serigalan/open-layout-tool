@@ -33,7 +33,7 @@ afterEach(async () => { await closeWorkingCopy() })
 describe('checking the working copy in', () => {
   it('sends the record, its base and its id log, and rests on the new revision after', async () => {
     openWorkingCopy({ variantId: 'v', project: base, base: { id: 1, number: 1 }, basePayload: base })
-    saveTrack('p', straight('t2', 50))
+    saveTrack(straight('t2', 50))
     expect(localChanges().map(e => [e.kind, e.id])).toEqual([['added', 't2']])
     const sent = serve({ 'POST /api/variants/v/revisions': [201, { revision: { id: 2, number: 2 } }] })
     const res = await checkIn('neu')
@@ -46,7 +46,7 @@ describe('checking the working copy in', () => {
 
   it('reports a stale base instead of failing, and the update merges the head in', async () => {
     openWorkingCopy({ variantId: 'v', project: base, base: { id: 1, number: 1 }, basePayload: base })
-    saveTrack('p', straight('mine', 50))
+    saveTrack(straight('mine', 50))
     const theirs = { ...base, tracks: [...base.tracks, straight('theirs', 100)] }
     serve({
       'POST /api/variants/v/revisions': [409, { error: 'stale_base', head: { id: 3 } }],

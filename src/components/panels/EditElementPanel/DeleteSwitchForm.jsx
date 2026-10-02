@@ -42,9 +42,9 @@ export default function DeleteSwitchForm({ t, map, project, onTrackSaved, onComm
       ].find(f => f.properties?.switchId)
       if (!hit) return
 
-      const sw = loadSwitches(project.id).find(s => s.switchId === hit.properties.switchId)
+      const sw = loadSwitches().find(s => s.switchId === hit.properties.switchId)
       if (!sw) return
-      const plan = planSwitchDeletion(sw, loadTracks(project.id))
+      const plan = planSwitchDeletion(sw, loadTracks())
       if (!plan) return
 
       m.setFilter('tracks-selected-layer', filterForSwitch(sw.switchId))
@@ -56,7 +56,7 @@ export default function DeleteSwitchForm({ t, map, project, onTrackSaved, onComm
   }, [selected, map, project.id])
 
   const handleDelete = () => {
-    commitSwitchDeletion(project.id, selected.plan)
+    commitSwitchDeletion(selected.plan)
     setConfirming(false)
     setSelected(null)
     map?.current?.setFilter('tracks-selected-layer', FILTER_NONE)

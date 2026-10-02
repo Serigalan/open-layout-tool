@@ -42,7 +42,7 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
       const features = m.queryRenderedFeatures(bbox, { layers: ['tracks-layer'] }).filter(f => !f.properties.switchBranch)
       if (features.length === 0) return
       const { trackId } = features[0].properties
-      const track = loadTracks(project.id).find(tr => tr.id === trackId)
+      const track = loadTracks().find(tr => tr.id === trackId)
       if (!track) return
 
       // The properties belong to the track, so the whole track is highlighted —
@@ -71,7 +71,7 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
     if (lineNumberError) return
 
     const existingNames = new Set(
-      loadTracks(project.id).filter(t => t.id !== selectedTrackId).map(t => t.name).filter(Boolean)
+      loadTracks().filter(t => t.id !== selectedTrackId).map(t => t.name).filter(Boolean)
     )
     if (name && existingNames.has(name)) {
       setNameError(true)
@@ -79,7 +79,7 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
     }
     setNameError(false)
 
-    const tracks = loadTracks(project.id)
+    const tracks = loadTracks()
     if (!tracks.some(t => t.id === selectedTrackId)) return
 
     // Only the selected track is written — the properties describe this track,
@@ -93,7 +93,7 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
       status: status === 'existing' ? undefined : status,
     })
 
-    replaceAllTracks(project.id, newTracks)
+    replaceAllTracks(newTracks)
     onTrackSaved?.()
     onCommitted?.()
   }

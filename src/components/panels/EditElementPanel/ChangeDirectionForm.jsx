@@ -41,7 +41,7 @@ export default function ChangeDirectionForm({ t, map, project, onTrackSaved, onC
 
   const handleCommit = () => {
     if (!selectedTrackId) return
-    reverseTrackDirection(project.id, selectedTrackId)
+    reverseTrackDirection(selectedTrackId)
     onTrackSaved?.()
     onCommitted?.()
   }

@@ -29,7 +29,7 @@ export default function useElementSelection(map, project, phase, setPhase, nextP
       const trackId = features[0].properties.trackId
       m.setFilter('tracks-hover-layer', FILTER_NONE)
 
-      const tracks = loadTracks(project.id)
+      const tracks = loadTracks()
       const track = tracks.find(tr => tr.id === trackId)
       if (!track || !track.elements || track.elements.length === 0) return
 

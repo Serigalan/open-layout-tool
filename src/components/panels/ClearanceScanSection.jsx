@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { listClouds } from '../../utils/pointCloud/cloudStore'
 import { scanClearance } from '../../utils/pointCloud/clearanceScan'
 import { gaugeProfile, gaugeProfileRing, gaugeProfileAreas, DEFAULT_GAUGE_PROFILE } from '../../utils/gaugeProfiles'
+import { currentProject } from '../../storage'
 
 const fill = (text, vars) => Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{{${k}}}`, v), text)
 
@@ -30,7 +31,7 @@ export default function ClearanceScanSection({ t, project, track, onShowCrossSec
     abortRef.current = ctl
     setResult(null)
     setRun({ share: 0 })
-    const profile = gaugeProfile(project.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
+    const profile = gaugeProfile(currentProject()?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
     try {
       const r = await scanClearance({
         projectId: project.id, clouds, track,

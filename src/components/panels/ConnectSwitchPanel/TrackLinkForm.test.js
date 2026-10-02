@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { saveProject } from '../../../storage'
+import { openProject } from '../../../storage'
 import { endPointStraightUtm } from '../../../utils/elementUtils'
 import {
   transformPlanePoint, transformGridBearing, utmToWgs84,
@@ -61,7 +61,7 @@ const t = (key) => translations[key] ?? key
 let projects = 0
 function render(tracks, switches = []) {
   const id = `link-p${++projects}`
-  saveProject({ id, tracks, switches })
+  openProject({ id, tracks, switches })
   const html = renderToStaticMarkup(createElement(TrackLinkForm, {
     t, map: { current: null }, project: { id },
     onTrackSaved: () => {}, onCommitted: () => {},

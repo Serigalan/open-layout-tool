@@ -166,7 +166,7 @@ export default function LineForm({ t, map, project, onTrackSaved }) {
   const handleCommit = () => {
     setErrors([])
     if (lineNumberError) return
-    const existingNames = new Set(loadTracks(project.id).map(t => t.name).filter(Boolean))
+    const existingNames = new Set(loadTracks().map(t => t.name).filter(Boolean))
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
 
@@ -174,7 +174,7 @@ export default function LineForm({ t, map, project, onTrackSaved }) {
     const v        = computeStraightValuesUtm(startUtm, endUtm)
     const startWgs = toWgs(startUtm), endWgs = toWgs(endUtm)
 
-    saveTrack(project.id, {
+    saveTrack({
       id:          generateId(),
       name,
       owner:       fields.owner,

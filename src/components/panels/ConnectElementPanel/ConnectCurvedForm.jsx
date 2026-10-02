@@ -196,7 +196,7 @@ export default function ConnectCurvedForm({ t, map, project, onTrackSaved, onCom
       const clR  = computeClothoidUtm(startPoint, bearing, transitionLength, prevRadius, r, SAGITTA_TRACK, transitionType)
       const sUtm = { easting: startPoint.easting, northing: startPoint.northing, zone: trackZone }
       const eUtm = cl.endUtm
-      addElementToTrack(project.id, selectedTrack.id, {
+      addElementToTrack(selectedTrack.id, {
         elementType:  2,
         startNode:    [sUtm.easting, sUtm.northing],
         endNode:      [eUtm.easting, eUtm.northing],
@@ -220,7 +220,7 @@ export default function ConnectCurvedForm({ t, map, project, onTrackSaved, onCom
     const arcRenderCoords = arcCoordsFromRadiusUtm(arcStartUtm, arcEndUtm, r, SAGITTA_TRACK)
     const v              = computeCurvedValuesUtm(arcStartUtm, arcEndUtm, r)
     const fallback       = [toWgs(arcStartUtm), toWgs(arcEndUtm)]
-    addElementToTrack(project.id, selectedTrack.id, {
+    addElementToTrack(selectedTrack.id, {
       elementType:  1,
       startNode:    v.startNode,
       endNode:      v.endNode,

@@ -71,16 +71,16 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     kilometrage: true,
   })
   const [background, setBackground] = useState('none')
-  const [header, setHeader] = useState(() => normalizeHeader(loadPlanHeader(project.id)))
+  const [header, setHeader] = useState(() => normalizeHeader(loadPlanHeader()))
   const blockStyle = header.style
   const [busy, setBusy]     = useState(false)
   const [status, setStatus] = useState(null)   // { msg, error }
 
-  const tracks = loadTracks(project.id)
+  const tracks = loadTracks()
   // What the kilometrage of a main point is read off. Fetched in the
   // background when a track names a line (see kmLineSource), so it can
   // legitimately be missing — the plan then simply states no kilometrage.
-  const kmLines = loadKmLines(project.id)
+  const kmLines = loadKmLines()
   const namedTracks = tracks.filter(tr => (tr.elements ?? []).length > 0)
   // The header is project metadata; typing in it saves once the typing pauses
   // rather than writing the whole project on every key.
@@ -90,7 +90,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     clearTimeout(saveTimer.current)
     saveTimer.current = null
     if (!pendingHeader.current) return
-    const ok = savePlanHeader(project.id, pendingHeader.current)
+    const ok = savePlanHeader(pendingHeader.current)
     pendingHeader.current = null
     if (!ok) setStatus({ msg: t('plan_logo_failed'), error: true })
   }
@@ -150,9 +150,9 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     const zone = current.find(tr => tr.epsg)?.epsg ?? null
     const plan = buildSchematicPlan({
       tracks: current,
-      switches: loadSwitches(project.id),
-      platforms: loadPlatforms(project.id),
-      kmLines: loadKmLines(project.id),
+      switches: loadSwitches(),
+      platforms: loadPlatforms(),
+      kmLines: loadKmLines(),
       leadTrackId: leadTrackId || null,
       paperKey,
       scaleDen: SCHEMATIC_SCALES[schematicScaleKey],
@@ -176,7 +176,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
   /** Layout → model, optionally with a basemap fetched for every sheet. */
   const assemble = async (backgroundKey) => {
     const backdrop = BACKGROUNDS.find(b => b.key === backgroundKey) ?? BACKGROUNDS[0]
-    const current = loadTracks(project.id)
+    const current = loadTracks()
     if (!current.length) {
       setStatus({ msg: t('plan_no_tracks'), error: true })
       return null
@@ -212,9 +212,9 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
     const heightEpsg = current.find(tr => tr.heightEpsg)?.heightEpsg
     const plan = buildPlan({
       tracks: current,
-      switches: loadSwitches(project.id),
-      kmLines: loadKmLines(project.id),
-      endMarks: loadEndMarks(project.id),
+      switches: loadSwitches(),
+      kmLines: loadKmLines(),
+      endMarks: loadEndMarks(),
       sheets: layout.sheets,
       paperKey, scaleDen, show, basemaps, reserve,
       basemapOpacity: backdrop.opacity ?? 0.4,

@@ -79,7 +79,7 @@ export default function ProviImportSection({ t, map, project, onReport, onTrackS
         const built = buildProviTracks(files, names, { fallbackFrame: frame })
         const placeable = proviPlaceableUnits(built.units, built.axes)
         const placed = placeMdbSwitches({ points: [] }, built.tracks, placeable.units, {
-          newId: generateId, existingSwitches: loadSwitches(project.id),
+          newId: generateId, existingSwitches: loadSwitches(),
           tracksFor: proviSwitchCandidates, project: proviProject,
         })
         // Heights last: the switches have cut the tracks, and each piece takes
@@ -87,7 +87,7 @@ export default function ProviImportSection({ t, map, project, onReport, onTrackS
         const withHeights = proviHeights(placed.tracks, built.axes)
         const lines = [...built.errors, ...placeable.errors, ...placed.errors, ...withHeights.errors]
 
-        const taken = new Set(loadTracks(project.id).map(tr => tr.name).filter(Boolean))
+        const taken = new Set(loadTracks().map(tr => tr.name).filter(Boolean))
         const addTracks = withHeights.tracks.map((tr) => {
           const elements = recalcAbsLengths(tr.elements)
           const name = !tr.name || taken.has(tr.name)
@@ -114,7 +114,7 @@ export default function ProviImportSection({ t, map, project, onReport, onTrackS
         setNotes(readableLines)
         onReport?.(`ProVI · ${fileName}`, { tracks: addTracks.length, switches: placed.switches.length }, readableLines)
         if (addTracks.length) {
-          commitSwitchConnection(project.id, {
+          commitSwitchConnection({
             removeTrackIds: [], addTracks, addSwitches: [...placed.switches, ...links], remap: [],
           })
           onTrackSaved?.()

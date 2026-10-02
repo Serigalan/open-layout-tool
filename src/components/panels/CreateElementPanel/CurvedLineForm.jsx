@@ -179,7 +179,7 @@ export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
   const handleCommit = () => {
     setErrors([])
     if (lineNumberError) return
-    const existingNames = new Set(loadTracks(project.id).map(t => t.name).filter(Boolean))
+    const existingNames = new Set(loadTracks().map(t => t.name).filter(Boolean))
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
 
@@ -188,7 +188,7 @@ export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
     const renderCoords  = arcCoordsFromRadiusUtm(startPoint, endPoint, r, SAGITTA_TRACK)   || [toWgs(startPoint), toWgs(endPoint)]
     const elementCoords = arcCoordsFromRadiusUtm(startPoint, endPoint, r, SAGITTA_ELEMENT) || [toWgs(startPoint), toWgs(endPoint)]
 
-    saveTrack(project.id, {
+    saveTrack({
       id:          generateId(),
       name,
       owner:       fields.owner,

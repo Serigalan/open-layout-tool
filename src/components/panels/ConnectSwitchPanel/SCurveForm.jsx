@@ -301,7 +301,7 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
 
       const { trackId, elementIndex } = features[0].properties
       const elIdx  = Number(elementIndex)
-      const track  = loadTracks(project.id).find(tr => tr.id === trackId)
+      const track  = loadTracks().find(tr => tr.id === trackId)
       const el     = track?.elements?.[elIdx]
       if (!el) return
 
@@ -399,7 +399,7 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
     if (!res || !res.valid) return
 
     const [g1, g2] = picks
-    const tracks = loadTracks(project.id)
+    const tracks = loadTracks()
     const t1 = tracks.find(tr => tr.id === g1?.trackId)
     const t2 = tracks.find(tr => tr.id === g2?.trackId)
     if (!t1 || !t2 || t1.id === t2.id) return   // needs two distinct line tracks
@@ -423,7 +423,7 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
     const s2 = splitElementAt(t2, g2.elIdx, toPlane(res.TP2, t2.epsg), b2Track, existingNames)
 
     // Two junction switches at S1 and S2.
-    const existing = loadSwitches(project.id)
+    const existing = loadSwitches()
     const no1 = nextSwitchNumber(existing)
     const no2 = nextSwitchNumber(existing, [no1])
     // The identity each record shares with the elements of its two routes: the
@@ -480,7 +480,7 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
       return
     }
 
-    commitSwitchConnection(project.id, {
+    commitSwitchConnection({
       removeTrackIds: [t1.id, t2.id],
       addTracks:      [...s1Tracks, ...s2Tracks, connTrack],
       addSwitches:    [j1.record, j2.record],

@@ -39,9 +39,9 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
   const [confirmDelete, setConfirmDelete] = useState(null)   // { trackIds, message }
   const data = useMemo(() => {
     if (!project && !source) return null
-    const tracks = source ? source.tracks : loadTracks(project.id)
-    const switches = source ? source.switches : loadSwitches(project.id)
-    const graph = buildTopologyGraph(tracks, switches, source ? source.endMarks : loadEndMarks(project.id))
+    const tracks = source ? source.tracks : loadTracks()
+    const switches = source ? source.switches : loadSwitches()
+    const graph = buildTopologyGraph(tracks, switches, source ? source.endMarks : loadEndMarks())
     const { clusters, loose } = topologyClusters(graph)
     return {
       tracks,
@@ -71,9 +71,9 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
   const selectedTrack = selection?.kind === 'track' && !readOnly
     ? data.tracks.find(tr => tr.id === selection.id) ?? null
     : null
-  const goingWith = selectedTrack ? switchesOnTrack(project.id, selectedTrack.id).map(sw => sw.name ?? '?') : []
+  const goingWith = selectedTrack ? switchesOnTrack(selectedTrack.id).map(sw => sw.name ?? '?') : []
   const removeTrack = (trackId) => {
-    deleteTrack(project.id, trackId)
+    deleteTrack(trackId)
     onDeleted?.()
   }
   const askNetwork = (n, cluster) => setConfirmDelete({
@@ -89,7 +89,7 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
     message: fill('topology_delete_loose_confirm', { n: data.loose.length }),
   })
   const removeConfirmed = () => {
-    deleteTracks(project.id, confirmDelete.trackIds)
+    deleteTracks(confirmDelete.trackIds)
     setConfirmDelete(null)
     onDeleted?.()
   }

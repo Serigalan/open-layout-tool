@@ -88,8 +88,8 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
     resetCursor: true,
   })
 
-  const tracks    = loadTracks(project.id)
-  const platforms = loadPlatforms(project.id)
+  const tracks    = loadTracks()
+  const platforms = loadPlatforms()
   const track     = trackId ? tracks.find(tr => tr.id === trackId) : null
   const total     = track ? trackLength(track) : 0
 
@@ -108,7 +108,7 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
         .filter(f => !f.properties.switchBranch)
       if (!features.length) return
       const id = features[0].properties.trackId
-      if (!loadTracks(project.id).some(tr => tr.id === id)) return
+      if (!loadTracks().some(tr => tr.id === id)) return
       m.setFilter('tracks-selected-layer', filterForTrack(id))
       setTrackId(id)
       setPhase('edit')
@@ -217,15 +217,15 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
     // The polygon rides along in memory so the map can draw it right away; it is
     // stripped on persist and rebuilt from the stations on load.
     const record = { id: editingId ?? generateId(), ...draft, coords: ring }
-    if (editingId) updatePlatform(project.id, record)
-    else           savePlatform(project.id, record)
+    if (editingId) updatePlatform(record)
+    else           savePlatform(record)
     onTrackSaved?.()
     reset()
   }
 
   const handleDelete = () => {
     if (!editingId) return
-    deletePlatform(project.id, editingId)
+    deletePlatform(editingId)
     onTrackSaved?.()
     reset()
   }

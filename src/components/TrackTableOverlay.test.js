@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { saveProject } from '../storage'
+import { openProject } from '../storage'
 import translations from '../locales/de.json'
 import TrackTableOverlay from './TrackTableOverlay'
 
@@ -46,13 +46,13 @@ const t = (key) => translations[key] ?? key
 
 /**
  * The table's columns, and its rows as one { text, editable, note } per cell.
- * Each render gets a project of its own — saveProject appends, so a second one
+ * Each render gets a project of its own — openProject appends, so a second one
  * under the same id would leave the first standing in front of it.
  */
 let projects = 0
 function renderTable(track = TRACK) {
   const id = `p${++projects}`
-  saveProject({ id, tracks: [track], switches: [SWITCH] })
+  openProject({ id, tracks: [track], switches: [SWITCH] })
   const html = renderToStaticMarkup(createElement(TrackTableOverlay, {
     track, project: { id }, map: { current: null }, t,
     onPickTrack: () => {}, onClose: () => {}, onSaved: () => {},

@@ -22,14 +22,14 @@ const JOINT_ZOOM = 17
  * them. The MDB import therefore writes them itself (DataExchangePanel); what
  * is left open here is what it could not decide.
  */
-export default function TrackLinkForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function TrackLinkForm({ t, map, onTrackSaved, onCommitted }) {
   const [crsOnly, setCrsOnly] = useState(false)
   const [created, setCreated] = useState(0)
   // Read once when the form opens, and again after a commit: the links just
   // written claim their ends, so they move from the open list to the other one.
   const read = () => {
-    const tracks = loadTracks(project.id)
-    const switches = loadSwitches(project.id)
+    const tracks = loadTracks()
+    const switches = loadSwitches()
     return { ...findTrackJoints(tracks, switches), links: existingLinks(switches, tracks) }
   }
   const [{ joints, fanned, links }, setState] = useState(read)
@@ -72,13 +72,13 @@ export default function TrackLinkForm({ t, map, project, onTrackSaved, onCommitt
 
   const handleCreate = () => {
     if (!open.length) return
-    const tracks = loadTracks(project.id)
+    const tracks = loadTracks()
     const records = linksForJoints(open,
       Object.fromEntries(tracks.map(tr => [tr.id, tr])),
-      loadSwitches(project.id).map(sw => sw.name).filter(Boolean))
+      loadSwitches().map(sw => sw.name).filter(Boolean))
     // One commit, one undo step — a whole system boundary is dozens of nodes,
     // and saving them one at a time would leave as many steps behind.
-    commitSwitchConnection(project.id, {
+    commitSwitchConnection({
       removeTrackIds: [], addTracks: [], addSwitches: records, remap: [],
     })
     setCreated(records.length)

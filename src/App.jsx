@@ -6,7 +6,7 @@ import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
 import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from './utils/mapConstants'
 import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
-import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, canUndo, undo, loadProjects, closeWorkingCopy, currentWorkingCopy, flushPendingWrites, saveKmLine, deleteKmLine } from './storage'
+import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, canUndo, undo, currentProject, closeWorkingCopy, currentWorkingCopy, flushPendingWrites, saveKmLine, deleteKmLine } from './storage'
 import { loadSettings, saveSettings } from './utils/settings'
 import { api, setUnauthorizedHandler } from './api/client'
 import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, serverHead } from './utils/workingCopySync'
@@ -98,12 +98,12 @@ function switchElementLabel(tr, el) {
 
 function renderTracksOnMap(map, project, { fit = false, topology = false } = {}) {
   if (!map || !project) return
-  const tracks = loadTracks(project.id)
+  const tracks = loadTracks()
   // Labels are language-dependent and this runs outside the component tree, so
   // the language comes from the settings the app writes it to.
   const lang = loadSettings().language ?? 'en'
   const tr = (key) => translations[lang]?.[key] ?? key
-  const switches = loadSwitches(project.id)
+  const switches = loadSwitches()
   // The switch an element belongs to, so its radius label knows which side of
   // its own line the turnout body fills and can go to the other one. Keyed by
   // id; a record still carrying only a name is reachable under that, which is
@@ -202,7 +202,7 @@ function renderTracksOnMap(map, project, { fit = false, topology = false } = {})
   // whose track is gone carries no polygon and is left out.
   const platformGeoJSON = {
     type: 'FeatureCollection',
-    features: loadPlatforms(project.id)
+    features: loadPlatforms()
       .filter(p => (p.coords?.length ?? 0) > 3)
       .map(p => ({
         type: 'Feature',
@@ -214,7 +214,7 @@ function renderTracksOnMap(map, project, { fit = false, topology = false } = {})
   // Buffer stops stand on track ends (trackEndMarks): face and body solid and
   // heavier than the track, the brake length behind them dashed — white gaps
   // laid over the track line, which is already drawn there.
-  const bufferStopGeoJSON = { type: 'FeatureCollection', features: bufferStopFeatures(tracks, loadEndMarks(project.id)) }
+  const bufferStopGeoJSON = { type: 'FeatureCollection', features: bufferStopFeatures(tracks, loadEndMarks()) }
 
   if (map.getSource('tracks-source')) {
     map.getSource('tracks-source').setData(lineGeoJSON)
@@ -322,7 +322,7 @@ function renderTracksOnMap(map, project, { fit = false, topology = false } = {})
   // The topology view shows the connections and nothing else (AP 9.3): no
   // labels, and its own layers in place of the detailed ones.
   if (topology) clearTrackLabels()
-  showTopology(map, { on: topology, tracks, switches, endMarks: loadEndMarks(project.id), color: getColor() })
+  showTopology(map, { on: topology, tracks, switches, endMarks: loadEndMarks(), color: getColor() })
 
   updateLabels(map)
   map.once('idle', () => updateLabels(map))
@@ -465,7 +465,7 @@ export default function App() {
   // diagram): a switch with the tracks it connects, a track with the switches
   // it runs into, highlighted.
   useEffect(() => {
-    const switches = projectRef.current ? loadSwitches(projectRef.current.id) : []
+    const switches = projectRef.current ? loadSwitches() : []
     highlightTopology(map.current, selectionHighlight(topologySelection, switches))
   }, [topologySelection])
 
@@ -475,8 +475,8 @@ export default function App() {
     setTopologySelection(selection)
     const p = projectRef.current
     if (!selection || !p) return
-    const { trackIds } = selectionHighlight(selection, loadSwitches(p.id))
-    zoomToTopologyTracks(map.current, loadTracks(p.id).filter(tr => trackIds.includes(tr.id)))
+    const { trackIds } = selectionHighlight(selection, loadSwitches())
+    zoomToTopologyTracks(map.current, loadTracks().filter(tr => trackIds.includes(tr.id)))
   }, [])
 
   // setStyle throws the whole style away, so the overlays have to be put back
@@ -624,16 +624,19 @@ export default function App() {
   // The kilometrage lines the tracks name are fetched the same way: in the
   // background, after every change and once on opening. Nothing on screen
   // waits for them — they are read when a plan is drawn.
-  const syncKmLines = useCallback((projectId) => {
-    ensureKmLines(loadProjects().find(p => p.id === projectId))
+  const syncKmLines = useCallback(() => {
+    const asked = currentProject()
+    ensureKmLines(asked)
       .then(({ save, remove, errors }) => {
-        for (const lineNumber of remove) deleteKmLine(projectId, lineNumber)
-        for (const line of save) saveKmLine(projectId, line)
+        // Another project may have been opened while the lines were fetched.
+        if (currentProject()?.id !== asked?.id) return
+        for (const lineNumber of remove) deleteKmLine(lineNumber)
+        for (const line of save) saveKmLine(line)
         if (errors.length) console.warn('[App] Kilometrage lines unavailable:', errors)
       })
       .catch(err => console.warn('[App] Kilometrage lines:', err))
   }, [])
-  useEffect(() => { if (project) syncKmLines(project.id) }, [project, syncKmLines])
+  useEffect(() => { if (project) syncKmLines() }, [project, syncKmLines])
 
   // Element and switch labels are language-dependent, so a language change has
   // to redraw them.
@@ -667,7 +670,7 @@ export default function App() {
 
   /** The store was replaced under the app (a merge adopted): read it again. */
   const reloadFromStore = useCallback(() => {
-    const p = loadProjects()[0] ?? null
+    const p = currentProject()
     projectRef.current = p
     setProject(p)
     setUndoAvailable(canUndo())

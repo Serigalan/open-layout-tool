@@ -31,7 +31,7 @@ export default function useTrackName(projectId, fields, { geometry = null, setFi
   const [typed, setTyped] = useState(null)
   // Names already taken in the project — read when the form mounts, and again
   // on reset, which is when a commit has just added one.
-  const [taken, setTaken] = useState(() => loadTracks(projectId).map(tr => tr.name))
+  const [taken, setTaken] = useState(() => loadTracks().map(tr => tr.name))
   const station = useLineStation(fields, geometry, setField)
   const others = alsoTaken.filter(Boolean).join('\n')
   const suggested = useMemo(() => {
@@ -43,6 +43,6 @@ export default function useTrackName(projectId, fields, { geometry = null, setFi
   return {
     name: typed ?? suggested,
     setName: setTyped,
-    reset: () => { setTyped(null); setTaken(loadTracks(projectId).map(tr => tr.name)) },
+    reset: () => { setTyped(null); setTaken(loadTracks().map(tr => tr.name)) },
   }
 }

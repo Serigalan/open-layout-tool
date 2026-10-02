@@ -20,7 +20,7 @@ const END_ZOOM = 17
 export default function TopologyEndsList({ t, map, project, onTrackSaved, version }) {
   const { open, boundaries } = useMemo(() => {
     if (!project) return { open: [], boundaries: [] }
-    const ends = classifyTrackEnds(loadTracks(project.id), loadSwitches(project.id), loadEndMarks(project.id))
+    const ends = classifyTrackEnds(loadTracks(), loadSwitches(), loadEndMarks())
     return {
       open: ends.filter(e => isOpenState(e.state)),
       boundaries: ends.filter(e => e.state === BOUNDARY),
@@ -42,13 +42,13 @@ export default function TopologyEndsList({ t, map, project, onTrackSaved, versio
   }
 
   const markBoundary = (end) => {
-    saveEndMark(project.id, newBoundary(end.trackId, end.endpoint))
+    saveEndMark(newBoundary(end.trackId, end.endpoint))
     onTrackSaved?.()
   }
 
   const liftBoundary = (end) => {
     if (!end.markId) return
-    deleteEndMark(project.id, end.markId)
+    deleteEndMark(end.markId)
     onTrackSaved?.()
   }
 

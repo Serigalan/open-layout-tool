@@ -43,7 +43,7 @@ export default function AssignTracksForm({ t, map, project, onTrackSaved, onComm
   const [kmLookup, setKmLookup] = useState({ key: null, km: {} })
   const lineOptions = useNearbyLines(map)
 
-  const tracks = loadTracks(project.id)
+  const tracks = loadTracks()
   const groups = groupTracks(tracks)
   const existing = groups.filter(g => g.kind === kind)
   // An existing line or station that has since gone (its last track moved
@@ -110,7 +110,7 @@ export default function AssignTracksForm({ t, map, project, onTrackSaved, onComm
     if (!kmLine || !selectedKey) return
     let live = true
     const timer = setTimeout(() => {
-      const all = loadTracks(project.id)
+      const all = loadTracks()
       Promise.all(selectedKey.split('|').map(async (id) => {
         const track = all.find(tr => tr.id === id)
         const geometry = track ? elementsPath(track.elements, track.epsg) : null
@@ -144,7 +144,7 @@ export default function AssignTracksForm({ t, map, project, onTrackSaved, onComm
     }
     if (renaming && !plan) return
     if (plan?.clashes.size) { setError('assign_error_name_clash'); return }
-    replaceAllTracks(project.id, assignTracks(tracks, ids, to, {
+    replaceAllTracks(assignTracks(tracks, ids, to, {
       names: plan?.names ?? null,
       // The numbers a station track's name was built from are its own now.
       trackNumbers: renaming && to.kind === 'station' ? numberById : null,
