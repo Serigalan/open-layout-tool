@@ -59,6 +59,8 @@ import { isProjectUndo } from './utils/keyboard'
 
 // How often the open app asks whether the server has moved on [ms].
 const SERVER_POLL = 2 * 60 * 1000
+// How long the writes have to rest before the local changes are counted [ms].
+const CHANGES_SETTLE = 400
 
 // Basemaps whose colours mean elevation, and which therefore get a legend.
 const ELEVATION_BASEMAPS = new Set(['elevation', 'dgm5'])
@@ -522,9 +524,13 @@ export default function App() {
       .catch(() => setSession({ status: 'anon', user: null }))
   }, [])
 
-  // The working copy's own changes, after every write and undo.
+  // The working copy's own changes, once the writes have come to rest: the
+  // diff runs over the whole project, so a burst of writes (a drag, an
+  // import) is counted once at its end rather than after every step (R1.6).
   useEffect(() => {
-    setWcChanges(wc ? localChanges() : [])
+    if (!wc) { setWcChanges([]); return undefined }
+    const timer = setTimeout(() => setWcChanges(localChanges()), CHANGES_SETTLE)
+    return () => clearTimeout(timer)
   }, [wc, project])
 
   // Whether the server has moved on: on opening, every few minutes, and when

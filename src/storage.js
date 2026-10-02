@@ -275,9 +275,20 @@ function persist() {
   scheduleFlush()
 }
 
+// Writing behind dehydrates the whole project, so a burst of writes is
+// written once, when it has come to rest. Leaving the page flushes at once
+// (registerLifecycleFlush), as does closing the working copy.
+const FLUSH_DELAY = 300   // ms
+const FLUSH_MAX_WAIT = 2000   // …but a burst that never rests is written this often
+let _flushPendingSince = 0
+
 function scheduleFlush() {
-  if (_backend !== 'idb' || _flushTimer) return
-  _flushTimer = setTimeout(() => flushPendingWrites(), 0)
+  if (_backend !== 'idb') return
+  const now = Date.now()
+  if (_flushTimer) clearTimeout(_flushTimer)
+  else _flushPendingSince = now
+  const wait = now - _flushPendingSince >= FLUSH_MAX_WAIT ? 0 : FLUSH_DELAY
+  _flushTimer = setTimeout(() => flushPendingWrites(), wait)
 }
 
 /** Start writing the working copy to IndexedDB; resolves when done. */
