@@ -7,15 +7,12 @@ import {
   switchArcLength, switchStraightLength, switchBranchLength, branchRadius,
   SWITCH_CONNECTION_STAGES,
 } from './switchUtils'
-import {
-  arcCoordsFromRadiusUtm, computeCurvedValuesUtm, endPointCurvedUtm, endPointStraightUtm,
-} from './elementUtils'
+import { arcCoordsFromRadiusUtm, computeCurvedValuesUtm, endPointCurvedUtm } from './elementUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
-import { newSwitchFields, switchElementMark } from './switchModel'
-import { splitElementAt, carveSwitchRoute } from './trackSplitUtils'
 import { planSwitchDeletion } from './switchDelete'
 import { recalcAbsLengths } from './trackModel'
 import { expectValidTrack, expectSwitchRoutesCarved } from '../test/chainInvariants'
+import { buildSCurve } from './commands/sCurve'
 
 /**
  * AP 2.1 — the switch connection in a curve.
@@ -331,57 +328,12 @@ describe('committing a connection in a curve', () => {
     return stem(start, el.bearing, el.radius, el.cant, { length: el.length, along })
   }
 
-  /** What SCurveForm.handleCommit builds, without the store or React. */
+  /** What SCurveForm commits — buildSCurve, the function its commit calls (R4.2). */
   const commit = (t1, t2, res) => {
-    const names = new Set([t1.name, t2.name])
-    const id1 = { ...newSwitchFields(), name: 'W 1', label: res.switchType.label }
-    const id2 = { ...newSwitchFields(), name: 'W 2', label: res.switchType.label }
-
-    const s1 = splitElementAt(t1, 0, res.TP1, res.bearing1, names)
-    const s2 = splitElementAt(t2, 0, res.TP2, res.bearing2, names)
-    const carve = (split, cut, mark) => {
-      const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, cut, mark, res.throughLength,
-        { accepts: (el) => el.elementType !== 2 })
-      expect(carved, 'the through route carves').not.toBeNull()
-      return split.tracks.map(tr => (tr.id === carved.id ? carved : tr))
-    }
-    // The switch end of each through route: the turnout's own through length
-    // laid on the curvature of the track it sits in — what buildJunctionSwitch
-    // reads off computeSwitchGeometryUtm as `straightUtm`. Turnout 2 opens
-    // against the connection, so its stem turns the other way under it.
-    const alongStem = (p, bearing, len, R) => (R
-      ? endPointCurvedUtm(p, bearing, len, R)
-      : endPointStraightUtm(p, bearing, len))
-    const end1 = alongStem(res.TP1, res.bearing1, res.throughLength, res.stemR1)
-    const end2 = alongStem(res.TP2, res.bearing2, res.throughLength,
-      res.stemR2 == null ? null : -res.stemR2)
-
-    const { branch1, midEl, branch2 } = buildConnectionElements(res, SPEED)
-    const connElements = recalcAbsLengths([
-      ...branch1.map(el => ({ ...el, ...switchElementMark(id1, 'branch') })),
-      midEl,
-      ...branch2.map(el => ({ ...el, ...switchElementMark(id2, 'branch') })),
-    ])
-    const connTrack = { id: 'conn', name: 'connection.001', epsg: EPSG, elements: connElements }
-
-    const tracks = [
-      ...carve(s1, end1, switchElementMark(id1, 'main')),
-      ...carve(s2, end2, switchElementMark(id2, 'main')),
-      connTrack,
-    ]
-    const sw1 = {
-      ...id1, speed: SPEED, trailing: false,
-      portA_trackId: s1.behind.id, portA_endpoint: s1.behindEndpoint,
-      portB1_trackId: connTrack.id, portB1_endpoint: 'BEGIN',
-      portB2_trackId: s1.ahead.id, portB2_endpoint: s1.aheadEndpoint,
-    }
-    const sw2 = {
-      ...id2, speed: SPEED, trailing: false,
-      portA_trackId: s2.behind.id, portA_endpoint: s2.behindEndpoint,
-      portB1_trackId: connTrack.id, portB1_endpoint: 'END',
-      portB2_trackId: s2.ahead.id, portB2_endpoint: s2.aheadEndpoint,
-    }
-    return { tracks, switches: [sw1, sw2] }
+    const picks = [t1, t2].map(t => ({ ...pickAt(t, 150), trackId: t.id, elIdx: 0, zone: EPSG }))
+    const c = buildSCurve({ result: res, picks, tracks: [t1, t2], switches: [], speed: SPEED })
+    expect(c?.carveError, 'the through routes carve').toBeUndefined()
+    return { tracks: c.addTracks, switches: c.addSwitches, conn: c.addTracks[c.addTracks.length - 1] }
   }
 
   it('gives four half-tracks and a connection that all hold together', () => {
@@ -407,8 +359,7 @@ describe('committing a connection in a curve', () => {
     const t1 = arcTrack('t1', 'line.001', ORIGIN, 0, R1, 600, CANT)
     const t2 = arcTrack('t2', 'line.002', P(ORIGIN.easting - GAP, ORIGIN.northing), 0, R2, 600, CANT)
     const res = solveSwitchConnection(pickAt(t1, 150), pickAt(t2, 150), SPEED)
-    const { tracks } = commit(t1, t2, res)
-    const conn = tracks.find(tr => tr.id === 'conn')
+    const { conn } = commit(t1, t2, res)
     const first = conn.elements[0], last = conn.elements[conn.elements.length - 1]
     expect(distTo(P(first.startNode[0], first.startNode[1]), CENTRE)).toBeCloseTo(R1, 5)
     expect(distTo(P(last.endNode[0], last.endNode[1]), CENTRE)).toBeCloseTo(R2, 5)
