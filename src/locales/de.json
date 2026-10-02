@@ -56,7 +56,7 @@
   "layers_overlays": "Overlays",
   "overlay_km_lines": "DB-Kilometrierung",
   "overlay_km_lines_other": "DB-Kilometrierung (nicht im DB-Netz)",
-  "overlay_km_lines_missing": "Kacheldatei nicht gefunden \u2013 data/km_linie.pmtiles fehlt auf dem Server.",
+  "overlay_km_lines_missing": "Kacheldatei nicht gefunden – data/km_linie.pmtiles fehlt auf dem Server.",
   "km_line_short": "Str",
   "km_not_db": "nicht im DB-Netz",
   "basemap_liberty": "Liberty",
@@ -636,7 +636,7 @@
   "plan_overlap": "Überlappung (m)",
   "plan_content": "Planinhalt",
   "plan_show_km": "Kilometrierung",
-  "plan_km_missing": "Keine Kilometrierungslinie im Projekt \u2013 dem Gleis eine Streckennummer geben, dann wird sie geladen.",
+  "plan_km_missing": "Keine Kilometrierungslinie im Projekt – dem Gleis eine Streckennummer geben, dann wird sie geladen.",
   "plan_show_main": "Hauptpunkte",
   "plan_show_labels": "Elementbeschriftung",
   "plan_show_switches": "Weichen",
@@ -659,7 +659,7 @@
   "tooltip_elevation": "Höhenprofil",
   "elevation_title": "Höhenprofil",
   "cross_section_title": "Querprofil",
-  "cross_section_show": "Querprofil anzeigen",
+  "cross_section_show": "Querschnitt zeigen",
   "cross_section_hint": "Wähle ein Gleis aus der Liste oder klicke es auf der Karte an – im Overlay scrubst du mit dem Slider entlang des Gleises.",
   "cross_section_station": "Station",
   "cross_section_step_back": "Einen Meter zurück",
@@ -685,7 +685,6 @@
   "cross_section_terrain_loading": "Gelände wird geladen …",
   "cross_section_terrain_none": "Gelände: keine Höhendaten an dieser Stelle",
   "cross_section_terrain_no_height": "Gelände nicht darstellbar: kein Gleis im Schnitt hat eine Höhe",
-  "cross_section_show": "Querschnitt zeigen",
   "platform_title": "Bahnsteige",
   "platform_cross_section": "Bahnsteige & Querprofile",
   "platform_new": "Neuen Bahnsteig anlegen",
@@ -1146,5 +1145,6 @@
   "clearance_scan_start": "Gleis prüfen",
   "clearance_scan_none": "Kein Eingriff in den Lichtraum ({{n}} Stationen geprüft).",
   "clearance_scan_found": "Eingriffe in den Lichtraum an {{n}} Stellen:",
-  "clearance_scan_row": "{{n}} Punkte, bis {{mm}} mm"
+  "clearance_scan_row": "{{n}} Punkte, bis {{mm}} mm",
+  "optimizer_catalog_drift": "Der Optimierdienst rechnet mit anderen Regelwerksdateien als diese App. Ergebnisse und angezeigte Grenzwerte können voneinander abweichen — bitte den Dienst neu ausrollen."
 }

@@ -8,7 +8,9 @@
                           the Länder's DGM1, null where none has the point
     GET  /health          so the panel can say "no server" before the user clicks
     GET  /regelwerke      the rule catalogues a run may be held to: id, name and
-                          the catalogue's own version
+                          the catalogue's own version, plus `catalogHash` over
+                          every catalogue file the service reads (the app
+                          compares it with its own bundled copies)
     GET  /regelwerke/<id> what a run is held to under that catalogue, per level
                           (Regelwert, Ermessensgrenze) — the numbers the service
                           really computes with, so a service deployed from an
@@ -32,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from .api import optimize_payload, variants_for
 from .grenzen import DEFAULT_STUFE, STUFEN, grenzen_for
 from .mdb import MdbError, convert as mdb_convert
-from .regelwerk import DEFAULT_REGELWERK_ID, list_regelwerke
+from .regelwerk import DEFAULT_REGELWERK_ID, catalog_hash, list_regelwerke
 from .terrain import sample as terrain_sample, to_lnglat
 
 HOST = os.environ.get("OLT_OPTIMIZER_HOST", "127.0.0.1")
@@ -217,7 +219,7 @@ class Handler(BaseHTTPRequestHandler):
         if route in ("/health", ""):
             self._respond(200, {"status": "ok"})
         elif route == "/regelwerke":
-            self._respond(200, {"regelwerke": list_regelwerke()})
+            self._respond(200, {"regelwerke": list_regelwerke(), "catalogHash": catalog_hash()})
         elif route.startswith("/regelwerke/"):
             rw_id = route[len("/regelwerke/"):]
             listed = next((rw for rw in list_regelwerke() if rw["id"] == rw_id), None)

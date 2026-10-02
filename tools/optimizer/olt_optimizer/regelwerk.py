@@ -19,6 +19,7 @@ A regelwerk id is untrusted input once it comes from a request;
 the argument directly, so it cannot be pointed outside the directory.
 """
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -41,6 +42,19 @@ def _catalogues():
         if isinstance(data.get("catalog"), dict) and isinstance(data.get("rules"), list):
             found[data["catalog"]["id"]] = path
     return found
+
+
+def catalog_hash():
+    """SHA-256 over every catalogue file the package ships, in name order:
+    for each file its name, a NUL, its bytes, a NUL. The app hashes its own
+    bundled copies the same way (src/utils/catalogHash.js) and says so when
+    the two differ — then the service is running against other rules than the
+    app shows."""
+    digest = hashlib.sha256()
+    for path in sorted(CONSTRAINTS_DIR.glob("*.json"), key=lambda p: p.name):
+        digest.update(path.name.encode("utf-8") + b"\0")
+        digest.update(path.read_bytes() + b"\0")
+    return digest.hexdigest()
 
 
 def list_regelwerke():

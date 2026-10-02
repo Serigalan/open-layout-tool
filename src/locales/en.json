@@ -56,7 +56,7 @@
   "layers_overlays": "Overlays",
   "overlay_km_lines": "DB kilometrage",
   "overlay_km_lines_other": "DB kilometrage (not in DB network)",
-  "overlay_km_lines_missing": "Tile archive not found \u2013 data/km_linie.pmtiles is missing on the server.",
+  "overlay_km_lines_missing": "Tile archive not found – data/km_linie.pmtiles is missing on the server.",
   "km_line_short": "Line",
   "km_not_db": "not in DB network",
   "basemap_liberty": "Liberty",
@@ -636,7 +636,7 @@
   "plan_overlap": "Overlap (m)",
   "plan_content": "Plan content",
   "plan_show_km": "Kilometrage",
-  "plan_km_missing": "No kilometrage line in the project \u2013 give a track a line number and it is fetched.",
+  "plan_km_missing": "No kilometrage line in the project – give a track a line number and it is fetched.",
   "plan_show_main": "Main points",
   "plan_show_labels": "Element labels",
   "plan_show_switches": "Switches",
@@ -685,7 +685,6 @@
   "cross_section_terrain_loading": "Loading terrain …",
   "cross_section_terrain_none": "Terrain: no height data here",
   "cross_section_terrain_no_height": "Terrain cannot be placed: no track in the section has a height",
-  "cross_section_show": "Show cross section",
   "platform_title": "Platforms",
   "platform_cross_section": "Platforms & Cross Sections",
   "platform_new": "New platform",
@@ -1146,5 +1145,6 @@
   "clearance_scan_start": "Check track",
   "clearance_scan_none": "Nothing reaches into the clearance ({{n}} stations checked).",
   "clearance_scan_found": "Intrusions into the clearance at {{n}} places:",
-  "clearance_scan_row": "{{n}} points, up to {{mm}} mm"
+  "clearance_scan_row": "{{n}} points, up to {{mm}} mm",
+  "optimizer_catalog_drift": "The optimizer service computes with different rulebook files than this app. Results and displayed limits may disagree — please redeploy the service."
 }

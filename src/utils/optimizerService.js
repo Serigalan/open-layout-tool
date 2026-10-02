@@ -7,7 +7,11 @@
 // the panel has to say out loud, which is what `code` is for: the service names
 // what went wrong, the UI translates the name.
 
-const SERVICE = import.meta.env.VITE_OLT_OPTIMIZER ?? 'https://online.open-layout-tool.org/optimizer'
+import { bundledCatalogHash } from './catalogHash'
+
+// The service sits on the app's own origin under /optimizer/ (behind the
+// sign-in, see deploy/Caddyfile.template); `npm run dev` proxies the same path.
+const SERVICE = import.meta.env.VITE_OLT_OPTIMIZER ?? '/optimizer'
 
 /** A failed run, `code` being the service's error key for the UI to translate. */
 export class OptimizerError extends Error {
@@ -31,21 +35,29 @@ export async function optimizerReachable() {
 }
 
 /**
- * The rule catalogues the service can hold a run to (AP R.3), as [{ id, name,
- * version }, ...] — `version` the catalogue's own katalog_version — not their
- * limits, only enough to fill a selector.
- * Resolves with [] where the service cannot be asked, same as
+ * The rule catalogues the service can hold a run to (AP R.3), as
+ * { regelwerke: [{ id, name, version }, ...], drift } — `version` the
+ * catalogue's own katalog_version — not their limits, only enough to fill a
+ * selector. `drift` is true when the service reads other catalogue files than
+ * this bundle carries (R0.1: its `catalogHash` differs from ours), false when
+ * they agree, null when the service did not say.
+ * Resolves with an empty list where the service cannot be asked, same as
  * `optimizerReachable`'s false: a panel offering a run at all has already
  * found the service, so this failing too is nothing new to say twice.
  */
 export async function fetchRegelwerke() {
+  const none = { regelwerke: [], drift: null }
   try {
     const res = await fetch(`${SERVICE}/regelwerke`, { method: 'GET' })
-    if (!res.ok) return []
+    if (!res.ok) return none
     const data = await res.json()
-    return Array.isArray(data?.regelwerke) ? data.regelwerke : []
+    const regelwerke = Array.isArray(data?.regelwerke) ? data.regelwerke : []
+    const drift = typeof data?.catalogHash === 'string'
+      ? data.catalogHash !== await bundledCatalogHash()
+      : null
+    return { regelwerke, drift }
   } catch {
-    return []
+    return none
   }
 }
 

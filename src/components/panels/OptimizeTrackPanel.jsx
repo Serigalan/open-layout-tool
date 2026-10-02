@@ -75,6 +75,7 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
   const [grenzwert, setGrenzwert] = useState('reg')
   const [vMax, setVMax]           = useState('')     // '' → kein Ziel, offen nach oben
   const [regelwerke, setRegelwerke] = useState([])   // [{id,name,version}], AP R.3
+  const [catalogDrift, setCatalogDrift] = useState(null)   // R0.1
   const [regelwerkId, setRegelwerkId] = useState('') // '' → Dienst-Vorgabe
   const [selectHint, setSelectHint] = useState(null)
   const [running, setRunning]     = useState(false)
@@ -133,7 +134,11 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
     if (page === 'menu') return
     let cancelled = false
     optimizerReachable().then(ok => { if (!cancelled) setReachable(ok) })
-    fetchRegelwerke().then(list => { if (!cancelled) setRegelwerke(list) })
+    fetchRegelwerke().then(({ regelwerke: list, drift }) => {
+      if (cancelled) return
+      setRegelwerke(list)
+      setCatalogDrift(drift)
+    })
     return () => { cancelled = true }
   }, [page])
 
@@ -298,6 +303,9 @@ export default function OptimizeTrackPanel({ t, map, project, onTrackSaved, init
       </div>
 
       <div className="element-form" style={{ marginTop: 8 }}>
+        {catalogDrift && (
+          <p style={{ color: '#e74c3c', fontSize: 12 }}>{t('optimizer_catalog_drift')}</p>
+        )}
         {reachable === false ? (
           // The run happens on the server and nowhere else; without one the
           // panel says so rather than offering a button that cannot work.

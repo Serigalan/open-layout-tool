@@ -10,9 +10,17 @@ export default defineConfig({
   // served over https anyway, so this only affects local development.
   plugins: [react(), basicSsl()],
   base: './',
-  // The project server (tools/server) answers under /api on the app's own
-  // origin, as it does behind Caddy in production.
+  // The project server (tools/server) answers under /api and the optimizer
+  // service (tools/optimizer) under /optimizer on the app's own origin, as both
+  // do behind Caddy in production (deploy/Caddyfile.template). The optimizer
+  // itself knows nothing of the prefix, so it is cut off here as there.
   server: {
-    proxy: { '/api': { target: process.env.OLT_API_TARGET ?? 'http://127.0.0.1:8787' } },
+    proxy: {
+      '/api': { target: process.env.OLT_API_TARGET ?? 'http://127.0.0.1:8787' },
+      '/optimizer': {
+        target: process.env.OLT_OPTIMIZER_TARGET ?? 'http://127.0.0.1:8099',
+        rewrite: path => path.replace(/^\/optimizer/, ''),
+      },
+    },
   },
 })

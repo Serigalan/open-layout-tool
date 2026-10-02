@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   optimizeOnServer, optimizerReachable, fetchRegelwerke, fetchRegelwerk, OptimizerError,
 } from './optimizerService'
+import { bundledCatalogHash } from './catalogHash'
 import { reconstructElements } from './elementReconstruct'
 import { recalcAbsLengths } from '../storage'
 import { expectValidTrack } from '../test/chainInvariants'
@@ -100,17 +101,25 @@ describe('asking which regelwerke the service knows (AP R.3)', () => {
   it('resolves with the list', async () => {
     const regelwerke = [{ id: 'db-ril-800-0110', name: 'DB Ril 800', version: '1', gueltigAb: '2026-09-22' }]
     vi.stubGlobal('fetch', vi.fn(async () => json({ regelwerke })))
-    await expect(fetchRegelwerke()).resolves.toEqual(regelwerke)
+    await expect(fetchRegelwerke()).resolves.toEqual({ regelwerke, drift: null })
   })
 
-  it('resolves with [] rather than throwing where the service is unreachable', async () => {
+  it('says whether the service reads the same catalogue files (R0.1)', async () => {
+    const own = await bundledCatalogHash()
+    vi.stubGlobal('fetch', vi.fn(async () => json({ regelwerke: [], catalogHash: own })))
+    await expect(fetchRegelwerke()).resolves.toEqual({ regelwerke: [], drift: false })
+    vi.stubGlobal('fetch', vi.fn(async () => json({ regelwerke: [], catalogHash: 'abc' })))
+    await expect(fetchRegelwerke()).resolves.toEqual({ regelwerke: [], drift: true })
+  })
+
+  it('resolves with an empty list rather than throwing where the service is unreachable', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
-    await expect(fetchRegelwerke()).resolves.toEqual([])
+    await expect(fetchRegelwerke()).resolves.toEqual({ regelwerke: [], drift: null })
   })
 
-  it('resolves with [] where the answer is not the expected shape', async () => {
+  it('resolves with an empty list where the answer is not the expected shape', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => json({ nope: true })))
-    await expect(fetchRegelwerke()).resolves.toEqual([])
+    await expect(fetchRegelwerke()).resolves.toEqual({ regelwerke: [], drift: null })
   })
 })
 
