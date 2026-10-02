@@ -1153,5 +1153,8 @@
   "section_meta_divergent": "Metadaten (Zweiggleis)",
   "section_meta": "Metadaten",
   "import_parse_error": "Datei nicht lesbar",
-  "import_parse_error_cant": "Überhöhung – Datei nicht lesbar"
+  "import_parse_error_cant": "Überhöhung – Datei nicht lesbar",
+  "tracks_import_err_invalid_payload": "Die Datei ist keine Gleisdatei dieses Werkzeugs.",
+  "tracks_import_err_tracks_empty": "Die Datei enthält keine Gleise.",
+  "tracks_import_err_switch_missing": "Die Gleise gehören zu einer Weiche, die es in diesem Projekt nicht gibt."
 }

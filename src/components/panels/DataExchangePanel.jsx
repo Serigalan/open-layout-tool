@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { loadTracks, loadSwitches, loadProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
-import { parseProjectsPayload, PayloadError } from '../../utils/persistenceUtils'
+import { parseProjectsPayload, parseTracksPayload, PayloadError } from '../../utils/persistenceUtils'
 import { parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'
 import { ExternalLinkIcon } from '../icons'
@@ -87,6 +87,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
   const [phase, setPhase]               = useState('idle')
   const [selectedIds, setSelectedIds]   = useState(new Set())
   const [trackConflicts, setTrackConflicts] = useState([])   // [{existing, imported}, ...]
+  const [tracksImportError, setTracksImportError] = useState(null)
   const [epsg, setEpsg]                 = useState('5683')
   const [esnErrors, setEsnErrors]       = useState([])
   const [esnNotes, setEsnNotes]         = useState([])
@@ -240,29 +241,33 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
   const handleTracksImport = (e) => {
     const file = e.target.files?.[0]
     if (!file || !project) return
+    setTracksImportError(null)
     const reader = new FileReader()
     reader.onload = (ev) => {
+      let incoming
       try {
-        const data = JSON.parse(ev.target.result)
-        const incoming = Array.isArray(data) ? data : [data]
-        const existingTracks = loadTracks(project.id)
-        const existingIds = new Set(existingTracks.map(t => t.id))
-
-        const conflicting = incoming.filter(t => existingIds.has(t.id))
-        const noConflict  = incoming.filter(t => !existingIds.has(t.id))
-
-        noConflict.forEach(track => saveTrack(project.id, reconstructTrack(track)))
-
-        if (noConflict.length > 0) onTrackSaved?.()
-
-        if (conflicting.length > 0) {
-          setTrackConflicts(conflicting.map(imp => ({
-            imported: imp,
-            existing: existingTracks.find(t => t.id === imp.id),
-          })))
-        }
+        const switchIds = new Set(loadSwitches(project.id).map(sw => sw.switchId))
+        incoming = parseTracksPayload(JSON.parse(ev.target.result), { switchIds })
       } catch (err) {
-        console.error('Track import error:', err)
+        const code = err instanceof PayloadError ? err.code : 'invalid_payload'
+        setTracksImportError(t(`tracks_import_err_${code}`))
+        return
+      }
+      const existingTracks = loadTracks(project.id)
+      const existingIds = new Set(existingTracks.map(t => t.id))
+
+      const conflicting = incoming.filter(t => existingIds.has(t.id))
+      const noConflict  = incoming.filter(t => !existingIds.has(t.id))
+
+      noConflict.forEach(track => saveTrack(project.id, reconstructTrack(track)))
+
+      if (noConflict.length > 0) onTrackSaved?.()
+
+      if (conflicting.length > 0) {
+        setTrackConflicts(conflicting.map(imp => ({
+          imported: imp,
+          existing: existingTracks.find(t => t.id === imp.id),
+        })))
       }
     }
     reader.readAsText(file)
@@ -776,6 +781,9 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         <button className="panel-btn panel-btn-full" disabled={!project} onClick={() => trackImportRef.current?.click()}>
           {t('data_exchange_import')}
         </button>
+        {tracksImportError && (
+          <p style={{ color: '#e74c3c', fontSize: 12, margin: '4px 0' }}>{tracksImportError}</p>
+        )}
         <hr style={{ border: 'none', borderTop: '1px solid #ddd', margin: '6px 0' }} />
         <div style={{ display: 'flex', gap: 6 }}>
           <button

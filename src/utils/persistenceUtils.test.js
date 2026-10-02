@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dehydrateProjects, hydrateProjects, parseProjectsPayload, PayloadError, SCHEMA_VERSION } from './persistenceUtils'
+import { dehydrateProjects, hydrateProjects, parseProjectsPayload, parseTracksPayload, PayloadError, SCHEMA_VERSION } from './persistenceUtils'
 import { SWITCH_TYPES, computeSwitchGeometryUtm, switchArcLength, switchStraightLength } from './switchUtils'
 import { DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION } from './switchModel'
 import goldenElements from '../test/fixtures/track_optimized.json'
@@ -196,5 +196,33 @@ describe('parseProjectsPayload', () => {
     const payload = payloadOf(project())
     expect(payload.projects[0].tracks[0].elements.some(el => el.switchBranch)).toBe(false)
     expect(() => parseProjectsPayload(payload)).not.toThrow()
+  })
+})
+
+describe('parseTracksPayload (R0.5)', () => {
+  const el = (extra = {}) => ({ elementType: 0, startNode: [0, 0], endNode: [10, 0], length: 10, ...extra })
+  const track = (extra = {}) => ({ id: 't1', epsg: 25832, elements: [el()], ...extra })
+  const code = (fn) => { try { fn() } catch (e) { return e instanceof PayloadError ? e.code : 'other' } return null }
+
+  it('takes one track or an array of them', () => {
+    expect(parseTracksPayload(track())).toHaveLength(1)
+    expect(parseTracksPayload([track(), track({ id: 't2' })])).toHaveLength(2)
+  })
+
+  it('refuses what is not a track file', () => {
+    expect(code(() => parseTracksPayload([]))).toBe('tracks_empty')
+    expect(code(() => parseTracksPayload({ projects: [] }))).toBe('invalid_payload')
+    expect(code(() => parseTracksPayload(track({ id: 3 })))).toBe('invalid_payload')
+    expect(code(() => parseTracksPayload(track({ elements: [] })))).toBe('invalid_payload')
+    expect(code(() => parseTracksPayload(track({ elements: [el({ elementType: 7 })] })))).toBe('invalid_payload')
+    expect(code(() => parseTracksPayload(track({ elements: [el({ endNode: [1, 'x'] })] })))).toBe('invalid_payload')
+    expect(code(() => parseTracksPayload(track({ elements: [el({ length: -1 })] })))).toBe('invalid_payload')
+    expect(code(() => parseTracksPayload(track({ elements: [el({ switchBranch: 'stem' })] })))).toBe('invalid_payload')
+  })
+
+  it('takes a switch branch only into a project that has the switch', () => {
+    const t = track({ elements: [el({ switchBranch: 'stem', switchId: 's1' })] })
+    expect(code(() => parseTracksPayload(t))).toBe('switch_missing')
+    expect(parseTracksPayload(t, { switchIds: new Set(['s1']) })).toHaveLength(1)
   })
 })

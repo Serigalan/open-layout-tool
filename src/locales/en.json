@@ -1153,5 +1153,8 @@
   "section_meta_divergent": "Meta data (diverging track)",
   "section_meta": "Meta data",
   "import_parse_error": "File could not be read",
-  "import_parse_error_cant": "Cant – file could not be read"
+  "import_parse_error_cant": "Cant – file could not be read",
+  "tracks_import_err_invalid_payload": "The file is not a track file of this tool.",
+  "tracks_import_err_tracks_empty": "The file contains no tracks.",
+  "tracks_import_err_switch_missing": "The tracks belong to a switch that does not exist in this project."
 }

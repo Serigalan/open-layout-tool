@@ -97,6 +97,38 @@ export function parseProjectsPayload(data) {
   return { projects: data.projects }
 }
 
+const isPoint = (p) => Array.isArray(p) && p.length >= 2 && p.every(Number.isFinite)
+
+/**
+ * Unwrap a file of tracks as the data exchange panel exports them (one track
+ * or an array of them, elements without their derived geometry) — and refuse
+ * it where it is not one: every track needs an id and a chain of elements of a
+ * known kind between two plane points. A track that belongs to a switch may
+ * only come back into a project that has that switch (`switchIds`), or its
+ * branch would point at nothing.
+ *
+ * Returns the tracks; throws a PayloadError ('invalid_payload',
+ * 'tracks_empty', 'switch_missing') otherwise.
+ */
+export function parseTracksPayload(data, { switchIds = new Set() } = {}) {
+  const tracks = Array.isArray(data) ? data : [data]
+  if (tracks.length === 0) throw new PayloadError('tracks_empty')
+  for (const track of tracks) {
+    if (!track || typeof track !== 'object') throw new PayloadError('invalid_payload')
+    if (typeof track.id !== 'string' || !track.id) throw new PayloadError('invalid_payload')
+    if (!Array.isArray(track.elements) || track.elements.length === 0) throw new PayloadError('invalid_payload')
+    for (const el of track.elements) {
+      if (!el || typeof el !== 'object') throw new PayloadError('invalid_payload')
+      if (![0, 1, 2].includes(el.elementType)) throw new PayloadError('invalid_payload')
+      if (!isPoint(el.startNode) || !isPoint(el.endNode)) throw new PayloadError('invalid_payload')
+      if (!Number.isFinite(el.length) || el.length < 0) throw new PayloadError('invalid_payload')
+      if (el.switchBranch && !el.switchId) throw new PayloadError('invalid_payload')
+      if (el.switchId && !switchIds.has(el.switchId)) throw new PayloadError('switch_missing')
+    }
+  }
+  return tracks
+}
+
 // ── Hydrate (load) / dehydrate (persist) ─────────────────────────────────────
 
 function buildTrackCoords(elements) {
