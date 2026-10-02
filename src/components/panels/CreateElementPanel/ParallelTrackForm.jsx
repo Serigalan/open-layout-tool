@@ -12,8 +12,14 @@ import HeightDatumField from '../HeightDatumField'
 import { elementsPath } from '../../../utils/lineLookup'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
-export default function ParallelTrackForm({ t, map, project, onDone }) {
+export default function ParallelTrackForm({ onDone }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
   const [selecting, setSelecting] = useState(true)
@@ -128,7 +134,7 @@ export default function ParallelTrackForm({ t, map, project, onDone }) {
     <>
       <div className="element-form">
         <span className="create-element-section">{t('section_meta')}</span>
-        <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
+        <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError} />
       </div>
 
@@ -139,7 +145,7 @@ export default function ParallelTrackForm({ t, map, project, onDone }) {
             <label>{t('field_offset')}</label>
             <input type="number" step="0.01" value={offset} onChange={e => handleOffsetChange(e.target.value)} />
           </div>
-          <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
+          <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
         </div>
       )}
 
@@ -157,7 +163,7 @@ export default function ParallelTrackForm({ t, map, project, onDone }) {
           {/* A whole chain at once — offset from an existing track, so what
               the catalogue has to say about it is mostly what it had to say
               about the track it was drawn beside. */}
-          {elements && <RuleFindings t={t} elements={elements} />}
+          {elements && <RuleFindings elements={elements} />}
           <button className="panel-btn panel-btn-full"
             style={{ opacity: (elements && !blocked) ? 1 : 0.5 }}
             disabled={!elements || blocked} onClick={handleCommit}>

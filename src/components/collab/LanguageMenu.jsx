@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { languageLabels } from '../../locales/i18n'
 import { LanguageIcon } from '../icons'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * The language of the app, behind a button that shows only the language
  * symbol: the languages appear once it is opened. The menu closes on a choice,
  * on Escape and on a click anywhere else.
  */
-export default function LanguageMenu({ language, onChange, t }) {
+export default function LanguageMenu({ onChange }) {
+  const { language, t } = useI18n()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const buttonRef = useRef(null)

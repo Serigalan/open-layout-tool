@@ -19,8 +19,14 @@ import useNearbyLines from '../../../hooks/useNearbyLines'
 import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
 import { elementPath } from '../../../utils/lineLookup'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
-export default function CurvedLineForm({ t, map, project, onDone }) {
+export default function CurvedLineForm({ onDone }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const lineOptions = useNearbyLines(map)
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
@@ -229,7 +235,7 @@ export default function CurvedLineForm({ t, map, project, onDone }) {
     <>
       <div className="element-form">
         <span className="create-element-section">{t('section_meta')}</span>
-        <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
+        <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError}
           lineOptions={lineOptions} />
       </div>
@@ -259,7 +265,7 @@ export default function CurvedLineForm({ t, map, project, onDone }) {
                 <label>{t('field_speed')}</label>
                 <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
               </div>
-              <CantField t={t} value={cant} onChange={setCant}
+              <CantField value={cant} onChange={setCant}
                 min={-MAX_CANT} max={MAX_CANT} speed={speed} radius={absR} />
               <div className="form-field">
                 <label>{t('cant_def')}</label>
@@ -273,7 +279,7 @@ export default function CurvedLineForm({ t, map, project, onDone }) {
                   ))}
                 </select>
               </div>
-              <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
+              <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
               <UtmCoordFields label="Start" zone={startPoint.zone}
                 easting={startPoint.easting.toFixed(2)} northing={startPoint.northing.toFixed(2)} readOnly />
               <UtmCoordFields label="End" zone={endPoint.zone}
@@ -297,7 +303,7 @@ export default function CurvedLineForm({ t, map, project, onDone }) {
         const blocked = hasRuleError([element])
         return (
           <>
-            <RuleFindings t={t} element={element} />
+            <RuleFindings element={element} />
             <button className="panel-btn panel-btn-full" onClick={handleCommit}
               disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
               {t('btn_commit')}

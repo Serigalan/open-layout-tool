@@ -15,6 +15,8 @@ import { sketchLines } from '../../utils/planSketch'
 import { STATUSES } from '../../utils/planStatus'
 import { downloadBlob } from '../../utils/fileUtils'
 import { groupHeading, groupTracks, trackListLabel } from '../../utils/trackGroups'
+import { useI18n } from '../../locales/i18nContext'
+import { useProject } from '../../hooks/useStore'
 
 /**
  * Backdrops a plan can be drawn over. A plain map is the safe default; an
@@ -52,7 +54,9 @@ function heightLabel(epsg) {
 /** Pause in typing after which the title block is saved to the project [ms]. */
 const HEADER_SAVE_DELAY = 500
 
-export default function PlanExportPanel({ t, project, language, onShowPlanPreview }) {
+export default function PlanExportPanel({ onShowPlanPreview }) {
+  const { t, language } = useI18n()
+  const project = useProject()
   const [kind, setKind]         = useState('site')   // 'site' | 'schematic'
   const [scaleKey, setScaleKey] = useState('1000')
   const [schematicScaleKey, setSchematicScaleKey] = useState('10000')
@@ -459,7 +463,7 @@ export default function PlanExportPanel({ t, project, language, onShowPlanPrevie
             <option value="full">{t('plan_titleblock_full')}</option>
           </select>
         </div>
-        <PlanHeaderFields t={t} header={header} onChange={changeHeader} simple={blockStyle !== 'full'}
+        <PlanHeaderFields header={header} onChange={changeHeader} simple={blockStyle !== 'full'}
           onError={msg => setStatus({ msg, error: true })} />
       </div>
 

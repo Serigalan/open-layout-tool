@@ -1,6 +1,7 @@
 import { TYPE_CODES, SIDE_CODES } from '../../utils/identifierUtils'
 import StationNameInput from './StationNameInput'
 import useLineNameSuggestion from '../../hooks/useLineNameSuggestion'
+import { useI18n } from '../../locales/i18nContext'
 
 const OWNERS = ['DB', 'SNCF', 'other']
 
@@ -12,7 +13,8 @@ function lineNumError(owner, lineNumber) {
   return null
 }
 
-export default function TrackFields({ t, fields, setField, name, onNameChange, nameError, lineOptions }) {
+export default function TrackFields({ fields, setField, name, onNameChange, nameError, lineOptions }) {
+  const { t } = useI18n()
   const { owner, type, lineNumber, lineName, side, stationName, uicStation, trackNumber } = fields
   const hasNameField = onNameChange !== undefined
   const lineErr = lineNumError(owner, lineNumber)

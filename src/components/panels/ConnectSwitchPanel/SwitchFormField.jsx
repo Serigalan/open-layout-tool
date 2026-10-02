@@ -1,4 +1,5 @@
 import { SWITCH_PICK_TYPES } from '../../../utils/switchUtils'
+import { useI18n } from '../../../locales/i18nContext'
 
 /**
  * The turnout form a dialog builds with, in the two groups the Ril itself
@@ -15,7 +16,8 @@ import { SWITCH_PICK_TYPES } from '../../../utils/switchUtils'
  * two routes are already the form's own mirror arcs, so there is no through
  * route left to bend one further onto.
  */
-export default function SwitchFormField({ t, value, onChange, hideSymmetric = false }) {
+export default function SwitchFormField({ value, onChange, hideSymmetric = false }) {
+  const { t } = useI18n()
   const optionen = (klasse) => SWITCH_PICK_TYPES
     .map((form, i) => ({ form, i }))
     .filter(entry => entry.form.klasse === klasse)

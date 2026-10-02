@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { translations } from './locales/i18n'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FILTER_NONE } from './utils/mapConstants'
 import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
@@ -50,6 +49,9 @@ import './App.css'
 import { renderTracksOnMap, updateMapColors } from './map/trackLayers'
 import useMapInstance, { ELEVATION_BASEMAPS } from './map/useMapInstance'
 import { isProjectUndo } from './utils/keyboard'
+import { useI18n } from './locales/i18nContext'
+import I18nProvider from './locales/I18nProvider'
+import { MapContext } from './map/MapContext'
 
 // How often the open app asks whether the server has moved on [ms].
 const SERVER_POLL = 2 * 60 * 1000
@@ -57,25 +59,30 @@ const SERVER_POLL = 2 * 60 * 1000
 const CHANGES_SETTLE = 400
 
 
-function PanelContent({ onShowCompare, view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, topologySelection, onTopologySelect, topologyGraphOpen, onShowTopologyGraph, language, onLanguageChange, color, onColorChange, t, map, project, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
-  if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
-  if (view === 'topology') return <TopologyPanel t={t} map={map} project={project}
+function PanelContent({ onShowCompare, view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, topologySelection, onTopologySelect, topologyGraphOpen, onShowTopologyGraph, color, onColorChange, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
+  if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} />
+  if (view === 'topology') return <TopologyPanel
     selection={topologySelection} onSelect={onTopologySelect} graphOpen={topologyGraphOpen} onShowGraph={onShowTopologyGraph} />
-  if (view === 'places')   return <CreateConnectPanel t={t} map={map} project={project} />
-  if (view === 'settings') return <SettingsPanel language={language} onLanguageChange={onLanguageChange} color={color} onColorChange={onColorChange} t={t} />
-  if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} onCloseConstraints={onCloseConstraints} />
-  if (view === 'connect_switch') return <ConnectSwitchPanel t={t} map={map} project={project} />
-  if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onShowRegelwerk={onShowRegelwerk} />
-  if (view === 'elevation') return <ElevationPanel t={t} map={map} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} />
-  if (view === 'platform') return <PlatformCrossSectionPanel t={t} map={map} project={project} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
-  if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onShowCompare={onShowCompare} />
-  if (view === 'plan')     return <PlanExportPanel t={t} project={project} language={language} onShowPlanPreview={onShowPlanPreview} />
-  if (view === 'info')     return <InfoPanel t={t} />
+  if (view === 'places')   return <CreateConnectPanel />
+  if (view === 'settings') return <SettingsPanel color={color} onColorChange={onColorChange} />
+  if (view === 'edit')     return <EditElementPanel trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} onCloseConstraints={onCloseConstraints} />
+  if (view === 'connect_switch') return <ConnectSwitchPanel />
+  if (view === 'splice') return <SpliceOptimizePanel onShowRegelwerk={onShowRegelwerk} />
+  if (view === 'elevation') return <ElevationPanel profileTrackId={profileTrackId} onShowProfile={onShowProfile} />
+  if (view === 'platform') return <PlatformCrossSectionPanel crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
+  if (view === 'data')     return <DataExchangePanel onShowCompare={onShowCompare} />
+  if (view === 'plan')     return <PlanExportPanel onShowPlanPreview={onShowPlanPreview} />
+  if (view === 'info')     return <InfoPanel />
   return null
 }
 
 
 export default function App() {
+  return <I18nProvider><AppMain /></I18nProvider>
+}
+
+function AppMain() {
+  const { t, language } = useI18n()
   const projectRef = useRef(null)
   // The map, its basemap and the elevation legend's range (R2.1). Every style
   // that loads — the first and each basemap change — gets the project and the
@@ -88,10 +95,10 @@ export default function App() {
       restoreKmLines()
     },
   })
+  const mapCtx = useMemo(() => ({ map, mapVersion }), [map, mapVersion])
 
   const [view, setView] = useState('start')
   const [activeView, setActiveView] = useState('info')
-  const [language, setLanguage] = useState(() => loadSettings().language ?? 'en')
   const [color, setColor] = useState(() => loadSettings().color ?? '#303383')
   // DB kilometrage overlays — the DB network, and what lies outside it — each
   // on or off, and whether their tile archive turned out to be missing (a
@@ -235,7 +242,6 @@ export default function App() {
       : FILTER_NONE)
   }, [trackTable, map])
 
-  const t = useCallback((key) => translations[language]?.[key] ?? key, [language])
 
   // Signed in or not: the app opens nothing without a session (decision 88).
   useEffect(() => {
@@ -523,11 +529,6 @@ export default function App() {
     }
   }
 
-  const handleLanguageChange = (lang) => {
-    setLanguage(lang)
-    saveSettings({ language: lang })
-  }
-
   const handleColorChange = (c) => {
     setColor(c)
     document.documentElement.style.setProperty('--color-primary', c)
@@ -609,252 +610,250 @@ export default function App() {
 
   if (session.status === 'loading') return <div className="collab-page collab-center"><p className="collab-muted">{t('home_loading')}</p></div>
   if (session.status === 'anon') {
-    return <LoginPage t={t} language={language} onLanguageChange={handleLanguageChange}
+    return <LoginPage
       onSignedIn={(user) => { setSession({ status: 'user', user }); setView('start') }} />
   }
   if (session.user.mustChangePassword) {
     return (
       <div className="collab-page collab-center">
-        <PasswordForm forced t={t} onDone={(user) => setSession({ status: 'user', user })} />
+        <PasswordForm forced onDone={(user) => setSession({ status: 'user', user })} />
       </div>
     )
   }
   if (view === 'history' && historyFor) {
-    return <HistoryPage project={historyFor.project} variant={historyFor.variant} t={t} language={language}
+    return <HistoryPage project={historyFor.project} variant={historyFor.variant}
       onBack={() => setView('start')} onView={viewRevision} onCompareWithHead={compareWithHead} />
   }
   if (view === 'admin' && session.user.role === 'admin') {
-    return <AdminPage user={session.user} onBack={() => setView('start')} t={t} language={language} />
+    return <AdminPage user={session.user} onBack={() => setView('start')} />
   }
   if (view === 'viewer' && viewer) {
     return (
-      <div className="layout">
-        <div style={{ flex: 1, position: 'relative' }}>
-          <div className="map-container" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
-          <div className="wc-bar" role="status">
-            <span className="wc-where">
-              <strong>{viewer.title}</strong>
-              <span className="wc-sep">›</span>
-              <span>{viewer.subtitle}</span>
-            </span>
-            <span className="wc-rev">{t('viewer_readonly')}</span>
-            <span className="wc-actions">
-              <button type="button" className="wc-btn" onClick={closeViewer} disabled={syncBusy}>{t('viewer_back')}</button>
-            </span>
+      <MapContext.Provider value={mapCtx}>
+        <div className="layout">
+          <div style={{ flex: 1, position: 'relative' }}>
+            <div className="map-container" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
+            <div className="wc-bar" role="status">
+              <span className="wc-where">
+                <strong>{viewer.title}</strong>
+                <span className="wc-sep">›</span>
+                <span>{viewer.subtitle}</span>
+              </span>
+              <span className="wc-rev">{t('viewer_readonly')}</span>
+              <span className="wc-actions">
+                <button type="button" className="wc-btn" onClick={closeViewer} disabled={syncBusy}>{t('viewer_back')}</button>
+              </span>
+            </div>
+            {viewer.kind === 'compare' && (
+              <CompareOverlay mapVersion={mapVersion} before={viewer.before} after={viewer.after} drawUnchanged
+                beforeLabel={viewer.beforeLabel} afterLabel={viewer.afterLabel} onClose={closeViewer} />
+            )}
+            {viewer.kind === 'merge' && (
+              <ConflictDialog mapVersion={mapVersion} result={viewer.prepared.result} busy={syncBusy}
+                title={t('home_merge_title')} mineLabel={viewer.targetName} theirsLabel={viewer.sourceName}
+                onCancel={closeViewer} onApply={applyVariantMerge} />
+            )}
           </div>
-          {viewer.kind === 'compare' && (
-            <CompareOverlay map={map} mapVersion={mapVersion} t={t} before={viewer.before} after={viewer.after} drawUnchanged
-              beforeLabel={viewer.beforeLabel} afterLabel={viewer.afterLabel} onClose={closeViewer} />
-          )}
-          {viewer.kind === 'merge' && (
-            <ConflictDialog map={map} mapVersion={mapVersion} t={t} result={viewer.prepared.result} busy={syncBusy}
-              title={t('home_merge_title')} mineLabel={viewer.targetName} theirsLabel={viewer.sourceName}
-              onCancel={closeViewer} onApply={applyVariantMerge} />
-          )}
         </div>
-      </div>
+      </MapContext.Provider>
     )
   }
   if (view === 'start' || !project) {
     return <StartPage user={session.user} onOpenVariant={handleOpenVariant} onViewVariant={viewVariant} onSignOut={handleSignOut}
       onCompare={showComparison} onMerge={startVariantMerge} note={homeNote}
-      onAdmin={() => { setHomeNote(null); setView('admin') }} onHistory={showHistory}
-      t={t} language={language} onLanguageChange={handleLanguageChange} />
+      onAdmin={() => { setHomeNote(null); setView('admin') }} onHistory={showHistory} />
   }
 
   return (
-    <div className="layout">
-      <aside className="sidebar-primary">
-        <div className="sidebar-top">
-          <button
-            className={`sidebar-icon-btn ${activeView === 'layers' ? 'active' : ''}`}
-            onClick={() => handleIconClick('layers')}
-            title={t('tooltip_layers')}
-          >
-            <LayerIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'topology' ? 'active' : ''}`}
-            onClick={() => handleIconClick('topology')}
-            title={t('topology_title')}
-          >
-            <TopologyIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'places' ? 'active' : ''}`}
-            onClick={() => handleIconClick('places')}
-            title={t('create_element')}
-          >
-            <PlaceIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'connect_switch' ? 'active' : ''}`}
-            onClick={() => handleIconClick('connect_switch')}
-            title={t('connect_switch')}
-          >
-            <ConnectSwitchIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'splice' ? 'active' : ''}`}
-            onClick={() => handleIconClick('splice')}
-            title={t('splice_element')}
-          >
-            <SpliceElementIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'elevation' ? 'active' : ''}`}
-            onClick={() => handleIconClick('elevation')}
-            title={t('tooltip_elevation')}
-          >
-            <ElevationIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'platform' ? 'active' : ''}`}
-            onClick={() => handleIconClick('platform')}
-            title={t('platform_cross_section')}
-          >
-            <StationIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'edit' ? 'active' : ''}`}
-            onClick={() => handleIconClick('edit')}
-            title={t('edit')}
-          >
-            <EditElementIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'data' ? 'active' : ''}`}
-            onClick={() => handleIconClick('data')}
-            title={t('data_exchange')}
-          >
-            <DataExchangeIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'plan' ? 'active' : ''}`}
-            onClick={() => handleIconClick('plan')}
-            title={t('plan_title')}
-          >
-            <PlanExportIcon />
-          </button>
-        </div>
-        <div className="sidebar-bottom">
-          <button
-            className="sidebar-icon-btn"
-            onClick={handleUndo}
-            disabled={!undoAvailable}
-            title={t('tooltip_undo')}
-            style={{ opacity: undoAvailable ? 1 : 0.35 }}
-          >
-            <UndoIcon />
-          </button>
-          <button
-            className="sidebar-icon-btn"
-            onClick={() => closeTrackTable(goHome)}
-            title={t('tooltip_home')}
-          >
-            <HomeIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'info' ? 'active' : ''}`}
-            onClick={() => handleIconClick('info')}
-            title={t('info')}
-          >
-            <InfoIcon />
-          </button>
-          <button
-            className={`sidebar-icon-btn ${activeView === 'settings' ? 'active' : ''}`}
-            onClick={() => handleIconClick('settings')}
-            title={t('settings')}
-          >
-            <SettingsIcon />
-          </button>
-        </div>
-      </aside>
-
-      {activeView !== null && (
-        <aside className="sidebar-secondary">
-          <PanelContent
-            view={activeView}
-            activeBasemap={activeBasemap}
-            onBasemapChange={handleBasemapChange}
-            kmOverlays={kmOverlays}
-            onKmOverlayChange={handleKmOverlayChange}
-            kmLinesError={kmLinesError}
-            topologySelection={topologySelection}
-            onTopologySelect={setTopologySelection}
-            topologyGraphOpen={topologyGraphOpen}
-            onShowTopologyGraph={setTopologyGraphOpen}
-            language={language}
-            onLanguageChange={handleLanguageChange}
-            color={color}
-            onColorChange={handleColorChange}
-            t={t}
-            map={map}
-            project={project}
-            trackTableId={trackTable?.id}
-            onShowTrackTable={handleShowTrackTable}
-            onShowPhysics={handleShowPhysics}
-            onShowRegelwerk={handleShowRegelwerk}
-            onCloseConstraints={handleCloseConstraints}
-            profileTrackId={profileTrackId}
-            onShowProfile={setProfileTrackId}
-            onShowPlanPreview={setPlanPreview}
-            crossSectionAt={crossSectionAt}
-            onShowCrossSection={setCrossSectionAt}
-            onShowCompare={setCompare}
-          />
+    <MapContext.Provider value={mapCtx}>
+      <div className="layout">
+        <aside className="sidebar-primary">
+          <div className="sidebar-top">
+            <button
+              className={`sidebar-icon-btn ${activeView === 'layers' ? 'active' : ''}`}
+              onClick={() => handleIconClick('layers')}
+              title={t('tooltip_layers')}
+            >
+              <LayerIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'topology' ? 'active' : ''}`}
+              onClick={() => handleIconClick('topology')}
+              title={t('topology_title')}
+            >
+              <TopologyIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'places' ? 'active' : ''}`}
+              onClick={() => handleIconClick('places')}
+              title={t('create_element')}
+            >
+              <PlaceIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'connect_switch' ? 'active' : ''}`}
+              onClick={() => handleIconClick('connect_switch')}
+              title={t('connect_switch')}
+            >
+              <ConnectSwitchIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'splice' ? 'active' : ''}`}
+              onClick={() => handleIconClick('splice')}
+              title={t('splice_element')}
+            >
+              <SpliceElementIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'elevation' ? 'active' : ''}`}
+              onClick={() => handleIconClick('elevation')}
+              title={t('tooltip_elevation')}
+            >
+              <ElevationIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'platform' ? 'active' : ''}`}
+              onClick={() => handleIconClick('platform')}
+              title={t('platform_cross_section')}
+            >
+              <StationIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'edit' ? 'active' : ''}`}
+              onClick={() => handleIconClick('edit')}
+              title={t('edit')}
+            >
+              <EditElementIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'data' ? 'active' : ''}`}
+              onClick={() => handleIconClick('data')}
+              title={t('data_exchange')}
+            >
+              <DataExchangeIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'plan' ? 'active' : ''}`}
+              onClick={() => handleIconClick('plan')}
+              title={t('plan_title')}
+            >
+              <PlanExportIcon />
+            </button>
+          </div>
+          <div className="sidebar-bottom">
+            <button
+              className="sidebar-icon-btn"
+              onClick={handleUndo}
+              disabled={!undoAvailable}
+              title={t('tooltip_undo')}
+              style={{ opacity: undoAvailable ? 1 : 0.35 }}
+            >
+              <UndoIcon />
+            </button>
+            <button
+              className="sidebar-icon-btn"
+              onClick={() => closeTrackTable(goHome)}
+              title={t('tooltip_home')}
+            >
+              <HomeIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'info' ? 'active' : ''}`}
+              onClick={() => handleIconClick('info')}
+              title={t('info')}
+            >
+              <InfoIcon />
+            </button>
+            <button
+              className={`sidebar-icon-btn ${activeView === 'settings' ? 'active' : ''}`}
+              onClick={() => handleIconClick('settings')}
+              title={t('settings')}
+            >
+              <SettingsIcon />
+            </button>
+          </div>
         </aside>
-      )}
 
-      <div style={{ flex: 1, position: 'relative' }}>
-        <div className="map-container" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
-        {wc && (
-          <WorkingCopyBar t={t} projectTitle={wc.project.title} variantName={wc.variant.name} base={wcBase}
-            changes={wcChanges.length} serverNewer={serverNewer} busy={syncBusy}
-            onCheckIn={() => setSyncDialog({ kind: 'checkin', errors: [] })}
-            onUpdate={() => startUpdate()}
-            onShowChanges={() => setCompare({
-              before: currentWorkingCopy().basePayload, after: currentWorkingCopy().project,
-              beforeLabel: `${wc.variant.name} · ${t('wc_base')}`, afterLabel: t('wc_working_copy'),
-            })} />
+        {activeView !== null && (
+          <aside className="sidebar-secondary">
+            <PanelContent
+              view={activeView}
+              activeBasemap={activeBasemap}
+              onBasemapChange={handleBasemapChange}
+              kmOverlays={kmOverlays}
+              onKmOverlayChange={handleKmOverlayChange}
+              kmLinesError={kmLinesError}
+              topologySelection={topologySelection}
+              onTopologySelect={setTopologySelection}
+              topologyGraphOpen={topologyGraphOpen}
+              onShowTopologyGraph={setTopologyGraphOpen}
+             
+              color={color}
+              onColorChange={handleColorChange}
+              trackTableId={trackTable?.id}
+              onShowTrackTable={handleShowTrackTable}
+              onShowPhysics={handleShowPhysics}
+              onShowRegelwerk={handleShowRegelwerk}
+              onCloseConstraints={handleCloseConstraints}
+              profileTrackId={profileTrackId}
+              onShowProfile={setProfileTrackId}
+              onShowPlanPreview={setPlanPreview}
+              crossSectionAt={crossSectionAt}
+              onShowCrossSection={setCrossSectionAt}
+              onShowCompare={setCompare}
+            />
+          </aside>
         )}
-        {syncNote && <button type="button" className="wc-note" onClick={() => setSyncNote(null)}>{syncNote}</button>}
-        {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} t={t} />}
-        {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map}
-          initialRow={trackTableInitialRow} onPickTrack={setTrackTable} onDirtyChange={setTableDirty}
-          onClose={() => closeTrackTable(() => setTrackTable(null))} t={t} />}
-        {profileTrackId && <ElevationOverlay trackId={profileTrackId} map={map} onClose={() => setProfileTrackId(null)} t={t} />}
-        {crossSectionAt && <CrossSectionOverlay at={crossSectionAt} project={project} map={map}
-          onAtChange={setCrossSectionAt} onClose={() => setCrossSectionAt(null)} t={t} />}
-        {physicsOpen && <PhysicsOverlay t={t} onClose={() => setPhysicsOpen(false)} />}
-        {regelwerkOverlay && <RegelwerkOverlay t={t} regelwerkId={regelwerkOverlay.regelwerkId}
-          onClose={() => setRegelwerkOverlay(null)} />}
-        {topologyGraphOpen && topology && <TopologyGraphOverlay project={project}
-          selection={topologySelection} onSelect={pickInTopologyDiagram}
-          onDeleted={() => setTopologySelection(null)}
-          onClose={() => setTopologyGraphOpen(false)} t={t} />}
-        {compare && <CompareOverlay map={map} mapVersion={mapVersion} t={t} {...compare} onClose={() => setCompare(null)} />}
-        {syncDialog?.kind === 'merge' && (
-          <ConflictDialog map={map} mapVersion={mapVersion} t={t} result={syncDialog.prepared.result} busy={syncBusy}
-            title={t('wc_merge_title')} mineLabel={t('wc_working_copy')}
-            theirsLabel={`${t('wc_server')} (${syncDialog.prepared.head.author.name})`}
-            onCancel={() => setSyncDialog(null)} onApply={applyMerge} />
-        )}
-        {syncDialog?.kind === 'checkin' && (
-          <CheckInDialog t={t} changes={wcChanges} errors={syncDialog.errors} busy={syncBusy}
-            onCancel={() => setSyncDialog(null)} onSubmit={submitCheckIn} />
-        )}
-        {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} t={t} />}
-        {discardAsk && (
-          <ConfirmModal
-            message={t('table_discard_confirm')}
-            confirmLabel={t('table_discard')}
-            onConfirm={() => { const go = discardAsk; setDiscardAsk(null); go() }}
-            onCancel={() => setDiscardAsk(null)}
-            t={t}
-          />
-        )}
+
+        <div style={{ flex: 1, position: 'relative' }}>
+          <div className="map-container" ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
+          {wc && (
+            <WorkingCopyBar projectTitle={wc.project.title} variantName={wc.variant.name} base={wcBase}
+              changes={wcChanges.length} serverNewer={serverNewer} busy={syncBusy}
+              onCheckIn={() => setSyncDialog({ kind: 'checkin', errors: [] })}
+              onUpdate={() => startUpdate()}
+              onShowChanges={() => setCompare({
+                before: currentWorkingCopy().basePayload, after: currentWorkingCopy().project,
+                beforeLabel: `${wc.variant.name} · ${t('wc_base')}`, afterLabel: t('wc_working_copy'),
+              })} />
+          )}
+          {syncNote && <button type="button" className="wc-note" onClick={() => setSyncNote(null)}>{syncNote}</button>}
+          {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} />}
+          {trackTable && <TrackTableOverlay track={trackTable}
+            initialRow={trackTableInitialRow} onPickTrack={setTrackTable} onDirtyChange={setTableDirty}
+            onClose={() => closeTrackTable(() => setTrackTable(null))} />}
+          {profileTrackId && <ElevationOverlay trackId={profileTrackId} onClose={() => setProfileTrackId(null)} />}
+          {crossSectionAt && <CrossSectionOverlay at={crossSectionAt}
+            onAtChange={setCrossSectionAt} onClose={() => setCrossSectionAt(null)} />}
+          {physicsOpen && <PhysicsOverlay onClose={() => setPhysicsOpen(false)} />}
+          {regelwerkOverlay && <RegelwerkOverlay regelwerkId={regelwerkOverlay.regelwerkId}
+            onClose={() => setRegelwerkOverlay(null)} />}
+          {topologyGraphOpen && topology && <TopologyGraphOverlay
+            selection={topologySelection} onSelect={pickInTopologyDiagram}
+            onDeleted={() => setTopologySelection(null)}
+            onClose={() => setTopologyGraphOpen(false)} />}
+          {compare && <CompareOverlay mapVersion={mapVersion} {...compare} onClose={() => setCompare(null)} />}
+          {syncDialog?.kind === 'merge' && (
+            <ConflictDialog mapVersion={mapVersion} result={syncDialog.prepared.result} busy={syncBusy}
+              title={t('wc_merge_title')} mineLabel={t('wc_working_copy')}
+              theirsLabel={`${t('wc_server')} (${syncDialog.prepared.head.author.name})`}
+              onCancel={() => setSyncDialog(null)} onApply={applyMerge} />
+          )}
+          {syncDialog?.kind === 'checkin' && (
+            <CheckInDialog changes={wcChanges} errors={syncDialog.errors} busy={syncBusy}
+              onCancel={() => setSyncDialog(null)} onSubmit={submitCheckIn} />
+          )}
+          {planPreview && <PlanPreviewOverlay plan={planPreview.plan} filenameBase={planPreview.filenameBase} onClose={() => setPlanPreview(null)} />}
+          {discardAsk && (
+            <ConfirmModal
+              message={t('table_discard_confirm')}
+              confirmLabel={t('table_discard')}
+              onConfirm={() => { const go = discardAsk; setDiscardAsk(null); go() }}
+              onCancel={() => setDiscardAsk(null)}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </MapContext.Provider>
   )
 }

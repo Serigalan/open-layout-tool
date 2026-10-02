@@ -3,6 +3,9 @@ import { loadSwitches, loadTracks, updateSwitch } from '../../../storage'
 import { switchStatus } from '../../../utils/planStatus'
 import StatusField from '../StatusField'
 import { FILTER_NONE, HIT_TOLERANCE, filterForSwitch, mapIsLive } from '../../../utils/mapConstants'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
 /**
  * The planning status of a switch, picked on the map like a switch to delete.
@@ -10,7 +13,10 @@ import { FILTER_NONE, HIT_TOLERANCE, filterForSwitch, mapIsLive } from '../../..
  * which is what it is for most switches — only one renewed in a standing
  * track, or kept where its branch goes, needs a status of its own.
  */
-export default function SwitchStatusForm({ t, map, project, onCommitted }) {
+export default function SwitchStatusForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [selected, setSelected] = useState(null)   // switch record
   const [status, setStatus] = useState(null)
 
@@ -65,7 +71,7 @@ export default function SwitchStatusForm({ t, map, project, onCommitted }) {
       ) : (
         <div className="element-form">
           <p>{t('switch_status_selected').replace('{name}', selected.name || selected.switchId.slice(0, 8))}</p>
-          <StatusField t={t} value={status} onChange={setStatus} auto={derived} />
+          <StatusField value={status} onChange={setStatus} auto={derived} />
         </div>
       )}
       {selected && (

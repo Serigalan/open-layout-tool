@@ -15,6 +15,9 @@ import { outlineFeature, cloudSize } from '../../utils/pointCloud/cloudOutline'
 import { forgetCloud } from '../../utils/pointCloud/cloudSection'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
 import ConfirmModal from '../ConfirmModal'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
+import { useProject } from '../../hooks/useStore'
 
 /**
  * Every plane a cloud may be stated in — all of them projStringFor knows, not
@@ -61,7 +64,10 @@ const duration = (s) => {
  * 118) — and checks the box the file states for itself against the tracks, so
  * a wrong choice shows before an hour of reading.
  */
-export default function PointCloudPanel({ t, map, project }) {
+export default function PointCloudPanel() {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [clouds, setClouds] = useState(null)
   const [storage, setStorage] = useState(null)  // { usage, quota, free, persisted }
   const [asking, setAsking] = useState(null)    // the cloud a delete waits on
@@ -331,7 +337,7 @@ export default function PointCloudPanel({ t, map, project }) {
         </div>
       )}
       {asking && (
-        <ConfirmModal t={t} message={fill(t('pointcloud_delete_ask'), { name: asking.name })}
+        <ConfirmModal message={fill(t('pointcloud_delete_ask'), { name: asking.name })}
           onConfirm={() => remove(asking)} onCancel={() => setAsking(null)} />
       )}
     </>

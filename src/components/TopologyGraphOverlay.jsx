@@ -4,6 +4,8 @@ import ConfirmModal from './ConfirmModal'
 import { buildTopologyGraph, topologyClusters, selectionHighlight } from '../utils/topologyGraph'
 import { layoutClusterLanes } from '../utils/topologyLanes'
 import { TOPOLOGY_RED, TOPOLOGY_HIGHLIGHT } from '../utils/topologyLayer'
+import { useI18n } from '../locales/i18nContext'
+import { useProject } from '../hooks/useStore'
 
 const PAD    = 28     // px around a diagram
 const STEP_X = 56     // px between columns — a track two columns at least, its name on the middle one
@@ -34,7 +36,9 @@ const GREY = '#8a8a8a'
  * { tracks, switches, endMarks }, `trackStyles` the colour of each track by
  * its status ({ color, dashed }), and there is nothing to delete.
  */
-export default function TopologyGraphOverlay({ project, selection, onSelect, onDeleted, onClose, t, source = null, trackStyles = null, title = null }) {
+export default function TopologyGraphOverlay({ selection, onSelect, onDeleted, onClose, source = null, trackStyles = null, title = null }) {
+  const { t } = useI18n()
+  const project = useProject()
   const readOnly = Boolean(source)
   const [confirmDelete, setConfirmDelete] = useState(null)   // { trackIds, message }
   const data = useMemo(() => {
@@ -120,7 +124,7 @@ export default function TopologyGraphOverlay({ project, selection, onSelect, onD
         </div>
       )}
       <div className="track-table-scroll topology-graph-scroll">
-        <Legend t={t} />
+        <Legend />
         {data.clusters.map((cluster, i) => (
           <section key={i} className="topology-graph-section">
             <div className="topology-graph-section-head">
@@ -167,7 +171,6 @@ export default function TopologyGraphOverlay({ project, selection, onSelect, onD
       </div>
       {confirmDelete && (
         <ConfirmModal
-          t={t}
           message={confirmDelete.message}
           onConfirm={removeConfirmed}
           onCancel={() => setConfirmDelete(null)}
@@ -369,7 +372,8 @@ function LooseTrack({ edge, nodes, color, status, onToggle }) {
   )
 }
 
-function Legend({ t }) {
+function Legend() {
+  const { t } = useI18n()
   const item = (node, label) => (
     <span className="topology-graph-legend-item">
       <svg width={22} height={22}><NodeGlyph node={node} x={11} y={11} /></svg>

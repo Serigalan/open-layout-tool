@@ -22,6 +22,9 @@ import { transformTrackToPlane } from '../../utils/planeTransform'
 import { loadGridsFor } from '../../utils/ntv2Grid'
 import { convertMdbOnServer, OptimizerError } from '../../utils/optimizerService'
 import ProviImportSection from './ProviImportSection'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
+import { useProject } from '../../hooks/useStore'
 
 /**
  * How long the way to OSRD stays offered after an export [ms]. The file is in
@@ -79,7 +82,10 @@ function trackLabel(track) {
   return parts.length ? parts.join(' · ') : track.id
 }
 
-export default function DataExchangePanel({ t, map, project, onShowCompare }) {
+export default function DataExchangePanel({ onShowCompare }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const tracks = project ? loadTracks() : []
   const trackCount = tracks.length
   const [before, after] = t('data_exchange_project_desc').split('{{tracks}}')
@@ -964,7 +970,6 @@ export default function DataExchangePanel({ t, map, project, onShowCompare }) {
         <>
         <ExchangeSection title={t('data_exchange_provi')} description={t('data_exchange_provi_desc')}>
           <ProviImportSection
-            t={t} map={map} project={project}
             onReport={(source, counts, lines) => {
               setReports(saveImportReport({ source, ...counts, lines }))
               setOpenReport(null)

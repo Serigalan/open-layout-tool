@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react'
 import { renderSvg } from '../utils/planSvg'
 import { renderPdf } from '../utils/planPdf'
 import { downloadBlob, downloadText } from '../utils/fileUtils'
+import { useI18n } from '../locales/i18nContext'
 
 /**
  * The plan as it will be printed. Preview and PDF are two renderings of the
  * same primitive list, so what is shown here is what comes out of the export —
  * only drawn by the SVG backend instead of the PDF one.
  */
-export default function PlanPreviewOverlay({ plan, filenameBase, t, onClose }) {
+export default function PlanPreviewOverlay({ plan, filenameBase, onClose }) {
+  const { t } = useI18n()
   const [index, setIndex] = useState(0)
   const [zoom, setZoom] = useState(1)
 

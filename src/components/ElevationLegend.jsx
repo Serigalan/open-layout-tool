@@ -1,4 +1,5 @@
 import { RELIEF_RAMP } from '../basemaps'
+import { useI18n } from '../locales/i18nContext'
 
 // The bar is drawn from the same ramp the map is painted with, bottom (lowest)
 // to top (highest), so legend and terrain can never drift apart.
@@ -12,7 +13,8 @@ const TICKS = [1, 0.75, 0.5, 0.25, 0]
  * Legend for the elevation basemaps. `range` is the [min, max] the colour scale
  * is currently fitted to — it follows the view, so the labels do too.
  */
-export default function ElevationLegend({ range, t }) {
+export default function ElevationLegend({ range }) {
+  const { t } = useI18n()
   if (!range) return null
   const [min, max] = range
   const span = max - min

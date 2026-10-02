@@ -14,8 +14,14 @@ import TransitionCurveSection from './TransitionCurveSection'
 import { toWgs } from '../../../utils/coordinateUtils'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
-export default function ConnectStraightForm({ t, map, project, onCommitted }) {
+export default function ConnectStraightForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [phase, setPhase]                   = useState('select')
   const [selectedTrack, setSelectedTrack]   = useState(null)
   const [startPoint, setStartPoint]         = useState(null)   // UTM {easting, northing, zone}
@@ -234,7 +240,6 @@ export default function ConnectStraightForm({ t, map, project, onCommitted }) {
 
       {selectedTrack && prevRadius !== null && (
         <TransitionCurveSection
-          t={t}
           enabled={transitionEnabled}
           onEnabledChange={setTransitionEnabled}
           type={transitionType}
@@ -280,7 +285,7 @@ export default function ConnectStraightForm({ t, map, project, onCommitted }) {
         const blocked = hasRuleError([element])
         return (
           <>
-            <RuleFindings t={t} element={element} />
+            <RuleFindings element={element} />
             <button className="panel-btn panel-btn-full" onClick={handleCommit}
               disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
               {t('btn_commit')}

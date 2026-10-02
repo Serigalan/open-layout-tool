@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { commitSwitchConnection, loadSwitches, loadTracks } from '../../../storage'
 import { existingLinks, findTrackJoints, linksForJoints } from '../../../utils/trackLinkUtils'
 import { utmToWgs84, crsName } from '../../../utils/coordinateUtils'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
 
 /** Where a picked joint is put on the map. */
 const JOINT_ZOOM = 17
@@ -22,7 +24,9 @@ const JOINT_ZOOM = 17
  * them. The MDB import therefore writes them itself (DataExchangePanel); what
  * is left open here is what it could not decide.
  */
-export default function TrackLinkForm({ t, map, onCommitted }) {
+export default function TrackLinkForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
   const [crsOnly, setCrsOnly] = useState(false)
   const [created, setCreated] = useState(0)
   // Read once when the form opens, and again after a commit: the links just

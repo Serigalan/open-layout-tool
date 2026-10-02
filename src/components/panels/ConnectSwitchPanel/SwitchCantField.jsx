@@ -1,5 +1,6 @@
 import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION } from '../../../utils/mapConstants'
 import CantField from '../CantField'
+import { useI18n } from '../../../locales/i18nContext'
 
 /**
  * The cant of a turnout and, above 100 mm, the reason it is allowed to be there.
@@ -18,9 +19,8 @@ import CantField from '../CantField'
  * values. It is shown as it reads there, and `magnitude` says what the limit has
  * to answer for: the worst of the ramp, not its value at the toe.
  */
-export default function SwitchCantField({
-  t, cant, onCant, reason, onReason, label, readOnlyText, magnitude,
-}) {
+export default function SwitchCantField({ cant, onCant, reason, onReason, label, readOnlyText, magnitude}) {
+  const { t } = useI18n()
   const needsReason = (magnitude ?? Math.abs(cant ?? 0)) > MAX_SWITCH_CANT
   return (
     <>
@@ -35,7 +35,7 @@ export default function SwitchCantField({
           /* No u_0 offer here: a turnout is not canted to balance one speed —
              what it gets is just enough to bring the deficiency back under the
              limit (computeSwitchCant), and the clamp is the switch's own. */
-          <CantField t={t} label={label ?? t('cant')} value={cant} onChange={onCant}
+          <CantField label={label ?? t('cant')} value={cant} onChange={onCant}
             min={-MAX_SWITCH_CANT_EXCEPTION} max={MAX_SWITCH_CANT_EXCEPTION} />
         )}
       {needsReason && (

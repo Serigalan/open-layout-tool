@@ -15,6 +15,9 @@ import {
   CANT_STEP, MAX_SWITCH_CANT_DEF, mapIsLive,
 } from '../utils/mapConstants'
 import { catalogSpeedRange } from '../utils/regelkatalog'
+import { useI18n } from '../locales/i18nContext'
+import { useMap } from '../map/MapContext'
+import { useProject } from '../hooks/useStore'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
 
@@ -92,8 +95,10 @@ function maxSpeeds(elements, cap) {
 }
 
 export default function TrackTableOverlay({
-  track, project, map, initialRow, onPickTrack, onDirtyChange, onClose, t,
-}) {
+  track, initialRow, onPickTrack, onDirtyChange, onClose}) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   // Keep the full track set as working state — a geometry edit propagates to
   // connected following elements/tracks, so we edit and persist all of them.
   const [tracks, setTracks] = useState(() => loadTracks())

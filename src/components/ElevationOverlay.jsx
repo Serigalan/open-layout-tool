@@ -7,6 +7,8 @@ import {
 import { filterForElements, FILTER_NONE, mapIsLive } from '../utils/mapConstants'
 import { fillHeights } from '../utils/elevationFill'
 import { chosenTerrainSource } from '../utils/elevationSource'
+import { useI18n } from '../locales/i18nContext'
+import { useMap } from '../map/MapContext'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
@@ -48,7 +50,9 @@ const gradeLabel = (perMille) => {
  */
 // The profile is read from the store, through the subscription: every write
 // draws it again.
-export default function ElevationOverlay({ trackId, map, onClose, t }) {
+export default function ElevationOverlay({ trackId, onClose }) {
+  const { t } = useI18n()
+  const map = useMap()
   const tracks   = useTracks()
   const switches = useSwitches()
   const track    = tracks.find(tr => tr.id === trackId)

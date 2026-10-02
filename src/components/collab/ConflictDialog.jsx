@@ -3,6 +3,8 @@ import { resolve, validationConflicts } from '../../utils/merge'
 import { clearFeatures, drawable, findObject, objectFeatures, showFeaturesSoon, zoomToFeatures, COMPARE_COLORS } from '../../utils/compareLayer'
 import { conflictText, entryText, fill, findingText, valueText } from './mergeText'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
 
 const LAYER = 'conflict'
 
@@ -17,7 +19,9 @@ const LAYER = 'conflict'
  * (dehydrated). The validation conflicts are worked out anew after every
  * choice: taking a side can solve one and bring up another.
  */
-export default function ConflictDialog({ map, mapVersion = 0, result, title, mineLabel, theirsLabel, onCancel, onApply, busy = false, t }) {
+export default function ConflictDialog({ mapVersion = 0, result, title, mineLabel, theirsLabel, onCancel, onApply, busy = false }) {
+  const { t } = useI18n()
+  const map = useMap()
   const fieldConflicts = useMemo(() => result.conflicts.filter(c => c.kind !== 'validation'), [result])
   const [choices, setChoices] = useState({})
   const [selected, setSelected] = useState(null)

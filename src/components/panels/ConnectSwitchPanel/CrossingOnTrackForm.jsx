@@ -25,6 +25,9 @@ import {
   SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
   EMPTY_FC, buildCrossingPreview,
 } from '../switchPreview'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
 /**
  * A crossing or crossing switch laid INTO an existing track (AP 3.3) — the
@@ -47,7 +50,10 @@ import {
  * does the walking — both halves of the main route are its through route, one
  * call each, with the branching left out that a turnout adds.
  */
-export default function CrossingOnTrackForm({ t, map, project, onCommitted, initialKind = 'crossing' }) {
+export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossing' }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
   const [phase, setPhase]         = useState('select')
@@ -328,18 +334,18 @@ export default function CrossingOnTrackForm({ t, map, project, onCommitted, init
             <input type="text" readOnly value={`${form.Ri} m`} />
           </div>
         )}
-        <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
+        <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
       </div>
 
       <div className="element-form">
         <span className="create-element-section">{t('switch_meta_data')}</span>
-        <SwitchNumberField t={t} number={switchNo.number} onChange={switchNo.setNumber}
+        <SwitchNumberField number={switchNo.number} onChange={switchNo.setNumber}
           name={switchNo.name} taken={switchNo.taken} />
       </div>
 
       <div className="element-form">
         <span className="create-element-section">{t('section_meta_cross')}</span>
-        <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
+        <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError} />
       </div>
 

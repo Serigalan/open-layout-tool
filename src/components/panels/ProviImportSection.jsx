@@ -9,6 +9,9 @@ import {
 import { placeMdbSwitches } from '../../utils/mdbSwitchPlacement'
 import { linkAllJoints } from '../../utils/trackLinkUtils'
 import { fitToTracks } from '../../utils/mapRenderUtils'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
+import { useProject } from '../../hooks/useStore'
 
 const noteStyle = { margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }
 
@@ -21,7 +24,10 @@ const noteStyle = { margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily:
  * `onReport(source, counts, lines)` keeps the run's report with the project's
  * other import reports.
  */
-export default function ProviImportSection({ t, map, project, onReport }) {
+export default function ProviImportSection({ onReport }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const inputRef = useRef(null)
   const filesRef = useRef(null)   // the unpacked archive, kept out of state
   const [fileName, setFileName] = useState('')

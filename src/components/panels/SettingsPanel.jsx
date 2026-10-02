@@ -1,11 +1,13 @@
 import { languageLabels } from '../../locales/i18n'
+import { useI18n } from '../../locales/i18nContext'
 
 const COLOR_SWATCHES = [
   '#303383', '#786ABF', '#2980b9', '#16a085', '#27ae60',
   '#f39c12', '#e67e22', '#e74c3c', '#8e44ad', '#2c3e50',
 ]
 
-export default function SettingsPanel({ language, onLanguageChange, color, onColorChange, t }) {
+export default function SettingsPanel({ color, onColorChange }) {
+  const { language, t, setLanguage } = useI18n()
   return (
     <>
       <h2>{t('settings')}</h2>
@@ -17,7 +19,7 @@ export default function SettingsPanel({ language, onLanguageChange, color, onCol
           id="language-select"
           className="settings-select"
           value={language}
-          onChange={(e) => onLanguageChange(e.target.value)}
+          onChange={(e) => setLanguage(e.target.value)}
         >
           {Object.entries(languageLabels).map(([code, label]) => (
             <option key={code} value={code}>{label}</option>

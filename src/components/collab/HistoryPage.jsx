@@ -4,6 +4,7 @@ import { discardWorkingCopy } from '../../storage'
 import { hasLocalChanges } from '../../utils/variantMerge'
 import { fill } from './mergeText'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
 
 const dateTime = (iso, language) => new Date(iso).toLocaleString(language === 'de' ? 'de-DE' : 'en-GB', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -18,7 +19,8 @@ const dateTime = (iso, language) => new Date(iso).toLocaleString(language === 'd
  * restored — as a new revision with that state on top of the head, never by
  * moving the head back: what came after stays in the history.
  */
-export default function HistoryPage({ project, variant, onBack, onView, onCompareWithHead, t, language }) {
+export default function HistoryPage({ project, variant, onBack, onView, onCompareWithHead }) {
+  const { t, language } = useI18n()
   const [revisions, setRevisions] = useState(null)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)

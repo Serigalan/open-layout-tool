@@ -9,8 +9,14 @@ import { trackStatus } from '../../../utils/planStatus'
 import HeightDatumField from '../HeightDatumField'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, DEFAULT_HEIGHT_EPSG, mapIsLive } from '../../../utils/mapConstants'
 import { trackTypeName } from '../../../utils/trackGroups'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
-export default function EditPropertiesForm({ t, map, project, onCommitted }) {
+export default function EditPropertiesForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [name, setName] = useState('')
@@ -105,13 +111,13 @@ export default function EditPropertiesForm({ t, map, project, onCommitted }) {
         <>
           <div className="element-form">
             <span className="create-element-section">{t('section_meta')}</span>
-            <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
+            <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
               name={name} onNameChange={(val) => { setName(val); setNameError(false) }} nameError={nameError} />
-            <StatusField t={t} value={status} onChange={setStatus} />
+            <StatusField value={status} onChange={setStatus} />
           </div>
           <div className="element-form">
             <span className="create-element-section">{t('section_geometry')}</span>
-            <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
+            <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
           </div>
         </>
       )}

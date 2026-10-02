@@ -14,6 +14,9 @@ import useTrackHover from '../../hooks/useTrackHover'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
 import UtmCoordFields from '../UtmCoordFields'
 import StationNameInput from './StationNameInput'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
+import { useProject } from '../../hooks/useStore'
 
 const PREVIEW_FILL_SOURCE = 'platform-preview-fill-source'
 const PREVIEW_LINE_SOURCE = 'platform-preview-line-source'
@@ -63,7 +66,10 @@ const fmt = (v) => String(Math.round(v * 1000) / 1000)
  * record keeps only its plane data (track, stations, side, height), and the
  * polygon on the map is derived from it.
  */
-export default function PlatformPanel({ t, map, project }) {
+export default function PlatformPanel() {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [phase, setPhase]     = useState('select')   // 'select' | 'edit'
   const [editingId, setEditingId] = useState(null)   // set when an existing platform is being edited
   const [trackId, setTrackId] = useState(null)

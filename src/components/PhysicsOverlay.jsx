@@ -1,5 +1,6 @@
 import { flattenPhysics, PHYSICS } from '../utils/constraintsView'
 import FormelMathml from './FormelMathml'
+import { useI18n } from '../locales/i18nContext'
 
 /**
  * The physics beneath the optimizer, read-only, in the same popup shell the
@@ -8,7 +9,8 @@ import FormelMathml from './FormelMathml'
  * own constraint files, and it drives nothing at runtime anyway — there is
  * nothing live to ask for.
  */
-export default function PhysicsOverlay({ t, onClose }) {
+export default function PhysicsOverlay({ onClose }) {
+  const { t } = useI18n()
   const { konstanten, profile } = flattenPhysics(PHYSICS)
 
   // "-" is how the file says a value has no unit (a ramp factor, the cant

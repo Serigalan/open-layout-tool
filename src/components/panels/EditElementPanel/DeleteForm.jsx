@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react'
 import { deleteElement } from '../../../storage'
 import { FILTER_NONE, HIT_TOLERANCE, filterForElement, mapIsLive } from '../../../utils/mapConstants'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
-export default function DeleteForm({ t, map, project, onCommitted }) {
+export default function DeleteForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [selectedElementIndex, setSelectedElementIndex] = useState(null)
 

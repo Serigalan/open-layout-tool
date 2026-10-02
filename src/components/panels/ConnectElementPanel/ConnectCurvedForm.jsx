@@ -17,8 +17,14 @@ import useElementSelection from '../../../hooks/useElementSelection'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
 import { toWgs } from '../../../utils/coordinateUtils'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
-export default function ConnectCurvedForm({ t, map, project, onCommitted }) {
+export default function ConnectCurvedForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [phase, setPhase]                   = useState('select')
   const [selectedTrack, setSelectedTrack]   = useState(null)
   const [startPoint, setStartPoint]         = useState(null)   // UTM
@@ -256,7 +262,6 @@ export default function ConnectCurvedForm({ t, map, project, onCommitted }) {
 
       {selectedTrack && (
         <TransitionCurveSection
-          t={t}
           enabled={transitionEnabled}
           onEnabledChange={setTransitionEnabled}
           type={transitionType}
@@ -299,7 +304,7 @@ export default function ConnectCurvedForm({ t, map, project, onCommitted }) {
                 <label>{t('field_speed')}</label>
                 <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
               </div>
-              <CantField t={t} value={cant} onChange={setCant}
+              <CantField value={cant} onChange={setCant}
                 min={-MAX_CANT} max={MAX_CANT}
                 speed={speed} radius={Math.abs(Number(signedRadius))} />
               <div className="form-field">
@@ -324,7 +329,7 @@ export default function ConnectCurvedForm({ t, map, project, onCommitted }) {
         const blocked = hasRuleError([element])
         return (
           <>
-            <RuleFindings t={t} element={element} />
+            <RuleFindings element={element} />
             <button className="panel-btn panel-btn-full" onClick={handleCommit}
               disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
               {t('btn_commit')}

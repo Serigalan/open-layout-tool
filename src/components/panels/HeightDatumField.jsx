@@ -1,10 +1,12 @@
 import { HEIGHT_DATUMS } from '../../utils/mapConstants'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * Height datum of a track, shown with the geometry data next to the horizontal
  * CRS – both say which reference system the stated numbers belong to.
  */
-export default function HeightDatumField({ t, value, onChange }) {
+export default function HeightDatumField({ value, onChange }) {
+  const { t } = useI18n()
   // A datum from an import the list does not know is shown as it is.
   const datums = HEIGHT_DATUMS.some(d => String(d.epsg) === String(value))
     ? HEIGHT_DATUMS

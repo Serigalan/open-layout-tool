@@ -3,6 +3,8 @@ import { listClouds } from '../../utils/pointCloud/cloudStore'
 import { scanClearance } from '../../utils/pointCloud/clearanceScan'
 import { gaugeProfile, gaugeProfileRing, gaugeProfileAreas, DEFAULT_GAUGE_PROFILE } from '../../utils/gaugeProfiles'
 import { currentProject } from '../../storage'
+import { useI18n } from '../../locales/i18nContext'
+import { useProject } from '../../hooks/useStore'
 
 const fill = (text, vars) => Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{{${k}}}`, v), text)
 
@@ -12,7 +14,9 @@ const fill = (text, vars) => Object.entries(vars).reduce((s, [k, v]) => s.replac
  * points reach into the outline, each a click away in the cross section.
  * Absent where the project has no cloud here.
  */
-export default function ClearanceScanSection({ t, project, track, onShowCrossSection }) {
+export default function ClearanceScanSection({ track, onShowCrossSection }) {
+  const { t } = useI18n()
+  const project = useProject()
   const [clouds, setClouds] = useState([])
   const [run, setRun] = useState(null)       // { share } while checking
   const [result, setResult] = useState(null) // { trackId, stretches, checked, noGradient } | { error }

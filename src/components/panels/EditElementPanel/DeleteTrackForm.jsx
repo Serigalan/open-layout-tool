@@ -3,8 +3,14 @@ import { deleteTrack, loadTracks, switchesOnTrack } from '../../../storage'
 import useTrackHover from '../../../hooks/useTrackHover'
 import ConfirmModal from '../../ConfirmModal'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, mapIsLive } from '../../../utils/mapConstants'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
-export default function DeleteTrackForm({ t, map, project, onCommitted }) {
+export default function DeleteTrackForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   // { id, name, elements, switchNames } – switch branches are not offered: their
   // geometry belongs to a switch and goes with it, not on its own.
   const [selected, setSelected]     = useState(null)
@@ -83,7 +89,6 @@ export default function DeleteTrackForm({ t, map, project, onCommitted }) {
 
       {confirming && (
         <ConfirmModal
-          t={t}
           message={fill('edit_track_delete_confirm', { name: selected.name, elements: selected.elements })}
           onConfirm={handleDelete}
           onCancel={() => setConfirming(false)}

@@ -2,13 +2,15 @@ import { useState } from 'react'
 import { COMPARE_COLORS } from '../../utils/compareLayer'
 import { entryText, findingText, fill } from './mergeText'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * Checking in (AP 10.6): a comment and the list of one's own changes against
  * the base. `errors` are what the server refused the record for (422), listed
  * where the change list is so the user sees what to mend.
  */
-export default function CheckInDialog({ changes, errors = [], busy, onSubmit, onCancel, t }) {
+export default function CheckInDialog({ changes, errors = [], busy, onSubmit, onCancel }) {
+  const { t } = useI18n()
   const [message, setMessage] = useState('')
   return (
     <div className="modal-overlay" onClick={busy ? undefined : onCancel}>

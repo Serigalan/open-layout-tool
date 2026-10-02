@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { groupHeading, groupTracks, trackListLabel } from '../../utils/trackGroups'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * A project's tracks under the line or station they belong to (see
@@ -11,7 +12,8 @@ import { groupHeading, groupTracks, trackListLabel } from '../../utils/trackGrou
  * With `onPickGroup(group)` the header carries a button that picks the group
  * as a whole — the list of a form that takes several tracks at once.
  */
-export default function GroupedTrackList({ t, tracks, isActive, onPick, onPickGroup }) {
+export default function GroupedTrackList({ tracks, isActive, onPick, onPickGroup }) {
+  const { t } = useI18n()
   const [folded, setFolded] = useState(() => new Set())
   const groups = groupTracks(tracks)
 

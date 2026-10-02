@@ -9,6 +9,9 @@ import { bufferStopFeatures } from '../../../utils/bufferStopGeometry'
 import { trackLength } from '../../../utils/heightUtils'
 import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import { mapIsLive } from '../../../utils/mapConstants'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
 /** How close (px) the cursor has to come to an end for it to be the one meant. */
 const PICK_PX = 14
@@ -60,7 +63,10 @@ const keyOf = (end) => (end ? `${end.trackId}|${end.endpoint}` : null)
  * 77): the type proposes the brake length until the brake length has been
  * typed in by hand, and the stop is 2.20 m long in front of it.
  */
-export default function BufferStopForm({ t, map, project, onCommitted, edit = false }) {
+export default function BufferStopForm({ onCommitted, edit = false }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [version, setVersion] = useState(0)
   const { tracks, candidates, marks } = useMemo(() => {
     const tracks = loadTracks()

@@ -1,6 +1,7 @@
 import { readImageAsBase64 } from '../../utils/fileUtils'
 import { PROJECT_IMAGES, projectImageUrl } from '../../utils/projectImages'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * The picture of a new project: none, one of the default pictures, or a file
@@ -11,7 +12,8 @@ import './collab.css'
  * Native radio buttons under the tiles, so the arrow keys move through them
  * like through any other choice of one.
  */
-export default function ProjectImagePicker({ value, onChange, t, disabled = false }) {
+export default function ProjectImagePicker({ value, onChange, disabled = false }) {
+  const { t } = useI18n()
   const ownUrl = value.kind === 'file' ? value.dataUrl : null
 
   const option = (id, checked, onSelect, label, content) => (

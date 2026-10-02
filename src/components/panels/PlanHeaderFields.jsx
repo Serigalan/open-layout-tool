@@ -1,5 +1,6 @@
 import { fileToLogo } from '../../utils/logoImage'
 import { PARTIES, STAFF } from '../../utils/planHeader'
+import { useI18n } from '../../locales/i18nContext'
 
 /** Longest side of a location sketch image [px] — it fills a box of 13 × 4 cm. */
 const SKETCH_PX = 1600
@@ -12,7 +13,8 @@ const SIMPLE_STAFF = ['drawn', 'checked']
  * `simple`: only what the simple title block states besides the plan itself —
  * who drew and who checked it.
  */
-export default function PlanHeaderFields({ t, header, onChange, onError, simple = false }) {
+export default function PlanHeaderFields({ header, onChange, onError, simple = false }) {
+  const { t } = useI18n()
   const setParty = (key, patch) => onChange({
     ...header, parties: { ...header.parties, [key]: { ...header.parties[key], ...patch } },
   })

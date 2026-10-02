@@ -33,6 +33,9 @@ import {
   SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
   EMPTY_FC, buildLinesGeoJSON, buildFillGeoJSON,
 } from '../switchPreview'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
 /** Track the toe must leave behind it, or the split would part off next to nothing [m]. */
 const MIN_BEHIND = 0.5
@@ -86,7 +89,10 @@ function constantBranchElement(seg, cant) {
  * turnout on nothing but straights is the ordinary one, whose cant follows
  * speed and switch form.
  */
-export default function SwitchOnTrackForm({ t, map, project, onCommitted }) {
+export default function SwitchOnTrackForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [phase, setPhase]           = useState('select')
   const [pick, setPick]             = useState(null)   // { trackId }
@@ -381,7 +387,7 @@ export default function SwitchOnTrackForm({ t, map, project, onCommitted }) {
           <label>{t('switch_on_track_elements')}</label>
           <input type="text" readOnly value={elementsText} />
         </div>
-        <SwitchFormField t={t} value={switchTypeIdx} onChange={i => {
+        <SwitchFormField value={switchTypeIdx} onChange={i => {
           setTypeIdx(i); setSpeed(SWITCH_PICK_TYPES[i].speed)
         }} />
         <div className="form-field">
@@ -395,7 +401,7 @@ export default function SwitchOnTrackForm({ t, map, project, onCommitted }) {
           <label>{t('field_speed')}</label>
           <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
         </div>
-        <SwitchCantField t={t}
+        <SwitchCantField
           label={cantVaries ? t('switch_cant_ramp') : t('cant')}
           cant={cant} onCant={value => setCantEdit({ key: cantKey, value })}
           readOnlyText={plain ? undefined
@@ -432,18 +438,18 @@ export default function SwitchOnTrackForm({ t, map, project, onCommitted }) {
             <input type="text" readOnly value={radiusText(g.branchSegments, t('switch_branch_straight'))} />
           </div>
         )}
-        <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
+        <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
       </div>
 
       <div className="element-form">
         <span className="create-element-section">{t('switch_meta_data')}</span>
-        <SwitchNumberField t={t} number={switchNo.number} onChange={switchNo.setNumber}
+        <SwitchNumberField number={switchNo.number} onChange={switchNo.setNumber}
           name={switchNo.name} taken={switchNo.taken} />
       </div>
 
       <div className="element-form">
         <span className="create-element-section">{t('section_meta_divergent')}</span>
-        <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
+        <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={(v) => { setName(v); setNameError(false) }}
           nameError={nameError} />
       </div>

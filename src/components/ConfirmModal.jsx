@@ -1,4 +1,6 @@
-export default function ConfirmModal({ message, onConfirm, onCancel, t, confirmLabel, cancelLabel }) {
+import { useI18n } from '../locales/i18nContext'
+export default function ConfirmModal({ message, onConfirm, onCancel, confirmLabel, cancelLabel }) {
+  const { t } = useI18n()
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>

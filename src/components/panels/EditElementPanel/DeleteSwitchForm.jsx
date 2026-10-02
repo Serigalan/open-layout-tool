@@ -3,6 +3,9 @@ import { commitSwitchDeletion, loadSwitches, loadTracks } from '../../../storage
 import { planSwitchDeletion } from '../../../utils/switchDelete'
 import ConfirmModal from '../../ConfirmModal'
 import { FILTER_NONE, HIT_TOLERANCE, filterForSwitch, mapIsLive } from '../../../utils/mapConstants'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
 /**
  * Delete a turnout (AP 1.2). The switch is picked on the map — its body, or any
@@ -11,7 +14,10 @@ import { FILTER_NONE, HIT_TOLERANCE, filterForSwitch, mapIsLive } from '../../..
  * the difference between "the branch goes" and "the switch and both its routes
  * go" is visible from the dialog rather than from the map afterwards.
  */
-export default function DeleteSwitchForm({ t, map, project, onCommitted }) {
+export default function DeleteSwitchForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [selected, setSelected]     = useState(null)   // { sw, plan }
   const [confirming, setConfirming] = useState(false)
 
@@ -97,7 +103,6 @@ export default function DeleteSwitchForm({ t, map, project, onCommitted }) {
 
       {confirming && (
         <ConfirmModal
-          t={t}
           message={fill('switch_delete_confirm', { name })}
           onConfirm={handleDelete}
           onCancel={() => setConfirming(false)}

@@ -10,6 +10,9 @@ import { elementsPath, identifyTrackLine } from '../../../utils/lineLookup'
 import { FILTER_NONE, mapIsLive } from '../../../utils/mapConstants'
 import GroupedTrackList from '../GroupedTrackList'
 import StationNameInput from '../StationNameInput'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
 const SELECTED_LAYER = 'tracks-selected-layer'
 const NEW = 'new'
@@ -31,7 +34,10 @@ const filterForTracks = (ids) => ['in', ['get', 'trackId'], ['literal', ids]]
  * The form stays open after a commit — the list regroups at once, and the
  * next tracks are usually just picked for the next line or station.
  */
-export default function AssignTracksForm({ t, map, project, onCommitted }) {
+export default function AssignTracksForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [selected, setSelected] = useState(() => new Set())
   const [kind, setKind]         = useState('line')
   const [choice, setChoice]     = useState(NEW)
@@ -170,7 +176,7 @@ export default function AssignTracksForm({ t, map, project, onCommitted }) {
     <>
       <p>{t('assign_hint')}</p>
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
-      <GroupedTrackList t={t} tracks={tracks}
+      <GroupedTrackList tracks={tracks}
         isActive={(tr) => selected.has(tr.id)}
         onPick={(tr) => toggle(tr.id)}
         onPickGroup={toggleGroup} />

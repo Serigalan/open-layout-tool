@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import translations from '../../locales/de.json'
+import { inGerman, t } from '../../test/i18n'
 import { mergeProject } from '../../utils/merge'
 import ConflictDialog from './ConflictDialog'
 import CompareOverlay from './CompareOverlay'
 
-const t = (k) => translations[k] ?? k
 
 const straight = (id, y) => ({
   id, name: id, epsg: 25832,
@@ -15,7 +14,7 @@ const straight = (id, y) => ({
 
 const base = { id: 'p', title: 'P', tracks: [straight('t1', 0), straight('t2', 50)], switches: [], platforms: [] }
 
-const render = (el) => renderToStaticMarkup(el)
+const render = (el) => renderToStaticMarkup(inGerman(el))
 
 describe('ConflictDialog', () => {
   it('lists a field conflict with both sides and keeps apply locked until it is decided', () => {
@@ -25,7 +24,7 @@ describe('ConflictDialog', () => {
     theirs.tracks[1].speed = 80
     const result = mergeProject({ base, mine, theirs })
     const html = render(createElement(ConflictDialog, {
-      result, t, mineLabel: 'Arbeitskopie', theirsLabel: 'Server', onCancel() {}, onApply() {},
+      result, mineLabel: 'Arbeitskopie', theirsLabel: 'Server', onCancel() {}, onApply() {},
     }))
     expect(html).toContain('Gleis t1: Name in beiden Ständen geändert')
     expect(html).toContain('meins')
@@ -41,7 +40,7 @@ describe('ConflictDialog', () => {
     theirs.tracks.push(straight('t3', 100))
     const result = mergeProject({ base, mine: base, theirs })
     const html = render(createElement(ConflictDialog, {
-      result, t, mineLabel: 'Arbeitskopie', theirsLabel: 'Server', onCancel() {}, onApply() {},
+      result, mineLabel: 'Arbeitskopie', theirsLabel: 'Server', onCancel() {}, onApply() {},
     }))
     expect(html).toContain(t('merge_no_conflicts'))
     expect(html).toContain('Alle Konflikte aufgelöst.')
@@ -55,7 +54,7 @@ describe('CompareOverlay', () => {
     after.tracks[0].name = 'neu benannt'
     after.tracks = after.tracks.filter(tr => tr.id !== 't2')
     after.tracks.push(straight('t9', 200))
-    const html = render(createElement(CompareOverlay, { before: base, after, beforeLabel: 'Datei', afterLabel: 'Projekt', t, onClose() {} }))
+    const html = render(createElement(CompareOverlay, { before: base, after, beforeLabel: 'Datei', afterLabel: 'Projekt', onClose() {} }))
     expect(html).toContain('neu (1)')
     expect(html).toContain('geändert (1)')
     expect(html).toContain('gelöscht (1)')

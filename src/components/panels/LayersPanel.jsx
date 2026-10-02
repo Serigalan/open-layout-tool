@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { BASEMAPS, LANDESVERMESSUNG_STATES } from '../../basemaps'
 import { KM_COLOR, KM_OTHER_COLOR, KM_JUMP_COLOR } from '../../utils/kmLineLayer'
 import { OverlayThumbnail } from '../icons'
+import { useI18n } from '../../locales/i18nContext'
 
 const THUMBNAIL = {
   liberty:    '/liberty.webp',
@@ -32,7 +33,8 @@ const KM_OVERLAY_ENTRIES = [
   ['other', 'overlay_km_lines_other'],
 ]
 
-export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, t }) {
+export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError }) {
+  const { t } = useI18n()
   const anyOverlay = kmOverlays.db || kmOverlays.other
   const [lvExpanded, setLvExpanded] = useState(activeBasemap.startsWith('lv-'))
   const [overlaysExpanded, setOverlaysExpanded] = useState(anyOverlay)

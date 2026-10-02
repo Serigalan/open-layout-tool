@@ -10,12 +10,14 @@ import {
   BackIcon, CreateLineIcon, CreateArcIcon, CreateParallelIcon, CreateParallelTrackIcon,
   ConnectStraightIcon, ConnectCurvedIcon, BufferStopIcon,
 } from '../icons'
+import { useI18n } from '../../locales/i18nContext'
 
 // The gray line between the two tool groups, the same separator the layers
 // panel draws between its basemap groups.
 const SEPARATOR = { margin: '10px 0', border: 'none', borderTop: '1px solid #ddd' }
 
-function BackButton({ t, onBack }) {
+function BackButton({ onBack }) {
+  const { t } = useI18n()
   return (
     <button className="back-btn" onClick={onBack}>
       <BackIcon />
@@ -30,63 +32,64 @@ function BackButton({ t, onBack }) {
  * form. The groups share the panel the way the switch panel's tools do — one
  * menu, one back.
  */
-export default function CreateConnectPanel({ t, map, project }) {
+export default function CreateConnectPanel() {
+  const { t } = useI18n()
   const [page, setPage] = useState('menu')
   const back = () => setPage('menu')
 
   if (page === 'straight') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('create_straight_line')}</h2>
-      <LineForm t={t} map={map} project={project} onDone={() => setPage('menu')} />
+      <LineForm onDone={() => setPage('menu')} />
     </>
   )
 
   if (page === 'curved') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('create_curved_line')}</h2>
-      <CurvedLineForm t={t} map={map} project={project} onDone={() => setPage('menu')} />
+      <CurvedLineForm onDone={() => setPage('menu')} />
     </>
   )
 
   if (page === 'parallel') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('create_parallel')}</h2>
-      <ParallelLineForm t={t} map={map} project={project} onDone={() => setPage('menu')} />
+      <ParallelLineForm onDone={() => setPage('menu')} />
     </>
   )
 
   if (page === 'parallel_track') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('create_parallel_track')}</h2>
-      <ParallelTrackForm t={t} map={map} project={project} onDone={() => setPage('menu')} />
+      <ParallelTrackForm onDone={() => setPage('menu')} />
     </>
   )
 
   if (page === 'buffer_stop') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('buffer_stop_create')}</h2>
-      <BufferStopForm t={t} map={map} project={project} onCommitted={back} />
+      <BufferStopForm onCommitted={back} />
     </>
   )
 
   if (page === 'connect_straight') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('connect_straight')}</h2>
-      <ConnectStraightForm t={t} map={map} project={project} onCommitted={back} />
+      <ConnectStraightForm onCommitted={back} />
     </>
   )
 
   if (page === 'connect_curved') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('connect_curved')}</h2>
-      <ConnectCurvedForm t={t} map={map} project={project} onCommitted={back} />
+      <ConnectCurvedForm onCommitted={back} />
     </>
   )
 

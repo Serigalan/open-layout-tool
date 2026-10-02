@@ -1,14 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import translations from '../../locales/de.json'
+import { inGerman, t } from '../../test/i18n'
 import CantField from './CantField'
 import { CANT_STEP, MAX_CANT, cantFromInput, regelCant } from '../../utils/mapConstants'
 
-const t = (key) => translations[key] ?? key
-const render = (props) => renderToStaticMarkup(createElement(CantField, {
-  t, value: 0, onChange: () => {}, min: -MAX_CANT, max: MAX_CANT, ...props,
-}))
+const render = (props) => renderToStaticMarkup(inGerman(createElement(CantField, {
+  value: 0, onChange: () => {}, min: -MAX_CANT, max: MAX_CANT, ...props,
+})))
 
 // What the field does with the text in it when it is left. Typing itself is
 // not transformed at all — that is the whole point of the draft, and the bug

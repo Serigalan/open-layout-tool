@@ -2,6 +2,9 @@ import { useMemo } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks, saveEndMark, deleteEndMark } from '../../storage'
 import { classifyTrackEnds, isOpenState } from '../../utils/topology'
 import { newBoundary, BOUNDARY } from '../../utils/trackEndMarks'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
+import { useProject } from '../../hooks/useStore'
 
 /** How far in a click on an entry takes the map, at least. */
 const END_ZOOM = 17
@@ -17,7 +20,10 @@ const END_ZOOM = 17
  * `project` is the store's live record, so the lists follow every edit and
  * every undo.
  */
-export default function TopologyEndsList({ t, map, project }) {
+export default function TopologyEndsList() {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const { open, boundaries } = useMemo(() => {
     if (!project) return { open: [], boundaries: [] }
     const ends = classifyTrackEnds(loadTracks(), loadSwitches(), loadEndMarks())

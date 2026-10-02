@@ -1,5 +1,6 @@
 import { checkTrack } from '../../utils/trassierungCheck'
 import { ruleById, severityLabelKey, worstSeverity } from '../../utils/regelkatalog'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * What the rule catalogue says about what a dialog is about to create (AP R.8)
@@ -26,7 +27,8 @@ import { ruleById, severityLabelKey, worstSeverity } from '../../utils/regelkata
  * catalogue's legend read from too), with no bullets: a panel keeps those for
  * what it is about to do, not for what it has to say about it.
  */
-export default function RuleFindings({ t, element, elements }) {
+export default function RuleFindings({ element, elements }) {
+  const { t } = useI18n()
   const chain = elements ?? (element ? [element] : [])
   const check = checkTrack(chain)
   // Nothing was judged at all — every element had an unknown design speed.

@@ -20,6 +20,9 @@ import {
   DEFAULT_GAUGE_PROFILE,
 } from '../utils/gaugeProfiles'
 import usePreviewLayers from '../hooks/usePreviewLayers'
+import { useI18n } from '../locales/i18nContext'
+import { useMap } from '../map/MapContext'
+import { useProject } from '../hooks/useStore'
 
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
@@ -96,7 +99,10 @@ const inRange = (p, station) => station >= (p.startStation ?? 0) && station <= (
  * editable. The section is a view of the alignment; what it shows is changed
  * by changing the track (see CrossSectionPanel).
  */
-export default function CrossSectionOverlay({ at, project, map, onAtChange, onClose, t }) {
+export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [size, setSize] = useState(null)
   const [heightPx, setHeightPx] = useState(null)
   const [reach, setReach] = useState(DEFAULT_REACH)
@@ -627,7 +633,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
           )}
           <label className="profile-edit">
             {t('terrain_source')}
-            <TerrainSourceSelect t={t} value={terrainSource} onChange={setTerrainSource} />
+            <TerrainSourceSelect value={terrainSource} onChange={setTerrainSource} />
           </label>
           {(zoom !== 1 || center) && (
             <button className="track-table-save-btn" onClick={onDoubleClick} title={t('cross_section_view_hint')}>

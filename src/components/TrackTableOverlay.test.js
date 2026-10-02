@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { openProject } from '../storage'
-import translations from '../locales/de.json'
+import { inGerman, t } from '../test/i18n'
 import TrackTableOverlay from './TrackTableOverlay'
 
 /**
@@ -42,7 +42,6 @@ const TRACK = {
 }
 const SWITCH = { switchId: 'sw1', kind: 'turnout', name: 'W 12', label: '500 – 1:12', formVersion: 1 }
 
-const t = (key) => translations[key] ?? key
 
 /**
  * The table's columns, and its rows as one { text, editable, note } per cell.
@@ -51,12 +50,10 @@ const t = (key) => translations[key] ?? key
  */
 let projects = 0
 function renderTable(track = TRACK) {
-  const id = `p${++projects}`
-  openProject({ id, tracks: [track], switches: [SWITCH] })
-  const html = renderToStaticMarkup(createElement(TrackTableOverlay, {
-    track, project: { id }, map: { current: null }, t,
-    onPickTrack: () => {}, onClose: () => {},
-  }))
+  openProject({ id: `p${++projects}`, tracks: [track], switches: [SWITCH] })
+  const html = renderToStaticMarkup(inGerman(createElement(TrackTableOverlay, {
+    track, onPickTrack: () => {}, onClose: () => {},
+  })))
   // Newline-tolerant: a title may hold several lines (the rule column lists one
   // finding per line), and `.` would stop at the first of them.
   const columns = [...html.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map(m => m[1].replace(/<[^>]+>/g, ''))

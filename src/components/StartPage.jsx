@@ -11,6 +11,7 @@ import LanguageMenu from './collab/LanguageMenu'
 import ProjectImagePicker from './collab/ProjectImagePicker'
 import MembersDialog from './collab/MembersDialog'
 import './collab/collab.css'
+import { useI18n } from '../locales/i18nContext'
 
 /**
  * The guideline is a static page of its own per language, served from `public`.
@@ -41,7 +42,8 @@ const errorText = (t, code) => {
  * the template itself — its root variants — only an admin edits, everyone
  * else looks at it read-only.
  */
-export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOut, onAdmin, onCompare, onMerge, onHistory, note = null, t, language, onLanguageChange }) {
+export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOut, onAdmin, onCompare, onMerge, onHistory, note = null }) {
+  const { t, language, setLanguage } = useI18n()
   const [projects, setProjects] = useState(null)
   const [local, setLocal] = useState(new Map())   // variantId → number of local changes
   const [error, setError] = useState(null)
@@ -118,7 +120,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
   const card = (p) => (
     <ProjectCard key={p.id} project={p} local={local} opening={opening} showArchived={showArchived}
       canDelete={canDelete(p)} canEdit={isAdmin || !p.template} onOpen={open} onView={view}
-      onDialog={setDialog} onCompare={onCompare} onMerge={onMerge} onHistory={onHistory} t={t} language={language} />
+      onDialog={setDialog} onCompare={onCompare} onMerge={onMerge} onHistory={onHistory} />
   )
 
   return (
@@ -129,7 +131,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
           <h1>Open Layout Tool</h1>
         </div>
         <div className="home-user">
-          <LanguageMenu language={language} onChange={onLanguageChange} t={t} />
+          <LanguageMenu onChange={setLanguage} />
           {isAdmin && onAdmin && <button type="button" className="collab-btn" onClick={onAdmin}>{t('home_admin')}</button>}
           <div className="home-menu">
             <button type="button" className="collab-btn" aria-haspopup="menu" aria-expanded={userMenu} onClick={() => setUserMenu(v => !v)}>
@@ -195,28 +197,28 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
       </main>
 
       {dialog?.kind === 'new' && (
-        <NewProjectDialog t={t} template={Boolean(dialog.template)} onCancel={() => setDialog(null)} onCreated={async () => { setDialog(null); await reload() }} />
+        <NewProjectDialog template={Boolean(dialog.template)} onCancel={() => setDialog(null)} onCreated={async () => { setDialog(null); await reload() }} />
       )}
       {dialog?.kind === 'rename' && (
-        <RenameProjectDialog t={t} project={dialog.project} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
+        <RenameProjectDialog project={dialog.project} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
       )}
       {dialog?.kind === 'export' && (
-        <ExportDialog t={t} project={dialog.project} onCancel={() => setDialog(null)} onDone={() => setDialog(null)} />
+        <ExportDialog project={dialog.project} onCancel={() => setDialog(null)} onDone={() => setDialog(null)} />
       )}
       {dialog?.kind === 'delete' && (
-        <ConfirmDialog t={t} message={fill(t, 'home_delete_confirm', { title: dialog.project.title })} danger
+        <ConfirmDialog message={fill(t, 'home_delete_confirm', { title: dialog.project.title })} danger
           confirmLabel={t('start_delete')} onCancel={() => setDialog(null)}
           onConfirm={async () => { await api.deleteProject(dialog.project.id); setDialog(null); await reload() }} />
       )}
       {dialog?.kind === 'members' && (
-        <MembersDialog t={t} project={dialog.project}
+        <MembersDialog project={dialog.project}
           onClose={async (changed) => { setDialog(null); if (changed) await reload() }} />
       )}
       {dialog?.kind === 'branch' && (
-        <BranchDialog t={t} project={dialog.project} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
+        <BranchDialog project={dialog.project} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
       )}
       {(dialog?.kind === 'compare' || dialog?.kind === 'merge') && (
-        <PairDialog t={t} kind={dialog.kind} project={dialog.project} onCancel={() => setDialog(null)}
+        <PairDialog kind={dialog.kind} project={dialog.project} onCancel={() => setDialog(null)}
           onSubmit={async (a, b) => {
             const outcome = await (dialog.kind === 'compare' ? onCompare(dialog.project, a, b) : onMerge(dialog.project, a, b))
             setDialog(null)
@@ -224,12 +226,12 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
           }} />
       )}
       {dialog?.kind === 'variant' && (
-        <VariantDialog t={t} variant={dialog.variant} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
+        <VariantDialog variant={dialog.variant} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
       )}
       {dialog?.kind === 'password' && (
         <div className="modal-overlay" onClick={() => setDialog(null)}>
           <div onClick={e => e.stopPropagation()}>
-            <PasswordForm t={t} onCancel={() => setDialog(null)} onDone={() => { setDialog(null); setNotice(t('password_done')) }} />
+            <PasswordForm onCancel={() => setDialog(null)} onDone={() => { setDialog(null); setNotice(t('password_done')) }} />
           </div>
         </div>
       )}
@@ -237,7 +239,8 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
   )
 }
 
-function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit, onOpen, onView, onDialog, onCompare, onMerge, onHistory, t, language }) {
+function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit, onOpen, onView, onDialog, onCompare, onMerge, onHistory }) {
+  const { t, language } = useI18n()
   const rows = useMemo(() => variantTree(project.variants.filter(v => showArchived || !v.archived)), [project, showArchived])
   const [menu, setMenu] = useState(false)
   const image = blobUrl(project.imageHash)
@@ -315,7 +318,8 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit
 }
 
 /** A small modal form: title, the fields, cancel and submit, an error line. */
-function FormDialog({ title, submitLabel, busy, error, onCancel, onSubmit, children, t, danger = false, canSubmit = true }) {
+function FormDialog({ title, submitLabel, busy, error, onCancel, onSubmit, children, danger = false, canSubmit = true }) {
+  const { t } = useI18n()
   return (
     <div className="modal-overlay" onClick={busy ? undefined : onCancel}>
       <form className="modal collab-modal" onClick={e => e.stopPropagation()} onSubmit={e => { e.preventDefault(); onSubmit() }}>
@@ -343,15 +347,17 @@ function useAction(t) {
   return { busy, error, run }
 }
 
-function ConfirmDialog({ message, confirmLabel, onConfirm, onCancel, t, danger }) {
+function ConfirmDialog({ message, confirmLabel, onConfirm, onCancel, danger }) {
+  const { t } = useI18n()
   const { busy, error, run } = useAction(t)
   return (
     <FormDialog title={message} submitLabel={confirmLabel} busy={busy} error={error} danger={danger}
-      onCancel={onCancel} onSubmit={() => run(onConfirm)} t={t} />
+      onCancel={onCancel} onSubmit={() => run(onConfirm)} />
   )
 }
 
-function NewProjectDialog({ onCancel, onCreated, t, template = false }) {
+function NewProjectDialog({ onCancel, onCreated, template = false }) {
+  const { t } = useI18n()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [picture, setPicture] = useState({ kind: 'none' })
@@ -371,7 +377,7 @@ function NewProjectDialog({ onCancel, onCreated, t, template = false }) {
   })
   return (
     <FormDialog title={t(template ? 'home_new_template_title' : 'home_new_title')} submitLabel={t('start_create_btn')} busy={busy} canSubmit={Boolean(title.trim())} error={error}
-      onCancel={onCancel} onSubmit={submit} t={t}>
+      onCancel={onCancel} onSubmit={submit}>
       <label className="collab-field">
         <span>{t('start_field_title')} *</span>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder={t('start_field_title_placeholder')} autoFocus required />
@@ -380,17 +386,18 @@ function NewProjectDialog({ onCancel, onCreated, t, template = false }) {
         <span>{t('start_field_description')}</span>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder={t('start_field_description_placeholder')} />
       </label>
-      <ProjectImagePicker value={picture} onChange={setPicture} t={t} disabled={busy} />
+      <ProjectImagePicker value={picture} onChange={setPicture} disabled={busy} />
     </FormDialog>
   )
 }
 
-function RenameProjectDialog({ project, onCancel, onDone, t }) {
+function RenameProjectDialog({ project, onCancel, onDone }) {
+  const { t } = useI18n()
   const [title, setTitle] = useState(project.title)
   const [description, setDescription] = useState(project.description ?? '')
   const { busy, error, run } = useAction(t)
   return (
-    <FormDialog title={t('home_rename')} submitLabel={t('btn_save')} busy={busy} canSubmit={Boolean(title.trim())} error={error} onCancel={onCancel} t={t}
+    <FormDialog title={t('home_rename')} submitLabel={t('btn_save')} busy={busy} canSubmit={Boolean(title.trim())} error={error} onCancel={onCancel}
       onSubmit={() => run(async () => { await api.patchProject(project.id, { title: title.trim(), description: description.trim() }); await onDone() })}>
       <label className="collab-field">
         <span>{t('start_field_title')} *</span>
@@ -417,7 +424,8 @@ async function imageAsDataUrl(hash) {
 }
 
 /** Export the head of one variant as a self-contained backup file, its picture embedded. */
-function ExportDialog({ project, onCancel, onDone, t }) {
+function ExportDialog({ project, onCancel, onDone }) {
+  const { t } = useI18n()
   const variants = project.variants.filter(v => !v.archived)
   const [variantId, setVariantId] = useState(variants[0]?.id ?? '')
   const { busy, error, run } = useAction(t)
@@ -430,7 +438,7 @@ function ExportDialog({ project, onCancel, onDone, t }) {
     onDone()
   })
   return (
-    <FormDialog title={t('home_export_title')} submitLabel={t('start_export')} busy={busy} error={error} onCancel={onCancel} onSubmit={submit} t={t}>
+    <FormDialog title={t('home_export_title')} submitLabel={t('start_export')} busy={busy} error={error} onCancel={onCancel} onSubmit={submit}>
       <label className="collab-field">
         <span>{t('home_variant')}</span>
         <select value={variantId} onChange={e => setVariantId(e.target.value)}>
@@ -442,13 +450,14 @@ function ExportDialog({ project, onCancel, onDone, t }) {
 }
 
 /** Branch a new variant off one of the project's variants, at its head. */
-function BranchDialog({ project, onCancel, onDone, t }) {
+function BranchDialog({ project, onCancel, onDone }) {
+  const { t } = useI18n()
   const variants = project.variants.filter(v => !v.archived)
   const [name, setName] = useState('')
   const [from, setFrom] = useState(variants[0]?.id ?? '')
   const { busy, error, run } = useAction(t)
   return (
-    <FormDialog title={t('home_branch_title')} submitLabel={t('home_branch_submit')} busy={busy} canSubmit={Boolean(name.trim())} error={error} onCancel={onCancel} t={t}
+    <FormDialog title={t('home_branch_title')} submitLabel={t('home_branch_submit')} busy={busy} canSubmit={Boolean(name.trim())} error={error} onCancel={onCancel}
       onSubmit={() => run(async () => { await api.branch(project.id, { name: name.trim(), fromVariant: from }); await onDone() })}>
       <label className="collab-field">
         <span>{t('home_branch_name')} *</span>
@@ -465,12 +474,13 @@ function BranchDialog({ project, onCancel, onDone, t }) {
 }
 
 /** Rename a variant, or archive it (and take it back). */
-function VariantDialog({ variant, onCancel, onDone, t }) {
+function VariantDialog({ variant, onCancel, onDone }) {
+  const { t } = useI18n()
   const [name, setName] = useState(variant.name)
   const [archived, setArchived] = useState(variant.archived)
   const { busy, error, run } = useAction(t)
   return (
-    <FormDialog title={t('home_variant_menu')} submitLabel={t('btn_save')} busy={busy} canSubmit={Boolean(name.trim())} error={error} onCancel={onCancel} t={t}
+    <FormDialog title={t('home_variant_menu')} submitLabel={t('btn_save')} busy={busy} canSubmit={Boolean(name.trim())} error={error} onCancel={onCancel}
       onSubmit={() => run(async () => { await api.patchVariant(variant.id, { name: name.trim(), archived }); await onDone() })}>
       <label className="collab-field">
         <span>{t('home_variant_name')}</span>
@@ -488,7 +498,8 @@ function VariantDialog({ variant, onCancel, onDone, t }) {
  * Two variants of a project: the two states to compare (earlier, later), or
  * the source whose changes go into the target.
  */
-function PairDialog({ kind, project, onCancel, onSubmit, t }) {
+function PairDialog({ kind, project, onCancel, onSubmit }) {
+  const { t } = useI18n()
   const variants = project.variants.filter(v => !v.archived)
   const byId = new Map(variants.map(v => [v.id, v]))
   // A merge goes from a variant's parent into it by default, a comparison the same way round.
@@ -499,7 +510,7 @@ function PairDialog({ kind, project, onCancel, onSubmit, t }) {
   const merge = kind === 'merge'
   return (
     <FormDialog title={t(merge ? 'home_merge_title' : 'home_compare_title')} submitLabel={t(merge ? 'home_merge' : 'home_compare')}
-      busy={busy} canSubmit={a && b && a !== b} error={error} onCancel={onCancel} t={t}
+      busy={busy} canSubmit={a && b && a !== b} error={error} onCancel={onCancel}
       onSubmit={() => run(() => onSubmit(byId.get(a), byId.get(b)))}>
       {merge && <p className="collab-muted">{t('home_merge_desc')}</p>}
       <label className="collab-field">

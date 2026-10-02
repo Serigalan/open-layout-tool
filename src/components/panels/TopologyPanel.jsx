@@ -6,6 +6,9 @@ import { selectionHighlight } from '../../utils/topologyGraph'
 import { portsOf, switchKindLabelKey } from '../../utils/switchModel'
 import { mapIsLive } from '../../utils/mapConstants'
 import TopologyEndsList from './TopologyEndsList'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
+import { useProject } from '../../hooks/useStore'
 
 /** What an end that holds no switch port is, in the panel's words. */
 const END_STATE_KEY = {
@@ -25,9 +28,10 @@ const END_STATE_KEY = {
  * switch or track. The diagram of the connections, cluster by cluster
  * (AP 9.6), comes up with the panel; the button hides it and brings it back.
  */
-export default function TopologyPanel({
-  t, map, project, selection, onSelect, graphOpen, onShowGraph,
-}) {
+export default function TopologyPanel({ selection, onSelect, graphOpen, onShowGraph}) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   // Clicking the map: a switch or a track selects it, anywhere else clears the selection.
   useEffect(() => {
     const m = map?.current
@@ -136,7 +140,7 @@ export default function TopologyPanel({
         </div>
       )}
 
-      <TopologyEndsList t={t} map={map} project={project} />
+      <TopologyEndsList />
     </>
   )
 }

@@ -7,7 +7,7 @@ import {
   transformPlanePoint, transformGridBearing, utmToWgs84,
 } from '../../../utils/coordinateUtils'
 import { findTrackJoints, linkRecord } from '../../../utils/trackLinkUtils'
-import translations from '../../../locales/de.json'
+import { inGerman } from '../../../test/i18n'
 import TrackLinkForm from './TrackLinkForm'
 
 /**
@@ -56,16 +56,13 @@ function acrossThePlanes() {
   return [a, straight('b', GK, be, bn, bearing, 250, 'Gleis B')]
 }
 
-const t = (key) => translations[key] ?? key
 
 let projects = 0
 function render(tracks, switches = []) {
-  const id = `link-p${++projects}`
-  openProject({ id, tracks, switches })
-  const html = renderToStaticMarkup(createElement(TrackLinkForm, {
-    t, map: { current: null }, project: { id },
-    onTrackSaved: () => {}, onCommitted: () => {},
-  }))
+  openProject({ id: `link-p${++projects}`, tracks, switches })
+  const html = renderToStaticMarkup(inGerman(createElement(TrackLinkForm, {
+    onCommitted: () => {},
+  })))
   const text = html.replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim()
   return { html, text }
 }

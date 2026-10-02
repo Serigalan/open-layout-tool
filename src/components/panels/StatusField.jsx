@@ -1,11 +1,13 @@
 import { STATUSES } from '../../utils/planStatus'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * Planning status of a track or switch: existing, new or removed. `auto`, when
  * given, adds a first choice that leaves the status to be derived — its label
  * says what it currently comes to.
  */
-export default function StatusField({ t, value, onChange, auto }) {
+export default function StatusField({ value, onChange, auto }) {
+  const { t } = useI18n()
   return (
     <div className="form-field">
       <label>{t('status')}</label>

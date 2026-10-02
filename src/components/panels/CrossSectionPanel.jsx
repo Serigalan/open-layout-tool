@@ -13,6 +13,9 @@ import {
 import useTrackHover from '../../hooks/useTrackHover'
 import GroupedTrackList from './GroupedTrackList'
 import ClearanceScanSection from './ClearanceScanSection'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
+import { useProject } from '../../hooks/useStore'
 
 /**
  * The cross section of a track, at a station of it: the clearance profile the
@@ -25,7 +28,10 @@ import ClearanceScanSection from './ClearanceScanSection'
  * 18): every track is 54 E 4 on B70 from begin to end, and only an adjustment
  * is written down.
  */
-export default function CrossSectionPanel({ t, map, project, onShowCrossSection, crossSectionAt }) {
+export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [trackId, setTrackId] = useState(null)
 
   const tracks = loadTracks()
@@ -125,7 +131,7 @@ export default function CrossSectionPanel({ t, map, project, onShowCrossSection,
       {!track && <p>{t('cross_section_hint')}</p>}
 
       {tracks.length > 0 && (
-        <GroupedTrackList t={t} tracks={tracks}
+        <GroupedTrackList tracks={tracks}
           isActive={(tr) => tr.id === trackId}
           onPick={(tr) => setTrackId(tr.id)} />
       )}
@@ -155,7 +161,7 @@ export default function CrossSectionPanel({ t, map, project, onShowCrossSection,
             {rangeEditor('sleepers', SLEEPERS, DEFAULT_SLEEPER)}
           </div>
 
-          <ClearanceScanSection t={t} project={project} track={track} onShowCrossSection={onShowCrossSection} />
+          <ClearanceScanSection track={track} onShowCrossSection={onShowCrossSection} />
 
           {!shown && (
             <button className="panel-btn panel-btn-full" style={{ marginTop: 8 }}

@@ -11,6 +11,9 @@ import usePreviewLayers from '../../hooks/usePreviewLayers'
 import { truncateHeights } from '../../utils/heightUtils'
 import { grundText } from '../../utils/optimizeReport'
 import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../icons'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
+import { useProject } from '../../hooks/useStore'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
 const OPTIMIZE_PREVIEW_LAYER  = 'optimize-preview-layer'
@@ -61,7 +64,10 @@ function reshapedHeights(track, elements) {
 // `initialPage`/`onExit` are what the merged splice-and-optimize panel passes:
 // it opens the panel straight in a mode and takes the back button back to its
 // own menu. Standalone, the panel starts in its own menu as before.
-export default function OptimizeTrackPanel({ t, map, project, initialPage = 'menu', onExit, onShowRegelwerk }) {
+export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onShowRegelwerk }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element'
   const mode = page
   const [phase, setPhase]         = useState('select')

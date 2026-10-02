@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react'
 import { reverseTrackDirection } from '../../../storage'
 import useTrackHover from '../../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, mapIsLive } from '../../../utils/mapConstants'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
-export default function ChangeDirectionForm({ t, map, project, onCommitted }) {
+export default function ChangeDirectionForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [selectedTrackId, setSelectedTrackId] = useState(null)
 
   useTrackHover(map, selectedTrackId === null ? 'select' : 'editing', 'select', project, true)

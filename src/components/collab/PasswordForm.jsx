@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../../api/client'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
 
 const MIN = 12
 
@@ -8,7 +9,8 @@ const MIN = 12
  * Changing one's own password — forced after an admin set a start password
  * or reset it, voluntarily from the user menu. At least twelve characters.
  */
-export default function PasswordForm({ forced = false, onDone, onCancel, t }) {
+export default function PasswordForm({ forced = false, onDone, onCancel }) {
+  const { t } = useI18n()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [repeat, setRepeat] = useState('')

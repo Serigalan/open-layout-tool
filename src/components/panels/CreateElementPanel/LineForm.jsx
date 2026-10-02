@@ -13,8 +13,14 @@ import UtmCoordFields from '../../UtmCoordFields'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 import { elementPath } from '../../../utils/lineLookup'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
-export default function LineForm({ t, map, project, onDone }) {
+export default function LineForm({ onDone }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const lineOptions = useNearbyLines(map)
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
@@ -208,7 +214,7 @@ export default function LineForm({ t, map, project, onDone }) {
     <>
       <div className="element-form">
         <span className="create-element-section">{t('section_meta')}</span>
-        <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
+        <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError}
           lineOptions={lineOptions} />
       </div>
@@ -236,7 +242,7 @@ export default function LineForm({ t, map, project, onDone }) {
               ))}
             </select>
           </div>
-          <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
+          <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
           <UtmCoordFields label="Start" zone={epsg} easting={startE} northing={startN}
             onChange={(axis, val) => handleCoordChange('start', axis, val)} />
           <UtmCoordFields label="End" zone={epsg} easting={endE} northing={endN}
@@ -257,7 +263,7 @@ export default function LineForm({ t, map, project, onDone }) {
         const blocked = hasRuleError([element])
         return (
           <>
-            <RuleFindings t={t} element={element} />
+            <RuleFindings element={element} />
             <button className="panel-btn panel-btn-full" onClick={handleCommit}
               disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
               {t('btn_commit')}

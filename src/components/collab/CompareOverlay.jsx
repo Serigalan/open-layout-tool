@@ -7,6 +7,8 @@ import {
 import TopologyGraphOverlay from '../TopologyGraphOverlay'
 import { entryText, fill } from './mergeText'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
 
 const LAYER = 'compare'
 const KINDS = ['added', 'changed', 'removed']
@@ -21,7 +23,9 @@ const KINDS = ['added', 'changed', 'removed']
  * the tracks neither touched are drawn too, for a comparison of states the
  * map does not show of itself.
  */
-export default function CompareOverlay({ map, mapVersion = 0, before, after, beforeLabel, afterLabel, drawUnchanged = false, onClose, t }) {
+export default function CompareOverlay({ mapVersion = 0, before, after, beforeLabel, afterLabel, drawUnchanged = false, onClose }) {
+  const { t } = useI18n()
+  const map = useMap()
   const data = useMemo(() => {
     const entries = diffEntries(diffProject(before, after))
     const hb = drawable(primary(before)), ha = drawable(primary(after))
@@ -52,7 +56,7 @@ export default function CompareOverlay({ map, mapVersion = 0, before, after, bef
 
   if (tab === 'topology') {
     return (
-      <TopologyGraphOverlay t={t} source={data.topology} trackStyles={data.styles}
+      <TopologyGraphOverlay source={data.topology} trackStyles={data.styles}
         title={t('compare_topology_title')} onClose={() => setTab('list')} />
     )
   }

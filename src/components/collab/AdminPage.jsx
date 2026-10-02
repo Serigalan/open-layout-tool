@@ -3,6 +3,7 @@ import { api } from '../../api/client'
 import { formatDate } from './homeModel'
 import { fill } from './mergeText'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
 
 /** A start password: 16 characters a person can read out (no 0/O, 1/l/I). */
 function startPassword() {
@@ -32,7 +33,8 @@ const errorText = (t, code) => {
  * deactivated, which ends their sessions, and their revisions keep their name.
  * The last active admin cannot give that up (the server refuses it).
  */
-export default function AdminPage({ user: me, onBack, t, language }) {
+export default function AdminPage({ user: me, onBack }) {
+  const { t, language } = useI18n()
   const [users, setUsers] = useState(null)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)   // { text, password? }
@@ -117,7 +119,7 @@ export default function AdminPage({ user: me, onBack, t, language }) {
       </main>
 
       {dialog?.kind === 'create' && (
-        <UserDialog t={t} onCancel={() => setDialog(null)}
+        <UserDialog onCancel={() => setDialog(null)}
           onSubmit={async (body) => {
             await api.createUser(body)
             setDialog(null)
@@ -126,7 +128,7 @@ export default function AdminPage({ user: me, onBack, t, language }) {
           }} />
       )}
       {dialog?.kind === 'edit' && (
-        <UserDialog t={t} user={dialog.user} onCancel={() => setDialog(null)}
+        <UserDialog user={dialog.user} onCancel={() => setDialog(null)}
           onSubmit={async (body) => {
             await api.patchUser(dialog.user.id, body)
             setDialog(null)
@@ -138,7 +140,8 @@ export default function AdminPage({ user: me, onBack, t, language }) {
 }
 
 /** Create a user (login, name, role, start password) or edit one (name, role). */
-function UserDialog({ user = null, onCancel, onSubmit, t }) {
+function UserDialog({ user = null, onCancel, onSubmit }) {
+  const { t } = useI18n()
   const [login, setLogin] = useState(user?.login ?? '')
   const [name, setName] = useState(user?.name ?? '')
   const [role, setRole] = useState(user?.role ?? 'user')

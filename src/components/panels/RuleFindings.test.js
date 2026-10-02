@@ -1,15 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import translations from '../../locales/de.json'
+import { inGerman, t } from '../../test/i18n'
 import RuleFindings from './RuleFindings'
 
 /**
  * What a creation dialog is told about the element it is about to write, from
  * the same catalogue the element table judges a finished one by.
  */
-const t = (key) => translations[key] ?? key
-const render = (element) => renderToStaticMarkup(createElement(RuleFindings, { t, element }))
+const render = (element) => renderToStaticMarkup(inGerman(createElement(RuleFindings, { element })))
 
 const arc = (props) => ({ elementType: 1, radius: 1000, cant: 65, speed: 100, length: 200, ...props })
 

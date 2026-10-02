@@ -18,6 +18,9 @@ import useTrackHover from '../../hooks/useTrackHover'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
 import useDerivedField from '../../hooks/useDerivedField'
 import { truncateHeights } from '../../utils/heightUtils'
+import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
+import { useProject } from '../../hooks/useStore'
 
 const SPLICE_PREVIEW_SOURCE = 'splice-preview-source'
 const SPLICE_PREVIEW_LAYER  = 'splice-preview-layer'
@@ -62,7 +65,10 @@ function spliceHeights(depTrack, elIdx) {
   return { heights: truncateHeights(depTrack.heights, cutAt) }
 }
 
-export default function SpliceElementPanel({ t, map, project }) {
+export default function SpliceElementPanel() {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [phase, setPhase]         = useState('select_first')
   const [picks, setPicks]         = useState([])   // [{trackId,elIdx,endUtm,startUtm,bearing,signedR,epsg,label}]
   const [radius, setRadius]       = useState(500)
@@ -494,7 +500,7 @@ export default function SpliceElementPanel({ t, map, project }) {
               {/* The radius field here is a magnitude, so the cant is one
                   too — it is signed by the fitted arc when the element is
                   written, and the offer below follows the same convention. */}
-              <CantField t={t} value={cant} onChange={setCant}
+              <CantField value={cant} onChange={setCant}
                 min={0} max={MAX_CANT} speed={speed} radius={Math.abs(Number(radius))} />
               <div className="form-field">
                 <label>{t('cant_def')}</label>
@@ -555,7 +561,7 @@ export default function SpliceElementPanel({ t, map, project }) {
         )}
         {/* The length judged here is the one the construction solved, not one
             that was typed. */}
-        {inserted && <RuleFindings t={t} element={inserted} />}
+        {inserted && <RuleFindings element={inserted} />}
         <button
           className="panel-btn panel-btn-full"
           style={{ marginTop: 8, opacity: (canCommit && !blocked) ? 1 : 0.5 }}

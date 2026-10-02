@@ -2,6 +2,7 @@ import {
   QUERSCHNITT_KATALOG, GAUGE_PROFILES, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey,
   LICHTRAUM_SOURCE,
 } from '../utils/gaugeProfiles'
+import { useI18n } from '../locales/i18nContext'
 
 /**
  * DB Ril 800.0130, Streckenquerschnitte auf Erdkörpern, read-only inside the
@@ -29,7 +30,8 @@ const TICK     = 60
 
 const distinctPositive = (values) => [...new Set(values)].filter(v => v > 0).sort((a, b) => a - b)
 
-function ProfileDrawing({ profile, t }) {
+function ProfileDrawing({ profile }) {
+  const { t } = useI18n()
   const ring  = gaugeProfileRing(profile.points)
   const areas = gaugeProfileAreas(profile.einragungen)
 
@@ -118,7 +120,8 @@ function ProfileDrawing({ profile, t }) {
   )
 }
 
-export default function QuerschnittRegelwerk({ t }) {
+export default function QuerschnittRegelwerk() {
+  const { t } = useI18n()
   const { katalog, streckenquerschnitte } = QUERSCHNITT_KATALOG
 
   return (
@@ -158,7 +161,7 @@ export default function QuerschnittRegelwerk({ t }) {
       <p className="constraints-hint">{t('constraints_querschnitt_lichtraum_hint')}</p>
       <div className="querschnitt-profiles">
         {Object.entries(GAUGE_PROFILES).map(([id, profile]) => (
-          <ProfileDrawing key={id} profile={profile} t={t} />
+          <ProfileDrawing key={id} profile={profile} />
         ))}
       </div>
     </>

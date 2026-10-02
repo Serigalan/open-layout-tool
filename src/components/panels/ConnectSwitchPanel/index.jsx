@@ -9,12 +9,14 @@ import {
   BackIcon, SwitchStraightIcon, SwitchCurvedIcon, SwitchOnTrackIcon, SwitchConnectionIcon,
   CrossingIcon, CrossingSwitchIcon, CrossingOnTrackIcon, SwitchLinkIcon,
 } from '../../../components/icons'
+import { useI18n } from '../../../locales/i18nContext'
 
 // The gray line between the switch tools and the crossing tools, the same
 // separator the layers panel draws between its basemap groups.
 const SEPARATOR = { margin: '2px 0', border: 'none', borderTop: '1px solid #ddd' }
 
-function BackButton({ t, onBack }) {
+function BackButton({ onBack }) {
+  const { t } = useI18n()
   return (
     <button className="back-btn" onClick={onBack}>
       <BackIcon />
@@ -23,74 +25,75 @@ function BackButton({ t, onBack }) {
   )
 }
 
-export default function ConnectSwitchPanel({ t, map, project }) {
+export default function ConnectSwitchPanel() {
+  const { t } = useI18n()
   const [page, setPage] = useState('menu')
   const back = () => setPage('menu')
 
   if (page === 'straight') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('switch_straight')}</h2>
-      <ConnectStraightSwitchForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
+      <ConnectStraightSwitchForm onCommitted={() => setPage('menu')} />
     </>
   )
 
   if (page === 'curved') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('switch_curved')}</h2>
-      <ConnectStraightSwitchForm curved t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
+      <ConnectStraightSwitchForm curved onCommitted={() => setPage('menu')} />
     </>
   )
 
   if (page === 'ontrack') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('switch_on_track')}</h2>
-      <SwitchOnTrackForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
+      <SwitchOnTrackForm onCommitted={() => setPage('menu')} />
     </>
   )
 
   if (page === 'scurve') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('scurve_title')}</h2>
-      <SCurveForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
+      <SCurveForm onCommitted={() => setPage('menu')} />
     </>
   )
 
   if (page === 'crossing') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('crossing_title')}</h2>
-      <CrossingForm t={t} map={map} project={project}
+      <CrossingForm
         onCommitted={() => setPage('menu')} initialKind="crossing" />
     </>
   )
 
   if (page === 'crossing_switch') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('crossing_title')}</h2>
-      <CrossingForm t={t} map={map} project={project}
+      <CrossingForm
         onCommitted={() => setPage('menu')} initialKind="single_slip" />
     </>
   )
 
   if (page === 'crossing_ontrack') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('crossing_on_track')}</h2>
-      <CrossingOnTrackForm t={t} map={map} project={project}
+      <CrossingOnTrackForm
         onCommitted={() => setPage('menu')} />
     </>
   )
 
   if (page === 'link') return (
     <>
-      <BackButton t={t} onBack={back} />
+      <BackButton onBack={back} />
       <h2>{t('switch_link')}</h2>
-      <TrackLinkForm t={t} map={map} project={project}
+      <TrackLinkForm
         onCommitted={() => setPage('menu')} />
     </>
   )

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import { fill } from './mergeText'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
 
 /** How long the search field has to hold still before it asks the server [ms]. */
 const SEARCH_DELAY = 250
@@ -20,7 +21,8 @@ const errorText = (t, code) => {
  * `onClose(changed)` says whether the list changed, so the start page can
  * read the projects again.
  */
-export default function MembersDialog({ project, onClose, t }) {
+export default function MembersDialog({ project, onClose }) {
+  const { t } = useI18n()
   const [members, setMembers] = useState(project.members ?? [])
   const [canManage, setCanManage] = useState(false)
   const [query, setQuery] = useState('')

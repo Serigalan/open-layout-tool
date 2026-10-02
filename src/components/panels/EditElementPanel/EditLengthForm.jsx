@@ -9,6 +9,9 @@ import {
   EDIT_MARKER_SOURCE, EDIT_MARKER_LAYER, EDIT_LINES_SOURCE, EDIT_LINES_LAYER,
   planElementChange, buildLineFeatures, buildMarkerFeatures,
 } from './editGeometry'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
 // Layer definitions for usePreviewLayers
 const EDIT_PREVIEW_LAYERS = [
@@ -40,7 +43,10 @@ const EDIT_PREVIEW_LAYERS = [
   },
 ]
 
-export default function EditLengthForm({ t, map, project, onCommitted }) {
+export default function EditLengthForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [workingTracks, setWorkingTracks] = useState(() => loadTracks())
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [selectedElIdx, setSelectedElIdx] = useState(null)

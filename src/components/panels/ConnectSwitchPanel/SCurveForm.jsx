@@ -17,6 +17,9 @@ import {
 import { HIT_TOLERANCE, ZOOM_LINE_WIDTH } from '../../../utils/mapConstants'
 import useTrackHover from '../../../hooks/useTrackHover'
 import usePreviewLayers from '../../../hooks/usePreviewLayers'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
 // ── Preview layers (managed by usePreviewLayers) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'
@@ -252,7 +255,10 @@ function buildPointsGeoJSON(result) {
   }
 }
 
-export default function SCurveForm({ t, map, project, onCommitted }) {
+export default function SCurveForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const [phase, setPhase]   = useState('select_first')  // select_first | select_second | config
   const [picks, setPicks]   = useState([])
   const [speedIdx, setSpeedIdx] = useState(DEFAULT_TYPE)   // selected design speed (index into CONNECTION_SPEEDS)

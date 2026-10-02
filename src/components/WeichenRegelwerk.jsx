@@ -1,5 +1,6 @@
 import { weichenGruppen, WEICHEN_REGELWERK } from '../utils/weichenRegelwerk'
 import { switchKindLabelKey } from '../utils/switchModel'
+import { useI18n } from '../locales/i18nContext'
 
 /**
  * The switch form tables, read-only, inside the regelwerk popup — the second
@@ -33,7 +34,8 @@ const radiusText = (form) => (form.routen
   ? form.routen.map(route => (route.R == null ? '∞' : String(route.R))).join(' / ')
   : zahl(form.radius))
 
-export default function WeichenRegelwerk({ t }) {
+export default function WeichenRegelwerk() {
+  const { t } = useI18n()
   const gruppen = weichenGruppen()
 
   return (

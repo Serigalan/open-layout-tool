@@ -3,12 +3,14 @@ import PlatformPanel from './PlatformPanel'
 import CrossSectionPanel from './CrossSectionPanel'
 import PointCloudPanel from './PointCloudPanel'
 import { BackIcon, NewPlatformIcon, CrossSectionCutIcon, PointCloudIcon } from '../icons'
+import { useI18n } from '../../locales/i18nContext'
 
 // The gray line between the two tool groups, the same separator the layers
 // panel draws between its basemap groups.
 const SEPARATOR = { margin: '10px 0', border: 'none', borderTop: '1px solid #ddd' }
 
-function BackButton({ t, onBack }) {
+function BackButton({ onBack }) {
+  const { t } = useI18n()
   return (
     <button className="back-btn" onClick={onBack}>
       <BackIcon />
@@ -24,7 +26,8 @@ function BackButton({ t, onBack }) {
  * meeting. The cross-section overlay belongs to its tool: leaving the tool
  * closes it, as switching to another panel does (App).
  */
-export default function PlatformCrossSectionPanel({ t, map, project, crossSectionAt, onShowCrossSection }) {
+export default function PlatformCrossSectionPanel({ crossSectionAt, onShowCrossSection }) {
+  const { t } = useI18n()
   const [page, setPage] = useState('menu')
   const back = () => {
     if (page === 'cross_section') onShowCrossSection?.(null)
@@ -33,23 +36,23 @@ export default function PlatformCrossSectionPanel({ t, map, project, crossSectio
 
   if (page === 'platform') return (
     <>
-      <BackButton t={t} onBack={back} />
-      <PlatformPanel t={t} map={map} project={project} />
+      <BackButton onBack={back} />
+      <PlatformPanel />
     </>
   )
 
   if (page === 'cross_section') return (
     <>
-      <BackButton t={t} onBack={back} />
-      <CrossSectionPanel t={t} map={map} project={project}
+      <BackButton onBack={back} />
+      <CrossSectionPanel
         crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
     </>
   )
 
   if (page === 'point_clouds') return (
     <>
-      <BackButton t={t} onBack={back} />
-      <PointCloudPanel t={t} map={map} project={project} />
+      <BackButton onBack={back} />
+      <PointCloudPanel />
     </>
   )
 

@@ -16,8 +16,12 @@ import {
   ChangeDirectionIcon, AssignTracksIcon, DeleteTrackIcon, DeleteSwitchIcon, PhysicsIcon, RegelwerkIcon,
   BufferStopIcon,
 } from '../../../components/icons'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
 
-export default function EditElementPanel({ t, map, project, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints }) {
+export default function EditElementPanel({ trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints }) {
+  const { t } = useI18n()
+  const map = useMap()
   const [page, setPage] = useState('menu')
 
   // A constraints popup no longer covers this panel's own menu (it only fills
@@ -48,7 +52,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
     <>
       {backButton()}
       <h2>{t('edit_element_edit_length')}</h2>
-      <EditLengthForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
+      <EditLengthForm onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -56,7 +60,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
     <>
       {backButton()}
       <h2>{t('edit_track_properties')}</h2>
-      <EditPropertiesForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
+      <EditPropertiesForm onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -64,7 +68,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
     <>
       {backButton()}
       <h2>{t('edit_assign_tracks')}</h2>
-      <AssignTracksForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
+      <AssignTracksForm onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -72,7 +76,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
     <>
       {backButton()}
       <h2>{t('edit_element_delete')}</h2>
-      <DeleteForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
+      <DeleteForm onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -83,7 +87,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
         {backButton(() => onShowTrackTable?.(null))}
         <h2>{t('edit_element_edit_tracks')}</h2>
         <p>{t('edit_tracks_hint')}</p>
-        <GroupedTrackList t={t} tracks={tracks}
+        <GroupedTrackList tracks={tracks}
           isActive={(track) => track.id === trackTableId}
           onPick={(track) => onShowTrackTable?.(track)} />
       </>
@@ -94,7 +98,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
     <>
       {backButton()}
       <h2>{t('edit_track_delete')}</h2>
-      <DeleteTrackForm t={t} map={map} project={project}
+      <DeleteTrackForm
         onCommitted={() => setPage('menu')} />
     </>
   )
@@ -103,7 +107,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
     <>
       {backButton()}
       <h2>{t('switch_delete')}</h2>
-      <DeleteSwitchForm t={t} map={map} project={project}
+      <DeleteSwitchForm
         onCommitted={() => setPage('menu')} />
     </>
   )
@@ -112,7 +116,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
     <>
       {backButton()}
       <h2>{t('switch_status')}</h2>
-      <SwitchStatusForm t={t} map={map} project={project}
+      <SwitchStatusForm
         onCommitted={() => setPage('menu')} />
     </>
   )
@@ -121,7 +125,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
     <>
       {backButton()}
       <h2>{t('buffer_stop_edit')}</h2>
-      <BufferStopForm t={t} map={map} project={project} edit
+      <BufferStopForm edit
         onCommitted={() => setPage('menu')} />
     </>
   )
@@ -130,7 +134,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onShow
     <>
       {backButton()}
       <h2>{t('edit_change_direction')}</h2>
-      <ChangeDirectionForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
+      <ChangeDirectionForm onCommitted={() => setPage('menu')} />
     </>
   )
 

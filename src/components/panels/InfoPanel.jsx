@@ -4,6 +4,7 @@ import {
   PlanExportIcon, ExternalLinkIcon,
 } from '../icons'
 import { OSRD_URL } from '../../utils/osrdExport'
+import { useI18n } from '../../locales/i18nContext'
 
 // Turn every literal "OSRD" in a translated string into a link to the OSRD demo.
 function withOsrdLink(text) {
@@ -35,7 +36,8 @@ const PANELS = [
   { Icon: PlanExportIcon,     title: 'plan_title', desc: 'info_plan' },
 ]
 
-export default function InfoPanel({ t }) {
+export default function InfoPanel() {
+  const { t } = useI18n()
   return (
     <>
       <h2>{t('info')}</h2>

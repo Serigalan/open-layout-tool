@@ -1,9 +1,11 @@
+import { useI18n } from '../../locales/i18nContext'
 /**
  * The number a turnout is created under, with the designation it composes shown
  * beside it. The designation is not editable: it follows the number, so the two
  * can never say different things.
  */
-export default function SwitchNumberField({ t, number, onChange, name, taken }) {
+export default function SwitchNumberField({ number, onChange, name, taken }) {
+  const { t } = useI18n()
   return (
     <>
       <div className="form-field">

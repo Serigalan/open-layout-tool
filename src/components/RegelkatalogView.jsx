@@ -1,4 +1,5 @@
 import { KATALOG, severityLabelKey } from '../utils/regelkatalog'
+import { useI18n } from '../locales/i18nContext'
 
 /**
  * The rule catalogue itself, read-only, inside the regelwerk popup — DB Ril
@@ -27,7 +28,8 @@ const appliesTo = (rule) => {
   return [SCOPE_TITLE[applies.scope] ?? applies.scope, what.join(', ')].filter(Boolean).join(' · ')
 }
 
-export default function RegelkatalogView({ t }) {
+export default function RegelkatalogView() {
+  const { t } = useI18n()
   const { catalog, rules, tables } = KATALOG
 
   return (

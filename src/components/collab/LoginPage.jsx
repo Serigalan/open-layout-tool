@@ -4,13 +4,15 @@ import { languageLabels } from '../../locales/i18n'
 import { LogoIcon } from '../icons'
 import { fill } from './mergeText'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * The sign-in, before everything else (decision 88): the app is only usable
  * signed in. Accounts are made by an admin (decision 89), so there is nothing
  * to register here.
  */
-export default function LoginPage({ onSignedIn, t, language, onLanguageChange }) {
+export default function LoginPage({ onSignedIn }) {
+  const { t, language, setLanguage } = useI18n()
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -53,7 +55,7 @@ export default function LoginPage({ onSignedIn, t, language, onLanguageChange })
         </button>
         <div className="collab-langs">
           {Object.keys(languageLabels).map(lang => (
-            <button key={lang} type="button" className={`collab-link ${language === lang ? 'active' : ''}`} onClick={() => onLanguageChange(lang)}>
+            <button key={lang} type="button" className={`collab-link ${language === lang ? 'active' : ''}`} onClick={() => setLanguage(lang)}>
               {languageLabels[lang]}
             </button>
           ))}

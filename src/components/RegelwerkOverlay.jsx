@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { fetchRegelwerke, fetchRegelwerk } from '../utils/optimizerService'
 import { BUNDLED_KATALOG_VERSION, GRENZWERTE, optimizerLimitRows } from '../utils/constraintsView'
 import { WEICHEN_REGELWERK } from '../utils/weichenRegelwerk'
-import { CATALOG_ID, KATALOG } from '../utils/regelkatalog'
+import { CATALOG_ID } from '../utils/regelkatalog'
 import WeichenRegelwerk from './WeichenRegelwerk'
 import QuerschnittRegelwerk from './QuerschnittRegelwerk'
 import { QUERSCHNITT_KATALOG } from '../utils/gaugeProfiles'
 import RegelkatalogView from './RegelkatalogView'
+import { useI18n } from '../locales/i18nContext'
 
 /**
  * The regelwerke a layout is held to, read-only, in the same popup shell the
@@ -28,7 +29,8 @@ import RegelkatalogView from './RegelkatalogView'
 
 const BUNDLED_IDS = [CATALOG_ID, WEICHEN_REGELWERK.id, QUERSCHNITT_KATALOG.katalog.id]
 
-export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
+export default function RegelwerkOverlay({ regelwerkId, onClose }) {
+  const { t } = useI18n()
   // null while the list is still being asked for, [] once the service has
   // answered with nothing — the two read the same in a table but not to the
   // reader, who is told either "loading" or "no server".
@@ -117,9 +119,9 @@ export default function RegelwerkOverlay({ t, regelwerkId, onClose }) {
         )}
         {catalogDrift && <p className="constraints-error">{t('optimizer_catalog_drift')}</p>}
 
-        {id === CATALOG_ID && <RegelkatalogView t={t} />}
-        {id === WEICHEN_REGELWERK.id && <WeichenRegelwerk t={t} />}
-        {id === QUERSCHNITT_KATALOG.katalog.id && <QuerschnittRegelwerk t={t} />}
+        {id === CATALOG_ID && <RegelkatalogView />}
+        {id === WEICHEN_REGELWERK.id && <WeichenRegelwerk />}
+        {id === QUERSCHNITT_KATALOG.katalog.id && <QuerschnittRegelwerk />}
 
         {/* Three states, said apart: still asking, asked and no server, and
             the table itself. A panel that needs the service says so rather

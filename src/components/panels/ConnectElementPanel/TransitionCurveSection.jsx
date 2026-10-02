@@ -1,4 +1,6 @@
-export default function TransitionCurveSection({ t, enabled, onEnabledChange, type, onTypeChange, length, onLengthChange }) {
+import { useI18n } from '../../../locales/i18nContext'
+export default function TransitionCurveSection({ enabled, onEnabledChange, type, onTypeChange, length, onLengthChange }) {
+  const { t } = useI18n()
   return (
     <div className="element-form">
       <label className="transition-curve-row">

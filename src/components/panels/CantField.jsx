@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CANT_STEP, cantFromInput, regelCant } from '../../utils/mapConstants'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * The cant field of a dialog: a value that is proposed and may be overridden,
@@ -18,9 +19,8 @@ import { CANT_STEP, cantFromInput, regelCant } from '../../utils/mapConstants'
  * already its `u_reg`. It reads as `.field-override` reads everywhere else in
  * the panels — a small line under the field that says what it would put there.
  */
-export default function CantField({
-  t, label, value, onChange, min, max, speed, radius, children,
-}) {
+export default function CantField({ label, value, onChange, min, max, speed, radius, children}) {
+  const { t } = useI18n()
   const [draft, setDraft] = useState(null)
 
   const commit = () => {

@@ -27,6 +27,9 @@ import {
   SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
   EMPTY_FC, buildLinesGeoJSON, buildFillGeoJSON,
 } from '../switchPreview'
+import { useI18n } from '../../../locales/i18nContext'
+import { useMap } from '../../../map/MapContext'
+import { useProject } from '../../../hooks/useStore'
 
 // ── ConnectSwitchConnectionForm ──────────────────────────────────────────────
 
@@ -40,7 +43,10 @@ const CONNECTION_SPEEDS   = [50, 60, 80, 100]
 // by speed cannot fall out of step with the table again.
 const typeForSpeed = (v) => SWITCH_CONNECTION_STAGES[0].find(form => form.speed === v)
 
-export default function ConnectSwitchConnectionForm({ t, map, project, onCommitted }) {
+export default function ConnectSwitchConnectionForm({ onCommitted }) {
+  const { t } = useI18n()
+  const map = useMap()
+  const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError }                                              = useTrackFields()
   const { fields: mainFields, errors: mainErrors, setErrors: setMainErrors, setField: setMainField, lineNumberError: mainLineNumberError } = useTrackFields()
   const [nameError, setNameError]       = useState(false)
@@ -373,7 +379,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onCommitt
             <option value="right">{t('switch_side_right')}</option>
           </select>
         </div>
-        <SwitchCantField t={t} cant={cant} onCant={setCant}
+        <SwitchCantField cant={cant} onCant={setCant}
           reason={cantReason} onReason={setCantReason} />
         <div className="form-field">
           <label>{t('cant_def')}</label>
@@ -392,27 +398,27 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onCommitt
           <input type="text" readOnly value={currentSw.label} />
         </div>
         {/* Both tracks describe the same spot, so they share one height datum. */}
-        <HeightDatumField t={t} value={fields.heightEpsg}
+        <HeightDatumField value={fields.heightEpsg}
           onChange={v => { setField('heightEpsg', v); setMainField('heightEpsg', v) }} />
       </div>
 
       <div className="element-form">
         <span className="create-element-section">{t('switch_meta_data')}</span>
-        <SwitchNumberField t={t} number={switchNo.number} onChange={switchNo.setNumber}
+        <SwitchNumberField number={switchNo.number} onChange={switchNo.setNumber}
           name={switchNo.name} taken={switchNo.taken} />
       </div>
 
       {!trailing && (
         <div className="element-form">
           <span className="create-element-section">{t('section_meta_main')}</span>
-          <TrackFields t={t} fields={mainFields} setField={setMainField} setErrors={setMainErrors} errors={mainErrors}
+          <TrackFields fields={mainFields} setField={setMainField} setErrors={setMainErrors} errors={mainErrors}
             name={mainName} onNameChange={(val) => { setMainName(val); setMainNameError(false) }} nameError={mainNameError} />
         </div>
       )}
 
       <div className="element-form">
         <span className="create-element-section">{t('section_meta_divergent')}</span>
-        <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
+        <TrackFields fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={(val) => { setName(val); setNameError(false) }} nameError={nameError} />
       </div>
 

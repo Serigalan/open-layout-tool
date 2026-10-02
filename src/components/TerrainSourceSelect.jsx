@@ -1,5 +1,6 @@
 import { saveSettings } from '../utils/settings'
 import { TERRAIN_SOURCES } from '../utils/elevationSource'
+import { useI18n } from '../locales/i18nContext'
 
 /**
  * Which height data the terrain is read from: automatically the best there is
@@ -7,7 +8,8 @@ import { TERRAIN_SOURCES } from '../utils/elevationSource'
  * choice is the user's, kept with the other settings, so the cross section and
  * the gradient read from the same source (chosenTerrainSource).
  */
-export default function TerrainSourceSelect({ t, value, onChange, className = 'settings-select' }) {
+export default function TerrainSourceSelect({ value, onChange, className = 'settings-select' }) {
+  const { t } = useI18n()
   return (
     <select className={className} value={value} title={t('terrain_source_hint')}
       onChange={e => { saveSettings({ terrainSource: e.target.value }); onChange?.(e.target.value) }}>

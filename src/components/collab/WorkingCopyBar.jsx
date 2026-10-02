@@ -1,5 +1,6 @@
 import { fill } from './mergeText'
 import './collab.css'
+import { useI18n } from '../../locales/i18nContext'
 
 /**
  * The status of the open working copy, at the top of the app (AP 10.6):
@@ -7,7 +8,8 @@ import './collab.css'
  * checked in, has local changes, or the server has moved on — with the two
  * ways to act on that, check in and update.
  */
-export default function WorkingCopyBar({ projectTitle, variantName, base, changes, serverNewer, busy, onCheckIn, onUpdate, onShowChanges, t }) {
+export default function WorkingCopyBar({ projectTitle, variantName, base, changes, serverNewer, busy, onCheckIn, onUpdate, onShowChanges }) {
+  const { t } = useI18n()
   const state = serverNewer ? 'newer' : changes > 0 ? 'local' : 'clean'
   return (
     <div className="wc-bar" role="status">
