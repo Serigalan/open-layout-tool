@@ -1036,5 +1036,14 @@
   "pointcloud_not_las": "Keine lesbare LAS/LAZ-Datei",
   "pointcloud_no_opfs": "Dieser Browser bietet keinen lokalen Dateispeicher (OPFS) – Punktwolken sind hier nicht möglich.",
   "pointcloud_list": "Auf diesem Gerät",
-  "pointcloud_none": "Für dieses Projekt ist auf diesem Gerät keine Punktwolke gespeichert."
+  "pointcloud_none": "Für dieses Projekt ist auf diesem Gerät keine Punktwolke gespeichert.",
+  "pointcloud_needs": "braucht etwa {{size}}",
+  "pointcloud_space_short": "Der Speicher reicht voraussichtlich nicht: gebraucht etwa {{size}}, frei {{free}}.",
+  "pointcloud_crs_short": "Lage",
+  "pointcloud_height_short": "Höhe",
+  "pointcloud_show": "In der Karte zeigen",
+  "pointcloud_delete_ask": "Punktwolke „{{name}}“ von diesem Gerät löschen?",
+  "pointcloud_delete_failed": "Löschen fehlgeschlagen",
+  "pointcloud_storage": "Speicher dieser App im Browser: {{used}} belegt, {{free}} frei.",
+  "pointcloud_not_persisted": "Der Browser hat den Speicher nicht als dauerhaft zugesagt – bei Platzmangel kann er ihn räumen."
 }

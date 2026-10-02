@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
+import maplibregl from 'maplibre-gl'
 import { loadTracks } from '../../storage'
-import { EPSG_OPTIONS, crsLabel } from '../../utils/coordinateUtils'
+import { EPSG_OPTIONS, crsLabel, crsName } from '../../utils/coordinateUtils'
 import { HEIGHT_DATUMS } from '../../utils/mapConstants'
 import { readLasHeader, fileSource } from '../../utils/pointCloud/lasReader'
 import { probeExtent, projectPlane } from '../../utils/pointCloud/cloudProbe'
 import { startImport } from '../../utils/pointCloud/pointCloudImport'
-import { listClouds, opfsAvailable, persistStorage } from '../../utils/pointCloud/cloudStore'
+import {
+  listClouds, deleteCloud, opfsAvailable, persistStorage, storagePersisted, storageEstimate, estimateCloudBytes,
+} from '../../utils/pointCloud/cloudStore'
+import { outlineFeature, cloudSize } from '../../utils/pointCloud/cloudOutline'
+import usePreviewLayers from '../../hooks/usePreviewLayers'
+import ConfirmModal from '../ConfirmModal'
 
 /**
  * Every plane a cloud may be stated in — all of them projStringFor knows, not
@@ -23,6 +29,19 @@ const CLOUD_CRS = [...new Set([
 const fill = (text, vars) => Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{{${k}}}`, v), text)
 
 const mb = (bytes) => `${(bytes / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 })} MB`
+const gb = (bytes) => `${(bytes / 1e9).toLocaleString(undefined, { maximumFractionDigits: 1 })} GB`
+const size = (bytes) => (bytes >= 1e9 ? gb(bytes) : mb(bytes))
+const heightLabel = (epsg) => HEIGHT_DATUMS.find(d => d.epsg === Number(epsg))?.label ?? `EPSG ${epsg}`
+
+// Where each cloud lies, while the panel is open.
+const OUTLINE_SOURCE = 'pointcloud-outline-source'
+const OUTLINE_LAYERS = [{
+  sourceId: OUTLINE_SOURCE,
+  layer: {
+    id: 'pointcloud-outline-layer', type: 'line',
+    paint: { 'line-color': '#c0601a', 'line-width': 1.5, 'line-dasharray': [2, 1.5] },
+  },
+}]
 const count = (n) => Number(n).toLocaleString()
 const duration = (s) => {
   if (s == null || !Number.isFinite(s)) return '…'
@@ -39,8 +58,10 @@ const duration = (s) => {
  * 118) — and checks the box the file states for itself against the tracks, so
  * a wrong choice shows before an hour of reading.
  */
-export default function PointCloudPanel({ t, project }) {
+export default function PointCloudPanel({ t, map, project }) {
   const [clouds, setClouds] = useState(null)
+  const [storage, setStorage] = useState(null)  // { usage, quota, free, persisted }
+  const [asking, setAsking] = useState(null)    // the cloud a delete waits on
   const [pick, setPick] = useState(null)        // { file, header } once a file is chosen
   const [crs, setCrs] = useState('')
   const [heightEpsg, setHeightEpsg] = useState('')
@@ -51,9 +72,38 @@ export default function PointCloudPanel({ t, project }) {
   const tracks = loadTracks(project.id)
   const target = projectPlane(tracks)
 
-  const refresh = () => listClouds(project.id).then(setClouds).catch(() => setClouds([]))
+  const refresh = async () => {
+    setClouds(await listClouds(project.id).catch(() => []))
+    const estimate = await storageEstimate()
+    setStorage(estimate && { ...estimate, persisted: await storagePersisted() })
+  }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { refresh() }, [project.id])
+
+  usePreviewLayers(map, OUTLINE_LAYERS)
+  useEffect(() => {
+    map?.current?.getSource(OUTLINE_SOURCE)?.setData({
+      type: 'FeatureCollection',
+      features: (clouds ?? []).map(outlineFeature),
+    })
+  }, [map, clouds])
+
+  const showOnMap = (cloud) => {
+    const coords = outlineFeature(cloud).geometry.coordinates.flat()
+    if (!coords.length || !map?.current) return
+    const box = coords.reduce((b, c) => b.extend(c), new maplibregl.LngLatBounds(coords[0], coords[0]))
+    map.current.fitBounds(box, { padding: 80, maxZoom: 19 })
+  }
+
+  const remove = async (cloud) => {
+    setAsking(null)
+    try {
+      await deleteCloud(project.id, cloud.id)
+    } catch (err) {
+      setMessage({ kind: 'error', text: `${t('pointcloud_delete_failed')}: ${err.message}` })
+    }
+    refresh()
+  }
 
   const onFile = async (e) => {
     const file = e.target.files?.[0]
@@ -71,6 +121,8 @@ export default function PointCloudPanel({ t, project }) {
   }
 
   const probe = pick && crs ? probeExtent(pick.header, Number(crs), tracks) : null
+  const needed = pick ? estimateCloudBytes(pick.header.pointCount) : 0
+  const tooBig = pick && storage && needed > storage.free
 
   const begin = async () => {
     if (!pick || !crs || !heightEpsg) return
@@ -121,9 +173,13 @@ export default function PointCloudPanel({ t, project }) {
             <input type="text" readOnly value={`${pick.file.name} · ${mb(pick.file.size)}`} />
             <span className="pointcloud-meta">
               {`LAS ${pick.header.version}${pick.header.compressed ? ' (LAZ)' : ''} · `
-                + `${fill(t('pointcloud_points'), { n: count(pick.header.pointCount) })}`}
+                + `${fill(t('pointcloud_points'), { n: count(pick.header.pointCount) })} · `
+                + `${fill(t('pointcloud_needs'), { size: size(needed) })}`}
             </span>
           </div>
+          {tooBig && (
+            <p className="form-error">{fill(t('pointcloud_space_short'), { size: size(needed), free: size(storage.free) })}</p>
+          )}
           <div className="form-field">
             <label>{t('pointcloud_crs')}</label>
             <select value={crs} disabled={!!run} onChange={e => setCrs(e.target.value)}>
@@ -183,12 +239,43 @@ export default function PointCloudPanel({ t, project }) {
       <h3 className="pointcloud-list-title">{t('pointcloud_list')}</h3>
       {clouds == null && <p className="selecting-hint">…</p>}
       {clouds?.length === 0 && <p className="selecting-hint">{t('pointcloud_none')}</p>}
-      {clouds?.map(c => (
-        <div key={c.id} className="pointcloud-item">
-          <strong>{c.name}</strong>
-          <span className="pointcloud-meta">{`${fill(t('pointcloud_points'), { n: count(c.points) })} · ${mb(c.bytes)}`}</span>
-        </div>
-      ))}
+      {clouds?.map(c => {
+        const [w, h] = cloudSize(c)
+        return (
+          <div key={c.id} className="pointcloud-item">
+            <strong>{c.name}</strong>
+            <span className="pointcloud-meta">
+              {`${t('pointcloud_crs_short')}: ${crsName(c.sourceCrs) ?? `EPSG ${c.sourceCrs}`}`
+                + (c.sourceCrs !== c.crs ? ` → ${crsName(c.crs) ?? `EPSG ${c.crs}`}` : '')
+                + ` · ${t('pointcloud_height_short')}: ${heightLabel(c.heightEpsg)}`}
+            </span>
+            <span className="pointcloud-meta">
+              {`${Math.round(w)} × ${Math.round(h)} m · `
+                + `${c.bounds.minZ.toFixed(1)}–${c.bounds.maxZ.toFixed(1)} m · `
+                + `${fill(t('pointcloud_points'), { n: count(c.points) })} · ${size(c.bytes)}`}
+            </span>
+            <span className="pointcloud-meta">
+              {`${c.file?.name ?? ''} · ${new Date(c.createdAt).toLocaleString()}`}
+            </span>
+            <div className="pointcloud-actions">
+              <button className="modal-btn modal-btn-cancel" onClick={() => showOnMap(c)}>{t('pointcloud_show')}</button>
+              <button className="modal-btn modal-btn-confirm" disabled={!!run} onClick={() => setAsking(c)}>
+                {t('modal_delete')}
+              </button>
+            </div>
+          </div>
+        )
+      })}
+      {storage && (
+        <p className="pointcloud-meta pointcloud-storage">
+          {fill(t('pointcloud_storage'), { used: size(storage.usage), free: size(storage.free) })}
+          {!storage.persisted && ` ${t('pointcloud_not_persisted')}`}
+        </p>
+      )}
+      {asking && (
+        <ConfirmModal t={t} message={fill(t('pointcloud_delete_ask'), { name: asking.name })}
+          onConfirm={() => remove(asking)} onCancel={() => setAsking(null)} />
+      )}
     </>
   )
 }

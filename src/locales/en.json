@@ -1036,5 +1036,14 @@
   "pointcloud_not_las": "Not a readable LAS/LAZ file",
   "pointcloud_no_opfs": "This browser offers no local file storage (OPFS) – point clouds are not possible here.",
   "pointcloud_list": "On this device",
-  "pointcloud_none": "No point cloud of this project is stored on this device."
+  "pointcloud_none": "No point cloud of this project is stored on this device.",
+  "pointcloud_needs": "needs about {{size}}",
+  "pointcloud_space_short": "Storage will probably not suffice: about {{size}} needed, {{free}} free.",
+  "pointcloud_crs_short": "Horizontal",
+  "pointcloud_height_short": "Vertical",
+  "pointcloud_show": "Show on map",
+  "pointcloud_delete_ask": "Delete point cloud “{{name}}” from this device?",
+  "pointcloud_delete_failed": "Delete failed",
+  "pointcloud_storage": "Storage of this app in the browser: {{used}} used, {{free}} free.",
+  "pointcloud_not_persisted": "The browser has not granted persistent storage – it may clear it when space runs short."
 }

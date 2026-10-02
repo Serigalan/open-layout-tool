@@ -1997,3 +1997,16 @@
   font-family: system-ui, sans-serif;
   font-size: 13px;
 }
+
+.pointcloud-item .pointcloud-actions {
+  margin-top: 4px;
+}
+
+.pointcloud-item .modal-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.pointcloud-storage {
+  margin-top: 10px;
+}
