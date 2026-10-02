@@ -2,14 +2,15 @@
   "katalog": {
     "id": "db-ril-800-0130",
     "title": "DB Ril 800.0130 | Streckenquerschnitte auf Erdkörpern",
-    "katalog_version": "0.1.0",
+    "katalog_version": "0.2.0",
     "status": "draft",
-    "date": "2026-09-28",
+    "date": "2026-10-02",
     "language": "de",
     "scope": {
       "included": [
         "Regelquerschnitte je Streckenkategorie: Gleisabstand, Abstand Gleismitte – Planumskante, Planumsbreite",
-        "Lichtraum für Haupt- und Nebengleise mit den Bereichen, in die eingeragt werden darf (A01)"
+        "Lichtraum für Haupt- und Nebengleise mit den Bereichen, in die eingeragt werden darf (A01)",
+        "Lichtraum für S-Bahnen mit den Einragungen für Bahnsteige, Signale oder Masten und in Tunneln"
       ],
       "excluded": [
         "Überhöhte Querschnitte — die Planumsbreite gilt hier nur bei u = 0"
@@ -17,6 +18,13 @@
     }
   },
   "changelog": [
+    {
+      "version": "0.2.0",
+      "date": "2026-10-02",
+      "changes": [
+        "Lichtraumprofil S-Bahn (A01, S. 3) mit drei benannten Einragungen: Bahnsteig, Signale oder Masten, in Tunneln"
+      ]
+    },
     {
       "version": "0.1.0",
       "date": "2026-09-28",
@@ -43,7 +51,9 @@
     "planumsbreite": "Breite des Planums einer zweigleisigen Strecke bei u = 0 [m]; gleich Gleisabstand + 2 · Abstand zur Planumskante",
     "lichtraum": "Halbe Umrisse in mm, je Punkt [Abstand zur Gleismitte, Höhe über Schienenoberkante]. Die andere Hälfte ist das Spiegelbild an der Gleismitte.",
     "umriss": "Äußere Begrenzung des Lichtraums",
-    "einragungen": "Bereiche innerhalb des Umrisses, in die Bauteile hineinragen dürfen. Jeder Bereich ist ein geschlossener Umriss; der letzte Punkt schließt an den ersten an."
+    "einragungen": "Bereiche innerhalb des Umrisses, in die Bauteile hineinragen dürfen. Jeder Bereich ist ein geschlossener Umriss; der letzte Punkt schließt an den ersten an.",
+    "source": "Steht ein Profil auf einer anderen Seite als der Lichtraum insgesamt, nennt es seine Fundstelle selbst.",
+    "einragungen_arten": "Wofür die Einragungen gelten, in derselben Reihenfolge (bahnsteig, signal_mast, tunnel); fehlt die Angabe, sind sie nur nummeriert."
   },
   "streckenquerschnitte": {
     "source": { "ref": "RIL_800_0130", "section": "S. 1" },
@@ -73,6 +83,18 @@
         "einragungen": [
           [[1275, 0], [1600, 380], [1680, 380], [1680, 1200], [2200, 1200], [2200, 0]]
         ]
+      },
+      {
+        "id": "s_bahn",
+        "title": "S-Bahn",
+        "source": { "ref": "RIL_800_0130_A01", "section": "S. 3" },
+        "umriss": [[0, 0], [2400, 0], [2400, 3173], [1075, 4800], [0, 4800]],
+        "einragungen": [
+          [[1275, 0], [1600, 380], [1680, 380], [1680, 960], [2400, 960], [2400, 0]],
+          [[2400, 0], [2100, 0], [2100, 3541], [2400, 3173]],
+          [[2400, 0], [1900, 0], [1900, 3787], [2400, 3173]]
+        ],
+        "einragungen_arten": ["bahnsteig", "signal_mast", "tunnel"]
       }
     ]
   }

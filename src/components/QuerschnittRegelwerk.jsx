@@ -104,7 +104,11 @@ function ProfileDrawing({ profile, t }) {
           </tr>
           {profile.einragungen.map((area, i) => (
             <tr key={i}>
-              <td>{t('constraints_querschnitt_einragung')} {i + 1}</td>
+              <td>
+                {profile.areaKinds[i]
+                  ? t(`constraints_querschnitt_einragung_${profile.areaKinds[i]}`)
+                  : `${t('constraints_querschnitt_einragung')} ${i + 1}`}
+              </td>
               <td className="constraints-expr">{area.map(p => `[${p.join(', ')}]`).join(' ')}</td>
             </tr>
           ))}

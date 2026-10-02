@@ -8,7 +8,9 @@
  *
  * Beside the outline, a profile states the areas inside it that parts of the
  * structure may reach into (`einragungen`) — closed outlines of their own,
- * stated on one side and mirrored the same way.
+ * stated on one side and mirrored the same way. Where the Ril says what an
+ * area is for (`einragungen_arten`: a platform, signals or masts, a tunnel),
+ * `areaKinds` names it, in the same order.
  *
  * A profile is chosen per project (`project.gaugeProfile`). Everything that
  * reads one knows only "an outline and its areas", so a further profile is a
@@ -29,6 +31,7 @@ export const GAUGE_PROFILES = Object.fromEntries(
     id: p.id,
     points: p.umriss,
     einragungen: p.einragungen ?? [],
+    areaKinds: p.einragungen_arten ?? [],
   }]))
 
 // A project saved before the Ril's profiles came in names 'en15273_gc', which

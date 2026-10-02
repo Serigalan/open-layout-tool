@@ -10,8 +10,8 @@ describe('the profile table', () => {
     expect(GAUGE_PROFILES[DEFAULT_GAUGE_PROFILE]).toBeDefined()
   })
 
-  it('is the Lichtraum of Ril 800.0130A01 — Hauptgleise and Nebengleise', () => {
-    expect(Object.keys(GAUGE_PROFILES)).toEqual(['hauptgleis', 'nebengleis'])
+  it('is the Lichtraum of Ril 800.0130A01 — Hauptgleise, Nebengleise and S-Bahn', () => {
+    expect(Object.keys(GAUGE_PROFILES)).toEqual(['hauptgleis', 'nebengleis', 's_bahn'])
     expect(LICHTRAUM_SOURCE).toBe('DB Ril 800.0130A01')
     expect(GAUGE_PROFILES.nebengleis.points)
       .toEqual([[0, 0], [2200, 0], [2200, 3900], [1860, 4900], [0, 4900]])
@@ -21,6 +21,28 @@ describe('the profile table', () => {
     const key = `regelwerk_title_${QUERSCHNITT_KATALOG.katalog.id}`
     for (const lang of Object.keys(translations)) {
       expect(typeof translations[lang][key], lang).toBe('string')
+    }
+  })
+
+  it('states the S-Bahn profile with its three named areas', () => {
+    const p = GAUGE_PROFILES.s_bahn
+    expect(p.points).toEqual([[0, 0], [2400, 0], [2400, 3173], [1075, 4800], [0, 4800]])
+    expect(p.einragungen).toHaveLength(3)
+    expect(p.areaKinds).toEqual(['bahnsteig', 'signal_mast', 'tunnel'])
+    // The inner corners of the signal and tunnel areas lie on the chamfer of the outline.
+    const chamfer = (y) => 3173 + (2400 - y) / (2400 - 1075) * (4800 - 3173)
+    expect(p.einragungen[1][2][1]).toBeCloseTo(chamfer(2100), 0)
+    expect(p.einragungen[2][2][1]).toBeCloseTo(chamfer(1900), 0)
+  })
+
+  it('names every profile and every named area in both languages', () => {
+    for (const p of Object.values(GAUGE_PROFILES)) {
+      expect(p.areaKinds.length === 0 || p.areaKinds.length === p.einragungen.length, p.id).toBe(true)
+      for (const kind of p.areaKinds) {
+        for (const lang of Object.keys(translations)) {
+          expect(typeof translations[lang][`constraints_querschnitt_einragung_${kind}`], `${lang}.${kind}`).toBe('string')
+        }
+      }
     }
   })
 
@@ -51,12 +73,14 @@ describe('the profile table', () => {
 })
 
 // Inside or on the edge of a closed outline — an area may share its border
-// with the outline it is cut out of, and most of them do.
+// with the outline it is cut out of, and most of them do. The Ril states whole
+// millimetres, so a corner on a sloping edge is on it within half of one.
+const ROUNDING = 0.5
 function inside([py, pz], ring) {
   const onEdge = ring.slice(1).some(([y2, z2], i) => {
     const [y1, z1] = ring[i]
     const cross = (y2 - y1) * (pz - z1) - (z2 - z1) * (py - y1)
-    return Math.abs(cross) < 1e-6
+    return Math.abs(cross) / Math.hypot(y2 - y1, z2 - z1) <= ROUNDING
       && py >= Math.min(y1, y2) - 1e-9 && py <= Math.max(y1, y2) + 1e-9
       && pz >= Math.min(z1, z2) - 1e-9 && pz <= Math.max(z1, z2) + 1e-9
   })
