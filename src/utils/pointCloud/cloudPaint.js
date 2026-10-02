@@ -73,3 +73,23 @@ export function drawCloudPoints(ctx, { w, h, dpr = 1, k, cx, cy, zRef, parts, co
   })
   return painted
 }
+
+/**
+ * The canvas under the cross section: sized to `w × h` CSS pixels at the
+ * device's pixel ratio, cleared, and the cloud painted in the drawing's own
+ * transform (`k`, `cx`, `cy`) — or left empty without one.
+ */
+export function paintCloudCanvas(canvas, { w, h, view, zRef, parts, coloring }) {
+  const dpr = window.devicePixelRatio || 1
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr)
+    canvas.height = Math.round(h * dpr)
+  }
+  const ctx = canvas.getContext('2d')
+  if (!view || !parts.length) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    return 0
+  }
+  return drawCloudPoints(ctx, { w, h, dpr, k: view.k, cx: view.cx, cy: view.cy, zRef, parts, coloring })
+}

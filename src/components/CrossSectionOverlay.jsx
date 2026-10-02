@@ -13,7 +13,7 @@ import {
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/heightDatums'
 import { listClouds } from '../utils/pointCloud/cloudStore'
 import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
-import { drawCloudPoints, CLOUD_COLORINGS, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
+import { paintCloudCanvas, CLOUD_COLORINGS, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
 import { checkClearance, BOTTOM_BAND } from '../utils/pointCloud/clearanceCheck'
 import {
   gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
@@ -25,6 +25,7 @@ import { useProject } from '../hooks/useStore'
 import usePreview from '../map/usePreview'
 import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
+import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
@@ -104,8 +105,6 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
   const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
-  const [size, setSize] = useState(null)
-  const [heightPx, setHeightPx] = useState(null)
   const [reach, setReach] = useState(DEFAULT_REACH)
   const [terrain, setTerrain] = useState(null)   // { key, points: [{ y, z }], sources }
   const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
@@ -118,12 +117,11 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
   // of the box — null while the section is centred by itself.
   const [zoom, setZoom] = useState(1)
   const [center, setCenter] = useState(null)
-  const [dragging, setDragging] = useState(false)
   const bodyRef = useRef(null)
   const canvasRef = useRef(null)
   const svgRef = useRef(null)
-  const viewRef = useRef(null)
-  const panRef = useRef(null)
+  const size = useElementSize(bodyRef)
+  const overlay = useOverlayHeight(bodyRef, { min: MIN_OVERLAY_PX, fallback: 320 })
 
   const tracks = loadTracks()
   const track = tracks.find(tr => tr.id === at.trackId)
@@ -157,26 +155,6 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
         : [],
     })
   }, [map, track, station, reach, preview])
-
-  useEffect(() => {
-    const node = bodyRef.current
-    if (!node) return
-    const measure = () => setSize({ w: node.clientWidth, h: node.clientHeight })
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(node)
-    return () => ro.disconnect()
-  }, [])
-
-  const onResizeStart = (e) => {
-    const startY = e.clientY, startH = bodyRef.current?.parentElement?.clientHeight ?? 320
-    const maxH = (bodyRef.current?.parentElement?.parentElement?.clientHeight ?? 800) - 80
-    const move = (ev) => setHeightPx(clamp(startH + (startY - ev.clientY), MIN_OVERLAY_PX, maxH))
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    e.preventDefault()
-  }
 
   // ── What the section shows: this track and the ones beside it ─────────────
   const allPlatforms = loadPlatforms()
@@ -352,42 +330,22 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
     }
     return { ...fitted, k, cx: size.w / 2 - mid.y * k, cy: size.h / 2 + mid.z * k, mid }
   })()
-  const hasFit = fit != null
-  viewRef.current = fit && { k: fit.k, cx: fit.cx, cy: fit.cy, baseK: fitted.k, zoom }
 
   // ── Zoom about the cursor ──────────────────────────────────────────────────
-  useEffect(() => {
-    const svg = svgRef.current
-    if (!svg || !size) return
-    const onWheel = (e) => {
-      const v = viewRef.current
-      if (!v) return
-      e.preventDefault()
-      const rect = svg.getBoundingClientRect()
-      const px = e.clientX - rect.left, py = e.clientY - rect.top
-      const y = (px - v.cx) / v.k, z = (v.cy - py) / v.k
-      const next = clamp(v.zoom * Math.exp(-e.deltaY * 0.0015), MIN_ZOOM, MAX_ZOOM)
-      const k = v.baseK * next
-      setZoom(next)
-      setCenter({ y: y + (size.w / 2 - px) / k, z: z - (size.h / 2 - py) / k })
-    }
-    svg.addEventListener('wheel', onWheel, { passive: false })
-    return () => svg.removeEventListener('wheel', onWheel)
-  }, [size, hasFit])
+  useWheelZoom(svgRef, (f, px, py) => {
+    if (!fit) return
+    const y = (px - fit.cx) / fit.k, z = (fit.cy - py) / fit.k
+    const next = clamp(zoom * f, MIN_ZOOM, MAX_ZOOM)
+    const k = fitted.k * next
+    setZoom(next)
+    setCenter({ y: y + (size.w / 2 - px) / k, z: z - (size.h / 2 - py) / k })
+  }, fit != null)
 
   // ── Pan by dragging; a double click fits the drawing again ─────────────────
-  const onPointerDown = (e) => {
-    if (e.button !== 0 || !fit) return
-    panRef.current = { x: e.clientX, y: e.clientY, mid: fit.mid, k: fit.k }
-    e.currentTarget.setPointerCapture(e.pointerId)
-    setDragging(true)
-  }
-  const onPointerMove = (e) => {
-    const p = panRef.current
-    if (!p) return
-    setCenter({ y: p.mid.y - (e.clientX - p.x) / p.k, z: p.mid.z + (e.clientY - p.y) / p.k })
-  }
-  const onPointerUp = () => { panRef.current = null; setDragging(false) }
+  const drag = useDrag({
+    onStart: () => (fit ? { mid: fit.mid, k: fit.k } : null),
+    onMove: (e, start, { dx, dy }) => setCenter({ y: start.mid.y - dx / start.k, z: start.mid.z + dy / start.k }),
+  })
   const onDoubleClick = () => { setZoom(1); setCenter(null) }
 
   // The cloud is painted under the drawing, in the drawing's own transform.
@@ -395,18 +353,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !size) return
-    const dpr = window.devicePixelRatio || 1
-    if (canvas.width !== Math.round(size.w * dpr) || canvas.height !== Math.round(size.h * dpr)) {
-      canvas.width = Math.round(size.w * dpr)
-      canvas.height = Math.round(size.h * dpr)
-    }
-    const ctx = canvas.getContext('2d')
-    if (!fit || !cloudParts.length) {
-      ctx.setTransform(1, 0, 0, 1, 0, 0)
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      return
-    }
-    drawCloudPoints(ctx, { w: size.w, h: size.h, dpr, k: fit.k, cx: fit.cx, cy: fit.cy, zRef, parts: cloudParts, coloring })
+    paintCloudCanvas(canvas, { w: size.w, h: size.h, view: fit, zRef, parts: cloudParts, coloring })
   })
 
   if (!track) return null
@@ -480,9 +427,8 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
     const path = (pts) => pts.map(([y, z], i) => `${i ? 'L' : 'M'}${X(y)},${Y(z)}`).join(' ')
 
     return (
-      <svg ref={svgRef} width={size.w} height={size.h} className={`cross-section-svg${dragging ? ' dragging' : ''}`}
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp} onDoubleClick={onDoubleClick}>
+      <svg ref={svgRef} width={size.w} height={size.h} className={`cross-section-svg${drag.dragging ? ' dragging' : ''}`}
+        {...drag.handlers} onDoubleClick={onDoubleClick}>
         <title>{t('cross_section_view_hint')}</title>
         {/* the horizontal through this track's running plane, so the cant is
             visible as the angle it is */}
@@ -595,8 +541,8 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
 
   const state = main.state
   return (
-    <div className="profile-overlay" style={heightPx ? { height: heightPx } : undefined}>
-      <div className="profile-resize" onPointerDown={onResizeStart} />
+    <div className="profile-overlay" style={overlay.style}>
+      <div className="profile-resize" onPointerDown={overlay.onResizeStart} />
       <div className="track-table-header cross-section-header">
         <span className="track-table-title">
           {`${track.name || track.id.slice(0, 8)} · ${t('cross_section_station')} ${station.toFixed(1)} m`}

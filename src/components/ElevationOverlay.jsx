@@ -12,15 +12,12 @@ import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
+import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
+import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
 const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
 const MIN_OVERLAY_PX = 140
-const STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]
-
-/** Smallest round step that is at least `minPx` wide at `pxPerUnit`. */
-const niceStep = (minPx, pxPerUnit) => STEPS.find(s => s * pxPerUnit >= minPx) ?? STEPS[STEPS.length - 1]
-const decimals = (step) => (step < 1 ? (step < 0.2 ? 2 : 1) : 0)
 // Narrower than this and the gradient label would not fit between its points.
 const GRADE_LABEL_MIN_PX = 46
 /** A gradient in ‰, signed — a rise is written with its plus, a level stretch as 0. */
@@ -59,17 +56,15 @@ export default function ElevationOverlay({ trackId, onClose }) {
   const track    = tracks.find(tr => tr.id === trackId)
 
   const [exaggeration, setExaggeration] = useState(10)
-  const [size, setSize]         = useState(null)     // { w, h } of the drawing area
   const [view, setView]         = useState(null)     // { k, x0, z0 }: px per m, station at the left edge, height at the bottom edge
   const [selection, setSelection] = useState([])   // indices of the height points being edited
   const [draft, setDraft]       = useState('')
   const [rvDraft, setRvDraft]   = useState('')     // vertical curve radius of the selection
   const [band, setBand]         = useState(null)     // rubber band { x0, y0, x1, y1 } while Shift-dragging
-  const [heightPx, setHeightPx] = useState(null)     // overlay height once the user dragged it
-  const [dragging, setDragging] = useState(false)
   const bodyRef = useRef(null)
   const svgRef  = useRef(null)
-  const panRef  = useRef(null)
+  const size = useElementSize(bodyRef)                // { w, h } of the drawing area
+  const overlay = useOverlayHeight(bodyRef, { min: MIN_OVERLAY_PX })
   // Reading the gradient from the terrain: { trackId, state } with state
   // 'busy', 'missing' (no height data there) or 'failed'.
   const [reading, setReading] = useState(null)
@@ -88,17 +83,6 @@ export default function ElevationOverlay({ trackId, onClose }) {
   const allPoints = [...points, ...stubs.flatMap(s => s.points)]
   // The curves rounding the gradient changes.
   const curves = verticalCurves(points)
-
-  // ── Drawing area size ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const el = bodyRef.current
-    if (!el) return
-    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight })
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
 
   // ── Fit the view to the data when the track or the exaggeration changes ───
   const plotW = size ? size.w - MARGIN.left - MARGIN.right : 0
@@ -140,24 +124,13 @@ export default function ElevationOverlay({ trackId, onClose }) {
   }, [map, trackId, selectedElementsKey])
 
   // ── Zoom about the cursor (both axes, the exaggeration stays) ─────────────
-  useEffect(() => {
-    const svg = svgRef.current
-    if (!svg || !size) return
-    const onWheel = (e) => {
-      e.preventDefault()
-      const rect = svg.getBoundingClientRect()
-      const px = e.clientX - rect.left, py = e.clientY - rect.top
-      setView(v => {
-        if (!v) return v
-        const k  = clamp(v.k * Math.exp(-e.deltaY * 0.0015), 1e-4, 1e4)
-        const s  = v.x0 + (px - MARGIN.left) / v.k
-        const z  = v.z0 + (size.h - MARGIN.bottom - py) / (v.k * exaggeration)
-        return { k, x0: s - (px - MARGIN.left) / k, z0: z - (size.h - MARGIN.bottom - py) / (k * exaggeration) }
-      })
-    }
-    svg.addEventListener('wheel', onWheel, { passive: false })
-    return () => svg.removeEventListener('wheel', onWheel)
-  }, [size, exaggeration])
+  useWheelZoom(svgRef, (f, px, py) => setView(v => {
+    if (!v) return v
+    const k = clamp(v.k * f, 1e-4, 1e4)
+    const s = v.x0 + (px - MARGIN.left) / v.k
+    const z = v.z0 + (size.h - MARGIN.bottom - py) / (v.k * exaggeration)
+    return { k, x0: s - (px - MARGIN.left) / k, z0: z - (size.h - MARGIN.bottom - py) / (k * exaggeration) }
+  }), !!size)
 
   // ── Pan by dragging, pick a group of points with Shift ────────────────────
   // A drag that stays put is a click on the background: it drops the selection.
@@ -165,31 +138,23 @@ export default function ElevationOverlay({ trackId, onClose }) {
     const rect = svgRef.current.getBoundingClientRect()
     return { x: e.clientX - rect.left, y: e.clientY - rect.top }
   }
-  const onPointerDown = (e) => {
-    if (e.button !== 0 || !view) return
-    const { x, y } = svgXY(e)
-    panRef.current = { x: e.clientX, y: e.clientY, view, band: e.shiftKey, add: e.ctrlKey || e.metaKey, moved: false }
-    if (e.shiftKey) setBand({ x0: x, y0: y, x1: x, y1: y })
-    e.currentTarget.setPointerCapture(e.pointerId)
-    setDragging(!e.shiftKey)
-  }
-  const onPointerMove = (e) => {
-    const p = panRef.current
-    if (!p) return
-    if (Math.abs(e.clientX - p.x) > 2 || Math.abs(e.clientY - p.y) > 2) p.moved = true
-    if (p.band) { const { x, y } = svgXY(e); setBand(b => b && { ...b, x1: x, y1: y }); return }
-    const { k, x0, z0 } = p.view
-    setView({ k, x0: x0 - (e.clientX - p.x) / k, z0: z0 + (e.clientY - p.y) / (k * exaggeration) })
-  }
-  const onPointerUp = () => {
-    const p = panRef.current
-    panRef.current = null
-    setDragging(false)
-    setBand(null)
-    if (!p) return
-    if (p.band && band) selectInBand(band, p.add)
-    else if (!p.moved) select([])
-  }
+  const drag = useDrag({
+    onStart: (e) => {
+      if (!view) return null
+      if (e.shiftKey) { const { x, y } = svgXY(e); setBand({ x0: x, y0: y, x1: x, y1: y }) }
+      return { view, band: e.shiftKey, quiet: e.shiftKey, add: e.ctrlKey || e.metaKey }
+    },
+    onMove: (e, start, { dx, dy }) => {
+      if (start.band) { const { x, y } = svgXY(e); setBand(b => b && { ...b, x1: x, y1: y }); return }
+      const { k, x0, z0 } = start.view
+      setView({ k, x0: x0 - dx / k, z0: z0 + dy / (k * exaggeration) })
+    },
+    onEnd: (start, moved) => {
+      setBand(null)
+      if (start.band && band) selectInBand(band, start.add)
+      else if (!start.band && !moved) select([])
+    },
+  })
 
   /** Every point of the track inside the rubber band, added to or replacing the selection. */
   const selectInBand = (b, add) => {
@@ -201,17 +166,6 @@ export default function ElevationOverlay({ trackId, onClose }) {
     }).map(p => p.index)
     if (!hit.length && !add) return select([])
     select(add ? [...new Set([...selection, ...hit])] : hit)
-  }
-
-  // ── Resize the overlay by its top edge ────────────────────────────────────
-  const onResizeStart = (e) => {
-    const startY = e.clientY, startH = bodyRef.current?.parentElement?.clientHeight ?? 300
-    const maxH = (bodyRef.current?.parentElement?.parentElement?.clientHeight ?? 800) - 80
-    const move = (ev) => setHeightPx(clamp(startH + (startY - ev.clientY), MIN_OVERLAY_PX, maxH))
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-    e.preventDefault()
   }
 
   // ── Selecting points, editing and deleting them ───────────────────────────
@@ -287,13 +241,8 @@ export default function ElevationOverlay({ trackId, onClose }) {
     if (!size || !view) return null
     const right = size.w - MARGIN.right, bottom = size.h - MARGIN.bottom
     const sStep = niceStep(70, view.k), zStep = niceStep(26, view.k * exaggeration)
-    const sFrom = Math.ceil((view.x0) / sStep) * sStep
-    const sTo   = view.x0 + plotW / view.k
-    const zFrom = Math.ceil(view.z0 / zStep) * zStep
-    const zTo   = view.z0 + plotH / (view.k * exaggeration)
-    const sTicks = [], zTicks = []
-    for (let s = sFrom; s <= sTo; s += sStep) sTicks.push(s)
-    for (let z = zFrom; z <= zTo; z += zStep) zTicks.push(z)
+    const sTicks = ticks(view.x0, view.x0 + plotW / view.k, sStep)
+    const zTicks = ticks(view.z0, view.z0 + plotH / (view.k * exaggeration), zStep)
 
     // Gradient of every stretch in ‰, at its middle — left out where the label
     // would not fit between the two points.
@@ -316,8 +265,8 @@ export default function ElevationOverlay({ trackId, onClose }) {
     })
 
     return (
-      <svg ref={svgRef} className={`profile-svg${dragging ? ' dragging' : ''}`} width={size.w} height={size.h}
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+      <svg ref={svgRef} className={`profile-svg${drag.dragging ? ' dragging' : ''}`} width={size.w} height={size.h}
+        {...drag.handlers}>
         <defs>
           <clipPath id="profile-clip"><rect x={MARGIN.left} y={MARGIN.top} width={plotW} height={plotH} /></clipPath>
         </defs>
@@ -328,10 +277,10 @@ export default function ElevationOverlay({ trackId, onClose }) {
         <line x1={MARGIN.left} x2={right} y1={bottom} y2={bottom} stroke={PALETTE.axis} />
         <line x1={MARGIN.left} x2={MARGIN.left} y1={MARGIN.top} y2={bottom} stroke={PALETTE.axis} />
         {sTicks.map(s => (
-          <text key={`ts${s}`} x={X(s)} y={bottom + 16} fontSize="11" fill={PALETTE.textSoft} textAnchor="middle">{s.toFixed(decimals(sStep))}</text>
+          <text key={`ts${s}`} x={X(s)} y={bottom + 16} fontSize="11" fill={PALETTE.textSoft} textAnchor="middle">{s.toFixed(stepDecimals(sStep))}</text>
         ))}
         {zTicks.map(z => (
-          <text key={`tz${z}`} x={MARGIN.left - 6} y={Y(z) + 4} fontSize="11" fill={PALETTE.textSoft} textAnchor="end">{z.toFixed(decimals(zStep))}</text>
+          <text key={`tz${z}`} x={MARGIN.left - 6} y={Y(z) + 4} fontSize="11" fill={PALETTE.textSoft} textAnchor="end">{z.toFixed(stepDecimals(zStep))}</text>
         ))}
         <text x={right} y={bottom + 28} fontSize="11" fill={PALETTE.muted} textAnchor="end">{t('elevation_station')} [m]</text>
         <text x={MARGIN.left - 6} y={MARGIN.top - 12} fontSize="11" fill={PALETTE.muted} textAnchor="end">{t('elevation_height')} [m]</text>
@@ -393,8 +342,8 @@ export default function ElevationOverlay({ trackId, onClose }) {
   }
 
   return (
-    <div className="profile-overlay" style={heightPx ? { height: heightPx } : undefined}>
-      <div className="profile-resize" onPointerDown={onResizeStart} />
+    <div className="profile-overlay" style={overlay.style}>
+      <div className="profile-resize" onPointerDown={overlay.onResizeStart} />
       <div className="track-table-header">
         <span className="track-table-title">{track.name || track.id.slice(0, 8)}</span>
         <div className="profile-controls">
