@@ -47,7 +47,7 @@ const EDIT_PREVIEW_LAYERS = [
 const EDIT_PICK_LAYERS = [EDIT_MARKER_LAYER]
 
 export default function EditLengthForm({ onCommitted }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const [workingTracks, setWorkingTracks] = useState(() => loadTracks())
   const [selectedTrackId, setSelectedTrackId] = useState(null)
@@ -134,9 +134,7 @@ export default function EditLengthForm({ onCommitted }) {
       {plan?.error && <p className="form-error">{t(plan.error)}</p>}
       {!plan?.error && plan && plan.touchedTrackIds.length > 1 && (
         <p className="selecting-hint">
-          {t('table_edit_reach')
-            .replace('{{tracks}}', String(plan.touchedTrackIds.length))
-            .replace('{{switches}}', String(plan.touchedSwitchIds.length))}
+          {fill('table_edit_reach', { tracks: String(plan.touchedTrackIds.length), switches: String(plan.touchedSwitchIds.length) })}
         </p>
       )}
       <button className="panel-btn panel-btn-full" style={{ marginTop: 8, opacity: plan?.error ? 0.5 : 1 }}

@@ -5,7 +5,7 @@ import { useI18n } from '../../../locales/i18nContext'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 
 export default function DeleteTrackForm({ onCommitted }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   // { id, name, elements, switchNames } – switch branches are not offered: their
   // geometry belongs to a switch and goes with it, not on its own.
   const [selected, setSelected]     = useState(null)
@@ -35,8 +35,6 @@ export default function DeleteTrackForm({ onCommitted }) {
     setSelected(null)
   }
 
-  const fill = (key, values) =>
-    Object.entries(values).reduce((msg, [k, v]) => msg.replace(`{{${k}}}`, v), t(key))
 
   return (
     <>

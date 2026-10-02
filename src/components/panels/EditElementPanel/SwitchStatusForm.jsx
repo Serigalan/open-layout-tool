@@ -13,7 +13,7 @@ import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
  * track, or kept where its branch goes, needs a status of its own.
  */
 export default function SwitchStatusForm({ onCommitted }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const [selected, setSelected] = useState(null)   // switch record
   const [status, setStatus] = useState(null)
 
@@ -44,7 +44,7 @@ export default function SwitchStatusForm({ onCommitted }) {
         <p>{t('switch_status_hint')}</p>
       ) : (
         <div className="element-form">
-          <p>{t('switch_status_selected').replace('{name}', selected.name || selected.switchId.slice(0, 8))}</p>
+          <p>{fill('switch_status_selected', { name: selected.name || selected.switchId.slice(0, 8) })}</p>
           <StatusField value={status} onChange={setStatus} auto={derived} />
         </div>
       )}

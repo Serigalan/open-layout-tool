@@ -91,7 +91,7 @@ function maxSpeeds(elements, cap) {
 
 export default function TrackTableOverlay({
   track, initialRow, onPickTrack, onDirtyChange, onClose}) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
   // Keep the full track set as working state — a geometry edit propagates to
@@ -322,9 +322,9 @@ export default function TrackTableOverlay({
   // element is not buildable until the cant comes down or a reason is written
   // for it — and on a standing exception it carries that reason as its note.
   const cantNote = (el) => {
-    if (cantExceedsLimit(el)) return t('table_cant_over_limit').replace('{{mm}}', String(cantLimit(el)))
+    if (cantExceedsLimit(el)) return fill('table_cant_over_limit', { mm: String(cantLimit(el)) })
     const reason = cantExceptionOf(el)
-    return reason ? t('table_cant_exception_note').replace('{{text}}', reason) : undefined
+    return reason ? fill('table_cant_exception_note', { text: reason }) : undefined
   }
 
   // Over the limit reads as an error, a standing exception as a mark, and the
@@ -336,7 +336,7 @@ export default function TrackTableOverlay({
   // says so on its type — the alignment is there, the switch is not, and the
   // track must not read as plain running line.
   const hintNote = (el) => (el.switchHint
-    ? t('table_switch_hint').replace('{{text}}', el.switchHint) : undefined)
+    ? fill('table_switch_hint', { text: el.switchHint }) : undefined)
 
   // Speed column filled with the highest value the geometry allows. Only the
   // metadata changes, so the element chain stands as it is; Save persists it.
@@ -414,10 +414,7 @@ export default function TrackTableOverlay({
 
   const defNote = (el, level, cantDef, vMax) => {
     if (!level) return undefined
-    return t('table_cant_def_over')
-      .replace('{{mm}}', String(limitCantDef(el)))
-      .replace('{{is}}', String(cantDef))
-      .replace('{{v}}', String(vMax ?? '–'))
+    return fill('table_cant_def_over', { mm: String(limitCantDef(el)), is: String(cantDef), v: String(vMax ?? '–') })
   }
 
   // What the catalogue said about one row. The cell carries the worst of it,
@@ -512,9 +509,7 @@ export default function TrackTableOverlay({
           {!reachError && notice && <span className="track-table-reach">{t(notice)}</span>}
           {!reachError && !notice && reached.trackIds.length > 1 && (
             <span className="track-table-reach">
-              {t('table_edit_reach')
-                .replace('{{tracks}}', String(reached.trackIds.length))
-                .replace('{{switches}}', String(reached.switchIds.length))}
+              {fill('table_edit_reach', { tracks: String(reached.trackIds.length), switches: String(reached.switchIds.length) })}
             </span>
           )}
           {/* Nothing here is written until this is pressed, so it says whether
@@ -522,7 +517,7 @@ export default function TrackTableOverlay({
               past the one on screen. */}
           <button className={`track-table-save-btn${dirty ? ' track-table-save-btn-dirty' : ''}`}
             onClick={handleSave} disabled={!dirty}
-            title={dirty ? t('table_unsaved').replace('{{tracks}}', String(changed.length)) : undefined}>
+            title={dirty ? fill('table_unsaved', { tracks: String(changed.length) }) : undefined}>
             {dirty ? `${t('btn_save')} •` : t('btn_save')}
           </button>
           <button className="track-table-close" onClick={onClose}>✕</button>
@@ -546,10 +541,7 @@ export default function TrackTableOverlay({
               <th>{t('table_cant_def')} (mm)</th>
               {/* One limit per speed, so the column's tooltip names the step
                   rather than a single number (LP.KB.02). */}
-              <th title={t('table_max_speed_hint')
-                .replace('{{mm}}', String(cantDefLimit(catalogSpeedRange.min)))
-                .replace('{{fast}}', String(cantDefLimit(catalogSpeedRange.max)))
-                .replace('{{sw}}', String(MAX_SWITCH_CANT_DEF))}>{t('table_max_speed')} (km/h)</th>
+              <th title={fill('table_max_speed_hint', { mm: String(cantDefLimit(catalogSpeedRange.min)), fast: String(cantDefLimit(catalogSpeedRange.max)), sw: String(MAX_SWITCH_CANT_DEF) })}>{t('table_max_speed')} (km/h)</th>
               <th title={t('table_crs_hint')}>{t('table_crs')}</th>
             </tr>
           </thead>

@@ -25,7 +25,7 @@ const noteStyle = { margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily:
  * other import reports.
  */
 export default function ProviImportSection({ onReport }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
   const inputRef = useRef(null)
@@ -42,7 +42,7 @@ export default function ProviImportSection({ onReport }) {
   // of them name, which the placement does not pass on.
   const readable = (line) => line.replace(/\bswitch_on_track_\w+\b/g, (key) => {
     const text = t(key)
-    return text.includes('{{') ? text.split(/ – |: /)[0] : text
+    return /\{\w+\}/.test(text) ? text.split(/ – |: /)[0] : text
   })
 
   const handleFile = async (e) => {
@@ -110,11 +110,9 @@ export default function ProviImportSection({ onReport }) {
         const { links, joints, fanned } = linkAllJoints(afterTracks, afterSwitches,
           afterSwitches.map(sw => sw.name).filter(Boolean))
         if (links.length) {
-          lines.push(t('data_exchange_mdb_links')
-            .replace('{{n}}', links.length)
-            .replace('{{crs}}', joints.filter(j => j.crsChange).length))
+          lines.push(fill('data_exchange_mdb_links', { n: links.length, crs: joints.filter(j => j.crsChange).length }))
         }
-        if (fanned) lines.push(t('data_exchange_mdb_fanned').replace('{{n}}', fanned))
+        if (fanned) lines.push(fill('data_exchange_mdb_fanned', { n: fanned }))
 
         const readableLines = lines.map(readable)
         setNotes(readableLines)
@@ -146,9 +144,7 @@ export default function ProviImportSection({ onReport }) {
       {axes?.length > 0 && (
         <>
           <p className="selecting-hint">
-            {t('data_exchange_provi_counts')
-              .replace('{{axes}}', axes.length)
-              .replace('{{gradients}}', axes.filter(a => a.gradient).length)}
+            {fill('data_exchange_provi_counts', { axes: axes.length, gradients: axes.filter(a => a.gradient).length })}
           </p>
           <div className="form-field">
             <label>{t('data_exchange_provi_frame')}</label>
@@ -177,7 +173,7 @@ export default function ProviImportSection({ onReport }) {
             disabled={!project || !chosen.size || busy != null} onClick={runImport}>
             {busy === 'importing'
               ? t('data_exchange_provi_importing')
-              : t('data_exchange_provi_import').replace('{{n}}', chosen.size)}
+              : fill('data_exchange_provi_import', { n: chosen.size })}
           </button>
         </>
       )}

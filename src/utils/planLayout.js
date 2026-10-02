@@ -1,6 +1,7 @@
 import { FRAME, PAPER_FORMATS, makeTransform, drawingArea } from './planExport'
 import { trackPathUtm, trackPointAt } from './planGeometry'
 import { trackLength } from './heightUtils'
+import { format } from '../locales/i18n'
 
 /**
  * Where the sheets of a plan sit and which way round they are.
@@ -259,7 +260,7 @@ export function planSheets({
 function jointAt(track, station, template, sheetNumber) {
   const at = trackPointAt(track, station)
   if (!at) return null
-  return { point: at.point, bearing: at.bearing, text: template.replace('{n}', sheetNumber) }
+  return { point: at.point, bearing: at.bearing, text: format(template, { n: sheetNumber }) }
 }
 
 /** Is every drawn point of every track inside the drawing area? */

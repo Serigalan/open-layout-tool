@@ -51,7 +51,7 @@ const gradeLabel = (perMille) => {
 // The profile is read from the store, through the subscription: every write
 // draws it again.
 export default function ElevationOverlay({ trackId, onClose }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const tracks   = useTracks()
   const switches = useSwitches()
@@ -401,7 +401,7 @@ export default function ElevationOverlay({ trackId, onClose }) {
             <div className="profile-edit">
               <span>{selectedPoints.length === 1
                 ? `${t('elevation_station')} ${selectedPoints[0].station.toFixed(2)} m`
-                : t('elevation_selected').replace('{{n}}', selectedPoints.length)}</span>
+                : fill('elevation_selected', { n: selectedPoints.length })}</span>
               <input className="track-table-input" type="number" step="0.01" value={draft} autoFocus
                 placeholder={t('elevation_mixed')}
                 onChange={e => setDraft(e.target.value)}
@@ -416,7 +416,7 @@ export default function ElevationOverlay({ trackId, onClose }) {
               <button className="track-table-save-btn" onClick={commit}>{t('elevation_apply')}</button>
               <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
                 title={t('elevation_delete_hint')} onClick={remove}>
-                {t('elevation_delete').replace('{{n}}', deletable.length)}
+                {fill('elevation_delete', { n: deletable.length })}
               </button>
               <button className="track-table-close" onClick={() => select([])}>✕</button>
             </div>

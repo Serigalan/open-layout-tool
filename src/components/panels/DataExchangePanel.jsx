@@ -83,12 +83,12 @@ function trackLabel(track) {
 }
 
 export default function DataExchangePanel({ onShowCompare }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
   const tracks = project ? loadTracks() : []
   const trackCount = tracks.length
-  const [before, after] = t('data_exchange_project_desc').split('{{tracks}}')
+  const [before, after] = t('data_exchange_project_desc').split('{tracks}')
   const compareInputRef = useRef(null)
   const [compareError, setCompareError] = useState(null)
 
@@ -332,8 +332,7 @@ export default function DataExchangePanel({ onShowCompare }) {
       id: generateId(), epsg: Number(epsg), coordinates: rebuildCoords(recalced), elements: recalced,
       ...(heights ? { heights, heightEpsg: Number(graHeightEpsg) } : {}),
     })
-    setEsnDone(t(heights ? 'data_exchange_vermesn_done_heights' : 'data_exchange_vermesn_done')
-      .replace('{{name}}', tra.name).replace('{{count}}', recalced.length).replace('{{heights}}', heights?.length ?? 0))
+    setEsnDone(fill(heights ? 'data_exchange_vermesn_done_heights' : 'data_exchange_vermesn_done', { name: tra.name, count: recalced.length, heights: heights?.length ?? 0 }))
     setTra(null)
     setGra(null)
   }
@@ -467,8 +466,7 @@ export default function DataExchangePanel({ onShowCompare }) {
     // DHDN refinement and does a PD/83 chain in the same rectangle no good.
     const datums = [...new Set(tracks.map(tr => crsDatum(tr.epsg)).filter(Boolean))]
     const grids = await loadGridsFor(box, datums)
-    notes.push(t(grids.length ? 'data_exchange_mdb_grids' : 'data_exchange_mdb_grid_none')
-      .replace('{{names}}', grids.map(g => g.name).join(', ')))
+    notes.push(fill(grids.length ? 'data_exchange_mdb_grids' : 'data_exchange_mdb_grid_none', { names: grids.map(g => g.name).join(', ') }))
 
     let moved = 0, gap = 0, lo = Infinity, hi = -Infinity
     const out = tracks.map(tr => {
@@ -481,11 +479,7 @@ export default function DataExchangePanel({ onShowCompare }) {
       return res.track
     })
     if (moved) {
-      notes.push(t('data_exchange_mdb_moved')
-        .replace('{{n}}', moved)
-        .replace('{{crs}}', crsLabel(target))
-        .replace('{{mm}}', (Math.max(Math.abs(lo - 1), Math.abs(hi - 1)) * 1000).toFixed(2))
-        .replace('{{deg}}', gap.toExponential(1)))
+      notes.push(fill('data_exchange_mdb_moved', { n: moved, crs: crsLabel(target), mm: (Math.max(Math.abs(lo - 1), Math.abs(hi - 1)) * 1000).toFixed(2), deg: gap.toExponential(1) }))
     }
     return out
   }
@@ -570,11 +564,9 @@ export default function DataExchangePanel({ onShowCompare }) {
     const { links, joints, fanned } = linkAllJoints(afterTracks, afterSwitches,
       afterSwitches.map(sw => sw.name).filter(Boolean))
     if (links.length) {
-      notes.push(t('data_exchange_mdb_links')
-        .replace('{{n}}', links.length)
-        .replace('{{crs}}', joints.filter(j => j.crsChange).length))
+      notes.push(fill('data_exchange_mdb_links', { n: links.length, crs: joints.filter(j => j.crsChange).length }))
     }
-    if (fanned) notes.push(t('data_exchange_mdb_fanned').replace('{{n}}', fanned))
+    if (fanned) notes.push(fill('data_exchange_mdb_fanned', { n: fanned }))
 
     // Buffer stops (Satzart 31, form „Prellbock") go on the free track end
     // they stand at. The file names no type and no brake length, so each
@@ -582,9 +574,7 @@ export default function DataExchangePanel({ onShowCompare }) {
     const stops = mdbBufferStops(payload)
     const buffered = matchMdbBufferStops(stops, afterTracks, [...afterSwitches, ...links])
     if (stops.length) {
-      notes.push(t('data_exchange_mdb_buffer_stops')
-        .replace('{{n}}', buffered.marks.length)
-        .replace('{{missed}}', buffered.missed))
+      notes.push(fill('data_exchange_mdb_buffer_stops', { n: buffered.marks.length, missed: buffered.missed }))
     }
 
     keep(notes, { tracks: addTracks.length, switches: placed.switches.length })
@@ -702,7 +692,7 @@ export default function DataExchangePanel({ onShowCompare }) {
 
   if (trackConflicts.length > 0) {
     const { existing } = trackConflicts[0]
-    const msg = t('import_track_conflict_message').replace('{{name}}', trackLabel(existing))
+    const msg = fill('import_track_conflict_message', { name: trackLabel(existing) })
     return (
       <div className="modal-overlay">
         <div className="modal" onClick={e => e.stopPropagation()}>
@@ -828,14 +818,14 @@ export default function DataExchangePanel({ onShowCompare }) {
         <EsnFileSlot
           label={t('data_exchange_vermesn_tra')}
           inputRef={esnInputRef} accept=".tra,.TRA" onChange={handleTraFile}
-          file={tra && { name: tra.name, detail: t('data_exchange_vermesn_tra_loaded').replace('{{count}}', tra.count) }}
+          file={tra && { name: tra.name, detail: fill('data_exchange_vermesn_tra_loaded', { count: tra.count }) }}
           pickLabel={t('data_exchange_vermesn_tra_pick')} removeLabel={t('data_exchange_vermesn_tra_remove')}
           disabled={!project} onRemove={() => setTra(null)}
         />
         <EsnFileSlot
           label={t('data_exchange_vermesn_gra')}
           inputRef={graInputRef} accept=".gra,.GRA" onChange={handleGraFile}
-          file={gra && { name: gra.name, detail: t('data_exchange_vermesn_gra_loaded').replace('{{count}}', gra.points.length) }}
+          file={gra && { name: gra.name, detail: fill('data_exchange_vermesn_gra_loaded', { count: gra.points.length }) }}
           pickLabel={t('data_exchange_vermesn_gra_pick')} removeLabel={t('data_exchange_vermesn_gra_remove')}
           disabled={!project} onRemove={() => setGra(null)}
         />
@@ -848,7 +838,7 @@ export default function DataExchangePanel({ onShowCompare }) {
             </select>
             {gra.code && (
               <span style={{ fontSize: 11, color: '#666', fontFamily: 'system-ui, sans-serif' }}>
-                {t('data_exchange_vermesn_height_code').replace('{{code}}', gra.code)}
+                {fill('data_exchange_vermesn_height_code', { code: gra.code })}
               </span>
             )}
           </div>
@@ -983,7 +973,7 @@ export default function DataExchangePanel({ onShowCompare }) {
                   onClick={() => cantInputRef.current?.click()}
                 >
                   {cantCount
-                    ? t('data_exchange_csv_cant_loaded').replace('{{n}}', cantCount)
+                    ? fill('data_exchange_csv_cant_loaded', { n: cantCount })
                     : t('data_exchange_csv_cant')}
                 </button>
                 <div className="form-field" style={{ marginTop: 6 }}>
@@ -1046,10 +1036,7 @@ export default function DataExchangePanel({ onShowCompare }) {
             </button>
             {mdbCounts && (
               <p className="selecting-hint">
-                {t('data_exchange_mdb_counts')
-                  .replace('{{elements}}', mdbCounts.elements)
-                  .replace('{{tracks}}', mdbCounts.tracks)
-                  .replace('{{nodes}}', mdbCounts.nodes)}
+                {fill('data_exchange_mdb_counts', { elements: mdbCounts.elements, tracks: mdbCounts.tracks, nodes: mdbCounts.nodes })}
               </p>
             )}
             {mdbStrecken.length > 0 && (
@@ -1059,7 +1046,7 @@ export default function DataExchangePanel({ onShowCompare }) {
                   <select className="settings-select" value={mdbStrecke}
                     onChange={e => setMdbStrecke(e.target.value)}>
                     <option value={ALL_STRECKEN}>
-                      {t('data_exchange_mdb_all').replace('{{n}}', mdbStrecken.length)}
+                      {fill('data_exchange_mdb_all', { n: mdbStrecken.length })}
                     </option>
                     {mdbStrecken.map(x => (
                       <option key={x.strecke} value={x.strecke}>{x.strecke} ({x.count})</option>
@@ -1100,10 +1087,7 @@ export default function DataExchangePanel({ onShowCompare }) {
             </button>
             {dbrefCounts && (
               <p className="selecting-hint">
-                {t('data_exchange_mdb_counts')
-                  .replace('{{elements}}', dbrefCounts.elements)
-                  .replace('{{tracks}}', dbrefCounts.tracks)
-                  .replace('{{nodes}}', dbrefCounts.nodes)}
+                {fill('data_exchange_mdb_counts', { elements: dbrefCounts.elements, tracks: dbrefCounts.tracks, nodes: dbrefCounts.nodes })}
               </p>
             )}
             {dbrefStrecken.length > 0 && (
@@ -1113,7 +1097,7 @@ export default function DataExchangePanel({ onShowCompare }) {
                   <select className="settings-select" value={dbrefStrecke}
                     onChange={e => setDbrefStrecke(e.target.value)}>
                     <option value={ALL_STRECKEN}>
-                      {t('data_exchange_mdb_all').replace('{{n}}', dbrefStrecken.length)}
+                      {fill('data_exchange_mdb_all', { n: dbrefStrecken.length })}
                     </option>
                     {dbrefStrecken.map(x => (
                       <option key={x.strecke} value={x.strecke}>{x.strecke} ({x.count})</option>
@@ -1162,17 +1146,12 @@ export default function DataExchangePanel({ onShowCompare }) {
                 <button className="panel-btn panel-btn-full" style={{ marginTop: 2 }}
                   aria-expanded={openReport === i}
                   onClick={() => setOpenReport(openReport === i ? null : i)}>
-                  {t('data_exchange_reports_entry')
-                    .replace('{{when}}', new Date(r.at).toLocaleString())
-                    .replace('{{source}}', r.source ?? '')
-                    .replace('{{n}}', r.lines?.length ?? 0)}
+                  {fill('data_exchange_reports_entry', { when: new Date(r.at).toLocaleString(), source: r.source ?? '', n: r.lines?.length ?? 0 })}
                 </button>
                 {openReport === i && (
                   <>
                     <p className="selecting-hint">
-                      {t('data_exchange_reports_result')
-                        .replace('{{tracks}}', r.tracks ?? 0)
-                        .replace('{{switches}}', r.switches ?? 0)}
+                      {fill('data_exchange_reports_result', { tracks: r.tracks ?? 0, switches: r.switches ?? 0 })}
                     </p>
                     <div style={{ marginTop: 4, maxHeight: 220, overflowY: 'auto' }}>
                       {(r.lines ?? []).map((line, j) => (
@@ -1182,7 +1161,7 @@ export default function DataExchangePanel({ onShowCompare }) {
                       ))}
                       {r.cut > 0 && (
                         <p className="selecting-hint">
-                          {t('data_exchange_reports_cut').replace('{{n}}', r.cut)}
+                          {fill('data_exchange_reports_cut', { n: r.cut })}
                         </p>
                       )}
                     </div>
@@ -1205,7 +1184,7 @@ export default function DataExchangePanel({ onShowCompare }) {
           </ExchangeSection>
           <ExchangeSection
             title={t('data_exchange_alignment')}
-            description={t('data_exchange_alignment_desc').replace('{{version}}', FORMAT_VERSION)}
+            description={fill('data_exchange_alignment_desc', { version: FORMAT_VERSION })}
           >
             <button className="panel-btn panel-btn-full" disabled={!project} onClick={handleExchangeExport}>
               {t('data_exchange_export')}

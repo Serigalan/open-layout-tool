@@ -254,7 +254,7 @@ function buildPointsGeoJSON(result) {
 }
 
 export default function SCurveForm({ onCommitted }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const [phase, setPhase]   = useState('select_first')  // select_first | select_second | config
   const [picks, setPicks]   = useState([])
   const [speedIdx, setSpeedIdx] = useState(DEFAULT_TYPE)   // selected design speed (index into CONNECTION_SPEEDS)
@@ -558,7 +558,7 @@ export default function SCurveForm({ onCommitted }) {
         </p>
         {carveError != null && (
           <p className="form-error">
-            {t('switch_on_track_no_room').replace('{{m}}', carveError.toFixed(1))}
+            {fill('switch_on_track_no_room', { m: carveError.toFixed(1) })}
           </p>
         )}
 

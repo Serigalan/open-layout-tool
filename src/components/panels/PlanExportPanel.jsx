@@ -55,7 +55,7 @@ function heightLabel(epsg) {
 const HEADER_SAVE_DELAY = 500
 
 export default function PlanExportPanel({ onShowPlanPreview }) {
-  const { t, language } = useI18n()
+  const { t, language, fill } = useI18n()
   const project = useProject()
   const [kind, setKind]         = useState('site')   // 'site' | 'schematic'
   const [scaleKey, setScaleKey] = useState('1000')
@@ -109,8 +109,6 @@ export default function PlanExportPanel({ onShowPlanPreview }) {
   }
   const setBlockStyle = (style) => changeHeader({ ...header, style })
 
-  const fill = (key, vals) => Object.entries(vals)
-    .reduce((s, [k, v]) => s.replace(`{${k}}`, v), t(key))
 
   /**
    * The title block for a plan. Both blocks state the same: plan kind, scale,

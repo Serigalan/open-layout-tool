@@ -32,7 +32,6 @@ const CLOUD_CRS = [...new Set([
 ])]
 
 /** A translated text with its {{placeholders}} filled. */
-const fill = (text, vars) => Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{{${k}}}`, v), text)
 
 const mb = (bytes) => `${(bytes / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 })} MB`
 const gb = (bytes) => `${(bytes / 1e9).toLocaleString(undefined, { maximumFractionDigits: 1 })} GB`
@@ -65,7 +64,7 @@ const duration = (s) => {
  * a wrong choice shows before an hour of reading.
  */
 export default function PointCloudPanel() {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
   const [clouds, setClouds] = useState(null)
@@ -180,7 +179,7 @@ export default function PointCloudPanel() {
     try {
       const result = await job.done
       setMessage(result.status === 'done'
-        ? { kind: 'done', text: fill(t('pointcloud_import_done'), { points: count(result.index.points) }) }
+        ? { kind: 'done', text: fill('pointcloud_import_done', { points: count(result.index.points) }) }
         : { kind: 'done', text: t('pointcloud_import_aborted') })
       if (result.status === 'done') setPick(null)
     } catch (err) {
@@ -214,15 +213,15 @@ export default function PointCloudPanel() {
             <input type="text" readOnly value={`${pick.file.name} · ${mb(pick.file.size)}`} />
             <span className="pointcloud-meta">
               {`LAS ${pick.header.version}${pick.header.compressed ? ' (LAZ)' : ''} · `
-                + `${fill(t('pointcloud_points'), { n: count(pick.header.pointCount) })} · `
-                + `${fill(t('pointcloud_needs'), { size: size(needed) })}`}
+                + `${fill('pointcloud_points', { n: count(pick.header.pointCount) })} · `
+                + `${fill('pointcloud_needs', { size: size(needed) })}`}
             </span>
             <button className="modal-btn modal-btn-cancel pointcloud-text-btn" disabled={preview?.busy} onClick={showPreview}>
-              {preview?.busy ? t('pointcloud_text_reading') : fill(t('pointcloud_text_show'), { n: PREVIEW_POINTS })}
+              {preview?.busy ? t('pointcloud_text_reading') : fill('pointcloud_text_show', { n: PREVIEW_POINTS })}
             </button>
           </div>
           {tooBig && (
-            <p className="form-error">{fill(t('pointcloud_space_short'), { size: size(needed), free: size(storage.free) })}</p>
+            <p className="form-error">{fill('pointcloud_space_short', { size: size(needed), free: size(storage.free) })}</p>
           )}
           <div className="form-field">
             <label>{t('pointcloud_crs')}</label>
@@ -243,7 +242,7 @@ export default function PointCloudPanel() {
           {probe && probe.ok === null && <p className="selecting-hint">{t('pointcloud_probe_no_tracks')}</p>}
           {crs && (
             <p className="selecting-hint">
-              {fill(t('pointcloud_target'), { crs: crsLabel(target ?? Number(crs)) })}
+              {fill('pointcloud_target', { crs: crsLabel(target ?? Number(crs)) })}
             </p>
           )}
 
@@ -252,8 +251,8 @@ export default function PointCloudPanel() {
               <progress max={1} value={share} />
               <span className="pointcloud-meta">
                 {p
-                  ? `${Math.floor(share * 100)} % · ${fill(t('pointcloud_points'), { n: count(p.points) })} · `
-                    + `${fill(t('pointcloud_kept'), { n: count(p.kept) })} · ${mb(p.bytesWritten)}`
+                  ? `${Math.floor(share * 100)} % · ${fill('pointcloud_points', { n: count(p.points) })} · `
+                    + `${fill('pointcloud_kept', { n: count(p.kept) })} · ${mb(p.bytesWritten)}`
                   : t('pointcloud_starting')}
               </span>
               {p && (
@@ -296,7 +295,7 @@ export default function PointCloudPanel() {
             <span className="pointcloud-meta">
               {`${Math.round(w)} × ${Math.round(h)} m · `
                 + `${c.bounds.minZ.toFixed(1)}–${c.bounds.maxZ.toFixed(1)} m · `
-                + `${fill(t('pointcloud_points'), { n: count(c.points) })} · ${size(c.bytes)}`}
+                + `${fill('pointcloud_points', { n: count(c.points) })} · ${size(c.bytes)}`}
             </span>
             <span className="pointcloud-meta">
               {`${c.file?.name ?? ''} · ${new Date(c.createdAt).toLocaleString()}`}
@@ -312,14 +311,14 @@ export default function PointCloudPanel() {
       })}
       {storage && (
         <p className="pointcloud-meta pointcloud-storage">
-          {fill(t('pointcloud_storage'), { used: size(storage.usage), free: size(storage.free) })}
+          {fill('pointcloud_storage', { used: size(storage.usage), free: size(storage.free) })}
           {!storage.persisted && ` ${t('pointcloud_not_persisted')}`}
         </p>
       )}
       {preview?.text && (
         <div className="modal-overlay" onClick={() => setPreview(null)}>
           <div className="modal pointcloud-text-modal" onClick={(e) => e.stopPropagation()}>
-            <strong>{fill(t('pointcloud_text_title'), { n: PREVIEW_POINTS })}</strong>
+            <strong>{fill('pointcloud_text_title', { n: PREVIEW_POINTS })}</strong>
             <pre className="pointcloud-text">{preview.text}</pre>
             <div className="modal-actions">
               <button className="modal-btn modal-btn-cancel" onClick={copyPreview}>
@@ -337,7 +336,7 @@ export default function PointCloudPanel() {
         </div>
       )}
       {asking && (
-        <ConfirmModal message={fill(t('pointcloud_delete_ask'), { name: asking.name })}
+        <ConfirmModal message={fill('pointcloud_delete_ask', { name: asking.name })}
           onConfirm={() => remove(asking)} onCancel={() => setAsking(null)} />
       )}
     </>

@@ -13,6 +13,7 @@ import { pointAtStationUtm, trackLength } from './heightUtils'
 import { BUFFER_STOP, bufferStopStations } from './trackEndMarks'
 import { FACE_HALF_WIDTH } from './bufferStopGeometry'
 import { cantExceptionOf, computeCantDef, worstCantOf } from './mapConstants'
+import { format } from '../locales/i18n'
 
 /**
  * The plan as a list of drawing primitives per sheet, in page millimetres
@@ -767,7 +768,7 @@ function titleBlockItems(pageW, pageH, block, sheet) {
   const t = COMPACT_TABLE_X
   const ox = pageW - FRAME.right - w
   const oy = pageH - FRAME.bottom - h
-  const fill = (str) => String(str ?? '').replace('{i}', sheet.index + 1).replace('{n}', sheet.count)
+  const fill = (str) => format(str, { i: sheet.index + 1, n: sheet.count })
   const size = COMPACT_TEXT
   const items = [
     path([['M', ox, oy], ['L', ox + w, oy], ['L', ox + w, oy + h], ['L', ox, oy + h], ['Z']],
@@ -930,7 +931,7 @@ function fullTitleBlockItems(pageW, pageH, block, sheet) {
   const { w, h } = FULL_BLOCK
   const ox = pageW - FRAME.right - w
   const oy = pageH - FRAME.bottom - h
-  const fill = (str) => String(str ?? '').replace('{i}', sheet.index + 1).replace('{n}', sheet.count)
+  const fill = (str) => format(str, { i: sheet.index + 1, n: sheet.count })
   const items = [path([['M', ox, oy], ['L', ox + w, oy], ['L', ox + w, oy + h], ['L', ox, oy + h], ['Z']],
     { stroke: null, fill: '#ffffff' })]
   const put = (x, y, str, size, o = {}) => {

@@ -14,7 +14,7 @@ import { SWITCH_PICK_LAYERS, hasSwitch } from '../../../map/pick'
  * go" is visible from the dialog rather than from the map afterwards.
  */
 export default function DeleteSwitchForm({ onCommitted }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const [selected, setSelected]     = useState(null)   // { sw, plan }
   const [confirming, setConfirming] = useState(false)
 
@@ -35,8 +35,6 @@ export default function DeleteSwitchForm({ onCommitted }) {
     setSelected(null)
   }
 
-  const fill = (key, values) =>
-    Object.entries(values).reduce((msg, [k, v]) => msg.replace(`{{${k}}}`, v), t(key))
 
   const plan = selected?.plan
   const name = selected ? (selected.sw.name || selected.sw.switchId.slice(0, 8)) : ''

@@ -48,7 +48,7 @@ import useMapPick from '../../../map/useMapPick'
  * call each, with the branching left out that a turnout adds.
  */
 export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossing' }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -109,7 +109,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
     if (pointStation < 0 || pointStation > trackLength(track)) {
       return { error: t('switch_on_track_outside') }
     }
-    const noRoom = t('crossing_on_track_no_room').replace('{{m}}', endDist.toFixed(1))
+    const noRoom = fill('crossing_on_track_no_room', { m: endDist.toFixed(1) })
     const ahead = placeSwitchOnTrack(track, pointStation, false, endDist)
     if (ahead.error) return { error: ahead.error === 'switch_on_track_no_room' ? noRoom : t(ahead.error) }
     const back = placeSwitchOnTrack(track, pointStation, true, endDist)
@@ -124,14 +124,14 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       return {
         error: legR == null
           ? t('crossing_on_track_straight_only')
-          : t('crossing_on_track_leg_arc').replace('{{r}}', String(crossingLegRadius(form))),
+          : fill('crossing_on_track_leg_arc', { r: String(crossingLegRadius(form)) }),
       }
     }
     return {
       error: null, ahead, back,
       geom: computeCrossingGeometryUtm(ahead.toeUtm, ahead.bearing, form, crossAngle),
     }
-  }, [track, pointStation, endDist, form, crossAngle, t])
+  }, [track, pointStation, endDist, form, crossAngle, t, fill])
 
   const placeError = placement.error
   const ahead      = placement.ahead ?? null
@@ -195,7 +195,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
     const carvedAhead  = carveSwitchRoute(split.ahead, split.aheadEndpoint, g.portC_utm, mainMark, endDist)
     const carvedBehind = carveSwitchRoute(split.behind, split.behindEndpoint, g.portA_utm, mainMark, endDist)
     if (!carvedAhead || !carvedBehind) {
-      setErrors([t('crossing_on_track_no_room').replace('{{m}}', endDist.toFixed(1))])
+      setErrors([fill('crossing_on_track_no_room', { m: endDist.toFixed(1) })])
       return
     }
 

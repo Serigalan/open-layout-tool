@@ -64,7 +64,7 @@ function reshapedHeights(track, elements) {
 // it opens the panel straight in a mode and takes the back button back to its
 // own menu. Standalone, the panel starts in its own menu as before.
 export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onShowRegelwerk }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element'
   const mode = page
@@ -339,11 +339,9 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
               // Part of the track was left alone. Saying so beats handing back
               // half an answer in silence — and beats the refusal it used to be.
               <p style={{ fontSize: 12, color: '#c8860d', marginTop: 4 }}>
-                {t('optimize_skipped')
-                  .replace('{{count}}', result.skipped.length)
-                  .replace('{{where}}', result.skipped
+                {fill('optimize_skipped', { count: result.skipped.length, where: result.skipped
                     .map(s => s.from === s.to ? `#${s.from + 1}` : `#${s.from + 1}–${s.to + 1}`)
-                    .join(', '))}
+                    .join(', ') })}
                 {' '}{result.skipped[0].why}
               </p>
             )}

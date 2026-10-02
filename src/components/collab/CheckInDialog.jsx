@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { COMPARE_COLORS } from '../../utils/compareLayer'
-import { entryText, findingText, fill } from './mergeText'
+import { entryText, findingText } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -10,7 +10,7 @@ import { useI18n } from '../../locales/i18nContext'
  * where the change list is so the user sees what to mend.
  */
 export default function CheckInDialog({ changes, errors = [], busy, onSubmit, onCancel }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const [message, setMessage] = useState('')
   return (
     <div className="modal-overlay" onClick={busy ? undefined : onCancel}>
@@ -22,7 +22,7 @@ export default function CheckInDialog({ changes, errors = [], busy, onSubmit, on
           <textarea rows={3} value={message} onChange={e => setMessage(e.target.value)} placeholder={t('checkin_message_placeholder')} autoFocus />
         </label>
         <div className="collab-modal-list">
-          <span className="collab-label">{fill(t, 'checkin_changes', { n: changes.length })}</span>
+          <span className="collab-label">{fill('checkin_changes', { n: changes.length })}</span>
           <ul className="collab-list collab-list-plain">
             {changes.map(e => (
               <li key={`${e.collection}|${e.id}|${e.kind}`}>

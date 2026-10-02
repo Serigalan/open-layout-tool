@@ -1,3 +1,4 @@
+import { fill } from '../locales/i18n'
 // Formats the "grund" the optimizer attaches to a changed report row (AP R.4,
 // olt_optimizer/optimize.py: binding_reason) into a translation key plus the
 // numbers to fill its placeholders with. A pure function, not JSX, so it runs
@@ -17,7 +18,7 @@ const UNIT_BY_RULE = {
  * `grund` as it arrives on a report row: { regel, ist, soll, arc?, slot?,
  * regelId? } or undefined/null on an unchanged row. Returns null for either of
  * those, or { key, ist, soll, regelId } ready for
- * `t(key).replace('{{ist}}', ist).replace(...)`. `regelId` names the rule of
+ * `fill(t, key, { ist }).replace(...)`. `regelId` names the rule of
  * the catalogue the limit came from, where it came from one (LP.UB.03, …).
  */
 export function formatGrund(grund) {
@@ -31,11 +32,11 @@ export function formatGrund(grund) {
   }
 }
 
-/** `t(...)`'s result with `{{ist}}`/`{{soll}}` filled in and the rule named
+/** `t(...)`'s result with `{ist}`/`{soll}` filled in and the rule named
  *  after it, or '' where there is no grund to show (an unchanged row). */
 export function grundText(t, grund) {
   const formatted = formatGrund(grund)
   if (!formatted) return ''
-  const text = t(formatted.key).replace('{{ist}}', formatted.ist).replace('{{soll}}', formatted.soll)
+  const text = fill(t, formatted.key, { ist: formatted.ist, soll: formatted.soll })
   return formatted.regelId ? `${text} · ${formatted.regelId}` : text
 }

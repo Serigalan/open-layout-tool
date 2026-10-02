@@ -100,7 +100,7 @@ const inRange = (p, station) => station >= (p.startStation ?? 0) && station <= (
  * by changing the track (see CrossSectionPanel).
  */
 export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
   const [size, setSize] = useState(null)
@@ -445,21 +445,19 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
     if (!clearance) check = { text: t('cross_section_clearance_no_gradient'), color: '#888' }
     else if (clearance.inside) {
       check = {
-        text: t('cross_section_clearance_hit').replace('{{n}}', clearance.inside.toLocaleString())
-          .replace('{{mm}}', mm(clearance.deepest.distance)),
+        text: fill('cross_section_clearance_hit', { n: clearance.inside.toLocaleString(), mm: mm(clearance.deepest.distance) }),
         color: INTRUSION_COLOR,
       }
     } else if (clearance.nearest) {
-      check = { text: t('cross_section_clearance_free').replace('{{mm}}', mm(clearance.nearest.distance)), color: CLEAR_COLOR }
+      check = { text: fill('cross_section_clearance_free', { mm: mm(clearance.nearest.distance) }), color: CLEAR_COLOR }
     } else if (cloudCount) {
       check = { text: t('cross_section_clearance_far'), color: CLEAR_COLOR }
     }
     return {
       check,
-      text: t('cross_section_cloud_count').replace('{{n}}', cloudCount.toLocaleString())
-        .replace('{{half}}', String(thickness / 2)),
+      text: fill('cross_section_cloud_count', { n: cloudCount.toLocaleString(), half: String(thickness / 2) }),
       datum: others.length
-        ? t('cross_section_cloud_datum').replace('{{cloud}}', others.join(', ')).replace('{{track}}', heightName(trackDatum))
+        ? fill('cross_section_cloud_datum', { cloud: others.join(', '), track: heightName(trackDatum) })
         : null,
     }
   })()
@@ -566,7 +564,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
             )}
             {cloudState.check && clearance && (
               <tspan x={MARGIN / 2} dy="13" fill="#888">
-                {t('cross_section_clearance_band').replace('{{mm}}', String(BOTTOM_BAND))}
+                {fill('cross_section_clearance_band', { mm: String(BOTTOM_BAND) })}
               </tspan>
             )}
             {cloudState.datum && <tspan x={MARGIN / 2} dy="13" fill="#b35c00">{cloudState.datum}</tspan>}

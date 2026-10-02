@@ -85,7 +85,7 @@ function constantBranchElement(seg, cant) {
  * speed and switch form.
  */
 export default function SwitchOnTrackForm({ onCommitted }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -140,7 +140,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   // not exact).
   const placement = useMemo(() => {
     if (!track || !Number.isFinite(toeStation)) return { error: null }
-    const noRoom = t('switch_on_track_no_room').replace('{{m}}', straightLen.toFixed(1))
+    const noRoom = fill('switch_on_track_no_room', { m: straightLen.toFixed(1) })
     const total  = trackLength(track)
     if (toeStation < 0 || toeStation > total) return { error: t('switch_on_track_outside') }
     if ((reversed ? total - toeStation : toeStation) <= MIN_BEHIND) return { error: noRoom }
@@ -151,7 +151,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
     // to be — on anything else the turnout would stand beside its own through
     // route. On it, it is the ordinary unbent form.
     if (sw.symmetric && !piecesOnRadius(place.pieces, side === 'left' ? sw.R : -sw.R)) {
-      return { error: t('switch_on_track_symmetric').replace('{{r}}', String(sw.R)) }
+      return { error: fill('switch_on_track_symmetric', { r: String(sw.R) }) }
     }
     // On nothing but straights the turnout is the ordinary, unbent one.
     const plain  = sw.symmetric || place.pieces.every(p => p.r1 == null && p.r2 == null)
@@ -161,7 +161,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       geom: computeSwitchGeometryUtm(place.toeUtm, place.bearing, sw, side, false, toeWgs,
         plain ? null : place.pieces),
     }
-  }, [track, toeStation, reversed, straightLen, sw, side, t])
+  }, [track, toeStation, reversed, straightLen, sw, side, t, fill])
 
   const placeError = placement.error
   const place      = placement.place ?? null
@@ -248,7 +248,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
     const mainMark = switchElementMark(identity, 'main')
     const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, place.endUtm, mainMark, straightLen)
     if (!carved) {
-      setErrors([t('switch_on_track_no_room').replace('{{m}}', straightLen.toFixed(1))])
+      setErrors([fill('switch_on_track_no_room', { m: straightLen.toFixed(1) })])
       return
     }
     if (!switchNo.claim()) return

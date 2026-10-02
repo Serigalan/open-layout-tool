@@ -38,7 +38,7 @@ describe('readFirstPoints and pointsAsText', () => {
     const source = bytesSource(makeLas([{ x: 1, y: 2, z: 3 }]))
     const header = await readLasHeader(source)
     const text = pointsAsText(header, await readFirstPoints(source, header, 5), {
-      labels: { first: 'die ersten {{n}} Punkte', intensity: 'Intensität' },
+      labels: { first: 'die ersten {n} Punkte', intensity: 'Intensität' },
     })
     expect(text).toContain('# die ersten 1 Punkte:')
     expect(text).toContain('X\tY\tZ\tIntensität')

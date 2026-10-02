@@ -25,7 +25,7 @@ const JOINT_ZOOM = 17
  * is left open here is what it could not decide.
  */
 export default function TrackLinkForm({ onCommitted }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const [crsOnly, setCrsOnly] = useState(false)
   const [created, setCreated] = useState(0)
@@ -40,8 +40,6 @@ export default function TrackLinkForm({ onCommitted }) {
 
   const open = crsOnly ? joints.filter(j => j.crsChange) : joints
 
-  const fill = (key, values) =>
-    Object.entries(values).reduce((msg, [k, v]) => msg.replace(`{{${k}}}`, v), t(key))
 
   const endLabel = (end) => (end
     ? `${end.trackName || end.trackId.slice(0, 8)} ${end.endpoint}`

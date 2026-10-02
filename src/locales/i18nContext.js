@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import { translations } from './i18n'
-import { fill as fillText } from '../components/collab/mergeText'
+import { fill as fillText } from './i18n'
 
 export const DEFAULT_LANGUAGE = 'en'
 

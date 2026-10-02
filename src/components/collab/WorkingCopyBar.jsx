@@ -1,4 +1,3 @@
-import { fill } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -9,7 +8,7 @@ import { useI18n } from '../../locales/i18nContext'
  * ways to act on that, check in and update.
  */
 export default function WorkingCopyBar({ projectTitle, variantName, base, changes, serverNewer, busy, onCheckIn, onUpdate, onShowChanges }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const state = serverNewer ? 'newer' : changes > 0 ? 'local' : 'clean'
   return (
     <div className="wc-bar" role="status">
@@ -17,10 +16,10 @@ export default function WorkingCopyBar({ projectTitle, variantName, base, change
         <strong>{projectTitle}</strong>
         <span className="wc-sep">›</span>
         <span>{variantName}</span>
-        {base && <span className="wc-rev">{fill(t, 'wc_rev', { n: base.number })}</span>}
+        {base && <span className="wc-rev">{fill('wc_rev', { n: base.number })}</span>}
       </span>
       <button type="button" className={`wc-state wc-state-${state}`} onClick={onShowChanges} disabled={!changes}>
-        {changes > 0 ? fill(t, 'wc_changes', { n: changes }) : t('wc_clean')}
+        {changes > 0 ? fill('wc_changes', { n: changes }) : t('wc_clean')}
         {serverNewer && <span className="wc-newer">{t('wc_server_newer')}</span>}
       </button>
       <span className="wc-actions">

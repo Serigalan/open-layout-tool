@@ -33,7 +33,7 @@ describe('formatGrund', () => {
 
 describe('grundText', () => {
   const t = (key) => ({
-    optimize_grund_korridor: 'Korridor ({{ist}}/{{soll}} cm)',
+    optimize_grund_korridor: 'Korridor ({ist}/{soll} cm)',
   }[key] ?? key)
 
   it('fills the translated template', () => {
@@ -42,7 +42,7 @@ describe('grundText', () => {
   })
 
   it('names the rule after the text where there is one', () => {
-    const tr = (key) => ({ optimize_grund_rampenregel: 'Rampe ({{ist}}/{{soll}} m)' }[key] ?? key)
+    const tr = (key) => ({ optimize_grund_rampenregel: 'Rampe ({ist}/{soll} m)' }[key] ?? key)
     expect(grundText(tr, { regel: 'rampenregel', ist: 150, soll: 50, regelId: 'LP.UB.05' }))
       .toBe('Rampe (150.0/50.0 m) · LP.UB.05')
   })

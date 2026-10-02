@@ -15,7 +15,7 @@ import useMapPick from '../../map/useMapPick'
  * overwrites edited heights), or every track that still lacks heights.
  */
 export default function ElevationPanel({ profileTrackId, onShowProfile }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const tracks = loadTracks() ?? []
   const [busy, setBusy]     = useState(false)
   const [result, setResult] = useState(null)   // { updated, missing } of the last run
@@ -44,7 +44,7 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
 
   const resultText = (r) => r.failed
     ? t('elevation_failed')
-    : t('elevation_result').replace('{{updated}}', r.updated).replace('{{missing}}', r.missing)
+    : fill('elevation_result', { updated: r.updated, missing: r.missing })
 
   return (
     <>

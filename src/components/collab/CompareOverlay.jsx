@@ -5,7 +5,7 @@ import {
   trackStylesOf, zoomToFeatures,
 } from '../../utils/compareLayer'
 import TopologyGraphOverlay from '../TopologyGraphOverlay'
-import { entryText, fill } from './mergeText'
+import { entryText } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
@@ -24,7 +24,7 @@ const KINDS = ['added', 'changed', 'removed']
  * map does not show of itself.
  */
 export default function CompareOverlay({ mapVersion = 0, before, after, beforeLabel, afterLabel, drawUnchanged = false, onClose }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const data = useMemo(() => {
     const entries = diffEntries(diffProject(before, after))
@@ -66,7 +66,7 @@ export default function CompareOverlay({ mapVersion = 0, before, after, beforeLa
       <div className="track-table-header">
         <span className="track-table-title">
           {t('compare_title')}
-          <span className="track-table-subtitle">{fill(t, 'compare_from_to', { before: beforeLabel, after: afterLabel })}</span>
+          <span className="track-table-subtitle">{fill('compare_from_to', { before: beforeLabel, after: afterLabel })}</span>
         </span>
         <div className="collab-header-actions">
           <button type="button" className="collab-tab" onClick={() => setTab('topology')}>{t('compare_topology')}</button>

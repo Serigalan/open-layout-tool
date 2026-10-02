@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import { discardWorkingCopy } from '../../storage'
 import { hasLocalChanges } from '../../utils/variantMerge'
-import { fill } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -20,7 +19,7 @@ const dateTime = (iso, language) => new Date(iso).toLocaleString(language === 'd
  * moving the head back: what came after stays in the history.
  */
 export default function HistoryPage({ project, variant, onBack, onView, onCompareWithHead }) {
-  const { t, language } = useI18n()
+  const { t, language, fill } = useI18n()
   const [revisions, setRevisions] = useState(null)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)
@@ -44,13 +43,13 @@ export default function HistoryPage({ project, variant, onBack, onView, onCompar
       const [{ payload }, now] = await Promise.all([api.revision(rev.id), api.variant(variant.id)])
       const res = await api.checkIn(variant.id, {
         base: now.variant.head.id, payload, remaps: [],
-        message: fill(t, 'history_restore_message', { n: rev.number }),
+        message: fill('history_restore_message', { n: rev.number }),
       })
       if (res.stale) throw Object.assign(new Error('stale'), { code: 'stale' })
       // A working copy without changes rests on the old head: the next opening
       // starts from the restored state. One with changes is merged on update.
       if (!(await hasLocalChanges(variant.id))) await discardWorkingCopy(variant.id).catch(() => {})
-      setNotice(fill(t, 'history_restored', { n: rev.number, m: res.revision.number }))
+      setNotice(fill('history_restored', { n: rev.number, m: res.revision.number }))
       setRevisions(await load())
     } catch (err) {
       setError(err.body?.errors?.length ? 'invalid_record' : (err.code ?? 'generic'))
@@ -86,7 +85,7 @@ export default function HistoryPage({ project, variant, onBack, onView, onCompar
                   <span className="collab-muted">{dateTime(rev.createdAt, language)} · {rev.author.name}</span>
                   {isHead && <span className="admin-badge active">{t('history_head')}</span>}
                   {rev.mergeParentId && <span className="admin-badge pending">{t('history_merge')}</span>}
-                  {inherited && <span className="admin-badge">{fill(t, 'history_inherited', { variant: names.get(rev.variantId) ?? '?' })}</span>}
+                  {inherited && <span className="admin-badge">{fill('history_inherited', { variant: names.get(rev.variantId) ?? '?' })}</span>}
                 </div>
                 <div className="history-rev-message">{rev.message || <span className="collab-muted">{t('history_no_message')}</span>}</div>
                 <div className="history-rev-actions">
@@ -102,7 +101,7 @@ export default function HistoryPage({ project, variant, onBack, onView, onCompar
       {confirm && (
         <div className="modal-overlay" onClick={busy ? undefined : () => setConfirm(null)}>
           <div className="modal collab-modal" onClick={e => e.stopPropagation()}>
-            <p className="collab-modal-title">{fill(t, 'history_restore_confirm', { n: confirm.number })}</p>
+            <p className="collab-modal-title">{fill('history_restore_confirm', { n: confirm.number })}</p>
             <p className="collab-muted">{t('history_restore_desc')}</p>
             <div className="modal-actions">
               <button type="button" className="modal-btn modal-btn-cancel" disabled={busy} onClick={() => setConfirm(null)}>{t('btn_cancel')}</button>

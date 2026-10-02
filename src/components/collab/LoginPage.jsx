@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { api } from '../../api/client'
 import { languageLabels } from '../../locales/i18n'
 import { LogoIcon } from '../icons'
-import { fill } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -12,7 +11,7 @@ import { useI18n } from '../../locales/i18nContext'
  * to register here.
  */
 export default function LoginPage({ onSignedIn }) {
-  const { t, language, setLanguage } = useI18n()
+  const { t, language, setLanguage, fill } = useI18n()
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
@@ -27,7 +26,7 @@ export default function LoginPage({ onSignedIn }) {
       onSignedIn(user)
     } catch (err) {
       setError(err.code === 'too_many_attempts'
-        ? fill(t, 'login_err_too_many', { seconds: err.body?.retryAfter ?? 60 })
+        ? fill('login_err_too_many', { seconds: err.body?.retryAfter ?? 60 })
         : t(err.code === 'offline' ? 'login_err_offline' : 'login_err_invalid'))
       setBusy(false)
     }

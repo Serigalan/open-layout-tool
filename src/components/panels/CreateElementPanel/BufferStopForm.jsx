@@ -62,7 +62,7 @@ const keyOf = (end) => (end ? `${end.trackId}|${end.endpoint}` : null)
  * typed in by hand, and the stop is 2.20 m long in front of it.
  */
 export default function BufferStopForm({ onCommitted, edit = false }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const project = useProject()
   const [version, setVersion] = useState(0)
   const { tracks, candidates, marks } = useMemo(() => {
@@ -176,8 +176,6 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
     finish()
   }
 
-  const fill = (key, values) =>
-    Object.entries(values).reduce((msg, [k, v]) => msg.replace(`{${k}}`, v), t(key))
   const endName = (end) => fill('buffer_stop_at', {
     track: tracks.find(tr => tr.id === end.trackId)?.name || end.trackId.slice(0, 8),
     end: t(end.endpoint === 'BEGIN' ? 'end_begin' : 'end_end'),

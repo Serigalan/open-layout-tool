@@ -14,6 +14,7 @@ import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
 import { TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 import useMapPick from '../../../map/useMapPick'
+import { format } from '../../../locales/i18n'
 
 const NEW = 'new'
 /** How long the line number has to hold still before the tracks are measured against it. */
@@ -35,7 +36,7 @@ const filterForTracks = (ids) => ['in', ['get', 'trackId'], ['literal', ids]]
  * next tracks are usually just picked for the next line or station.
  */
 export default function AssignTracksForm({ onCommitted }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
   const [selected, setSelected] = useState(() => new Set())
@@ -166,9 +167,9 @@ export default function AssignTracksForm({ onCommitted }) {
   }
 
   const doneText = (d) => {
-    const base = t(d.kind ? 'assign_done' : 'assign_done_none').replace('{{count}}', d.count)
+    const base = fill(d.kind ? 'assign_done' : 'assign_done_none', { count: d.count })
     return d.kind
-      ? base.replace('{{target}}', `${t(d.kind === 'line' ? 'track_group_line' : 'track_group_station')} ${d.title}`)
+      ? format(base, { target: `${t(d.kind === 'line' ? 'track_group_line' : 'track_group_station')} ${d.title}` })
       : base
   }
 
@@ -180,7 +181,7 @@ export default function AssignTracksForm({ onCommitted }) {
         isActive={(tr) => selected.has(tr.id)}
         onPick={(tr) => toggle(tr.id)}
         onPickGroup={toggleGroup} />
-      <p className="selecting-hint">{t('assign_selected').replace('{{count}}', selected.size)}</p>
+      <p className="selecting-hint">{fill('assign_selected', { count: selected.size })}</p>
 
       <div className="element-form">
         <span className="create-element-section">{t('assign_target')}</span>

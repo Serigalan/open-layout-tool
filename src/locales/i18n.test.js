@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { translations, languageLabels } from './i18n'
+import { translations, languageLabels, format, fill, tOr } from './i18n'
 import {
   SWITCH_KINDS, switchKindLabelKey, switchRouteLabelKey, switchRoutes,
 } from '../utils/switchModel'
@@ -16,6 +16,15 @@ const languages = Object.keys(translations)
 describe('the locales', () => {
   it('cover every language offered', () => {
     expect(languages.sort()).toEqual(Object.keys(languageLabels).sort())
+  })
+
+  it('use one placeholder syntax, and the same placeholders per key in every language (R6.1)', () => {
+    const slots = (text) => [...String(text).matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort()
+    const [first, ...rest] = languages
+    for (const [key, text] of Object.entries(translations[first])) {
+      expect(String(text), key).not.toMatch(/\{\{/)
+      for (const lang of rest) expect(slots(translations[lang][key]), `${lang}.${key}`).toEqual(slots(text))
+    }
   })
 
   it('say the same things in both', () => {
@@ -47,16 +56,30 @@ describe('the keys the element table derives', () => {
   it('leave room in the V_max hint for every deficiency limit there is', () => {
     for (const lang of languages) {
       const hint = translations[lang].table_max_speed_hint
-      expect(hint, lang).toContain('{{mm}}')    // up to 150 km/h
-      expect(hint, lang).toContain('{{fast}}')  // above it — LP.KB.02 is a step
-      expect(hint, lang).toContain('{{sw}}')    // a switch route's own
+      expect(hint, lang).toContain('{mm}')    // up to 150 km/h
+      expect(hint, lang).toContain('{fast}')  // above it — LP.KB.02 is a step
+      expect(hint, lang).toContain('{sw}')    // a switch route's own
     }
   })
 
   it('say in the deficiency error what the speed would have to be', () => {
     for (const lang of languages) {
       const over = translations[lang].table_cant_def_over
-      for (const slot of ['{{is}}', '{{mm}}', '{{v}}']) expect(over, lang).toContain(slot)
+      for (const slot of ['{is}', '{mm}', '{v}']) expect(over, lang).toContain(slot)
     }
+  })
+})
+
+describe('filling texts (R6.1)', () => {
+  it('fills every {placeholder} it has a value for, and leaves the rest standing', () => {
+    expect(format('{a} und {b}, {a}', { a: 1, b: 'x' })).toBe('1 und x, 1')
+    expect(format('{a} {missing}', { a: 0 })).toBe('0 {missing}')
+  })
+
+  it('fills a translation, and falls back where a key has none', () => {
+    const t = (k) => ({ hi: 'Hallo {name}' }[k] ?? k)
+    expect(fill(t, 'hi', { name: 'Ada' })).toBe('Hallo Ada')
+    expect(tOr(t, 'hi', 'x')).toBe('Hallo {name}')
+    expect(tOr(t, 'nope', 'x')).toBe('x')
   })
 })

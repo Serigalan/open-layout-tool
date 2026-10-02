@@ -21,7 +21,7 @@ const END_ZOOM = 17
  * every undo.
  */
 export default function TopologyEndsList() {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
   const { open, boundaries } = useMemo(() => {
@@ -36,8 +36,6 @@ export default function TopologyEndsList() {
 
   if (!project) return null
 
-  const fill = (key, values) =>
-    Object.entries(values).reduce((msg, [k, v]) => msg.replace(`{${k}}`, v), t(key))
   const label = (end) => `${end.trackName || end.trackId.slice(0, 8)} · ${t(end.endpoint === 'BEGIN' ? 'end_begin' : 'end_end')}`
 
   const show = (end) => {

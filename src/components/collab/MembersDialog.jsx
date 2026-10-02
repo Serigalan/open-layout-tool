@@ -1,18 +1,13 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import { fill } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
+import { errorText } from './errorText'
 
 /** How long the search field has to hold still before it asks the server [ms]. */
 const SEARCH_DELAY = 250
 const MIN_QUERY = 2
 
-const errorText = (t, code) => {
-  const key = `collab_err_${code}`
-  const s = t(key)
-  return s === key ? t('collab_err_generic') : s
-}
 
 /**
  * Who works on a project (decision 127): its creator, the members listed
@@ -22,7 +17,7 @@ const errorText = (t, code) => {
  * read the projects again.
  */
 export default function MembersDialog({ project, onClose }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const [members, setMembers] = useState(project.members ?? [])
   const [canManage, setCanManage] = useState(false)
   const [query, setQuery] = useState('')
@@ -72,7 +67,7 @@ export default function MembersDialog({ project, onClose }) {
     <div className="modal-overlay" onClick={busy ? undefined : close}>
       <div className="modal collab-modal" role="dialog" aria-modal="true" aria-labelledby="members-title"
         onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === 'Escape' && !busy) close() }}>
-        <h3 id="members-title" className="collab-modal-title">{fill(t, 'members_title', { title: project.title })}</h3>
+        <h3 id="members-title" className="collab-modal-title">{fill('members_title', { title: project.title })}</h3>
         <p className="collab-muted members-intro">{t('members_intro')}</p>
 
         <ul className="members-list">

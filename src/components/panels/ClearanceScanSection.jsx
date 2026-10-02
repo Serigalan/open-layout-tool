@@ -6,7 +6,6 @@ import { currentProject } from '../../storage'
 import { useI18n } from '../../locales/i18nContext'
 import { useProject } from '../../hooks/useStore'
 
-const fill = (text, vars) => Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{{${k}}}`, v), text)
 
 /**
  * The clearance check along the whole track against the project's point
@@ -15,7 +14,7 @@ const fill = (text, vars) => Object.entries(vars).reduce((s, [k, v]) => s.replac
  * Absent where the project has no cloud here.
  */
 export default function ClearanceScanSection({ track, onShowCrossSection }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const project = useProject()
   const [clouds, setClouds] = useState([])
   const [run, setRun] = useState(null)       // { share } while checking
@@ -69,15 +68,15 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
       {shown?.noGradient && <p className="form-error">{t('cross_section_clearance_no_gradient')}</p>}
       {shown && !shown.error && !shown.noGradient && (
         shown.stretches.length === 0
-          ? <p className="selecting-hint">{fill(t('clearance_scan_none'), { n: shown.checked })}</p>
+          ? <p className="selecting-hint">{fill('clearance_scan_none', { n: shown.checked })}</p>
           : (
             <div className="clearance-stretches">
-              <p className="form-error">{fill(t('clearance_scan_found'), { n: shown.stretches.length })}</p>
+              <p className="form-error">{fill('clearance_scan_found', { n: shown.stretches.length })}</p>
               {shown.stretches.map(s => (
                 <button key={s.from} className="create-element-btn clearance-stretch"
                   onClick={() => onShowCrossSection?.({ trackId: track.id, station: s.deepestAt })}>
                   {`${s.from.toFixed(1)} – ${s.to.toFixed(1)} m · `
-                    + fill(t('clearance_scan_row'), { n: s.inside.toLocaleString(), mm: Math.round(s.depth) })}
+                    + fill('clearance_scan_row', { n: s.inside.toLocaleString(), mm: Math.round(s.depth) })}
                 </button>
               ))}
             </div>

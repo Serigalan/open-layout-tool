@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import { formatDate } from './homeModel'
-import { fill } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
+import { errorText } from './errorText'
 
 /** A start password: 16 characters a person can read out (no 0/O, 1/l/I). */
 function startPassword() {
@@ -20,10 +20,6 @@ function startPassword() {
   return out
 }
 
-const errorText = (t, code) => {
-  const s = t(`admin_err_${code}`)
-  return s === `admin_err_${code}` ? t('collab_err_generic') : s
-}
 
 /**
  * The user administration (AP 10.9), for admins only: who has an account, in
@@ -34,7 +30,7 @@ const errorText = (t, code) => {
  * The last active admin cannot give that up (the server refuses it).
  */
 export default function AdminPage({ user: me, onBack }) {
-  const { t, language } = useI18n()
+  const { t, language, fill } = useI18n()
   const [users, setUsers] = useState(null)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState(null)   // { text, password? }
@@ -62,7 +58,7 @@ export default function AdminPage({ user: me, onBack }) {
 
   const resetPassword = (u) => {
     const password = startPassword()
-    patch(u, { password }, { text: fill(t, 'admin_reset_done', { login: u.login }), password })
+    patch(u, { password }, { text: fill('admin_reset_done', { login: u.login }), password })
   }
 
   return (
@@ -77,12 +73,12 @@ export default function AdminPage({ user: me, onBack }) {
       </header>
       <main className="home-main">
         <div className="home-section-head">
-          <h2>{fill(t, 'admin_count', { n: users?.length ?? 0 })}</h2>
+          <h2>{fill('admin_count', { n: users?.length ?? 0 })}</h2>
           <div className="home-section-actions">
             <button type="button" className="collab-btn collab-btn-primary" onClick={() => setDialog({ kind: 'create' })}>{t('admin_create')}</button>
           </div>
         </div>
-        {error && <p className="collab-error" role="alert">{errorText(t, error)}</p>}
+        {error && <p className="collab-error" role="alert">{errorText(t, error, 'admin_err_')}</p>}
         {notice && (
           <div className="collab-ok admin-notice" role="status">
             {notice.text}
@@ -102,14 +98,14 @@ export default function AdminPage({ user: me, onBack }) {
                 <span className={`admin-badge ${u.active ? 'active' : 'off'}`}>{t(u.active ? 'admin_active' : 'admin_inactive')}</span>
                 {u.mustChangePassword && <span className="admin-badge pending">{t('admin_start_password')}</span>}
                 <span className="collab-muted admin-last">
-                  {u.lastLoginAt ? fill(t, 'admin_last_login', { date: formatDate(u.lastLoginAt, language) }) : t('admin_never')}
+                  {u.lastLoginAt ? fill('admin_last_login', { date: formatDate(u.lastLoginAt, language) }) : t('admin_never')}
                 </span>
               </div>
               <div className="admin-user-actions">
                 <button type="button" className="collab-btn collab-btn-small" onClick={() => setDialog({ kind: 'edit', user: u })}>{t('admin_edit')}</button>
                 <button type="button" className="collab-btn collab-btn-small" onClick={() => resetPassword(u)}>{t('admin_reset')}</button>
                 <button type="button" className={`collab-btn collab-btn-small ${u.active ? 'collab-btn-danger' : ''}`}
-                  onClick={() => patch(u, { active: !u.active }, { text: fill(t, u.active ? 'admin_deactivated' : 'admin_activated', { login: u.login }) })}>
+                  onClick={() => patch(u, { active: !u.active }, { text: fill(u.active ? 'admin_deactivated' : 'admin_activated', { login: u.login }) })}>
                   {t(u.active ? 'admin_deactivate' : 'admin_activate')}
                 </button>
               </div>
@@ -123,7 +119,7 @@ export default function AdminPage({ user: me, onBack }) {
           onSubmit={async (body) => {
             await api.createUser(body)
             setDialog(null)
-            setNotice({ text: fill(t, 'admin_created', { login: body.login }), password: body.password })
+            setNotice({ text: fill('admin_created', { login: body.login }), password: body.password })
             await reload()
           }} />
       )}
@@ -155,7 +151,7 @@ function UserDialog({ user = null, onCancel, onSubmit }) {
     try {
       await onSubmit(user ? { name: name.trim(), role } : { login: login.trim(), name: name.trim(), role, password })
     } catch (err) {
-      setError(errorText(t, err.code))
+      setError(errorText(t, err.code, 'admin_err_'))
       setBusy(false)
     }
   }

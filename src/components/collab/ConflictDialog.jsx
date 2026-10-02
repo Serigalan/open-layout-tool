@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { resolve, validationConflicts } from '../../utils/merge'
 import { clearFeatures, drawable, findObject, objectFeatures, showFeaturesSoon, zoomToFeatures, COMPARE_COLORS } from '../../utils/compareLayer'
-import { conflictText, entryText, fill, findingText, valueText } from './mergeText'
+import { conflictText, entryText, findingText, valueText } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
@@ -20,7 +20,7 @@ const LAYER = 'conflict'
  * choice: taking a side can solve one and bring up another.
  */
 export default function ConflictDialog({ mapVersion = 0, result, title, mineLabel, theirsLabel, onCancel, onApply, busy = false }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const fieldConflicts = useMemo(() => result.conflicts.filter(c => c.kind !== 'validation'), [result])
   const [choices, setChoices] = useState({})
@@ -101,7 +101,7 @@ export default function ConflictDialog({ mapVersion = 0, result, title, mineLabe
       <div className="track-table-header">
         <span className="track-table-title">
           {title ?? t('merge_title')}
-          <span className="track-table-subtitle">{fill(t, 'compare_from_to', { before: theirsLabel, after: mineLabel })}</span>
+          <span className="track-table-subtitle">{fill('compare_from_to', { before: theirsLabel, after: mineLabel })}</span>
         </span>
         <button className="track-table-close" onClick={onCancel} aria-label="close" disabled={busy}>✕</button>
       </div>
@@ -119,7 +119,7 @@ export default function ConflictDialog({ mapVersion = 0, result, title, mineLabe
         </section>
         {result.applied.length > 0 && (
           <details className="collab-section" open={fieldConflicts.length === 0}>
-            <summary>{fill(t, 'merge_applied', { n: result.applied.length })}</summary>
+            <summary>{fill('merge_applied', { n: result.applied.length })}</summary>
             <ul className="collab-list collab-list-plain">
               {result.applied.map((a, i) => (
                 <li key={i}>
@@ -132,7 +132,7 @@ export default function ConflictDialog({ mapVersion = 0, result, title, mineLabe
         )}
         {live.warnings.length > 0 && (
           <details className="collab-section">
-            <summary>{fill(t, 'merge_warnings', { n: live.warnings.length })}</summary>
+            <summary>{fill('merge_warnings', { n: live.warnings.length })}</summary>
             <ul className="collab-list collab-list-plain">
               {live.warnings.map(w => <li key={w.key}>{`${w.label ?? ''}: ${findingText(t, w)}`}</li>)}
             </ul>
@@ -141,7 +141,7 @@ export default function ConflictDialog({ mapVersion = 0, result, title, mineLabe
       </div>
       <div className="collab-footer">
         <span className={`collab-status ${open ? 'open' : 'done'}`}>
-          {open ? fill(t, 'merge_conflicts_open', { n: open }) : t('merge_all_resolved')}
+          {open ? fill('merge_conflicts_open', { n: open }) : t('merge_all_resolved')}
         </span>
         <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel} disabled={busy}>{t('btn_cancel')}</button>
         <button type="button" className="modal-btn collab-btn-primary" disabled={open > 0 || busy}

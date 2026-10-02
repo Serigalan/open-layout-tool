@@ -5,13 +5,13 @@ import { PROJECT_IMAGES, projectImagePicture } from '../utils/projectImages'
 import { downloadJSON } from '../utils/fileUtils'
 import { formatDate, loadHome, variantTree } from './collab/homeModel'
 import { LogoIcon } from './icons'
-import { fill } from './collab/mergeText'
 import PasswordForm from './collab/PasswordForm'
 import LanguageMenu from './collab/LanguageMenu'
 import ProjectImagePicker from './collab/ProjectImagePicker'
 import MembersDialog from './collab/MembersDialog'
 import './collab/collab.css'
 import { useI18n } from '../locales/i18nContext'
+import { errorText } from './collab/errorText'
 
 /**
  * The guideline is a static page of its own per language, served from `public`.
@@ -19,11 +19,6 @@ import { useI18n } from '../locales/i18nContext'
  */
 const GUIDE_PAGES = { de: './guideline.html', en: './guideline_en.html' }
 
-const errorText = (t, code) => {
-  const key = `collab_err_${code}`
-  const s = t(key)
-  return s === key ? t('collab_err_generic') : s
-}
 
 /**
  * The start page (decision 96, AP 10.7): the projects on the server, each
@@ -43,7 +38,7 @@ const errorText = (t, code) => {
  * else looks at it read-only.
  */
 export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOut, onAdmin, onCompare, onMerge, onHistory, note = null }) {
-  const { t, language, setLanguage } = useI18n()
+  const { t, language, setLanguage, fill } = useI18n()
   const [projects, setProjects] = useState(null)
   const [local, setLocal] = useState(new Map())   // variantId → number of local changes
   const [error, setError] = useState(null)
@@ -106,7 +101,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
         if (picture) record.imageHash = (await api.uploadImage(picture.mime, picture.data)).hash
         await api.createProject({ title: p.title || file.name.replace(/\.json$/i, ''), description: p.description ?? '', payload: record })
       }
-      setNotice(fill(t, 'home_imported', { n: incoming.length }))
+      setNotice(fill('home_imported', { n: incoming.length }))
       await reload()
     } catch (err) {
       setError(err.code)
@@ -206,7 +201,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
         <ExportDialog project={dialog.project} onCancel={() => setDialog(null)} onDone={() => setDialog(null)} />
       )}
       {dialog?.kind === 'delete' && (
-        <ConfirmDialog message={fill(t, 'home_delete_confirm', { title: dialog.project.title })} danger
+        <ConfirmDialog message={fill('home_delete_confirm', { title: dialog.project.title })} danger
           confirmLabel={t('start_delete')} onCancel={() => setDialog(null)}
           onConfirm={async () => { await api.deleteProject(dialog.project.id); setDialog(null); await reload() }} />
       )}
@@ -222,7 +217,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
           onSubmit={async (a, b) => {
             const outcome = await (dialog.kind === 'compare' ? onCompare(dialog.project, a, b) : onMerge(dialog.project, a, b))
             setDialog(null)
-            if (outcome === 'up_to_date') setNotice(fill(t, 'merge_up_to_date', { source: a.name, target: b.name }))
+            if (outcome === 'up_to_date') setNotice(fill('merge_up_to_date', { source: a.name, target: b.name }))
           }} />
       )}
       {dialog?.kind === 'variant' && (
@@ -240,7 +235,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
 }
 
 function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit, onOpen, onView, onDialog, onCompare, onMerge, onHistory }) {
-  const { t, language } = useI18n()
+  const { t, language, fill } = useI18n()
   const rows = useMemo(() => variantTree(project.variants.filter(v => showArchived || !v.archived)), [project, showArchived])
   const [menu, setMenu] = useState(false)
   const image = blobUrl(project.imageHash)
@@ -259,7 +254,7 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit
           {project.description && <p className="collab-muted">{project.description}</p>}
           {project.members?.length > 0 && (
             <p className="collab-muted home-project-members">
-              {fill(t, 'home_members_line', { names: project.members.map(m => m.name).join(', ') })}
+              {fill('home_members_line', { names: project.members.map(m => m.name).join(', ') })}
             </p>
           )}
         </div>
@@ -287,7 +282,7 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit
               <div className="home-variant-main">
                 <span className="home-variant-name">{depth > 0 && <span className="home-branch">└</span>}{v.name}</span>
                 <span className="home-variant-head">
-                  {fill(t, 'home_head', { n: v.head.number, author: v.head.author.name, date: formatDate(v.head.createdAt, language) })}
+                  {fill('home_head', { n: v.head.number, author: v.head.author.name, date: formatDate(v.head.createdAt, language) })}
                 </span>
                 <span className="home-variant-buttons">
                   {onHistory && <button type="button" className="collab-btn collab-btn-small" onClick={() => onHistory(project, v)}>{t('home_history')}</button>}
@@ -300,9 +295,9 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit
                     : <button type="button" className="collab-btn collab-btn-primary" disabled={opening === v.id} onClick={() => onOpen(project, v)}>{t('home_open')}</button>}
                 </span>
               </div>
-              {changes > 0 && <div className="home-variant-local">● {fill(t, 'home_local_changes', { n: changes })}</div>}
+              {changes > 0 && <div className="home-variant-local">● {fill('home_local_changes', { n: changes })}</div>}
               {parent && v.parentAhead > 0 && (
-                <div className="home-variant-ahead">{fill(t, 'home_parent_ahead', { parent: parent.name, n: v.parentAhead })}</div>
+                <div className="home-variant-ahead">{fill('home_parent_ahead', { parent: parent.name, n: v.parentAhead })}</div>
               )}
             </li>
           )

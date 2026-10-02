@@ -37,7 +37,7 @@ const GREY = '#8a8a8a'
  * its status ({ color, dashed }), and there is nothing to delete.
  */
 export default function TopologyGraphOverlay({ selection, onSelect, onDeleted, onClose, source = null, trackStyles = null, title = null }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const project = useProject()
   const readOnly = Boolean(source)
   const [confirmDelete, setConfirmDelete] = useState(null)   // { trackIds, message }
@@ -66,8 +66,6 @@ export default function TopologyGraphOverlay({ selection, onSelect, onDeleted, o
   }, [data, selection, trackStyles])
 
   if (!data) return null
-  const fill = (key, values) =>
-    Object.entries(values).reduce((msg, [k, v]) => msg.replace(`{${k}}`, v), t(key))
   const isSelected = (kind, id) => selection?.kind === kind && selection.id === id
   const toggle = (kind, id) => onSelect?.(isSelected(kind, id) ? null : { kind, id })
 

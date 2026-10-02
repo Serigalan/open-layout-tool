@@ -1,3 +1,4 @@
+import { format } from '../../locales/i18n'
 /**
  * The head of a LAS/LAZ file as plain text, one point per line — what las2txt
  * would print — so the coordinates can be read before the file is imported:
@@ -19,7 +20,7 @@ const fmt = (v, d) => (Number.isFinite(v) ? v.toFixed(d) : String(v))
 
 const DEFAULT_LABELS = {
   format: 'point format', points: 'points', scale: 'scale', offset: 'offset',
-  first: 'first {{n}} points', intensity: 'intensity',
+  first: 'first {n} points', intensity: 'intensity',
 }
 
 /**
@@ -39,7 +40,7 @@ export function pointsAsText(header, points, { name = '', labels = {} } = {}) {
     `# ${l.scale} ${header.scale.join(' ')}  ${l.offset} ${header.offset.join(' ')}`,
     `# min ${triple(header.min)}`,
     `# max ${triple(header.max)}`,
-    `# ${l.first.replace('{{n}}', points.length)}:`,
+    `# ${format(l.first, { n: points.length })}:`,
     `X\tY\tZ\t${l.intensity}`,
     ...points.map(p => `${fmt(p.x, dx)}\t${fmt(p.y, dy)}\t${fmt(p.z, dz)}\t${p.intensity}`),
   ]

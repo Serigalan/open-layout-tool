@@ -3,15 +3,11 @@
  * comparison view, the conflict dialog and the check-in dialogs.
  */
 
-/** A translated text with its {placeholders} filled. */
-export function fill(t, key, params = {}) {
-  return Object.entries(params).reduce((s, [k, v]) => s.split(`{${k}}`).join(String(v)), t(key))
-}
+import { fill, tOr } from '../../locales/i18n'
 
-const translated = (t, key, fallback) => {
-  const s = t(key)
-  return s === key ? fallback : s
-}
+export { fill }
+
+const translated = tOr
 
 export const collectionName = (t, collection) => translated(t, `coll_${collection}`, collection)
 

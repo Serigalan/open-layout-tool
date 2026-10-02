@@ -5,6 +5,7 @@ import {
 } from './planModel'
 import { schematicLayout, toPlane } from './planSchematic'
 import { STATUSES, STATUS_COLOR, switchStatus } from './planStatus'
+import { format } from '../locales/i18n'
 
 /**
  * The schematic overview as a plan: the strip from planSchematic cut into
@@ -140,7 +141,7 @@ function sheetContext(layout, xa, xb, titleBlock, texts, comma) {
     const a = Math.max(xa, layout.extent[0])
     const b = Math.min(xb, layout.extent[1])
     const [ka, kb] = [kmAt(layout.kmTable, a), kmAt(layout.kmTable, b)].map(k => fmt(k / 1000, 1, comma))
-    out.range = texts.range.replace('{a}', ka).replace('{b}', kb)
+    out.range = format(texts.range, { a: ka, b: kb })
   }
   return out
 }
@@ -516,10 +517,10 @@ export function buildSchematicPlan({
     }
 
     if (i > 0 && texts.prev) {
-      inner.push(text(area.x + 2, area.y + 4, [{ t: texts.prev.replace('{n}', i) }], { size: 2.5, prio: PRIO.joint }))
+      inner.push(text(area.x + 2, area.y + 4, [{ t: format(texts.prev, { n: i }) }], { size: 2.5, prio: PRIO.joint }))
     }
     if (i < count - 1 && texts.next) {
-      inner.push(text(area.x + area.w - 2, area.y + 4, [{ t: texts.next.replace('{n}', i + 2) }],
+      inner.push(text(area.x + area.w - 2, area.y + 4, [{ t: format(texts.next, { n: i + 2 }) }],
         { size: 2.5, align: 'right', prio: PRIO.joint }))
     }
 

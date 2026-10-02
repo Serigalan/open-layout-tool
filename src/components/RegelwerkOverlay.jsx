@@ -30,7 +30,7 @@ import { useI18n } from '../locales/i18nContext'
 const BUNDLED_IDS = [CATALOG_ID, WEICHEN_REGELWERK.id, QUERSCHNITT_KATALOG.katalog.id]
 
 export default function RegelwerkOverlay({ regelwerkId, onClose }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   // null while the list is still being asked for, [] once the service has
   // answered with nothing — the two read the same in a table but not to the
   // reader, who is told either "loading" or "no server".
@@ -144,9 +144,7 @@ export default function RegelwerkOverlay({ regelwerkId, onClose }) {
             </p>
             {regelwerk.version !== BUNDLED_KATALOG_VERSION && (
               <p className="constraints-error">
-                {t('constraints_version_mismatch')
-                  .replace('{{served}}', regelwerk.version)
-                  .replace('{{bundled}}', BUNDLED_KATALOG_VERSION)}
+                {fill('constraints_version_mismatch', { served: regelwerk.version, bundled: BUNDLED_KATALOG_VERSION })}
               </p>
             )}
             <table className="track-table constraints-table">
