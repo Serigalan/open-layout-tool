@@ -44,7 +44,7 @@ export default async function projectRoutes(api) {
     projectOr404(r.projectId, user)
     return r
   }
-  const listed = (user, id) => store.listProjects(user).find(p => p.id === id)
+  const listed = (user, id) => store.projectSummary(user, id)
 
   api.get('/projects', opts, async (req) => ({ projects: store.listProjects(req.user) }))
 

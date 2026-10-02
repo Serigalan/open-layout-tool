@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
+import { SCHEMA_VERSION } from '../../../src/utils/persistenceUtils.js'
 
-/** The schema version every stored record has (persistenceUtils.SCHEMA_VERSION). */
-export const SCHEMA_VERSION = 2
+export { SCHEMA_VERSION }
 
 const pack = (payload) => gzipSync(Buffer.from(JSON.stringify(payload)))
 const unpack = (buf) => JSON.parse(gunzipSync(buf).toString('utf8'))
@@ -21,6 +21,8 @@ export function createStore(db, { now = () => Date.now() } = {}) {
   const q = {
     projects:      db.prepare(`SELECT p.*, u.name AS creator_name, u.login AS creator_login FROM project p JOIN user u ON u.id = p.created_by
                                WHERE p.deleted_at IS NULL ORDER BY p.title COLLATE NOCASE`),
+    projectRow:    db.prepare(`SELECT p.*, u.name AS creator_name, u.login AS creator_login FROM project p JOIN user u ON u.id = p.created_by
+                               WHERE p.id = ? AND p.deleted_at IS NULL`),
     project:       db.prepare('SELECT * FROM project WHERE id = ? AND deleted_at IS NULL'),
     insertProject: db.prepare('INSERT INTO project (id, title, description, created_by, created_at, template) VALUES (?, ?, ?, ?, ?, ?)'),
     patchProject:  db.prepare('UPDATE project SET title = COALESCE(?, title), description = COALESCE(?, description) WHERE id = ?'),
@@ -36,7 +38,9 @@ export function createStore(db, { now = () => Date.now() } = {}) {
                                       r.created_at, r.message, r.image_hash, u.name AS author_name
                                FROM revision r JOIN user u ON u.id = r.author_id WHERE r.id = ?`),
     revisionFull:  db.prepare('SELECT * FROM revision WHERE id = ?'),
-    graph:         db.prepare('SELECT id, parent_id, merge_parent_id, remaps FROM revision WHERE project_id = ?'),
+    // The graph alone — the id logs stay in the table until a merge asks for them.
+    graph:         db.prepare('SELECT id, parent_id, merge_parent_id FROM revision WHERE project_id = ?'),
+    remaps:        db.prepare('SELECT remaps FROM revision WHERE id = ?').pluck(),
     nextNumber:    db.prepare('SELECT COALESCE(MAX(number), 0) + 1 FROM revision WHERE project_id = ?').pluck(),
     insertRevision: db.prepare(`INSERT INTO revision (project_id, number, variant_id, parent_id, merge_parent_id, author_id, created_at,
                                                       message, schema_version, payload, remaps, error_keys, image_hash)
@@ -46,6 +50,8 @@ export function createStore(db, { now = () => Date.now() } = {}) {
                                JOIN user u ON u.id = m.user_id WHERE m.project_id = ? ORDER BY u.name COLLATE NOCASE`),
     allMembers:    db.prepare(`SELECT m.project_id, m.user_id, u.login, u.name, u.active FROM project_member m
                                JOIN user u ON u.id = m.user_id ORDER BY u.name COLLATE NOCASE`),
+    projectMembers: db.prepare(`SELECT m.project_id, m.user_id, u.login, u.name, u.active FROM project_member m
+                               JOIN user u ON u.id = m.user_id WHERE m.project_id = ? ORDER BY u.name COLLATE NOCASE`),
     isMember:      db.prepare('SELECT 1 FROM project_member WHERE project_id = ? AND user_id = ?').pluck(),
     addMember:     db.prepare('INSERT OR IGNORE INTO project_member (project_id, user_id, added_by, added_at) VALUES (?, ?, ?, ?)'),
     removeMember:  db.prepare('DELETE FROM project_member WHERE project_id = ? AND user_id = ?'),
@@ -90,6 +96,37 @@ export function createStore(db, { now = () => Date.now() } = {}) {
     return Number(lastInsertRowid)
   }
 
+  const visibleTo = (viewer, p, members) => viewer.role === 'admin' || Boolean(p.template)
+    || p.created_by === viewer.id || members.some(m => m.user_id === viewer.id)
+
+  /** A project row as the API lists it. Each head's ancestors are walked once. */
+  function summary(p, members) {
+    const graph = graphOf(p.id)
+    const rows = q.variants.all(p.id)
+    const byId = new Map(rows.map(v => [v.id, v]))
+    const ancestorsOf = new Map()
+    const ancestorsCached = (head) => {
+      if (!ancestorsOf.has(head)) ancestorsOf.set(head, ancestors(graph, head))
+      return ancestorsOf.get(head)
+    }
+    const variants = rows.map(v => {
+      const parent = v.parent_variant_id ? byId.get(v.parent_variant_id) : null
+      let parentAhead = 0
+      if (parent) {
+        const mine = ancestorsCached(v.head_revision_id)
+        for (const id of ancestorsCached(parent.head_revision_id)) if (!mine.has(id)) parentAhead++
+      }
+      return publicVariant(v, revisionMeta(v.head_revision_id), parentAhead)
+    })
+    // The project's picture is the one its first variant names.
+    return {
+      id: p.id, title: p.title, description: p.description ?? '', template: Boolean(p.template),
+      createdBy: { id: p.created_by, name: p.creator_name, login: p.creator_login }, createdAt: p.created_at, variants,
+      imageHash: variants[0]?.head?.imageHash ?? null,
+      members: members.map(publicMember),
+    }
+  }
+
   return {
     revisionMeta,
 
@@ -132,29 +169,17 @@ export function createStore(db, { now = () => Date.now() } = {}) {
         if (!members.has(m.project_id)) members.set(m.project_id, [])
         members.get(m.project_id).push(m)
       }
-      const visible = (p) => viewer.role === 'admin' || p.template || p.created_by === viewer.id
-        || (members.get(p.id) ?? []).some(m => m.user_id === viewer.id)
-      return q.projects.all().filter(visible).map(p => {
-        const graph = graphOf(p.id)
-        const rows = q.variants.all(p.id)
-        const byId = new Map(rows.map(v => [v.id, v]))
-        const variants = rows.map(v => {
-          const parent = v.parent_variant_id ? byId.get(v.parent_variant_id) : null
-          let parentAhead = 0
-          if (parent) {
-            const mine = ancestors(graph, v.head_revision_id)
-            for (const id of ancestors(graph, parent.head_revision_id)) if (!mine.has(id)) parentAhead++
-          }
-          return publicVariant(v, revisionMeta(v.head_revision_id), parentAhead)
-        })
-        // The project's picture is the one its first variant names.
-        return {
-          id: p.id, title: p.title, description: p.description ?? '', template: Boolean(p.template),
-          createdBy: { id: p.created_by, name: p.creator_name, login: p.creator_login }, createdAt: p.created_at, variants,
-          imageHash: variants[0]?.head?.imageHash ?? null,
-          members: (members.get(p.id) ?? []).map(publicMember),
-        }
-      })
+      return q.projects.all()
+        .filter(p => visibleTo(viewer, p, members.get(p.id) ?? []))
+        .map(p => summary(p, members.get(p.id) ?? []))
+    },
+
+    /** One project as listProjects shows it, or null where `viewer` may not see it. */
+    projectSummary(viewer, id) {
+      const p = q.projectRow.get(id)
+      if (!p) return null
+      const members = q.projectMembers.all(id)
+      return visibleTo(viewer, p, members) ? summary(p, members) : null
     },
 
     /** A new project with its first variant "Bestand" at revision 1, holding `payload`. */
@@ -238,7 +263,7 @@ export function createStore(db, { now = () => Date.now() } = {}) {
       const graph = graphOf(projectId)
       const known = base == null ? new Set() : ancestors(graph, base)
       return [...ancestors(graph, head)].filter(id => !known.has(id)).sort((x, y) => x - y)
-        .flatMap(id => JSON.parse(graph.get(id).remaps))
+        .flatMap(id => JSON.parse(q.remaps.get(id)))
     },
 
     isAncestor(projectId, ancestorId, id) {
