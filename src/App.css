@@ -1626,7 +1626,13 @@
 
 .cross-section-svg {
   display: block;
+  cursor: grab;
   user-select: none;
+  touch-action: none;
+}
+
+.cross-section-svg.dragging {
+  cursor: grabbing;
 }
 
 /* The station the section is taken at — walked with the slider, stated beside

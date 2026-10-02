@@ -634,6 +634,8 @@
   "cross_section_no_gradient": "Keine Gradiente",
   "cross_section_reach": "Breite ±",
   "cross_section_reach_hint": "Wie weit beiderseits des Gleises andere Gleise mitgezeichnet werden",
+  "cross_section_fit": "Einpassen",
+  "cross_section_view_hint": "Mausrad zoomt, Ziehen verschiebt, Doppelklick passt ein",
   "cross_section_terrain": "Gelände",
   "cross_section_terrain_axis": "an der Gleisachse",
   "cross_section_terrain_loading": "Gelände wird geladen …",

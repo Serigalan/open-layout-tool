@@ -41,6 +41,9 @@ const MAX_THICKNESS = 100
 const CLOUD_MARGIN = 5
 const CLOUD_COLOR = '#7a5a14'
 const CLEAR_COLOR = '#1f7a3a'
+/** How far the drawing can be zoomed out and in, relative to the fitted view. */
+const MIN_ZOOM = 0.5
+const MAX_ZOOM = 200
 const heightName = (epsg) => HEIGHT_DATUMS.find(d => d.epsg === Number(epsg))?.label ?? `EPSG ${epsg}`
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
@@ -85,6 +88,10 @@ const inRange = (p, station) => station >= (p.startStation ?? 0) && station <= (
  * axis — the gradient is never read from the terrain on its own (see the
  * profile's button for that).
  *
+ * The drawing zooms about the cursor with the wheel and pans by dragging;
+ * a double click fits it again. Walking the station puts the section back in
+ * the middle at the zoom chosen — the further in, the closer to this track.
+ *
  * The slider walks the station along the whole track; nothing here is
  * editable. The section is a view of the alignment; what it shows is changed
  * by changing the track (see CrossSectionPanel).
@@ -100,13 +107,26 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   const [thickness, setThickness] = useState(DEFAULT_THICKNESS)
   const [coloring, setColoring] = useState(CLOUD_COLORINGS[0])
   const [slice, setSlice] = useState(null)          // { key, parts: [{ cloud, points }], ms }
+  // Zoom relative to the fitted drawing, and the point [mm] held in the middle
+  // of the box — null while the section is centred by itself.
+  const [zoom, setZoom] = useState(1)
+  const [center, setCenter] = useState(null)
+  const [dragging, setDragging] = useState(false)
   const bodyRef = useRef(null)
   const canvasRef = useRef(null)
+  const svgRef = useRef(null)
+  const viewRef = useRef(null)
+  const panRef = useRef(null)
 
   const tracks = loadTracks(project.id)
   const track = tracks.find(tr => tr.id === at.trackId)
   const total = track ? Math.round(trackLength(track) * 10) / 10 : 0
   const station = track ? clamp(at.station ?? 0, 0, total) : 0
+
+  // Another station or track: the section comes back to the middle, the zoom stays.
+  const centerKey = `${at.trackId}|${station}`
+  const [centeredFor, setCenteredFor] = useState(centerKey)
+  if (centeredFor !== centerKey) { setCenteredFor(centerKey); setCenter(null) }
 
   usePreviewLayers(map, MARKER_LAYERS, { resetCursor: true })
 
@@ -305,7 +325,63 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
     // Room under the outermost tracks for their two label lines.
     fitPoints.push([left.axis[0] - PLANUM_EDGE, bottomOf(left) - 200], [right.axis[0] + PLANUM_EDGE, bottomOf(right) - 200])
   }
-  const fit = size && size.w >= 40 && size.h >= 40 && fitPoints.length ? fitSection(fitPoints, size, MARGIN) : null
+  const fitted = size && size.w >= 40 && size.h >= 40 && fitPoints.length ? fitSection(fitPoints, size, MARGIN) : null
+
+  // The view: the fitted drawing zoomed, with the chosen point in the middle —
+  // or, while none is chosen, a point that slides from the middle of the whole
+  // drawing to the middle of this track as the zoom goes in, so zooming in on
+  // a section between other tracks keeps this one in sight.
+  const fit = (() => {
+    if (!fitted) return null
+    const k = fitted.k * zoom
+    let mid = center
+    if (!mid) {
+      const own = [...placed[0].gauge, ...placed[0].runningCircles, ...placed[0].sleeper]
+      const ys = own.map(q => q[0]), zs = own.map(q => q[1])
+      const ownMid = { y: (Math.min(...ys) + Math.max(...ys)) / 2, z: (Math.min(...zs) + Math.max(...zs)) / 2 }
+      const all = { y: (size.w / 2 - fitted.cx) / fitted.k, z: (fitted.cy - size.h / 2) / fitted.k }
+      const pull = zoom > 1 ? 1 - 1 / zoom : 0
+      mid = { y: all.y + (ownMid.y - all.y) * pull, z: all.z + (ownMid.z - all.z) * pull }
+    }
+    return { ...fitted, k, cx: size.w / 2 - mid.y * k, cy: size.h / 2 + mid.z * k, mid }
+  })()
+  const hasFit = fit != null
+  viewRef.current = fit && { k: fit.k, cx: fit.cx, cy: fit.cy, baseK: fitted.k, zoom }
+
+  // ── Zoom about the cursor ──────────────────────────────────────────────────
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg || !size) return
+    const onWheel = (e) => {
+      const v = viewRef.current
+      if (!v) return
+      e.preventDefault()
+      const rect = svg.getBoundingClientRect()
+      const px = e.clientX - rect.left, py = e.clientY - rect.top
+      const y = (px - v.cx) / v.k, z = (v.cy - py) / v.k
+      const next = clamp(v.zoom * Math.exp(-e.deltaY * 0.0015), MIN_ZOOM, MAX_ZOOM)
+      const k = v.baseK * next
+      setZoom(next)
+      setCenter({ y: y + (size.w / 2 - px) / k, z: z - (size.h / 2 - py) / k })
+    }
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    return () => svg.removeEventListener('wheel', onWheel)
+  }, [size, hasFit])
+
+  // ── Pan by dragging; a double click fits the drawing again ─────────────────
+  const onPointerDown = (e) => {
+    if (e.button !== 0 || !fit) return
+    panRef.current = { x: e.clientX, y: e.clientY, mid: fit.mid, k: fit.k }
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDragging(true)
+  }
+  const onPointerMove = (e) => {
+    const p = panRef.current
+    if (!p) return
+    setCenter({ y: p.mid.y - (e.clientX - p.x) / p.k, z: p.mid.z + (e.clientY - p.y) / p.k })
+  }
+  const onPointerUp = () => { panRef.current = null; setDragging(false) }
+  const onDoubleClick = () => { setZoom(1); setCenter(null) }
 
   // The cloud is painted under the drawing, in the drawing's own transform.
   const cloudCount = cloudParts.reduce((n, part) => n + part.points.count, 0)
@@ -399,7 +475,10 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
     const path = (pts) => pts.map(([y, z], i) => `${i ? 'L' : 'M'}${X(y)},${Y(z)}`).join(' ')
 
     return (
-      <svg width={size.w} height={size.h} className="cross-section-svg">
+      <svg ref={svgRef} width={size.w} height={size.h} className={`cross-section-svg${dragging ? ' dragging' : ''}`}
+        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp} onDoubleClick={onDoubleClick}>
+        <title>{t('cross_section_view_hint')}</title>
         {/* the horizontal through this track's running plane, so the cant is
             visible as the angle it is */}
         <line x1={MARGIN / 2} x2={size.w - MARGIN / 2} y1={Y(0)} y2={Y(0)} stroke="#e4e4ec" strokeDasharray="6 4" />
@@ -543,6 +622,11 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
             {t('terrain_source')}
             <TerrainSourceSelect t={t} value={terrainSource} onChange={setTerrainSource} />
           </label>
+          {(zoom !== 1 || center) && (
+            <button className="track-table-save-btn" onClick={onDoubleClick} title={t('cross_section_view_hint')}>
+              {t('cross_section_fit')}
+            </button>
+          )}
           <label className="profile-edit" title={t('cross_section_reach_hint')}>
             {t('cross_section_reach')}
             <input className="track-table-input cross-section-reach" type="number" min={1} max={MAX_REACH} step={5}
