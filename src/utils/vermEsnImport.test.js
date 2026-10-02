@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRecords, buildElements, parseGradient, gradientHeights } from './vermEsnImport'
+import { parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode } from './vermEsnImport'
 
 /** A GRA file: header (num = number of points), then station, height, radius, tangent length, point number. */
 function graBuffer(rows, num = rows.length) {
@@ -94,5 +94,20 @@ describe('gradientHeights — the gradient on the imported track', () => {
     const { heights, notes } = gradientHeights(points, 1100, 300)
     expect(heights).toBeNull()
     expect(notes[0]).toMatch(/nicht im Stationsbereich/)
+  })
+})
+
+describe('gradientHeightCode — the height status the file names', () => {
+  it('reads it from the header after num', () => {
+    const buf = graBuffer([[0, 1], [10, 2]])
+    new Uint8Array(buf).set([0x56, 0x30, 0x30, 0], 8)   // 'V00'
+    expect(gradientHeightCode(buf, 'x.GRA')).toBe('V00')
+  })
+
+  it('falls back to the file name where the header holds something else', () => {
+    const buf = graBuffer([[0, 1], [10, 2]])
+    new Uint8Array(buf).set([0x00, 0x7e, 0x70, 0x01], 8)
+    expect(gradientHeightCode(buf, '5550R000_EA0_V00_VR.GRA')).toBe('V00')
+    expect(gradientHeightCode(buf, 'gradient.gra')).toBeNull()
   })
 })

@@ -206,6 +206,20 @@ export function parseGradient(arrayBuffer) {
 }
 
 /**
+ * The height system code the gradient names (`V00`, `N00`, … — the DB's own
+ * codes, as in the ASCII interface's `EHSYS`): from the header, which some
+ * writers fill after `num`, else from the file name (`…_V00_VR.GRA`). Null
+ * where neither says. Only shown to help choosing the datum — the codes carry
+ * no EPSG of their own.
+ */
+export function gradientHeightCode(arrayBuffer, fileName = '') {
+  const bytes = new Uint8Array(arrayBuffer, 0, Math.min(arrayBuffer.byteLength, GRA_RECORD_SIZE))
+  const head = String.fromCharCode(...bytes.subarray(8, 11))
+  if (/^[A-Z]\d\d$/.test(head) && bytes[11] === 0) return head
+  return /_([A-Z]\d\d)_[^_]*$/i.exec(fileName.replace(/\.gra$/i, ''))?.[1]?.toUpperCase() ?? null
+}
+
+/**
  * The gradient as the heights of the track built from the TRA file, stationed
  * from the track's begin (`startStation`, see buildElements). Where the
  * gradient covers only part of the track the heights do too (gradientStretch),

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { loadTracks, loadSwitches, loadProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
 import { parseProjectsPayload, PayloadError } from '../../utils/persistenceUtils'
-import { parseRecords, buildElements, parseGradient, gradientHeights } from '../../utils/vermEsnImport'
+import { parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'
 import { ExternalLinkIcon } from '../icons'
 import { exportToOsrd, OSRD_URL } from '../../utils/osrdExport'
@@ -11,7 +11,7 @@ import { fitToTracks } from '../../utils/mapRenderUtils'
 import { downloadJSON, downloadText } from '../../utils/fileUtils'
 import { EPSG_OPTIONS, crsDatum, crsLabel } from '../../utils/coordinateUtils'
 import useTrackHover from '../../hooks/useTrackHover'
-import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../utils/mapConstants'
+import { FILTER_NONE, HIT_TOLERANCE, HEIGHT_DATUMS, mapIsLive } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
 import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, buildAllTracksFromMdb, mdbSwitchInventory, mdbBufferStops, matchMdbBufferStops } from '../../utils/mdbImport'
 import { placeMdbSwitches } from '../../utils/mdbSwitchPlacement'
@@ -47,6 +47,31 @@ function ExchangeSection({ title, description, children }) {
   )
 }
 
+/** One file of the Verm.ESN import: a button to choose it, or `file` ({ name, detail }) with ✕. */
+function EsnFileSlot({ label, inputRef, accept, onChange, file, pickLabel, removeLabel, disabled, onRemove }) {
+  return (
+    <div className="form-field">
+      <label>{label}</label>
+      <input ref={inputRef} type="file" accept={accept} style={{ display: 'none' }} onChange={onChange} />
+      {file ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ flex: 1, minWidth: 0, fontFamily: 'system-ui, sans-serif' }}>
+            <div style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={file.name}>
+              {file.name}
+            </div>
+            <div style={{ fontSize: 11, color: '#666' }}>{file.detail}</div>
+          </div>
+          <button className="panel-btn" onClick={onRemove} title={removeLabel}>✕</button>
+        </div>
+      ) : (
+        <button className="panel-btn panel-btn-full" disabled={disabled} onClick={() => inputRef.current?.click()}>
+          {pickLabel}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function trackLabel(track) {
   const parts = [track.lineNumber, track.name || track.trackNumber].filter(Boolean)
   return parts.length ? parts.join(' · ') : track.id
@@ -65,9 +90,12 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
   const [epsg, setEpsg]                 = useState('5683')
   const [esnErrors, setEsnErrors]       = useState([])
   const [esnNotes, setEsnNotes]         = useState([])
+  const [esnDone, setEsnDone]           = useState(null)   // message after a successful import
   const esnInputRef                     = useRef(null)
   const graInputRef                     = useRef(null)
-  const [gra, setGra]                   = useState(null)   // { name, points } — optional gradient for the next ESN import
+  const [tra, setTra]                   = useState(null)   // { name, records, count } — the alignment to import
+  const [gra, setGra]                   = useState(null)   // { name, points, code } — optional gradient for it
+  const [graHeightEpsg, setGraHeightEpsg] = useState('')   // the gradient's height datum — chosen, never preset
   const trackImportRef                  = useRef(null)
   const csvInputRef                     = useRef(null)
   const cantInputRef                    = useRef(null)
@@ -252,49 +280,73 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
     }
   }
 
-  const handleEsnImport = (e) => {
-    const file = e.target.files?.[0]
-    if (!file || !project) return
+  // ── Verm.ESN: TRA (alignment) and optional GRA (gradient) ─────────────
+  // Both files are chosen first and imported together, the gradient only
+  // with the height datum it is stated in.
+  const readBuffer = (file, then) => {
     const reader = new FileReader()
-    reader.onload = (ev) => {
+    reader.onload = (ev) => then(ev.target.result)
+    reader.readAsArrayBuffer(file)
+  }
+
+  const handleTraFile = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setEsnDone(null); setEsnNotes([])
+    readBuffer(file, (buffer) => {
       try {
-        const { elements, errors, startStation } = buildElements(parseRecords(ev.target.result), Number(epsg))
-        setEsnErrors(errors)
-        setEsnNotes([])
-        if (errors.length || !elements.length) return
-        const recalced = recalcAbsLengths(elements)
-        const length = recalced.reduce((sum, el) => sum + (el.length ?? 0), 0)
-        const { heights, notes } = gra ? gradientHeights(gra.points, startStation, length) : { heights: null, notes: [] }
-        setEsnNotes(notes)
-        saveTrack(project.id, {
-          id: generateId(), epsg: Number(epsg), coordinates: rebuildCoords(recalced), elements: recalced,
-          ...(heights ? { heights } : {}),
-        })
-        onTrackSaved?.()
+        const records = parseRecords(buffer)
+        // Element count and junctions do not depend on the plane: checked here
+        // already, so a broken file shows before the import.
+        const { elements, errors } = buildElements(records, Number(epsg))
+        setEsnErrors(elements.length ? errors : [...errors, t('data_exchange_vermesn_tra_empty')])
+        setTra(elements.length && !errors.length ? { name: file.name, records, count: elements.length } : null)
       } catch (err) {
         console.error('Verm.ESN import error:', err)
+        setTra(null)
+        setEsnErrors([t('data_exchange_vermesn_tra_empty')])
       }
-    }
-    reader.readAsArrayBuffer(file)
-    e.target.value = ''
+    })
   }
 
   const handleGraFile = (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const points = parseGradient(ev.target.result)
+    setEsnDone(null); setEsnNotes([])
+    readBuffer(file, (buffer) => {
+      const points = parseGradient(buffer)
       if (points.length < 2) {
         setGra(null)
         setEsnErrors([t('data_exchange_vermesn_gra_empty')])
         return
       }
       setEsnErrors([])
-      setGra({ name: file.name, points })
-    }
-    reader.readAsArrayBuffer(file)
+      setGra({ name: file.name, points, code: gradientHeightCode(buffer, file.name) })
+    })
+  }
+
+  const esnReady = !!project && !!tra && (!gra || !!graHeightEpsg)
+
+  const handleEsnImport = () => {
+    if (!esnReady) return
+    const { elements, errors, startStation } = buildElements(tra.records, Number(epsg))
+    setEsnErrors(errors)
+    if (errors.length || !elements.length) return
+    const recalced = recalcAbsLengths(elements)
+    const length = recalced.reduce((sum, el) => sum + (el.length ?? 0), 0)
+    const { heights, notes } = gra ? gradientHeights(gra.points, startStation, length) : { heights: null, notes: [] }
+    setEsnNotes(notes)
+    saveTrack(project.id, {
+      id: generateId(), epsg: Number(epsg), coordinates: rebuildCoords(recalced), elements: recalced,
+      ...(heights ? { heights, heightEpsg: Number(graHeightEpsg) } : {}),
+    })
+    setEsnDone(t(heights ? 'data_exchange_vermesn_done_heights' : 'data_exchange_vermesn_done')
+      .replace('{{name}}', tra.name).replace('{{count}}', recalced.length).replace('{{heights}}', heights?.length ?? 0))
+    setTra(null)
+    setGra(null)
+    onTrackSaved?.()
   }
 
   // ── Gleislage CSV ────────────────────────────────────────────────────────
@@ -775,43 +827,44 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
             ))}
           </select>
         </div>
-        <div className="form-field">
-          <label>{t('data_exchange_vermesn_gra')}</label>
-          <input
-            ref={graInputRef}
-            type="file"
-            accept=".gra,.GRA"
-            style={{ display: 'none' }}
-            onChange={handleGraFile}
-          />
-          {gra ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ flex: 1, fontSize: 12, fontFamily: 'system-ui, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {t('data_exchange_vermesn_gra_loaded').replace('{{name}}', gra.name).replace('{{count}}', gra.points.length)}
-              </span>
-              <button className="panel-btn" onClick={() => setGra(null)} title={t('data_exchange_vermesn_gra_remove')}>
-                ✕
-              </button>
-            </div>
-          ) : (
-            <button className="panel-btn panel-btn-full" disabled={!project} onClick={() => graInputRef.current?.click()}>
-              {t('data_exchange_vermesn_gra_pick')}
-            </button>
-          )}
-        </div>
-        <input
-          ref={esnInputRef}
-          type="file"
-          style={{ display: 'none' }}
-          onChange={handleEsnImport}
+        <EsnFileSlot
+          label={t('data_exchange_vermesn_tra')}
+          inputRef={esnInputRef} accept=".tra,.TRA" onChange={handleTraFile}
+          file={tra && { name: tra.name, detail: t('data_exchange_vermesn_tra_loaded').replace('{{count}}', tra.count) }}
+          pickLabel={t('data_exchange_vermesn_tra_pick')} removeLabel={t('data_exchange_vermesn_tra_remove')}
+          disabled={!project} onRemove={() => setTra(null)}
         />
+        <EsnFileSlot
+          label={t('data_exchange_vermesn_gra')}
+          inputRef={graInputRef} accept=".gra,.GRA" onChange={handleGraFile}
+          file={gra && { name: gra.name, detail: t('data_exchange_vermesn_gra_loaded').replace('{{count}}', gra.points.length) }}
+          pickLabel={t('data_exchange_vermesn_gra_pick')} removeLabel={t('data_exchange_vermesn_gra_remove')}
+          disabled={!project} onRemove={() => setGra(null)}
+        />
+        {gra && (
+          <div className="form-field">
+            <label>{t('data_exchange_vermesn_height')}</label>
+            <select className="settings-select" value={graHeightEpsg} onChange={e => setGraHeightEpsg(e.target.value)}>
+              <option value="">{t('pointcloud_choose')}</option>
+              {HEIGHT_DATUMS.map(d => <option key={d.epsg} value={d.epsg}>{`EPSG ${d.epsg} – ${d.label}`}</option>)}
+            </select>
+            {gra.code && (
+              <span style={{ fontSize: 11, color: '#666', fontFamily: 'system-ui, sans-serif' }}>
+                {t('data_exchange_vermesn_height_code').replace('{{code}}', gra.code)}
+              </span>
+            )}
+          </div>
+        )}
         <button
           className="panel-btn panel-btn-full"
-          disabled={!project}
-          onClick={() => { setEsnErrors([]); setEsnNotes([]); esnInputRef.current?.click() }}
+          disabled={!esnReady}
+          onClick={handleEsnImport}
         >
           {t('data_exchange_import')}
         </button>
+        {esnDone && (
+          <p style={{ margin: '6px 0 0', fontSize: 11, color: '#27ae60', fontFamily: 'system-ui, sans-serif' }}>{esnDone}</p>
+        )}
         {(esnErrors.length > 0 || esnNotes.length > 0) && (
           <div style={{ marginTop: 6 }}>
             {esnErrors.map((err, i) => (
