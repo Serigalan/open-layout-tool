@@ -8,7 +8,7 @@ import {
 import { newSwitchFields, switchElementMark, LINK_KIND } from './switchModel'
 import { kindForOsrdType, bufferStopsToEndMarks } from './alignmentCodec'
 import { utmToWgs84 } from './coordinateUtils'
-import { SAGITTA_ELEMENT } from './mapConstants'
+import { SAGITTA_ELEMENT } from './geometryPrecision'
 import { TYPE_CODES, SIDE_CODES } from './identifierUtils'
 import { STATUSES } from './planStatus'
 import { arcFrom, straightFrom, transitionElement } from './elementFactory'

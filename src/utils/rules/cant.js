@@ -2,85 +2,10 @@ import {
   MAX_SWITCH_CANT as RW_MAX_SWITCH_CANT,
   MAX_SWITCH_CANT_DEF as RW_MAX_SWITCH_CANT_DEF,
   CANT_DEFICIENCY_COEFF as RW_CANT_DEFICIENCY_COEFF,
-} from './regelwerkDefaults'
-import { catalogLimit, catalogSpeedRange, IN_SWITCH_AREA } from './regelkatalog'
+} from '../regelwerkDefaults'
+import { catalogLimit, catalogSpeedRange, IN_SWITCH_AREA } from '../regelkatalog'
 
-/** Sagitta (max deviation) constants for arc coordinate generation */
-export const SAGITTA_ELEMENT = 0.05  // element.geometry.coordinates — fine precision
-export const SAGITTA_TRACK   = 0.2   // track.coordinates (via renderCoords) — rendering precision
-
-/**
- * Max spacing [m] of the intermediate vertices a straight gets for display
- * (see displayCoords). A straight is stored as its two end points, and the Web
- * Mercator map draws that chord as a straight line — which the true straight is
- * not: at 50° N an east–west 1 km straight bends 23 mm away from its chord,
- * growing with the square of the length. 100 m keeps it under 0.3 mm.
- */
-export const STRAIGHT_VERTEX_SPACING = 100
-
-/**
- * Tiling zoom of the map's GeoJSON sources. MapLibre quantises vertices to the
- * tile grid of this zoom (4096 units per tile): the default 18 is a ~2.4 cm
- * grid at 50° N, 22 is ~1.5 mm.
- */
-export const GEOJSON_MAXZOOM = 22
-
-/**
- * Height points of the vertical alignment: an element up to HEIGHT_SPLIT_MIN
- * long carries one at each end, a longer one evenly spaced points at most
- * HEIGHT_POINT_SPACING apart in between (see heightUtils).
- */
-export const HEIGHT_SPLIT_MIN     = 200   // m
-export const HEIGHT_POINT_SPACING = 100   // m
-// Vertical datum the heights are stated in unless the track says otherwise:
-// DHHN2016 (EPSG 7837), what the BKG's DGM5 delivers.
-export const DEFAULT_HEIGHT_EPSG = 7837
-
-/** Vertical datums the heights may be stated in (EPSG codes of the height CRS). */
-export const HEIGHT_DATUMS = [
-  { epsg: 7837, label: 'DHHN2016' },
-  { epsg: 5783, label: 'DHHN92' },
-  { epsg: 5773, label: 'EGM96' },
-  { epsg: 3855, label: 'EGM2008' },
-]
-
-/**
- * Line width by zoom, [zoom, px, …]. The project's tracks are drawn with the
- * same pen as the kilometrage lines — kmLineLayer uses it too — thin while
- * zoomed out and 2.4 px from z17 on; z11 → z12 is where the overlay hands over
- * from whole chains to its 100 m pieces.
- */
-const LINE_WIDTH_STOPS = [5, 0.6, 11, 1.4, 12, 1.4, 17, 2.4]
-const lineWidthTimes = (factor) =>
-  ['interpolate', ['linear'], ['zoom'], ...LINE_WIDTH_STOPS.map((v, i) => (i % 2 ? v * factor : v))]
-
-/** The line width (px) at `zoom`, as ZOOM_LINE_WIDTH draws it. */
-export function lineWidthAt(zoom) {
-  const s = LINE_WIDTH_STOPS
-  if (zoom <= s[0]) return s[1]
-  for (let i = 2; i < s.length; i += 2) {
-    if (zoom <= s[i]) return s[i - 1] + ((zoom - s[i - 2]) / (s[i] - s[i - 2])) * (s[i + 1] - s[i - 1])
-  }
-  return s[s.length - 1]
-}
-
-export const ZOOM_LINE_WIDTH          = lineWidthTimes(1)
-export const ZOOM_LINE_WIDTH_HOVER    = lineWidthTimes(2)
-export const ZOOM_LINE_WIDTH_SELECTED = lineWidthTimes(1.5)
-/** A buffer stop's body and face — the track pen, drawn heavier so the stop reads at a glance. */
-export const ZOOM_LINE_WIDTH_BUFFER_STOP = lineWidthTimes(2.5)
-
-/** Stroke of the element-end markers at icon-size 1: the widest track line (see markerImages). */
-export const MARKER_STROKE = LINE_WIDTH_STOPS[LINE_WIDTH_STOPS.length - 1]
-/** Marker size by zoom — scaled with the line, so a marker's stroke is always the line's width. */
-export const ZOOM_ICON_SIZE = lineWidthTimes(1 / MARKER_STROKE)
-/**
- * From this zoom on the element-end markers are drawn, below it not at all.
- * Zoomed out further they say nothing: the ticks and arrows of a whole
- * station run into one another and cover the alignment they mark — an
- * imported Strecke brings thousands of them.
- */
-export const MARKER_MIN_ZOOM = 16
+// Cant, cant deficiency and the speeds they allow — the dialogs' rules (LP.KB).
 
 /**
  * The cant a curve may carry (mm) — LP.KB.01, read out of DB Ril 800.0110
@@ -197,18 +122,6 @@ export const MAX_SWITCH_CANT           = RW_MAX_SWITCH_CANT      // LP.KB.05 reg
 // which is exactly what a written justification is for.
 export const MAX_SWITCH_CANT_EXCEPTION = catalogLimit('LP.KB.05', 'discretion', { 'element.cant': 0 }, IN_SWITCH_AREA)
 export const MAX_SWITCH_CANT_DEF       = RW_MAX_SWITCH_CANT_DEF  // LP.KB.06
-
-/**
- * How far a single change in the track editor may reach before it is refused
- * (AP 5.1, Entscheidung 3). A geometry edit re-shapes everything hanging off the
- * element's end, across track and project boundaries, and that is the point of
- * it — but past a certain reach nobody can hold in their head what a typed
- * number is about to move. Both limits are exclusive and joined by OR: a change
- * that rebuilds five tracks without touching a switch is as hard to oversee as
- * one that moves two switches.
- */
-export const MAX_EDIT_SWITCHES = 1
-export const MAX_EDIT_TRACKS   = 3
 
 /** The justification an element carries, trimmed — '' when it carries none. */
 export const cantExceptionOf = (el) =>

@@ -5,7 +5,7 @@ import {
   computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
   signedRadiusFrom3PointsUtm, endPointCurvedUtm,
 } from '../../../utils/elementUtils'
-import { computeAutoC, computeCantDef, MAX_CANT } from '../../../utils/mapConstants'
+import { computeAutoC, computeCantDef, MAX_CANT } from '../../../utils/rules/cant'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 import CantField from '../CantField'

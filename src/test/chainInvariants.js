@@ -3,7 +3,8 @@ import { wgs84ToUTM } from '../utils/coordinateUtils'
 import {
   JOINT_TOL, BEARING_TOL, absLengthErrors, epsgMismatches, nodeGaps, tangentBreaks, untrueLengths,
 } from '../utils/chainChecks'
-import { SAGITTA_ELEMENT, cantExceptionOf, cantLimit, worstCantOf } from '../utils/mapConstants'
+import { SAGITTA_ELEMENT } from '../utils/geometryPrecision'
+import { cantExceptionOf, cantLimit, worstCantOf } from '../utils/rules/cant'
 import { switchParts } from '../utils/switchDelete'
 
 /**

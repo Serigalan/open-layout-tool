@@ -1,4 +1,4 @@
-import { MARKER_STROKE, lineWidthAt } from './mapConstants'
+import { MARKER_STROKE, lineWidthAt } from '../map/style'
 
 /**
  * The markers at element ends — a tick at the start, an arrow at the end, a dot

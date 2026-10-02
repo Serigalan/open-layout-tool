@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CANT_STEP, cantFromInput, regelCant } from '../../utils/mapConstants'
+import { CANT_STEP, cantFromInput, regelCant } from '../../utils/rules/cant'
 import { useI18n } from '../../locales/i18nContext'
 
 /**

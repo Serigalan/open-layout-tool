@@ -7,7 +7,7 @@
  * an element chain, and hands back what each rule said.
  *
  * The physics is not re-derived here: the cant deficiency comes from
- * mapConstants' own `computeCantDefSigned`, the ramp ends from
+ * rules/cant's own `computeCantDefSigned`, the ramp ends from
  * clothoidUtils' `transitionCantEnds`. A checker that computed a deficiency of
  * its own would be judging the layout against arithmetic the layout was never
  * drawn with, and the first thing it found would be its own disagreement.
@@ -17,7 +17,7 @@ import {
   evaluateRules, rulesForElement, rulesForScope, severityRank, worstSeverity,
 } from './regelkatalog'
 import { transitionCantEnds } from './clothoidUtils'
-import { computeCantDefSigned } from './mapConstants'
+import { computeCantDefSigned } from './rules/cant'
 import { CANT_DEFICIENCY_COEFF } from './regelwerkDefaults'
 
 const PHYSICS = { u0_factor: CANT_DEFICIENCY_COEFF }

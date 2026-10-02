@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { computeArcArcTransition, computeArcStraightSplice } from './spliceUtils'
 import { endPointCurvedUtm, bearingAfterUtm } from './elementUtils'
 import { computeClothoidUtm, transitionCantEnds } from './clothoidUtils'
-import { SAGITTA_ELEMENT } from './mapConstants'
+import { SAGITTA_ELEMENT } from './geometryPrecision'
 import { recalcAbsLengths } from './trackModel'
 import { expectValidTrack } from '../test/chainInvariants'
 

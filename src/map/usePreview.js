@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useMap } from './MapContext'
-import { GEOJSON_MAXZOOM } from '../utils/mapConstants'
+import { GEOJSON_MAXZOOM } from '../utils/geometryPrecision'
 import { FILTER_NONE, mapIsLive } from './pick'
 
 /** An empty FeatureCollection — what a preview source holds while it shows nothing. */

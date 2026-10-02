@@ -1,4 +1,4 @@
-import { HEIGHT_DATUMS } from '../../utils/mapConstants'
+import { HEIGHT_DATUMS } from '../../utils/heightDatums'
 import { useI18n } from '../../locales/i18nContext'
 
 /**

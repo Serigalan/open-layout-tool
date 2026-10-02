@@ -6,7 +6,7 @@ import {
 } from './elementUtils'
 import { computeClothoidUtm, transitionPointAtUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
 import { newSwitchFields, switchElementMark } from './switchModel'
 import { splitElementAt, carveSwitchRoute } from './trackSplitUtils'
 import {

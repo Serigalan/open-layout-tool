@@ -12,7 +12,7 @@ import SwitchNumberField from '../SwitchNumberField'
 import SwitchCantField from './SwitchCantField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
-import { computeSwitchCant, computeCantDef, switchCantError, MAX_SWITCH_CANT_DEF } from '../../../utils/mapConstants'
+import { computeSwitchCant, computeCantDef, switchCantError, MAX_SWITCH_CANT_DEF } from '../../../utils/rules/cant'
 import { pickAt } from '../../../map/pick'
 import {
   SWITCH_CONNECTION_STAGES, switchBranchLength, computeSwitchGeometryUtm,

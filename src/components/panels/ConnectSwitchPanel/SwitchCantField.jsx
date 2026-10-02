@@ -1,4 +1,4 @@
-import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION } from '../../../utils/mapConstants'
+import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION } from '../../../utils/rules/cant'
 import CantField from '../CantField'
 import { useI18n } from '../../../locales/i18nContext'
 import ReadOnlyField from '../../form/ReadOnlyField'

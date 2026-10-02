@@ -4,7 +4,7 @@ import { computeCurvedValuesUtm, computeStraightValuesUtm } from '../elementUtil
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
 import { computeCrossingGeometryUtm, computeSwitchGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius, switchRouteVaries } from '../switchUtils'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../switchModel'
-import { cantExceptionFields, worstCantOf } from '../mapConstants'
+import { cantExceptionFields, worstCantOf } from '../rules/cant'
 import { placeSwitchOnTrack } from '../switchPlacement'
 import { trackLength } from '../heightUtils'
 import { utmToWgs84 } from '../coordinateUtils'

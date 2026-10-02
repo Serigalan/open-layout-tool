@@ -3,7 +3,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { inGerman, t } from '../../test/i18n'
 import CantField from './CantField'
-import { CANT_STEP, MAX_CANT, cantFromInput, regelCant } from '../../utils/mapConstants'
+import { CANT_STEP, MAX_CANT, cantFromInput, regelCant } from '../../utils/rules/cant'
 
 const render = (props) => renderToStaticMarkup(inGerman(createElement(CantField, {
   value: 0, onChange: () => {}, min: -MAX_CANT, max: MAX_CANT, ...props,

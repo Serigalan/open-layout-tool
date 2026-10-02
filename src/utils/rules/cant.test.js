@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { MAX_CANT, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION, cantExceedsLimit, cantExceptionFields, cantExceptionOf, cantLimit, clampSwitchCant, computeMaxSpeed, computeSwitchCant, switchCantError, switchCantLimit, worstCantOf, cantDefLevel, cantDefLimit, limitCantDef, maxSpeedFor, CANT_STEP, computeAutoC, computeCantDef, regelCant } from './mapConstants'
+import { MAX_CANT, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION, cantExceedsLimit, cantExceptionFields, cantExceptionOf, cantLimit, clampSwitchCant, computeMaxSpeed, computeSwitchCant, switchCantError, switchCantLimit, worstCantOf, cantDefLevel, cantDefLimit, limitCantDef, maxSpeedFor, CANT_STEP, computeAutoC, computeCantDef, regelCant } from './cant'
 
 // The two stretches of speed LP.KB.02 gives their own deficiency limit.
 const SLOW = 100      // ≤ 150 km/h

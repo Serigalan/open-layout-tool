@@ -4,7 +4,7 @@ import {
   endMarksToBufferStops,
 } from './alignmentCodec'
 import { tangentLength } from './heightUtils'
-import { DEFAULT_HEIGHT_EPSG } from './mapConstants'
+import { DEFAULT_HEIGHT_EPSG } from './heightDatums'
 import { TYPE_NAMES, SIDE_NAMES } from './identifierUtils'
 
 // The alignment exchange file: an infrastructure in the shape of RailJSON —

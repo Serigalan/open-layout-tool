@@ -10,10 +10,7 @@ import {
 import { parseExpr } from './ruleExpr'
 import { CANT_DEFICIENCY_COEFF } from './regelwerkDefaults'
 import { translations } from '../locales/i18n'
-import {
-  cantDefLimit, computeAutoC, MAX_CANT, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF,
-  MAX_SWITCH_CANT_EXCEPTION,
-} from './mapConstants'
+import { cantDefLimit, computeAutoC, MAX_CANT, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION } from './rules/cant'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const onDisk = JSON.parse(fs.readFileSync(
@@ -338,7 +335,7 @@ describe('what the viewer asks the locales for', () => {
 
 // The app has judged cant since long before the catalogue existed — the
 // dialogs have to answer on every keystroke, so they carry their own numbers
-// (mapConstants). Where the two speak about the same limit they have to say
+// (rules/cant). Where the two speak about the same limit they have to say
 // the same thing, or the element table would contradict the dialog that let
 // the value be typed.
 describe('where the catalogue and the app\'s own cant constants overlap', () => {

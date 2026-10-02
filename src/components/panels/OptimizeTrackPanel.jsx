@@ -5,7 +5,7 @@ import {
   optimizeOnServer, optimizerReachable, fetchRegelwerke, OptimizerError,
 } from '../../utils/optimizerService'
 import { reconstructElements } from '../../utils/elementReconstruct'
-import { ZOOM_LINE_WIDTH } from '../../utils/mapConstants'
+import { ZOOM_LINE_WIDTH } from '../../map/style'
 import { truncateHeights } from '../../utils/heightUtils'
 import { grundText } from '../../utils/optimizeReport'
 import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../icons'

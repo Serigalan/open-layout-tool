@@ -1,8 +1,7 @@
 import { utmToWgs84 } from './coordinateUtils'
 import { arcCoordsFromRadiusUtm, projectOnArcUtm } from './elementUtils'
-import {
-  SAGITTA_ELEMENT, SAGITTA_TRACK, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, computeCantDefSigned,
-} from './mapConstants'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
+import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, computeCantDefSigned } from './rules/cant'
 import {
   SWITCH_TYPES, SWITCH_CONNECTION_STAGES, STRAIGHT_CURVATURE,
   switchStraightLength, switchBranchLength, switchBranchSections, switchBranchChain,

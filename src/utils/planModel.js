@@ -12,7 +12,7 @@ import {
 import { pointAtStationUtm, trackLength } from './heightUtils'
 import { BUFFER_STOP, bufferStopStations } from './trackEndMarks'
 import { FACE_HALF_WIDTH } from './bufferStopGeometry'
-import { cantExceptionOf, computeCantDef, worstCantOf } from './mapConstants'
+import { cantExceptionOf, computeCantDef, worstCantOf } from './rules/cant'
 import { format } from '../locales/i18n'
 
 /**
@@ -394,7 +394,7 @@ function elementParts(el, comma, { brief = false, switchText = SWITCH_TEXT } = {
     const parts = [{ t: 'r' }, { t: route === 'main' ? switchText.rMain : switchText.rBranch, sub: true },
       { t: ` = ${value}` }]
     // A turnout canted past its plain limit stands on a written justification
-    // (mapConstants: MAX_SWITCH_CANT). That justification is a design decision,
+    // (rules/cant: MAX_SWITCH_CANT). That justification is a design decision,
     // so the plan states it rather than leaving the raised cant unexplained.
     // `brief` drops it with everything else that does not fit the element.
     const reason = cantExceptionOf(el)

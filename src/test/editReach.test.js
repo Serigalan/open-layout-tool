@@ -5,7 +5,8 @@ import {
   endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm,
 } from '../utils/elementUtils'
 import { utmToWgs84 } from '../utils/coordinateUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK, MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../utils/mapConstants'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../utils/geometryPrecision'
+import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../utils/editGeometry'
 import { newSwitchFields, switchElementMark } from '../utils/switchModel'
 import { planElementChange, mergeElementEdits } from '../utils/editGeometry'
 import { expectValidTrack } from './chainInvariants'

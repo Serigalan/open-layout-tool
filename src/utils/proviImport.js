@@ -1,5 +1,5 @@
 import { unzipSync } from 'fflate'
-import { cantSign } from './mapConstants'
+import { cantSign } from './rules/cant'
 import { epsgForLagesystem, parseBauform, RAIL_NAME } from './mdbImport'
 import { offsetOnElement } from './mdbSwitchDerive'
 import { heightAt, trackLength } from './heightUtils'

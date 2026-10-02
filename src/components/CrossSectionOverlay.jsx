@@ -10,7 +10,7 @@ import {
   crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, placeSection,
   sectionNeighbours, sectionLinePoints, sectionLevels, sectionOrigin, PLANUM_EDGE, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
-import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/mapConstants'
+import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/heightDatums'
 import { listClouds } from '../utils/pointCloud/cloudStore'
 import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
 import { drawCloudPoints, CLOUD_COLORINGS, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'

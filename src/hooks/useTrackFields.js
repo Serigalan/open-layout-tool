@@ -1,5 +1,5 @@
 import { useCallback, useReducer } from 'react'
-import { DEFAULT_HEIGHT_EPSG } from '../utils/mapConstants'
+import { DEFAULT_HEIGHT_EPSG } from '../utils/heightDatums'
 
 const initialState = {
   owner: 'DB',

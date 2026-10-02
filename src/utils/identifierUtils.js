@@ -1,4 +1,4 @@
-import { DEFAULT_HEIGHT_EPSG } from './mapConstants'
+import { DEFAULT_HEIGHT_EPSG } from './heightDatums'
 
 /** A new random id for a track, switch, platform, mark … */
 export function generateId() {

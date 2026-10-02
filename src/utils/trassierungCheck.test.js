@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   boundaryScope, checkTrack, elementScope, formOf, hasRuleError, isCheckable, rampScope,
 } from './trassierungCheck'
-import { computeCantDefSigned } from './mapConstants'
+import { computeCantDefSigned } from './rules/cant'
 
 // A chain that keeps every rule of the catalogue: 100 km/h throughout, the
 // Regelüberhöhung for R = 1000 (65 mm), a clothoid long enough for both the

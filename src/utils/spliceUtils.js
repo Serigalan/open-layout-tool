@@ -4,7 +4,7 @@ import {
   computeClothoidUtm, transitionShift, transitionPointAtUtm, transitionBearingAtUtm,
 } from './clothoidUtils'
 import { computeCurvedValuesUtm, endPointCurvedUtm, bearingAfterUtm, reverseElement } from './elementUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
 
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI

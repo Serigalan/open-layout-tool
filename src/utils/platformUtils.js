@@ -4,7 +4,7 @@ import {
 } from './elementUtils'
 import { transitionPointAtUtm, transitionBearingAtUtm } from './clothoidUtils'
 import { heightAt } from './heightUtils'
-import { SAGITTA_ELEMENT, STRAIGHT_VERTEX_SPACING } from './mapConstants'
+import { SAGITTA_ELEMENT, STRAIGHT_VERTEX_SPACING } from './geometryPrecision'
 
 /**
  * A platform is anchored to one track: the two picked points are stations along

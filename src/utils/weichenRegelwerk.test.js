@@ -11,7 +11,7 @@ import { translations } from '../locales/i18n'
 import {
   evaluateRule, ruleById, lookupPiecewise, KATALOG, IN_SWITCH_AREA,
 } from './regelkatalog'
-import { computeCantDefSigned } from './mapConstants'
+import { computeCantDefSigned } from './rules/cant'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const languages = Object.keys(translations)

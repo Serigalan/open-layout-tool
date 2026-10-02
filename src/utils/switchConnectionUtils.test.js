@@ -8,7 +8,7 @@ import {
   SWITCH_CONNECTION_STAGES,
 } from './switchUtils'
 import { arcCoordsFromRadiusUtm, computeCurvedValuesUtm, endPointCurvedUtm } from './elementUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
 import { planSwitchDeletion } from './switchDelete'
 import { recalcAbsLengths } from './trackModel'
 import { expectValidTrack, expectSwitchRoutesCarved } from '../test/chainInvariants'

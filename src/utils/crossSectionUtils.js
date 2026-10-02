@@ -87,7 +87,7 @@ export function superstructureAt(track, station) {
  *
  * Cant is the height difference between the running circles, so the angle
  * follows from that distance alone: sin θ = u / 1500. Its sign follows the
- * store's convention (see mapConstants) — a positive cant raises the left rail,
+ * store's convention (see rules/cant) — a positive cant raises the left rail,
  * which in a section seen in the running direction is the one at negative y, so
  * the section turns clockwise and the angle is negative.
  */

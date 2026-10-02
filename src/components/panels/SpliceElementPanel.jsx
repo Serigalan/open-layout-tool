@@ -7,7 +7,8 @@ import {
   computeSpliceWithClothoids, computeArcSpliceWithClothoids, computeArcArcTransition,
   computeArcStraightSplice, validateSpliceTangents,
 } from '../../utils/spliceUtils'
-import { ZOOM_LINE_WIDTH, cantSign, computeAutoC, computeCantDef, MAX_CANT } from '../../utils/mapConstants'
+import { ZOOM_LINE_WIDTH } from '../../map/style'
+import { cantSign, computeAutoC, computeCantDef, MAX_CANT } from '../../utils/rules/cant'
 import RuleFindings from './RuleFindings'
 import { hasRuleError } from '../../utils/trassierungCheck'
 import CantField from './CantField'

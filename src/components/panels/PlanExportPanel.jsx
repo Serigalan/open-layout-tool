@@ -3,7 +3,7 @@ import { loadTracks, loadSwitches, loadKmLines, loadPlatforms, loadPlanHeader, s
 import PlanHeaderFields from './PlanHeaderFields'
 import { PARTIES, STAFF, normalizeHeader, todayIso } from '../../utils/planHeader'
 import { BASEMAPS } from '../../basemaps'
-import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../../utils/mapConstants'
+import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../../utils/heightDatums'
 import { PAPER_FORMATS, SCALES, TITLE_COLUMN_MM } from '../../utils/planExport'
 import { planSheets } from '../../utils/planLayout'
 import { buildPlan } from '../../utils/planModel'

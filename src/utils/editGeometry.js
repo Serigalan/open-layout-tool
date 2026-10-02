@@ -1,10 +1,21 @@
 // Geometry of an element edit: plan, apply and merge length/bearing/radius changes.
 import { rebuildCoords, recalcAbsLengths } from './trackModel'
 import { nodeUtm } from './elementUtils'
-import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from './mapConstants'
 import { truncateHeights } from './heightUtils'
 import { switchParts } from './switchDelete'
 import { arcFrom, straightFrom, transitionElement } from './elementFactory'
+
+/**
+ * How far a single change in the track editor may reach before it is refused
+ * (AP 5.1, Entscheidung 3). A geometry edit re-shapes everything hanging off the
+ * element's end, across track and project boundaries, and that is the point of
+ * it — but past a certain reach nobody can hold in their head what a typed
+ * number is about to move. Both limits are exclusive and joined by OR: a change
+ * that rebuilds five tracks without touching a switch is as hard to oversee as
+ * one that moves two switches.
+ */
+export const MAX_EDIT_SWITCHES = 1
+export const MAX_EDIT_TRACKS   = 3
 
 export function nodesApproxEqual(a, b) {
   if (!Array.isArray(a) || !Array.isArray(b)) return false
@@ -86,7 +97,7 @@ const finish = (tracks) => tracks.map(t => {
  * turnout's own elements takes its geometry apart while the record still claims
  * the old one.
  *
- * So the reach is measured and, past the limits in mapConstants, refused:
+ * So the reach is measured and, past the limits above, refused:
  *
  *   tracks            the new track array — always built, so a preview can show
  *                     what the change would do even where it is refused

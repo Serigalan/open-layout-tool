@@ -2,7 +2,7 @@ import { nodeUtm, endPointStraightUtm, endPointCurvedUtm } from './elementUtils'
 import { portsOf } from './switchModel'
 import { transitionPointAtUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
-import { HEIGHT_POINT_SPACING, HEIGHT_SPLIT_MIN } from './mapConstants'
+import { HEIGHT_POINT_SPACING, HEIGHT_SPLIT_MIN } from './heightDatums'
 
 // The vertical alignment of a track is its own thing, independent of the
 // horizontal elements it runs over: `track.heights` is [{ station, z, rv? }]

@@ -1,7 +1,7 @@
 import maplibregl from 'maplibre-gl'
 import { Protocol } from 'pmtiles'
 import { kmOnPieces, toMercator } from './kmLineMath'
-import { ZOOM_LINE_WIDTH } from './mapConstants'
+import { ZOOM_LINE_WIDTH } from '../map/style'
 
 /**
  * The DB kilometrage lines as reference overlays.

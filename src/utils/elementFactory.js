@@ -3,7 +3,7 @@ import {
   arcCoordsFromRadiusUtm, computeCurvedValuesUtm, computeStraightValuesUtm, endPointCurvedUtm, endPointStraightUtm,
 } from './elementUtils'
 import { computeClothoidUtm } from './clothoidUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
 
 // The element factory (R4.1): every place that makes a track element — the
 // create and connect forms, splicing, parallels, switch connections, the

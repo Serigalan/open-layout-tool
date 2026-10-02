@@ -1,4 +1,4 @@
-import { cantSign } from './mapConstants'
+import { cantSign } from './rules/cant'
 import { gradientStretch } from './proviImport'
 import { arcFrom, straightFrom, transitionElement } from './elementFactory'
 

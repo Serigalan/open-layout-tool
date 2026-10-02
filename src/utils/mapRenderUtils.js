@@ -1,5 +1,5 @@
 import maplibregl from 'maplibre-gl'
-import { GEOJSON_MAXZOOM } from './mapConstants'
+import { GEOJSON_MAXZOOM } from './geometryPrecision'
 
 export function getColor() {
   return getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#303383'

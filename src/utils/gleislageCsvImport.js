@@ -1,6 +1,6 @@
 import { resolveEndBearing } from './elementUtils'
 import { transformPlanePoint, gkZone } from './coordinateUtils'
-import { cantSign } from './mapConstants'
+import { cantSign } from './rules/cant'
 import { arcFrom, straightFrom, transitionElement } from './elementFactory'
 
 const GON2DEG = 0.9

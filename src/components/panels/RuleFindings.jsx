@@ -8,7 +8,7 @@ import { useI18n } from '../../locales/i18nContext'
  * finished chain by.
  *
  * It is the checking half of "created to the rulebook": the limits a dialog
- * clamps to already come from the catalogue (mapConstants), but a clamp only
+ * clamps to already come from the catalogue (rules/cant), but a clamp only
  * stops the two or three things it was written for. This says everything the
  * Ril has to say about what is on screen — a length under the minimum for the
  * speed, a speed off the 5 km/h grid, a cant that is not the Regelüberhöhung —

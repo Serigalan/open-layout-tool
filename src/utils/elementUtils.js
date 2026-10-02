@@ -1,5 +1,5 @@
 import { wgs84ToUTM, utmToWgs84 } from './coordinateUtils'
-import { STRAIGHT_VERTEX_SPACING } from './mapConstants'
+import { STRAIGHT_VERTEX_SPACING } from './geometryPrecision'
 
 // Every function here works in the track's own projected plane on
 // { easting, northing, zone } points (zone = the track's epsg). WGS84 is only
