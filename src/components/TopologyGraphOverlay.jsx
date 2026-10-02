@@ -34,7 +34,7 @@ const GREY = '#8a8a8a'
  * { tracks, switches, endMarks }, `trackStyles` the colour of each track by
  * its status ({ color, dashed }), and there is nothing to delete.
  */
-export default function TopologyGraphOverlay({ project, version, selection, onSelect, onDeleted, onClose, t, source = null, trackStyles = null, title = null }) {
+export default function TopologyGraphOverlay({ project, selection, onSelect, onDeleted, onClose, t, source = null, trackStyles = null, title = null }) {
   const readOnly = Boolean(source)
   const [confirmDelete, setConfirmDelete] = useState(null)   // { trackIds, message }
   const data = useMemo(() => {
@@ -53,9 +53,8 @@ export default function TopologyGraphOverlay({ project, version, selection, onSe
       loose,
       nodes: graph.nodes,
     }
-    // `version` stands for the store, which the memo cannot see.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, version, source])
+    // `project` is the store's live record: it changes with every write.
+  }, [project, source])
 
   const highlighted = useMemo(() => {
     const h = selectionHighlight(selection, data?.switches)

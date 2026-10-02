@@ -15,7 +15,7 @@ import { toWgs } from '../../../utils/coordinateUtils'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 
-export default function ConnectStraightForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function ConnectStraightForm({ t, map, project, onCommitted }) {
   const [phase, setPhase]                   = useState('select')
   const [selectedTrack, setSelectedTrack]   = useState(null)
   const [startPoint, setStartPoint]         = useState(null)   // UTM {easting, northing, zone}
@@ -220,7 +220,6 @@ export default function ConnectStraightForm({ t, map, project, onTrackSaved, onC
     setPrevRadius(null)
     setTransitionEnabled(false)
     setTransitionType('clothoid')
-    onTrackSaved?.()
     onCommitted?.()
   }
 

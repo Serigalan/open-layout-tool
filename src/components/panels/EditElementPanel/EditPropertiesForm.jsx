@@ -10,7 +10,7 @@ import HeightDatumField from '../HeightDatumField'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, DEFAULT_HEIGHT_EPSG, mapIsLive } from '../../../utils/mapConstants'
 import { trackTypeName } from '../../../utils/trackGroups'
 
-export default function EditPropertiesForm({ t, map, project, onCommitted, onTrackSaved }) {
+export default function EditPropertiesForm({ t, map, project, onCommitted }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [name, setName] = useState('')
@@ -94,7 +94,6 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
     })
 
     replaceAllTracks(newTracks)
-    onTrackSaved?.()
     onCommitted?.()
   }
 

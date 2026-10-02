@@ -47,7 +47,7 @@ import {
  * does the walking — both halves of the main route are its through route, one
  * call each, with the branching left out that a turnout adds.
  */
-export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onCommitted, initialKind = 'crossing' }) {
+export default function CrossingOnTrackForm({ t, map, project, onCommitted, initialKind = 'crossing' }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
   const [phase, setPhase]         = useState('select')
@@ -253,7 +253,6 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
     resetName()
     switchNo.reset()
     setNameError(false)
-    onTrackSaved?.()
     clearPreview()
     onCommitted?.()
   }

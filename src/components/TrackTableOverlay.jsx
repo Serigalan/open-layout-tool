@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
+import { useTracks } from '../hooks/useStore'
 import { planElementChange, mergeElementEdits } from './panels/EditElementPanel/editGeometry'
 import { transitionCantEnds } from '../utils/clothoidUtils'
 import { crsLabel } from '../utils/coordinateUtils'
@@ -91,7 +92,7 @@ function maxSpeeds(elements, cap) {
 }
 
 export default function TrackTableOverlay({
-  track, project, map, storeVersion, initialRow, onPickTrack, onDirtyChange, onClose, onSaved, t,
+  track, project, map, initialRow, onPickTrack, onDirtyChange, onClose, t,
 }) {
   // Keep the full track set as working state — a geometry edit propagates to
   // connected following elements/tracks, so we edit and persist all of them.
@@ -144,10 +145,12 @@ export default function TrackTableOverlay({
   // go on showing the state that was just taken back — and write it out again on
   // the next Save. It is re-read instead, and unsaved edits are gone with the
   // step they were sitting on, which is said rather than left to be noticed.
-  const [seenVersion, setSeenVersion] = useState(storeVersion)
-  if (seenVersion !== storeVersion) {
-    setSeenVersion(storeVersion)
-    setTracks(loadTracks())
+  // The table's own Save is no such move: it notes what it wrote (`seen`).
+  const storeTracks = useTracks()
+  const [seen, setSeen] = useState(storeTracks)
+  if (seen !== storeTracks) {
+    setSeen(storeTracks)
+    setTracks(storeTracks)
     setChanged([])
     setReached({ trackIds: [], switchIds: [] })
     setReachError(null)
@@ -357,11 +360,11 @@ export default function TrackTableOverlay({
     commitTrackEdit(next, reached.switchIds)
     // Start again from what was written: the working copy is the store's again,
     // with no old field of a track left over from before it was opened.
+    setSeen(loadTracks())
     setTracks(loadTracks())
     setChanged([])
     setNotice(null)
     setReached({ trackIds: [], switchIds: [] })
-    onSaved?.()
   }
 
   // A transition is neither straight nor arc — it is named by its own curvature

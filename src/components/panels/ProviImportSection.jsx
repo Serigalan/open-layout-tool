@@ -21,7 +21,7 @@ const noteStyle = { margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily:
  * `onReport(source, counts, lines)` keeps the run's report with the project's
  * other import reports.
  */
-export default function ProviImportSection({ t, map, project, onReport, onTrackSaved }) {
+export default function ProviImportSection({ t, map, project, onReport }) {
   const inputRef = useRef(null)
   const filesRef = useRef(null)   // the unpacked archive, kept out of state
   const [fileName, setFileName] = useState('')
@@ -117,7 +117,6 @@ export default function ProviImportSection({ t, map, project, onReport, onTrackS
           commitSwitchConnection({
             removeTrackIds: [], addTracks, addSwitches: [...placed.switches, ...links], remap: [],
           })
-          onTrackSaved?.()
           fitToTracks(map?.current, addTracks)
         }
       } catch (err) {

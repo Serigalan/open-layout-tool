@@ -17,7 +17,7 @@ import {
   BufferStopIcon,
 } from '../../../components/icons'
 
-export default function EditElementPanel({ t, map, project, trackTableId, onTrackSaved, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints }) {
+export default function EditElementPanel({ t, map, project, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints }) {
   const [page, setPage] = useState('menu')
 
   // A constraints popup no longer covers this panel's own menu (it only fills
@@ -48,7 +48,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
     <>
       {backButton()}
       <h2>{t('edit_element_edit_length')}</h2>
-      <EditLengthForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+      <EditLengthForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -56,7 +56,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
     <>
       {backButton()}
       <h2>{t('edit_track_properties')}</h2>
-      <EditPropertiesForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+      <EditPropertiesForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -64,7 +64,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
     <>
       {backButton()}
       <h2>{t('edit_assign_tracks')}</h2>
-      <AssignTracksForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+      <AssignTracksForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -72,7 +72,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
     <>
       {backButton()}
       <h2>{t('edit_element_delete')}</h2>
-      <DeleteForm t={t} map={map} project={project} onTrackSaved={() => { onTrackSaved?.(); setPage('menu') }} />
+      <DeleteForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -95,7 +95,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
       {backButton()}
       <h2>{t('edit_track_delete')}</h2>
       <DeleteTrackForm t={t} map={map} project={project}
-        onTrackSaved={() => { onTrackSaved?.(); setPage('menu') }} onCommitted={() => setPage('menu')} />
+        onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -104,7 +104,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
       {backButton()}
       <h2>{t('switch_delete')}</h2>
       <DeleteSwitchForm t={t} map={map} project={project}
-        onTrackSaved={() => { onTrackSaved?.(); setPage('menu') }} onCommitted={() => setPage('menu')} />
+        onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -113,7 +113,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
       {backButton()}
       <h2>{t('switch_status')}</h2>
       <SwitchStatusForm t={t} map={map} project={project}
-        onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+        onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -122,7 +122,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
       {backButton()}
       <h2>{t('buffer_stop_edit')}</h2>
       <BufferStopForm t={t} map={map} project={project} edit
-        onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+        onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -130,7 +130,7 @@ export default function EditElementPanel({ t, map, project, trackTableId, onTrac
     <>
       {backButton()}
       <h2>{t('edit_change_direction')}</h2>
-      <ChangeDirectionForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+      <ChangeDirectionForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
     </>
   )
 

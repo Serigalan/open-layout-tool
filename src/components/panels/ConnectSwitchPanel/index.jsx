@@ -23,7 +23,7 @@ function BackButton({ t, onBack }) {
   )
 }
 
-export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
+export default function ConnectSwitchPanel({ t, map, project }) {
   const [page, setPage] = useState('menu')
   const back = () => setPage('menu')
 
@@ -31,7 +31,7 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('switch_straight')}</h2>
-      <ConnectStraightSwitchForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+      <ConnectStraightSwitchForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -39,7 +39,7 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('switch_curved')}</h2>
-      <ConnectStraightSwitchForm curved t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+      <ConnectStraightSwitchForm curved t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -47,7 +47,7 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('switch_on_track')}</h2>
-      <SwitchOnTrackForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+      <SwitchOnTrackForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -55,7 +55,7 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('scurve_title')}</h2>
-      <SCurveForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={() => setPage('menu')} />
+      <SCurveForm t={t} map={map} project={project} onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -63,7 +63,7 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('crossing_title')}</h2>
-      <CrossingForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+      <CrossingForm t={t} map={map} project={project}
         onCommitted={() => setPage('menu')} initialKind="crossing" />
     </>
   )
@@ -72,7 +72,7 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('crossing_title')}</h2>
-      <CrossingForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+      <CrossingForm t={t} map={map} project={project}
         onCommitted={() => setPage('menu')} initialKind="single_slip" />
     </>
   )
@@ -81,7 +81,7 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('crossing_on_track')}</h2>
-      <CrossingOnTrackForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+      <CrossingOnTrackForm t={t} map={map} project={project}
         onCommitted={() => setPage('menu')} />
     </>
   )
@@ -90,7 +90,7 @@ export default function ConnectSwitchPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('switch_link')}</h2>
-      <TrackLinkForm t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+      <TrackLinkForm t={t} map={map} project={project}
         onCommitted={() => setPage('menu')} />
     </>
   )

@@ -66,7 +66,7 @@ function offsetArc(src, dist) {
   return { start: radial(src.start), end: radial(src.end), signedR: sign * newR }
 }
 
-export default function ParallelLineForm({ t, map, project, onTrackSaved }) {
+export default function ParallelLineForm({ t, map, project, onDone }) {
   const lineOptions = useNearbyLines(map)
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
@@ -297,7 +297,7 @@ export default function ParallelLineForm({ t, map, project, onTrackSaved }) {
       clearPreview(map.current)
       map.current.setFilter('tracks-selected-layer', FILTER_NONE)
     }
-    onTrackSaved?.()
+    onDone?.()
   }
 
   return (
@@ -381,7 +381,7 @@ export default function ParallelLineForm({ t, map, project, onTrackSaved }) {
             disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
             {t('btn_commit')}
           </button>
-          <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onTrackSaved}>
+          <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onDone}>
             {t('btn_cancel')}
           </button>
         </>

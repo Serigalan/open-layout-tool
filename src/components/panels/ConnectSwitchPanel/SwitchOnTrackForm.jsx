@@ -86,7 +86,7 @@ function constantBranchElement(seg, cant) {
  * turnout on nothing but straights is the ordinary one, whose cant follows
  * speed and switch form.
  */
-export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function SwitchOnTrackForm({ t, map, project, onCommitted }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [phase, setPhase]           = useState('select')
   const [pick, setPick]             = useState(null)   // { trackId }
@@ -336,7 +336,6 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
 
     resetName()
     switchNo.reset()
-    onTrackSaved?.()
     clearPreview()
     onCommitted?.()
   }

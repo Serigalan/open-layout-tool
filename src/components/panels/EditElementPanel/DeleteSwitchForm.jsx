@@ -11,7 +11,7 @@ import { FILTER_NONE, HIT_TOLERANCE, filterForSwitch, mapIsLive } from '../../..
  * the difference between "the branch goes" and "the switch and both its routes
  * go" is visible from the dialog rather than from the map afterwards.
  */
-export default function DeleteSwitchForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function DeleteSwitchForm({ t, map, project, onCommitted }) {
   const [selected, setSelected]     = useState(null)   // { sw, plan }
   const [confirming, setConfirming] = useState(false)
 
@@ -60,7 +60,6 @@ export default function DeleteSwitchForm({ t, map, project, onTrackSaved, onComm
     setConfirming(false)
     setSelected(null)
     map?.current?.setFilter('tracks-selected-layer', FILTER_NONE)
-    onTrackSaved?.()
   }
 
   const fill = (key, values) =>

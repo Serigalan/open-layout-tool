@@ -44,7 +44,7 @@ import {
  * names the four ports.
  */
 
-export default function CrossingForm({ t, map, project, onTrackSaved, onCommitted, initialKind = 'crossing' }) {
+export default function CrossingForm({ t, map, project, onCommitted, initialKind = 'crossing' }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
   // Why the last click was no place for a crossing (switchEndAnchorRefusal).
@@ -246,7 +246,6 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
     resetName()
     switchNo.reset()
     setNameError(false)
-    onTrackSaved?.()
     clearPreview()
     onCommitted?.()
   }

@@ -14,10 +14,10 @@ const END_ZOOM = 17
  * drawn. The boundaries set so far are listed below it and can be lifted
  * again.
  *
- * `version` changes whenever the store does, so the lists follow every edit
- * and every undo.
+ * `project` is the store's live record, so the lists follow every edit and
+ * every undo.
  */
-export default function TopologyEndsList({ t, map, project, onTrackSaved, version }) {
+export default function TopologyEndsList({ t, map, project }) {
   const { open, boundaries } = useMemo(() => {
     if (!project) return { open: [], boundaries: [] }
     const ends = classifyTrackEnds(loadTracks(), loadSwitches(), loadEndMarks())
@@ -25,9 +25,8 @@ export default function TopologyEndsList({ t, map, project, onTrackSaved, versio
       open: ends.filter(e => isOpenState(e.state)),
       boundaries: ends.filter(e => e.state === BOUNDARY),
     }
-    // `version` stands for the store, which the memo cannot see.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, version])
+    // `project` is the store's live record: it changes with every write.
+  }, [project])
 
   if (!project) return null
 
@@ -43,13 +42,11 @@ export default function TopologyEndsList({ t, map, project, onTrackSaved, versio
 
   const markBoundary = (end) => {
     saveEndMark(newBoundary(end.trackId, end.endpoint))
-    onTrackSaved?.()
   }
 
   const liftBoundary = (end) => {
     if (!end.markId) return
     deleteEndMark(end.markId)
-    onTrackSaved?.()
   }
 
   return (

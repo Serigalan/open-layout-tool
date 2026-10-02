@@ -24,7 +24,7 @@ function BackButton({ t, onBack }) {
  * meeting. The cross-section overlay belongs to its tool: leaving the tool
  * closes it, as switching to another panel does (App).
  */
-export default function PlatformCrossSectionPanel({ t, map, project, onTrackSaved, crossSectionAt, onShowCrossSection }) {
+export default function PlatformCrossSectionPanel({ t, map, project, crossSectionAt, onShowCrossSection }) {
   const [page, setPage] = useState('menu')
   const back = () => {
     if (page === 'cross_section') onShowCrossSection?.(null)
@@ -34,14 +34,14 @@ export default function PlatformCrossSectionPanel({ t, map, project, onTrackSave
   if (page === 'platform') return (
     <>
       <BackButton t={t} onBack={back} />
-      <PlatformPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
+      <PlatformPanel t={t} map={map} project={project} />
     </>
   )
 
   if (page === 'cross_section') return (
     <>
       <BackButton t={t} onBack={back} />
-      <CrossSectionPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+      <CrossSectionPanel t={t} map={map} project={project}
         crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
     </>
   )

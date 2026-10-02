@@ -18,7 +18,7 @@ import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
 import { toWgs } from '../../../utils/coordinateUtils'
 
-export default function ConnectCurvedForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function ConnectCurvedForm({ t, map, project, onCommitted }) {
   const [phase, setPhase]                   = useState('select')
   const [selectedTrack, setSelectedTrack]   = useState(null)
   const [startPoint, setStartPoint]         = useState(null)   // UTM
@@ -240,7 +240,6 @@ export default function ConnectCurvedForm({ t, map, project, onTrackSaved, onCom
       map.current.setFilter('tracks-selected-layer', FILTER_NONE)
     }
     resetForm()
-    onTrackSaved?.()
     onCommitted?.()
   }
 

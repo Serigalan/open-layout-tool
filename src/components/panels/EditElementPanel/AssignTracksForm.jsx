@@ -31,7 +31,7 @@ const filterForTracks = (ids) => ['in', ['get', 'trackId'], ['literal', ids]]
  * The form stays open after a commit — the list regroups at once, and the
  * next tracks are usually just picked for the next line or station.
  */
-export default function AssignTracksForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function AssignTracksForm({ t, map, project, onCommitted }) {
   const [selected, setSelected] = useState(() => new Set())
   const [kind, setKind]         = useState('line')
   const [choice, setChoice]     = useState(NEW)
@@ -149,7 +149,6 @@ export default function AssignTracksForm({ t, map, project, onTrackSaved, onComm
       // The numbers a station track's name was built from are its own now.
       trackNumbers: renaming && to.kind === 'station' ? numberById : null,
     }))
-    onTrackSaved?.()
     setSelected(new Set())
     setError(null)
     setDone({ count: ids.length, kind: to.kind ?? null, title: to.kind ? groupTitle(to) : '' })

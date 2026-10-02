@@ -62,7 +62,7 @@ function spliceHeights(depTrack, elIdx) {
   return { heights: truncateHeights(depTrack.heights, cutAt) }
 }
 
-export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
+export default function SpliceElementPanel({ t, map, project }) {
   const [phase, setPhase]         = useState('select_first')
   const [picks, setPicks]         = useState([])   // [{trackId,elIdx,endUtm,startUtm,bearing,signedR,epsg,label}]
   const [radius, setRadius]       = useState(500)
@@ -296,7 +296,6 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
         { oldId: dep.trackId, newId: mergedId },
         { oldId: arr.trackId, newId: mergedId, flip: true },
       ], { consumed: [{ trackId: dep.trackId, endpoint: 'END' }, { trackId: arr.trackId, endpoint: 'END' }] })
-      onTrackSaved?.()
       clearPreview()
       setPhase('select_first')
       setPicks([])
@@ -431,7 +430,6 @@ export default function SpliceElementPanel({ t, map, project, onTrackSaved }) {
       { trackId: dep.trackId, endpoint: 'END' },
       { trackId: arr.trackId, endpoint: arc.reverseArr ? 'END' : 'BEGIN' },
     ] })
-    onTrackSaved?.()
     clearPreview()
     setPhase('select_first')
     setPicks([])

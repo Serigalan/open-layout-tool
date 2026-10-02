@@ -60,7 +60,7 @@ const keyOf = (end) => (end ? `${end.trackId}|${end.endpoint}` : null)
  * 77): the type proposes the brake length until the brake length has been
  * typed in by hand, and the stop is 2.20 m long in front of it.
  */
-export default function BufferStopForm({ t, map, project, onTrackSaved, onCommitted, edit = false }) {
+export default function BufferStopForm({ t, map, project, onCommitted, edit = false }) {
   const [version, setVersion] = useState(0)
   const { tracks, candidates, marks } = useMemo(() => {
     const tracks = loadTracks()
@@ -172,7 +172,6 @@ export default function BufferStopForm({ t, map, project, onTrackSaved, onCommit
     setPicked(null)
     setHover(null)
     setVersion(v => v + 1)
-    onTrackSaved?.()
     onCommitted?.()
   }
 

@@ -40,7 +40,7 @@ const EDIT_PREVIEW_LAYERS = [
   },
 ]
 
-export default function EditLengthForm({ t, map, project, onCommitted, onTrackSaved }) {
+export default function EditLengthForm({ t, map, project, onCommitted }) {
   const [workingTracks, setWorkingTracks] = useState(() => loadTracks())
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [selectedElIdx, setSelectedElIdx] = useState(null)
@@ -151,7 +151,6 @@ export default function EditLengthForm({ t, map, project, onCommitted, onTrackSa
     const last = planRef.current
     if (last?.error) return
     commitTrackEdit(workingRef.current, last?.touchedSwitchIds ?? [])
-    onTrackSaved?.()
     onCommitted?.()
   }
 

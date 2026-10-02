@@ -26,7 +26,7 @@ const END_STATE_KEY = {
  * (AP 9.6), comes up with the panel; the button hides it and brings it back.
  */
 export default function TopologyPanel({
-  t, map, project, onTrackSaved, version, selection, onSelect, graphOpen, onShowGraph,
+  t, map, project, selection, onSelect, graphOpen, onShowGraph,
 }) {
   // Clicking the map: a switch or a track selects it, anywhere else clears the selection.
   useEffect(() => {
@@ -71,9 +71,8 @@ export default function TopologyPanel({
         return { endpoint, sw, port, state }
       }),
     }
-    // `version` stands for the store, which the memo cannot see.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selection, project, version])
+    // `project` is the store's live record: it changes with every write.
+  }, [selection, project])
 
   const pickTrack = (trackId) => onSelect?.({ kind: 'track', id: trackId })
   const pickSwitch = (switchId) => onSelect?.({ kind: 'switch', id: switchId })
@@ -137,7 +136,7 @@ export default function TopologyPanel({
         </div>
       )}
 
-      <TopologyEndsList t={t} map={map} project={project} onTrackSaved={onTrackSaved} version={version} />
+      <TopologyEndsList t={t} map={map} project={project} />
     </>
   )
 }

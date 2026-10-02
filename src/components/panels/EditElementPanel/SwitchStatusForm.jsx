@@ -10,7 +10,7 @@ import { FILTER_NONE, HIT_TOLERANCE, filterForSwitch, mapIsLive } from '../../..
  * which is what it is for most switches — only one renewed in a standing
  * track, or kept where its branch goes, needs a status of its own.
  */
-export default function SwitchStatusForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function SwitchStatusForm({ t, map, project, onCommitted }) {
   const [selected, setSelected] = useState(null)   // switch record
   const [status, setStatus] = useState(null)
 
@@ -55,7 +55,6 @@ export default function SwitchStatusForm({ t, map, project, onTrackSaved, onComm
 
   const handleCommit = () => {
     updateSwitch(selected.switchId, { status: status ?? undefined })
-    onTrackSaved?.()
     onCommitted?.()
   }
 

@@ -23,19 +23,19 @@ function BackButton({ t, onBack }) {
  * by the gray line. Both tools pick on the map, so only the chosen one is ever
  * mounted — the menu is what keeps their click handlers from meeting.
  */
-export default function SpliceOptimizePanel({ t, map, project, onTrackSaved, onShowRegelwerk }) {
+export default function SpliceOptimizePanel({ t, map, project, onShowRegelwerk }) {
   const [page, setPage] = useState('menu')
   const back = () => setPage('menu')
 
   if (page === 'splice') return (
     <>
       <BackButton t={t} onBack={back} />
-      <SpliceElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
+      <SpliceElementPanel t={t} map={map} project={project} />
     </>
   )
 
   if (page === 'optimize_track' || page === 'optimize_element') return (
-    <OptimizeTrackPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+    <OptimizeTrackPanel t={t} map={map} project={project}
       initialPage={page === 'optimize_element' ? 'element' : 'track'} onExit={back}
       onShowRegelwerk={onShowRegelwerk} />
   )

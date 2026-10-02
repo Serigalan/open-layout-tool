@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { deleteElement } from '../../../storage'
 import { FILTER_NONE, HIT_TOLERANCE, filterForElement, mapIsLive } from '../../../utils/mapConstants'
 
-export default function DeleteForm({ t, map, project, onTrackSaved }) {
+export default function DeleteForm({ t, map, project, onCommitted }) {
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [selectedElementIndex, setSelectedElementIndex] = useState(null)
 
@@ -45,7 +45,7 @@ export default function DeleteForm({ t, map, project, onTrackSaved }) {
     setSelectedTrackId(null)
     setSelectedElementIndex(null)
     if (map?.current) map.current.setFilter('tracks-selected-layer', FILTER_NONE)
-    onTrackSaved?.()
+    onCommitted?.()
   }
 
   return (

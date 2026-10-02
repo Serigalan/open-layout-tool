@@ -6,7 +6,8 @@ import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
 import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from './utils/mapConstants'
 import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
-import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, canUndo, undo, currentProject, closeWorkingCopy, currentWorkingCopy, flushPendingWrites, saveKmLine, deleteKmLine } from './storage'
+import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, undo, currentProject, closeWorkingCopy, currentWorkingCopy, flushPendingWrites, saveKmLine, deleteKmLine } from './storage'
+import { useCanUndo, useProject } from './hooks/useStore'
 import { loadSettings, saveSettings } from './utils/settings'
 import { api, setUnauthorizedHandler } from './api/client'
 import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, serverHead } from './utils/workingCopySync'
@@ -337,18 +338,18 @@ function renderTracksOnMap(map, project, { fit = false, topology = false } = {})
 }
 
 
-function PanelContent({ onShowCompare, view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, marksVersion, topologySelection, onTopologySelect, topologyGraphOpen, onShowTopologyGraph, language, onLanguageChange, color, onColorChange, t, map, project, onTrackSaved, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
+function PanelContent({ onShowCompare, view, activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError, topologySelection, onTopologySelect, topologyGraphOpen, onShowTopologyGraph, language, onLanguageChange, color, onColorChange, t, map, project, trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints, profileTrackId, onShowProfile, onShowPlanPreview, crossSectionAt, onShowCrossSection }) {
   if (view === 'layers')   return <LayersPanel activeBasemap={activeBasemap} onBasemapChange={onBasemapChange} kmOverlays={kmOverlays} onKmOverlayChange={onKmOverlayChange} kmLinesError={kmLinesError} t={t} />
-  if (view === 'topology') return <TopologyPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} version={marksVersion}
+  if (view === 'topology') return <TopologyPanel t={t} map={map} project={project}
     selection={topologySelection} onSelect={onTopologySelect} graphOpen={topologyGraphOpen} onShowGraph={onShowTopologyGraph} />
-  if (view === 'places')   return <CreateConnectPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
+  if (view === 'places')   return <CreateConnectPanel t={t} map={map} project={project} />
   if (view === 'settings') return <SettingsPanel language={language} onLanguageChange={onLanguageChange} color={color} onColorChange={onColorChange} t={t} />
-  if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} onCloseConstraints={onCloseConstraints} />
-  if (view === 'connect_switch') return <ConnectSwitchPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} />
-  if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowRegelwerk={onShowRegelwerk} />
-  if (view === 'elevation') return <ElevationPanel t={t} map={map} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} onTrackSaved={onTrackSaved} />
-  if (view === 'platform') return <PlatformCrossSectionPanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
-  if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onTrackSaved={onTrackSaved} onShowCompare={onShowCompare} />
+  if (view === 'edit')     return <EditElementPanel t={t} map={map} project={project} trackTableId={trackTableId} onShowTrackTable={onShowTrackTable} onShowPhysics={onShowPhysics} onShowRegelwerk={onShowRegelwerk} onCloseConstraints={onCloseConstraints} />
+  if (view === 'connect_switch') return <ConnectSwitchPanel t={t} map={map} project={project} />
+  if (view === 'splice') return <SpliceOptimizePanel t={t} map={map} project={project} onShowRegelwerk={onShowRegelwerk} />
+  if (view === 'elevation') return <ElevationPanel t={t} map={map} project={project} profileTrackId={profileTrackId} onShowProfile={onShowProfile} />
+  if (view === 'platform') return <PlatformCrossSectionPanel t={t} map={map} project={project} crossSectionAt={crossSectionAt} onShowCrossSection={onShowCrossSection} />
+  if (view === 'data')     return <DataExchangePanel t={t} map={map} project={project} onShowCompare={onShowCompare} />
   if (view === 'plan')     return <PlanExportPanel t={t} project={project} language={language} onShowPlanPreview={onShowPlanPreview} />
   if (view === 'info')     return <InfoPanel t={t} />
   return null
@@ -379,7 +380,8 @@ export default function App() {
   // What is picked in the topology view: { kind: 'switch'|'track', id } or null.
   const [topologySelection, setTopologySelection] = useState(null)
   const [topologyGraphOpen, setTopologyGraphOpen] = useState(false)
-  const [project, setProject] = useState(null)
+  // The open project, live: every write and undo renders the app again.
+  const project = useProject()
   const [trackTable, setTrackTable] = useState(null)
   // The element a map click picked when the table was opened — the table
   // starts framed on it already, so it skips the fly-to that a list pick
@@ -389,14 +391,6 @@ export default function App() {
   // do once the user has said the word on losing them.
   const [tableDirty, setTableDirty] = useState(false)
   const [discardAsk, setDiscardAsk] = useState(null)   // () => void, the way on
-  // Bumped whenever the store is moved under an open overlay — an undo does
-  // that — so it can re-read instead of writing its own stale copy back out.
-  const [storeVersion, setStoreVersion] = useState(0)
-  // Bumped after every write and every undo, for the lists that only read the
-  // store (the open track ends under the topology view). Not storeVersion:
-  // that one tells an open element table its data moved under it, which a
-  // write the table made itself must not.
-  const [marksVersion, setMarksVersion] = useState(0)
   const [profileTrackId, setProfileTrackId] = useState(null)   // track shown in the profile overlay
   const [planPreview, setPlanPreview] = useState(null)         // { plan, filenameBase } shown as a sheet preview
   const [crossSectionAt, setCrossSectionAt] = useState(null)   // { trackId, station } drawn in the cross-section overlay
@@ -406,11 +400,9 @@ export default function App() {
   // lose and close without asking.
   const [physicsOpen, setPhysicsOpen] = useState(false)
   const [regelwerkOverlay, setRegelwerkOverlay] = useState(null)
-  // Bumped after every write of height points, so the profile re-reads them.
-  const [heightsVersion, setHeightsVersion] = useState(0)
   // [min, max] the elevation colour scale is fitted to — drives the legend.
   const [elevationRange, setElevationRange] = useState(null)
-  const [undoAvailable, setUndoAvailable] = useState(false)
+  const undoAvailable = useCanUndo()
   // Two states over each other (AP 10.3): { before, after, beforeLabel, afterLabel, drawUnchanged }.
   const [compare, setCompare] = useState(null)
   // Who is signed in (AP 10.6): status 'loading' | 'anon' | 'user'.
@@ -533,7 +525,7 @@ export default function App() {
   // The working copy's own changes, after every write and undo.
   useEffect(() => {
     setWcChanges(wc ? localChanges() : [])
-  }, [wc, marksVersion, storeVersion])
+  }, [wc, project])
 
   // Whether the server has moved on: on opening, every few minutes, and when
   // the tab comes back.
@@ -636,7 +628,24 @@ export default function App() {
       })
       .catch(err => console.warn('[App] Kilometrage lines:', err))
   }, [])
-  useEffect(() => { if (project) syncKmLines() }, [project, syncKmLines])
+
+  // The map draws the store: whenever what it shows changed — a write, an
+  // undo, a merge taken over — it is drawn again, and the kilometrage lines
+  // follow the tracks. Nothing that writes has to say so.
+  const drawn = useRef(null)
+  useEffect(() => {
+    if (!project) { drawn.current = null; return }
+    const parts = [project.tracks, project.switches, project.platforms, project.endMarks]
+    const before = drawn.current
+    drawn.current = parts
+    if (before && parts.every((x, i) => x === before[i])) return
+    // Before the style has loaded there is nothing to draw on yet; its
+    // style.load handler draws the project as it is then.
+    if (map.current?.getLayer('tracks-layer')) {
+      renderTracksOnMap(map.current, project, { topology: topologyRef.current })
+    }
+    if (!before || parts[0] !== before[0]) syncKmLines()
+  }, [project, syncKmLines])
 
   // Element and switch labels are language-dependent, so a language change has
   // to redraw them.
@@ -644,51 +653,18 @@ export default function App() {
     if (map.current && projectRef.current) renderTracksOnMap(map.current, projectRef.current, { topology: topologyRef.current })
   }, [language])
 
-  const handleTrackSaved = () => {
-    if (map.current && project) renderTracksOnMap(map.current, project, { topology: topologyRef.current })
-    setMarksVersion(v => v + 1)
-    setUndoAvailable(canUndo())
-    setHeightsVersion(v => v + 1)
-    // The gradient is not read from the terrain behind the user's back: a
-    // track has one when it is stated, or read on request in the profile.
-    if (project) syncKmLines(project.id)
-  }
-
-  const handleUndo = useCallback(() => {
-    if (!undo()) return
-    setUndoAvailable(canUndo())
-    setStoreVersion(v => v + 1)   // whatever is open on it reads the store again
-    setMarksVersion(v => v + 1)
-    setHeightsVersion(v => v + 1)   // an undone height edit must leave the profile too
-    if (map.current && projectRef.current) {
-      renderTracksOnMap(map.current, projectRef.current, { topology: topologyRef.current })
-    }
-  }, [])
+  const handleUndo = useCallback(() => { undo() }, [])
   // The map's keyboard shortcut reads the handler through a ref, so the listener
   // (registered once) always calls the current one.
   useEffect(() => { handleUndoRef.current = handleUndo }, [handleUndo])
 
-  /** The store was replaced under the app (a merge adopted): read it again. */
-  const reloadFromStore = useCallback(() => {
-    const p = currentProject()
-    projectRef.current = p
-    setProject(p)
-    setUndoAvailable(canUndo())
-    setStoreVersion(v => v + 1)
-    setMarksVersion(v => v + 1)
-    setHeightsVersion(v => v + 1)
-    setTrackTable(null)
-    if (map.current && p) renderTracksOnMap(map.current, p, { topology: topologyRef.current })
-  }, [])
 
   const handleOpenVariant = async (serverProject, variant) => {
     setHomeNote(null)
-    const p = await openVariant(variant.id)
+    await openVariant(variant.id)
     setWc({ project: serverProject, variant })
     setWcHead(null)
     setSyncNote(null)
-    setUndoAvailable(false)
-    setProject(p)
     setView('map')
   }
 
@@ -716,7 +692,6 @@ export default function App() {
     setTopologySelection(null)
     await closeWorkingCopy()
     setWc(null)
-    setProject(null)
     setView('start')
   }
 
@@ -832,7 +807,8 @@ export default function App() {
     adoptUpdate(prepared, record)
     setWcHead(prepared.head)
     setSyncDialog(null)
-    reloadFromStore()
+    // The store was replaced under the table: whatever it held is gone.
+    setTrackTable(null)
     if (then) await then()
   }
 
@@ -1140,7 +1116,6 @@ export default function App() {
             kmOverlays={kmOverlays}
             onKmOverlayChange={handleKmOverlayChange}
             kmLinesError={kmLinesError}
-            marksVersion={marksVersion}
             topologySelection={topologySelection}
             onTopologySelect={setTopologySelection}
             topologyGraphOpen={topologyGraphOpen}
@@ -1152,7 +1127,6 @@ export default function App() {
             t={t}
             map={map}
             project={project}
-            onTrackSaved={handleTrackSaved}
             trackTableId={trackTable?.id}
             onShowTrackTable={handleShowTrackTable}
             onShowPhysics={handleShowPhysics}
@@ -1183,17 +1157,17 @@ export default function App() {
         {syncNote && <button type="button" className="wc-note" onClick={() => setSyncNote(null)}>{syncNote}</button>}
         {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} t={t} />}
         {trackTable && <TrackTableOverlay track={trackTable} project={project} map={map}
-          storeVersion={storeVersion} initialRow={trackTableInitialRow} onPickTrack={setTrackTable} onDirtyChange={setTableDirty}
-          onClose={() => closeTrackTable(() => setTrackTable(null))} onSaved={handleTrackSaved} t={t} />}
-        {profileTrackId && <ElevationOverlay trackId={profileTrackId} project={project} map={map} version={heightsVersion} onClose={() => setProfileTrackId(null)} onSaved={handleTrackSaved} t={t} />}
+          initialRow={trackTableInitialRow} onPickTrack={setTrackTable} onDirtyChange={setTableDirty}
+          onClose={() => closeTrackTable(() => setTrackTable(null))} t={t} />}
+        {profileTrackId && <ElevationOverlay trackId={profileTrackId} map={map} onClose={() => setProfileTrackId(null)} t={t} />}
         {crossSectionAt && <CrossSectionOverlay at={crossSectionAt} project={project} map={map}
           onAtChange={setCrossSectionAt} onClose={() => setCrossSectionAt(null)} t={t} />}
         {physicsOpen && <PhysicsOverlay t={t} onClose={() => setPhysicsOpen(false)} />}
         {regelwerkOverlay && <RegelwerkOverlay t={t} regelwerkId={regelwerkOverlay.regelwerkId}
           onClose={() => setRegelwerkOverlay(null)} />}
-        {topologyGraphOpen && topology && <TopologyGraphOverlay project={project} version={marksVersion}
+        {topologyGraphOpen && topology && <TopologyGraphOverlay project={project}
           selection={topologySelection} onSelect={pickInTopologyDiagram}
-          onDeleted={() => { setTopologySelection(null); handleTrackSaved() }}
+          onDeleted={() => setTopologySelection(null)}
           onClose={() => setTopologyGraphOpen(false)} t={t} />}
         {compare && <CompareOverlay map={map} mapVersion={mapVersion} t={t} {...compare} onClose={() => setCompare(null)} />}
         {syncDialog?.kind === 'merge' && (

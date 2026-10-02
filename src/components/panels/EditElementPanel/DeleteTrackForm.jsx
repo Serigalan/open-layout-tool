@@ -4,7 +4,7 @@ import useTrackHover from '../../../hooks/useTrackHover'
 import ConfirmModal from '../../ConfirmModal'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, mapIsLive } from '../../../utils/mapConstants'
 
-export default function DeleteTrackForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function DeleteTrackForm({ t, map, project, onCommitted }) {
   // { id, name, elements, switchNames } – switch branches are not offered: their
   // geometry belongs to a switch and goes with it, not on its own.
   const [selected, setSelected]     = useState(null)
@@ -57,7 +57,6 @@ export default function DeleteTrackForm({ t, map, project, onTrackSaved, onCommi
     setConfirming(false)
     setSelected(null)
     map?.current?.setFilter('tracks-selected-layer', FILTER_NONE)
-    onTrackSaved?.()
   }
 
   const fill = (key, values) =>

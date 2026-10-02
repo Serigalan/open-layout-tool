@@ -79,7 +79,7 @@ function trackLabel(track) {
   return parts.length ? parts.join(' · ') : track.id
 }
 
-export default function DataExchangePanel({ t, map, project, onTrackSaved, onShowCompare }) {
+export default function DataExchangePanel({ t, map, project, onShowCompare }) {
   const tracks = project ? loadTracks() : []
   const trackCount = tracks.length
   const [before, after] = t('data_exchange_project_desc').split('{{tracks}}')
@@ -267,7 +267,6 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
 
       noConflict.forEach(track => saveTrack(reconstructTrack(track)))
 
-      if (noConflict.length > 0) onTrackSaved?.()
 
       if (conflicting.length > 0) {
         setTrackConflicts(conflicting.map(imp => ({
@@ -283,7 +282,6 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
   const resolveTrackConflict = (keepImported) => {
     const [current, ...rest] = trackConflicts
     if (keepImported) updateTrack(reconstructTrack(current.imported))
-    onTrackSaved?.()
     if (rest.length === 0) {
       setTrackConflicts([])
     } else {
@@ -357,7 +355,6 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
       .replace('{{name}}', tra.name).replace('{{count}}', recalced.length).replace('{{heights}}', heights?.length ?? 0))
     setTra(null)
     setGra(null)
-    onTrackSaved?.()
   }
 
   // ── Gleislage CSV ────────────────────────────────────────────────────────
@@ -423,7 +420,6 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         ...tr, id: generateId(), name, elements, coordinates: rebuildCoords(elements),
       })
     })
-    onTrackSaved?.()
   }
 
   // ── MDB (Access) ─────────────────────────────────────────────────────────
@@ -618,7 +614,6 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
       addEndMarks: buffered.marks,
     })
     setBusy(false)
-    onTrackSaved?.()
   }
 
   /**
@@ -698,7 +693,6 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         updateProject({
           osrd: { ...infra, ...(infra.switches ? { switches: infra.switches.map(remapPorts) } : {}) },
         })
-        onTrackSaved?.()
         // The import usually lands far outside the current view — show it.
         fitToTracks(map?.current, imported)
       } catch (err) {
@@ -970,7 +964,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         <>
         <ExchangeSection title={t('data_exchange_provi')} description={t('data_exchange_provi_desc')}>
           <ProviImportSection
-            t={t} map={map} project={project} onTrackSaved={onTrackSaved}
+            t={t} map={map} project={project}
             onReport={(source, counts, lines) => {
               setReports(saveImportReport({ source, ...counts, lines }))
               setOpenReport(null)

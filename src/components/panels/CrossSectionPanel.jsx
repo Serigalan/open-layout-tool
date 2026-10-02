@@ -25,7 +25,7 @@ import ClearanceScanSection from './ClearanceScanSection'
  * 18): every track is 54 E 4 on B70 from begin to end, and only an adjustment
  * is written down.
  */
-export default function CrossSectionPanel({ t, map, project, onTrackSaved, onShowCrossSection, crossSectionAt }) {
+export default function CrossSectionPanel({ t, map, project, onShowCrossSection, crossSectionAt }) {
   const [trackId, setTrackId] = useState(null)
 
   const tracks = loadTracks()
@@ -64,7 +64,6 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
   const writeRanges = (field, ranges) => {
     if (!track) return
     updateTrack({ ...track, [field]: ranges.length ? ranges : undefined })
-    onTrackSaved?.()
   }
 
   const addRange = (field, type) => {
@@ -136,7 +135,7 @@ export default function CrossSectionPanel({ t, map, project, onTrackSaved, onSho
         <div className="form-field">
           <label>{t('cross_section_profile')}</label>
           <select value={currentProject()?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE}
-            onChange={(e) => { updateProject({ gaugeProfile: e.target.value }); onTrackSaved?.() }}>
+            onChange={(e) => { updateProject({ gaugeProfile: e.target.value }) }}>
             {Object.entries(GAUGE_PROFILES).map(([key]) => (
               <option key={key} value={key}>{`${t(gaugeProfileLabelKey(key))} · ${LICHTRAUM_SOURCE}`}</option>
             ))}

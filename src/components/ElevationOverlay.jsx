@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadTracks, loadSwitches, setTrackHeights, setHeightsForTracks, currentProject } from '../storage'
+import { setTrackHeights, setHeightsForTracks, currentProject } from '../storage'
+import { useSwitches, useTracks } from '../hooks/useStore'
 import {
   trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, elementAtStation,
 } from '../utils/heightUtils'
@@ -45,11 +46,11 @@ const gradeLabel = (perMille) => {
  * A track without a gradient shows none — the terrain is not read on its own.
  * The empty profile offers to compute one from the height data instead.
  */
-// `version` is passed by the parent purely to re-render this after a write to
-// the store — the profile is read from the store on every render.
-export default function ElevationOverlay({ trackId, map, onClose, onSaved, t }) {
-  const tracks   = loadTracks()
-  const switches = loadSwitches()
+// The profile is read from the store, through the subscription: every write
+// draws it again.
+export default function ElevationOverlay({ trackId, map, onClose, t }) {
+  const tracks   = useTracks()
+  const switches = useSwitches()
   const track    = tracks.find(tr => tr.id === trackId)
 
   const [exaggeration, setExaggeration] = useState(10)
@@ -69,8 +70,8 @@ export default function ElevationOverlay({ trackId, map, onClose, onSaved, t }) 
   const [reading, setReading] = useState(null)
 
   // ── Data: the track's own profile and the stubs of the joined tracks ──────
-  // Recomputed on every render — it is a few hundred numbers, and `version`
-  // re-renders us after each write to the store.
+  // Recomputed on every render — it is a few hundred numbers, and the
+  // subscription re-renders us after each write to the store.
   const profile = track ? trackProfile(track) : null
   const points  = profile?.points ?? []
   const stubs = track ? [['BEGIN', -1, 0], ['END', 1, profile.length]].flatMap(([end, sign, origin]) =>
@@ -239,7 +240,6 @@ export default function ElevationOverlay({ trackId, map, onClose, onSaved, t }) 
     // them: it moves on all of them — over a switch too.
     const entries = selectedPoints.map(p => ({ trackId: track.id, index: p.index, ...patch }))
     setHeightsForTracks(jointHeightUpdates(tracks, switches, entries))
-    onSaved?.()
   }
 
   // Only the two ends of the track have to stay: they are where its height
@@ -251,7 +251,6 @@ export default function ElevationOverlay({ trackId, map, onClose, onSaved, t }) 
     const drop = new Set(deletable.map(p => p.index))
     setTrackHeights(track.id, (track.heights ?? []).filter((_, i) => !drop.has(i)))
     select([])
-    onSaved?.()
   }
 
   if (!track) return null
@@ -277,7 +276,6 @@ export default function ElevationOverlay({ trackId, map, onClose, onSaved, t }) 
       state = 'failed'
     }
     setReading({ trackId, state })
-    onSaved?.()
   }
 
   const drawing = () => {

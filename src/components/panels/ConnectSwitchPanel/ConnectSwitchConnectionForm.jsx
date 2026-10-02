@@ -40,7 +40,7 @@ const CONNECTION_SPEEDS   = [50, 60, 80, 100]
 // by speed cannot fall out of step with the table again.
 const typeForSpeed = (v) => SWITCH_CONNECTION_STAGES[0].find(form => form.speed === v)
 
-export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function ConnectSwitchConnectionForm({ t, map, project, onCommitted }) {
   const { fields, errors, setErrors, setField, lineNumberError }                                              = useTrackFields()
   const { fields: mainFields, errors: mainErrors, setErrors: setMainErrors, setField: setMainField, lineNumberError: mainLineNumberError } = useTrackFields()
   const [nameError, setNameError]       = useState(false)
@@ -334,7 +334,6 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
     resetMainName()
     setNameError(false)
     switchNo.reset()
-    onTrackSaved?.()
     clearPreview()
     onCommitted?.()
   }

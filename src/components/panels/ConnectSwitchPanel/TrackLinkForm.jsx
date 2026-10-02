@@ -22,7 +22,7 @@ const JOINT_ZOOM = 17
  * them. The MDB import therefore writes them itself (DataExchangePanel); what
  * is left open here is what it could not decide.
  */
-export default function TrackLinkForm({ t, map, onTrackSaved, onCommitted }) {
+export default function TrackLinkForm({ t, map, onCommitted }) {
   const [crsOnly, setCrsOnly] = useState(false)
   const [created, setCreated] = useState(0)
   // Read once when the form opens, and again after a commit: the links just
@@ -83,7 +83,6 @@ export default function TrackLinkForm({ t, map, onTrackSaved, onCommitted }) {
     })
     setCreated(records.length)
     setState(read())
-    onTrackSaved?.()
   }
 
   return (

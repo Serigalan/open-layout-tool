@@ -30,7 +30,7 @@ function BackButton({ t, onBack }) {
  * form. The groups share the panel the way the switch panel's tools do — one
  * menu, one back.
  */
-export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
+export default function CreateConnectPanel({ t, map, project }) {
   const [page, setPage] = useState('menu')
   const back = () => setPage('menu')
 
@@ -38,7 +38,7 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('create_straight_line')}</h2>
-      <LineForm t={t} map={map} project={project} onTrackSaved={() => { onTrackSaved?.(); setPage('menu') }} />
+      <LineForm t={t} map={map} project={project} onDone={() => setPage('menu')} />
     </>
   )
 
@@ -46,7 +46,7 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('create_curved_line')}</h2>
-      <CurvedLineForm t={t} map={map} project={project} onTrackSaved={() => { onTrackSaved?.(); setPage('menu') }} />
+      <CurvedLineForm t={t} map={map} project={project} onDone={() => setPage('menu')} />
     </>
   )
 
@@ -54,7 +54,7 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('create_parallel')}</h2>
-      <ParallelLineForm t={t} map={map} project={project} onTrackSaved={() => { onTrackSaved?.(); setPage('menu') }} />
+      <ParallelLineForm t={t} map={map} project={project} onDone={() => setPage('menu')} />
     </>
   )
 
@@ -62,7 +62,7 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('create_parallel_track')}</h2>
-      <ParallelTrackForm t={t} map={map} project={project} onTrackSaved={() => { onTrackSaved?.(); setPage('menu') }} />
+      <ParallelTrackForm t={t} map={map} project={project} onDone={() => setPage('menu')} />
     </>
   )
 
@@ -70,7 +70,7 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('buffer_stop_create')}</h2>
-      <BufferStopForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={back} />
+      <BufferStopForm t={t} map={map} project={project} onCommitted={back} />
     </>
   )
 
@@ -78,7 +78,7 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('connect_straight')}</h2>
-      <ConnectStraightForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={back} />
+      <ConnectStraightForm t={t} map={map} project={project} onCommitted={back} />
     </>
   )
 
@@ -86,7 +86,7 @@ export default function CreateConnectPanel({ t, map, project, onTrackSaved }) {
     <>
       <BackButton t={t} onBack={back} />
       <h2>{t('connect_curved')}</h2>
-      <ConnectCurvedForm t={t} map={map} project={project} onTrackSaved={onTrackSaved} onCommitted={back} />
+      <ConnectCurvedForm t={t} map={map} project={project} onCommitted={back} />
     </>
   )
 

@@ -252,7 +252,7 @@ function buildPointsGeoJSON(result) {
   }
 }
 
-export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function SCurveForm({ t, map, project, onCommitted }) {
   const [phase, setPhase]   = useState('select_first')  // select_first | select_second | config
   const [picks, setPicks]   = useState([])
   const [speedIdx, setSpeedIdx] = useState(DEFAULT_TYPE)   // selected design speed (index into CONNECTION_SPEEDS)
@@ -490,7 +490,6 @@ export default function SCurveForm({ t, map, project, onTrackSaved, onCommitted 
       ],
     })
 
-    onTrackSaved?.()
     handleCancel()
   }
 

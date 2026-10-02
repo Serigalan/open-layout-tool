@@ -63,7 +63,7 @@ const fmt = (v) => String(Math.round(v * 1000) / 1000)
  * record keeps only its plane data (track, stations, side, height), and the
  * polygon on the map is derived from it.
  */
-export default function PlatformPanel({ t, map, project, onTrackSaved }) {
+export default function PlatformPanel({ t, map, project }) {
   const [phase, setPhase]     = useState('select')   // 'select' | 'edit'
   const [editingId, setEditingId] = useState(null)   // set when an existing platform is being edited
   const [trackId, setTrackId] = useState(null)
@@ -219,14 +219,12 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
     const record = { id: editingId ?? generateId(), ...draft, coords: ring }
     if (editingId) updatePlatform(record)
     else           savePlatform(record)
-    onTrackSaved?.()
     reset()
   }
 
   const handleDelete = () => {
     if (!editingId) return
     deletePlatform(editingId)
-    onTrackSaved?.()
     reset()
   }
 

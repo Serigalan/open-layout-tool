@@ -46,7 +46,7 @@ const endRadiusOf = (el) => asRadius(el?.elementType === 2 ? el?.r2 : el?.radius
  * arc and the branch takes the sum of both (see branchRadius); the two share
  * one cant, since a turnout sits on one set of sleepers.
  */
-export default function ConnectStraightSwitchForm({ t, map, project, onTrackSaved, onCommitted, curved = false }) {
+export default function ConnectStraightSwitchForm({ t, map, project, onCommitted, curved = false }) {
   const { fields, errors, setErrors, setField, lineNumberError }                                              = useTrackFields()
   const { fields: mainFields, errors: mainErrors, setErrors: setMainErrors, setField: setMainField, lineNumberError: mainLineNumberError } = useTrackFields()
   const [nameError, setNameError]       = useState(false)
@@ -395,7 +395,6 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
     resetMainName()
     setNameError(false)
     switchNo.reset()
-    onTrackSaved?.()
     clearPreview()
     onCommitted?.()
   }

@@ -3,7 +3,7 @@ import { reverseTrackDirection } from '../../../storage'
 import useTrackHover from '../../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, mapIsLive } from '../../../utils/mapConstants'
 
-export default function ChangeDirectionForm({ t, map, project, onTrackSaved, onCommitted }) {
+export default function ChangeDirectionForm({ t, map, project, onCommitted }) {
   const [selectedTrackId, setSelectedTrackId] = useState(null)
 
   useTrackHover(map, selectedTrackId === null ? 'select' : 'editing', 'select', project, true)
@@ -42,7 +42,6 @@ export default function ChangeDirectionForm({ t, map, project, onTrackSaved, onC
   const handleCommit = () => {
     if (!selectedTrackId) return
     reverseTrackDirection(selectedTrackId)
-    onTrackSaved?.()
     onCommitted?.()
   }
 

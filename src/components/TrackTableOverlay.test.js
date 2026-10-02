@@ -55,7 +55,7 @@ function renderTable(track = TRACK) {
   openProject({ id, tracks: [track], switches: [SWITCH] })
   const html = renderToStaticMarkup(createElement(TrackTableOverlay, {
     track, project: { id }, map: { current: null }, t,
-    onPickTrack: () => {}, onClose: () => {}, onSaved: () => {},
+    onPickTrack: () => {}, onClose: () => {},
   }))
   // Newline-tolerant: a title may hold several lines (the rule column lists one
   // finding per line), and `.` would stop at the first of them.

@@ -92,6 +92,25 @@ function mutate(fn, { undo = true } = {}) {
 function setProject(project) {
   _project = deepFreeze(project)
   persist()
+  notify()
+}
+
+// ── subscribers (R1.4) ──────────────────────────────────────────────────────
+
+const _listeners = new Set()
+
+/**
+ * Be told after every change of the open project or of the undo stack — a
+ * write, an undo, a project opened or closed. Returns the unsubscribe. What
+ * React's useSyncExternalStore takes (see hooks/useStore.js).
+ */
+export function subscribe(listener) {
+  _listeners.add(listener)
+  return () => _listeners.delete(listener)
+}
+
+function notify() {
+  for (const listener of [..._listeners]) listener()
 }
 
 // ── the working copy (phase 10) ─────────────────────────────────────────────
@@ -154,6 +173,7 @@ export async function closeWorkingCopy() {
   _wc = null
   _idLog = []
   _undoStack = []
+  notify()
 }
 
 /** A variant's stored working copy, or null. */
@@ -177,6 +197,7 @@ export async function discardWorkingCopy(variantId) {
 /** Empty the undo stack. */
 export function clearUndo() {
   _undoStack = []
+  notify()
 }
 
 /** A project's plan header stays out of the snapshots — see savePlanHeader. */

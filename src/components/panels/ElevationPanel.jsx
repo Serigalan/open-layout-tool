@@ -13,7 +13,7 @@ import GroupedTrackList from './GroupedTrackList'
  * one, or with the buttons here — reading a whole track again (which
  * overwrites edited heights), or every track that still lacks heights.
  */
-export default function ElevationPanel({ t, map, profileTrackId, onShowProfile, onTrackSaved }) {
+export default function ElevationPanel({ t, map, profileTrackId, onShowProfile }) {
   const tracks = loadTracks() ?? []
   const [busy, setBusy]     = useState(false)
   const [result, setResult] = useState(null)   // { updated, missing } of the last run
@@ -37,7 +37,6 @@ export default function ElevationPanel({ t, map, profileTrackId, onShowProfile, 
       setResult({ updated: 0, missing: 0, failed: true })
     } finally {
       setBusy(false)
-      onTrackSaved?.()
     }
   }
 

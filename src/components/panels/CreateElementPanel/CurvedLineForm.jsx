@@ -20,7 +20,7 @@ import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
 import { elementPath } from '../../../utils/lineLookup'
 
-export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
+export default function CurvedLineForm({ t, map, project, onDone }) {
   const lineOptions = useNearbyLines(map)
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
@@ -217,7 +217,7 @@ export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
     setSignedRadius(''); setArcLength(''); setBearing(''); setEndBearing('')
     clearCant()
     if (map?.current) clearPreview(map.current)
-    onTrackSaved?.()
+    onDone?.()
   }
 
   const selectingHint = selPhase === 0
@@ -302,7 +302,7 @@ export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
               disabled={blocked} style={{ opacity: blocked ? 0.5 : 1 }}>
               {t('btn_commit')}
             </button>
-            <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onTrackSaved}>
+            <button className="panel-btn panel-btn-full" style={{ marginTop: 2, background: '#888' }} onClick={onDone}>
               {t('btn_cancel')}
             </button>
           </>
