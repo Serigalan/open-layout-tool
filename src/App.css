@@ -2010,3 +2010,38 @@
 .pointcloud-storage {
   margin-top: 10px;
 }
+
+/* The point cloud under the cross section's drawing (AP 11.4): same box, the
+   SVG over it. */
+.cross-section-cloud {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.profile-body .cross-section-svg {
+  position: relative;
+}
+
+.cross-section-coloring {
+  font-size: 12px;
+}
+
+/* With the point cloud's controls the header's row runs out of room on a
+   narrower window: it wraps instead of squeezing the texts into columns. */
+.cross-section-header {
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.cross-section-header .track-table-title,
+.cross-section-header .profile-hint {
+  white-space: nowrap;
+}
+
+.cross-section-header .profile-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 6px;
+}

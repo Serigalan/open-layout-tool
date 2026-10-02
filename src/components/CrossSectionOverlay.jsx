@@ -8,8 +8,12 @@ import { sampleHeightsWithSource, terrainSourceLabel, chosenTerrainSource } from
 import TerrainSourceSelect from './TerrainSourceSelect'
 import {
   crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, placeSection,
-  sectionNeighbours, sectionLinePoints, sectionLevels, PLANUM_EDGE, RAILS, SLEEPERS,
+  sectionNeighbours, sectionLinePoints, sectionLevels, sectionOrigin, PLANUM_EDGE, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
+import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/mapConstants'
+import { listClouds } from '../utils/pointCloud/cloudStore'
+import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
+import { drawCloudPoints, CLOUD_COLORINGS } from '../utils/pointCloud/cloudPaint'
 import {
   gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
   DEFAULT_GAUGE_PROFILE,
@@ -29,6 +33,13 @@ const TERRAIN_COLOR = '#2e8b3a'
 /** Terrain is read at least this far either side of the track [m]. */
 const MIN_TERRAIN_HALF = 40
 const ASSUMED_COLOR = '#8a8a8a'
+/** Slice thickness of the point cloud unless the user says otherwise [cm]. */
+const DEFAULT_THICKNESS = 10
+const MAX_THICKNESS = 100
+/** How far beyond the reach the point cloud is still read [m] — the drawing runs past the outer tracks. */
+const CLOUD_MARGIN = 5
+const CLOUD_COLOR = '#7a5a14'
+const heightName = (epsg) => HEIGHT_DATUMS.find(d => d.epsg === Number(epsg))?.label ?? `EPSG ${epsg}`
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 // Where the section is taken: a dot on the track at the slider's station, and
@@ -82,7 +93,13 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   const [reach, setReach] = useState(DEFAULT_REACH)
   const [terrain, setTerrain] = useState(null)   // { key, points: [{ y, z }], sources }
   const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
+  const [clouds, setClouds] = useState([])          // the project's point clouds on this device
+  const [cloudOn, setCloudOn] = useState(true)
+  const [thickness, setThickness] = useState(DEFAULT_THICKNESS)
+  const [coloring, setColoring] = useState(CLOUD_COLORINGS[0])
+  const [slice, setSlice] = useState(null)          // { key, parts: [{ cloud, points }], ms }
   const bodyRef = useRef(null)
+  const canvasRef = useRef(null)
 
   const tracks = loadTracks(project.id)
   const track = tracks.find(tr => tr.id === at.trackId)
@@ -185,6 +202,43 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terrainKey])
 
+  // ── The point clouds of the project, sliced at the section plane ─────────
+  useEffect(() => {
+    let live = true
+    listClouds(project.id).then(c => { if (live) setClouds(c) }).catch(() => {})
+    return () => { live = false }
+  }, [project.id])
+
+  const cloudKey = track && cloudOn && clouds.length
+    ? `${track.id}|${station.toFixed(2)}|${reach}|${thickness}|${clouds.map(c => c.id).join(',')}`
+    : null
+
+  useEffect(() => {
+    if (!cloudKey || !track) return
+    let cancelled = false
+    const origin = sectionOrigin(track, station)
+    if (!origin) return
+    const t0 = performance.now()
+    Promise.all(clouds.map(async (cloud) => ({
+      cloud,
+      points: await cloudSectionPoints(project.id, cloud, {
+        origin: origin.utm, bearing: origin.bearing, crs: track.epsg,
+        halfWidth: reach + CLOUD_MARGIN, thickness: thickness / 100,
+      }),
+    }))).then((parts) => {
+      if (!cancelled) setSlice({ key: cloudKey, parts, ms: performance.now() - t0 })
+    }).catch(() => {
+      if (!cancelled) setSlice({ key: cloudKey, parts: [], ms: 0, failed: true })
+    })
+    return () => { cancelled = true }
+    // track and station are part of the key; the track object is new on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudKey])
+
+  // The last slice stays on screen while the next is read, so the drawing does
+  // not flicker as the slider moves.
+  const cloudParts = cloudOn && slice ? slice.parts : []
+
   const terrainPoints = terrain?.key === terrainKey ? terrain.points : null
   // Every track at its gradient; one without stands a little over the ground,
   // greyed, and the drawing is relative to the stated height nearest to hand.
@@ -229,6 +283,25 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   }
   const fit = size && size.w >= 40 && size.h >= 40 && fitPoints.length ? fitSection(fitPoints, size, MARGIN) : null
 
+  // The cloud is painted under the drawing, in the drawing's own transform.
+  const cloudCount = cloudParts.reduce((n, part) => n + part.points.count, 0)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !size) return
+    const dpr = window.devicePixelRatio || 1
+    if (canvas.width !== Math.round(size.w * dpr) || canvas.height !== Math.round(size.h * dpr)) {
+      canvas.width = Math.round(size.w * dpr)
+      canvas.height = Math.round(size.h * dpr)
+    }
+    const ctx = canvas.getContext('2d')
+    if (!fit || !cloudParts.length) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      return
+    }
+    drawCloudPoints(ctx, { w: size.w, h: size.h, dpr, k: fit.k, cx: fit.cx, cy: fit.cy, zRef, parts: cloudParts, coloring })
+  })
+
   if (!track) return null
 
   const fmt = (z, digits = 3) => z.toFixed(digits)
@@ -247,6 +320,26 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
         runs[runs.length - 1].push([p.y, (p.z - zRef) * 1000])
         return runs
       }, [[]]).filter(r => r.length >= 2),
+    }
+  })()
+
+  // What the cloud says about itself under the drawing: how many points are in
+  // the slice, and — since the app does not convert between height systems
+  // (elevationSource) — whether its heights are in another one than the track's.
+  const cloudState = (() => {
+    if (!cloudOn || !clouds.length) return null
+    if (zRef == null) return { text: t('cross_section_cloud_no_height') }
+    if (!slice) return { text: t('cross_section_cloud_loading') }
+    if (slice.failed) return { text: t('cross_section_cloud_failed') }
+    const trackDatum = Number(track.heightEpsg) || DEFAULT_HEIGHT_EPSG
+    const others = [...new Set(cloudParts.filter(p => p.points.count && Number(p.cloud.heightEpsg) !== trackDatum)
+      .map(p => heightName(p.cloud.heightEpsg)))]
+    return {
+      text: t('cross_section_cloud_count').replace('{{n}}', cloudCount.toLocaleString())
+        .replace('{{half}}', String(thickness / 2)),
+      datum: others.length
+        ? t('cross_section_cloud_datum').replace('{{cloud}}', others.join(', ')).replace('{{track}}', heightName(trackDatum))
+        : null,
     }
   })()
 
@@ -295,10 +388,10 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
               ))}
               {/* the superstructure carrying it */}
               {p.sleeper.length > 0 && (
-                <path d={`${path(p.sleeper)} Z`} fill="#d9d4cc" stroke="#8d867a" strokeWidth="1" />
+                <path d={`${path(p.sleeper)} Z`} fill="#d9d4cc" fillOpacity={cloudCount ? 0.45 : 1} stroke="#8d867a" strokeWidth="1" />
               )}
               {p.rails.map((r, i) => (
-                <path key={`r${i}`} d={`${path(r)} Z`} fill="#6b6b6b" stroke="#333" strokeWidth="1" />
+                <path key={`r${i}`} d={`${path(r)} Z`} fill="#6b6b6b" fillOpacity={cloudCount ? 0.35 : 1} stroke="#333" strokeWidth="1" />
               ))}
               {/* the running plane between the running circles */}
               <line x1={X(p.runningCircles[0][0])} y1={Y(p.runningCircles[0][1])}
@@ -340,6 +433,13 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
         <text x={MARGIN / 2} y={size.h - 8} fontSize="11" fill={terrainState.runs ? TERRAIN_COLOR : '#888'}>
           {terrainState.text}
         </text>
+        {cloudState && (
+          <text x={MARGIN / 2} y={16} fontSize="11" fill={CLOUD_COLOR}
+            stroke="#fff" strokeWidth="3" paintOrder="stroke" strokeLinejoin="round">
+            <tspan x={MARGIN / 2}>{cloudState.text}</tspan>
+            {cloudState.datum && <tspan x={MARGIN / 2} dy="13" fill="#b35c00">{cloudState.datum}</tspan>}
+          </text>
+        )}
       </svg>
     )
   }
@@ -348,7 +448,7 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
   return (
     <div className="profile-overlay" style={heightPx ? { height: heightPx } : undefined}>
       <div className="profile-resize" onPointerDown={onResizeStart} />
-      <div className="track-table-header">
+      <div className="track-table-header cross-section-header">
         <span className="track-table-title">
           {`${track.name || track.id.slice(0, 8)} · ${t('cross_section_station')} ${station.toFixed(1)} m`}
         </span>
@@ -358,6 +458,29 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
             {state?.radius != null ? ` · R ${Math.round(Math.abs(state.radius))} m` : ` · ${t('table_type_straight')}`}
             {` · ${RAILS[main.rail]?.label ?? main.rail} · ${SLEEPERS[main.sleeper]?.label ?? main.sleeper}`}
           </span>
+          {clouds.length > 0 && (
+            <>
+              <label className="profile-edit" title={t('cross_section_cloud_hint')}>
+                <input type="checkbox" checked={cloudOn} onChange={e => setCloudOn(e.target.checked)} />
+                {t('cross_section_cloud')}
+              </label>
+              {cloudOn && (
+                <>
+                  <label className="profile-edit" title={t('cross_section_cloud_thickness_hint')}>
+                    {t('cross_section_cloud_thickness')}
+                    <input className="track-table-input cross-section-reach" type="number" min={1} max={MAX_THICKNESS} step={2}
+                      value={thickness}
+                      onChange={e => setThickness(clamp(Number(e.target.value) || DEFAULT_THICKNESS, 1, MAX_THICKNESS))} />
+                    cm
+                  </label>
+                  <select className="cross-section-coloring" value={coloring} onChange={e => setColoring(e.target.value)}
+                    title={t('cross_section_cloud_coloring')}>
+                    {CLOUD_COLORINGS.map(c => <option key={c} value={c}>{t(`cross_section_cloud_by_${c}`)}</option>)}
+                  </select>
+                </>
+              )}
+            </>
+          )}
           <label className="profile-edit">
             {t('terrain_source')}
             <TerrainSourceSelect t={t} value={terrainSource} onChange={setTerrainSource} />
@@ -372,7 +495,12 @@ export default function CrossSectionOverlay({ at, project, map, onAtChange, onCl
           <button className="track-table-close" onClick={onClose}>✕</button>
         </div>
       </div>
-      <div className="profile-body" ref={bodyRef}>{drawing()}</div>
+      <div className="profile-body" ref={bodyRef}>
+        <canvas ref={canvasRef} className="cross-section-cloud" data-slice-ms={slice ? slice.ms.toFixed(1) : ''}
+          data-cpu-ms={slice ? slice.parts.reduce((a, p) => a + (p.points.sliceMs ?? 0) + (p.points.decodeMs ?? 0), 0).toFixed(1) : ''}
+          style={size ? { width: size.w, height: size.h } : undefined} />
+        {drawing()}
+      </div>
       <div className="cross-section-slider">
         <input
           type="range" min={0} max={total} step={0.1} value={station}

@@ -1045,5 +1045,17 @@
   "pointcloud_delete_ask": "Punktwolke „{{name}}“ von diesem Gerät löschen?",
   "pointcloud_delete_failed": "Löschen fehlgeschlagen",
   "pointcloud_storage": "Speicher dieser App im Browser: {{used}} belegt, {{free}} frei.",
-  "pointcloud_not_persisted": "Der Browser hat den Speicher nicht als dauerhaft zugesagt – bei Platzmangel kann er ihn räumen."
+  "pointcloud_not_persisted": "Der Browser hat den Speicher nicht als dauerhaft zugesagt – bei Platzmangel kann er ihn räumen.",
+  "cross_section_cloud": "Punktwolke",
+  "cross_section_cloud_hint": "Punkte der Vermessungs-Punktwolke nahe der Schnittebene (nur auf diesem Gerät)",
+  "cross_section_cloud_thickness": "Scheibe",
+  "cross_section_cloud_thickness_hint": "Dicke der Scheibe um die Schnittebene, aus der Punkte gezeigt werden",
+  "cross_section_cloud_coloring": "Färbung der Punkte",
+  "cross_section_cloud_by_intensity": "nach Intensität",
+  "cross_section_cloud_by_height": "nach Höhe",
+  "cross_section_cloud_count": "Punktwolke: {{n}} Punkte in ±{{half}} cm",
+  "cross_section_cloud_loading": "Punktwolke wird gelesen …",
+  "cross_section_cloud_failed": "Punktwolke konnte nicht gelesen werden",
+  "cross_section_cloud_no_height": "Punktwolke nicht darstellbar: kein Gleis im Schnitt hat eine Höhe",
+  "cross_section_cloud_datum": "Höhen nicht umgerechnet: Wolke {{cloud}}, Gleis {{track}} (meist 1–3 cm Unterschied)"
 }

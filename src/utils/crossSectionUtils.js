@@ -396,18 +396,31 @@ export function sectionLevels(tracks, terrainPoints) {
 }
 
 /**
+ * Where the section is taken: the point of the track at `station` (clamped
+ * to the track) in its plane, and the track's bearing there [degrees from
+ * grid north] — the section plane stands square on it, positive y to the
+ * right. Null for a track without plane or elements.
+ */
+export function sectionOrigin(track, station) {
+  const epsg = track?.epsg
+  const rows = elementStations(track)
+  if (!epsg || !rows.length) return null
+  const total = rows[rows.length - 1].end
+  const s0 = clamp(station, 0, total)
+  const row = rows.find(r => s0 <= r.end + 1e-9) ?? rows[rows.length - 1]
+  return pointOnElement(row.el, epsg, s0 - row.start)
+}
+
+/**
  * Where the terrain is read along the section line: every `step` metres from
  * `from` to `to` (y in metres, positive to the right), each point as the
  * offset across the track [mm] and its WGS84 position.
  */
 export function sectionLinePoints(track, station, from, to, step = 1) {
-  const epsg = track?.epsg
-  const rows = elementStations(track)
-  if (!epsg || !rows.length || !(to > from) || !(step > 0)) return []
-  const total = rows[rows.length - 1].end
-  const s0 = clamp(station, 0, total)
-  const row = rows.find(r => s0 <= r.end + 1e-9) ?? rows[rows.length - 1]
-  const { utm, bearing } = pointOnElement(row.el, epsg, s0 - row.start)
+  const origin = sectionOrigin(track, station)
+  if (!origin || !(to > from) || !(step > 0)) return []
+  const { utm, bearing } = origin
+  const epsg = track.epsg
   const rad = bearing * Math.PI / 180
   const n = Math.ceil((to - from) / step)
   return Array.from({ length: n + 1 }, (_, i) => {

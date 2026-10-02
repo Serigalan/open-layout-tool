@@ -1045,5 +1045,17 @@
   "pointcloud_delete_ask": "Delete point cloud “{{name}}” from this device?",
   "pointcloud_delete_failed": "Delete failed",
   "pointcloud_storage": "Storage of this app in the browser: {{used}} used, {{free}} free.",
-  "pointcloud_not_persisted": "The browser has not granted persistent storage – it may clear it when space runs short."
+  "pointcloud_not_persisted": "The browser has not granted persistent storage – it may clear it when space runs short.",
+  "cross_section_cloud": "Point cloud",
+  "cross_section_cloud_hint": "Points of the survey point cloud near the section plane (on this device only)",
+  "cross_section_cloud_thickness": "Slice",
+  "cross_section_cloud_thickness_hint": "Thickness of the slice around the section plane whose points are shown",
+  "cross_section_cloud_coloring": "Colouring of the points",
+  "cross_section_cloud_by_intensity": "by intensity",
+  "cross_section_cloud_by_height": "by height",
+  "cross_section_cloud_count": "Point cloud: {{n}} points within ±{{half}} cm",
+  "cross_section_cloud_loading": "Reading point cloud …",
+  "cross_section_cloud_failed": "Point cloud could not be read",
+  "cross_section_cloud_no_height": "Point cloud cannot be shown: no track in the section has a height",
+  "cross_section_cloud_datum": "Heights not converted: cloud {{cloud}}, track {{track}} (usually 1–3 cm apart)"
 }

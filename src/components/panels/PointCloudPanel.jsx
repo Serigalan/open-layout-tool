@@ -10,6 +10,7 @@ import {
   listClouds, deleteCloud, opfsAvailable, persistStorage, storagePersisted, storageEstimate, estimateCloudBytes,
 } from '../../utils/pointCloud/cloudStore'
 import { outlineFeature, cloudSize } from '../../utils/pointCloud/cloudOutline'
+import { forgetCloud } from '../../utils/pointCloud/cloudSection'
 import usePreviewLayers from '../../hooks/usePreviewLayers'
 import ConfirmModal from '../ConfirmModal'
 
@@ -99,6 +100,7 @@ export default function PointCloudPanel({ t, map, project }) {
     setAsking(null)
     try {
       await deleteCloud(project.id, cloud.id)
+      forgetCloud(cloud.id)
     } catch (err) {
       setMessage({ kind: 'error', text: `${t('pointcloud_delete_failed')}: ${err.message}` })
     }
