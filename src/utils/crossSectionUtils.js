@@ -19,6 +19,7 @@ import { transitionCantEnds } from './clothoidUtils'
 import { edgeOffsets, elementStations, pointOnElement, DEFAULT_PLATFORM_HEIGHT } from './platformUtils'
 import { transformPlanePoint, utmToWgs84 } from './coordinateUtils'
 import { QUERSCHNITT_KATALOG } from './gaugeProfiles'
+import { clamp } from './format'
 
 /** Distance between the two running circles, and between the rail inner faces [mm]. */
 export const RUNNING_CIRCLE_DISTANCE = 1500
@@ -45,7 +46,6 @@ export const SLEEPERS = {
 export const DEFAULT_RAIL    = '54E4'
 export const DEFAULT_SLEEPER = 'B70'
 
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 /** Station a track's element begins at [m]. */
 export const elementStartStation = (track, elIdx) =>

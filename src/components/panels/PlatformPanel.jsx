@@ -18,6 +18,7 @@ import useMapEvents from '../../map/useMapEvents'
 import { PALETTE } from '../../styles/palette'
 import ReadOnlyField from '../form/ReadOnlyField'
 import FormSection from '../form/FormSection'
+import { trackLabel } from '../../utils/trackModel'
 
 const PREVIEW_FILL_SOURCE = 'platform-preview-fill-source'
 const PREVIEW_LINE_SOURCE = 'platform-preview-line-source'
@@ -196,7 +197,6 @@ export default function PlatformPanel() {
   // The edge is only located vertically where the track carries heights.
   const edgeStart  = valid ? platformEdgeElevation(draft, track, draft.startStation) : null
   const edgeEnd    = valid ? platformEdgeElevation(draft, track, draft.endStation)   : null
-  const trackLabel = (tr) => tr?.name || tr?.id?.slice(0, 8) || '–'
 
   if (phase === 'select') {
     return (

@@ -24,6 +24,7 @@ import { useMap } from '../map/MapContext'
 import { useProject } from '../hooks/useStore'
 import usePreview from '../map/usePreview'
 import { PALETTE } from '../styles/palette'
+import { clamp } from '../utils/format'
 
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
@@ -49,7 +50,6 @@ const CLEAR_COLOR = PALETTE.clear
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 200
 const heightName = (epsg) => HEIGHT_DATUMS.find(d => d.epsg === Number(epsg))?.label ?? `EPSG ${epsg}`
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 // Where the section is taken: a dot on the track at the slider's station, and
 // the section line through it as far as other tracks are looked for — so the

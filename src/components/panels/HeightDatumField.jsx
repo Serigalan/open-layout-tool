@@ -1,4 +1,4 @@
-import { HEIGHT_DATUMS } from '../../utils/heightDatums'
+import { HEIGHT_DATUMS, heightDatumLabel } from '../../utils/heightDatums'
 import { useI18n } from '../../locales/i18nContext'
 
 /**
@@ -17,7 +17,7 @@ export default function HeightDatumField({ value, onChange }) {
       <label>{t('height_datum')}</label>
       <select value={String(value)} onChange={(e) => onChange(e.target.value)}>
         {datums.map((d) => (
-          <option key={d.epsg} value={String(d.epsg)}>{`EPSG ${d.epsg}${d.label ? ` – ${d.label}` : ''}`}</option>
+          <option key={d.epsg} value={String(d.epsg)}>{heightDatumLabel(d.epsg)}</option>
         ))}
       </select>
     </div>

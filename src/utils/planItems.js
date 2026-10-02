@@ -1,3 +1,4 @@
+import { formatNumber } from './format'
 
 
 // The plan's drawing primitives and text metrics: pens, type sizes, text boxes, culling, paths and texts in page millimetres.
@@ -51,11 +52,7 @@ export function textWidth(parts, size) {
  * *behind the point* dropped, so 190.10 reads 190,1 and 400.00 reads 400.
  * Only behind the point — 120 mm of cant is not 12.
  */
-export const fmtNum = (v, decimals, comma) => {
-  let s = (Math.round(v * 10 ** decimals) / 10 ** decimals).toFixed(decimals)
-  if (decimals > 0) s = s.replace(/0+$/, '').replace(/\.$/, '')
-  return comma ? s.replace('.', ',') : s
-}
+export const fmtNum = (v, decimals, comma) => formatNumber(v, { digits: decimals, comma, trim: true })
 
 /**
  * Direction a plane bearing takes on the page, counter-clockwise positive.

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { loadTracks, loadSwitches, currentProject, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
 import { generateId } from '../../utils/identifierUtils'
-import { recalcAbsLengths, rebuildCoords, nextTrackName } from '../../utils/trackModel'
+import { recalcAbsLengths, rebuildCoords, nextTrackName, trackLabel } from '../../utils/trackModel'
 import { parseProjectsPayload, parseTracksPayload, PayloadError } from '../../utils/persistenceUtils'
 import { parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'
@@ -12,7 +12,7 @@ import { parseOsrdRailJson } from '../../utils/osrdImport'
 import { fitToTracks } from '../../utils/mapRenderUtils'
 import { downloadJSON, downloadText } from '../../utils/fileUtils'
 import { EPSG_OPTIONS, crsDatum, crsLabel, projectCrsOptions } from '../../utils/coordinateUtils'
-import { HEIGHT_DATUMS } from '../../utils/heightDatums'
+import { HEIGHT_DATUMS, heightDatumLabel } from '../../utils/heightDatums'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
 import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, buildAllTracksFromMdb, mdbSwitchInventory, mdbBufferStops, matchMdbBufferStops } from '../../utils/mdbImport'
 import { placeMdbSwitches } from '../../utils/mdbSwitchPlacement'
@@ -76,11 +76,6 @@ function EsnFileSlot({ label, inputRef, accept, onChange, file, pickLabel, remov
       )}
     </div>
   )
-}
-
-function trackLabel(track) {
-  const parts = [track.lineNumber, track.name || track.trackNumber].filter(Boolean)
-  return parts.length ? parts.join(' · ') : track.id
 }
 
 export default function DataExchangePanel({ onShowCompare }) {
@@ -816,7 +811,7 @@ export default function DataExchangePanel({ onShowCompare }) {
             <label>{t('data_exchange_vermesn_height')}</label>
             <select className="settings-select" value={graHeightEpsg} onChange={e => setGraHeightEpsg(e.target.value)}>
               <option value="">{t('pointcloud_choose')}</option>
-              {HEIGHT_DATUMS.map(d => <option key={d.epsg} value={d.epsg}>{`EPSG ${d.epsg} – ${d.label}`}</option>)}
+              {HEIGHT_DATUMS.map(d => <option key={d.epsg} value={d.epsg}>{heightDatumLabel(d.epsg)}</option>)}
             </select>
             {gra.code && (
               <span className="msg-hint msg-small">

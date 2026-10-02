@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { loadTracks, updateTrack } from '../../storage'
-import { recalcAbsLengths, rebuildCoords } from '../../utils/trackModel'
+import { recalcAbsLengths, rebuildCoords, trackLabel } from '../../utils/trackModel'
 import {
   optimizeOnServer, optimizerReachable, fetchRegelwerke, OptimizerError,
 } from '../../utils/optimizerService'
@@ -31,10 +31,6 @@ const OPTIMIZE_PREVIEW_LAYERS = [{
     },
   },
 }]
-
-function trackLabel(track) {
-  return [track.lineNumber, track.trackNumber].filter(Boolean).join(' / ') || track.name || track.id.slice(0, 8)
-}
 
 function previewGeoJSON(elements) {
   const coords = elements.reduce((acc, el, i) => {

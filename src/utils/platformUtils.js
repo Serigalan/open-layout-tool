@@ -5,6 +5,7 @@ import {
 import { transitionPointAtUtm, transitionBearingAtUtm } from './clothoidUtils'
 import { heightAt } from './heightUtils'
 import { SAGITTA_ELEMENT, STRAIGHT_VERTEX_SPACING } from './geometryPrecision'
+import { clamp } from './format'
 
 /**
  * A platform is anchored to one track: the two picked points are stations along
@@ -43,7 +44,6 @@ export const DEFAULT_PLATFORM_HEIGHT = 550
 /** Longest station code (DS100-style abbreviation) accepted. */
 export const PLATFORM_CODE_MAX = 4
 
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 /** The elements of a track with the station each of them starts and ends at. */
 export function elementStations(track) {

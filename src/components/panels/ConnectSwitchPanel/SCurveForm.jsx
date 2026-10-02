@@ -14,6 +14,7 @@ import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import { PALETTE } from '../../../styles/palette'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import { trackLabel } from '../../../utils/trackModel'
 
 // ── Preview layers (managed by usePreview) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'
@@ -48,10 +49,6 @@ const DEG2RAD = Math.PI / 180
 // Default speed — the one the R = 1200 form is built for, if it is in the table.
 const DEFAULT_TYPE = Math.max(0,
   CONNECTION_SPEEDS.indexOf(SWITCH_TYPES.find(s => s.R === 1200)?.speed))
-
-function trackLabel(track) {
-  return [track.lineNumber, track.trackNumber].filter(Boolean).join(' / ') || track.name || track.id.slice(0, 8)
-}
 
 // Build the green/red preview: branch arc + middle element + branch arc
 function buildPreviewGeoJSON(result) {

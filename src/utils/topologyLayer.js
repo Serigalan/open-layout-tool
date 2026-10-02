@@ -2,6 +2,7 @@ import { classifyTrackEnds, switchNodes } from './topology'
 import { GEOJSON_MAXZOOM } from './geometryPrecision'
 import { ZOOM_LINE_WIDTH } from '../map/style'
 import { BUFFER_STOPS_BRAKE_LAYER, BUFFER_STOPS_LAYER, PLATFORMS_FILL_LAYER, PLATFORMS_OUTLINE_LAYER, SWITCH_FILLS_LAYER, SWITCH_LCS_LAYER, TRACKS_LAYER, TRACKS_SOURCE, TRACK_MARKERS_LAYER } from '../map/layerIds'
+import { EMPTY_FC } from '../map/geojson'
 
 /**
  * The topology view (ROADMAP AP 9.3): the tracks as plain lines in their true
@@ -126,8 +127,8 @@ export function topologyGeoJSON(tracks, switches, endMarks) {
 }
 
 function addLayers(map) {
-  map.addSource(SOURCE_NODES, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, maxzoom: GEOJSON_MAXZOOM })
-  map.addSource(SOURCE_ENDS, { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, maxzoom: GEOJSON_MAXZOOM })
+  map.addSource(SOURCE_NODES, { type: 'geojson', data: EMPTY_FC, maxzoom: GEOJSON_MAXZOOM })
+  map.addSource(SOURCE_ENDS, { type: 'geojson', data: EMPTY_FC, maxzoom: GEOJSON_MAXZOOM })
   // A white veil over the basemap and everything the basemap brought (the
   // kilometrage overlays included), under the tracks: the map stays for
   // orientation and nothing on it competes with the network.

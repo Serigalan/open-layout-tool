@@ -156,3 +156,9 @@ export function trackEndAnchor(track) {
     lastIndex,
   }
 }
+
+/** How a dialog names a track: line / track number, else its name, else the start of its id. */
+export function trackLabel(track) {
+  if (!track) return '–'
+  return [track.lineNumber, track.trackNumber].filter(Boolean).join(' / ') || track.name || track.id.slice(0, 8)
+}

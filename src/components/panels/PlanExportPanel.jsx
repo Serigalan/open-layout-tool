@@ -3,7 +3,7 @@ import { loadTracks, loadSwitches, loadKmLines, loadPlatforms, loadPlanHeader, s
 import PlanHeaderFields from './PlanHeaderFields'
 import { PARTIES, STAFF, normalizeHeader, todayIso } from '../../utils/planHeader'
 import { BASEMAPS } from '../../basemaps'
-import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../../utils/heightDatums'
+import { DEFAULT_HEIGHT_EPSG, heightDatumLabel } from '../../utils/heightDatums'
 import { PAPER_FORMATS, SCALES, TITLE_COLUMN_MM } from '../../utils/planExport'
 import { planSheets } from '../../utils/planLayout'
 import { buildPlan } from '../../utils/planModel'
@@ -45,12 +45,6 @@ const SCHEMATIC_CONTENT_KEYS = [
   ['trackNames', 'plan_show_names'],
   ['platforms',  'plan_show_platforms'],
 ]
-
-function heightLabel(epsg) {
-  const code = epsg ?? DEFAULT_HEIGHT_EPSG
-  const known = HEIGHT_DATUMS.find(d => String(d.epsg) === String(code))
-  return known ? `EPSG ${code} – ${known.label}` : `EPSG ${code}`
-}
 
 /** Pause in typing after which the title block is saved to the project [ms]. */
 const HEADER_SAVE_DELAY = 500
@@ -232,7 +226,7 @@ export default function PlanExportPanel({ onShowPlanPreview }) {
       titleBlock: titleBlockOf({
         legend: t('plan_legend'),
         kind: t('plan_default_title'), scale: `1:${scaleKey}`, zone,
-        lines: [t('plan_sheet_of'), `${t('plan_field_heights')}: ${heightLabel(heightEpsg)}`],
+        lines: [t('plan_sheet_of'), `${t('plan_field_heights')}: ${heightDatumLabel(heightEpsg ?? DEFAULT_HEIGHT_EPSG)}`],
         current,
       }),
     })

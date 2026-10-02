@@ -18,3 +18,9 @@ export const HEIGHT_DATUMS = [
   { epsg: 5773, label: 'EGM96' },
   { epsg: 3855, label: 'EGM2008' },
 ]
+
+/** A height datum as the dialogs name it: "EPSG 7837 – DHHN2016", or the bare code for one the list does not know. */
+export function heightDatumLabel(epsg = DEFAULT_HEIGHT_EPSG) {
+  const known = HEIGHT_DATUMS.find(d => String(d.epsg) === String(epsg))
+  return known ? `EPSG ${epsg} – ${known.label}` : `EPSG ${epsg}`
+}

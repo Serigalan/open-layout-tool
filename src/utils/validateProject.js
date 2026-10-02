@@ -3,6 +3,7 @@ import { pointOnElement } from './platformUtils'
 import { sampleTransitionUtm } from './clothoidUtils'
 import { endKey } from './trackEndMarks'
 import { absLengthErrors, epsgMismatches, nodeGaps, untrueLengths } from './chainChecks'
+import { trackLabel } from './trackModel'
 
 /**
  * Whether a project record holds together — the check every merge result and
@@ -35,9 +36,6 @@ export const OVERLAP_DIST = 0.5
 export const OVERLAP_LENGTH = 10
 
 const trackLength = (t) => (t.elements ?? []).reduce((s, e) => s + (e.length ?? 0), 0)
-
-const trackLabel = (t) => (t.lineNumber != null && t.trackNumber != null
-  ? `${t.lineNumber}-${t.trackNumber}` : (t.name ?? t.id))
 
 export function validateProject(project) {
   const errors = [], warnings = []

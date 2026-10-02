@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, replaceAllTracks, remapSwitchTrackIds } from '../../storage'
 import { generateId } from '../../utils/identifierUtils'
-import { rebuildCoords, recalcAbsLengths } from '../../utils/trackModel'
+import { rebuildCoords, recalcAbsLengths, trackLabel } from '../../utils/trackModel'
 import { computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, reverseElement, nodeUtm } from '../../utils/elementUtils'
 import {
   computeSpliceWithClothoids, computeArcSpliceWithClothoids, computeArcArcTransition,
@@ -45,10 +45,6 @@ function buildPreviewGeoJSON(coords) {
       geometry: { type: 'LineString', coordinates: coords },
     }],
   }
-}
-
-function trackLabel(track) {
-  return [track.lineNumber, track.trackNumber].filter(Boolean).join(' / ') || track.name || track.id.slice(0, 8)
 }
 
 

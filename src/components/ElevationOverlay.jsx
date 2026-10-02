@@ -11,6 +11,7 @@ import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
+import { clamp } from '../utils/format'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
 const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
@@ -20,7 +21,6 @@ const STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 50
 /** Smallest round step that is at least `minPx` wide at `pxPerUnit`. */
 const niceStep = (minPx, pxPerUnit) => STEPS.find(s => s * pxPerUnit >= minPx) ?? STEPS[STEPS.length - 1]
 const decimals = (step) => (step < 1 ? (step < 0.2 ? 2 : 1) : 0)
-const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 // Narrower than this and the gradient label would not fit between its points.
 const GRADE_LABEL_MIN_PX = 46
 /** A gradient in ‰, signed — a rise is written with its plus, a level stretch as 0. */

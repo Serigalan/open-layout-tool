@@ -2,20 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useMap } from './MapContext'
 import { GEOJSON_MAXZOOM } from '../utils/geometryPrecision'
 import { FILTER_NONE, mapIsLive } from './pick'
-
-/** An empty FeatureCollection — what a preview source holds while it shows nothing. */
-export const EMPTY_FC = Object.freeze({ type: 'FeatureCollection', features: Object.freeze([]) })
-
-/**
- * Whatever a preview is handed, as GeoJSON for a source: nothing (null,
- * undefined) is the empty collection, an array is a collection of those
- * features, a Feature or FeatureCollection is taken as it is.
- */
-export function asGeoJSON(data) {
-  if (data == null) return EMPTY_FC
-  if (Array.isArray(data)) return { type: 'FeatureCollection', features: data }
-  return data
-}
+import { EMPTY_FC, asGeoJSON } from './geojson'
 
 /**
  * A panel's preview layers on the map (R3.2): added when the component mounts,

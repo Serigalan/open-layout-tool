@@ -5,6 +5,7 @@ import { fitSize, titleBlockFor } from './planTitleBlock'
 import { schematicLayout, toPlane } from './planSchematic'
 import { STATUSES, STATUS_COLOR, switchStatus } from './planStatus'
 import { format } from '../locales/i18n'
+import { formatNumber } from './format'
 
 /**
  * The schematic overview as a plan: the strip from planSchematic cut into
@@ -49,10 +50,7 @@ const LEGEND_ROW = 5    // legend line spacing [mm]
 
 const PRIO = { station: 1, joint: 1, km: 2, switch: 3, track: 4 }
 
-const fmt = (v, decimals, comma) => {
-  const s = v.toFixed(decimals)
-  return comma ? s.replace('.', ',') : s
-}
+const fmt = (v, decimals, comma) => formatNumber(v, { digits: decimals, comma })
 
 /**
  * What the plan calls a switch: its number alone, without the leading zeros

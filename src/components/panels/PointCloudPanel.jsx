@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import { loadTracks } from '../../storage'
 import { EPSG_OPTIONS, crsLabel, crsName } from '../../utils/coordinateUtils'
-import { HEIGHT_DATUMS } from '../../utils/heightDatums'
+import { HEIGHT_DATUMS, heightDatumLabel } from '../../utils/heightDatums'
 import { readLasHeader, fileSource } from '../../utils/pointCloud/lasReader'
 import { probeExtent, projectPlane } from '../../utils/pointCloud/cloudProbe'
 import { startImport, previewPoints } from '../../utils/pointCloud/pointCloudImport'
@@ -38,7 +38,6 @@ const CLOUD_CRS = [...new Set([
 const mb = (bytes) => `${(bytes / 1e6).toLocaleString(undefined, { maximumFractionDigits: 1 })} MB`
 const gb = (bytes) => `${(bytes / 1e9).toLocaleString(undefined, { maximumFractionDigits: 1 })} GB`
 const size = (bytes) => (bytes >= 1e9 ? gb(bytes) : mb(bytes))
-const heightLabel = (epsg) => HEIGHT_DATUMS.find(d => d.epsg === Number(epsg))?.label ?? `EPSG ${epsg}`
 
 // Where each cloud lies, while the panel is open.
 const OUTLINE_SOURCE = 'pointcloud-outline-source'
@@ -236,7 +235,7 @@ export default function PointCloudPanel() {
             <label>{t('pointcloud_height')}</label>
             <select value={heightEpsg} disabled={!!run} onChange={e => setHeightEpsg(e.target.value)}>
               <option value="">{t('pointcloud_choose')}</option>
-              {HEIGHT_DATUMS.map(d => <option key={d.epsg} value={d.epsg}>{`${d.label} (EPSG ${d.epsg})`}</option>)}
+              {HEIGHT_DATUMS.map(d => <option key={d.epsg} value={d.epsg}>{heightDatumLabel(d.epsg)}</option>)}
             </select>
           </div>
           {probe && probe.ok === true && <p className="selecting-hint">{t('pointcloud_probe_ok')}</p>}
@@ -292,7 +291,7 @@ export default function PointCloudPanel() {
             <span className="pointcloud-meta">
               {`${t('pointcloud_crs_short')}: ${crsName(c.sourceCrs) ?? `EPSG ${c.sourceCrs}`}`
                 + (c.sourceCrs !== c.crs ? ` → ${crsName(c.crs) ?? `EPSG ${c.crs}`}` : '')
-                + ` · ${t('pointcloud_height_short')}: ${heightLabel(c.heightEpsg)}`}
+                + ` · ${t('pointcloud_height_short')}: ${heightDatumLabel(c.heightEpsg)}`}
             </span>
             <span className="pointcloud-meta">
               {`${Math.round(w)} × ${Math.round(h)} m · `

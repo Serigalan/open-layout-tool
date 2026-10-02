@@ -1,5 +1,6 @@
 import maplibregl from 'maplibre-gl'
 import { GEOJSON_MAXZOOM } from './geometryPrecision'
+import { EMPTY_FC } from '../map/geojson'
 
 export function getColor() {
   return getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#303383'
@@ -96,6 +97,6 @@ export function clearPreview(map) {
   }
   if (_previewTooltip) { _previewTooltip.remove(); _previewTooltip = null }
   if (map.getSource(MARKER_SOURCE)) {
-    map.getSource(MARKER_SOURCE).setData({ type: 'FeatureCollection', features: [] })
+    map.getSource(MARKER_SOURCE).setData(EMPTY_FC)
   }
 }
