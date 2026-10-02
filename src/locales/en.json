@@ -124,6 +124,7 @@
   "field_offset": "Offset (m)",
   "btn_commit": "Commit",
   "btn_cancel": "Cancel",
+  "btn_remove": "Remove",
   "btn_back": "Back",
   "field_speed": "Speed (km/h)",
   "field_length": "Length (m)",

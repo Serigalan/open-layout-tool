@@ -779,6 +779,20 @@ export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwit
 }
 
 /**
+ * Add what an import brought — tracks, switches, end marks, and fields of the
+ * project record such as the RailJSON passthrough — as one undo step.
+ */
+export function commitImport({ addTracks = [], addSwitches = [], addEndMarks = [], patch = null }) {
+  return mutate(p => ({
+    ...p,
+    ...(patch ?? {}),
+    tracks: [...(p.tracks ?? []), ...addTracks],
+    switches: [...(p.switches ?? []), ...addSwitches],
+    endMarks: [...(p.endMarks ?? []), ...addEndMarks],
+  }))
+}
+
+/**
  * Carry out a switch deletion (switchDelete.planSwitchDeletion): the record
  * goes, the tracks that were nothing but its geometry go with it, the tracks it
  * rewrote take their new elements, and every other switch that named a track

@@ -800,7 +800,7 @@
   padding: 3px var(--space-4); border-radius: 4px; background: #e8e8f4;
   font-size: var(--fs-s); color: var(--color-primary);
 }
-.chip-remove { margin-left: var(--space-3); font-weight: 700; color: var(--color-muted); cursor: pointer; }
+.chip-remove { margin-left: var(--space-3); font-weight: 700; color: var(--color-muted); cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
 .file-slot-name { font-size: var(--fs-s); }
 .station-name-input { position: relative; width: 100%; }
 .station-name-input input { width: 100%; box-sizing: border-box; }

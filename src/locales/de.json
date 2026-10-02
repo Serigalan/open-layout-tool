@@ -124,6 +124,7 @@
   "field_offset": "Abstand (m)",
   "btn_commit": "Bestätigen",
   "btn_cancel": "Abbrechen",
+  "btn_remove": "Entfernen",
   "btn_back": "Zurück",
   "field_speed": "Geschwindigkeit (km/h)",
   "field_length": "Länge (m)",

@@ -28,3 +28,9 @@ export function readImageAsBase64(file) {
     reader.readAsDataURL(file)
   })
 }
+
+/** A chosen file's text. */
+export const readFileText = (file) => file.text()
+
+/** A chosen file's bytes. */
+export const readFileBuffer = (file) => file.arrayBuffer()
