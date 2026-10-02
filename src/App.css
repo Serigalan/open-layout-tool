@@ -49,6 +49,11 @@
   background: rgba(255, 255, 255, 0.15);
 }
 
+.sidebar-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .sidebar-icon-btn.active {
   background: rgba(255, 255, 255, 0.2);
 }
@@ -909,10 +914,15 @@
   background: #c0392b;
 }
 
-/* Map */
-.map-container {
+/* Map: the pane beside the panels, the map filling it, overlays above it */
+.map-pane {
   flex: 1;
-  height: 100%;
+  position: relative;
+}
+
+.map-container {
+  position: absolute;
+  inset: 0;
 }
 
 /* Elevation legend — top left of the map, clear of the navigation control and
