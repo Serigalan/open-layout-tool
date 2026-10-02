@@ -2,19 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitTrackEdit } from '../../../storage'
 import { projectOnBearingUtm, nodeUtm } from '../../../utils/elementUtils'
 import { wgs84ToUTM } from '../../../utils/coordinateUtils'
-import { FILTER_NONE, HIT_TOLERANCE, ZOOM_ICON_SIZE, ZOOM_LINE_WIDTH, filterForElement } from '../../../utils/mapConstants'
+import { ZOOM_ICON_SIZE, ZOOM_LINE_WIDTH } from '../../../utils/mapConstants'
 import { ensureMarkerImages, ARROW_ICON_IMAGE } from '../../../utils/markerImages'
-import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import {
   EDIT_MARKER_SOURCE, EDIT_MARKER_LAYER, EDIT_LINES_SOURCE, EDIT_LINES_LAYER,
   planElementChange, buildLineFeatures, buildMarkerFeatures,
 } from './editGeometry'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
-import { useProject } from '../../../hooks/useStore'
-import { TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
+import usePreview from '../../../map/usePreview'
+import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
+import useMapEvents from '../../../map/useMapEvents'
 
-// Layer definitions for usePreviewLayers
+// Layer definitions for usePreview
 const EDIT_PREVIEW_LAYERS = [
   {
     sourceId: EDIT_LINES_SOURCE,
@@ -44,10 +44,11 @@ const EDIT_PREVIEW_LAYERS = [
   },
 ]
 
+const EDIT_PICK_LAYERS = [EDIT_MARKER_LAYER]
+
 export default function EditLengthForm({ onCommitted }) {
   const { t } = useI18n()
   const map = useMap()
-  const project = useProject()
   const [workingTracks, setWorkingTracks] = useState(() => loadTracks())
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [selectedElIdx, setSelectedElIdx] = useState(null)
@@ -70,41 +71,21 @@ export default function EditLengthForm({ onCommitted }) {
   }, [map])
 
   // Setup / cleanup preview layers
-  usePreviewLayers(map, EDIT_PREVIEW_LAYERS, { resetFilters: [TRACKS_SELECTED_LAYER], resetCursor: true })
+  const preview = usePreview(EDIT_PREVIEW_LAYERS)
 
   // Update preview lines and markers when working tracks change
   useEffect(() => {
-    if (!map?.current) return
-    const m = map.current
-    m.getSource(EDIT_LINES_SOURCE)?.setData(buildLineFeatures(workingTracks))
-    m.getSource(EDIT_MARKER_SOURCE)?.setData(buildMarkerFeatures(workingTracks))
-  }, [workingTracks, map])
+    preview.set(EDIT_LINES_SOURCE, buildLineFeatures(workingTracks))
+    preview.set(EDIT_MARKER_SOURCE, buildMarkerFeatures(workingTracks))
+  }, [workingTracks, preview])
 
-  // Phase: select element
-  useEffect(() => {
-    if (phase !== 'select' || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'pointer'
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [EDIT_MARKER_LAYER] })
-      if (features.length === 0) {
-        setSelectedTrackId(null)
-        setSelectedElIdx(null)
-        m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-        return
-      }
-      const { trackId, elementIndex } = features[0].properties
-      const elIdx = Number(elementIndex)
+  // Phase: select element — by its arrow on the preview layer.
+  useMapPick({
+    active: phase === 'select', layers: EDIT_PICK_LAYERS,
+    onPick: ({ trackId, elementIndex: elIdx }) => {
       setSelectedTrackId(trackId)
       setSelectedElIdx(elIdx)
-      m.setFilter(TRACKS_SELECTED_LAYER, filterForElement(trackId, elIdx))
-
-      const track = workingRef.current.find(t => t.id === trackId)
+      const track = workingRef.current.find(tr => tr.id === trackId)
       const el = track?.elements?.[elIdx]
       if (!el) return
       startUtmRef.current = nodeUtm(el.startNode, el.geometry.coordinates[0], track.epsg)
@@ -112,19 +93,14 @@ export default function EditLengthForm({ onCommitted }) {
       planRef.current = null
       setPlan(null)
       setPhase('adjusting')
-    }
+    },
+    onMiss: () => { setSelectedTrackId(null); setSelectedElIdx(null) },
+  })
+  useSelectedOnMap(selectedTrackId === null ? null : { trackId: selectedTrackId, elementIndex: selectedElIdx })
 
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [phase, map])
-
-  // Phase: adjust length interactively
-  useEffect(() => {
-    if (phase !== 'adjusting' || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'crosshair'
-
-    const onMove = (e) => {
+  // Phase: adjust the length with the cursor; a click ends it.
+  useMapEvents(phase === 'adjusting', {
+    mousemove: (e) => {
       const start    = startUtmRef.current
       const mouseUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], start.zone)
       const { along } = projectOnBearingUtm(start, mouseUtm, bearingRef.current)
@@ -138,21 +114,9 @@ export default function EditLengthForm({ onCommitted }) {
       planRef.current = next
       setPlan(next)
       setWorkingTracks(next.tracks)
-    }
-
-    const onClick = () => {
-      m.getCanvas().style.cursor = 'pointer'
-      setPhase('select')
-    }
-
-    m.on('mousemove', onMove)
-    m.on('click', onClick)
-    return () => {
-      m.off('mousemove', onMove)
-      m.off('click', onClick)
-      m.getCanvas().style.cursor = ''
-    }
-  }, [phase, map, project.id])
+    },
+    click: () => setPhase('select'),
+  }, { cursor: 'crosshair' })
 
   const handleCommit = () => {
     const last = planRef.current

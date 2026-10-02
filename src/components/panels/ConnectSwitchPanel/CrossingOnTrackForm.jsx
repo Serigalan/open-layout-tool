@@ -11,24 +11,20 @@ import {
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { clickStation, placeSwitchOnTrack } from '../../../utils/switchPlacement'
 import { trackLength } from '../../../utils/heightUtils'
-import { HIT_TOLERANCE } from '../../../utils/mapConstants'
 import { elementPath } from '../../../utils/lineLookup'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
-import useTrackHover from '../../../hooks/useTrackHover'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
-import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
 import SwitchNumberField from '../SwitchNumberField'
 import HeightDatumField from '../HeightDatumField'
-import {
-  SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
-  EMPTY_FC, buildCrossingPreview,
-} from '../switchPreview'
+import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildCrossingPreview } from '../switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
-import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../../map/layerIds'
+import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
+import usePreview from '../../../map/usePreview'
+import useMapPick from '../../../map/useMapPick'
 
 /**
  * A crossing or crossing switch laid INTO an existing track (AP 3.3) — the
@@ -80,23 +76,13 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
   // The designation names a crossing, not a switch — it follows the form's kind.
   const switchNo = useSwitchNumber(project.id, form.kind)
 
-  useTrackHover(map, phase, 'select', project)
-  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
+  const preview = usePreview(SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // ── Pick a track and place the crossing point where it was clicked ────────
-  useEffect(() => {
-    if (phase !== 'select' || !map?.current) return
-    const m = map.current
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-        .filter(f => !f.properties.switchBranch)
-      if (!features.length) return
-      const { trackId, elementIndex } = features[0].properties
-      const elIdx = Number(elementIndex)
+  useMapPick({
+    active: phase === 'select', hover: 'element', noSwitchBranch: true,
+    onPick: ({ trackId, elementIndex }, e) => {
+      const elIdx = elementIndex
       const track = loadTracks().find(tr => tr.id === trackId)
       if (!track?.elements?.[elIdx]) return
       setErrors([])
@@ -106,10 +92,8 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       setPick({ trackId })
       setStation(String(Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000))
       setPhase('editing')
-    }
-    m.on('click', onClick)
-    return () => m.off('click', onClick)
-  }, [phase, map, project.id, setErrors])
+    },
+  })
 
   // ── Derived geometry for the current settings ─────────────────────────────
   const track = pick ? loadTracks().find(tr => tr.id === pick.trackId) : null
@@ -165,14 +149,14 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
     const m = map?.current
     if (!m || phase !== 'editing') return
     if (!g) {
-      m.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
-      m.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
+      preview.set(SWITCH_LINES_SOURCE, null)
+      preview.set(SWITCH_FILL_SOURCE, null)
       return
     }
     const pv = buildCrossingPreview(g)
-    m.getSource(SWITCH_LINES_SOURCE)?.setData(pv.lines)
-    m.getSource(SWITCH_FILL_SOURCE)?.setData(pv.fill)
-  }, [phase, g, map])
+    preview.set(SWITCH_LINES_SOURCE, pv.lines)
+    preview.set(SWITCH_FILL_SOURCE, pv.fill)
+  }, [phase, g, map, preview])
 
   // What the crossing covers, element by element — both halves of the main route.
   const elementsText = ahead && back && track
@@ -183,13 +167,8 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
     }).join(' · ')
     : '–'
 
-  const clearPreview = () => {
-    if (!map?.current) return
-    map.current.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
-    map.current.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
-  }
 
-  const handleCancel = () => { clearPreview(); setPhase('select'); setPick(null); onCommitted?.() }
+  const handleCancel = () => { preview.clear(); setPhase('select'); setPick(null); onCommitted?.() }
 
   const handleCommit = () => {
     setErrors([])
@@ -260,7 +239,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
     resetName()
     switchNo.reset()
     setNameError(false)
-    clearPreview()
+    preview.clear()
     onCommitted?.()
   }
 

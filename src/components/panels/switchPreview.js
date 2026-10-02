@@ -5,7 +5,6 @@ export const SWITCH_LINES_LAYER  = 'switch-preview-lines-layer'
 export const SWITCH_FILL_SOURCE  = 'switch-preview-fill-source'
 export const SWITCH_FILL_LAYER   = 'switch-preview-fill-layer'
 
-export const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
 export function buildLinesGeoJSON({ straightCoords, arcCoords, lcsCoords }) {
   const features = [
@@ -48,7 +47,7 @@ export function buildCrossingPreview(g) {
 }
 
 
-// Layer definitions for usePreviewLayers (shared by both switch forms)
+// Layer definitions for usePreview (shared by both switch forms)
 export const SWITCH_PREVIEW_LAYERS = [
   {
     sourceId: SWITCH_FILL_SOURCE,

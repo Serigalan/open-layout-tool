@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitSwitchConnection } from '../../../storage'
 import { generateId, switchDesignation, nextSwitchNumber } from '../../../utils/identifierUtils'
 import { nextTrackName, rebuildCoords, recalcAbsLengths } from '../../../utils/trackModel'
@@ -14,20 +14,17 @@ import {
   buildConnectionElements,
   orientStemToward,
 } from '../../../utils/switchConnectionUtils'
-import { HIT_TOLERANCE, ZOOM_LINE_WIDTH } from '../../../utils/mapConstants'
-import useTrackHover from '../../../hooks/useTrackHover'
-import usePreviewLayers from '../../../hooks/usePreviewLayers'
+import { ZOOM_LINE_WIDTH } from '../../../utils/mapConstants'
 import { useI18n } from '../../../locales/i18nContext'
-import { useMap } from '../../../map/MapContext'
-import { useProject } from '../../../hooks/useStore'
-import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../../map/layerIds'
+import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
+import usePreview from '../../../map/usePreview'
+import useMapPick from '../../../map/useMapPick'
 
-// ── Preview layers (managed by usePreviewLayers) ────────────────────────────
+// ── Preview layers (managed by usePreview) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'
 const SCURVE_PREVIEW_LAYER  = 'scurve-preview-layer'
 const SCURVE_POINTS_SOURCE  = 'scurve-points-source'
 const SCURVE_POINTS_LAYER   = 'scurve-points-layer'
-const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
 const SCURVE_PREVIEW_LAYERS = [
   {
@@ -258,8 +255,6 @@ function buildPointsGeoJSON(result) {
 
 export default function SCurveForm({ onCommitted }) {
   const { t } = useI18n()
-  const map = useMap()
-  const project = useProject()
   const [phase, setPhase]   = useState('select_first')  // select_first | select_second | config
   const [picks, setPicks]   = useState([])
   const [speedIdx, setSpeedIdx] = useState(DEFAULT_TYPE)   // selected design speed (index into CONNECTION_SPEEDS)
@@ -275,39 +270,16 @@ export default function SCurveForm({ onCommitted }) {
   useEffect(() => { picksRef.current = picks }, [picks])
 
   // Hover highlight while selecting
-  useTrackHover(map, phase, 'select_first', project)
-  useTrackHover(map, phase, 'select_second', project)
 
   // Setup / cleanup preview layers
-  usePreviewLayers(map, SCURVE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
+  const preview = usePreview(SCURVE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
-  const clearPreview = useCallback(() => {
-    if (!map?.current) return
-    map.current.getSource(SCURVE_PREVIEW_SOURCE)?.setData(EMPTY_FC)
-    map.current.getSource(SCURVE_POINTS_SOURCE)?.setData(EMPTY_FC)
-  }, [map])
-
-  const drawPreview = useCallback((res) => {
-    if (!map?.current) return
-    map.current.getSource(SCURVE_PREVIEW_SOURCE)?.setData(buildPreviewGeoJSON(res))
-    map.current.getSource(SCURVE_POINTS_SOURCE)?.setData(buildPointsGeoJSON(res))
-  }, [map])
 
   // ── Click handler for the two selection phases ────────────────────────────
-  useEffect(() => {
-    if ((phase !== 'select_first' && phase !== 'select_second') || !map?.current) return
-    const m = map.current
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-      if (!features.length) return
-
-      const { trackId, elementIndex } = features[0].properties
-      const elIdx  = Number(elementIndex)
+  useMapPick({
+    active: phase === 'select_first' || phase === 'select_second', hover: 'element',
+    onPick: ({ trackId, elementIndex }, e) => {
+      const elIdx = elementIndex
       const track  = loadTracks().find(tr => tr.id === trackId)
       const el     = track?.elements?.[elIdx]
       if (!el) return
@@ -346,11 +318,8 @@ export default function SCurveForm({ onCommitted }) {
         setPickStatus(null)
         setPhase('config')
       }
-    }
-
-    m.on('click', onClick)
-    return () => m.off('click', onClick)
-  }, [phase, map, project.id, t])
+    },
+  })
 
   // ── Valid shift range: keep both turnouts on the elements they were picked on
   const shiftRange = useMemo(() => {
@@ -382,17 +351,20 @@ export default function SCurveForm({ onCommitted }) {
 
   // ── Preview (the map is the only thing outside React here) ────────────────
   useEffect(() => {
-    if (!map?.current) return
-    if (result?.valid) drawPreview(result)
-    else clearPreview()
-  }, [result, map, clearPreview, drawPreview])
+    if (result?.valid) {
+      preview.set(SCURVE_PREVIEW_SOURCE, buildPreviewGeoJSON(result))
+      preview.set(SCURVE_POINTS_SOURCE, buildPointsGeoJSON(result))
+    } else {
+      preview.clear()
+    }
+  }, [result, preview])
 
   const handleSpeedChange = (i) => {
     setSpeedIdx(i)
   }
 
   const handleCancel = () => {
-    clearPreview()
+    preview.clear()
     setPhase('select_first')
     setPicks([])
     setShift(0)

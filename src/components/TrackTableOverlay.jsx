@@ -1,24 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
-import { useTracks } from '../hooks/useStore'
+import { useTracks, useProject } from '../hooks/useStore'
 import { planElementChange, mergeElementEdits } from './panels/EditElementPanel/editGeometry'
 import { transitionCantEnds } from '../utils/clothoidUtils'
 import { crsLabel } from '../utils/coordinateUtils'
 import { switchKindLabelKey, switchRouteLabelKey } from '../utils/switchModel'
 import { elementStations } from '../utils/platformUtils'
 import { checkTrack } from '../utils/trassierungCheck'
-import { ruleById, severityLabelKey } from '../utils/regelkatalog'
-import useTrackPick from '../hooks/useTrackPick'
-import {
-  cantSign, cantDefLevel, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned,
-  cantDefLimit, maxSpeedFor, limitCantDef, roundCant, filterForElement, FILTER_NONE,
-  CANT_STEP, MAX_SWITCH_CANT_DEF, mapIsLive,
-} from '../utils/mapConstants'
-import { catalogSpeedRange } from '../utils/regelkatalog'
+import { ruleById, severityLabelKey, catalogSpeedRange } from '../utils/regelkatalog'
+import { cantSign, cantDefLevel, cantExceedsLimit, cantExceptionOf, cantLimit, computeCantDefSigned, cantDefLimit, maxSpeedFor, limitCantDef, roundCant, CANT_STEP, MAX_SWITCH_CANT_DEF } from '../utils/mapConstants'
+import { filterForElement, FILTER_NONE, mapIsLive } from '../map/pick'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
-import { useProject } from '../hooks/useStore'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
+import useMapPick from '../map/useMapPick'
 
 
 // Fields that reshape the element geometry (and the downstream chain).
@@ -220,7 +215,7 @@ export default function TrackTableOverlay({
   // activates that element's row, a click on another one hands that track back
   // to App, which swaps the table over to it — carrying the row that was meant.
   // The hover layer is left alone here; App draws the whole open track on it.
-  useTrackPick(map, true, ({ trackId, elementIndex }) => {
+  useMapPick({ prefer: track.id, onPick: ({ trackId, elementIndex }) => {
     if (trackId === track.id) {
       pickedOnMap.current = elementIndex
       setActiveRow(elementIndex)
@@ -231,7 +226,7 @@ export default function TrackTableOverlay({
     pickedOnMap.current = elementIndex
     setPendingRow(elementIndex)
     onPickTrack(picked)
-  }, { prefer: track.id })
+  } })
 
   const current  = tracks.find(tr => tr.id === track.id) ?? track
   const elements = current.elements ?? []

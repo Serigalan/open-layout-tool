@@ -49,6 +49,9 @@ export default function useMapInstance({ onStyleLoad }) {
       zoom: 5,
     })
     map.current = m
+    // For browser checks in development: the map, to turn a track's
+    // coordinates into a point on the screen.
+    if (import.meta.env.DEV) window.__oltMap = m
     setActiveBasemap(DEFAULT_BASEMAP)
     setMapVersion(v => v + 1)
     m.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showZoom: true, showCompass: true }), 'top-right')

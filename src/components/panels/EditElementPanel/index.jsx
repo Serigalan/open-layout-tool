@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { loadTracks } from '../../../storage'
 import GroupedTrackList from '../GroupedTrackList'
-import useTrackPick from '../../../hooks/useTrackPick'
 import EditLengthForm from './EditLengthForm'
 import EditPropertiesForm from './EditPropertiesForm'
 import ChangeDirectionForm from './ChangeDirectionForm'
@@ -17,11 +16,10 @@ import {
   BufferStopIcon,
 } from '../../../components/icons'
 import { useI18n } from '../../../locales/i18nContext'
-import { useMap } from '../../../map/MapContext'
+import useMapPick from '../../../map/useMapPick'
 
 export default function EditElementPanel({ trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints }) {
   const { t } = useI18n()
-  const map = useMap()
   const [page, setPage] = useState('menu')
 
   // A constraints popup no longer covers this panel's own menu (it only fills
@@ -36,10 +34,10 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onSho
   // one that would be. Once a table is open it takes the clicks itself — it can
   // tell one of its rows from another track, which this cannot, and two
   // handlers on one click would only fight over it.
-  useTrackPick(map, page === 'edit_tracks' && !trackTableId, ({ trackId, elementIndex }) => {
+  useMapPick({ active: page === 'edit_tracks' && !trackTableId, hover: 'track', onPick: ({ trackId, elementIndex }) => {
     const picked = loadTracks().find(tr => tr.id === trackId)
     if (picked) onShowTrackTable?.(picked, elementIndex)
-  }, { highlight: true })
+  } })
 
   const backButton = (onBack) => (
     <button className="back-btn" onClick={() => { setPage('menu'); onBack?.() }}>

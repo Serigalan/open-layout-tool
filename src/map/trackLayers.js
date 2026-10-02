@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl'
 import { translations } from '../locales/i18n'
-import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from '../utils/mapConstants'
+import { ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from '../utils/mapConstants'
+import { FILTER_NONE } from './pick'
 import { loadSettings } from '../utils/settings'
 import { bufferStopFeatures } from '../utils/bufferStopGeometry'
 import { showTopology } from '../utils/topologyLayer'

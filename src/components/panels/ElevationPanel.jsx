@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { loadTracks, currentProject, setHeightsForTracks } from '../../storage'
 import { fillHeights } from '../../utils/elevationFill'
-import useTrackPick from '../../hooks/useTrackPick'
 import { chosenTerrainSource } from '../../utils/elevationSource'
 import TerrainSourceSelect from '../TerrainSourceSelect'
 import GroupedTrackList from './GroupedTrackList'
 import { useI18n } from '../../locales/i18nContext'
-import { useMap } from '../../map/MapContext'
+import useMapPick from '../../map/useMapPick'
 
 /**
  * Vertical alignment: pick a track to see its profile in the overlay, and
@@ -17,7 +16,6 @@ import { useMap } from '../../map/MapContext'
  */
 export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   const { t } = useI18n()
-  const map = useMap()
   const tracks = loadTracks() ?? []
   const [busy, setBusy]     = useState(false)
   const [result, setResult] = useState(null)   // { updated, missing } of the last run
@@ -28,7 +26,7 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   // Unlike the element table, the profile overlay takes no clicks of its own —
   // it only marks the elements its selection falls in — so this stays live
   // while a profile is open, and a click swaps it over to the track clicked.
-  useTrackPick(map, true, ({ trackId }) => onShowProfile?.(trackId), { highlight: true })
+  useMapPick({ hover: 'track', onPick: ({ trackId }) => onShowProfile?.(trackId) })
 
   const run = async (opts) => {
     setBusy(true)

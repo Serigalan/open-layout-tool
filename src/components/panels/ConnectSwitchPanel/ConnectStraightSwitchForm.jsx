@@ -7,31 +7,27 @@ import { trackTypeName } from '../../../utils/trackGroups'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import useDerivedField from '../../../hooks/useDerivedField'
-import useTrackHover from '../../../hooks/useTrackHover'
-import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
 import SwitchNumberField from '../SwitchNumberField'
 import SwitchCantField from './SwitchCantField'
 import SwitchFormField from './SwitchFormField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
-import {
-  HIT_TOLERANCE, cantExceptionFields, computeSwitchCant, computeCantDef, computeCantDefSigned,
-  switchCantError, MAX_SWITCH_CANT_DEF,
-} from '../../../utils/mapConstants'
+import { cantExceptionFields, computeSwitchCant, computeCantDef, computeCantDefSigned, switchCantError, MAX_SWITCH_CANT_DEF } from '../../../utils/mapConstants'
+import { pickAt } from '../../../map/pick'
 import {
   SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, computeSwitchGeometryUtm, asRadius, branchRadius, bauform,
 } from '../../../utils/switchUtils'
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
-import {
-  SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
-  EMPTY_FC, buildLinesGeoJSON, buildFillGeoJSON,
-} from '../switchPreview'
+import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildLinesGeoJSON, buildFillGeoJSON } from '../switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
-import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../../map/layerIds'
+import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
+import usePreview from '../../../map/usePreview'
+import useMapPick from '../../../map/useMapPick'
+import useMapEvents from '../../../map/useMapEvents'
 
 /**
  * Radius an element ends on, in its running direction — the curvature a switch
@@ -121,36 +117,28 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
   useEffect(() => { sideRef.current = side },                   [side])
   useEffect(() => { trailingRef.current = trailing },           [trailing])
 
-  useTrackHover(map, phase, 'select', project)
 
   // ── Setup preview layers ──────────────────────────────────────────────────────────
-  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
+  const preview = usePreview(SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // ── Hover preview (select phase) ─────────────────────────────────────────
-  useEffect(() => {
-    if (phase !== 'select' || !map?.current) return
-    const m = map.current
-
-    const onMouseMove = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-      if (features.length === 0) {
-        m.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
-        m.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
+  useMapEvents(phase === 'select', {
+    mousemove: (e, m) => {
+      const hit = pickAt(m, e.point)
+      if (!hit) {
+        preview.set(SWITCH_LINES_SOURCE, null)
+        preview.set(SWITCH_FILL_SOURCE, null)
         return
       }
-      const { trackId, elementIndex } = features[0].properties
+      const { trackId, elementIndex } = hit
       const track = loadTracks().find(tr => tr.id === trackId)
-      const el    = track?.elements?.[Number(elementIndex)]
+      const el    = track?.elements?.[elementIndex]
       if (!el) return
       // Only where one may actually go — the preview is the answer to "here?",
       // so it must not stand somewhere the commit would then refuse.
-      if (switchEndAnchorRefusal(track, Number(elementIndex))) {
-        m.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
-        m.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
+      if (switchEndAnchorRefusal(track, elementIndex)) {
+        preview.set(SWITCH_LINES_SOURCE, null)
+        preview.set(SWITCH_FILL_SOURCE, null)
         return
       }
 
@@ -161,29 +149,16 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
       // the switch bent into the element it would sit on.
       const stem   = curved ? endRadiusOf(el) : null
       const geom   = computeSwitchGeometryUtm(endUtm, brg, SWITCH_PICK_TYPES[switchTypeIdxRef.current], sideRef.current, trailingRef.current, endWgs, stem)
-      m.getSource(SWITCH_LINES_SOURCE)?.setData(buildLinesGeoJSON(geom))
-      m.getSource(SWITCH_FILL_SOURCE)?.setData(buildFillGeoJSON(geom))
-    }
-
-    m.on('mousemove', onMouseMove)
-    return () => m.off('mousemove', onMouseMove)
-  }, [phase, map, project.id, curved])
+      preview.set(SWITCH_LINES_SOURCE, buildLinesGeoJSON(geom))
+      preview.set(SWITCH_FILL_SOURCE, buildFillGeoJSON(geom))
+    },
+  })
 
   // ── Click to select element (select phase) ────────────────────────────────
-  useEffect(() => {
-    if (phase !== 'select' || !map?.current) return
-    const m = map.current
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-      if (!features.length) return
-
-      const { trackId, elementIndex } = features[0].properties
-      const elIdx = Number(elementIndex)
+  useMapPick({
+    active: phase === 'select', hover: 'element',
+    onPick: ({ trackId, elementIndex }) => {
+      const elIdx = elementIndex
       const tracks = loadTracks()
       const track  = tracks.find(tr => tr.id === trackId)
       const el     = track?.elements?.[elIdx]
@@ -227,34 +202,25 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
       setField('uicStation',  '')
       setField('trackNumber', '')
       setPhase('editing')
-    }
-
-    m.on('click', onClick)
-    return () => m.off('click', onClick)
-  }, [phase, map, project.id, setField, setMainField, curved])
+    },
+  })
 
   // ── Update preview when options change (editing phase) ───────────────────
   useEffect(() => {
-    if (phase !== 'editing' || !map?.current || !startWgsRef.current) return
-    const m    = map.current
+    if (phase !== 'editing' || !startWgsRef.current) return
     const geom = computeSwitchGeometryUtm(startUtmRef.current, bearingRef.current, SWITCH_PICK_TYPES[switchTypeIdx], side, trailing, startWgsRef.current, stemSigned)
-    m.getSource(SWITCH_LINES_SOURCE)?.setData(buildLinesGeoJSON(geom))
-    m.getSource(SWITCH_FILL_SOURCE)?.setData(buildFillGeoJSON(geom))
-  }, [phase, switchTypeIdx, side, trailing, stemSigned, map])
+    preview.set(SWITCH_LINES_SOURCE, buildLinesGeoJSON(geom))
+    preview.set(SWITCH_FILL_SOURCE, buildFillGeoJSON(geom))
+  }, [phase, switchTypeIdx, side, trailing, stemSigned, map, preview])
 
   const handleSwitchTypeChange = (idx) => {
     setSwitchTypeIdx(idx)
     setSpeed(SWITCH_PICK_TYPES[idx].speed)
   }
 
-  const clearPreview = () => {
-    if (!map?.current) return
-    map.current.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
-    map.current.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
-  }
 
   const handleCancel = () => {
-    clearPreview()
+    preview.clear()
     setPickError(null)
     setPhase('select')
     onCommitted?.()
@@ -402,7 +368,7 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
     resetMainName()
     setNameError(false)
     switchNo.reset()
-    clearPreview()
+    preview.clear()
     onCommitted?.()
   }
 

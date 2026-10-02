@@ -1,31 +1,27 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { addElementToTrack } from '../../../storage'
+import { addElementToTrack, loadTracks } from '../../../storage'
 import {
   computeCurvedValuesUtm, arcCoordsFromRadiusUtm, projectOnBearingUtm,
   endPointStraightUtm, endPointCurvedUtm,
 } from '../../../utils/elementUtils'
-import { wgs84ToUTM } from '../../../utils/coordinateUtils'
+import { wgs84ToUTM, toWgs } from '../../../utils/coordinateUtils'
 import { computeClothoidUtm } from '../../../utils/clothoidUtils'
-import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
-import { FILTER_NONE, computeAutoC, computeCantDef, MAX_CANT, SAGITTA_ELEMENT, SAGITTA_TRACK, mapIsLive } from '../../../utils/mapConstants'
+import { computeAutoC, computeCantDef, MAX_CANT, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 import CantField from '../CantField'
-import useTrackHover from '../../../hooks/useTrackHover'
 import useDerivedField from '../../../hooks/useDerivedField'
-import useElementSelection from '../../../hooks/useElementSelection'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
-import { toWgs } from '../../../utils/coordinateUtils'
 import { useI18n } from '../../../locales/i18nContext'
-import { useMap } from '../../../map/MapContext'
-import { useProject } from '../../../hooks/useStore'
-import { TRACKS_HOVER_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
+import useDrawPreview from '../../../map/useDrawPreview'
+import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
+import { trackEndAnchor } from '../../../utils/trackModel'
+import useMapEvents from '../../../map/useMapEvents'
 
 export default function ConnectCurvedForm({ onCommitted }) {
   const { t } = useI18n()
-  const map = useMap()
-  const project = useProject()
+  const draw = useDrawPreview()
   const [phase, setPhase]                   = useState('select')
   const [selectedTrack, setSelectedTrack]   = useState(null)
   const [startPoint, setStartPoint]         = useState(null)   // UTM
@@ -51,84 +47,64 @@ export default function ConnectCurvedForm({ onCommitted }) {
   useEffect(() => { arcLengthRef.current    = arcLength    }, [arcLength])
   useEffect(() => { signedRadiusRef.current = signedRadius }, [signedRadius])
 
-  useTrackHover(map, phase, 'select', project)
 
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!mapIsLive(map, m)) return
-      clearPreview(m)
-      m.getCanvas().style.cursor = ''
-      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-      m.setFilter(TRACKS_HOVER_LAYER, FILTER_NONE)
-    }
-  }, [map])
-
-  useElementSelection(map, project, phase, setPhase, 'draw', (track, endUtm, elBearing, lastEl) => {
-    setSelectedTrack(track)
-    setStartPoint(endUtm)
-    setBearing(elBearing)
-    setSpeed(lastEl?.speed ?? 80)
-    setCant(lastEl?.cant ?? 0)
-    setPrevRadius(lastEl?.radius ?? null)
-    bearingRef.current = elBearing
-    startRef.current   = endUtm
+  // A click on a track continues it from the end of its last element.
+  useMapPick({
+    active: phase === 'select', hover: 'element',
+    onPick: ({ trackId }) => {
+      const track = loadTracks().find(tr => tr.id === trackId)
+      const a = track && trackEndAnchor(track)
+      if (!a?.endWgs) return
+      draw.markers([a.endWgs])
+      setSelectedTrack(track)
+      setStartPoint(a.endUtm)
+      setBearing(a.bearing)
+      setSpeed(a.lastEl.speed ?? 80)
+      setCant(a.lastEl.cant ?? 0)
+      setPrevRadius(a.lastEl.radius ?? null)
+      bearingRef.current = a.bearing
+      startRef.current   = a.endUtm
+      setPhase('draw')
+    },
   })
+  useSelectedOnMap(selectedTrack ? { trackId: selectedTrack.id, elementIndex: selectedTrack.elements.length - 1 } : null)
 
-  // Interactive draw — mouse determines radius
-  useEffect(() => {
-    if (phase !== 'draw' || !map?.current || !startRef.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'crosshair'
+  // The cursor sets the radius and length; a click fixes it.
+  useMapEvents(phase === 'draw' && !!startPoint, {
+    mousemove: (e) => {
+        const spUtm    = startRef.current
+        const b        = bearingRef.current
+        const mouseUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], spUtm.zone)
+        const { along, perp: rawPerp } = projectOnBearingUtm(spUtm, mouseUtm, b)
+        if (along <= 1) return
 
-    const onMove = (e) => {
-      const spUtm    = startRef.current
-      const b        = bearingRef.current
-      const mouseUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], spUtm.zone)
-      const { along, perp: rawPerp } = projectOnBearingUtm(spUtm, mouseUtm, b)
-      if (along <= 1) return
+        const spWgs = toWgs(spUtm)
+        if (Math.abs(rawPerp) < 0.5) {
+          const epUtm = endPointStraightUtm(spUtm, b, along)
+          const epWgs = toWgs(epUtm)
+          draw.line([spWgs, epWgs], `L = ${Math.round(along * 100) / 100}m`)
+          draw.markers([spWgs, epWgs])
+          setEndPoint(epUtm)
+          setArcLength(String(Math.round(along * 1000) / 1000))
+          setSignedRadius('')
+          setEndBearing('')
+          return
+        }
 
-      const spWgs = toWgs(spUtm)
-      if (Math.abs(rawPerp) < 0.5) {
-        const epUtm = endPointStraightUtm(spUtm, b, along)
-        const epWgs = toWgs(epUtm)
-        setLineData(m, [spWgs, epWgs], `L = ${Math.round(along * 100) / 100}m`)
-        setMarkerData(m, [spWgs, epWgs])
+        const R      = (along * along + rawPerp * rawPerp) / (2 * rawPerp)
+        const epUtm  = mouseUtm
+        const coords = arcCoordsFromRadiusUtm(spUtm, epUtm, R)
+        if (!coords) return
+        const v = computeCurvedValuesUtm(spUtm, epUtm, R)
+        draw.line(coords, `L = ${Math.round(v.length * 100) / 100}m  R = ${Math.round(R * 100) / 100}m`)
+        draw.markers([spWgs, toWgs(epUtm)])
         setEndPoint(epUtm)
-        setArcLength(String(Math.round(along * 1000) / 1000))
-        setSignedRadius('')
-        setEndBearing('')
-        return
-      }
-
-      const R      = (along * along + rawPerp * rawPerp) / (2 * rawPerp)
-      const epUtm  = mouseUtm
-      const coords = arcCoordsFromRadiusUtm(spUtm, epUtm, R)
-      if (!coords) return
-      const v = computeCurvedValuesUtm(spUtm, epUtm, R)
-      setLineData(m, coords, `L = ${Math.round(v.length * 100) / 100}m  R = ${Math.round(R * 100) / 100}m`)
-      setMarkerData(m, [spWgs, toWgs(epUtm)])
-      setEndPoint(epUtm)
-      setArcLength(String(v.length))
-      setSignedRadius(String(Math.round(R * 1000) / 1000))
-      setEndBearing(String(v.endBearing))
-    }
-
-    const onClick = () => {
-      m.off('mousemove', onMove)
-      m.off('click', onClick)
-      m.getCanvas().style.cursor = ''
-      setPhase('done')
-    }
-
-    m.on('mousemove', onMove)
-    m.on('click', onClick)
-    return () => {
-      m.off('mousemove', onMove)
-      m.off('click', onClick)
-      m.getCanvas().style.cursor = ''
-    }
-  }, [phase, map])
+        setArcLength(String(v.length))
+        setSignedRadius(String(Math.round(R * 1000) / 1000))
+        setEndBearing(String(v.endBearing))
+    },
+    click: () => setPhase('done'),
+  }, { cursor: 'crosshair' })
 
   const updatePreviewFromFields = useCallback((len, r) => {
     const l = Number(len), rv = Number(r)
@@ -156,11 +132,9 @@ export default function ConnectCurvedForm({ onCommitted }) {
     setEndPoint(epUtm)
     setEndBearing(String(v.endBearing))
 
-    if (map?.current) {
-      setLineData(map.current, allCoords, `L = ${Math.round(l * 100) / 100}m  R = ${Math.round(Math.abs(rv) * 100) / 100}m`)
-      setMarkerData(map.current, [toWgs(startPoint), toWgs(epUtm)])
-    }
-  }, [startPoint, bearing, transitionEnabled, transitionType, transitionLength, prevRadius, map])
+    draw.line(allCoords, `L = ${Math.round(l * 100) / 100}m  R = ${Math.round(Math.abs(rv) * 100) / 100}m`)
+    draw.markers([toWgs(startPoint), toWgs(epUtm)])
+  }, [startPoint, bearing, transitionEnabled, transitionType, transitionLength, prevRadius, draw])
 
   const handleArcLengthChange = (val) => { setArcLength(val);    updatePreviewFromFields(val, signedRadius) }
   const handleRadiusChange    = (val) => { setSignedRadius(val); updatePreviewFromFields(arcLength, val)   }
@@ -242,10 +216,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
       renderCoords: arcRenderCoords || fallback,
     })
 
-    if (map?.current) {
-      clearPreview(map.current)
-      map.current.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-    }
+    draw.clear()
     resetForm()
     onCommitted?.()
   }

@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { saveTrack, loadTracks } from '../../../storage'
 import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
 import { wgs84ToUTM, epsgForLngLat, EPSG_OPTIONS, toWgs } from '../../../utils/coordinateUtils'
 import { computeStraightValuesUtm, endPointStraightUtm } from '../../../utils/elementUtils'
-import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import TrackFields from '../TrackFields'
@@ -16,10 +15,13 @@ import { elementPath } from '../../../utils/lineLookup'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import useDrawPreview from '../../../map/useDrawPreview'
+import useMapEvents from '../../../map/useMapEvents'
 
 export default function LineForm({ onDone }) {
   const { t } = useI18n()
   const map = useMap()
+  const draw = useDrawPreview()
   const project = useProject()
   const lineOptions = useNearbyLines(map)
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -41,16 +43,8 @@ export default function LineForm({ onDone }) {
   const geometry = points.length === 2 ? elementPath(points[0], points[1]) : null
   const { name, setName, reset: resetName } = useTrackName(project.id, fields, { geometry, setField })
 
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!m) return
-      clearPreview(m)
-      m.getCanvas().style.cursor = ''
-    }
-  }, [map])
 
-  const applyPoints = (startUtm, endUtm, m) => {
+  const applyPoints = (startUtm, endUtm) => {
     const v = computeStraightValuesUtm(startUtm, endUtm)
     setPoints([startUtm, endUtm])
     setUtmZone(v.epsg)
@@ -58,55 +52,40 @@ export default function LineForm({ onDone }) {
     setEndE(endUtm.easting.toFixed(2));     setEndN(endUtm.northing.toFixed(2))
     setLength(String(v.length))
     setBearing(String(v.bearing))
-    if (m) {
-      setLineData(m, [toWgs(startUtm), toWgs(endUtm)], `L = ${Math.round(v.length * 100) / 100}m`)
-      setMarkerData(m, [toWgs(startUtm), toWgs(endUtm)])
-    }
+    draw.line([toWgs(startUtm), toWgs(endUtm)], `L = ${Math.round(v.length * 100) / 100}m`)
+    draw.markers([toWgs(startUtm), toWgs(endUtm)])
   }
 
-  useEffect(() => {
-    if (!selecting || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'crosshair'
-
-    const onClick = (e) => {
+  // Two clicks: the start, then the end. The first suggests the plane.
+  useMapEvents(selecting, {
+    click: (e) => {
       const wgs = [e.lngLat.lng, e.lngLat.lat]
       if (!firstPointRef.current) {
         const utm = wgs84ToUTM(wgs, epsgForLngLat(wgs))   // a new track: its CRS is suggested from the click
         firstPointRef.current = utm
         setSelPhase(1)
         setFirstPoint(utm)
-        setMarkerData(m, [wgs])
+        draw.markers([wgs])
       } else {
         const fp  = firstPointRef.current
         const utm = wgs84ToUTM(wgs, fp.zone)   // same zone as start
         firstPointRef.current = null
-        m.off('click', onClick)
-        m.getCanvas().style.cursor = ''
         setSelecting(false)
         setSelPhase(0)
         setFirstPoint(null)
-        applyPoints(fp, utm, m)
+        applyPoints(fp, utm)
       }
-    }
+    },
+  }, { cursor: 'crosshair' })
 
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [selecting, map])
-
-  useEffect(() => {
-    if (!firstPoint || !map?.current) return
-    const m = map.current
-
-    const onMove = (e) => {
+  // Between the two clicks the line follows the cursor.
+  useMapEvents(!!firstPoint, {
+    mousemove: (e) => {
       const mouseUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], firstPoint.zone)
       const v = computeStraightValuesUtm(firstPoint, mouseUtm)
-      setLineData(m, [toWgs(firstPoint), [e.lngLat.lng, e.lngLat.lat]], `L = ${Math.round(v.length * 100) / 100}m`)
-    }
-
-    m.on('mousemove', onMove)
-    return () => m.off('mousemove', onMove)
-  }, [firstPoint, map])
+      draw.line([toWgs(firstPoint), [e.lngLat.lng, e.lngLat.lat]], `L = ${Math.round(v.length * 100) / 100}m`)
+    },
+  })
 
   const handleLengthChange = (val) => {
     setLength(val)
@@ -115,10 +94,8 @@ export default function LineForm({ onDone }) {
     const newEndUtm = endPointStraightUtm(points[0], b, l)
     setPoints([points[0], newEndUtm])
     setEndE(newEndUtm.easting.toFixed(2)); setEndN(newEndUtm.northing.toFixed(2))
-    if (map?.current) {
-      setLineData(map.current, [toWgs(points[0]), toWgs(newEndUtm)], `L = ${Math.round(l * 100) / 100}m`)
-      setMarkerData(map.current, [toWgs(points[0]), toWgs(newEndUtm)])
-    }
+    draw.line([toWgs(points[0]), toWgs(newEndUtm)], `L = ${Math.round(l * 100) / 100}m`)
+    draw.markers([toWgs(points[0]), toWgs(newEndUtm)])
   }
 
   const handleBearingChange = (val) => {
@@ -128,10 +105,8 @@ export default function LineForm({ onDone }) {
     const newEndUtm = endPointStraightUtm(points[0], b, l)
     setPoints([points[0], newEndUtm])
     setEndE(newEndUtm.easting.toFixed(2)); setEndN(newEndUtm.northing.toFixed(2))
-    if (map?.current) {
-      setLineData(map.current, [toWgs(points[0]), toWgs(newEndUtm)], `L = ${Math.round(l * 100) / 100}m`)
-      setMarkerData(map.current, [toWgs(points[0]), toWgs(newEndUtm)])
-    }
+    draw.line([toWgs(points[0]), toWgs(newEndUtm)], `L = ${Math.round(l * 100) / 100}m`)
+    draw.markers([toWgs(points[0]), toWgs(newEndUtm)])
   }
 
   const handleCoordChange = (which, axis, val) => {
@@ -142,7 +117,7 @@ export default function LineForm({ onDone }) {
       const eNum = Number(e), nNum = Number(n)
       if (isNaN(eNum) || isNaN(nNum) || !epsg) return
       const newStartUtm = { easting: eNum, northing: nNum, zone: epsg }
-      if (points.length === 2) applyPoints(newStartUtm, points[1], map?.current)
+      if (points.length === 2) applyPoints(newStartUtm, points[1])
     } else {
       const e = axis === 'e' ? val : endE
       const n = axis === 'n' ? val : endN
@@ -150,7 +125,7 @@ export default function LineForm({ onDone }) {
       const eNum = Number(e), nNum = Number(n)
       if (isNaN(eNum) || isNaN(nNum) || !epsg) return
       const newEndUtm = { easting: eNum, northing: nNum, zone: epsg }
-      if (points.length === 2) applyPoints(points[0], newEndUtm, map?.current)
+      if (points.length === 2) applyPoints(points[0], newEndUtm)
     }
   }
 
@@ -163,7 +138,7 @@ export default function LineForm({ onDone }) {
   // different one — the cached WGS84 points are exactly reprojected into it.
   const handleEpsgChange = (val) => {
     if (points.length === 2 && val) {
-      applyPoints(wgs84ToUTM(toWgs(points[0]), val), wgs84ToUTM(toWgs(points[1]), val), map?.current)
+      applyPoints(wgs84ToUTM(toWgs(points[0]), val), wgs84ToUTM(toWgs(points[1]), val))
     } else {
       setUtmZone(val)
     }
@@ -204,7 +179,7 @@ export default function LineForm({ onDone }) {
     setNameError(false)
     setLength('')
     setBearing('')
-    if (map?.current) clearPreview(map.current)
+    draw.clear()
     onDone?.()
   }
 

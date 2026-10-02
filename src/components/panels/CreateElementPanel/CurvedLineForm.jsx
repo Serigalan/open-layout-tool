@@ -6,7 +6,6 @@ import {
   computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
   signedRadiusFrom3PointsUtm, endPointCurvedUtm,
 } from '../../../utils/elementUtils'
-import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
 import { computeAutoC, computeCantDef, MAX_CANT, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
@@ -22,10 +21,13 @@ import { elementPath } from '../../../utils/lineLookup'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import useDrawPreview from '../../../map/useDrawPreview'
+import useMapEvents from '../../../map/useMapEvents'
 
 export default function CurvedLineForm({ onDone }) {
   const { t } = useI18n()
   const map = useMap()
+  const draw = useDrawPreview()
   const project = useProject()
   const lineOptions = useNearbyLines(map)
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -60,41 +62,27 @@ export default function CurvedLineForm({ onDone }) {
     setEndBearing(String(v.endBearing))
   }, [])
 
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!m) return
-      clearPreview(m)
-      m.getCanvas().style.cursor = ''
-    }
-  }, [map])
 
-  // Click handler: collect 3 points in UTM
-  useEffect(() => {
-    if (!selecting || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'crosshair'
-
-    const onClick = (e) => {
+  // Three clicks in UTM: start, end, and a point the arc passes through.
+  useMapEvents(selecting, {
+    click: (e) => {
       const wgs = [e.lngLat.lng, e.lngLat.lat]
       if (!p1Ref.current) {
         const utm = wgs84ToUTM(wgs, epsgForLngLat(wgs))   // a new track: its CRS is suggested from the first click
         p1Ref.current = utm
         setSelPhase(1)
-        setMarkerData(m, [wgs])
+        draw.markers([wgs])
       } else if (!p2Ref.current) {
         const utm = wgs84ToUTM(wgs, p1Ref.current.zone)
         p2Ref.current = utm
         setSelPhase(2)
-        setMarkerData(m, [toWgs(p1Ref.current), wgs])
+        draw.markers([toWgs(p1Ref.current), wgs])
       } else {
         const fp1 = p1Ref.current, fp2 = p2Ref.current
         const fp3 = wgs84ToUTM(wgs, fp1.zone)
         p1Ref.current = null; p2Ref.current = null
-        m.off('click', onClick)
-        m.getCanvas().style.cursor = ''
         setSelecting(false); setSelPhase(0)
-        setMarkerData(m, [toWgs(fp1), toWgs(fp2)])
+        draw.markers([toWgs(fp1), toWgs(fp2)])
         const fitted = signedRadiusFrom3PointsUtm(fp1, fp2, fp3)
         const r = fitted !== null ? Math.round(fitted) : null
         setStartPoint(fp1)
@@ -102,49 +90,35 @@ export default function CurvedLineForm({ onDone }) {
         setSignedRadius(r !== null ? String(r) : '')
         applyDerived(fp1, fp2, r)
       }
-    }
+    },
+  }, { cursor: 'crosshair' })
 
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [selecting, map, applyDerived])
-
-  // Live preview during selection
-  useEffect(() => {
-    if (!selecting || selPhase === 0 || !map?.current) return
-    const m = map.current
-
-    const onMove = (e) => {
+  // Live preview between the clicks.
+  useMapEvents(selecting && selPhase > 0, {
+    mousemove: (e) => {
       const mouse = [e.lngLat.lng, e.lngLat.lat]
-      const zone  = p1Ref.current?.zone
       if (selPhase === 1) {
-        setLineData(m, [toWgs(p1Ref.current), mouse])
-      } else {
-        const mouseUtm = wgs84ToUTM(mouse, zone)
-        const r = signedRadiusFrom3PointsUtm(p1Ref.current, p2Ref.current, mouseUtm)
-        if (r !== null) {
-          const coords = arcCoordsFromRadiusUtm(p1Ref.current, p2Ref.current, r)
-          if (coords) {
-            const v = computeCurvedValuesUtm(p1Ref.current, p2Ref.current, r)
-            setLineData(m, coords, `R = ${Math.round(Math.abs(r))}m | L = ${Math.round(v.length * 100) / 100}m`)
-          }
-        }
+        draw.line([toWgs(p1Ref.current), mouse])
+        return
       }
-    }
-
-    m.on('mousemove', onMove)
-    return () => m.off('mousemove', onMove)
-  }, [selecting, selPhase, map])
+      const mouseUtm = wgs84ToUTM(mouse, p1Ref.current?.zone)
+      const r = signedRadiusFrom3PointsUtm(p1Ref.current, p2Ref.current, mouseUtm)
+      const coords = r !== null && arcCoordsFromRadiusUtm(p1Ref.current, p2Ref.current, r)
+      if (!coords) return
+      const v = computeCurvedValuesUtm(p1Ref.current, p2Ref.current, r)
+      draw.line(coords, `R = ${Math.round(Math.abs(r))}m | L = ${Math.round(v.length * 100) / 100}m`)
+    },
+  })
 
   // Preview of the arc as it currently stands.
   useEffect(() => {
-    const m = map?.current
-    if (!m || !startPoint || !endPoint) return
+    if (!startPoint || !endPoint) return
     const r = Number(signedRadius)
     if (!r) return
     const v      = computeCurvedValuesUtm(startPoint, endPoint, r)
     const coords = arcCoordsFromRadiusUtm(startPoint, endPoint, r)
-    if (coords) setLineData(m, coords, `R = ${Math.abs(r)}m | L = ${Math.round(v.length * 100) / 100}m`)
-  }, [startPoint, endPoint, signedRadius, map])
+    if (coords) draw.line(coords, `R = ${Math.abs(r)}m | L = ${Math.round(v.length * 100) / 100}m`)
+  }, [startPoint, endPoint, signedRadius, draw])
 
   const handleRadiusChange = (val) => {
     setSignedRadius(val)
@@ -222,7 +196,7 @@ export default function CurvedLineForm({ onDone }) {
     setStartPoint(null); setEndPoint(null)
     setSignedRadius(''); setArcLength(''); setBearing(''); setEndBearing('')
     clearCant()
-    if (map?.current) clearPreview(map.current)
+    draw.clear()
     onDone?.()
   }
 

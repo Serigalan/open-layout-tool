@@ -1,4 +1,4 @@
-import { reverseElement } from './elementUtils'
+import { resolveEndBearing, reverseElement } from './elementUtils'
 import { portsOf } from './switchModel'
 import { joinHeights, reverseHeights, trackLength } from './heightUtils'
 import { generateId } from './identifierUtils'
@@ -132,5 +132,27 @@ export function joinTracks(head, tail) {
     coordinates: rebuildCoords(elements),
     elements,
     ...(heights?.length ? { heights } : {}),
+  }
+}
+
+/**
+ * Where a track can be continued: the end of its last element — in its own
+ * plane (`endUtm`, { easting, northing, zone }) and on the map (`endWgs`) —
+ * with the bearing it leaves at and that element (`lastEl`, `lastIndex`).
+ * Null for a track without elements.
+ */
+export function trackEndAnchor(track) {
+  const lastIndex = (track?.elements?.length ?? 0) - 1
+  if (lastIndex < 0) return null
+  const lastEl = track.elements[lastIndex]
+  const coords = lastEl.geometry?.coordinates
+  const endWgs = coords?.length ? coords[coords.length - 1] : null
+  if (!lastEl.endNode || !track.epsg) return null
+  return {
+    endUtm: { easting: lastEl.endNode[0], northing: lastEl.endNode[1], zone: track.epsg },
+    endWgs,
+    bearing: resolveEndBearing(lastEl, track.epsg),
+    lastEl,
+    lastIndex,
   }
 }

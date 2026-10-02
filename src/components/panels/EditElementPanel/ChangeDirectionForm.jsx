@@ -1,50 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { reverseTrackDirection } from '../../../storage'
-import useTrackHover from '../../../hooks/useTrackHover'
-import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, mapIsLive } from '../../../utils/mapConstants'
 import { useI18n } from '../../../locales/i18nContext'
-import { useMap } from '../../../map/MapContext'
-import { useProject } from '../../../hooks/useStore'
-import { TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
+import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 
 export default function ChangeDirectionForm({ onCommitted }) {
   const { t } = useI18n()
-  const map = useMap()
-  const project = useProject()
   const [selectedTrackId, setSelectedTrackId] = useState(null)
 
-  useTrackHover(map, selectedTrackId === null ? 'select' : 'editing', 'select', project, true)
-
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!mapIsLive(map, m)) return
-      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-      m.getCanvas().style.cursor = ''
-    }
-  }, [map])
-
-  useEffect(() => {
-    if (selectedTrackId !== null || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'pointer'
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] }).filter(f => !f.properties.switchBranch)
-      if (!features.length) return
-      const { trackId } = features[0].properties
-      // The whole track is reversed, so the whole track is highlighted.
-      m.setFilter(TRACKS_SELECTED_LAYER, filterForTrack(trackId))
-      setSelectedTrackId(trackId)
-    }
-
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [selectedTrackId, map])
+  // The whole track is reversed, so the whole track is what is picked.
+  useMapPick({
+    active: selectedTrackId === null, noSwitchBranch: true, hover: 'element',
+    onPick: ({ trackId }) => setSelectedTrackId(trackId),
+  })
+  useSelectedOnMap(selectedTrackId ? { trackId: selectedTrackId } : null)
 
   const handleCommit = () => {
     if (!selectedTrackId) return

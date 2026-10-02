@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { loadTracks, replaceAllTracks } from '../../../storage'
-import useTrackPick from '../../../hooks/useTrackPick'
 import useNearbyLines from '../../../hooks/useNearbyLines'
 import useLineNameSuggestion from '../../../hooks/useLineNameSuggestion'
 import {
   assignTracks, assignmentFields, groupTitle, groupTracks, plannedNames, trackGroupKey, trackListLabel,
 } from '../../../utils/trackGroups'
 import { elementsPath, identifyTrackLine } from '../../../utils/lineLookup'
-import { FILTER_NONE, mapIsLive } from '../../../utils/mapConstants'
+import { FILTER_NONE, mapIsLive } from '../../../map/pick'
 import GroupedTrackList from '../GroupedTrackList'
 import StationNameInput from '../StationNameInput'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
 import { TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
+import useMapPick from '../../../map/useMapPick'
 
 const NEW = 'new'
 /** How long the line number has to hold still before the tracks are measured against it. */
@@ -78,7 +78,7 @@ export default function AssignTracksForm({ onCommitted }) {
     })
   }
 
-  useTrackPick(map, true, ({ trackId }) => toggle(trackId), { highlight: true })
+  useMapPick({ hover: 'track', onPick: ({ trackId }) => toggle(trackId) })
 
   // The tracks picked so far are drawn on the selection layer; it is given
   // back empty when the form goes.

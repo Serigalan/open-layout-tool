@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { commitSwitchDeletion, loadSwitches, loadTracks } from '../../../storage'
 import { planSwitchDeletion } from '../../../utils/switchDelete'
 import ConfirmModal from '../../ConfirmModal'
-import { FILTER_NONE, HIT_TOLERANCE, filterForSwitch, mapIsLive } from '../../../utils/mapConstants'
 import { useI18n } from '../../../locales/i18nContext'
-import { useMap } from '../../../map/MapContext'
-import { useProject } from '../../../hooks/useStore'
-import { SWITCH_FILLS_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
+import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
+import { SWITCH_PICK_LAYERS, hasSwitch } from '../../../map/pick'
 
 /**
  * Delete a turnout (AP 1.2). The switch is picked on the map — its body, or any
@@ -17,56 +15,24 @@ import { SWITCH_FILLS_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../.
  */
 export default function DeleteSwitchForm({ onCommitted }) {
   const { t } = useI18n()
-  const map = useMap()
-  const project = useProject()
   const [selected, setSelected]     = useState(null)   // { sw, plan }
   const [confirming, setConfirming] = useState(false)
 
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!mapIsLive(map, m)) return
-      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-      m.getCanvas().style.cursor = ''
-    }
-  }, [map])
 
-  useEffect(() => {
-    if (selected !== null || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'pointer'
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      // The body first — it is the switch itself; an element of one of its
-      // routes names it just as well.
-      const hit = [
-        ...m.queryRenderedFeatures(bbox, { layers: [SWITCH_FILLS_LAYER] }),
-        ...m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] }),
-      ].find(f => f.properties?.switchId)
-      if (!hit) return
-
-      const sw = loadSwitches().find(s => s.switchId === hit.properties.switchId)
-      if (!sw) return
-      const plan = planSwitchDeletion(sw, loadTracks())
-      if (!plan) return
-
-      m.setFilter(TRACKS_SELECTED_LAYER, filterForSwitch(sw.switchId))
-      setSelected({ sw, plan })
-    }
-
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [selected, map, project.id])
+  useMapPick({
+    active: selected === null, layers: SWITCH_PICK_LAYERS, accept: hasSwitch,
+    onPick: ({ switchId }) => {
+      const sw = loadSwitches().find(s => s.switchId === switchId)
+      const plan = sw && planSwitchDeletion(sw, loadTracks())
+      if (plan) setSelected({ sw, plan })
+    },
+  })
+  useSelectedOnMap(selected ? { switchId: selected.sw.switchId } : null)
 
   const handleDelete = () => {
     commitSwitchDeletion(selected.plan)
     setConfirming(false)
     setSelected(null)
-    map?.current?.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
   }
 
   const fill = (key, values) =>

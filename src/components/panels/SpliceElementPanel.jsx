@@ -7,27 +7,21 @@ import {
   computeSpliceWithClothoids, computeArcSpliceWithClothoids, computeArcArcTransition,
   computeArcStraightSplice, validateSpliceTangents,
 } from '../../utils/spliceUtils'
-import {
-  HIT_TOLERANCE, ZOOM_LINE_WIDTH, cantSign, computeAutoC, computeCantDef,
-  MAX_CANT,
-} from '../../utils/mapConstants'
+import { ZOOM_LINE_WIDTH, cantSign, computeAutoC, computeCantDef, MAX_CANT } from '../../utils/mapConstants'
 import RuleFindings from './RuleFindings'
 import { hasRuleError } from '../../utils/trassierungCheck'
 import CantField from './CantField'
-import useTrackHover from '../../hooks/useTrackHover'
-import usePreviewLayers from '../../hooks/usePreviewLayers'
 import useDerivedField from '../../hooks/useDerivedField'
 import { truncateHeights } from '../../utils/heightUtils'
 import { useI18n } from '../../locales/i18nContext'
-import { useMap } from '../../map/MapContext'
-import { useProject } from '../../hooks/useStore'
-import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../map/layerIds'
+import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
+import usePreview from '../../map/usePreview'
+import useMapPick from '../../map/useMapPick'
 
 const SPLICE_PREVIEW_SOURCE = 'splice-preview-source'
 const SPLICE_PREVIEW_LAYER  = 'splice-preview-layer'
-const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
-// Layer definitions for usePreviewLayers
+// Layer definitions for usePreview
 const SPLICE_PREVIEW_LAYERS = [{
   sourceId: SPLICE_PREVIEW_SOURCE,
   layer: {
@@ -68,8 +62,6 @@ function spliceHeights(depTrack, elIdx) {
 
 export default function SpliceElementPanel() {
   const { t } = useI18n()
-  const map = useMap()
-  const project = useProject()
   const [phase, setPhase]         = useState('select_first')
   const [picks, setPicks]         = useState([])   // [{trackId,elIdx,endUtm,startUtm,bearing,signedR,epsg,label}]
   const [radius, setRadius]       = useState(500)
@@ -92,28 +84,14 @@ export default function SpliceElementPanel() {
   const picksRef = useRef(picks)
   useEffect(() => { picksRef.current = picks }, [picks])
 
-  // Hover highlights for both select phases
-  useTrackHover(map, phase, 'select_first', project)
-  useTrackHover(map, phase, 'select_second', project)
-
   // ── Setup / cleanup preview layer ─────────────────────────────────────────
-  usePreviewLayers(map, SPLICE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
+  const preview = usePreview(SPLICE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // ── Click handler for select phases ──────────────────────────────────────
-  useEffect(() => {
-    if ((phase !== 'select_first' && phase !== 'select_second') || !map?.current) return
-    const m = map.current
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-      if (!features.length) return
-
-      const { trackId, elementIndex } = features[0].properties
-      const elIdx  = Number(elementIndex)
+  useMapPick({
+    active: phase === 'select_first' || phase === 'select_second', hover: 'element',
+    onPick: ({ trackId, elementIndex }) => {
+      const elIdx = elementIndex
       const tracks = loadTracks()
       const track  = tracks.find(tr => tr.id === trackId)
       const el     = track?.elements?.[elIdx]
@@ -159,11 +137,8 @@ export default function SpliceElementPanel() {
         setStatus(null)
         setPhase('config')
       }
-    }
-
-    m.on('click', onClick)
-    return () => m.off('click', onClick)
-  }, [phase, map, project.id, t])
+    },
+  })
 
   // ── Spliced geometry, derived from the two picks and the parameters ──────
   // The preview and the commit read the same value, so they cannot disagree.
@@ -235,18 +210,12 @@ export default function SpliceElementPanel() {
 
   // Preview of the spliced geometry.
   useEffect(() => {
-    const src = map?.current?.getSource(SPLICE_PREVIEW_SOURCE)
-    if (!src) return
-    src.setData(splice?.result ? buildPreviewGeoJSON(splice.result.previewCoords) : EMPTY_FC)
-  }, [splice, map])
+    preview.set(SPLICE_PREVIEW_SOURCE, splice?.result ? buildPreviewGeoJSON(splice.result.previewCoords) : null)
+  }, [splice, preview])
 
-  const clearPreview = () => {
-    if (!map?.current) return
-    map.current.getSource(SPLICE_PREVIEW_SOURCE)?.setData(EMPTY_FC)
-  }
 
   const handleCancel = () => {
-    clearPreview()
+    preview.clear()
     setPhase('select_first')
     setPicks([])
     setStatus(null)
@@ -303,7 +272,7 @@ export default function SpliceElementPanel() {
         { oldId: dep.trackId, newId: mergedId },
         { oldId: arr.trackId, newId: mergedId, flip: true },
       ], { consumed: [{ trackId: dep.trackId, endpoint: 'END' }, { trackId: arr.trackId, endpoint: 'END' }] })
-      clearPreview()
+      preview.clear()
       setPhase('select_first')
       setPicks([])
       setStatus(null)
@@ -437,7 +406,7 @@ export default function SpliceElementPanel() {
       { trackId: dep.trackId, endpoint: 'END' },
       { trackId: arr.trackId, endpoint: arc.reverseArr ? 'END' : 'BEGIN' },
     ] })
-    clearPreview()
+    preview.clear()
     setPhase('select_first')
     setPicks([])
     setStatus(null)

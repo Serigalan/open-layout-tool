@@ -1,22 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { loadTracks, updateTrack, updateProject, currentProject } from '../../storage'
 import { trackLength } from '../../utils/heightUtils'
 import { wgs84ToUTM } from '../../utils/coordinateUtils'
 import { stationFromClick } from '../../utils/platformUtils'
-import { HIT_TOLERANCE } from '../../utils/mapConstants'
 import {
   RAILS, SLEEPERS, DEFAULT_RAIL, DEFAULT_SLEEPER,
 } from '../../utils/crossSectionUtils'
 import {
   GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
 } from '../../utils/gaugeProfiles'
-import useTrackHover from '../../hooks/useTrackHover'
 import GroupedTrackList from './GroupedTrackList'
 import ClearanceScanSection from './ClearanceScanSection'
 import { useI18n } from '../../locales/i18nContext'
-import { useMap } from '../../map/MapContext'
-import { useProject } from '../../hooks/useStore'
-import { TRACKS_LAYER } from '../../map/layerIds'
+import useMapPick from '../../map/useMapPick'
 
 /**
  * The cross section of a track, at a station of it: the clearance profile the
@@ -31,41 +27,24 @@ import { TRACKS_LAYER } from '../../map/layerIds'
  */
 export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }) {
   const { t } = useI18n()
-  const map = useMap()
-  const project = useProject()
   const [trackId, setTrackId] = useState(null)
 
   const tracks = loadTracks()
   const track  = tracks.find(tr => tr.id === trackId) ?? null
   const shown  = crossSectionAt != null && crossSectionAt.trackId === trackId
 
-  useTrackHover(map, trackId ? 'editing' : 'select', 'select', project, true)
-
   // ── Pick the track — and with the click, the station ──────────────────────
-  useEffect(() => {
-    if (!map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'pointer'
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const feature = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })[0]
-      if (!feature) return
-      const { trackId: clickedId, elementIndex } = feature.properties
+  useMapPick({
+    hover: trackId ? null : 'element',
+    onPick: ({ trackId: clickedId, elementIndex }, e) => {
       const clicked = loadTracks().find(tr => tr.id === clickedId)
       if (!clicked) return
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], clicked.epsg)
-      const station   = stationFromClick(clicked, Number(elementIndex), clickUtm)
+      const station  = stationFromClick(clicked, elementIndex, clickUtm)
       setTrackId(clicked.id)
       onShowCrossSection?.({ trackId: clicked.id, station: station ?? 0 })
-    }
-
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [map, project.id, onShowCrossSection])
+    },
+  })
 
   // ── The superstructure stretches of the track ─────────────────────────────
   const writeRanges = (field, ranges) => {

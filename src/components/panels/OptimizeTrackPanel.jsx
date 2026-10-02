@@ -5,20 +5,18 @@ import {
   optimizeOnServer, optimizerReachable, fetchRegelwerke, OptimizerError,
 } from '../../utils/optimizerService'
 import { reconstructElements } from '../../utils/elementReconstruct'
-import { HIT_TOLERANCE, ZOOM_LINE_WIDTH } from '../../utils/mapConstants'
-import useTrackHover from '../../hooks/useTrackHover'
-import usePreviewLayers from '../../hooks/usePreviewLayers'
+import { ZOOM_LINE_WIDTH } from '../../utils/mapConstants'
 import { truncateHeights } from '../../utils/heightUtils'
 import { grundText } from '../../utils/optimizeReport'
 import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
-import { useProject } from '../../hooks/useStore'
-import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../map/layerIds'
+import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
+import usePreview from '../../map/usePreview'
+import useMapPick from '../../map/useMapPick'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
 const OPTIMIZE_PREVIEW_LAYER  = 'optimize-preview-layer'
-const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
 const OPTIMIZE_PREVIEW_LAYERS = [{
   sourceId: OPTIMIZE_PREVIEW_SOURCE,
@@ -68,7 +66,6 @@ function reshapedHeights(track, elements) {
 export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onShowRegelwerk }) {
   const { t } = useI18n()
   const map = useMap()
-  const project = useProject()
   const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element'
   const mode = page
   const [phase, setPhase]         = useState('select')
@@ -96,24 +93,15 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
   const result = run?.key === runKey ? run.result ?? null : null
   const runError = run?.key === runKey ? run.error ?? null : null
 
-  useTrackHover(map, page === 'menu' ? 'menu' : phase, 'select', project)
-  usePreviewLayers(map, OPTIMIZE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
+  const preview = usePreview(OPTIMIZE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // ── Track/element selection ────────────────────────────────────────────────
-  useEffect(() => {
-    if (page === 'menu' || phase !== 'select' || !map?.current) return
-    const m = map.current
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-      if (!features.length) return
-      const track = loadTracks().find(tr => tr.id === features[0].properties.trackId)
+  useMapPick({
+    active: page !== 'menu' && phase === 'select', hover: 'element',
+    onPick: ({ trackId: id, elementIndex: elIdx }) => {
+      const track = loadTracks().find(tr => tr.id === id)
       if (!track) return
       if (mode === 'element') {
-        const elIdx = Number(features[0].properties.elementIndex)
         const el = track.elements?.[elIdx]
         if (!el || el.radius == null) {
           setSelectHint(t('optimize_hint_element_only'))
@@ -128,10 +116,8 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
       setSelectHint(null)
       setTrackId(track.id)
       setPhase('config')
-    }
-    m.on('click', onClick)
-    return () => m.off('click', onClick)
-  }, [page, phase, mode, map, project.id, t])
+    },
+  })
 
   // The service is asked once when the panel opens, so the panel can say there
   // is no server instead of offering a run that cannot happen. The regelwerke
@@ -152,13 +138,11 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
 
   // Sync the map preview (external system) with the current result.
   useEffect(() => {
-    const src = map?.current?.getSource(OPTIMIZE_PREVIEW_SOURCE)
-    if (!src) return
-    src.setData(result ? previewGeoJSON(result.elements) : EMPTY_FC)
-  }, [result, map])
+    preview.set(OPTIMIZE_PREVIEW_SOURCE, result ? previewGeoJSON(result.elements) : null)
+  }, [result, preview])
 
   const handleCancel = () => {
-    if (map?.current) map.current.getSource(OPTIMIZE_PREVIEW_SOURCE)?.setData(EMPTY_FC)
+    if (map?.current) preview.set(OPTIMIZE_PREVIEW_SOURCE, null)
     setPhase('select')
     setTrackId(null)
     setElementIdx(null)

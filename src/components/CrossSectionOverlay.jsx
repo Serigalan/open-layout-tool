@@ -19,10 +19,10 @@ import {
   gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
   DEFAULT_GAUGE_PROFILE,
 } from '../utils/gaugeProfiles'
-import usePreviewLayers from '../hooks/usePreviewLayers'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import { useProject } from '../hooks/useStore'
+import usePreview from '../map/usePreview'
 
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
@@ -134,7 +134,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
   const [centeredFor, setCenteredFor] = useState(centerKey)
   if (centeredFor !== centerKey) { setCenteredFor(centerKey); setCenter(null) }
 
-  usePreviewLayers(map, MARKER_LAYERS, { resetCursor: true })
+  const preview = usePreview(MARKER_LAYERS, { resetCursor: true })
 
   // The marker follows the station, on the track's own geometry, and the
   // section line reaches as far as other tracks are looked for.
@@ -144,18 +144,18 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
     const point = pointAtStation(track, station)
     if (!point) return
     const [lng, lat] = utmToWgs84(point.utm.easting, point.utm.northing, track.epsg)
-    m.getSource(MARKER_SOURCE)?.setData({
+    preview.set(MARKER_SOURCE, {
       type: 'FeatureCollection',
       features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lng, lat] } }],
     })
     const ends = sectionLinePoints(track, station, -reach, reach, 2 * reach)
-    m.getSource(LINE_SOURCE)?.setData({
+    preview.set(LINE_SOURCE, {
       type: 'FeatureCollection',
       features: ends.length === 2
         ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: ends.map(e => e.lngLat) } }]
         : [],
     })
-  }, [map, track, station, reach])
+  }, [map, track, station, reach, preview])
 
   useEffect(() => {
     const node = bodyRef.current

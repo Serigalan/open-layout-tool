@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { saveTrack, loadTracks } from '../../../storage'
 import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
 import { rebuildCoords, recalcAbsLengths } from '../../../utils/trackModel'
 import { offsetTrackElements } from '../../../utils/parallelUtils'
-import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
-import { FILTER_NONE, HIT_TOLERANCE, mapIsLive } from '../../../utils/mapConstants'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import TrackFields from '../TrackFields'
@@ -13,13 +11,13 @@ import { elementsPath } from '../../../utils/lineLookup'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 import { useI18n } from '../../../locales/i18nContext'
-import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
-import { TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
+import useDrawPreview from '../../../map/useDrawPreview'
+import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 
 export default function ParallelTrackForm({ onDone }) {
   const { t } = useI18n()
-  const map = useMap()
+  const draw = useDrawPreview()
   const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [nameError, setNameError] = useState(false)
@@ -29,6 +27,7 @@ export default function ParallelTrackForm({ onDone }) {
   const [invalid, setInvalid]     = useState(false)
   const [sourceEpsg, setSourceEpsg] = useState(null)  // the picked track's plane, which the parallel keeps
   const sourceRef                 = useRef(null)      // the picked track
+  const [picked, setPicked]       = useState(null)    // { trackId } on the map
   // The track as it would be saved: the line it lies on names it.
   const geometry = elements && sourceEpsg ? elementsPath(elements, sourceEpsg) : null
   // A parallel inherits the geometry it was offset from, so a rule the source
@@ -37,68 +36,40 @@ export default function ParallelTrackForm({ onDone }) {
   const blocked = hasRuleError(elements ?? [])
   const { name, setName } = useTrackName(project.id, fields, { geometry, setField })
 
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!mapIsLive(map, m)) return
-      clearPreview(m)
-      m.getCanvas().style.cursor = ''
-      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-    }
-  }, [map])
 
-  const build = useCallback((track, dist, m) => {
+  const build = useCallback((track, dist) => {
     const els = offsetTrackElements(track.elements ?? [], dist, track.epsg)
     setElements(els)
     setInvalid(!els)
-    if (m) {
-      if (els) {
-        const coords = rebuildCoords(els)
-        setLineData(m, coords, `${(track.elements ?? []).length} ${t('parallel_track_elements')}`)
-        setMarkerData(m, [coords[0], coords[coords.length - 1]])
-      } else {
-        clearPreview(m)
-      }
+    if (els) {
+      const coords = rebuildCoords(els)
+      draw.line(coords, `${(track.elements ?? []).length} ${t('parallel_track_elements')}`)
+      draw.markers([coords[0], coords[coords.length - 1]])
+    } else {
+      draw.clear()
     }
-  }, [t])
+  }, [t, draw])
 
   // Pick a track to offset.
-  useEffect(() => {
-    if (!selecting || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'pointer'
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-        .filter(f => !f.properties.switchBranch)
-      if (features.length === 0) return
-
-      const { trackId } = features[0].properties
+  useMapPick({
+    active: selecting, noSwitchBranch: true,
+    onPick: ({ trackId }) => {
       const track = loadTracks().find(tr => tr.id === trackId)
       if (!track?.elements?.length) return
-
       sourceRef.current = track
       setSourceEpsg(track.epsg)
-      m.setFilter(TRACKS_SELECTED_LAYER, ['==', ['get', 'trackId'], trackId])
-      m.getCanvas().style.cursor = ''
-      m.off('click', onClick)
+      setPicked({ trackId })
       setSelecting(false)
-      build(track, Number(offset) || 0, m)
-    }
-
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [selecting, map, build, offset, project.id])
+      build(track, Number(offset) || 0)
+    },
+  })
+  useSelectedOnMap(picked)
 
   const handleOffsetChange = (val) => {
     setOffset(val)
     const d = Number(val)
     if (isNaN(d) || !sourceRef.current) return
-    build(sourceRef.current, d, map?.current)
+    build(sourceRef.current, d)
   }
 
   const handleNameChange = (val) => {
@@ -124,10 +95,7 @@ export default function ParallelTrackForm({ onDone }) {
       elements:    els,
     })
 
-    if (map?.current) {
-      clearPreview(map.current)
-      map.current.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-    }
+    draw.clear()
     onDone?.()
   }
 

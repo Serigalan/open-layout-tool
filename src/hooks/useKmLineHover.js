@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
 import { kmAt } from '../utils/kmLineLayer'
 import { formatKm } from '../utils/kmLineMath'
-import { mapIsLive } from '../utils/mapConstants'
+import { mapIsLive } from '../map/pick'
 
 /**
  * Hook: reads the kilometrage off the DB kilometrage overlay wherever the

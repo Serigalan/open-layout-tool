@@ -13,11 +13,11 @@ import {
 } from '../../utils/pointCloud/cloudStore'
 import { outlineFeature, cloudSize } from '../../utils/pointCloud/cloudOutline'
 import { forgetCloud } from '../../utils/pointCloud/cloudSection'
-import usePreviewLayers from '../../hooks/usePreviewLayers'
 import ConfirmModal from '../ConfirmModal'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
+import usePreview from '../../map/usePreview'
 
 /**
  * Every plane a cloud may be stated in — all of them projStringFor knows, not
@@ -91,13 +91,13 @@ export default function PointCloudPanel() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { refresh() }, [project.id])
 
-  usePreviewLayers(map, OUTLINE_LAYERS)
+  const outline = usePreview(OUTLINE_LAYERS)
   useEffect(() => {
-    map?.current?.getSource(OUTLINE_SOURCE)?.setData({
+    outline.set(OUTLINE_SOURCE, {
       type: 'FeatureCollection',
       features: (clouds ?? []).map(outlineFeature),
     })
-  }, [map, clouds])
+  }, [outline, clouds])
 
   const showOnMap = (cloud) => {
     const coords = outlineFeature(cloud).geometry.coordinates.flat()

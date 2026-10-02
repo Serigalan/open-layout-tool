@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { saveTrack, loadTracks } from '../../../storage'
 import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
 import { wgs84ToUTM, epsgForLngLat, toWgs } from '../../../utils/coordinateUtils'
 import { computeStraightValuesUtm, endPointStraightUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm, arcCenter } from '../../../utils/elementUtils'
-import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
-import { FILTER_NONE, HIT_TOLERANCE, filterForElement, SAGITTA_ELEMENT, SAGITTA_TRACK, mapIsLive } from '../../../utils/mapConstants'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import TrackFields from '../TrackFields'
@@ -17,7 +16,8 @@ import { elementPath } from '../../../utils/lineLookup'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
-import { TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
+import useDrawPreview from '../../../map/useDrawPreview'
+import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 
 // Start/end of an element as UTM points. Uses the stored nodes when present,
 // otherwise falls back to the first/last geometry coordinate.
@@ -73,6 +73,7 @@ function offsetArc(src, dist) {
 export default function ParallelLineForm({ onDone }) {
   const { t } = useI18n()
   const map = useMap()
+  const draw = useDrawPreview()
   const project = useProject()
   const lineOptions = useNearbyLines(map)
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
@@ -92,21 +93,13 @@ export default function ParallelLineForm({ onDone }) {
   const [signedR, setSignedR]     = useState(0)      // signed radius of the parallel arc
   const [points, setPoints]       = useState([])     // [startUtm, endUtm] of the parallel
   const sourceRef                 = useRef(null)      // { start, end, signedR } UTM of the picked element
+  const [picked, setPicked]       = useState(null)    // { trackId, elementIndex } on the map
   // The track as it would be saved: the line it lies on names it.
   const geometry = points.length === 2 ? elementPath(points[0], points[1], isArc ? signedR : null) : null
   const { name, setName } = useTrackName(project.id, fields, { geometry, setField })
 
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!mapIsLive(map, m)) return
-      clearPreview(m)
-      m.getCanvas().style.cursor = ''
-      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-    }
-  }, [map])
 
-  const applyPoints = useCallback((startUtm, endUtm, m) => {
+  const applyPoints = useCallback((startUtm, endUtm) => {
     const v = computeStraightValuesUtm(startUtm, endUtm)
     setIsArc(false)
     setPoints([startUtm, endUtm])
@@ -115,13 +108,11 @@ export default function ParallelLineForm({ onDone }) {
     setEndE(endUtm.easting.toFixed(2));     setEndN(endUtm.northing.toFixed(2))
     setLength(String(v.length))
     setBearing(String(v.bearing))
-    if (m) {
-      setLineData(m, [toWgs(startUtm), toWgs(endUtm)], `L = ${Math.round(v.length * 100) / 100}m`)
-      setMarkerData(m, [toWgs(startUtm), toWgs(endUtm)])
-    }
-  }, [])
+    draw.line([toWgs(startUtm), toWgs(endUtm)], `L = ${Math.round(v.length * 100) / 100}m`)
+    draw.markers([toWgs(startUtm), toWgs(endUtm)])
+  }, [draw])
 
-  const applyArc = useCallback((startUtm, endUtm, sR, m) => {
+  const applyArc = useCallback((startUtm, endUtm, sR) => {
     const v = computeCurvedValuesUtm(startUtm, endUtm, sR)
     setIsArc(true)
     setPoints([startUtm, endUtm])
@@ -132,65 +123,45 @@ export default function ParallelLineForm({ onDone }) {
     setLength(String(v.length))
     setBearing(String(v.bearing))
     setEndBearing(String(v.endBearing))
-    if (m) {
-      const coords = arcCoordsFromRadiusUtm(startUtm, endUtm, sR, SAGITTA_TRACK) || [toWgs(startUtm), toWgs(endUtm)]
-      setLineData(m, coords, `R = ${Math.abs(sR).toFixed(1)}m`)
-      setMarkerData(m, [toWgs(startUtm), toWgs(endUtm)])
-    }
-  }, [])
+    const coords = arcCoordsFromRadiusUtm(startUtm, endUtm, sR, SAGITTA_TRACK) || [toWgs(startUtm), toWgs(endUtm)]
+    draw.line(coords, `R = ${Math.abs(sR).toFixed(1)}m`)
+    draw.markers([toWgs(startUtm), toWgs(endUtm)])
+  }, [draw])
 
-  const buildParallel = useCallback((src, dist, m) => {
+  const buildParallel = useCallback((src, dist) => {
     if (src.signedR != null) {
       const r = offsetArc(src, dist)
-      if (r) applyArc(r.start, r.end, r.signedR, m)
+      if (r) applyArc(r.start, r.end, r.signedR)
     } else {
       const { start, end } = offsetEndpoints(src, dist)
-      applyPoints(start, end, m)
+      applyPoints(start, end)
     }
   }, [applyArc, applyPoints])
 
   // Pick an element to offset.
-  useEffect(() => {
-    if (!selecting || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'pointer'
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-        .filter(f => !f.properties.switchBranch)
-      if (features.length === 0) return
-
-      const { trackId, elementIndex } = features[0].properties
-      const elIdx = Number(elementIndex)
+  useMapPick({
+    active: selecting, noSwitchBranch: true,
+    onPick: ({ trackId, elementIndex }) => {
       const track = loadTracks().find(tr => tr.id === trackId)
-      const el = track?.elements?.[elIdx]
+      const el = track?.elements?.[elementIndex]
       if (!el) return
       const src = elementEndpointsUtm(el, track.epsg)
       if (!src) return
       src.signedR = el.radius != null ? el.radius : null   // null = straight
-
       sourceRef.current = src
       setSpeed(el.speed ?? 80)
-      m.setFilter(TRACKS_SELECTED_LAYER, filterForElement(trackId, elIdx))
-      m.getCanvas().style.cursor = ''
-      m.off('click', onClick)
+      setPicked({ trackId, elementIndex })
       setSelecting(false)
-      buildParallel(src, Number(offset) || 0, m)
-    }
-
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [selecting, map, buildParallel, offset, project.id])
+      buildParallel(src, Number(offset) || 0)
+    },
+  })
+  useSelectedOnMap(picked)
 
   const handleOffsetChange = (val) => {
     setOffset(val)
     const d = Number(val)
     if (isNaN(d) || !sourceRef.current) return
-    buildParallel(sourceRef.current, d, map?.current)
+    buildParallel(sourceRef.current, d)
   }
 
   const handleLengthChange = (val) => {
@@ -200,10 +171,8 @@ export default function ParallelLineForm({ onDone }) {
     const newEndUtm = endPointStraightUtm(points[0], b, l)
     setPoints([points[0], newEndUtm])
     setEndE(newEndUtm.easting.toFixed(2)); setEndN(newEndUtm.northing.toFixed(2))
-    if (map?.current) {
-      setLineData(map.current, [toWgs(points[0]), toWgs(newEndUtm)], `L = ${Math.round(l * 100) / 100}m`)
-      setMarkerData(map.current, [toWgs(points[0]), toWgs(newEndUtm)])
-    }
+    draw.line([toWgs(points[0]), toWgs(newEndUtm)], `L = ${Math.round(l * 100) / 100}m`)
+    draw.markers([toWgs(points[0]), toWgs(newEndUtm)])
   }
 
   const handleBearingChange = (val) => {
@@ -213,10 +182,8 @@ export default function ParallelLineForm({ onDone }) {
     const newEndUtm = endPointStraightUtm(points[0], b, l)
     setPoints([points[0], newEndUtm])
     setEndE(newEndUtm.easting.toFixed(2)); setEndN(newEndUtm.northing.toFixed(2))
-    if (map?.current) {
-      setLineData(map.current, [toWgs(points[0]), toWgs(newEndUtm)], `L = ${Math.round(l * 100) / 100}m`)
-      setMarkerData(map.current, [toWgs(points[0]), toWgs(newEndUtm)])
-    }
+    draw.line([toWgs(points[0]), toWgs(newEndUtm)], `L = ${Math.round(l * 100) / 100}m`)
+    draw.markers([toWgs(points[0]), toWgs(newEndUtm)])
   }
 
   const handleCoordChange = (which, axis, val) => {
@@ -227,7 +194,7 @@ export default function ParallelLineForm({ onDone }) {
       const eNum = Number(e), nNum = Number(n)
       if (isNaN(eNum) || isNaN(nNum) || !epsg) return
       const newStartUtm = { easting: eNum, northing: nNum, zone: epsg }
-      if (points.length === 2) applyPoints(newStartUtm, points[1], map?.current)
+      if (points.length === 2) applyPoints(newStartUtm, points[1])
     } else {
       const e = axis === 'e' ? val : endE
       const n = axis === 'n' ? val : endN
@@ -235,7 +202,7 @@ export default function ParallelLineForm({ onDone }) {
       const eNum = Number(e), nNum = Number(n)
       if (isNaN(eNum) || isNaN(nNum) || !epsg) return
       const newEndUtm = { easting: eNum, northing: nNum, zone: epsg }
-      if (points.length === 2) applyPoints(points[0], newEndUtm, map?.current)
+      if (points.length === 2) applyPoints(points[0], newEndUtm)
     }
   }
 
@@ -300,10 +267,7 @@ export default function ParallelLineForm({ onDone }) {
       elements:    [element],
     })
 
-    if (map?.current) {
-      clearPreview(map.current)
-      map.current.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-    }
+    draw.clear()
     onDone?.()
   }
 

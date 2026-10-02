@@ -3,25 +3,21 @@ import { loadTracks, loadPlatforms, savePlatform, updatePlatform, deletePlatform
 import { generateId } from '../../utils/identifierUtils'
 import { wgs84ToUTM } from '../../utils/coordinateUtils'
 import { trackLength } from '../../utils/heightUtils'
-import { FILTER_NONE, HIT_TOLERANCE, filterForTrack } from '../../utils/mapConstants'
-import { PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY } from '../../utils/mapRenderUtils'
+import {PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY} from '../../utils/mapRenderUtils'
 import {
   PLATFORM_FRONT_OFFSET, PLATFORM_WIDTH, PLATFORM_CODE_MAX,
   PLATFORM_HEIGHTS, DEFAULT_PLATFORM_HEIGHT,
   platformRing, pointAtStation, stationFromClick, platformLength, platformEdgeElevation,
 } from '../../utils/platformUtils'
-import useTrackHover from '../../hooks/useTrackHover'
-import usePreviewLayers from '../../hooks/usePreviewLayers'
 import UtmCoordFields from '../UtmCoordFields'
 import StationNameInput from './StationNameInput'
 import { useI18n } from '../../locales/i18nContext'
-import { useMap } from '../../map/MapContext'
-import { useProject } from '../../hooks/useStore'
-import { TRACKS_HOVER_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../map/layerIds'
+import usePreview from '../../map/usePreview'
+import useMapPick, { useSelectedOnMap } from '../../map/useMapPick'
+import useMapEvents from '../../map/useMapEvents'
 
 const PREVIEW_FILL_SOURCE = 'platform-preview-fill-source'
 const PREVIEW_LINE_SOURCE = 'platform-preview-line-source'
-const EMPTY_FC = { type: 'FeatureCollection', features: [] }
 
 // The preview wears the same grey as a committed platform, with a dashed
 // outline on top to say it is not one yet.
@@ -48,7 +44,7 @@ const MIN_LENGTH = 1
 const ringFC = (ring, type) => ring
   ? { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {},
     geometry: type === 'fill' ? { type: 'Polygon', coordinates: [ring] } : { type: 'LineString', coordinates: ring } }] }
-  : EMPTY_FC
+  : null
 
 const fmt = (v) => String(Math.round(v * 1000) / 1000)
 
@@ -69,8 +65,6 @@ const fmt = (v) => String(Math.round(v * 1000) / 1000)
  */
 export default function PlatformPanel() {
   const { t } = useI18n()
-  const map = useMap()
-  const project = useProject()
   const [phase, setPhase]     = useState('select')   // 'select' | 'edit'
   const [editingId, setEditingId] = useState(null)   // set when an existing platform is being edited
   const [trackId, setTrackId] = useState(null)
@@ -88,12 +82,7 @@ export default function PlatformPanel() {
   const [frontOffset, setFrontOffset] = useState(PLATFORM_FRONT_OFFSET)
   const offsetIsManual = Number(frontOffset) !== PLATFORM_FRONT_OFFSET
 
-  useTrackHover(map, phase, 'select', project, true)
-
-  usePreviewLayers(map, PREVIEW_LAYERS, {
-    resetFilters: [TRACKS_HOVER_LAYER, TRACKS_SELECTED_LAYER],
-    resetCursor: true,
-  })
+  const preview = usePreview(PREVIEW_LAYERS)
 
   const tracks    = loadTracks()
   const platforms = loadPlatforms()
@@ -101,56 +90,30 @@ export default function PlatformPanel() {
   const total     = track ? trackLength(track) : 0
 
   // ── Pick the host track ───────────────────────────────────────────────────
-  useEffect(() => {
-    if (phase !== 'select' || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'pointer'
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-        .filter(f => !f.properties.switchBranch)
-      if (!features.length) return
-      const id = features[0].properties.trackId
+  useMapPick({
+    active: phase === 'select', noSwitchBranch: true, hover: 'element',
+    onPick: ({ trackId: id }) => {
       if (!loadTracks().some(tr => tr.id === id)) return
-      m.setFilter(TRACKS_SELECTED_LAYER, filterForTrack(id))
       setTrackId(id)
       setPhase('edit')
       setPicking('start')
-    }
-
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [phase, map, project.id])
+    },
+  })
+  useSelectedOnMap(trackId ? { trackId } : null)
 
   // ── Pick the two points on that track ─────────────────────────────────────
-  useEffect(() => {
-    if (phase !== 'edit' || !picking || !map?.current || !track) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'crosshair'
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      // Only the selected track carries the stations the platform is built on.
-      const feature = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-        .find(f => f.properties.trackId === track.id)
-      if (!feature) return
+  // Only the selected track carries the stations the platform is built on.
+  useMapPick({
+    active: phase === 'edit' && !!picking && !!track, track: track?.id, cursor: false,
+    onPick: ({ elementIndex }, e) => {
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
-      const station  = stationFromClick(track, Number(feature.properties.elementIndex), clickUtm)
+      const station  = stationFromClick(track, elementIndex, clickUtm)
       if (station == null) return
       if (picking === 'start') { setStart(fmt(station)); setPicking('end') }
       else                     { setEnd(fmt(station));   setPicking(null) }
-    }
-
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [phase, picking, map, track])
+    },
+  })
+  useMapEvents(phase === 'edit' && !!picking && !!track, {}, { cursor: 'crosshair' })
 
   // ── Derived platform and its preview ──────────────────────────────────────
   const s1 = Number(start)
@@ -176,22 +139,13 @@ export default function PlatformPanel() {
   const ring = valid ? platformRing(draft, track) : null
 
   useEffect(() => {
-    const m = map?.current
-    if (!m) return
-    m.getSource(PREVIEW_FILL_SOURCE)?.setData(ringFC(ring, 'fill'))
-    m.getSource(PREVIEW_LINE_SOURCE)?.setData(ringFC(ring, 'line'))
-  }, [ring, map])
+    preview.set(PREVIEW_FILL_SOURCE, ringFC(ring, 'fill'))
+    preview.set(PREVIEW_LINE_SOURCE, ringFC(ring, 'line'))
+  }, [ring, preview])
 
-  const clearPreview = () => {
-    const m = map?.current
-    if (!m) return
-    m.getSource(PREVIEW_FILL_SOURCE)?.setData(EMPTY_FC)
-    m.getSource(PREVIEW_LINE_SOURCE)?.setData(EMPTY_FC)
-    m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-  }
 
   const reset = () => {
-    clearPreview()
+    preview.clear()
     setPhase('select'); setEditingId(null); setTrackId(null)
     setStart(''); setEnd(''); setPicking(null)
     setSide('right'); setStationName(''); setCode('')
@@ -199,7 +153,6 @@ export default function PlatformPanel() {
   }
 
   const loadForEdit = (platform) => {
-    map?.current?.setFilter(TRACKS_SELECTED_LAYER, filterForTrack(platform.trackId))
     setEditingId(platform.id)
     setTrackId(platform.trackId)
     setStart(fmt(platform.startStation))

@@ -920,7 +920,8 @@
   position: relative;
 }
 
-.map-container {
+/* Two classes: MapLibre's own .maplibregl-map sets position: relative. */
+.map-pane > .map-container {
   position: absolute;
   inset: 0;
 }

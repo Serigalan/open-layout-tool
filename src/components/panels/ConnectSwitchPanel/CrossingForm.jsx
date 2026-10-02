@@ -10,23 +10,21 @@ import {
 } from '../../../utils/switchUtils'
 import { newSwitchFields } from '../../../utils/switchModel'
 import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
-import { HIT_TOLERANCE } from '../../../utils/mapConstants'
+import { pickAt } from '../../../map/pick'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
-import useTrackHover from '../../../hooks/useTrackHover'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
-import usePreviewLayers from '../../../hooks/usePreviewLayers'
 import TrackFields from '../TrackFields'
 import SwitchNumberField from '../SwitchNumberField'
 import HeightDatumField from '../HeightDatumField'
-import {
-  SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS,
-  EMPTY_FC, buildCrossingPreview,
-} from '../switchPreview'
+import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildCrossingPreview } from '../switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
-import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../../map/layerIds'
+import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
+import usePreview from '../../../map/usePreview'
+import useMapPick from '../../../map/useMapPick'
+import useMapEvents from '../../../map/useMapEvents'
 
 /**
  * A crossing or crossing switch (AP 3.2), connected to the end of an existing
@@ -77,8 +75,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
   // The designation names a crossing, not a switch — it follows the form's kind.
   const switchNo = useSwitchNumber(project.id, form.kind)
 
-  useTrackHover(map, phase, 'select', project)
-  usePreviewLayers(map, SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
+  const preview = usePreview(SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   // The geometry as it would be committed — derived, so preview and commit
   // cannot disagree. The crossing point lies the form's end distance along the
@@ -89,23 +86,16 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
     : null
 
   // ── Hover preview (select phase) ─────────────────────────────────────────
-  useEffect(() => {
-    if (phase !== 'select' || !map?.current) return
-    const m = map.current
-    const onMouseMove = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-      const { trackId, elementIndex } = features[0]?.properties ?? {}
-      const track = features.length ? loadTracks().find(tr => tr.id === trackId) : null
-      const el    = track?.elements?.[Number(elementIndex)]
+  useMapEvents(phase === 'select', {
+    mousemove: (e, m) => {
+      const hit = pickAt(m, e.point)
+      const track = hit ? loadTracks().find(tr => tr.id === hit.trackId) : null
+      const el    = track?.elements?.[hit.elementIndex]
       // Only where one may actually go — the preview is the answer to "here?",
       // so it must not stand somewhere the commit would then refuse.
-      if (!el || switchEndAnchorRefusal(track, Number(elementIndex))) {
-        m.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
-        m.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
+      if (!el || switchEndAnchorRefusal(track, hit.elementIndex)) {
+        preview.set(SWITCH_LINES_SOURCE, null)
+        preview.set(SWITCH_FILL_SOURCE, null)
         return
       }
       const endWgs = el.geometry.coordinates[el.geometry.coordinates.length - 1]
@@ -113,26 +103,16 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
       const brg    = resolveEndBearing(el, track.epsg)
       const gg     = computeCrossingGeometryFromPortA(endUtm, endWgs, brg, form, crossAngle)
       const pv     = buildCrossingPreview(gg)
-      m.getSource(SWITCH_LINES_SOURCE)?.setData(pv.lines)
-      m.getSource(SWITCH_FILL_SOURCE)?.setData(pv.fill)
-    }
-    m.on('mousemove', onMouseMove)
-    return () => m.off('mousemove', onMouseMove)
-  }, [phase, map, project.id, form, crossAngle])
+      preview.set(SWITCH_LINES_SOURCE, pv.lines)
+      preview.set(SWITCH_FILL_SOURCE, pv.fill)
+    },
+  })
 
   // ── Click to pick the element the crossing connects to ────────────────────
-  useEffect(() => {
-    if (phase !== 'select' || !map?.current) return
-    const m = map.current
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-      if (!features.length) return
-      const { trackId, elementIndex } = features[0].properties
-      const elIdx = Number(elementIndex)
+  useMapPick({
+    active: phase === 'select', hover: 'element',
+    onPick: ({ trackId, elementIndex }) => {
+      const elIdx = elementIndex
       const track  = loadTracks().find(tr => tr.id === trackId)
       const el      = track?.elements?.[elIdx]
       if (!el) return
@@ -161,24 +141,22 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
         startWgs: endWgs,
       })
       setPhase('editing')
-    }
-    m.on('click', onClick)
-    return () => m.off('click', onClick)
-  }, [phase, map, project.id, setField])
+    },
+  })
 
   // ── Preview while editing ──────────────────────────────────────────────────
   useEffect(() => {
     const m = map?.current
     if (!m || phase !== 'editing') return
     if (!g) {
-      m.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
-      m.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
+      preview.set(SWITCH_LINES_SOURCE, null)
+      preview.set(SWITCH_FILL_SOURCE, null)
       return
     }
     const pv = buildCrossingPreview(g)
-    m.getSource(SWITCH_LINES_SOURCE)?.setData(pv.lines)
-    m.getSource(SWITCH_FILL_SOURCE)?.setData(pv.fill)
-  }, [phase, g, map])
+    preview.set(SWITCH_LINES_SOURCE, pv.lines)
+    preview.set(SWITCH_FILL_SOURCE, pv.fill)
+  }, [phase, g, map, preview])
 
   // The main route's continuation beyond the crossing point is the only new
   // track on the picked line — it carries the name.
@@ -187,14 +165,9 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
 
   const handleNameChange = (val) => { setName(val); setNameError(false) }
 
-  const clearPreview = () => {
-    if (!map?.current) return
-    map.current.getSource(SWITCH_LINES_SOURCE)?.setData(EMPTY_FC)
-    map.current.getSource(SWITCH_FILL_SOURCE)?.setData(EMPTY_FC)
-  }
 
   const handleCancel = () => {
-    clearPreview()
+    preview.clear()
     setPickError(null)
     setPhase('select')
     setAnchor(null)
@@ -253,7 +226,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
     resetName()
     switchNo.reset()
     setNameError(false)
-    clearPreview()
+    preview.clear()
     onCommitted?.()
   }
 

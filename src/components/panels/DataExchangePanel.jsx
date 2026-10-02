@@ -12,8 +12,7 @@ import { parseOsrdRailJson } from '../../utils/osrdImport'
 import { fitToTracks } from '../../utils/mapRenderUtils'
 import { downloadJSON, downloadText } from '../../utils/fileUtils'
 import { EPSG_OPTIONS, crsDatum, crsLabel, projectCrsOptions } from '../../utils/coordinateUtils'
-import useTrackHover from '../../hooks/useTrackHover'
-import { FILTER_NONE, HIT_TOLERANCE, HEIGHT_DATUMS, mapIsLive } from '../../utils/mapConstants'
+import { HEIGHT_DATUMS } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
 import { parseMdbPayload, listMdbStrecken, buildTracksFromMdb, buildAllTracksFromMdb, mdbSwitchInventory, mdbBufferStops, matchMdbBufferStops } from '../../utils/mdbImport'
 import { placeMdbSwitches } from '../../utils/mdbSwitchPlacement'
@@ -25,7 +24,7 @@ import ProviImportSection from './ProviImportSection'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
-import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../../map/layerIds'
+import useMapPick from '../../map/useMapPick'
 
 /**
  * How long the way to OSRD stays offered after an export [ms]. The file is in
@@ -161,41 +160,16 @@ export default function DataExchangePanel({ onShowCompare }) {
     setOpenReport(null)
   }, [projectId])
 
-  useTrackHover(map, phase, 'selecting', project)
+  // Picking tracks for the export: a click adds a track or takes it out again.
+  useMapPick({
+    active: phase === 'selecting', hover: 'element',
+    onPick: ({ trackId }) => setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(trackId) ? next.delete(trackId) : next.add(trackId)
+      return next
+    }),
+  })
 
-  // Click handler for map selection
-  useEffect(() => {
-    if (phase !== 'selecting' || !map?.current) return
-    const m = map.current
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] })
-      if (!features.length) return
-      const { trackId } = features[0].properties
-      setSelectedIds(prev => {
-        const next = new Set(prev)
-        next.has(trackId) ? next.delete(trackId) : next.add(trackId)
-        return next
-      })
-    }
-
-    m.on('click', onClick)
-    return () => m.off('click', onClick)
-  }, [phase, map])
-
-  // Cleanup hover on unmount
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!mapIsLive(map, m) || !m.getLayer(TRACKS_HOVER_LAYER)) return
-      m.setFilter(TRACKS_HOVER_LAYER, FILTER_NONE)
-      m.getCanvas().style.cursor = ''
-    }
-  }, [map])
 
   // The payload check carries a `code`; an error without one says as much as
   // the caller knows — a broken file.

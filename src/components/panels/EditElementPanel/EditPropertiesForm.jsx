@@ -1,60 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { loadTracks, replaceAllTracks } from '../../../storage'
 import { SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
 import useTrackFields from '../../../hooks/useTrackFields'
-import useTrackHover from '../../../hooks/useTrackHover'
 import TrackFields from '../TrackFields'
 import StatusField from '../StatusField'
 import { trackStatus } from '../../../utils/planStatus'
 import HeightDatumField from '../HeightDatumField'
-import { FILTER_NONE, HIT_TOLERANCE, filterForTrack, DEFAULT_HEIGHT_EPSG, mapIsLive } from '../../../utils/mapConstants'
+import { DEFAULT_HEIGHT_EPSG } from '../../../utils/mapConstants'
 import { trackTypeName } from '../../../utils/trackGroups'
 import { useI18n } from '../../../locales/i18nContext'
-import { useMap } from '../../../map/MapContext'
-import { useProject } from '../../../hooks/useStore'
-import { TRACKS_LAYER, TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
+import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 
 export default function EditPropertiesForm({ onCommitted }) {
   const { t } = useI18n()
-  const map = useMap()
-  const project = useProject()
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const [selectedTrackId, setSelectedTrackId] = useState(null)
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState(false)
   const [status, setStatus] = useState('existing')
 
-  useTrackHover(map, selectedTrackId === null ? 'select' : 'editing', 'select', project, true)
 
-  useEffect(() => {
-    const m = map?.current
-    return () => {
-      if (!mapIsLive(map, m)) return
-      m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE)
-      m.getCanvas().style.cursor = ''
-    }
-  }, [map])
-
-  // Click to select track
-  useEffect(() => {
-    if (selectedTrackId !== null || !map?.current) return
-    const m = map.current
-    m.getCanvas().style.cursor = 'pointer'
-
-    const onClick = (e) => {
-      const bbox = [
-        [e.point.x - HIT_TOLERANCE, e.point.y - HIT_TOLERANCE],
-        [e.point.x + HIT_TOLERANCE, e.point.y + HIT_TOLERANCE],
-      ]
-      const features = m.queryRenderedFeatures(bbox, { layers: [TRACKS_LAYER] }).filter(f => !f.properties.switchBranch)
-      if (features.length === 0) return
-      const { trackId } = features[0].properties
+  // The properties belong to the track, so the whole track is highlighted —
+  // clicking one of its elements only says which track is meant.
+  useMapPick({
+    active: selectedTrackId === null, noSwitchBranch: true, hover: 'element',
+    onPick: ({ trackId }) => {
       const track = loadTracks().find(tr => tr.id === trackId)
       if (!track) return
-
-      // The properties belong to the track, so the whole track is highlighted —
-      // clicking one of its elements only says which track is meant.
-      m.setFilter(TRACKS_SELECTED_LAYER, filterForTrack(trackId))
       setSelectedTrackId(trackId)
       setName(track.name ?? '')
       setStatus(trackStatus(track))
@@ -67,11 +39,9 @@ export default function EditPropertiesForm({ onCommitted }) {
       setField('uicStation',  track.uicStation  ?? '')
       setField('trackNumber', track.trackNumber ?? '')
       setField('heightEpsg',  String(track.heightEpsg ?? DEFAULT_HEIGHT_EPSG))
-    }
-
-    m.on('click', onClick)
-    return () => { m.off('click', onClick); m.getCanvas().style.cursor = '' }
-  }, [selectedTrackId, map, project.id, setField])
+    },
+  })
+  useSelectedOnMap(selectedTrackId ? { trackId: selectedTrackId } : null)
 
   const handleCommit = () => {
     setErrors([])

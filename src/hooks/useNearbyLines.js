@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { nearbyLineNumbers } from '../utils/kmLineLayer'
-import { mapIsLive } from '../utils/mapConstants'
+import { mapIsLive } from '../map/pick'
 
 /**
  * Hook: the line numbers the kilometrage overlay shows around the current

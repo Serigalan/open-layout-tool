@@ -4,7 +4,7 @@ import { useSwitches, useTracks } from '../hooks/useStore'
 import {
   trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, elementAtStation,
 } from '../utils/heightUtils'
-import { filterForElements, FILTER_NONE, mapIsLive } from '../utils/mapConstants'
+import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
 import { fillHeights } from '../utils/elevationFill'
 import { chosenTerrainSource } from '../utils/elevationSource'
 import { useI18n } from '../locales/i18nContext'

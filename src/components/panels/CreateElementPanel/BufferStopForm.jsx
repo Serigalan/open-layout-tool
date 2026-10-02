@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks, saveEndMark, deleteEndMark } from '../../../storage'
 import { classifyTrackEnds, freeEnds } from '../../../utils/topology'
 import {
@@ -7,11 +7,10 @@ import {
 } from '../../../utils/trackEndMarks'
 import { bufferStopFeatures } from '../../../utils/bufferStopGeometry'
 import { trackLength } from '../../../utils/heightUtils'
-import usePreviewLayers from '../../../hooks/usePreviewLayers'
-import { mapIsLive } from '../../../utils/mapConstants'
 import { useI18n } from '../../../locales/i18nContext'
-import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
+import usePreview from '../../../map/usePreview'
+import useMapEvents from '../../../map/useMapEvents'
 
 /** How close (px) the cursor has to come to an end for it to be the one meant. */
 const PICK_PX = 14
@@ -49,7 +48,6 @@ const PREVIEW_LAYERS = [
   },
 ]
 
-const EMPTY = { type: 'FeatureCollection', features: [] }
 const keyOf = (end) => (end ? `${end.trackId}|${end.endpoint}` : null)
 
 /**
@@ -65,7 +63,6 @@ const keyOf = (end) => (end ? `${end.trackId}|${end.endpoint}` : null)
  */
 export default function BufferStopForm({ onCommitted, edit = false }) {
   const { t } = useI18n()
-  const map = useMap()
   const project = useProject()
   const [version, setVersion] = useState(0)
   const { tracks, candidates, marks } = useMemo(() => {
@@ -84,7 +81,7 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
   const [brake, setBrake]       = useState(String(defaultBrakeLength(DEFAULT_BUFFER_STOP_TYPE)))
   const [brakeTyped, setBrakeTyped] = useState(false)
 
-  usePreviewLayers(map, PREVIEW_LAYERS, { resetCursor: true })
+  const preview = usePreview(PREVIEW_LAYERS, { resetCursor: true })
 
   const track = picked ? tracks.find(tr => tr.id === picked.trackId) : null
   const mark  = picked && edit ? marks.find(m => m.id === picked.markId) : null
@@ -95,11 +92,8 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
 
   // The dots, the one under the cursor or picked drawn larger.
   useEffect(() => {
-    const m = map?.current
-    const src = m?.getSource(ENDS_SOURCE)
-    if (!src) return
     const active = new Set([keyOf(hover), keyOf(picked)].filter(Boolean))
-    src.setData({
+    preview.set(ENDS_SOURCE, {
       type: 'FeatureCollection',
       features: candidates.map(e => ({
         type: 'Feature',
@@ -107,41 +101,35 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
         geometry: { type: 'Point', coordinates: e.lngLat },
       })),
     })
-  }, [map, candidates, hover, picked])
+  }, [preview, candidates, hover, picked])
 
   // The stop as it would stand.
   useEffect(() => {
-    const m = map?.current
-    if (!m?.getSource(SHAPE_SOURCE)) return
     const feats = track && !brakeInvalid
       ? bufferStopFeatures([track], [newBufferStop(track.id, picked.endpoint, type, brakeValue)])
       : []
-    m.getSource(SHAPE_SOURCE).setData({ type: 'FeatureCollection', features: feats.filter(f => f.properties.part !== 'brake') })
-    m.getSource(BRAKE_SOURCE)?.setData({ type: 'FeatureCollection', features: feats.filter(f => f.properties.part === 'brake') })
-  }, [map, track, picked, type, brakeValue, brakeInvalid])
+    preview.set(SHAPE_SOURCE, { type: 'FeatureCollection', features: feats.filter(f => f.properties.part !== 'brake') })
+    preview.set(BRAKE_SOURCE, { type: 'FeatureCollection', features: feats.filter(f => f.properties.part === 'brake') })
+  }, [track, picked, type, brakeValue, brakeInvalid, preview])
 
   // Picking: the nearest end within PICK_PX of the cursor.
-  const candidatesRef = useRef(candidates)
-  useEffect(() => { candidatesRef.current = candidates }, [candidates])
-  useEffect(() => {
-    const m = map?.current
-    if (!m) return
-    const nearest = (point) => {
-      let best = null, bestD = PICK_PX
-      for (const end of candidatesRef.current) {
-        const p = m.project(end.lngLat)
-        const d = Math.hypot(p.x - point.x, p.y - point.y)
-        if (d < bestD) { best = end; bestD = d }
-      }
-      return best
+  const nearest = (m, point) => {
+    let best = null, bestD = PICK_PX
+    for (const end of candidates) {
+      const p = m.project(end.lngLat)
+      const d = Math.hypot(p.x - point.x, p.y - point.y)
+      if (d < bestD) { best = end; bestD = d }
     }
-    const onMove = (e) => {
-      const end = nearest(e.point)
+    return best
+  }
+  useMapEvents(true, {
+    mousemove: (e, m) => {
+      const end = nearest(m, e.point)
       m.getCanvas().style.cursor = end ? 'pointer' : ''
       setHover(prev => (keyOf(prev) === keyOf(end) ? prev : end))
-    }
-    const onClick = (e) => {
-      const end = nearest(e.point)
+    },
+    click: (e, m) => {
+      const end = nearest(m, e.point)
       if (!end) return
       setPicked(end)
       if (edit) {
@@ -152,20 +140,10 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
           setBrakeTyped(true)
         }
       }
-    }
-    m.on('mousemove', onMove)
-    m.on('click', onClick)
-    return () => {
-      m.off('mousemove', onMove)
-      m.off('click', onClick)
-      if (mapIsLive(map, m)) m.getCanvas().style.cursor = ''
-    }
-  }, [map, edit, project.id])
+    },
+  })
 
-  const clearMap = () => {
-    const m = map?.current
-    for (const id of [ENDS_SOURCE, SHAPE_SOURCE, BRAKE_SOURCE]) m?.getSource(id)?.setData(EMPTY)
-  }
+  const clearMap = () => preview.clear()
 
   const handleType = (value) => {
     const next = Number(value)

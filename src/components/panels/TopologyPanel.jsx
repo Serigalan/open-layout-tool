@@ -1,14 +1,13 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks } from '../../storage'
 import { topologySelectionAt } from '../../utils/topologyLayer'
 import { classifyTrackEnds } from '../../utils/topology'
 import { selectionHighlight } from '../../utils/topologyGraph'
 import { portsOf, switchKindLabelKey } from '../../utils/switchModel'
-import { mapIsLive } from '../../utils/mapConstants'
 import TopologyEndsList from './TopologyEndsList'
 import { useI18n } from '../../locales/i18nContext'
-import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
+import useMapEvents from '../../map/useMapEvents'
 
 /** What an end that holds no switch port is, in the panel's words. */
 const END_STATE_KEY = {
@@ -30,22 +29,12 @@ const END_STATE_KEY = {
  */
 export default function TopologyPanel({ selection, onSelect, graphOpen, onShowGraph}) {
   const { t } = useI18n()
-  const map = useMap()
   const project = useProject()
   // Clicking the map: a switch or a track selects it, anywhere else clears the selection.
-  useEffect(() => {
-    const m = map?.current
-    if (!m) return
-    const onClick = (e) => onSelect?.(topologySelectionAt(m, e.point))
-    const onMove = (e) => { m.getCanvas().style.cursor = topologySelectionAt(m, e.point) ? 'pointer' : '' }
-    m.on('click', onClick)
-    m.on('mousemove', onMove)
-    return () => {
-      m.off('click', onClick)
-      m.off('mousemove', onMove)
-      if (mapIsLive(map, m)) m.getCanvas().style.cursor = ''
-    }
-  }, [map, onSelect])
+  useMapEvents(true, {
+    click: (e, m) => onSelect?.(topologySelectionAt(m, e.point)),
+    mousemove: (e, m) => { m.getCanvas().style.cursor = topologySelectionAt(m, e.point) ? 'pointer' : '' },
+  }, { resetCursor: true })
 
   const selected = useMemo(() => {
     if (!selection || !project) return null

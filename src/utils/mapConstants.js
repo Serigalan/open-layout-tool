@@ -4,7 +4,6 @@ import {
   CANT_DEFICIENCY_COEFF as RW_CANT_DEFICIENCY_COEFF,
 } from './regelwerkDefaults'
 import { catalogLimit, catalogSpeedRange, IN_SWITCH_AREA } from './regelkatalog'
-import { TRACKS_LAYER } from '../map/layerIds'
 
 /** Sagitta (max deviation) constants for arc coordinate generation */
 export const SAGITTA_ELEMENT = 0.05  // element.geometry.coordinates — fine precision
@@ -44,67 +43,6 @@ export const HEIGHT_DATUMS = [
   { epsg: 5773, label: 'EGM96' },
   { epsg: 3855, label: 'EGM2008' },
 ]
-
-/**
- * Whether `m` is still the map the ref holds — what an effect cleanup has to
- * ask before it touches the map it captured when it ran.
- *
- * Going back to the start page unmounts the map and the open panel in one
- * commit, and React detaches the container ref (which calls map.remove())
- * before the panels' effect cleanups run. A removed map has no style left —
- * MapLibre's remove() drops it — so every call that goes through it
- * (setFilter, getLayer, removeSource, …) throws, and a throw in a cleanup
- * takes the whole React root down with it. Once the map is gone there is also
- * nothing left to reset, so the cleanup simply stops here.
- */
-export const mapIsLive = (map, m) => !!m && map?.current === m
-
-/** Filter that matches no feature – used to "clear" a MapLibre layer filter */
-export const FILTER_NONE = ['all', ['==', ['get', 'trackId'], ''], ['==', ['get', 'elementIndex'], -1]]
-
-/** Filter that matches a specific track element */
-export const filterForElement = (trackId, elementIndex) =>
-  ['all', ['==', ['get', 'trackId'], trackId], ['==', ['get', 'elementIndex'], elementIndex]]
-
-/** Filter that matches a set of elements of one track */
-export const filterForElements = (trackId, elementIndexes) =>
-  ['all', ['==', ['get', 'trackId'], trackId], ['in', ['get', 'elementIndex'], ['literal', elementIndexes]]]
-
-/** Filter that matches every element of one track */
-export const filterForTrack = (trackId) => ['==', ['get', 'trackId'], trackId]
-
-/**
- * Filter that matches every element a switch owns, wherever it lies: its branch
- * and the through route carved into the track it was laid into are on two
- * tracks, so the id on the element is what picks them out, not the track.
- */
-export const filterForSwitch = (switchId) => ['==', ['get', 'switchId'], switchId ?? '']
-
-/** Pixel tolerance for click/hover hit detection */
-export const HIT_TOLERANCE = 10
-
-/** The layer the project's own tracks are drawn on — what a click asks. */
-export { TRACKS_LAYER }
-
-/**
- * The track element under a point on the map — { trackId, elementIndex } — or
- * null where nothing of the project is drawn within HIT_TOLERANCE of it.
- *
- * `prefer` settles an overlap: where two tracks lie over each other — a
- * turnout's branch across the route it was laid into — that one is the one
- * meant, whichever order the renderer happens to return them in.
- */
-export function elementUnderPoint(map, point, prefer = null) {
-  if (!map?.getLayer?.(TRACKS_LAYER)) return null
-  const hits = map.queryRenderedFeatures([
-    [point.x - HIT_TOLERANCE, point.y - HIT_TOLERANCE],
-    [point.x + HIT_TOLERANCE, point.y + HIT_TOLERANCE],
-  ], { layers: [TRACKS_LAYER] })
-  const hit = hits.find(f => f.properties.trackId === prefer) ?? hits[0]
-  return hit
-    ? { trackId: hit.properties.trackId, elementIndex: Number(hit.properties.elementIndex) }
-    : null
-}
 
 /**
  * Line width by zoom, [zoom, px, …]. The project's tracks are drawn with the
