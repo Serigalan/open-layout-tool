@@ -4,6 +4,7 @@ import { discardWorkingCopy } from '../../storage'
 import { hasLocalChanges } from '../../utils/variantMerge'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
+import Modal from '../Modal'
 
 const dateTime = (iso, language) => new Date(iso).toLocaleString(language === 'de' ? 'de-DE' : 'en-GB', {
   day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -99,16 +100,13 @@ export default function HistoryPage({ project, variant, onBack, onView, onCompar
         </ol>
       </main>
       {confirm && (
-        <div className="modal-overlay" onClick={busy ? undefined : () => setConfirm(null)}>
-          <div className="modal collab-modal" onClick={e => e.stopPropagation()}>
-            <p className="collab-modal-title">{fill('history_restore_confirm', { n: confirm.number })}</p>
-            <p className="collab-muted">{t('history_restore_desc')}</p>
-            <div className="modal-actions">
-              <button type="button" className="modal-btn modal-btn-cancel" disabled={busy} onClick={() => setConfirm(null)}>{t('btn_cancel')}</button>
-              <button type="button" className="modal-btn collab-btn-primary" disabled={busy} onClick={() => restore(confirm)}>{t('history_restore')}</button>
-            </div>
-          </div>
-        </div>
+        <Modal className="collab-modal" title={fill('history_restore_confirm', { n: confirm.number })} onClose={() => setConfirm(null)} busy={busy}
+          actions={<>
+            <button type="button" className="modal-btn modal-btn-cancel" disabled={busy} onClick={() => setConfirm(null)}>{t('btn_cancel')}</button>
+            <button type="button" className="modal-btn collab-btn-primary" disabled={busy} onClick={() => restore(confirm)}>{t('history_restore')}</button>
+          </>}>
+          <p className="collab-muted">{t('history_restore_desc')}</p>
+        </Modal>
       )}
     </div>
   )

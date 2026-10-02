@@ -4,6 +4,7 @@ import { formatDate } from './homeModel'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 import { errorText } from './errorText'
+import Modal from '../Modal'
 
 /** A start password: 16 characters a person can read out (no 0/O, 1/l/I). */
 function startPassword() {
@@ -156,41 +157,38 @@ function UserDialog({ user = null, onCancel, onSubmit }) {
     }
   }
   return (
-    <div className="modal-overlay" onClick={busy ? undefined : onCancel}>
-      <form className="modal collab-modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
-        <h3 className="collab-modal-title">{t(user ? 'admin_edit_title' : 'admin_create')}</h3>
-        {!user && (
-          <label className="collab-field">
-            <span>{t('login_user')} *</span>
-            <input value={login} onChange={e => setLogin(e.target.value)} autoFocus required autoComplete="off" />
-          </label>
-        )}
+    <Modal className="collab-modal" title={t(user ? 'admin_edit_title' : 'admin_create')} onClose={onCancel} busy={busy} onSubmit={submit}
+      actions={<>
+        <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel} disabled={busy}>{t('btn_cancel')}</button>
+        <button type="submit" className="modal-btn collab-btn-primary" disabled={busy}>{t(user ? 'btn_save' : 'admin_create_submit')}</button>
+      </>}>
+      {!user && (
         <label className="collab-field">
-          <span>{t('admin_name')}</span>
-          <input value={name} onChange={e => setName(e.target.value)} autoFocus={Boolean(user)} />
+          <span>{t('login_user')} *</span>
+          <input value={login} onChange={e => setLogin(e.target.value)} autoFocus required autoComplete="off" />
         </label>
+      )}
+      <label className="collab-field">
+        <span>{t('admin_name')}</span>
+        <input value={name} onChange={e => setName(e.target.value)} autoFocus={Boolean(user)} />
+      </label>
+      <label className="collab-field">
+        <span>{t('admin_role')}</span>
+        <select value={role} onChange={e => setRole(e.target.value)}>
+          <option value="user">{t('admin_role_user')}</option>
+          <option value="admin">{t('admin_role_admin')}</option>
+        </select>
+      </label>
+      {!user && (
         <label className="collab-field">
-          <span>{t('admin_role')}</span>
-          <select value={role} onChange={e => setRole(e.target.value)}>
-            <option value="user">{t('admin_role_user')}</option>
-            <option value="admin">{t('admin_role_admin')}</option>
-          </select>
+          <span>{t('admin_start_password')}</span>
+          <span className="admin-password-row">
+            <input value={password} onChange={e => setPassword(e.target.value)} minLength={12} required autoComplete="off" />
+            <button type="button" className="collab-btn collab-btn-small" onClick={() => setPassword(startPassword())}>{t('admin_generate')}</button>
+          </span>
         </label>
-        {!user && (
-          <label className="collab-field">
-            <span>{t('admin_start_password')}</span>
-            <span className="admin-password-row">
-              <input value={password} onChange={e => setPassword(e.target.value)} minLength={12} required autoComplete="off" />
-              <button type="button" className="collab-btn collab-btn-small" onClick={() => setPassword(startPassword())}>{t('admin_generate')}</button>
-            </span>
-          </label>
-        )}
-        {error && <p className="collab-error" role="alert">{error}</p>}
-        <div className="modal-actions">
-          <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel} disabled={busy}>{t('btn_cancel')}</button>
-          <button type="submit" className="modal-btn collab-btn-primary" disabled={busy}>{t(user ? 'btn_save' : 'admin_create_submit')}</button>
-        </div>
-      </form>
-    </div>
+      )}
+      {error && <p className="collab-error" role="alert">{error}</p>}
+    </Modal>
   )
 }

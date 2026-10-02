@@ -18,6 +18,7 @@ import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
 import usePreview from '../../map/usePreview'
+import Modal from '../Modal'
 
 /**
  * Every plane a cloud may be stated in — all of them projStringFor knows, not
@@ -316,24 +317,22 @@ export default function PointCloudPanel() {
         </p>
       )}
       {preview?.text && (
-        <div className="modal-overlay" onClick={() => setPreview(null)}>
-          <div className="modal pointcloud-text-modal" onClick={(e) => e.stopPropagation()}>
-            <strong>{fill('pointcloud_text_title', { n: PREVIEW_POINTS })}</strong>
-            <pre className="pointcloud-text">{preview.text}</pre>
-            <div className="modal-actions">
-              <button className="modal-btn modal-btn-cancel" onClick={copyPreview}>
-                {copied ? t('pointcloud_text_copied') : t('pointcloud_text_copy')}
-              </button>
-              <button className="modal-btn modal-btn-cancel"
-                onClick={() => downloadText(preview.text, `${preview.name.replace(/\.(laz|las)$/i, '')}_${PREVIEW_POINTS}.txt`)}>
-                {t('pointcloud_text_save')}
-              </button>
-              <button className="modal-btn modal-btn-confirm" onClick={() => setPreview(null)}>
-                {t('pointcloud_text_close')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <Modal className="pointcloud-text-modal" title={fill('pointcloud_text_title', { n: PREVIEW_POINTS })}
+          onClose={() => setPreview(null)}
+          actions={<>
+            <button type="button" className="modal-btn modal-btn-cancel" onClick={copyPreview}>
+              {copied ? t('pointcloud_text_copied') : t('pointcloud_text_copy')}
+            </button>
+            <button type="button" className="modal-btn modal-btn-cancel"
+              onClick={() => downloadText(preview.text, `${preview.name.replace(/\.(laz|las)$/i, '')}_${PREVIEW_POINTS}.txt`)}>
+              {t('pointcloud_text_save')}
+            </button>
+            <button type="button" className="modal-btn modal-btn-primary" onClick={() => setPreview(null)}>
+              {t('pointcloud_text_close')}
+            </button>
+          </>}>
+          <pre className="pointcloud-text">{preview.text}</pre>
+        </Modal>
       )}
       {asking && (
         <ConfirmModal message={fill('pointcloud_delete_ask', { name: asking.name })}

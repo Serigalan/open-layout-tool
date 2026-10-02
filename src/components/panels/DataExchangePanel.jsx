@@ -25,6 +25,7 @@ import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'
 import useMapPick from '../../map/useMapPick'
+import ConfirmModal from '../ConfirmModal'
 
 /**
  * How long the way to OSRD stays offered after an export [ms]. The file is in
@@ -693,20 +694,11 @@ export default function DataExchangePanel({ onShowCompare }) {
   if (trackConflicts.length > 0) {
     const { existing } = trackConflicts[0]
     const msg = fill('import_track_conflict_message', { name: trackLabel(existing) })
+    // Escape keeps what is there — the one answer that changes nothing.
     return (
-      <div className="modal-overlay">
-        <div className="modal" onClick={e => e.stopPropagation()}>
-          <p className="modal-message">{msg}</p>
-          <div className="modal-actions">
-            <button className="modal-btn modal-btn-cancel" onClick={() => resolveTrackConflict(false)}>
-              {t('import_keep_existing')}
-            </button>
-            <button className="modal-btn modal-btn-confirm" onClick={() => resolveTrackConflict(true)}>
-              {t('import_keep_imported')}
-            </button>
-          </div>
-        </div>
-      </div>
+      <ConfirmModal message={msg} danger={false}
+        cancelLabel={t('import_keep_existing')} onCancel={() => resolveTrackConflict(false)}
+        confirmLabel={t('import_keep_imported')} onConfirm={() => resolveTrackConflict(true)} />
     )
   }
 

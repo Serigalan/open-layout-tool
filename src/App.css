@@ -2128,3 +2128,24 @@
   font-size: 12px;
   color: #c0392b;
 }
+
+/* The dialog itself (components/Modal.jsx) */
+.modal:focus { outline: none; }
+.modal-title {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 17px;
+}
+.modal-btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+.modal-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* A dialog whose content brings its own card (the password form). */
+.modal.modal-bare {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  width: auto;
+}

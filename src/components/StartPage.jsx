@@ -12,6 +12,7 @@ import MembersDialog from './collab/MembersDialog'
 import './collab/collab.css'
 import { useI18n } from '../locales/i18nContext'
 import { errorText } from './collab/errorText'
+import Modal from './Modal'
 
 /**
  * The guideline is a static page of its own per language, served from `public`.
@@ -224,11 +225,9 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
         <VariantDialog variant={dialog.variant} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
       )}
       {dialog?.kind === 'password' && (
-        <div className="modal-overlay" onClick={() => setDialog(null)}>
-          <div onClick={e => e.stopPropagation()}>
-            <PasswordForm onCancel={() => setDialog(null)} onDone={() => { setDialog(null); setNotice(t('password_done')) }} />
-          </div>
-        </div>
+        <Modal className="modal-bare" ariaLabel={t('password_title')} onClose={() => setDialog(null)}>
+          <PasswordForm onCancel={() => setDialog(null)} onDone={() => { setDialog(null); setNotice(t('password_done')) }} />
+        </Modal>
       )}
     </div>
   )
@@ -316,17 +315,14 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit
 function FormDialog({ title, submitLabel, busy, error, onCancel, onSubmit, children, danger = false, canSubmit = true }) {
   const { t } = useI18n()
   return (
-    <div className="modal-overlay" onClick={busy ? undefined : onCancel}>
-      <form className="modal collab-modal" onClick={e => e.stopPropagation()} onSubmit={e => { e.preventDefault(); onSubmit() }}>
-        <h3 className="collab-modal-title">{title}</h3>
-        {children}
-        {error && <p className="collab-error" role="alert">{error}</p>}
-        <div className="modal-actions">
-          <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel} disabled={busy}>{t('btn_cancel')}</button>
-          <button type="submit" className={`modal-btn ${danger ? 'modal-btn-confirm' : 'collab-btn-primary'}`} disabled={busy || !canSubmit}>{submitLabel}</button>
-        </div>
-      </form>
-    </div>
+    <Modal className="collab-modal" title={title} onClose={onCancel} busy={busy} onSubmit={() => { onSubmit() }}
+      actions={<>
+        <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel} disabled={busy}>{t('btn_cancel')}</button>
+        <button type="submit" className={`modal-btn ${danger ? 'modal-btn-confirm' : 'collab-btn-primary'}`} disabled={busy || !canSubmit}>{submitLabel}</button>
+      </>}>
+      {children}
+      {error && <p className="collab-error" role="alert">{error}</p>}
+    </Modal>
   )
 }
 

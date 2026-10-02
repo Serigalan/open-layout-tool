@@ -3,6 +3,7 @@ import { api } from '../../api/client'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 import { errorText } from './errorText'
+import Modal from '../Modal'
 
 /** How long the search field has to hold still before it asks the server [ms]. */
 const SEARCH_DELAY = 250
@@ -64,62 +65,58 @@ export default function MembersDialog({ project, onClose }) {
   const close = () => onClose(changed)
 
   return (
-    <div className="modal-overlay" onClick={busy ? undefined : close}>
-      <div className="modal collab-modal" role="dialog" aria-modal="true" aria-labelledby="members-title"
-        onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === 'Escape' && !busy) close() }}>
-        <h3 id="members-title" className="collab-modal-title">{fill('members_title', { title: project.title })}</h3>
-        <p className="collab-muted members-intro">{t('members_intro')}</p>
+    <Modal className="collab-modal" title={fill('members_title', { title: project.title })} onClose={close} busy={busy}
+      actions={<>
+        <button type="button" className="modal-btn collab-btn-primary" onClick={close} disabled={busy}>{t('members_done')}</button>
+      </>}>
+      <p className="collab-muted members-intro">{t('members_intro')}</p>
 
-        <ul className="members-list">
-          <li className="members-row">
-            <span className="members-who"><strong>{project.createdBy?.name}</strong>
-              {project.createdBy?.login && <span className="collab-muted">{project.createdBy.login}</span>}</span>
-            <span className="admin-badge">{t('members_creator')}</span>
-          </li>
-          {members.map(m => (
-            <li key={m.id} className="members-row">
-              <span className="members-who"><strong>{m.name}</strong><span className="collab-muted">{m.login}</span></span>
-              {!m.active && <span className="admin-badge off">{t('admin_inactive')}</span>}
-              {canManage && (
-                <button type="button" className="collab-btn collab-btn-small" disabled={busy}
-                  onClick={() => change(() => api.removeMember(project.id, m.id))}>{t('members_remove')}</button>
-              )}
-            </li>
-          ))}
-        </ul>
-        {members.length === 0 && <p className="collab-muted">{t('members_none')}</p>}
-
-        {canManage && (
-          <div className="members-add">
-            <label className="collab-field">
-              <span>{t('members_search')}</span>
-              <input type="search" value={query} onChange={e => setQuery(e.target.value)} autoFocus
-                placeholder={t('members_search_placeholder')} autoComplete="off" />
-            </label>
-            {results && results.length === 0 && <p className="collab-muted">{t('members_no_hits')}</p>}
-            {results && results.length > 0 && (
-              <ul className="members-list members-hits">
-                {results.map(u => (
-                  <li key={u.id} className="members-row">
-                    <span className="members-who"><strong>{u.name}</strong><span className="collab-muted">{u.login}</span></span>
-                    {taken.has(u.id)
-                      ? <span className="collab-muted">{t('members_already')}</span>
-                      : (
-                        <button type="button" className="collab-btn collab-btn-small collab-btn-primary" disabled={busy}
-                          onClick={() => change(() => api.addMember(project.id, u.id))}>{t('members_add')}</button>
-                      )}
-                  </li>
-                ))}
-              </ul>
+      <ul className="members-list">
+        <li className="members-row">
+          <span className="members-who"><strong>{project.createdBy?.name}</strong>
+            {project.createdBy?.login && <span className="collab-muted">{project.createdBy.login}</span>}</span>
+          <span className="admin-badge">{t('members_creator')}</span>
+        </li>
+        {members.map(m => (
+          <li key={m.id} className="members-row">
+            <span className="members-who"><strong>{m.name}</strong><span className="collab-muted">{m.login}</span></span>
+            {!m.active && <span className="admin-badge off">{t('admin_inactive')}</span>}
+            {canManage && (
+              <button type="button" className="collab-btn collab-btn-small" disabled={busy}
+                onClick={() => change(() => api.removeMember(project.id, m.id))}>{t('members_remove')}</button>
             )}
-          </div>
-        )}
+          </li>
+        ))}
+      </ul>
+      {members.length === 0 && <p className="collab-muted">{t('members_none')}</p>}
 
-        {error && <p className="collab-error" role="alert">{error}</p>}
-        <div className="modal-actions">
-          <button type="button" className="modal-btn collab-btn-primary" onClick={close} disabled={busy}>{t('members_done')}</button>
+      {canManage && (
+        <div className="members-add">
+          <label className="collab-field">
+            <span>{t('members_search')}</span>
+            <input type="search" value={query} onChange={e => setQuery(e.target.value)} autoFocus
+              placeholder={t('members_search_placeholder')} autoComplete="off" />
+          </label>
+          {results && results.length === 0 && <p className="collab-muted">{t('members_no_hits')}</p>}
+          {results && results.length > 0 && (
+            <ul className="members-list members-hits">
+              {results.map(u => (
+                <li key={u.id} className="members-row">
+                  <span className="members-who"><strong>{u.name}</strong><span className="collab-muted">{u.login}</span></span>
+                  {taken.has(u.id)
+                    ? <span className="collab-muted">{t('members_already')}</span>
+                    : (
+                      <button type="button" className="collab-btn collab-btn-small collab-btn-primary" disabled={busy}
+                        onClick={() => change(() => api.addMember(project.id, u.id))}>{t('members_add')}</button>
+                    )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      </div>
-    </div>
+      )}
+
+      {error && <p className="collab-error" role="alert">{error}</p>}
+    </Modal>
   )
 }
