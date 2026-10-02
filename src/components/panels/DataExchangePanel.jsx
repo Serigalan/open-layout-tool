@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { loadTracks, loadSwitches, loadProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
 import { parseProjectsPayload, PayloadError } from '../../utils/persistenceUtils'
-import { parseRecords, buildElements } from '../../utils/vermEsnImport'
+import { parseRecords, buildElements, parseGradient, gradientHeights } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'
 import { ExternalLinkIcon } from '../icons'
 import { exportToOsrd, OSRD_URL } from '../../utils/osrdExport'
@@ -64,7 +64,10 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
   const [trackConflicts, setTrackConflicts] = useState([])   // [{existing, imported}, ...]
   const [epsg, setEpsg]                 = useState('5683')
   const [esnErrors, setEsnErrors]       = useState([])
+  const [esnNotes, setEsnNotes]         = useState([])
   const esnInputRef                     = useRef(null)
+  const graInputRef                     = useRef(null)
+  const [gra, setGra]                   = useState(null)   // { name, points } — optional gradient for the next ESN import
   const trackImportRef                  = useRef(null)
   const csvInputRef                     = useRef(null)
   const cantInputRef                    = useRef(null)
@@ -255,11 +258,18 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const { elements, errors } = buildElements(parseRecords(ev.target.result), Number(epsg))
+        const { elements, errors, startStation } = buildElements(parseRecords(ev.target.result), Number(epsg))
         setEsnErrors(errors)
+        setEsnNotes([])
         if (errors.length || !elements.length) return
         const recalced = recalcAbsLengths(elements)
-        saveTrack(project.id, { id: generateId(), epsg: Number(epsg), coordinates: rebuildCoords(recalced), elements: recalced })
+        const length = recalced.reduce((sum, el) => sum + (el.length ?? 0), 0)
+        const { heights, notes } = gra ? gradientHeights(gra.points, startStation, length) : { heights: null, notes: [] }
+        setEsnNotes(notes)
+        saveTrack(project.id, {
+          id: generateId(), epsg: Number(epsg), coordinates: rebuildCoords(recalced), elements: recalced,
+          ...(heights ? { heights } : {}),
+        })
         onTrackSaved?.()
       } catch (err) {
         console.error('Verm.ESN import error:', err)
@@ -267,6 +277,24 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
     }
     reader.readAsArrayBuffer(file)
     e.target.value = ''
+  }
+
+  const handleGraFile = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const points = parseGradient(ev.target.result)
+      if (points.length < 2) {
+        setGra(null)
+        setEsnErrors([t('data_exchange_vermesn_gra_empty')])
+        return
+      }
+      setEsnErrors([])
+      setGra({ name: file.name, points })
+    }
+    reader.readAsArrayBuffer(file)
   }
 
   // ── Gleislage CSV ────────────────────────────────────────────────────────
@@ -747,6 +775,30 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
             ))}
           </select>
         </div>
+        <div className="form-field">
+          <label>{t('data_exchange_vermesn_gra')}</label>
+          <input
+            ref={graInputRef}
+            type="file"
+            accept=".gra,.GRA"
+            style={{ display: 'none' }}
+            onChange={handleGraFile}
+          />
+          {gra ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ flex: 1, fontSize: 12, fontFamily: 'system-ui, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {t('data_exchange_vermesn_gra_loaded').replace('{{name}}', gra.name).replace('{{count}}', gra.points.length)}
+              </span>
+              <button className="panel-btn" onClick={() => setGra(null)} title={t('data_exchange_vermesn_gra_remove')}>
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button className="panel-btn panel-btn-full" disabled={!project} onClick={() => graInputRef.current?.click()}>
+              {t('data_exchange_vermesn_gra_pick')}
+            </button>
+          )}
+        </div>
         <input
           ref={esnInputRef}
           type="file"
@@ -756,15 +808,20 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         <button
           className="panel-btn panel-btn-full"
           disabled={!project}
-          onClick={() => { setEsnErrors([]); esnInputRef.current?.click() }}
+          onClick={() => { setEsnErrors([]); setEsnNotes([]); esnInputRef.current?.click() }}
         >
           {t('data_exchange_import')}
         </button>
-        {esnErrors.length > 0 && (
+        {(esnErrors.length > 0 || esnNotes.length > 0) && (
           <div style={{ marginTop: 6 }}>
             {esnErrors.map((err, i) => (
               <p key={i} style={{ margin: '2px 0', fontSize: 11, color: '#e74c3c', fontFamily: 'system-ui, sans-serif' }}>
                 {err}
+              </p>
+            ))}
+            {esnNotes.map((note, i) => (
+              <p key={`n${i}`} style={{ margin: '2px 0', fontSize: 11, color: '#b9770e', fontFamily: 'system-ui, sans-serif' }}>
+                {note}
               </p>
             ))}
           </div>

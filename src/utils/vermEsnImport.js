@@ -8,8 +8,10 @@ import {
 import { computeClothoidUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT, cantSign } from './mapConstants'
+import { gradientStretch } from './proviImport'
 
 const RECORD_SIZE = 78
+const GRA_RECORD_SIZE = 36   // the header is one record long, too
 const RAD2DEG = 180 / Math.PI
 
 // Junction tolerance [m]: an element must start where the previous one ends.
@@ -60,13 +62,16 @@ export function parseRecords(arrayBuffer) {
  * element record is always ignored — it only marks the alignment's end point.
  *
  * Each element must start where the previous one ends (tolerance 0.3 mm);
- * violations are reported in `errors`. Returns { elements, errors }.
+ * violations are reported in `errors`. Returns { elements, errors, startStation }
+ * — `startStation` is the axis station [m] the first element begins at, which
+ * is what a gradient of the same axis is stationed against.
  */
 export function buildElements(records, epsg) {
   const crs = Number(epsg)
   const elements = []
   const errors = []
   let prevIdx = -1
+  let startStation = null
 
   // The last element record is the alignment's closing point — never imported.
   let lastValidIdx = -1
@@ -88,6 +93,7 @@ export function buildElements(records, epsg) {
       }
     }
     prevIdx = idx
+    if (startStation == null) startStation = rec.absLength
 
     const start      = { easting: rec.easting, northing: rec.northing, zone: crs }
     const bearingDeg = ((rec.bearing * RAD2DEG) % 360 + 360) % 360   // bearing stored in radians (grid)
@@ -161,5 +167,62 @@ export function buildElements(records, epsg) {
     }
   }
 
-  return { elements, errors }
+  return { elements, errors, startStation }
+}
+
+// ── Gradient (.GRA) ─────────────────────────────────────────────────────────
+
+/**
+ * The tangent polygon of a Verm.ESN gradient file: [{ station, z, rv? }],
+ * ascending, stationed along the axis like the TRA file's elements.
+ *
+ * Layout: a header one record long whose first float64 is `num`, then
+ * `num + 1` records of station, height, radius of the vertical curve, tangent
+ * length (all float64) and point number (int32). The radius is signed by crest
+ * or sag; the model holds its magnitude.
+ */
+export function parseGradient(arrayBuffer) {
+  const view = new DataView(arrayBuffer)
+  if (view.byteLength < GRA_RECORD_SIZE) return []
+  const num = view.getFloat64(0, true)
+  const fits = Math.floor((view.byteLength - GRA_RECORD_SIZE) / GRA_RECORD_SIZE)
+  const count = Number.isInteger(num) && num >= 0 ? Math.min(num + 1, fits) : fits
+  const out = []
+  for (let i = 0; i < count; i++) {
+    const offset = GRA_RECORD_SIZE + i * GRA_RECORD_SIZE
+    const station = view.getFloat64(offset, true)
+    const z = view.getFloat64(offset + 8, true)
+    const rv = Math.abs(view.getFloat64(offset + 16, true))
+    if (!Number.isFinite(station) || !Number.isFinite(z)) continue
+    out.push({ station, z, ...(rv > 0 ? { rv } : {}) })
+  }
+  return out.sort((a, b) => a.station - b.station)
+}
+
+/**
+ * The gradient as the heights of the track built from the TRA file, stationed
+ * from the track's begin (`startStation`, see buildElements). Where the
+ * gradient covers only part of the track the heights do too (gradientStretch),
+ * and a note says so. Returns { heights, notes } — heights null where the
+ * gradient does not reach into the track at all.
+ */
+export function gradientHeights(points, startStation, length) {
+  if (!points?.length || !Number.isFinite(startStation)) return { heights: null, notes: [] }
+  const first = points[0].station
+  const last = points[points.length - 1].station
+  const range = `${first.toFixed(3)}–${last.toFixed(3)} m`
+  const heights = gradientStretch(points, startStation, startStation + length)
+  if (!(heights?.length >= 2)) {
+    return {
+      heights: null,
+      notes: [`Gradiente (${range}) liegt nicht im Stationsbereich der Achse `
+        + `(${startStation.toFixed(3)}–${(startStation + length).toFixed(3)} m) – ohne Höhen importiert.`],
+    }
+  }
+  const covered = heights[0].station <= 0.002 && heights[heights.length - 1].station >= length - 0.5
+  return {
+    heights,
+    notes: covered ? [] : [`Gradiente (${range}) deckt die Achse nicht ganz ab – dort bleibt das Gleis `
+      + 'ohne Höhen. Sie lassen sich im Höhenprofil aus dem Gelände ergänzen.'],
+  }
 }
