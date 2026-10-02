@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  loadTracks, commitSwitchConnection, generateId, recalcAbsLengths,
-} from '../../../storage'
+import { loadTracks, commitSwitchConnection } from '../../../storage'
+import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
+import { recalcAbsLengths } from '../../../utils/trackModel'
 import {
   computeCurvedValuesUtm, computeStraightValuesUtm,
 } from '../../../utils/elementUtils'
@@ -14,7 +14,6 @@ import {
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { placeSwitchOnTrack, clickStation } from '../../../utils/switchPlacement'
 import { trackLength } from '../../../utils/heightUtils'
-import { buildTypeFields } from '../../../utils/identifierUtils'
 import {
   HIT_TOLERANCE, cantExceptionFields, computeSwitchCant, computeCantDef, computeCantDefSigned,
   switchCantError, worstCantOf, MAX_SWITCH_CANT_DEF,

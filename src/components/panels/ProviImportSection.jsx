@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react'
-import {
-  loadTracks, loadSwitches, generateId, recalcAbsLengths, rebuildCoords, nextTrackName,
-  commitSwitchConnection,
-} from '../../storage'
+import { loadTracks, loadSwitches, commitSwitchConnection } from '../../storage'
+import { generateId } from '../../utils/identifierUtils'
+import { recalcAbsLengths, rebuildCoords, nextTrackName } from '../../utils/trackModel'
 import {
   readProviArchive, listProviAxes, buildProviTracks, proviPlaceableUnits, proviHeights,
   proviSwitchCandidates, proviProject, PROVI_FRAMES,

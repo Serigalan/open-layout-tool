@@ -4,7 +4,7 @@ import {
   listMdbStrecken, buildTracksFromMdb, mdbSwitchInventory, epsgForLagesystem,
 } from './mdbImport'
 import { expectValidTrack } from '../test/chainInvariants'
-import { recalcAbsLengths } from '../storage'
+import { recalcAbsLengths } from './trackModel'
 import fixture from '../test/fixtures/mdb_ausschnitt.json'
 
 /**

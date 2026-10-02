@@ -1,4 +1,4 @@
-import { joinTracks, rebuildCoords, recalcAbsLengths, reverseTrack } from '../storage'
+import { joinTracks, rebuildCoords, recalcAbsLengths, reverseTrack } from './trackModel'
 import {
   portsOf, switchRoutePorts, elementBelongsToSwitch, elementOnSwitchRoute, unmarkSwitchElement,
   isLinkSwitch,

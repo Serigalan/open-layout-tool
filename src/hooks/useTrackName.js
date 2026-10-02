@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { loadTracks, nextTrackName } from '../storage'
+import { loadTracks } from '../storage'
+import { nextTrackName } from '../utils/trackModel'
 import { kmTrackName } from '../utils/lineLookup'
 import useLineStation from './useLineStation'
 

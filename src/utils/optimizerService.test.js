@@ -4,7 +4,7 @@ import {
 } from './optimizerService'
 import { bundledCatalogHash } from './catalogHash'
 import { reconstructElements } from './elementReconstruct'
-import { recalcAbsLengths } from '../storage'
+import { recalcAbsLengths } from './trackModel'
 import { expectValidTrack } from '../test/chainInvariants'
 import korbbogen from '../test/fixtures/optimizer_service_korbbogen.json'
 

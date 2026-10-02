@@ -10,8 +10,8 @@ import { resolveEndBearing } from './elementUtils'
 import { elementAtStation, pointAtStationUtm } from './heightUtils'
 import { epsgForLagesystem } from './mdbImport'
 import { deriveMdbTurnouts, offsetOnTrack, AXIS_TOL } from './mdbSwitchDerive'
-import { generateId, remapSwitches } from '../storage'
-import { nextSwitchNumber, switchDesignation } from './identifierUtils'
+import { generateId, nextSwitchNumber, switchDesignation } from './identifierUtils'
+import { remapSwitches } from './trackModel'
 
 /**
  * Putting the MDB's switch inventory onto the tracks the same import built.

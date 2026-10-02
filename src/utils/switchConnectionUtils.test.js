@@ -14,7 +14,7 @@ import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
 import { newSwitchFields, switchElementMark } from './switchModel'
 import { splitElementAt, carveSwitchRoute } from './trackSplitUtils'
 import { planSwitchDeletion } from './switchDelete'
-import { recalcAbsLengths } from '../storage'
+import { recalcAbsLengths } from './trackModel'
 import { expectValidTrack, expectSwitchRoutesCarved } from '../test/chainInvariants'
 
 /**

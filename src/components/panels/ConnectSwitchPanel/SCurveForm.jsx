@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { loadTracks, loadSwitches, commitSwitchConnection, generateId, nextTrackName, rebuildCoords, recalcAbsLengths } from '../../../storage'
+import { loadTracks, loadSwitches, commitSwitchConnection } from '../../../storage'
+import { generateId, switchDesignation, nextSwitchNumber } from '../../../utils/identifierUtils'
+import { nextTrackName, rebuildCoords, recalcAbsLengths } from '../../../utils/trackModel'
 import { nodeUtm } from '../../../utils/elementUtils'
-import { switchElementRoute } from '../../../utils/switchUtils'
+import { switchElementRoute, computeSwitchGeometryUtm } from '../../../utils/switchUtils'
 import { transitionCantEnds } from '../../../utils/clothoidUtils'
 import { stationFromClick } from '../../../utils/platformUtils'
 import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../../../utils/coordinateUtils'
-import { computeSwitchGeometryUtm } from '../../../utils/switchUtils'
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
-import { switchDesignation, nextSwitchNumber } from '../../../utils/identifierUtils'
 import { splitElementAt, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
   SWITCH_TYPES, CONNECTION_SPEEDS, computeSwitchConnections, solveSwitchConnection,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { recalcAbsLengths, rebuildCoords } from '../storage'
+import { recalcAbsLengths, rebuildCoords } from '../utils/trackModel'
 import {
   computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
   endPointStraightUtm, endPointCurvedUtm,

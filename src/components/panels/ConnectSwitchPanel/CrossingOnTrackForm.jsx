@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  loadTracks, commitSwitchConnection, generateId, recalcAbsLengths,
-} from '../../../storage'
+import { loadTracks, commitSwitchConnection } from '../../../storage'
+import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
+import { recalcAbsLengths } from '../../../utils/trackModel'
 import { wgs84ToUTM } from '../../../utils/coordinateUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../../../utils/trackSplitUtils'
 import {
@@ -11,7 +11,6 @@ import {
 import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { clickStation, placeSwitchOnTrack } from '../../../utils/switchPlacement'
 import { trackLength } from '../../../utils/heightUtils'
-import { buildTypeFields } from '../../../utils/identifierUtils'
 import { HIT_TOLERANCE } from '../../../utils/mapConstants'
 import { elementPath } from '../../../utils/lineLookup'
 import useTrackFields from '../../../hooks/useTrackFields'

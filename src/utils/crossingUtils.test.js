@@ -13,7 +13,7 @@ import { wgs84ToUTM, utmToWgs84 } from './coordinateUtils'
 import {
   computeStraightValuesUtm, computeCurvedValuesUtm, endPointStraightUtm, endPointCurvedUtm,
 } from './elementUtils'
-import { recalcAbsLengths, rebuildCoords } from '../storage'
+import { recalcAbsLengths, rebuildCoords } from './trackModel'
 import { placeSwitchOnTrack } from './switchPlacement'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from './trackSplitUtils'
 import { expectValidTrack } from '../test/chainInvariants'

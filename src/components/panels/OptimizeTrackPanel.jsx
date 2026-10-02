@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { loadTracks, updateTrack, recalcAbsLengths, rebuildCoords } from '../../storage'
+import { loadTracks, updateTrack } from '../../storage'
+import { recalcAbsLengths, rebuildCoords } from '../../utils/trackModel'
 import {
   optimizeOnServer, optimizerReachable, fetchRegelwerke, OptimizerError,
 } from '../../utils/optimizerService'

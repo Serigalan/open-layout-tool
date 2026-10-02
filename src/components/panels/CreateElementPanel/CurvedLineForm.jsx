@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { saveTrack, loadTracks, generateId } from '../../../storage'
-import { wgs84ToUTM, epsgForLngLat, EPSG_OPTIONS } from '../../../utils/coordinateUtils'
+import { saveTrack, loadTracks } from '../../../storage'
+import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
+import { wgs84ToUTM, epsgForLngLat, EPSG_OPTIONS, toWgs } from '../../../utils/coordinateUtils'
 import {
   computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
   signedRadiusFrom3PointsUtm, endPointCurvedUtm,
 } from '../../../utils/elementUtils'
-import { buildTypeFields } from '../../../utils/identifierUtils'
 import { setLineData, setMarkerData, clearPreview } from '../../../utils/mapRenderUtils'
 import { computeAutoC, computeCantDef, MAX_CANT, SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
 import RuleFindings from '../RuleFindings'
@@ -18,7 +18,6 @@ import TrackFields from '../TrackFields'
 import useNearbyLines from '../../../hooks/useNearbyLines'
 import HeightDatumField from '../HeightDatumField'
 import UtmCoordFields from '../../UtmCoordFields'
-import { toWgs } from '../../../utils/coordinateUtils'
 import { elementPath } from '../../../utils/lineLookup'
 
 export default function CurvedLineForm({ t, map, project, onTrackSaved }) {

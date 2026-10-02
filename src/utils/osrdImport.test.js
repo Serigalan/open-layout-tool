@@ -6,7 +6,7 @@ import {
   CROSSING_TYPES, crossingAngle, computeCrossingGeometryUtm, crossingElements,
 } from './switchUtils'
 import { newSwitchFields } from './switchModel'
-import { recalcAbsLengths } from '../storage'
+import { recalcAbsLengths } from './trackModel'
 
 /**
  * AP 3.1 — a turnout written out and read back in. The import identifies the

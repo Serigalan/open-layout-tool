@@ -1,6 +1,6 @@
 import { TYPE_CODES } from './identifierUtils'
 import { kmTrackName } from './lineLookup'
-import { nextTrackName } from '../storage'
+import { nextTrackName } from './trackModel'
 
 /**
  * Tracks by what they belong to — the line (Strecke) a line track runs on,

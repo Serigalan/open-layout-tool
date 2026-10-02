@@ -1,6 +1,6 @@
 import { transformPlanePoint } from './coordinateUtils'
 import { reconstructElements } from './elementReconstruct'
-import { recalcAbsLengths } from '../storage'
+import { recalcAbsLengths } from './trackModel'
 
 /**
  * Carrying an alignment from one projected plane into another.

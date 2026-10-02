@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  addElementToTrack, loadTracks, saveTrack, saveSwitch, generateId, withUndo,
-} from '../../../storage'
+import { addElementToTrack, loadTracks, saveTrack, saveSwitch, withUndo } from '../../../storage'
+import { generateId, SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
 import { elementPath } from '../../../utils/lineLookup'
 import { computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, nodeUtm } from '../../../utils/elementUtils'
-import { SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
 import { trackTypeName } from '../../../utils/trackGroups'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'

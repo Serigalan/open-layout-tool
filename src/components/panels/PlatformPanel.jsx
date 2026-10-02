@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  loadTracks, loadPlatforms, savePlatform, updatePlatform, deletePlatform, generateId,
-} from '../../storage'
+import { loadTracks, loadPlatforms, savePlatform, updatePlatform, deletePlatform } from '../../storage'
+import { generateId } from '../../utils/identifierUtils'
 import { wgs84ToUTM } from '../../utils/coordinateUtils'
 import { trackLength } from '../../utils/heightUtils'
 import { FILTER_NONE, HIT_TOLERANCE, filterForTrack } from '../../utils/mapConstants'

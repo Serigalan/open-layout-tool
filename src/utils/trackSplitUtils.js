@@ -1,4 +1,5 @@
-import { generateId, nextTrackName, rebuildCoords, recalcAbsLengths } from '../storage'
+import { generateId } from './identifierUtils'
+import { nextTrackName, rebuildCoords, recalcAbsLengths } from './trackModel'
 import { computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm, nodeUtm } from './elementUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'

@@ -2,6 +2,7 @@ import { reconstructElements } from './elementReconstruct'
 import { rebuildSwitchSymbol } from './switchUtils'
 import { rebuildPlatformSymbol } from './platformUtils'
 import { isModelledSwitch } from './switchModel'
+import { rebuildCoords } from './trackModel'
 
 /**
  * Persisted store format:
@@ -131,13 +132,6 @@ export function parseTracksPayload(data, { switchIds = new Set() } = {}) {
 
 // ── Hydrate (load) / dehydrate (persist) ─────────────────────────────────────
 
-function buildTrackCoords(elements) {
-  return (elements ?? []).reduce((coords, el, i) => {
-    const c = el.renderCoords ?? el.geometry?.coordinates ?? []
-    return i === 0 ? [...c] : [...coords, ...c.slice(1)]
-  }, [])
-}
-
 /**
  * Rebuild all derived geometry in place: element geometry and renderCoords,
  * track coordinates, the switch symbols and the platform polygons — from the
@@ -148,7 +142,7 @@ export function hydrateProjects(projects) {
   for (const p of projects ?? []) {
     for (const track of p.tracks ?? []) {
       track.elements    = reconstructElements(track.elements, track.epsg)
-      track.coordinates = buildTrackCoords(track.elements)
+      track.coordinates = rebuildCoords(track.elements)
     }
     if (p.switches || p.platforms) {
       const byId = Object.fromEntries((p.tracks ?? []).map(t => [t.id, t]))

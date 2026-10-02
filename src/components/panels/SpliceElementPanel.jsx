@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { loadTracks, replaceAllTracks, remapSwitchTrackIds, generateId, rebuildCoords, recalcAbsLengths } from '../../storage'
+import { loadTracks, replaceAllTracks, remapSwitchTrackIds } from '../../storage'
+import { generateId } from '../../utils/identifierUtils'
+import { rebuildCoords, recalcAbsLengths } from '../../utils/trackModel'
 import { computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, reverseElement, nodeUtm } from '../../utils/elementUtils'
 import {
   computeSpliceWithClothoids, computeArcSpliceWithClothoids, computeArcArcTransition,

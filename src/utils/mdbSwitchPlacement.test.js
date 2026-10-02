@@ -1,22 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { parseMdbPayload, buildTracksFromMdb, mdbSwitchInventory } from './mdbImport'
+import { parseMdbPayload, buildTracksFromMdb, mdbSwitchInventory, buildAllTracksFromMdb } from './mdbImport'
 import { placeMdbSwitches, locateMdbSwitches, switchTypeFor } from './mdbSwitchPlacement'
 import { switchRoutesFromTracks, rebuildSwitchSymbol, crossingRoutesFromTracks } from './switchUtils'
-import { elementBelongsToSwitch } from './switchModel'
+import { elementBelongsToSwitch, switchPorts, isModelledSwitch } from './switchModel'
 import {
   expectEpsgThroughout, expectNodesJoin, expectAbsLengthsRunning,
   expectLengthsTrue, expectRenderCoordsConsistent, expectSwitchRoutesCarved,
 } from '../test/chainInvariants'
 import { resolveEndBearing } from './elementUtils'
-import { recalcAbsLengths } from '../storage'
+import { recalcAbsLengths } from './trackModel'
 import fixture from '../test/fixtures/mdb_weiche.json'
 import crossingFixture from '../test/fixtures/mdb_kreuzungsweiche.json'
 import bogenFixture from '../test/fixtures/mdb_bogenkreuzungsweiche.json'
 import symFixture from '../test/fixtures/mdb_symmetrische_weiche.json'
-import { buildAllTracksFromMdb } from './mdbImport'
-import { switchPorts, isModelledSwitch } from './switchModel'
-import { parseProjectsPayload, hydrateProjects, dehydrateProjects } from './persistenceUtils'
-import { SCHEMA_VERSION } from './persistenceUtils'
+import { parseProjectsPayload, hydrateProjects, dehydrateProjects, SCHEMA_VERSION } from './persistenceUtils'
 
 /**
  * AP 6.3 — the inventory put onto the tracks the same import built.

@@ -1,15 +1,14 @@
 // Shared geometry helpers and map layer names for the EditElement forms.
-import { rebuildCoords, recalcAbsLengths } from '../../../storage'
+import { rebuildCoords, recalcAbsLengths } from '../../../utils/trackModel'
 import {
   computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
   endPointStraightUtm, endPointCurvedUtm, nodeUtm, resolveEndBearing, displayCoords,
 } from '../../../utils/elementUtils'
 import { computeClothoidUtm } from '../../../utils/clothoidUtils'
 import { toWgs } from '../../../utils/coordinateUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../../../utils/mapConstants'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK, MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../../../utils/mapConstants'
 import { truncateHeights } from '../../../utils/heightUtils'
 import { switchParts } from '../../../utils/switchDelete'
-import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../../../utils/mapConstants'
 
 export const EDIT_MARKER_SOURCE = 'edit-length-markers-source'
 export const EDIT_MARKER_LAYER  = 'edit-length-markers-layer'

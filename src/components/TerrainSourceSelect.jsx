@@ -1,4 +1,4 @@
-import { saveSettings } from '../storage'
+import { saveSettings } from '../utils/settings'
 import { TERRAIN_SOURCES } from '../utils/elevationSource'
 
 /**

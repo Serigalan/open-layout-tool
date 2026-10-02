@@ -1,4 +1,4 @@
-import { readImageAsBase64 } from '../../storage'
+import { readImageAsBase64 } from '../../utils/fileUtils'
 import { PROJECT_IMAGES, projectImageUrl } from '../../utils/projectImages'
 import './collab.css'
 

@@ -1,5 +1,10 @@
 import { DEFAULT_HEIGHT_EPSG } from './mapConstants'
 
+/** A new random id for a track, switch, platform, mark … */
+export function generateId() {
+  return crypto.randomUUID()
+}
+
 export const TYPE_CODES    = { line_track: 1n, station_track: 2n }
 export const SIDE_CODES    = { sorting: 1n, non_sorting: 2n }
 

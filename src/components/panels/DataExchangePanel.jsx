@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { loadTracks, loadSwitches, loadProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, generateId, recalcAbsLengths, rebuildCoords, nextTrackName, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
+import { loadTracks, loadSwitches, loadProjects, exportProjectsPayload, saveTrack, saveSwitch, updateTrack, updateProject, commitSwitchConnection, loadImportReports, saveImportReport, clearImportReports, saveEndMark, loadEndMarks } from '../../storage'
+import { generateId } from '../../utils/identifierUtils'
+import { recalcAbsLengths, rebuildCoords, nextTrackName } from '../../utils/trackModel'
 import { parseProjectsPayload, parseTracksPayload, PayloadError } from '../../utils/persistenceUtils'
 import { parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode } from '../../utils/vermEsnImport'
 import { reconstructElements } from '../../utils/elementReconstruct'

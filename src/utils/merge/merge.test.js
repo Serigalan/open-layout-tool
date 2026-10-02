@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { hasPek, loadPek } from '../../test/pekFixture'
 import { splitTrackAtJoint } from '../trackSplitUtils'
-import { joinTracks } from '../../storage'
+import { joinTracks } from '../trackModel'
 import { diffProject, diffSize, mergeProject, resolve } from './index'
 import { primary } from './diff'
 

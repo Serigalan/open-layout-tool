@@ -24,7 +24,7 @@
 // treats them all as the height system of its tracks.
 
 import { terrainOnServer } from './optimizerService'
-import { loadSettings } from '../storage'
+import { loadSettings } from './settings'
 
 /** The choices of terrain source, the first the default. */
 export const TERRAIN_SOURCES = ['auto', 'dgm1', 'dgm5', 'maptiler']

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import {
-  loadTracks, saveTrack, saveSwitch, addElementToTrack, generateId, recalcAbsLengths, withUndo,
-} from '../../../storage'
+import { loadTracks, saveTrack, saveSwitch, addElementToTrack, withUndo } from '../../../storage'
+import { generateId, SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
+import { recalcAbsLengths } from '../../../utils/trackModel'
 import { resolveEndBearing, nodeUtm } from '../../../utils/elementUtils'
-import { SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
 import { trackTypeName } from '../../../utils/trackGroups'
 import {
   CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius,
