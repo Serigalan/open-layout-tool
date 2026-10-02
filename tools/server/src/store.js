@@ -19,7 +19,7 @@ const unpack = (buf) => JSON.parse(gunzipSync(buf).toString('utf8'))
 export function createStore(db, { now = () => Date.now() } = {}) {
   const iso = () => new Date(now()).toISOString()
   const q = {
-    projects:      db.prepare(`SELECT p.*, u.name AS creator_name FROM project p JOIN user u ON u.id = p.created_by
+    projects:      db.prepare(`SELECT p.*, u.name AS creator_name, u.login AS creator_login FROM project p JOIN user u ON u.id = p.created_by
                                WHERE p.deleted_at IS NULL ORDER BY p.title COLLATE NOCASE`),
     project:       db.prepare('SELECT * FROM project WHERE id = ? AND deleted_at IS NULL'),
     insertProject: db.prepare('INSERT INTO project (id, title, description, created_by, created_at, template) VALUES (?, ?, ?, ?, ?, ?)'),
@@ -42,6 +42,13 @@ export function createStore(db, { now = () => Date.now() } = {}) {
                                                       message, schema_version, payload, remaps, error_keys, image_hash)
                                 VALUES (@project_id, @number, @variant_id, @parent_id, @merge_parent_id, @author_id, @created_at,
                                         @message, @schema_version, @payload, @remaps, @error_keys, @image_hash)`),
+    members:       db.prepare(`SELECT m.user_id, m.added_at, u.login, u.name, u.active FROM project_member m
+                               JOIN user u ON u.id = m.user_id WHERE m.project_id = ? ORDER BY u.name COLLATE NOCASE`),
+    allMembers:    db.prepare(`SELECT m.project_id, m.user_id, u.login, u.name, u.active FROM project_member m
+                               JOIN user u ON u.id = m.user_id ORDER BY u.name COLLATE NOCASE`),
+    isMember:      db.prepare('SELECT 1 FROM project_member WHERE project_id = ? AND user_id = ?').pluck(),
+    addMember:     db.prepare('INSERT OR IGNORE INTO project_member (project_id, user_id, added_by, added_at) VALUES (?, ?, ?, ?)'),
+    removeMember:  db.prepare('DELETE FROM project_member WHERE project_id = ? AND user_id = ?'),
     blob:          db.prepare('SELECT * FROM blob WHERE hash = ?'),
     insertBlob:    db.prepare('INSERT OR IGNORE INTO blob (hash, mime, size, data, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)'),
   }
@@ -96,9 +103,38 @@ export function createStore(db, { now = () => Date.now() } = {}) {
       return { meta: revisionMeta(id), payload: unpack(r.payload), remaps: JSON.parse(r.remaps), errorKeys: JSON.parse(r.error_keys) }
     },
 
-    /** The projects with their variants, each variant with its head and how far its parent is ahead. */
-    listProjects() {
-      return q.projects.all().map(p => {
+    /**
+     * Whether `user` may see (and so edit) a project: an admin always, anyone a
+     * template, otherwise its creator and its members (decision 127).
+     */
+    canSee(user, project) {
+      if (!user || !project) return false
+      if (user.role === 'admin' || project.template || project.created_by === user.id) return true
+      return Boolean(q.isMember.get(project.id, user.id))
+    },
+
+    /** Whether `user` may say who else works on a project: an admin, or its creator. */
+    canManage: (user, project) => Boolean(user && project && (user.role === 'admin' || project.created_by === user.id)),
+
+    /** The members of a project (not its creator), as the API shows them. */
+    members: (projectId) => q.members.all(projectId).map(publicMember),
+
+    addMember: (projectId, userId, addedBy) => q.addMember.run(projectId, userId, addedBy, iso()),
+    removeMember: (projectId, userId) => q.removeMember.run(projectId, userId),
+
+    /**
+     * The projects `viewer` may see, with their variants — each variant with its
+     * head and how far its parent is ahead — and who works on each.
+     */
+    listProjects(viewer) {
+      const members = new Map()
+      for (const m of q.allMembers.all()) {
+        if (!members.has(m.project_id)) members.set(m.project_id, [])
+        members.get(m.project_id).push(m)
+      }
+      const visible = (p) => viewer.role === 'admin' || p.template || p.created_by === viewer.id
+        || (members.get(p.id) ?? []).some(m => m.user_id === viewer.id)
+      return q.projects.all().filter(visible).map(p => {
         const graph = graphOf(p.id)
         const rows = q.variants.all(p.id)
         const byId = new Map(rows.map(v => [v.id, v]))
@@ -114,8 +150,9 @@ export function createStore(db, { now = () => Date.now() } = {}) {
         // The project's picture is the one its first variant names.
         return {
           id: p.id, title: p.title, description: p.description ?? '', template: Boolean(p.template),
-          createdBy: { id: p.created_by, name: p.creator_name }, createdAt: p.created_at, variants,
+          createdBy: { id: p.created_by, name: p.creator_name, login: p.creator_login }, createdAt: p.created_at, variants,
           imageHash: variants[0]?.head?.imageHash ?? null,
+          members: (members.get(p.id) ?? []).map(publicMember),
         }
       })
     },
@@ -212,6 +249,9 @@ export function createStore(db, { now = () => Date.now() } = {}) {
     putBlob: ({ hash, mime, data, authorId }) => q.insertBlob.run(hash, mime, data.length, data, authorId, iso()),
   }
 }
+
+/** A member as the API shows them. */
+export const publicMember = (m) => ({ id: m.user_id, login: m.login, name: m.name, active: Boolean(m.active) })
 
 export function publicVariant(v, head, parentAhead = 0) {
   return {

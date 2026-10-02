@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { setup, signIn } from './helpers.js'
+import { PW, setup, signIn } from './helpers.js'
 import { hasPek, loadPek } from '../../../src/test/pekFixture.js'
 
 let ctx
@@ -56,15 +56,17 @@ describe('projects', () => {
     expect(res.json()).toEqual({ error: 'invalid_payload' })
   })
 
-  it('every user sees every project; only the admin or the creator deletes one', async () => {
+  it('a project is its creator\'s and the admins\'; only they delete it', async () => {
     const { max, ada } = await start()
     const { project } = await newProject(ada)
-    expect((await max('GET', '/api/projects')).json().projects.map(p => p.id)).toEqual([project.id])
-    expect((await max('DELETE', `/api/projects/${project.id}`)).statusCode).toBe(403)
+    expect((await max('GET', '/api/projects')).json().projects).toEqual([])
+    expect((await max('DELETE', `/api/projects/${project.id}`)).statusCode).toBe(404)
     const own = await newProject(max)
+    expect((await ada('GET', '/api/projects')).json().projects.map(p => p.id).sort())
+      .toEqual([project.id, own.project.id].sort())
     expect((await max('DELETE', `/api/projects/${own.project.id}`)).statusCode).toBe(204)
     expect((await ada('DELETE', `/api/projects/${project.id}`)).statusCode).toBe(204)
-    expect((await max('GET', '/api/projects')).json().projects).toEqual([])
+    expect((await ada('GET', '/api/projects')).json().projects).toEqual([])
   })
 
   it('a template is the admin\'s; everyone branches a variant of their own off it', async () => {
@@ -236,5 +238,92 @@ describe('images', () => {
     const res = (await max('GET', `/api/variants/${variantId}`)).json()
     expect(res.variant.head.id).toBe(revisionId)
     expect(res.payload).toBeUndefined()
+  })
+})
+
+describe('project members (decision 127)', () => {
+  async function three() {
+    const { max, ada } = await start()
+    await ctx.app.auth.createUser({ login: 'eva', name: 'Eva Extern', password: PW, role: 'user', mustChangePassword: false })
+    const eva = await signIn(ctx.app, 'eva')
+    const userId = (login) => ctx.app.auth.userByLogin(login).id
+    return { max, ada, eva, userId }
+  }
+
+  it('someone else\'s project is not there for an outsider — list, records, check-in alike', async () => {
+    const { max, eva } = await three()
+    const { project, variantId, revisionId } = await newProject(max, { tracks: [straight('t1')] })
+    const h = await head(max, variantId)
+    expect((await eva('GET', '/api/projects')).json().projects).toEqual([])
+    for (const url of [
+      `/api/variants/${variantId}`, `/api/variants/${variantId}/head`, `/api/variants/${variantId}/revisions`,
+      `/api/revisions/${revisionId}`, `/api/revisions/${revisionId}/remaps`, `/api/projects/${project.id}/members`,
+    ]) {
+      expect((await eva('GET', url)).statusCode, url).toBe(404)
+    }
+    const edit = { base: revisionId, payload: { ...h.payload, title: 'x' }, remaps: [] }
+    expect((await eva('POST', `/api/variants/${variantId}/revisions`, edit)).statusCode).toBe(404)
+    expect((await eva('POST', `/api/projects/${project.id}/variants`, { name: 'x', fromVariant: variantId })).statusCode).toBe(404)
+    expect((await eva('PATCH', `/api/projects/${project.id}`, { title: 'x' })).statusCode).toBe(404)
+  })
+
+  it('the creator adds a member, who then sees and edits the project but does not manage it', async () => {
+    const { max, eva, ada, userId } = await three()
+    const { project, variantId, revisionId } = await newProject(max, { tracks: [straight('t1')] })
+    const add = await max('POST', `/api/projects/${project.id}/members`, { userId: userId('eva') })
+    expect(add.statusCode).toBe(201)
+    expect(add.json().members).toEqual([{ id: userId('eva'), login: 'eva', name: 'Eva Extern', active: true }])
+
+    const listed = (await eva('GET', '/api/projects')).json().projects
+    expect(listed.map(p => p.id)).toEqual([project.id])
+    expect(listed[0].members.map(m => m.login)).toEqual(['eva'])
+    const h = await head(eva, variantId)
+    const edit = { base: revisionId, payload: { ...h.payload, tracks: [straight('t1'), straight('t2', 10)] }, remaps: [] }
+    expect((await eva('POST', `/api/variants/${variantId}/revisions`, edit)).statusCode).toBe(201)
+
+    // A member works on the project; who else does is the creator's and the admins' to say.
+    expect((await eva('GET', `/api/projects/${project.id}/members`)).json().canManage).toBe(false)
+    expect((await eva('POST', `/api/projects/${project.id}/members`, { userId: userId('ada') })).statusCode).toBe(403)
+    expect((await eva('DELETE', `/api/projects/${project.id}`)).statusCode).toBe(403)
+    expect((await ada('GET', `/api/projects/${project.id}/members`)).json().canManage).toBe(true)
+
+    // Taken off again, the project is gone for them.
+    expect((await max('DELETE', `/api/projects/${project.id}/members/${userId('eva')}`)).json().members).toEqual([])
+    expect((await eva('GET', '/api/projects')).json().projects).toEqual([])
+    expect((await eva('GET', `/api/variants/${variantId}/head`)).statusCode).toBe(404)
+  })
+
+  it('the admin sees every project and may add members to any', async () => {
+    const { max, ada, userId } = await three()
+    const { project } = await newProject(max)
+    expect((await ada('GET', '/api/projects')).json().projects.map(p => p.id)).toEqual([project.id])
+    expect((await ada('POST', `/api/projects/${project.id}/members`, { userId: userId('eva') })).statusCode).toBe(201)
+  })
+
+  it('refuses the creator, unknown and deactivated users as members, and members on a template', async () => {
+    const { max, ada, userId } = await three()
+    const { project } = await newProject(max)
+    const add = (id) => max('POST', `/api/projects/${project.id}/members`, { userId: id })
+    expect((await add(userId('max'))).json()).toEqual({ error: 'member_is_creator' })
+    expect((await add(9999)).json()).toEqual({ error: 'user_not_found' })
+    await ada('PATCH', `/api/admin/users/${userId('eva')}`, { active: false })
+    expect((await add(userId('eva'))).json()).toEqual({ error: 'user_not_found' })
+    const template = (await ada('POST', '/api/projects', { title: 'Vorlage', template: true })).json()
+    expect((await ada('POST', `/api/projects/${template.projectId}/members`, { userId: userId('max') })).json())
+      .toEqual({ error: 'template_members' })
+    // …and a template is everyone's to see.
+    expect((await max('GET', '/api/projects')).json().projects.map(p => p.id)).toContain(template.projectId)
+  })
+
+  it('finds active users by name or login, and nothing else about them', async () => {
+    const { max, ada, userId } = await three()
+    expect((await max('GET', '/api/users?q=e')).json()).toEqual({ error: 'query_too_short' })
+    expect((await max('GET', '/api/users?q=EXT')).json().users).toEqual([{ id: userId('eva'), login: 'eva', name: 'Eva Extern' }])
+    expect((await max('GET', '/api/users?q=ev')).json().users.map(u => u.login)).toEqual(['eva'])
+    // LIKE wildcards are taken literally.
+    expect((await max('GET', '/api/users?q=%25%25')).json().users).toEqual([])
+    await ada('PATCH', `/api/admin/users/${userId('eva')}`, { active: false })
+    expect((await max('GET', '/api/users?q=eva')).json().users).toEqual([])
+    expect((await ctx.app.inject({ method: 'GET', url: '/api/users?q=eva' })).statusCode).toBe(401)
   })
 })

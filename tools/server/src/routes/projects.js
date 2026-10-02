@@ -9,9 +9,9 @@ export const IMAGE_LIMIT = 5 * 1024 * 1024
 const text = (v, max = 500) => (v == null ? undefined : String(v).trim().slice(0, max))
 
 /**
- * Projects, variants, revisions and images (AP 10.5). Every active user sees
- * and edits every project (decision 99); deleting a project is the admin's or
- * its creator's. A template is the admin's alone — the project and its root
+ * Projects, variants, revisions and images (AP 10.5). A project is seen and
+ * edited by its creator, its members and the admins (decision 127); deleting
+ * one is the admin's or its creator's. A template is the admin's alone — the project and its root
  * variants; everyone branches variants of their own off it and edits those.
  */
 export default async function projectRoutes(api) {
@@ -19,14 +19,17 @@ export default async function projectRoutes(api) {
   api.decorate('store', store)
   const opts = { preHandler: api.requireUser }
 
-  const projectOr404 = (id) => {
+  // Whoever may not see a project is told it is not there — not that it is
+  // someone else's (decision 127).
+  const projectOr404 = (id, user) => {
     const p = store.project(id)
-    if (!p) throw new ApiError(404, 'not_found')
+    if (!p || !store.canSee(user, p)) throw new ApiError(404, 'not_found')
     return p
   }
-  const variantOr404 = (id) => {
+  const variantOr404 = (id, user) => {
     const v = store.variant(id)
-    if (!v || !store.project(v.project_id)) throw new ApiError(404, 'not_found')
+    if (!v) throw new ApiError(404, 'not_found')
+    projectOr404(v.project_id, user)
     return v
   }
   // The template itself: a template project, or one of its root variants.
@@ -35,13 +38,15 @@ export default async function projectRoutes(api) {
       throw new ApiError(403, 'template_admin')
     }
   }
-  const revisionOr404 = (id) => {
+  const revisionOr404 = (id, user) => {
     const r = store.revisionMeta(Number(id))
-    if (!r || !store.project(r.projectId)) throw new ApiError(404, 'not_found')
+    if (!r) throw new ApiError(404, 'not_found')
+    projectOr404(r.projectId, user)
     return r
   }
+  const listed = (user, id) => store.listProjects(user).find(p => p.id === id)
 
-  api.get('/projects', opts, async () => ({ projects: store.listProjects() }))
+  api.get('/projects', opts, async (req) => ({ projects: store.listProjects(req.user) }))
 
   // A new project, empty or with a record (an import): its first variant
   // "Bestand" at revision 1. An imported record may bring errors along — it
@@ -59,24 +64,54 @@ export default async function projectRoutes(api) {
       title, description, payload: record, authorId: req.user.id, errorKeys: errors.map(e => e.key),
       variantName: text(req.body?.variantName, 100) || (template ? 'Vorlage' : 'Bestand'), template,
     })
-    const project = store.listProjects().find(p => p.id === ids.projectId)
+    const project = listed(req.user, ids.projectId)
     return reply.code(201).send({ project, ...ids, errors, warnings })
   })
 
   api.patch('/projects/:id', opts, async (req) => {
-    adminForTemplate(req.user, projectOr404(req.params.id))
+    adminForTemplate(req.user, projectOr404(req.params.id, req.user))
     const title = text(req.body?.title, 200)
     if (title === '') throw new ApiError(422, 'title_required')
     store.patchProject(req.params.id, { title, description: text(req.body?.description, 4000) })
-    return { project: store.listProjects().find(p => p.id === req.params.id) }
+    return { project: listed(req.user, req.params.id) }
   })
 
   api.delete('/projects/:id', opts, async (req, reply) => {
-    const p = projectOr404(req.params.id)
+    const p = projectOr404(req.params.id, req.user)
     adminForTemplate(req.user, p)
     if (req.user.role !== 'admin' && p.created_by !== req.user.id) throw new ApiError(403, 'not_allowed')
     store.deleteProject(p.id)
     return reply.code(204).send()
+  })
+
+  // Who works on a project besides its creator (decision 127). Everyone who
+  // sees the project sees the list; its creator and the admins change it.
+  // A template has none: it is open to everyone anyway.
+  const managedOr403 = (req) => {
+    const p = projectOr404(req.params.id, req.user)
+    if (p.template) throw new ApiError(422, 'template_members')
+    if (!store.canManage(req.user, p)) throw new ApiError(403, 'not_allowed')
+    return p
+  }
+
+  api.get('/projects/:id/members', opts, async (req) => {
+    const p = projectOr404(req.params.id, req.user)
+    return { members: store.members(p.id), canManage: store.canManage(req.user, p) && !p.template }
+  })
+
+  api.post('/projects/:id/members', opts, async (req, reply) => {
+    const p = managedOr403(req)
+    const user = api.auth.userById(Number(req.body?.userId))
+    if (!user || !user.active) throw new ApiError(422, 'user_not_found')
+    if (user.id === p.created_by) throw new ApiError(422, 'member_is_creator')
+    store.addMember(p.id, user.id, req.user.id)
+    return reply.code(201).send({ members: store.members(p.id) })
+  })
+
+  api.delete('/projects/:id/members/:userId', opts, async (req) => {
+    const p = managedOr403(req)
+    store.removeMember(p.id, Number(req.params.userId))
+    return { members: store.members(p.id) }
   })
 
   // An image, stored once by the hash of its bytes; the record names the hash.
@@ -103,14 +138,14 @@ export default async function projectRoutes(api) {
   })
 
   api.post('/projects/:id/variants', opts, async (req, reply) => {
-    const p = projectOr404(req.params.id)
+    const p = projectOr404(req.params.id, req.user)
     const name = text(req.body?.name, 100)
     if (!name) throw new ApiError(422, 'name_required')
-    const from = variantOr404(req.body?.fromVariant)
+    const from = variantOr404(req.body?.fromVariant, req.user)
     if (from.project_id !== p.id) throw new ApiError(422, 'variant_mismatch')
     let at = from.head_revision_id
     if (req.body?.fromRevision != null) {
-      const r = revisionOr404(req.body.fromRevision)
+      const r = revisionOr404(req.body.fromRevision, req.user)
       if (r.projectId !== p.id) throw new ApiError(422, 'revision_mismatch')
       at = r.id
     }
@@ -119,7 +154,7 @@ export default async function projectRoutes(api) {
   })
 
   api.patch('/variants/:id', opts, async (req) => {
-    const v = variantOr404(req.params.id)
+    const v = variantOr404(req.params.id, req.user)
     adminForTemplate(req.user, store.project(v.project_id), v)
     const name = text(req.body?.name, 100)
     if (name === '') throw new ApiError(422, 'name_required')
@@ -132,29 +167,29 @@ export default async function projectRoutes(api) {
   // A variant without its record — what the open app polls to tell whether
   // the server has moved on.
   api.get('/variants/:id', opts, async (req) => {
-    const v = variantOr404(req.params.id)
+    const v = variantOr404(req.params.id, req.user)
     return { variant: publicVariant(v, store.revisionMeta(v.head_revision_id)) }
   })
 
   api.get('/variants/:id/head', opts, async (req) => {
-    const v = variantOr404(req.params.id)
+    const v = variantOr404(req.params.id, req.user)
     const r = store.revision(v.head_revision_id)
     return { variant: publicVariant(v, r.meta), revision: r.meta, payload: r.payload }
   })
 
   api.get('/variants/:id/revisions', opts, async (req) => {
-    const v = variantOr404(req.params.id)
+    const v = variantOr404(req.params.id, req.user)
     return { revisions: store.history(v, Math.min(Number(req.query?.limit ?? 500), 2000)) }
   })
 
   api.get('/revisions/:id', opts, async (req) => {
-    const meta = revisionOr404(req.params.id)
+    const meta = revisionOr404(req.params.id, req.user)
     const r = store.revision(meta.id)
     return { revision: r.meta, payload: r.payload, remaps: r.remaps }
   })
 
   api.get('/revisions/:a/base/:b', opts, async (req) => {
-    const a = revisionOr404(req.params.a), b = revisionOr404(req.params.b)
+    const a = revisionOr404(req.params.a, req.user), b = revisionOr404(req.params.b, req.user)
     if (a.projectId !== b.projectId) throw new ApiError(422, 'project_mismatch')
     const base = store.commonBase(a.projectId, a.id, b.id)
     return { base: base == null ? null : store.revisionMeta(base) }
@@ -163,8 +198,8 @@ export default async function projectRoutes(api) {
   // The id logs `id` has that `base` does not — the other side's splits and
   // joins, for carrying references over in a merge.
   api.get('/revisions/:id/remaps', opts, async (req) => {
-    const head = revisionOr404(req.params.id)
-    const base = req.query?.base != null ? revisionOr404(req.query.base) : null
+    const head = revisionOr404(req.params.id, req.user)
+    const base = req.query?.base != null ? revisionOr404(req.query.base, req.user) : null
     if (base && base.projectId !== head.projectId) throw new ApiError(422, 'project_mismatch')
     return { remaps: store.remapsBetween(head.projectId, base?.id ?? null, head.id) }
   })
@@ -174,13 +209,13 @@ export default async function projectRoutes(api) {
   // merges and comes back. A record that adds errors to the ones its base
   // already had is refused with them (422).
   api.post('/variants/:id/revisions', opts, async (req, reply) => {
-    const v = variantOr404(req.params.id)
+    const v = variantOr404(req.params.id, req.user)
     adminForTemplate(req.user, store.project(v.project_id), v)
     const { base, mergeParent, message, payload, remaps } = req.body ?? {}
     if (!Number.isInteger(base)) throw new ApiError(422, 'base_required')
     if (base !== v.head_revision_id) return reply.code(409).send({ error: 'stale_base', head: store.revisionMeta(v.head_revision_id) })
     if (mergeParent != null) {
-      const mp = revisionOr404(mergeParent)
+      const mp = revisionOr404(mergeParent, req.user)
       if (mp.projectId !== v.project_id) throw new ApiError(422, 'project_mismatch')
     }
     if (!Array.isArray(remaps ?? [])) throw new ApiError(422, 'invalid_remaps')

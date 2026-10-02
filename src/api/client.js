@@ -57,6 +57,10 @@ export const api = {
   patchProject:   (id, body) => request('PATCH', `/projects/${enc(id)}`, body),
   deleteProject:  (id) => request('DELETE', `/projects/${enc(id)}`),
   branch:         (projectId, body) => request('POST', `/projects/${enc(projectId)}/variants`, body),
+  members:        (projectId) => request('GET', `/projects/${enc(projectId)}/members`),
+  addMember:      (projectId, userId) => request('POST', `/projects/${enc(projectId)}/members`, { userId }),
+  removeMember:   (projectId, userId) => request('DELETE', `/projects/${enc(projectId)}/members/${enc(userId)}`),
+  searchUsers:    (q) => request('GET', `/users?q=${enc(q)}`),
 
   variant:        (id) => request('GET', `/variants/${enc(id)}`),
   patchVariant:   (id, body) => request('PATCH', `/variants/${enc(id)}`, body),

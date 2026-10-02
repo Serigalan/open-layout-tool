@@ -3,12 +3,13 @@ import { api, blobUrl, splitDataUrl } from '../api/client'
 import { parseProjectsPayload, PayloadError, SCHEMA_VERSION } from '../utils/persistenceUtils'
 import { PROJECT_IMAGES, projectImagePicture } from '../utils/projectImages'
 import { downloadJSON } from '../utils/fileUtils'
-import { languageLabels } from '../locales/i18n'
 import { formatDate, loadHome, variantTree } from './collab/homeModel'
 import { LogoIcon } from './icons'
 import { fill } from './collab/mergeText'
 import PasswordForm from './collab/PasswordForm'
+import LanguageMenu from './collab/LanguageMenu'
 import ProjectImagePicker from './collab/ProjectImagePicker'
+import MembersDialog from './collab/MembersDialog'
 import './collab/collab.css'
 
 /**
@@ -29,10 +30,12 @@ const errorText = (t, code) => {
  * off — and per variant its head (revision, author, date) and the local state
  * of its working copy in this browser.
  *
- * "+ New" opens a dialog; "Import" makes one server project of every project
- * in a backup file — the only place whole projects come in. The "⋯" menu of a
- * project renames, exports (a variant's head) and deletes it (its admin or
- * creator only). Branching, comparing and merging act on its variants.
+ * Each user sees the projects they created or were added to, an admin sees
+ * all (decision 127). "+ New" opens a dialog; "Import" makes one server
+ * project of every project in a backup file — the only place whole projects
+ * come in. The "⋯" menu of a project renames, exports (a variant's head),
+ * lists and changes who works on it, and deletes it (its admin or creator
+ * only). Branching, comparing and merging act on its variants.
  *
  * Below them the templates: everyone branches a variant of their own off one;
  * the template itself — its root variants — only an admin edits, everyone
@@ -126,9 +129,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
           <h1>Open Layout Tool</h1>
         </div>
         <div className="home-user">
-          <select className="home-language" value={language} aria-label={t('home_language')} onChange={e => onLanguageChange(e.target.value)}>
-            {Object.entries(languageLabels).map(([lang, label]) => <option key={lang} value={lang}>{label}</option>)}
-          </select>
+          <LanguageMenu language={language} onChange={onLanguageChange} t={t} />
           {isAdmin && onAdmin && <button type="button" className="collab-btn" onClick={onAdmin}>{t('home_admin')}</button>}
           <div className="home-menu">
             <button type="button" className="collab-btn" aria-haspopup="menu" aria-expanded={userMenu} onClick={() => setUserMenu(v => !v)}>
@@ -207,6 +208,10 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
           confirmLabel={t('start_delete')} onCancel={() => setDialog(null)}
           onConfirm={async () => { await api.deleteProject(dialog.project.id); setDialog(null); await reload() }} />
       )}
+      {dialog?.kind === 'members' && (
+        <MembersDialog t={t} project={dialog.project}
+          onClose={async (changed) => { setDialog(null); if (changed) await reload() }} />
+      )}
       {dialog?.kind === 'branch' && (
         <BranchDialog t={t} project={dialog.project} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
       )}
@@ -249,6 +254,11 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit
         <div className="home-project-titles">
           <h3>{project.title}</h3>
           {project.description && <p className="collab-muted">{project.description}</p>}
+          {project.members?.length > 0 && (
+            <p className="collab-muted home-project-members">
+              {fill(t, 'home_members_line', { names: project.members.map(m => m.name).join(', ') })}
+            </p>
+          )}
         </div>
         <div className="home-menu">
           <button type="button" className="collab-btn collab-btn-small" aria-label={t('home_project_menu')} aria-haspopup="menu"
@@ -257,6 +267,7 @@ function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit
             <div className="home-menu-list" role="menu" onMouseLeave={() => setMenu(false)}>
               {canEdit && item(t('home_rename'), 'rename')}
               {item(t('start_export'), 'export')}
+              {!project.template && item(t('home_members'), 'members')}
               {canDelete && item(t('start_delete'), 'delete', { danger: true })}
             </div>
           )}

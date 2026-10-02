@@ -5,6 +5,7 @@ import { ApiError } from './errors.js'
 import authRoutes from './routes/auth.js'
 import adminRoutes from './routes/admin.js'
 import projectRoutes from './routes/projects.js'
+import userRoutes from './routes/users.js'
 
 /** Largest request body [bytes] — a large MDB import fits, a runaway does not fill the disk. */
 export const BODY_LIMIT = 20 * 1024 * 1024
@@ -65,6 +66,7 @@ export function buildApp({ db, secureCookie = true, now = () => Date.now(), logg
     api.register(authRoutes)
     api.register(adminRoutes)
     api.register(projectRoutes)
+    api.register(userRoutes)
     for (const r of routes) api.register(r)
   }, { prefix: '/api' })
 
