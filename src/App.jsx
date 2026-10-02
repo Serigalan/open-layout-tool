@@ -868,8 +868,6 @@ export default function App() {
     const basemap = BASEMAPS.find((b) => b.id === basemapId)
     if (!basemap) { console.warn('[App] Unknown basemap:', basemapId); return }
 
-    console.log('[App] Switching basemap:', activeBasemap, '→', basemapId)
-
     if (activeBasemap === 'elevation' || activeBasemap === 'dgm5') {
       try { map.current.setTerrain(null) } catch (err) {
         console.warn('[App] Failed to reset terrain:', err)
@@ -881,7 +879,6 @@ export default function App() {
     try {
       map.current.setStyle(basemap.style)
       map.current.once('style.load', () => {
-        console.log('[App] Style loaded for:', basemapId)
         // The new style's colour scale starts on its default range.
         updateElevationRange(map.current, { force: true })
         renderTracksOnMap(map.current, project, { topology: topologyRef.current })
