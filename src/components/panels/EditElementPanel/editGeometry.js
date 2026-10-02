@@ -1,14 +1,10 @@
 // Shared geometry helpers and map layer names for the EditElement forms.
 import { rebuildCoords, recalcAbsLengths } from '../../../utils/trackModel'
-import {
-  computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
-  endPointStraightUtm, endPointCurvedUtm, nodeUtm, resolveEndBearing, displayCoords,
-} from '../../../utils/elementUtils'
-import { computeClothoidUtm } from '../../../utils/clothoidUtils'
-import { toWgs } from '../../../utils/coordinateUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK, MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../../../utils/mapConstants'
+import { nodeUtm, resolveEndBearing, displayCoords } from '../../../utils/elementUtils'
+import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../../../utils/mapConstants'
 import { truncateHeights } from '../../../utils/heightUtils'
 import { switchParts } from '../../../utils/switchDelete'
+import { arcFrom, straightFrom, transitionElement } from '../../../utils/elementFactory'
 
 export const EDIT_MARKER_SOURCE = 'edit-length-markers-source'
 export const EDIT_MARKER_LAYER  = 'edit-length-markers-layer'
@@ -42,36 +38,14 @@ function shiftedKink(el, newBearing) {
  * length and bearing reshape the spiral, they never turn it into a straight.
  */
 function buildElement(el, startUtm, { bearing = el.bearing, length = el.length, radius = el.radius } = {}) {
-  const startNode = [startUtm.easting, startUtm.northing]
-  const startWgs  = toWgs(startUtm)
   if (el.elementType === 2 && el.r1 !== undefined) {
-    const cl  = computeClothoidUtm(startUtm, bearing, length, el.r1, el.r2 ?? null, SAGITTA_ELEMENT, el.transitionType)
-    const clR = computeClothoidUtm(startUtm, bearing, length, el.r1, el.r2 ?? null, SAGITTA_TRACK, el.transitionType)
-    return {
-      ...el, bearing, length, endBearing: cl.endBearing,
-      startNode, endNode: [cl.endUtm.easting, cl.endUtm.northing],
-      geometry:     { type: 'LineString', coordinates: cl.coords },
-      renderCoords: clR.coords,
-    }
+    return { ...el, ...transitionElement(startUtm, bearing, length, el.r1, el.r2 ?? null, { transitionType: el.transitionType }).element }
   }
-  if (radius != null) {
-    const endUtm = endPointCurvedUtm(startUtm, bearing, length, radius)
-    const v      = computeCurvedValuesUtm(startUtm, endUtm, radius)
-    const chord  = [startWgs, toWgs(endUtm)]
-    return {
-      ...el, elementType: 1, bearing, length, radius,
-      startNode, endNode: v.endNode, endBearing: v.endBearing,
-      geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(startUtm, endUtm, radius, SAGITTA_ELEMENT) ?? chord },
-      renderCoords: arcCoordsFromRadiusUtm(startUtm, endUtm, radius, SAGITTA_TRACK) ?? chord,
-    }
-  }
-  const endUtm = endPointStraightUtm(startUtm, bearing, length)
-  const v      = computeStraightValuesUtm(startUtm, endUtm)
+  // The bearing and length stay as given; the factory derives the rest.
+  if (radius != null) return { ...el, ...arcFrom(startUtm, bearing, length, radius), bearing, length }
   return {
-    ...el, elementType: 0, bearing, length, radius: null,
+    ...el, ...straightFrom(startUtm, bearing, length), bearing, length, radius: null,
     endBearing: shiftedKink(el, bearing),
-    startNode, endNode: v.endNode,
-    geometry: { type: 'LineString', coordinates: [startWgs, toWgs(endUtm)] },
     // An arc cleared to a straight would otherwise keep drawing its old curve
     // in the track polyline (rebuildCoords prefers renderCoords).
     renderCoords: undefined,

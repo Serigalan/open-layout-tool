@@ -1,8 +1,4 @@
-import {
-  endPointStraightUtm, endPointCurvedUtm,
-  computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
-  reverseElement,
-} from './elementUtils'
+import { endPointStraightUtm, endPointCurvedUtm, arcCoordsFromRadiusUtm, reverseElement } from './elementUtils'
 import {
   ALL_SWITCH_TYPES, switchBranchSections, switchStraightLength,
   CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius, computeCrossingGeometryUtm,
@@ -11,11 +7,11 @@ import {
 } from './switchUtils'
 import { newSwitchFields, switchElementMark, LINK_KIND } from './switchModel'
 import { kindForOsrdType, bufferStopsToEndMarks } from './alignmentCodec'
-import { computeClothoidUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT } from './mapConstants'
 import { TYPE_CODES, SIDE_CODES } from './identifierUtils'
 import { STATUSES } from './planStatus'
+import { arcFrom, straightFrom, transitionElement } from './elementFactory'
 
 const GON2DEG = 9 / 10
 
@@ -375,56 +371,36 @@ export function parseOsrdRailJson(data) {
       const length = Number(item.length_m)
       if (!(length > 0)) continue          // degenerate entries carry no geometry
       const speed = Number(item.design_speed_kmh) || 0
-      const wgs = (p) => utmToWgs84(p.easting, p.northing, epsg)
 
       if (item.type === 'curve') {
         const radius = Number(item.radius_m)
-        const end = endPointCurvedUtm(cursor, bearing, length, radius)
-        const cv  = computeCurvedValuesUtm(cursor, end, radius)
-        elements.push({
-          elementType: 1,
-          startNode: cv.startNode, endNode: cv.endNode,
-          bearing: cv.bearing, endBearing: cv.endBearing,
-          length: cv.length, absLength: cv.length, speed,
-          radius, cant: Number(item.cant_start_mm) || 0,
-          geometry: { type: 'LineString', coordinates:
-            arcCoordsFromRadiusUtm(cursor, end, radius, SAGITTA_ELEMENT) ?? [wgs(cursor), wgs(end)] },
-        })
-        cursor = end
-        bearing = cv.endBearing
+        const arc = arcFrom(cursor, bearing, length, radius, { speed, cant: Number(item.cant_start_mm) || 0 })
+        elements.push({ ...arc, absLength: arc.length })
+        cursor = { easting: arc.endNode[0], northing: arc.endNode[1], zone: cursor.zone }
+        bearing = arc.endBearing
 
       } else if (item.type === 'clothoid' || item.type === 'bloss') {
         // null radius = the transition runs into a straight on that side
         const r1 = item.radius_start_m == null ? null : Number(item.radius_start_m)
         const r2 = item.radius_end_m   == null ? null : Number(item.radius_end_m)
-        const cl = computeClothoidUtm(cursor, bearing, length, r1, r2, SAGITTA_ELEMENT, item.type)
-        elements.push({
-          elementType: 2, transitionType: item.type, r1, r2,
-          startNode: [cursor.easting, cursor.northing],
-          endNode: [cl.endUtm.easting, cl.endUtm.northing],
-          bearing, endBearing: cl.endBearing,
-          length, absLength: length, speed,
-          geometry: { type: 'LineString', coordinates: cl.coords },
-        })
-        cursor = cl.endUtm
-        bearing = cl.endBearing
+        const t = transitionElement(cursor, bearing, length, r1, r2, { transitionType: item.type, absLength: length, speed })
+        elements.push(t.element)
+        cursor = t.endUtm
+        bearing = t.endBearing
 
       } else {
-        const end = endPointStraightUtm(cursor, bearing, length)
-        const sv  = computeStraightValuesUtm(cursor, end)
+        const sv  = straightFrom(cursor, bearing, length, { speed })
         // A kink at the straight's end: the alignment leaves in a different
         // direction than the straight runs, by the stated deflection angle.
         const kink = Number(item.kink_gon) * GON2DEG || 0
         const kinked = kink ? (((sv.bearing + kink) % 360) + 360) % 360 : null
         elements.push({
-          elementType: 0,
-          startNode: sv.startNode, endNode: sv.endNode,
-          bearing: sv.bearing, length: sv.length, absLength: sv.length, speed,
+          ...sv,
+          absLength: sv.length,
           ...(kinked != null ? { endBearing: kinked } : {}),
           ...(Number(item.cant_start_mm) ? { cant: Number(item.cant_start_mm) } : {}),
-          geometry: { type: 'LineString', coordinates: [wgs(cursor), wgs(end)] },
         })
-        cursor = end
+        cursor = { easting: sv.endNode[0], northing: sv.endNode[1], zone: cursor.zone }
         bearing = kinked ?? sv.bearing
       }
     }

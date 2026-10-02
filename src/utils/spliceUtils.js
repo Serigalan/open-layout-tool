@@ -1,11 +1,9 @@
 import { utmToWgs84 } from './coordinateUtils'
+import { arcElement, straightElement, transitionElement } from './elementFactory'
 import {
   computeClothoidUtm, transitionShift, transitionPointAtUtm, transitionBearingAtUtm,
 } from './clothoidUtils'
-import {
-  computeCurvedValuesUtm, computeStraightValuesUtm, arcCoordsFromRadiusUtm,
-  endPointCurvedUtm, bearingAfterUtm, reverseElement,
-} from './elementUtils'
+import { computeCurvedValuesUtm, endPointCurvedUtm, bearingAfterUtm, reverseElement } from './elementUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
 
 const DEG2RAD = Math.PI / 180
@@ -255,8 +253,6 @@ export function computeArcSpliceWithClothoids(
   const arr  = arrEnd
   const depS = depStart
   const arrS = arrStart
-  const depStartWgs = utmToWgs84(depS.easting, depS.northing, zone)
-  const arrStartWgs = utmToWgs84(arrS.easting, arrS.northing, zone)
 
   const R1 = Math.abs(depSignedR), R2 = Math.abs(arrSignedR)
   const L1 = Math.max(0, clothoidDep || 0)
@@ -326,65 +322,25 @@ export function computeArcSpliceWithClothoids(
   const A1w = wgs(A1), S1w = wgs(S1), S2w = wgs(S2), A2w = wgs(A2)
 
   // ── Re-shaped departure arc (orig start → A1) ─────────────────────────────
-  const cvDep = computeCurvedValuesUtm(depS, A1u, depSignedR)
-  if (cvDep.length > Math.PI * R1) return { error: 'splice_error_dep_too_large' }
-  const depArcEl = {
-    elementType: 1,
-    startNode: cvDep.startNode, endNode: cvDep.endNode,
-    bearing: cvDep.bearing, length: cvDep.length, endBearing: cvDep.endBearing,
-    radius: depSignedR,
-    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(depS, A1u, depSignedR, SAGITTA_ELEMENT) || [depStartWgs, A1w] },
-    renderCoords: arcCoordsFromRadiusUtm(depS, A1u, depSignedR, SAGITTA_TRACK) || [depStartWgs, A1w],
-  }
+  const depArcEl = arcElement(depS, A1u, depSignedR)
+  if (depArcEl.length > Math.PI * R1) return { error: 'splice_error_dep_too_large' }
 
-  // ── Departure clothoid (arc → straight) ───────────────────────────────────
-  let depClEl = null
-  if (L1 > 0) {
-    const cl  = computeClothoidUtm(A1u, bearingA1, L1, depSignedR, null, SAGITTA_ELEMENT, transitionType)
-    const clR = computeClothoidUtm(A1u, bearingA1, L1, depSignedR, null, SAGITTA_TRACK, transitionType)
-    depClEl = {
-      elementType: 2, r1: depSignedR, r2: null, transitionType,
-      bearing: bearingA1, endBearing: B, length: L1,
-      startNode: [A1.e, A1.n], endNode: [S1.e, S1.n],
-      geometry:     { type: 'LineString', coordinates: [...cl.coords.slice(0, -1),  S1w] },
-      renderCoords: [...clR.coords.slice(0, -1), S1w],
-    }
-  }
+  // ── Departure clothoid (arc → straight), ending on the straight exactly ────
+  const depClEl = L1 > 0
+    ? transitionElement(A1u, bearingA1, L1, depSignedR, null, { transitionType, endUtm: S1u, endBearing: B }).element
+    : null
 
   // ── Straight connector (S1 → S2) ──────────────────────────────────────────
-  const svStr = computeStraightValuesUtm(S1u, S2u)
-  const straightEl = {
-    elementType: 0,
-    startNode: svStr.startNode, endNode: svStr.endNode,
-    bearing: svStr.bearing, length: svStr.length,
-    geometry: { type: 'LineString', coordinates: [S1w, S2w] },
-  }
+  const straightEl = straightElement(S1u, S2u)
 
   // ── Arrival clothoid (straight → reversed arc) ────────────────────────────
-  let arrClEl = null
-  if (L2 > 0) {
-    const cl  = computeClothoidUtm(S2u, B, L2, null, -arrSignedR, SAGITTA_ELEMENT, transitionType)
-    const clR = computeClothoidUtm(S2u, B, L2, null, -arrSignedR, SAGITTA_TRACK, transitionType)
-    arrClEl = {
-      elementType: 2, r1: null, r2: -arrSignedR, transitionType,
-      bearing: B, endBearing: cl.endBearing, length: L2,
-      startNode: [S2.e, S2.n], endNode: [A2.e, A2.n],
-      geometry:     { type: 'LineString', coordinates: [...cl.coords.slice(0, -1),  A2w] },
-      renderCoords: [...clR.coords.slice(0, -1), A2w],
-    }
-  }
+  const arrClEl = L2 > 0
+    ? transitionElement(S2u, B, L2, null, -arrSignedR, { transitionType, endUtm: A2u }).element
+    : null
 
   // ── Re-shaped, reversed arrival arc (A2 → orig start) ─────────────────────
-  const cvArr = computeCurvedValuesUtm(A2u, arrS, -arrSignedR)
-  if (cvArr.length > Math.PI * R2) return { error: 'splice_error_arr_too_large' }
-  const arrArcEl = {
-    elementType: 1,
-    startNode: cvArr.startNode, endNode: cvArr.endNode,
-    bearing: cvArr.bearing, length: cvArr.length, endBearing: cvArr.endBearing,
-    radius: -arrSignedR,
-    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(A2u, arrS, -arrSignedR, SAGITTA_ELEMENT) || [A2w, arrStartWgs] },
-    renderCoords: arcCoordsFromRadiusUtm(A2u, arrS, -arrSignedR, SAGITTA_TRACK) || [A2w, arrStartWgs],
-  }
+  const arrArcEl = arcElement(A2u, arrS, -arrSignedR)
+  if (arrArcEl.length > Math.PI * R2) return { error: 'splice_error_arr_too_large' }
 
   const elements = [depArcEl, depClEl, straightEl, arrClEl, arrArcEl].filter(Boolean)
   const previewCoords = elements.reduce((acc, el, i) => {
@@ -396,8 +352,8 @@ export function computeArcSpliceWithClothoids(
     elements,
     previewCoords,
     straightLength: straightLen,
-    depArcLength:   cvDep.length,
-    arrArcLength:   cvArr.length,
+    depArcLength:   depArcEl.length,
+    arrArcLength:   arrArcEl.length,
     clothoidDepLength: L1,
     clothoidArrLength: L2,
     zone,
@@ -511,46 +467,17 @@ export function computeArcArcTransition(
   const bJ1 = turned(0)
   const bJ2 = turned(shape.b)
 
-  const j1Wgs = utmToWgs84(J1.easting, J1.northing, zone)
-  const j2Wgs = utmToWgs84(J2.easting, J2.northing, zone)
-  const depStartWgs = utmToWgs84(depStart.easting, depStart.northing, zone)
-  const arrStartWgs = utmToWgs84(arrStart.easting, arrStart.northing, zone)
 
   // ── Re-shaped departure arc (orig start → J1) ─────────────────────────────
-  const cvDep = computeCurvedValuesUtm(depStart, J1, depSignedR)
-  if (cvDep.length > Math.PI * Math.abs(r1)) return { error: 'splice_error_dep_too_large' }
-  const depArcEl = {
-    elementType: 1,
-    startNode: cvDep.startNode, endNode: cvDep.endNode,
-    bearing: cvDep.bearing, length: cvDep.length, endBearing: cvDep.endBearing,
-    radius: depSignedR,
-    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(depStart, J1, depSignedR, SAGITTA_ELEMENT) || [depStartWgs, j1Wgs] },
-    renderCoords: arcCoordsFromRadiusUtm(depStart, J1, depSignedR, SAGITTA_TRACK) || [depStartWgs, j1Wgs],
-  }
+  const depArcEl = arcElement(depStart, J1, depSignedR)
+  if (depArcEl.length > Math.PI * Math.abs(r1)) return { error: 'splice_error_dep_too_large' }
 
   // ── The transition itself (J1 → J2) ───────────────────────────────────────
-  const cl  = computeClothoidUtm(J1, bJ1, L, r1, r2, SAGITTA_ELEMENT, transitionType)
-  const clR = computeClothoidUtm(J1, bJ1, L, r1, r2, SAGITTA_TRACK, transitionType)
-  const transitionEl = {
-    elementType: 2, transitionType,
-    r1, r2,
-    bearing: bJ1, endBearing: bJ2, length: L,
-    startNode: [J1.easting, J1.northing], endNode: [J2.easting, J2.northing],
-    geometry:     { type: 'LineString', coordinates: [...cl.coords.slice(0, -1),  j2Wgs] },
-    renderCoords: [...clR.coords.slice(0, -1), j2Wgs],
-  }
+  const transitionEl = transitionElement(J1, bJ1, L, r1, r2, { transitionType, endUtm: J2, endBearing: bJ2 }).element
 
   // ── Re-shaped, reversed arrival arc (J2 → orig start) ─────────────────────
-  const cvArr = computeCurvedValuesUtm(J2, arrStart, r2)
-  if (cvArr.length > Math.PI * Math.abs(r2)) return { error: 'splice_error_arr_too_large' }
-  const arrArcEl = {
-    elementType: 1,
-    startNode: cvArr.startNode, endNode: cvArr.endNode,
-    bearing: cvArr.bearing, length: cvArr.length, endBearing: cvArr.endBearing,
-    radius: r2,
-    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(J2, arrStart, r2, SAGITTA_ELEMENT) || [j2Wgs, arrStartWgs] },
-    renderCoords: arcCoordsFromRadiusUtm(J2, arrStart, r2, SAGITTA_TRACK) || [j2Wgs, arrStartWgs],
-  }
+  const arrArcEl = arcElement(J2, arrStart, r2)
+  if (arrArcEl.length > Math.PI * Math.abs(r2)) return { error: 'splice_error_arr_too_large' }
 
   const elements = [depArcEl, transitionEl, arrArcEl]
   const previewCoords = elements.reduce((acc, el, i) => {
@@ -561,8 +488,8 @@ export function computeArcArcTransition(
   return {
     elements, previewCoords,
     transitionLength: L,
-    depArcLength: cvDep.length,
-    arrArcLength: cvArr.length,
+    depArcLength: depArcEl.length,
+    arrArcLength: arrArcEl.length,
     transitionType,
     compound: Math.sign(r1) === Math.sign(r2),
     zone,
@@ -699,62 +626,29 @@ export function computeArcStraightSplice(dep, arr, radius, clothoidDep = 0, clot
     if (along > 0.01) continue          // the chain would overshoot the straight's far end
     // Both hands can close, on quite different loops. The one that belongs to
     // the picked ends is the one that barely moves the junction off them.
-    if (!chosen || Math.abs(s) < Math.abs(chosen.s)) chosen = { Rn, s, built, cvA }
+    if (!chosen || Math.abs(s) < Math.abs(chosen.s)) chosen = { Rn, s, built }
   }
   if (!chosen) return { error: 'splice_error_no_fit' }
 
-  const { Rn, built, cvA } = chosen
+  const { Rn, built } = chosen
   const { J1, b1, A1, A2, bA2, E, arcLength } = built
-  const wgs = (p) => utmToWgs84(p.easting, p.northing, zone)
-  const node = (p) => [p.easting, p.northing]
 
   const elements = []
 
   // ── Re-shaped arc side (its far end → J1) ────────────────────────────────
-  elements.push({
-    elementType: 1,
-    startNode: cvA.startNode, endNode: cvA.endNode,
-    bearing: cvA.bearing, length: cvA.length, endBearing: cvA.endBearing,
-    radius: a.signedR,
-    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(a.farUtm, J1, a.signedR, SAGITTA_ELEMENT) || [wgs(a.farUtm), wgs(J1)] },
-    renderCoords: arcCoordsFromRadiusUtm(a.farUtm, J1, a.signedR, SAGITTA_TRACK) || [wgs(a.farUtm), wgs(J1)],
-  })
+  elements.push(arcElement(a.farUtm, J1, a.signedR))
 
-  const transition = (from, fromBearing, to, length, r1, r2) => {
-    const cl  = computeClothoidUtm(from, fromBearing, length, r1, r2, SAGITTA_ELEMENT, transitionType)
-    const clR = computeClothoidUtm(from, fromBearing, length, r1, r2, SAGITTA_TRACK, transitionType)
-    return {
-      elementType: 2, transitionType, r1, r2,
-      bearing: fromBearing, endBearing: cl.endBearing,
-      length,
-      startNode: node(from), endNode: node(to),
-      geometry:     { type: 'LineString', coordinates: [...cl.coords.slice(0, -1),  wgs(to)] },
-      renderCoords: [...clR.coords.slice(0, -1), wgs(to)],
-    }
-  }
+  const transition = (from, fromBearing, to, length, r1, r2) =>
+    transitionElement(from, fromBearing, length, r1, r2, { transitionType, endUtm: to }).element
 
   if (Ld > 0) elements.push(transition(J1, b1, A1, Ld, a.signedR, Rn))
 
-  const cvNew = computeCurvedValuesUtm(A1, A2, Rn)
-  elements.push({
-    elementType: 1,
-    startNode: cvNew.startNode, endNode: cvNew.endNode,
-    bearing: cvNew.bearing, length: arcLength, endBearing: cvNew.endBearing,
-    radius: Rn,
-    geometry:     { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(A1, A2, Rn, SAGITTA_ELEMENT) || [wgs(A1), wgs(A2)] },
-    renderCoords: arcCoordsFromRadiusUtm(A1, A2, Rn, SAGITTA_TRACK) || [wgs(A1), wgs(A2)],
-  })
+  elements.push(arcElement(A1, A2, Rn, { length: arcLength }))
 
   if (La > 0) elements.push(transition(A2, bA2, E, La, Rn, null))
 
   // ── Re-shaped straight side (E → its far end) ────────────────────────────
-  const svB = computeStraightValuesUtm(E, b.farUtm)
-  elements.push({
-    elementType: 0,
-    startNode: svB.startNode, endNode: svB.endNode,
-    bearing: svB.bearing, length: svB.length,
-    geometry: { type: 'LineString', coordinates: [wgs(E), wgs(b.farUtm)] },
-  })
+  elements.push(straightElement(E, b.farUtm))
 
   const ordered = arcIsDeparture ? elements : [...elements].reverse().map(reverseElement)
   const previewCoords = ordered.reduce((acc, el, i) => {

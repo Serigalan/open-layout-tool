@@ -1,10 +1,7 @@
-import {
-  endPointStraightUtm, endPointCurvedUtm, resolveEndBearing,
-  computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
-} from './elementUtils'
-import { computeClothoidUtm } from './clothoidUtils'
-import { utmToWgs84, transformPlanePoint, gkZone } from './coordinateUtils'
-import { SAGITTA_ELEMENT, cantSign } from './mapConstants'
+import { resolveEndBearing } from './elementUtils'
+import { transformPlanePoint, gkZone } from './coordinateUtils'
+import { cantSign } from './mapConstants'
+import { arcFrom, straightFrom, transitionElement } from './elementFactory'
 
 const GON2DEG = 0.9
 
@@ -214,21 +211,11 @@ function buildChains(rows) {
 function buildElement(rec, crs) {
   const start = { easting: rec.start[0], northing: rec.start[1], zone: crs }
   const bearing = ((rec.bearing % 360) + 360) % 360
-  const wgs = (p) => utmToWgs84(p.easting, p.northing, crs)
 
   if (rec.typ === TYPE_ARC) {
     const signedR = rec.p2 || rec.p3
-    const end = endPointCurvedUtm(start, bearing, rec.length, signedR)
-    const cv = computeCurvedValuesUtm(start, end, signedR)
-    return {
-      elementType: 1,
-      startNode: cv.startNode, endNode: cv.endNode,
-      bearing: cv.bearing, endBearing: cv.endBearing,
-      length: cv.length, absLength: cv.length, speed: 0,
-      radius: signedR,
-      geometry: { type: 'LineString', coordinates:
-        arcCoordsFromRadiusUtm(start, end, signedR, SAGITTA_ELEMENT) ?? [wgs(start), wgs(end)] },
-    }
+    const arc = arcFrom(start, bearing, rec.length, signedR, { speed: 0 })
+    return { ...arc, absLength: arc.length }
   }
 
   if (rec.typ === TYPE_CLOTHOID || rec.typ === TYPE_BLOSS) {
@@ -236,28 +223,17 @@ function buildElement(rec, crs) {
     const r1 = rec.p2 || null
     const r2 = rec.p3 || null
     const transitionType = rec.typ === TYPE_BLOSS ? 'bloss' : 'clothoid'
-    const cl = computeClothoidUtm(start, bearing, rec.length, r1, r2, SAGITTA_ELEMENT, transitionType)
-    return {
-      elementType: 2, transitionType, r1, r2,
-      startNode: [start.easting, start.northing],
-      endNode: [cl.endUtm.easting, cl.endUtm.northing],
-      bearing, endBearing: cl.endBearing,
-      length: rec.length, absLength: rec.length, speed: 0,
-      geometry: { type: 'LineString', coordinates: cl.coords },
-    }
+    return transitionElement(start, bearing, rec.length, r1, r2, { transitionType, absLength: rec.length, speed: 0 }).element
   }
 
   // Straight — the kink variant carries its end bearing in PARAM2 as gon
   // relative to 200 (200 = no kink), the same convention Verm.ESN type 5 uses.
-  const end = endPointStraightUtm(start, bearing, rec.length)
-  const sv = computeStraightValuesUtm(start, end)
+  const sv = straightFrom(start, bearing, rec.length, { speed: 0 })
   const kink = rec.typ === TYPE_KINK ? (rec.p2 - 200) * GON2DEG : 0
   return {
-    elementType: 0,
-    startNode: sv.startNode, endNode: sv.endNode,
-    bearing: sv.bearing, length: sv.length, absLength: sv.length, speed: 0,
+    ...sv,
+    absLength: sv.length,
     ...(kink ? { endBearing: (((sv.bearing + kink) % 360) + 360) % 360 } : {}),
-    geometry: { type: 'LineString', coordinates: [wgs(start), wgs(end)] },
   }
 }
 

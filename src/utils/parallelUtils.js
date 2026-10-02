@@ -1,9 +1,5 @@
-import { wgs84ToUTM, toWgs } from './coordinateUtils'
-import {
-  computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
-} from './elementUtils'
-import { computeClothoidUtm } from './clothoidUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './mapConstants'
+import { wgs84ToUTM } from './coordinateUtils'
+import { arcElement, straightElement, transitionElement } from './elementFactory'
 
 const DEG = Math.PI / 180
 const kappa  = (r) => (r != null && r !== 0) ? -1 / r : 0
@@ -54,17 +50,8 @@ export function offsetTrackElements(elements, dist, epsg) {
       // Reject if the offset reached/crossed the centre: radius collapsed (< 0.5)
       // or flipped to the opposite side of the original curve.
       if ((el.radius >= 0 ? 1 : -1) * signedR < 0.5) return null
-      const cv = computeCurvedValuesUtm(start, end, signedR)
-      const arc1 = arcCoordsFromRadiusUtm(start, end, signedR, SAGITTA_ELEMENT) || [toWgs(start), toWgs(end)]
-      const arcR = arcCoordsFromRadiusUtm(start, end, signedR, SAGITTA_TRACK)   || arc1
-      out.push({
-        elementType: 1,
-        startNode: cv.startNode, endNode: cv.endNode,
-        bearing: cv.bearing, length: cv.length, absLength: cv.length,
-        speed: el.speed, cant: el.cant,
-        endBearing: cv.endBearing, radius: signedR,
-        geometry: { type: 'LineString', coordinates: arc1 }, renderCoords: arcR,
-      })
+      const arc = arcElement(start, end, signedR, { speed: el.speed, cant: el.cant })
+      out.push({ ...arc, absLength: arc.length })
     } else if (el.elementType === 2) {
       // ── Clothoid → re-fitted clothoid, endpoints snapped to the parallel ──
       const r1 = el.r1 != null ? el.r1 - dist : null
@@ -73,27 +60,14 @@ export function offsetTrackElements(elements, dist, epsg) {
       const kSum  = kappa(el.r1) + kappa(el.r2)
       const kSum2 = kappa(r1) + kappa(r2)
       const length = Math.abs(kSum2) < 1e-12 ? el.length : el.length * kSum / kSum2
-      const endWgs = toWgs(end)
-      const clE = computeClothoidUtm(start, sB, length, r1, r2, SAGITTA_ELEMENT, el.transitionType)
-      const clR = computeClothoidUtm(start, sB, length, r1, r2, SAGITTA_TRACK, el.transitionType)
-      out.push({
-        elementType: 2, r1, r2, transitionType: el.transitionType,
-        bearing: sB, endBearing: eB, length, absLength: length,
-        speed: el.speed, cant: el.cant,
-        startNode: [start.easting, start.northing], endNode: [end.easting, end.northing],
-        geometry:     { type: 'LineString', coordinates: [...clE.coords.slice(0, -1), endWgs] },
-        renderCoords: [...clR.coords.slice(0, -1), endWgs],
-      })
+      out.push(transitionElement(start, sB, length, r1, r2, {
+        transitionType: el.transitionType, endUtm: end, endBearing: eB,
+        absLength: length, speed: el.speed, cant: el.cant,
+      }).element)
     } else {
       // ── Straight → parallel straight ──
-      const sv = computeStraightValuesUtm(start, end)
-      out.push({
-        elementType: 0,
-        startNode: sv.startNode, endNode: sv.endNode,
-        bearing: sv.bearing, length: sv.length, absLength: sv.length,
-        speed: el.speed, cant: el.cant,
-        geometry: { type: 'LineString', coordinates: [toWgs(start), toWgs(end)] },
-      })
+      const straight = straightElement(start, end, { speed: el.speed, cant: el.cant })
+      out.push({ ...straight, absLength: straight.length })
     }
   }
   return out

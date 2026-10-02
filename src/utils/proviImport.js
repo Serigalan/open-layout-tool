@@ -1,14 +1,9 @@
 import { unzipSync } from 'fflate'
-import {
-  endPointStraightUtm, endPointCurvedUtm,
-  computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
-} from './elementUtils'
-import { computeClothoidUtm } from './clothoidUtils'
-import { utmToWgs84 } from './coordinateUtils'
-import { SAGITTA_ELEMENT, cantSign } from './mapConstants'
+import { cantSign } from './mapConstants'
 import { epsgForLagesystem, parseBauform, RAIL_NAME } from './mdbImport'
 import { offsetOnElement } from './mdbSwitchDerive'
 import { heightAt, trackLength } from './heightUtils'
+import { arcFrom, straightFrom, transitionElement } from './elementFactory'
 
 /**
  * ProVI's interface files, delivered as a zip archive of text files without an
@@ -168,48 +163,24 @@ const norm360 = (deg) => ((deg % 360) + 360) % 360
 /** Compass bearing [°] of a mathematical direction [rad, from east, counter-clockwise]. */
 const bearingOfDir = (dir) => norm360(90 - dir * RAD2DEG)
 
-function straight(start, bearing, length, crs) {
-  const end = endPointStraightUtm(start, bearing, length)
-  const sv = computeStraightValuesUtm(start, end)
-  return {
-    elementType: 0,
-    startNode: sv.startNode, endNode: sv.endNode,
-    bearing: sv.bearing, length: sv.length, absLength: sv.length, speed: 0,
-    geometry: { type: 'LineString', coordinates: [
-      utmToWgs84(start.easting, start.northing, crs), utmToWgs84(end.easting, end.northing, crs)] },
-  }
+function straight(start, bearing, length) {
+  const el = straightFrom(start, bearing, length, { speed: 0 })
+  return { ...el, absLength: el.length }
 }
 
-function arc(start, bearing, length, radius, crs) {
-  const end = endPointCurvedUtm(start, bearing, length, radius)
-  const cv = computeCurvedValuesUtm(start, end, radius)
-  return {
-    elementType: 1,
-    startNode: cv.startNode, endNode: cv.endNode,
-    bearing: cv.bearing, endBearing: cv.endBearing,
-    length: cv.length, absLength: cv.length, speed: 0,
-    radius,
-    geometry: { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(start, end, radius, SAGITTA_ELEMENT)
-      ?? [utmToWgs84(start.easting, start.northing, crs), utmToWgs84(end.easting, end.northing, crs)] },
-  }
+function arc(start, bearing, length, radius) {
+  const el = arcFrom(start, bearing, length, radius, { speed: 0 })
+  return { ...el, absLength: el.length }
 }
 
 function transition(start, bearing, length, r1, r2, transitionType) {
-  const cl = computeClothoidUtm(start, bearing, length, r1 || null, r2 || null, SAGITTA_ELEMENT, transitionType)
-  return {
-    elementType: 2, transitionType, r1: r1 || null, r2: r2 || null,
-    startNode: [start.easting, start.northing],
-    endNode: [cl.endUtm.easting, cl.endUtm.northing],
-    bearing, endBearing: cl.endBearing,
-    length, absLength: length, speed: 0,
-    geometry: { type: 'LineString', coordinates: cl.coords },
-  }
+  return transitionElement(start, bearing, length, r1 || null, r2 || null, { transitionType, absLength: length, speed: 0 }).element
 }
 
 /** A stretch of constant curvature: an arc, or a straight where the radius is 0. */
-const constant = (start, bearing, length, radius, crs) => (radius
-  ? arc(start, bearing, length, radius, crs)
-  : straight(start, bearing, length, crs))
+const constant = (start, bearing, length, radius) => (radius
+  ? arc(start, bearing, length, radius)
+  : straight(start, bearing, length))
 
 /** Where an element ends, as the start of the next piece built from it. */
 const endOf = (el, crs) => ({
@@ -246,7 +217,7 @@ function switchParts(body, s0, s1, crs) {
       const ra = step > 0 ? num(p, 'RAD') : -num(p, 'VRAD')
       const rb = step > 0 ? num(q, 'VRAD') : -num(q, 'RAD')
       out.push(Math.abs(ra - rb) < 1e-6
-        ? constant(start, bearing, length, ra, crs)
+        ? constant(start, bearing, length, ra)
         : transition(start, bearing, length, ra, rb, 'clothoid'))
     }
     return out
@@ -303,7 +274,7 @@ export function buildProviAxis(name, records, crs) {
 
     if (['KO', 'FE', 'PU'].includes(main.type)) {
       const length = num(f, 'L')
-      if (length >= MIN_LENGTH) built = [constant(start, num(f, 'WIN') * GON2DEG, length, num(f, 'RAD'), crs)]
+      if (length >= MIN_LENGTH) built = [constant(start, num(f, 'WIN') * GON2DEG, length, num(f, 'RAD'))]
     } else if (main.type === 'UB' || main.type === 'UV') {
       const l1 = num(f, 'L1')
       const l2 = num(f, 'L2')

@@ -1,7 +1,5 @@
 import { utmToWgs84 } from './coordinateUtils'
-import {
-  arcCoordsFromRadiusUtm, computeCurvedValuesUtm, computeStraightValuesUtm, projectOnArcUtm,
-} from './elementUtils'
+import { arcCoordsFromRadiusUtm, projectOnArcUtm } from './elementUtils'
 import {
   SAGITTA_ELEMENT, SAGITTA_TRACK, MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, computeCantDefSigned,
 } from './mapConstants'
@@ -12,6 +10,7 @@ import {
   switchRouteSlice, switchChainPointUtm, switchChainBearingAt, switchChainSegmentsUtm,
 } from './switchUtils'
 import { computeClothoidUtm } from './clothoidUtils'
+import { arcElement, straightElement, transitionElement } from './elementFactory'
 
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI
@@ -590,37 +589,19 @@ function routeCoords(startUtm, bearing, route, sagitta, startWgs, endWgs) {
  * two.
  */
 function connectionElement(a, b, bearing, route, speed, cantA, cantB, coords, renderCoords) {
-  const varies = switchRouteVaries(route)
-  if (varies) {
-    return {
-      elementType: 2, transitionType: 'clothoid',
-      r1: route.r1, r2: route.r2,
-      startNode: [a.easting, a.northing],
-      endNode:   [b.easting, b.northing],
-      bearing,
-      endBearing: switchRouteBearingAt(bearing, route),
-      length:    route.length,
-      absLength: route.length,
-      speed,
+  const geometry = { type: 'LineString', coordinates: coords }
+  if (switchRouteVaries(route)) {
+    return transitionElement(a, bearing, route.length, route.r1, route.r2, {
+      endUtm: b, endBearing: switchRouteBearingAt(bearing, route),
+      absLength: route.length, speed,
       ...(cantA || cantB ? { cantStart: cantA, cantEnd: cantB } : {}),
-      geometry: { type: 'LineString', coordinates: coords },
-      renderCoords,
-    }
+      geometry, renderCoords,
+    }).element
   }
   const signedR = route.r1
-  const v = signedR ? computeCurvedValuesUtm(a, b, signedR) : computeStraightValuesUtm(a, b)
-  return {
-    elementType: signedR ? 1 : 0,
-    startNode: v.startNode,
-    endNode:   v.endNode,
-    bearing:   v.bearing,
-    length:    v.length,
-    absLength: v.length,
-    speed,
-    ...(signedR ? { endBearing: v.endBearing, radius: signedR, renderCoords } : {}),
-    ...(cantA ? { cant: cantA } : {}),
-    geometry: { type: 'LineString', coordinates: coords },
-  }
+  const extra = { speed, ...(cantA ? { cant: cantA } : {}), geometry }
+  const el = signedR ? arcElement(a, b, signedR, { ...extra, renderCoords }) : straightElement(a, b, extra)
+  return { ...el, absLength: el.length }
 }
 
 /**

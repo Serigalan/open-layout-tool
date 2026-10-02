@@ -1,14 +1,6 @@
-import {
-  endPointStraightUtm,
-  endPointCurvedUtm,
-  computeStraightValuesUtm,
-  computeCurvedValuesUtm,
-  arcCoordsFromRadiusUtm,
-} from './elementUtils'
-import { computeClothoidUtm } from './clothoidUtils'
-import { utmToWgs84 } from './coordinateUtils'
-import { SAGITTA_ELEMENT, cantSign } from './mapConstants'
+import { cantSign } from './mapConstants'
 import { gradientStretch } from './proviImport'
+import { arcFrom, straightFrom, transitionElement } from './elementFactory'
 
 const RECORD_SIZE = 78
 const GRA_RECORD_SIZE = 36   // the header is one record long, too
@@ -100,45 +92,30 @@ export function buildElements(records, epsg) {
 
     if (rec.type === 0 || rec.type === 5) {
       // ── Straight (type 5: with a kink at its end) ──────────────────────────
-      const end = endPointStraightUtm(start, bearingDeg, rec.length)
-      const sv  = computeStraightValuesUtm(start, end)
+      const sv = straightFrom(start, bearingDeg, rec.length)
       const kinkEndBearing = rec.type === 5
         ? ((sv.bearing + (rec.radiusB - 200) * 0.9) % 360 + 360) % 360   // gon → degrees
         : undefined
       elements.push({
-        elementType: 0,
-        startNode:   sv.startNode,
-        endNode:     sv.endNode,
-        bearing:     sv.bearing,
-        length:      sv.length,
+        ...sv,
         absLength:   sv.length,   // recalcAbsLengths will overwrite
         speed:       0,
         ...(rec.cantB ? { cant: rec.cantB } : {}),
         ...(kinkEndBearing !== undefined ? { endBearing: kinkEndBearing } : {}),
-        geometry:    { type: 'LineString', coordinates: [utmToWgs84(start.easting, start.northing, crs), utmToWgs84(end.easting, end.northing, crs)] },
       })
 
     } else if (rec.type === 1) {
       // ── Circular arc ───────────────────────────────────────────────────────
       const signedR = rec.radiusB !== 0 ? rec.radiusB : rec.radiusE
-      const end     = endPointCurvedUtm(start, bearingDeg, rec.length, signedR)
-      const cv      = computeCurvedValuesUtm(start, end, signedR)
-      const coords  = arcCoordsFromRadiusUtm(start, end, signedR, SAGITTA_ELEMENT)
-        ?? [utmToWgs84(start.easting, start.northing, crs), utmToWgs84(end.easting, end.northing, crs)]
+      const arc = arcFrom(start, bearingDeg, rec.length, signedR)
       elements.push({
-        elementType: 1,
-        startNode:   cv.startNode,
-        endNode:     cv.endNode,
-        bearing:     cv.bearing,
-        length:      cv.length,
-        absLength:   cv.length,
+        ...arc,
+        absLength:   arc.length,
         speed:       0,
         // Arcs carry a constant cant (cantB == cantE). The file stores it as a
         // magnitude, so the sign comes from the curve direction.
         cant:        cantSign(signedR) * Math.abs(rec.cantB),
-        endBearing:  cv.endBearing,
         radius:      r3(signedR),
-        geometry:    { type: 'LineString', coordinates: coords },
       })
 
     } else if (rec.type === 2 || rec.type === 4) {
@@ -149,21 +126,9 @@ export function buildElements(records, epsg) {
       const transitionType = rec.type === 4 ? 'bloss' : 'clothoid'
       const r1 = rec.radiusB !== 0 ? rec.radiusB : null
       const r2 = rec.radiusE !== 0 ? rec.radiusE : null
-      const cl = computeClothoidUtm(start, bearingDeg, rec.length, r1, r2, SAGITTA_ELEMENT, transitionType)
-      elements.push({
-        elementType: 2,
-        transitionType,
-        r1,
-        r2,
-        startNode:   [start.easting, start.northing],
-        endNode:     [cl.endUtm.easting, cl.endUtm.northing],
-        bearing:     bearingDeg,
-        length:      r3(rec.length),
-        absLength:   r3(rec.length),
-        speed:       0,
-        endBearing:  cl.endBearing,
-        geometry:    { type: 'LineString', coordinates: cl.coords },
-      })
+      elements.push(transitionElement(start, bearingDeg, rec.length, r1, r2, {
+        transitionType, length: r3(rec.length), absLength: r3(rec.length), speed: 0,
+      }).element)
     }
   }
 

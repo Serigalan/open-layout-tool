@@ -22,6 +22,7 @@ import { linkSymbol } from './trackLinkUtils'
 // no through route at all, `dLcs` is the Weichenmarke [m] and `minl` the
 // minimum intermediate straight a connection needs between two turnouts [m].
 import KATALOG from '../constraints/db-ril-800-0120.json'
+import { arcElement, straightElement } from './elementFactory'
 
 /** The rulebook itself, for a viewer or a test that wants more than the forms. */
 export { KATALOG as WEICHEN_KATALOG }
@@ -1539,26 +1540,11 @@ export function computeCrossingGeometryFromPortA(portUtm, portWgs, bearing, type
  */
 export function crossingElements(g, identity) {
   const piece = (fromUtm, toUtm, signedR, coords, route) => {
-    const geometry = { type: 'LineString', coordinates: coords }
-    if (signedR) {
-      const v = computeCurvedValuesUtm(fromUtm, toUtm, signedR)
-      return {
-        elementType: 1,
-        startNode: v.startNode, endNode: v.endNode,
-        bearing: v.bearing, endBearing: v.endBearing,
-        length: v.length, absLength: v.length, radius: signedR,
-        ...switchElementMark(identity, route),
-        geometry,
-      }
-    }
-    const v = computeStraightValuesUtm(fromUtm, toUtm)
-    return {
-      elementType: 0,
-      startNode: v.startNode, endNode: v.endNode,
-      bearing: v.bearing, length: v.length, absLength: v.length,
-      ...switchElementMark(identity, route),
-      geometry,
-    }
+    const extra = { ...switchElementMark(identity, route), geometry: { type: 'LineString', coordinates: coords } }
+    const el = signedR ? arcElement(fromUtm, toUtm, signedR, extra) : straightElement(fromUtm, toUtm, extra)
+    // A crossing's legs are drawn by its body; they carry no coarse polyline of their own.
+    const { renderCoords: _r, ...rest } = el
+    return { ...rest, absLength: el.length }
   }
   return {
     A: piece(g.portA_utm, g.centreUtm, g.mainLegR, g.legCoords.A, 'main'),
