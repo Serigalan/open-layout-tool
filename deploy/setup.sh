@@ -10,6 +10,7 @@
 # units and the Caddy site, then deploy.sh for the first build, and finally the
 # first admin when the database has no user yet.
 set -euo pipefail
+# shellcheck source=deploy/lib.sh
 . "$(dirname "$0")/lib.sh"
 
 [ "$(id -u)" = 0 ] || die "run as root"

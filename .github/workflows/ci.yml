@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  app:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            tools/server/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
+        working-directory: tools/server
+      - run: npm run lint
+      - run: npm test
+      - run: npx vite build --outDir /tmp/olt-dist
+
+  optimizer:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tools/optimizer/pyproject.toml
+      - run: pip install -e 'tools/optimizer[terrain]'
+      - run: python tests/vectors.py
+        working-directory: tools/optimizer
+      - run: python tests/verify_service.py
+        working-directory: tools/optimizer
+      - run: python tests/verify.py
+        working-directory: tools/optimizer
+
+  deploy-scripts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n deploy/setup.sh && bash -n deploy/deploy.sh && bash -n deploy/lib.sh
+      - run: shellcheck -x deploy/setup.sh deploy/deploy.sh deploy/lib.sh tools/check.sh

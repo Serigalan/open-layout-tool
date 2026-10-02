@@ -8,6 +8,7 @@
 #   sudo deploy/deploy.sh --check-only    only the health check
 #   (--no-restart is setup.sh's, before the units exist)
 set -euo pipefail
+# shellcheck source=deploy/lib.sh
 . "$(dirname "$0")/lib.sh"
 
 pull=0 restart=1 build=1
@@ -24,8 +25,8 @@ load_config
 cd "$OLT_REPO"
 
 health() {
-  local name=$1 url=$2 i
-  for i in $(seq 1 30); do
+  local name=$1 url=$2
+  for _ in $(seq 1 30); do
     if curl -fs -o /dev/null "$url"; then echo "$name: ok"; return 0; fi
     sleep 1
   done
