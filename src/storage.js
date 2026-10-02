@@ -277,6 +277,11 @@ export function loadProjects() {
   return getCache()
 }
 
+/** The open project (the working copy's record, hydrated), or null. */
+export function currentProject() {
+  return getCache()[0] ?? null
+}
+
 export function saveProject(project) {
   getCache().push(project)
   persist(project.id)

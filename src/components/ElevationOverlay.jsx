@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadTracks, loadSwitches, setTrackHeights, setHeightsForTracks } from '../storage'
+import { loadTracks, loadSwitches, setTrackHeights, setHeightsForTracks, currentProject } from '../storage'
 import {
   trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, elementAtStation,
 } from '../utils/heightUtils'
@@ -270,7 +270,8 @@ export default function ElevationOverlay({ trackId, project, map, onClose, onSav
     setReading({ trackId, state: 'busy' })
     let state = null
     try {
-      const r = await fillHeights(project.id, { force: true, trackId, source: chosenTerrainSource() })
+      const r = await fillHeights(currentProject, { force: true, trackId, source: chosenTerrainSource() })
+      if (r.heights.size) setHeightsForTracks(project.id, r.heights)
       if (!r.updated) state = 'missing'
     } catch {
       state = 'failed'

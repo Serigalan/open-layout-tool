@@ -1,4 +1,3 @@
-import { loadTracks, loadSwitches, loadPlatforms, loadProjects, loadEndMarks } from '../storage'
 import {
   exact, round3, buildCoords, totalLength,
   horizontalElements, startAnchor, endAnchor, switchesToPorts,
@@ -42,12 +41,14 @@ const EMPTY_INFRA = {
   electrifications: [], neutral_sections: [],
 }
 
-/** RailJSON for OSRD: what it models in its own fields, the rest in extensions.db. */
-export function exportToOsrd(projectId) {
-  const tracks    = loadTracks(projectId)
-  const switches  = loadSwitches(projectId)
-  const platforms = loadPlatforms(projectId)
-  const project   = loadProjects().find(p => p.id === projectId)
+/**
+ * RailJSON for OSRD: what it models in its own fields, the rest in
+ * extensions.db. `project` is the project record (hydrated).
+ */
+export function exportToOsrd(project) {
+  const tracks    = project?.tracks ?? []
+  const switches  = project?.switches ?? []
+  const platforms = project?.platforms ?? []
   const trackMap = Object.fromEntries(tracks.map(t => [t.id, t]))
 
   // ── track_sections ──────────────────────────────────────────────────────
@@ -99,6 +100,6 @@ export function exportToOsrd(projectId) {
     operational_points: platformsToOperationalPoints(
       platforms, trackMap, project?.osrd?.operational_points ?? []),
     buffer_stops: endMarksToBufferStops(
-      loadEndMarks(projectId), trackMap, project?.osrd?.buffer_stops ?? []),
+      project?.endMarks ?? [], trackMap, project?.osrd?.buffer_stops ?? []),
   }
 }

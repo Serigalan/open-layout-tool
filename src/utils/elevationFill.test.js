@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { stationsToRead } from './elevationFill'
+import { describe, it, expect, vi } from 'vitest'
+import { fillHeights, stationsToRead } from './elevationFill'
+
+vi.mock('./elevationSource', () => ({
+  sampleHeights: vi.fn(async (lngLats) => lngLats.map(() => 100)),
+}))
 
 describe('stationsToRead — where the terrain still has to be read', () => {
   const track = (heights) => ({ elements: [{ length: 400 }], heights })
@@ -24,5 +28,36 @@ describe('stationsToRead — where the terrain still has to be read', () => {
     expect(both.filter(s => s < 100).length).toBeGreaterThan(0)
     expect(both.filter(s => s > 300).length).toBeGreaterThan(0)
     expect(both.some(s => s >= 100 && s <= 300)).toBe(false)
+  })
+})
+
+describe('fillHeights — reads, never writes (R1.2)', () => {
+  const straight = (x0, x1) => ({
+    elementType: 0, startNode: [x0, 5600000], endNode: [x1, 5600000], bearing: 90, length: x1 - x0,
+  })
+  const track = (id, x0, x1, heights) => ({ id, epsg: 25832, elements: [straight(x0, x1)], ...(heights ? { heights } : {}) })
+
+  it('answers the heights to store for tracks without, and leaves the project alone', async () => {
+    const project = { tracks: [track('a', 500000, 500200), track('b', 500200, 500400, [{ station: 0, z: 7 }, { station: 200, z: 7 }])], switches: [] }
+    const before = JSON.stringify(project)
+    const r = await fillHeights(() => project)
+    expect(JSON.stringify(project)).toBe(before)
+    expect(r.updated).toBe(1)
+    expect(r.heights.has('a')).toBe(true)
+    // b only comes along as the other side of the joint, unchanged.
+    if (r.heights.has('b')) expect(r.heights.get('b')).toEqual(project.tracks[1].heights)
+    const a = r.heights.get('a')
+    expect(a[0].z).toBe(100)
+    // Where a meets b, the standing height wins: the joint is kept level.
+    expect(a.at(-1).z).toBe(7)
+  })
+
+  it('skips a track whose length changed while the terrain was asked', async () => {
+    let project = { tracks: [track('a', 500000, 500200)], switches: [] }
+    const read = () => project
+    const pending = fillHeights(read)
+    project = { tracks: [track('a', 500000, 500300)], switches: [] }
+    const r = await pending
+    expect(r.heights.size).toBe(0)
   })
 })

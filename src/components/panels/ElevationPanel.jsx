@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { loadTracks } from '../../storage'
+import { loadTracks, currentProject, setHeightsForTracks } from '../../storage'
 import { fillHeights } from '../../utils/elevationFill'
 import useTrackPick from '../../hooks/useTrackPick'
 import { chosenTerrainSource } from '../../utils/elevationSource'
@@ -30,7 +30,9 @@ export default function ElevationPanel({ t, map, project, profileTrackId, onShow
     setBusy(true)
     setResult(null)
     try {
-      setResult(await fillHeights(project.id, { ...opts, source: terrainSource }))
+      const r = await fillHeights(currentProject, { ...opts, source: terrainSource })
+      if (r.heights.size) setHeightsForTracks(project.id, r.heights, { undo: !!opts?.force })
+      setResult(r)
     } catch {
       setResult({ updated: 0, missing: 0, failed: true })
     } finally {

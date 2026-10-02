@@ -1,4 +1,3 @@
-import { loadTracks, loadKmLines, saveKmLine, deleteKmLine } from '../storage'
 
 /**
  * Getting the kilometrage lines a project needs onto the project.
@@ -114,24 +113,26 @@ export function clipRuns(runs, box) {
 }
 
 /**
- * Make sure the project holds the lines its tracks name, clipped to its own
- * extent — fetching what is missing and re-clipping what the tracks have since
- * grown out of. Lines no track names any more are dropped.
+ * What the project needs so that it holds the lines its tracks name, clipped
+ * to its own extent — fetching what is missing and re-clipping what the tracks
+ * have since grown out of. Lines no track names any more are to be dropped.
+ * Nothing is written here: the caller stores `save` and removes `remove`.
  *
- * @returns {Promise<{ added: string[], errors: Array<{ lineNumber, code }> }>}
+ * @param {{ tracks?: object[], kmLines?: object[] }} project
+ * @returns {Promise<{ save: object[], remove: string[], added: string[], errors: Array<{ lineNumber, code }> }>}
  */
-export async function ensureKmLines(projectId) {
-  const tracks = loadTracks(projectId)
+export async function ensureKmLines(project) {
+  const tracks = project?.tracks ?? []
   const box = projectBox(tracks)
-  const result = { added: [], errors: [] }
+  const result = { save: [], remove: [], added: [], errors: [] }
   if (!box) return result
 
   const wanted = new Set(
     tracks.map((t) => t.lineNumber).filter((n) => n != null && n !== '').map(String))
-  const held = loadKmLines(projectId)
+  const held = project?.kmLines ?? []
 
   for (const line of held) {
-    if (!wanted.has(String(line.lineNumber))) deleteKmLine(projectId, line.lineNumber)
+    if (!wanted.has(String(line.lineNumber))) result.remove.push(String(line.lineNumber))
   }
 
   for (const lineNumber of wanted) {
@@ -151,7 +152,7 @@ export async function ensureKmLines(projectId) {
       // The id follows from the line number: two people fetching the same
       // line for the same tracks get the same record, which a merge then
       // takes as one rather than as two new ones that differ.
-      saveKmLine(projectId, {
+      result.save.push({
         id: `km-${file.lineNumber}`,
         lineNumber: file.lineNumber,
         crs: file.crs ?? 'EPSG:4326',

@@ -6,7 +6,7 @@ import { BASEMAPS, updateElevationRange, onElevationRange } from './basemaps'
 import { FILTER_NONE, ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM, GEOJSON_MAXZOOM } from './utils/mapConstants'
 import ConfirmModal from './components/ConfirmModal'
 import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, HomeIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, UndoIcon, PlanExportIcon, ElevationIcon } from './components/icons'
-import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, canUndo, undo, loadProjects, closeWorkingCopy, currentWorkingCopy, flushPendingWrites } from './storage'
+import { loadTracks, loadSwitches, loadPlatforms, loadEndMarks, canUndo, undo, loadProjects, closeWorkingCopy, currentWorkingCopy, flushPendingWrites, saveKmLine, deleteKmLine } from './storage'
 import { loadSettings, saveSettings } from './utils/settings'
 import { api, setUnauthorizedHandler } from './api/client'
 import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, serverHead } from './utils/workingCopySync'
@@ -625,8 +625,10 @@ export default function App() {
   // background, after every change and once on opening. Nothing on screen
   // waits for them — they are read when a plan is drawn.
   const syncKmLines = useCallback((projectId) => {
-    ensureKmLines(projectId)
-      .then(({ errors }) => {
+    ensureKmLines(loadProjects().find(p => p.id === projectId))
+      .then(({ save, remove, errors }) => {
+        for (const lineNumber of remove) deleteKmLine(projectId, lineNumber)
+        for (const line of save) saveKmLine(projectId, line)
         if (errors.length) console.warn('[App] Kilometrage lines unavailable:', errors)
       })
       .catch(err => console.warn('[App] Kilometrage lines:', err))

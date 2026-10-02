@@ -712,7 +712,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
 
   const handleOsrdExport = () => {
     if (!project) return
-    downloadJSON(exportToOsrd(project.id), `${project.title}_osrd.json`)
+    downloadJSON(exportToOsrd(loadProjects().find(p => p.id === project.id)), `${project.title}_osrd.json`)
     clearTimeout(osrdLinkTimer.current)
     setOsrdExported(true)
     osrdLinkTimer.current = setTimeout(() => setOsrdExported(false), OSRD_LINK_TIMEOUT)
@@ -720,7 +720,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
 
   const handleExchangeExport = () => {
     if (!project) return
-    downloadJSON(exportExchange(project.id), `${project.title}_trassierung.json`)
+    downloadJSON(exportExchange(loadProjects().find(p => p.id === project.id)), `${project.title}_trassierung.json`)
   }
 
   const selectedTracks = tracks.filter(tr => selectedIds.has(tr.id))

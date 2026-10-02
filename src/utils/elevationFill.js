@@ -1,4 +1,3 @@
-import { loadTracks, loadSwitches, setHeightsForTracks } from '../storage'
 import { sampleHeights } from './elevationSource'
 import {
   heightStations, trackSamplePoints, trackLength, jointGroup, jointHeightUpdates,
@@ -14,9 +13,7 @@ const STATION_TOL = 0.001   // m
  * wins, and an edited joint survives the reload of its neighbour. Joints that
  * already agree are left alone.
  */
-function unifyJoints(projectId, written) {
-  const tracks   = loadTracks(projectId)
-  const switches = loadSwitches(projectId)
+function unifyJoints(tracks, switches, written) {
   const heightOf = (p) => tracks.find(t => t.id === p.trackId)?.heights?.[p.index]
   const entries = [], seen = new Set()
   for (const trackId of written) {
@@ -33,7 +30,7 @@ function unifyJoints(projectId, written) {
       entries.push({ ...standing, z: heightOf(standing).z })
     }
   }
-  if (entries.length) setHeightsForTracks(projectId, jointHeightUpdates(tracks, switches, entries), { undo: false })
+  return entries.length ? jointHeightUpdates(tracks, switches, entries) : new Map()
 }
 
 /**
@@ -67,14 +64,18 @@ export function stationsToRead(track, force = false) {
  * read, so edited heights are left alone; with `force` the whole track (or
  * project) is read again and overwritten.
  *
- * A track whose length changed while its heights were being fetched is
- * skipped: the points would belong to the old geometry.
- * Resolves to { updated, missing } — tracks written, and tracks the terrain
- * sources had no data for.
+ * `readProject` answers the current project record ({ tracks, switches }); it
+ * is asked again after the terrain has answered, and a track whose length
+ * changed meanwhile is skipped: the points would belong to the old geometry.
+ *
+ * Nothing is written here. Resolves to { heights, updated, missing } —
+ * `heights` the trackId → height points to store (the joints to neighbours
+ * already kept level), `updated` the tracks read, `missing` the tracks the
+ * terrain sources had no data for.
  */
-export async function fillHeights(projectId, { force = false, trackId = null, source } = {}) {
+export async function fillHeights(readProject, { force = false, trackId = null, source } = {}) {
   const jobs = []
-  for (const track of loadTracks(projectId)) {
+  for (const track of readProject()?.tracks ?? []) {
     if (trackId && track.id !== trackId) continue
     if (!track.epsg) continue
     const stations = stationsToRead(track, force)
@@ -82,22 +83,27 @@ export async function fillHeights(projectId, { force = false, trackId = null, so
       jobs.push({ trackId: track.id, length: trackLength(track), points: trackSamplePoints(track, stations) })
     }
   }
-  if (!jobs.length) return { updated: 0, missing: 0 }
+  if (!jobs.length) return { heights: new Map(), updated: 0, missing: 0 }
 
   const zs = await sampleHeights(jobs.flatMap(j => j.points.map(p => p.lngLat)), { source })
   let k = 0, updated = 0, missing = 0
   const byTrack = new Map()
+  const now = readProject() ?? {}
+  const tracksNow = now.tracks ?? []
   for (const job of jobs) {
     const fresh = job.points.map(p => ({ station: p.station, z: zs[k++] }))
     if (fresh.some(h => h.z == null)) { missing++; continue }
-    const track = loadTracks(projectId).find(t => t.id === job.trackId)
+    const track = tracksNow.find(t => t.id === job.trackId)
     if (!track || Math.abs(trackLength(track) - job.length) > STATION_TOL) continue
     const kept = force ? [] : (track.heights ?? [])
     if (!force && kept.length && stationsToRead(track, false).length !== job.points.length) continue
     byTrack.set(job.trackId, [...kept, ...fresh].sort((a, b) => a.station - b.station))
     updated++
   }
-  if (byTrack.size) setHeightsForTracks(projectId, byTrack, { undo: force })
-  unifyJoints(projectId, new Set(byTrack.keys()))
-  return { updated, missing }
+  // The joints are levelled on the tracks as they will be once these are written.
+  const after = tracksNow.map(t => (byTrack.has(t.id) ? { ...t, heights: byTrack.get(t.id) } : t))
+  const joints = unifyJoints(after, now.switches ?? [], new Set(byTrack.keys()))
+  const heights = new Map(byTrack)
+  for (const [id, h] of joints) heights.set(id, h)
+  return { heights, updated, missing }
 }

@@ -1,4 +1,3 @@
-import { loadTracks, loadSwitches, loadPlatforms, loadProjects, loadEndMarks } from '../storage'
 import {
   exact, round3, round4, buildCoords, totalLength,
   horizontalElements, startAnchor, endAnchor, switchesToPorts, platformsToOperationalPoints,
@@ -142,9 +141,9 @@ export function buildInfra(tracks, switches, platforms = [], foreign = {}, endMa
   return out
 }
 
-export function exportExchange(projectId) {
-  const project = loadProjects().find(p => p.id === projectId)
+/** The exchange file of a project record (hydrated). */
+export function exportExchange(project) {
   return buildInfra(
-    loadTracks(projectId), loadSwitches(projectId), loadPlatforms(projectId), project?.osrd ?? {},
-    loadEndMarks(projectId))
+    project?.tracks ?? [], project?.switches ?? [], project?.platforms ?? [], project?.osrd ?? {},
+    project?.endMarks ?? [])
 }
