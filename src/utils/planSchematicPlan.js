@@ -1,8 +1,7 @@
 import { PAPER_FORMATS, TITLE_COLUMN_MM, drawingArea } from './planExport'
-import {
-  pathItem as path, textItem as text, lineItem as line, circlePath, cullItems, frameItems,
-  fitSize, titleBlockFor, textWidth, STYLE,
-} from './planModel'
+import { path, text, line, circlePath, cullItems, textWidth, STYLE } from './planItems'
+import { frameItems } from './planSheet'
+import { fitSize, titleBlockFor } from './planTitleBlock'
 import { schematicLayout, toPlane } from './planSchematic'
 import { STATUSES, STATUS_COLOR, switchStatus } from './planStatus'
 import { format } from '../locales/i18n'
