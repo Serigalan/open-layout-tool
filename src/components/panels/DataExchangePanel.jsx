@@ -9,7 +9,7 @@ import { exportExchange, FORMAT_VERSION } from '../../utils/exchangeExport'
 import { parseOsrdRailJson } from '../../utils/osrdImport'
 import { fitToTracks } from '../../utils/mapRenderUtils'
 import { downloadJSON, downloadText } from '../../utils/fileUtils'
-import { EPSG_OPTIONS, crsDatum, crsLabel } from '../../utils/coordinateUtils'
+import { EPSG_OPTIONS, crsDatum, crsLabel, projectCrsOptions } from '../../utils/coordinateUtils'
 import useTrackHover from '../../hooks/useTrackHover'
 import { FILTER_NONE, HIT_TOLERANCE, HEIGHT_DATUMS, mapIsLive } from '../../utils/mapConstants'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../utils/gleislageCsvImport'
@@ -88,7 +88,11 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
   const [selectedIds, setSelectedIds]   = useState(new Set())
   const [trackConflicts, setTrackConflicts] = useState([])   // [{existing, imported}, ...]
   const [tracksImportError, setTracksImportError] = useState(null)
-  const [epsg, setEpsg]                 = useState('5683')
+  // Verm.ESN: the planes the project's tracks already lie in come first and
+  // the most used one is preset — a survey usually belongs to the same frame.
+  const projectCrs = projectCrsOptions(tracks)
+  const otherCrs = EPSG_OPTIONS.filter(o => !projectCrs.some(p => p.code === o.code))
+  const [epsg, setEpsg]                 = useState(() => String(projectCrs[0]?.code ?? 5683))
   const [esnErrors, setEsnErrors]       = useState([])
   const [esnNotes, setEsnNotes]         = useState([])
   const [esnDone, setEsnDone]           = useState(null)   // message after a successful import
@@ -830,9 +834,18 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         <div className="form-field">
           <label>{t('data_exchange_vermesn_crs')}</label>
           <select className="settings-select" value={epsg} onChange={e => setEpsg(e.target.value)}>
-            {EPSG_OPTIONS.map(o => (
-              <option key={o.code} value={o.code}>EPSG {o.code} – {o.label}</option>
-            ))}
+            {projectCrs.length > 0 && (
+              <optgroup label={t('data_exchange_crs_in_project')}>
+                {projectCrs.map(o => (
+                  <option key={o.code} value={o.code}>EPSG {o.code} – {o.label}</option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label={projectCrs.length > 0 ? t('data_exchange_crs_other') : t('data_exchange_crs_all')}>
+              {otherCrs.map(o => (
+                <option key={o.code} value={o.code}>EPSG {o.code} – {o.label}</option>
+              ))}
+            </optgroup>
           </select>
         </div>
         <EsnFileSlot

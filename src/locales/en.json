@@ -1156,5 +1156,8 @@
   "import_parse_error_cant": "Cant – file could not be read",
   "tracks_import_err_invalid_payload": "The file is not a track file of this tool.",
   "tracks_import_err_tracks_empty": "The file contains no tracks.",
-  "tracks_import_err_switch_missing": "The tracks belong to a switch that does not exist in this project."
+  "tracks_import_err_switch_missing": "The tracks belong to a switch that does not exist in this project.",
+  "data_exchange_crs_in_project": "Used in the project",
+  "data_exchange_crs_other": "Others",
+  "data_exchange_crs_all": "Coordinate systems"
 }

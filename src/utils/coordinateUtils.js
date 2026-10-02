@@ -138,6 +138,22 @@ export const EPSG_OPTIONS = [25831, 25832, 25833, 5681, 5682, 5683, 5684, 5685]
   .map(code => ({ code, label: crsName(code) }))
 
 /**
+ * The planes a project's tracks lie in, most used first — [{ code, label,
+ * count }]. Codes the tool cannot name are left out.
+ */
+export function projectCrsOptions(tracks) {
+  const counts = new Map()
+  for (const t of tracks ?? []) {
+    const code = Number(t.epsg)
+    if (!crsName(code)) continue
+    counts.set(code, (counts.get(code) ?? 0) + 1)
+  }
+  return [...counts]
+    .sort((a, b) => b[1] - a[1] || a[0] - b[0])
+    .map(([code, count]) => ({ code, label: crsName(code), count }))
+}
+
+/**
  * EPSG code of the UTM zone containing a WGS84 coordinate — the suggestion a
  * new track starts with (the user may pick another CRS). Existing tracks
  * never use it: their plane is `track.epsg`.
