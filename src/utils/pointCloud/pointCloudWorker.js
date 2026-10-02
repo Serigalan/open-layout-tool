@@ -4,12 +4,14 @@
 //   { type: 'abort' }
 // and out: { type: 'progress', … }, { type: 'done', index }, { type: 'aborted' },
 // { type: 'error', message }.
+//   { type: 'preview', file, count } answers { type: 'preview', header, points }
+// with the file's first points, read without importing anything (lasText).
 //
 // Tiles are written through a synchronous access handle — the fast OPFS path,
 // and one only a worker may hold. An import that does not finish removes its
 // directory again: an aborted import leaves nothing.
 import { loadLazPerf } from './lazPerfBrowser'
-import { readLasHeader, fileSource } from './lasReader'
+import { readLasHeader, readFirstPoints, fileSource } from './lasReader'
 import { importPointCloud } from './importPipeline'
 import { planeMapper } from './cloudCrs'
 import { projectDir, INDEX_FILE, TILES_FILE } from './cloudStore'
@@ -91,7 +93,20 @@ async function runImport({ file, projectId, cloudId, meta, sourceCrs, targetCrs,
   }
 }
 
+async function runPreview({ file, count }) {
+  try {
+    const source = fileSource(file)
+    const header = await readLasHeader(source)
+    const lazPerf = header.compressed ? await loadLazPerf() : null
+    const points = await readFirstPoints(source, header, count, { lazPerf })
+    self.postMessage({ type: 'preview', header, points })
+  } catch (err) {
+    self.postMessage({ type: 'error', message: String(err?.message ?? err) })
+  }
+}
+
 self.onmessage = ({ data }) => {
   if (data?.type === 'abort') controller?.abort()
   else if (data?.type === 'import') runImport(data)
+  else if (data?.type === 'preview') runPreview(data)
 }

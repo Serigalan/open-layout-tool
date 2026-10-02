@@ -5,7 +5,9 @@ import { EPSG_OPTIONS, crsLabel, crsName } from '../../utils/coordinateUtils'
 import { HEIGHT_DATUMS } from '../../utils/mapConstants'
 import { readLasHeader, fileSource } from '../../utils/pointCloud/lasReader'
 import { probeExtent, projectPlane } from '../../utils/pointCloud/cloudProbe'
-import { startImport } from '../../utils/pointCloud/pointCloudImport'
+import { startImport, previewPoints } from '../../utils/pointCloud/pointCloudImport'
+import { pointsAsText, PREVIEW_POINTS } from '../../utils/pointCloud/lasText'
+import { downloadText } from '../../utils/fileUtils'
 import {
   listClouds, deleteCloud, opfsAvailable, persistStorage, storagePersisted, storageEstimate, estimateCloudBytes,
 } from '../../utils/pointCloud/cloudStore'
@@ -68,6 +70,8 @@ export default function PointCloudPanel({ t, map, project }) {
   const [heightEpsg, setHeightEpsg] = useState('')
   const [run, setRun] = useState(null)          // { abort, progress } while importing
   const [message, setMessage] = useState(null)  // { kind: 'error'|'done', text }
+  const [preview, setPreview] = useState(null)  // { busy } while reading, then { text, name }
+  const [copied, setCopied] = useState(false)
   const fileRef = useRef(null)
 
   const tracks = loadTracks(project.id)
@@ -119,6 +123,35 @@ export default function PointCloudPanel({ t, map, project }) {
     } catch (err) {
       setPick(null)
       setMessage({ kind: 'error', text: `${t('pointcloud_not_las')} (${err.message})` })
+    }
+  }
+
+  // The first points as text, to read the coordinates before choosing the
+  // system they are in.
+  const showPreview = async () => {
+    if (!pick) return
+    setPreview({ busy: true })
+    setCopied(false)
+    try {
+      const { header, points } = await previewPoints(pick.file, PREVIEW_POINTS)
+      const labels = {
+        format: t('pointcloud_text_format'), points: t('pointcloud_text_points'),
+        scale: t('pointcloud_text_scale'), offset: t('pointcloud_text_offset'),
+        first: t('pointcloud_text_first'), intensity: t('pointcloud_text_intensity'),
+      }
+      setPreview({ name: pick.file.name, text: pointsAsText(header, points, { name: pick.file.name, labels }) })
+    } catch (err) {
+      setPreview(null)
+      setMessage({ kind: 'error', text: `${t('pointcloud_text_failed')}: ${err.message}` })
+    }
+  }
+
+  const copyPreview = async () => {
+    try {
+      await navigator.clipboard.writeText(preview.text)
+      setCopied(true)
+    } catch {
+      setCopied(false)
     }
   }
 
@@ -178,6 +211,9 @@ export default function PointCloudPanel({ t, map, project }) {
                 + `${fill(t('pointcloud_points'), { n: count(pick.header.pointCount) })} · `
                 + `${fill(t('pointcloud_needs'), { size: size(needed) })}`}
             </span>
+            <button className="modal-btn modal-btn-cancel pointcloud-text-btn" disabled={preview?.busy} onClick={showPreview}>
+              {preview?.busy ? t('pointcloud_text_reading') : fill(t('pointcloud_text_show'), { n: PREVIEW_POINTS })}
+            </button>
           </div>
           {tooBig && (
             <p className="form-error">{fill(t('pointcloud_space_short'), { size: size(needed), free: size(storage.free) })}</p>
@@ -273,6 +309,26 @@ export default function PointCloudPanel({ t, map, project }) {
           {fill(t('pointcloud_storage'), { used: size(storage.usage), free: size(storage.free) })}
           {!storage.persisted && ` ${t('pointcloud_not_persisted')}`}
         </p>
+      )}
+      {preview?.text && (
+        <div className="modal-overlay" onClick={() => setPreview(null)}>
+          <div className="modal pointcloud-text-modal" onClick={(e) => e.stopPropagation()}>
+            <strong>{fill(t('pointcloud_text_title'), { n: PREVIEW_POINTS })}</strong>
+            <pre className="pointcloud-text">{preview.text}</pre>
+            <div className="modal-actions">
+              <button className="modal-btn modal-btn-cancel" onClick={copyPreview}>
+                {copied ? t('pointcloud_text_copied') : t('pointcloud_text_copy')}
+              </button>
+              <button className="modal-btn modal-btn-cancel"
+                onClick={() => downloadText(preview.text, `${preview.name.replace(/\.(laz|las)$/i, '')}_${PREVIEW_POINTS}.txt`)}>
+                {t('pointcloud_text_save')}
+              </button>
+              <button className="modal-btn modal-btn-confirm" onClick={() => setPreview(null)}>
+                {t('pointcloud_text_close')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {asking && (
         <ConfirmModal t={t} message={fill(t('pointcloud_delete_ask'), { name: asking.name })}
