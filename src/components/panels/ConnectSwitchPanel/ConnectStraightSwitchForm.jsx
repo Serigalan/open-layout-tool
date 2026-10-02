@@ -19,7 +19,7 @@ import {
   SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, computeSwitchGeometryUtm, asRadius, branchRadius, bauform,
 } from '../../../utils/switchUtils'
 import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
-import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildLinesGeoJSON, buildFillGeoJSON } from '../switchPreview'
+import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildLinesGeoJSON, buildFillGeoJSON } from '../../../map/switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'

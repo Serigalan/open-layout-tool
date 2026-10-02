@@ -1,15 +1,10 @@
-// Shared geometry helpers and map layer names for the EditElement forms.
-import { rebuildCoords, recalcAbsLengths } from '../../../utils/trackModel'
-import { nodeUtm, resolveEndBearing, displayCoords } from '../../../utils/elementUtils'
-import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../../../utils/mapConstants'
-import { truncateHeights } from '../../../utils/heightUtils'
-import { switchParts } from '../../../utils/switchDelete'
-import { arcFrom, straightFrom, transitionElement } from '../../../utils/elementFactory'
-
-export const EDIT_MARKER_SOURCE = 'edit-length-markers-source'
-export const EDIT_MARKER_LAYER  = 'edit-length-markers-layer'
-export const EDIT_LINES_SOURCE  = 'edit-length-lines-source'
-export const EDIT_LINES_LAYER   = 'edit-length-lines-layer'
+// Geometry of an element edit: plan, apply and merge length/bearing/radius changes.
+import { rebuildCoords, recalcAbsLengths } from './trackModel'
+import { nodeUtm } from './elementUtils'
+import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from './mapConstants'
+import { truncateHeights } from './heightUtils'
+import { switchParts } from './switchDelete'
+import { arcFrom, straightFrom, transitionElement } from './elementFactory'
 
 export function nodesApproxEqual(a, b) {
   if (!Array.isArray(a) || !Array.isArray(b)) return false
@@ -188,37 +183,4 @@ export function applyElementChange(tracks, trackId, elIdx, patch) {
 /** Change only the length (interactive length edit). */
 export function applyLengthChange(tracks, trackId, elIdx, newLength) {
   return applyElementChange(tracks, trackId, elIdx, { length: newLength })
-}
-
-export function buildLineFeatures(tracks) {
-  const features = []
-  for (const track of tracks) {
-    for (let i = 0; i < (track.elements ?? []).length; i++) {
-      const el = track.elements[i]
-      if (!el.geometry || el.switchBranch) continue
-      features.push({
-        type: 'Feature',
-        properties: { trackId: track.id, elementIndex: i },
-        geometry: { type: 'LineString', coordinates: displayCoords(el, track.epsg) },
-      })
-    }
-  }
-  return { type: 'FeatureCollection', features }
-}
-
-export function buildMarkerFeatures(tracks) {
-  const features = []
-  for (const track of tracks) {
-    for (let i = 0; i < (track.elements ?? []).length; i++) {
-      const el = track.elements[i]
-      if (!el.geometry || el.switchBranch) continue
-      const coords = el.geometry.coordinates
-      features.push({
-        type: 'Feature',
-        properties: { bearing: resolveEndBearing(el, track.epsg), trackId: track.id, elementIndex: i },
-        geometry: { type: 'Point', coordinates: coords[coords.length - 1] },
-      })
-    }
-  }
-  return { type: 'FeatureCollection', features }
 }

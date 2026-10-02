@@ -4,10 +4,8 @@ import { projectOnBearingUtm, nodeUtm } from '../../../utils/elementUtils'
 import { wgs84ToUTM } from '../../../utils/coordinateUtils'
 import { ZOOM_ICON_SIZE, ZOOM_LINE_WIDTH } from '../../../utils/mapConstants'
 import { ensureMarkerImages, ARROW_ICON_IMAGE } from '../../../utils/markerImages'
-import {
-  EDIT_MARKER_SOURCE, EDIT_MARKER_LAYER, EDIT_LINES_SOURCE, EDIT_LINES_LAYER,
-  planElementChange, buildLineFeatures, buildMarkerFeatures,
-} from './editGeometry'
+import { planElementChange } from '../../../utils/editGeometry'
+import { EDIT_MARKER_SOURCE, EDIT_MARKER_LAYER, EDIT_LINES_SOURCE, EDIT_LINES_LAYER, buildLineFeatures, buildMarkerFeatures } from '../../../map/editPreview'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import usePreview from '../../../map/usePreview'

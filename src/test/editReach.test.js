@@ -7,7 +7,7 @@ import {
 import { utmToWgs84 } from '../utils/coordinateUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK, MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../utils/mapConstants'
 import { newSwitchFields, switchElementMark } from '../utils/switchModel'
-import { planElementChange, mergeElementEdits } from '../components/panels/EditElementPanel/editGeometry'
+import { planElementChange, mergeElementEdits } from '../utils/editGeometry'
 import { expectValidTrack } from './chainInvariants'
 
 /**

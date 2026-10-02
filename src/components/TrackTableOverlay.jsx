@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
 import { useTracks, useProject } from '../hooks/useStore'
-import { planElementChange, mergeElementEdits } from './panels/EditElementPanel/editGeometry'
+import { planElementChange, mergeElementEdits } from '../utils/editGeometry'
 import { transitionCantEnds } from '../utils/clothoidUtils'
 import { crsLabel } from '../utils/coordinateUtils'
 import { switchKindLabelKey, switchRouteLabelKey } from '../utils/switchModel'

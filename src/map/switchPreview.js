@@ -1,4 +1,4 @@
-import { ZOOM_LINE_WIDTH } from '../../utils/mapConstants'
+import { ZOOM_LINE_WIDTH } from '../utils/mapConstants'
 
 export const SWITCH_LINES_SOURCE = 'switch-preview-lines-source'
 export const SWITCH_LINES_LAYER  = 'switch-preview-lines-layer'
