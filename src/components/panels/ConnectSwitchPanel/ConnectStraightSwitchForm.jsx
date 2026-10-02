@@ -427,7 +427,7 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
       </div>
 
       <div className="element-form">
-        <span className="create-element-section">Geometry Data</span>
+        <span className="create-element-section">{t('section_geometry')}</span>
         <SwitchFormField t={t} value={switchTypeIdx} onChange={handleSwitchTypeChange} hideSymmetric={curved} />
         <div className="form-field">
           <label>{t('switch_side')}</label>
@@ -490,14 +490,14 @@ export default function ConnectStraightSwitchForm({ t, map, project, onTrackSave
 
       {!trailing && (
         <div className="element-form">
-          <span className="create-element-section">Meta Data (Main Track)</span>
+          <span className="create-element-section">{t('section_meta_main')}</span>
           <TrackFields t={t} fields={mainFields} setField={setMainField} setErrors={setMainErrors} errors={mainErrors}
             name={mainName} onNameChange={(val) => { setMainName(val); setMainNameError(false) }} nameError={mainNameError} />
         </div>
       )}
 
       <div className="element-form">
-        <span className="create-element-section">Meta Data (Divergent Track)</span>
+        <span className="create-element-section">{t('section_meta_divergent')}</span>
         <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError} />
       </div>

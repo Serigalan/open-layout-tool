@@ -367,7 +367,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         setCsvStrecke(list.some(s => s.strecke === csvStrecke) ? csvStrecke : (list[0]?.strecke ?? ''))
       } catch (err) {
         csvRowsRef.current = null
-        setCsvErrors([`Parse-Fehler: ${err.message}`])
+        setCsvErrors([`${t('import_parse_error')}: ${err.message}`])
       } finally {
         setCsvBusy(false)
       }
@@ -388,7 +388,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
       } catch (err) {
         cantRowsRef.current = null
         setCantCount(0)
-        setCsvErrors([`Überhöhung – Parse-Fehler: ${err.message}`])
+        setCsvErrors([`${t('import_parse_error_cant')}: ${err.message}`])
       } finally {
         setCsvBusy(false)
       }
@@ -691,7 +691,7 @@ export default function DataExchangePanel({ t, map, project, onTrackSaved, onSho
         // The import usually lands far outside the current view — show it.
         fitToTracks(map?.current, imported)
       } catch (err) {
-        setOsrdErrors([`Parse-Fehler: ${err.message}`])
+        setOsrdErrors([`${t('import_parse_error')}: ${err.message}`])
       }
     }
     reader.readAsText(file)

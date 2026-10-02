@@ -270,7 +270,7 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
   return (
     <>
       <div className="element-form">
-        <span className="create-element-section">Geometry Data</span>
+        <span className="create-element-section">{t('section_geometry')}</span>
         <div className="form-field">
           <label>{t('crossing_form')}</label>
           <select value={formIdx} onChange={e => setFormIdx(Number(e.target.value))}>
@@ -325,7 +325,7 @@ export default function CrossingForm({ t, map, project, onTrackSaved, onCommitte
       </div>
 
       <div className="element-form">
-        <span className="create-element-section">Meta Data</span>
+        <span className="create-element-section">{t('section_meta')}</span>
         <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError} />
       </div>

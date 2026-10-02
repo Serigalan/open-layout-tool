@@ -360,7 +360,7 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
       </div>
 
       <div className="element-form">
-        <span className="create-element-section">Geometry Data</span>
+        <span className="create-element-section">{t('section_geometry')}</span>
         <div className="form-field">
           <label>{t('field_speed')}</label>
           <select value={speed} onChange={e => setSpeed(Number(e.target.value))}>
@@ -407,14 +407,14 @@ export default function ConnectSwitchConnectionForm({ t, map, project, onTrackSa
 
       {!trailing && (
         <div className="element-form">
-          <span className="create-element-section">Meta Data (Main Track)</span>
+          <span className="create-element-section">{t('section_meta_main')}</span>
           <TrackFields t={t} fields={mainFields} setField={setMainField} setErrors={setMainErrors} errors={mainErrors}
             name={mainName} onNameChange={(val) => { setMainName(val); setMainNameError(false) }} nameError={mainNameError} />
         </div>
       )}
 
       <div className="element-form">
-        <span className="create-element-section">Meta Data (Divergent Track)</span>
+        <span className="create-element-section">{t('section_meta_divergent')}</span>
         <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={(val) => { setName(val); setNameError(false) }} nameError={nameError} />
       </div>

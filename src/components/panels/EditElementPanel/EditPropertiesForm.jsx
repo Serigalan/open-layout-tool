@@ -105,13 +105,13 @@ export default function EditPropertiesForm({ t, map, project, onCommitted, onTra
       ) : (
         <>
           <div className="element-form">
-            <span className="create-element-section">Meta Data</span>
+            <span className="create-element-section">{t('section_meta')}</span>
             <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
               name={name} onNameChange={(val) => { setName(val); setNameError(false) }} nameError={nameError} />
             <StatusField t={t} value={status} onChange={setStatus} />
           </div>
           <div className="element-form">
-            <span className="create-element-section">Geometry Data</span>
+            <span className="create-element-section">{t('section_geometry')}</span>
             <HeightDatumField t={t} value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
           </div>
         </>

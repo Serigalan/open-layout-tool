@@ -274,7 +274,7 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
   return (
     <>
       <div className="element-form">
-        <span className="create-element-section">Geometry Data</span>
+        <span className="create-element-section">{t('section_geometry')}</span>
         <div className="form-field">
           <label>{t('crossing_on_track_station')}</label>
           <input type="number" step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
@@ -340,7 +340,7 @@ export default function CrossingOnTrackForm({ t, map, project, onTrackSaved, onC
       </div>
 
       <div className="element-form">
-        <span className="create-element-section">Meta Data (Cross Route)</span>
+        <span className="create-element-section">{t('section_meta_cross')}</span>
         <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError} />
       </div>

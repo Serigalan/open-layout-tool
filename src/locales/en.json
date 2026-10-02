@@ -1146,5 +1146,12 @@
   "clearance_scan_none": "Nothing reaches into the clearance ({{n}} stations checked).",
   "clearance_scan_found": "Intrusions into the clearance at {{n}} places:",
   "clearance_scan_row": "{{n}} points, up to {{mm}} mm",
-  "optimizer_catalog_drift": "The optimizer service computes with different rulebook files than this app. Results and displayed limits may disagree — please redeploy the service."
+  "optimizer_catalog_drift": "The optimizer service computes with different rulebook files than this app. Results and displayed limits may disagree — please redeploy the service.",
+  "section_geometry": "Geometry data",
+  "section_meta_cross": "Meta data (crossing route)",
+  "section_meta_main": "Meta data (main track)",
+  "section_meta_divergent": "Meta data (diverging track)",
+  "section_meta": "Meta data",
+  "import_parse_error": "File could not be read",
+  "import_parse_error_cant": "Cant – file could not be read"
 }

@@ -373,7 +373,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
       </div>
 
       <div className="element-form">
-        <span className="create-element-section">Geometry Data</span>
+        <span className="create-element-section">{t('section_geometry')}</span>
         <div className="form-field">
           <label>{t('switch_on_track_station')}</label>
           <input type="number" step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
@@ -444,7 +444,7 @@ export default function SwitchOnTrackForm({ t, map, project, onTrackSaved, onCom
       </div>
 
       <div className="element-form">
-        <span className="create-element-section">Meta Data (Divergent Track)</span>
+        <span className="create-element-section">{t('section_meta_divergent')}</span>
         <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={(v) => { setName(v); setNameError(false) }}
           nameError={nameError} />

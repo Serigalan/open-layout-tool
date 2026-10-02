@@ -208,7 +208,7 @@ export default function LineForm({ t, map, project, onTrackSaved }) {
   return (
     <>
       <div className="element-form">
-        <span className="create-element-section">Meta Data</span>
+        <span className="create-element-section">{t('section_meta')}</span>
         <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError}
           lineOptions={lineOptions} />
@@ -216,7 +216,7 @@ export default function LineForm({ t, map, project, onTrackSaved }) {
 
       {points.length === 2 && (
         <div className="element-form">
-          <span className="create-element-section">Geometry Data</span>
+          <span className="create-element-section">{t('section_geometry')}</span>
           <div className="form-field">
             <label>{t('field_length')}</label>
             <input type="number" step="0.001" value={length} onChange={e => handleLengthChange(e.target.value)} />

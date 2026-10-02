@@ -268,7 +268,7 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
       )}
 
       <div className="element-form">
-        <span className="create-element-section">Geometry Data</span>
+        <span className="create-element-section">{t('section_geometry')}</span>
         <div className="form-field">
           <label>{t('platform_track')}</label>
           <input type="text" readOnly value={trackLabel(track)} />
@@ -344,7 +344,7 @@ export default function PlatformPanel({ t, map, project, onTrackSaved }) {
       </div>
 
       <div className="element-form">
-        <span className="create-element-section">Meta Data</span>
+        <span className="create-element-section">{t('section_meta')}</span>
         <div className="form-field">
           <label>{t('station_name')}</label>
           <StationNameInput

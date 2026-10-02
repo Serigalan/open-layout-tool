@@ -229,7 +229,7 @@ export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
   return (
     <>
       <div className="element-form">
-        <span className="create-element-section">Meta Data</span>
+        <span className="create-element-section">{t('section_meta')}</span>
         <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError}
           lineOptions={lineOptions} />
@@ -237,7 +237,7 @@ export default function CurvedLineForm({ t, map, project, onTrackSaved }) {
 
       {(signedRadius !== '' || hasPoints) && (
         <div className="element-form">
-          <span className="create-element-section">Geometry Data</span>
+          <span className="create-element-section">{t('section_geometry')}</span>
           <div className="form-field">
             <label>Radius (m)</label>
             <input type="number" value={signedRadius} onChange={e => handleRadiusChange(e.target.value)} />

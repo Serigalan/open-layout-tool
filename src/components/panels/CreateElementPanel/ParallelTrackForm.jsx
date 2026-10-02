@@ -126,14 +126,14 @@ export default function ParallelTrackForm({ t, map, project, onTrackSaved }) {
   return (
     <>
       <div className="element-form">
-        <span className="create-element-section">Meta Data</span>
+        <span className="create-element-section">{t('section_meta')}</span>
         <TrackFields t={t} fields={fields} setField={setField} setErrors={setErrors} errors={errors}
           name={name} onNameChange={handleNameChange} nameError={nameError} />
       </div>
 
       {!selecting && (
         <div className="element-form">
-          <span className="create-element-section">Geometry Data</span>
+          <span className="create-element-section">{t('section_geometry')}</span>
           <div className="form-field">
             <label>{t('field_offset')}</label>
             <input type="number" step="0.01" value={offset} onChange={e => handleOffsetChange(e.target.value)} />

@@ -1146,5 +1146,12 @@
   "clearance_scan_none": "Kein Eingriff in den Lichtraum ({{n}} Stationen geprüft).",
   "clearance_scan_found": "Eingriffe in den Lichtraum an {{n}} Stellen:",
   "clearance_scan_row": "{{n}} Punkte, bis {{mm}} mm",
-  "optimizer_catalog_drift": "Der Optimierdienst rechnet mit anderen Regelwerksdateien als diese App. Ergebnisse und angezeigte Grenzwerte können voneinander abweichen — bitte den Dienst neu ausrollen."
+  "optimizer_catalog_drift": "Der Optimierdienst rechnet mit anderen Regelwerksdateien als diese App. Ergebnisse und angezeigte Grenzwerte können voneinander abweichen — bitte den Dienst neu ausrollen.",
+  "section_geometry": "Geometriedaten",
+  "section_meta_cross": "Metadaten (Kreuzungsfahrweg)",
+  "section_meta_main": "Metadaten (Stammgleis)",
+  "section_meta_divergent": "Metadaten (Zweiggleis)",
+  "section_meta": "Metadaten",
+  "import_parse_error": "Datei nicht lesbar",
+  "import_parse_error_cant": "Überhöhung – Datei nicht lesbar"
 }
