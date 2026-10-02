@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, blobUrl, splitDataUrl } from '../api/client'
-import { readImageAsBase64 } from '../storage'
 import { parseProjectsPayload, PayloadError, SCHEMA_VERSION } from '../utils/persistenceUtils'
+import { PROJECT_IMAGES, projectImagePicture } from '../utils/projectImages'
 import { downloadJSON } from '../utils/fileUtils'
 import { languageLabels } from '../locales/i18n'
 import { formatDate, loadHome, variantTree } from './collab/homeModel'
 import { LogoIcon } from './icons'
 import { fill } from './collab/mergeText'
 import PasswordForm from './collab/PasswordForm'
+import ProjectImagePicker from './collab/ProjectImagePicker'
 import './collab/collab.css'
 
 /**
@@ -342,12 +343,14 @@ function ConfirmDialog({ message, confirmLabel, onConfirm, onCancel, t, danger }
 function NewProjectDialog({ onCancel, onCreated, t, template = false }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [file, setFile] = useState(null)
+  const [picture, setPicture] = useState({ kind: 'none' })
   const { busy, error, run } = useAction(t)
   const submit = () => run(async () => {
     if (!title.trim()) return
     let payload
-    const image = splitDataUrl(await readImageAsBase64(file))
+    const preset = picture.kind === 'preset' ? PROJECT_IMAGES.find(i => i.key === picture.key) : null
+    const image = preset ? await projectImagePicture(preset)
+      : picture.kind === 'file' ? splitDataUrl(picture.dataUrl) : null
     if (image) {
       const { hash } = await api.uploadImage(image.mime, image.data)
       payload = { tracks: [], switches: [], platforms: [], imageHash: hash }
@@ -366,10 +369,7 @@ function NewProjectDialog({ onCancel, onCreated, t, template = false }) {
         <span>{t('start_field_description')}</span>
         <textarea rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder={t('start_field_description_placeholder')} />
       </label>
-      <label className="collab-field">
-        <span>{t('start_field_image')}</span>
-        <input type="file" accept="image/*" onChange={e => setFile(e.target.files?.[0] ?? null)} />
-      </label>
+      <ProjectImagePicker value={picture} onChange={setPicture} t={t} disabled={busy} />
     </FormDialog>
   )
 }
