@@ -45,6 +45,34 @@ describe('signing in', () => {
     expect((await tryIt(PW)).statusCode).toBe(200)
   })
 
+  it('forgets failures nobody repeats, on the sweep (R8.3)', async () => {
+    ctx = await setup()
+    const tryIt = (login) => ctx.app.inject({ method: 'POST', url: '/api/login', payload: { login, password: 'wrong password!' } })
+    await tryIt('max')
+    for (let i = 0; i < BRAKE_ATTEMPTS; i++) await tryIt('ada')
+    expect(ctx.app.auth.failureCount()).toBe(2)
+    ctx.app.auth.sweep()
+    expect(ctx.app.auth.failureCount()).toBe(2)
+    ctx.clock.t += 61 * 1000
+    ctx.app.auth.sweep()
+    expect(ctx.app.auth.failureCount()).toBe(0)
+  })
+
+  it('believes X-Forwarded-For only from the proxy (R8.3)', async () => {
+    ctx = await setup()
+    const tryFrom = (remoteAddress, xff) => ctx.app.inject({
+      method: 'POST', url: '/api/login', remoteAddress,
+      headers: { 'x-forwarded-for': xff }, payload: { login: 'max', password: 'wrong password!' },
+    })
+    // A client reaching the port directly cannot shed the brake by naming a
+    // new address each time.
+    let last
+    for (let i = 0; i < BRAKE_ATTEMPTS; i++) last = await tryFrom('203.0.113.9', `198.51.100.${i}`)
+    expect(last.statusCode).toBe(429)
+    // Through the proxy, the forwarded address is the client's.
+    expect((await tryFrom('127.0.0.1', '198.51.100.77')).statusCode).toBe(401)
+  })
+
   it('a session unused for 30 days has run out; use keeps it alive', async () => {
     ctx = await setup()
     const max = await signIn(ctx.app, 'max')

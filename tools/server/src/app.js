@@ -13,6 +13,14 @@ export const BODY_LIMIT = 20 * 1024 * 1024
 const WRITING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 /**
+ * Whose X-Forwarded-For is believed: only the reverse proxy's (Caddy on the
+ * same host). Believing anybody's would let a client that reaches the port
+ * directly name its own address, and with it step around the login brake.
+ * A Caddy elsewhere (a container) is named in OLT_SERVER_TRUST_PROXY.
+ */
+export const TRUSTED_PROXIES = ['127.0.0.1', '::1']
+
+/**
  * The API under /api (phase 10). Same origin as the app, so no CORS: the
  * session is an HttpOnly, SameSite=Strict cookie, and a writing request has to
  * say it carries JSON — a form another site posts cannot, which closes the
@@ -20,8 +28,10 @@ const WRITING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
  *
  * `secureCookie` is off only for plain-http tests and local runs.
  */
-export function buildApp({ db, secureCookie = true, now = () => Date.now(), logger = false, routes = [] } = {}) {
-  const app = Fastify({ logger, bodyLimit: BODY_LIMIT, trustProxy: true })
+export function buildApp({
+  db, secureCookie = true, now = () => Date.now(), logger = false, routes = [], trustProxy = TRUSTED_PROXIES,
+} = {}) {
+  const app = Fastify({ logger, bodyLimit: BODY_LIMIT, trustProxy })
   const auth = createAuth(db, { now })
   app.decorate('db', db)
   app.decorate('auth', auth)

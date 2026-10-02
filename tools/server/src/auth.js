@@ -65,7 +65,8 @@ export function createAuth(db, { now = () => Date.now() } = {}) {
     dropExpired:   db.prepare('DELETE FROM session WHERE expires_at < ?'),
   }
 
-  // Failed logins by `login|address`: { count, until }.
+  // Failed logins by `login|address`: { count, until, last }. In memory only:
+  // a restart forgives, which costs an attacker a minute at most per restart.
   const failures = new Map()
 
   return {
@@ -108,9 +109,10 @@ export function createAuth(db, { now = () => Date.now() } = {}) {
       const user = q.userByLogin.get(String(login ?? '').trim())
       const ok = user && user.active && await verifyPassword(user.password_hash, String(password ?? ''))
       if (ok) { failures.delete(key); return user }
-      const f = failures.get(key) ?? { count: 0, until: 0 }
+      const f = failures.get(key) ?? { count: 0, until: 0, last: 0 }
       if (f.until && f.until <= now()) { f.count = 0; f.until = 0 }
       f.count += 1
+      f.last = now()
       if (f.count >= BRAKE_ATTEMPTS) f.until = now() + BRAKE_MS
       failures.set(key, f)
       return null
@@ -141,6 +143,16 @@ export function createAuth(db, { now = () => Date.now() } = {}) {
 
     closeSession(token) { if (token) q.dropSession.run(sha256(token)) },
     closeAllSessions(userId) { q.dropSessions.run(userId) },
-    sweep() { q.dropExpired.run(iso()) },
+    /** Drop expired sessions, and failed logins nobody has repeated for a brake's length. */
+    sweep() {
+      q.dropExpired.run(iso())
+      const t = now()
+      for (const [key, f] of failures) {
+        if (f.until ? f.until <= t : f.last + BRAKE_MS <= t) failures.delete(key)
+      }
+    },
+
+    /** How many logins/addresses have failed attempts on record (for tests). */
+    failureCount: () => failures.size,
   }
 }

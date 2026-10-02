@@ -11,6 +11,8 @@ Environment=OLT_SERVER_DB=@OLT_DB@
 # Only Caddy reaches it, never the public interface.
 Environment=OLT_SERVER_HOST=@OLT_BIND@
 Environment=OLT_SERVER_PORT=@OLT_SERVER_PORT@
+# Whose X-Forwarded-For is believed — Caddy's address only.
+Environment=OLT_SERVER_TRUST_PROXY=@OLT_TRUST_PROXY@
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=true

@@ -24,6 +24,7 @@ anything else, which lets plain Node load the browser modules under `../../src`
 | `OLT_SERVER_DB` | `olt.sqlite` | database file (SQLite, WAL) |
 | `OLT_SERVER_HOST` | `127.0.0.1` | bind address |
 | `OLT_SERVER_PORT` | `8787` | port |
+| `OLT_SERVER_TRUST_PROXY` | `127.0.0.1,::1` | addresses/CIDR ranges whose `X-Forwarded-For` is believed (the reverse proxy) |
 | `OLT_SERVER_INSECURE_COOKIE` | — | `1` drops `Secure` from the cookie (plain-http local runs only) |
 | `OLT_ADMIN_PASSWORD` | — | start password for `create-admin` instead of a generated one |
 

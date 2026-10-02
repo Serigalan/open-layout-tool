@@ -83,7 +83,8 @@ Läuft schon ein Caddy, der die Ports 80/443 hält (z. B. in Docker), schreibt
 Hand eingebunden. `OLT_UPSTREAM` ist dann die Adresse, unter der der Container
 den Host erreicht (z. B. das Gateway des Docker-Netzes, und `OLT_BIND` dieselbe
 Adresse), `OLT_SITE_ROOT` der Pfad, unter dem `dist/` im Container eingehängt
-ist. `dist/` bleibt beim Deploy dasselbe Verzeichnis, ein Bind-Mount überlebt
+ist, und `OLT_TRUST_PROXY` das Netz des Containers (sonst sieht die Login-Bremse
+alle Anfragen von einer Adresse). `dist/` bleibt beim Deploy dasselbe Verzeichnis, ein Bind-Mount überlebt
 den Build also.
 
 ## Lokale Entwicklung

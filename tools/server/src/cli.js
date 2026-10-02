@@ -24,6 +24,7 @@ async function main([command, ...args]) {
     const app = buildApp({
       db,
       secureCookie: env.OLT_SERVER_INSECURE_COOKIE !== '1',
+      ...(env.OLT_SERVER_TRUST_PROXY ? { trustProxy: env.OLT_SERVER_TRUST_PROXY.split(',').map(s => s.trim()).filter(Boolean) } : {}),
       logger: { level: env.OLT_SERVER_LOG ?? 'info' },
     })
     setInterval(() => app.auth.sweep(), 3600 * 1000).unref()
