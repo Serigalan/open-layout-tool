@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { recalcAbsLengths, rebuildCoords } from '../utils/trackModel'
+import { rebuildCoords } from '../utils/trackModel'
 import { buildConnectCurved, buildConnectStraight, buildCurvedLineTrack, buildLineTrack, trackOf } from '../utils/commands/tracks'
+import { buildSwitchOnTrack, switchOnTrackPlacement } from '../utils/commands/switches'
+import { arcFrom, straightFrom, transitionElement } from '../utils/elementFactory'
 import { endPointStraightUtm, endPointCurvedUtm } from '../utils/elementUtils'
-import {
-  SWITCH_TYPES, computeSwitchGeometryUtm, switchRouteVaries, switchStraightLength,
-} from '../utils/switchUtils'
+import { SWITCH_TYPES, switchStraightLength } from '../utils/switchUtils'
 import { dehydrateProjects, hydrateProjects } from '../utils/persistenceUtils'
 import {
-  expectValidTrack, expectNodesJoin, expectTangentsContinuous, expectSwitchCantAdmissible,
+  expectValidTrack, expectNodesJoin, expectTangentsContinuous, expectSwitchCantAdmissible, expectSwitchRoutesCarved,
 } from './chainInvariants'
 
 /**
@@ -107,53 +107,64 @@ describe('the committed chain survives a reload unchanged', () => {
 describe('the branch a switch dialog commits', () => {
   // SwitchOnTrackForm builds one element per piece of the branch chain. A
   // turnout laid across several elements of its host track gets several, and
-  // that is the chain the invariants have to hold for.
+  // that is the chain the invariants have to hold for. The commit is the
+  // dialog's own: switchOnTrackPlacement, then buildSwitchOnTrack (R4.2).
   const form = SWITCH_TYPES.find(f => f.label === '760 – 1:14')
+  const straightLen = switchStraightLength(form)
 
-  const branchElements = (stem) => {
-    const g = computeSwitchGeometryUtm(START, 30, form, 'right', false, null, stem)
-    return {
-      g,
-      elements: recalcAbsLengths(g.branchSegments.map(seg => ({
-        ...(switchRouteVaries(seg)
-          ? { elementType: 2, transitionType: 'clothoid', r1: seg.r1, r2: seg.r2 }
-          : { elementType: seg.r1 ? 1 : 0, ...(seg.r1 ? { radius: seg.r1 } : {}) }),
-        startNode: [seg.startUtm.easting, seg.startUtm.northing],
-        endNode:   [seg.endUtm.easting, seg.endUtm.northing],
-        bearing: seg.bearing, endBearing: seg.endBearing, length: seg.length,
-        geometry: { type: 'LineString', coordinates: seg.coords },
-      }))),
+  /** A host track from START at 30°, made of `pieces` ({ length, r1, r2 }), and the turnout laid at its begin. */
+  const laid = (pieces) => {
+    const els = []
+    let at = START, bearing = 30
+    for (const { length, r1, r2 } of pieces) {
+      const el = r1 !== r2
+        ? transitionElement(at, bearing, length, r1, r2).element
+        : r1 ? arcFrom(at, bearing, length, r1) : straightFrom(at, bearing, length)
+      els.push({ ...el, speed: SPEED })
+      at = { easting: el.endNode[0], northing: el.endNode[1], zone: EPSG }
+      bearing = el.endBearing ?? el.bearing
     }
+    const track = { ...trackOf(els, EPSG, { name: 'line.001' }, 'host') }
+    const placement = switchOnTrackPlacement({ track, toeStation: 1, reversed: false, sw: form, side: 'right', straightLen })
+    expect(placement.error).toBeNull()
+    const commit = buildSwitchOnTrack({
+      track, tracks: [track], place: placement.place, g: placement.geom, plain: placement.plain,
+      sw: form, straightLen, cant: 0, cantReason: '', speed: SPEED,
+      switchName: 'W 1', switchNumber: 1, name: 'branch.001', fields: { owner: 'DB', type: 'station_track' },
+    })
+    expect(commit.noRoom).toBeUndefined()
+    const branch = commit.addTracks[commit.addTracks.length - 1]
+    return { g: placement.geom, commit, elements: branch.elements }
   }
 
-  it('on a straight stem: one element, joining the toe exactly', () => {
-    const { g, elements } = branchElements(null)
+  it('on a straight stem: one element, joining the toe exactly, both routes carved', () => {
+    const { g, commit, elements } = laid([{ length: 400, r1: null, r2: null }])
     expect(elements).toHaveLength(1)
     expect(elements[0].startNode).toEqual(g.portA)
     expect(elements[0].endNode).toEqual(g.portB1)
     expectNodesJoin(elements)
+    expectSwitchRoutesCarved(commit.addSwitches[0], commit.addTracks)
   })
 
   it('across a straight running into a clothoid and on into an arc: one element per piece', () => {
-    const straightLen = switchStraightLength(form)
-    const { elements } = branchElements([
+    const { commit, elements } = laid([
       { length: straightLen * 0.3, r1: null, r2: null },
       { length: straightLen * 0.4, r1: null, r2: -900 },
-      { length: straightLen * 0.6, r1: -900, r2: -900 },
+      { length: straightLen * 0.6 + 100, r1: -900, r2: -900 },
     ])
     expect(elements.length).toBeGreaterThan(1)
     expectNodesJoin(elements)
     expectTangentsContinuous(elements, EPSG)
     expect(elements.some(el => el.elementType === 2)).toBe(true)
+    commit.addTracks.forEach(t => expectValidTrack(t))
   })
 
   // The cant rule of AP 1.1, as the chain has to hold it: the marked elements of
   // a turnout stay inside what a switch admits, and an exception is only an
   // exception where the reason for it is on the element itself.
   describe('the cant its elements may carry', () => {
-    const branch = (extra) => branchElements(null).elements.map(el => ({
-      ...el, switchBranch: true, switchRoute: 'branch', switchId: 'sw-1', ...extra,
-    }))
+    const straight = () => laid([{ length: 400, r1: null, r2: null }]).elements
+    const branch = (extra) => straight().map(el => ({ ...el, ...extra }))
 
     it('passes at the plain limit, and with a reason up to the exception', () => {
       expect(() => expectSwitchCantAdmissible(branch({ cant: 100 }))).not.toThrow()
@@ -171,16 +182,15 @@ describe('the branch a switch dialog commits', () => {
     })
 
     it('leaves a line element alone — the rule is the turnout’s', () => {
-      const line = branchElements(null).elements.map(el => ({ ...el, cant: 150 }))
+      const line = straight().map(({ switchBranch: _b, switchRoute: _r, switchId: _i, ...el }) => ({ ...el, cant: 150 }))
       expect(() => expectSwitchCantAdmissible(line)).not.toThrow()
     })
   })
 
   it('the branch runs the form’s own length however the stem is made up', () => {
-    const straightLen = switchStraightLength(form)
-    const { g, elements } = branchElements([
+    const { g, elements } = laid([
       { length: straightLen * 0.5, r1: null, r2: null },
-      { length: straightLen * 0.9, r1: null, r2: -900 },
+      { length: straightLen * 0.9 + 50, r1: null, r2: -900 },
     ])
     const total = elements.reduce((sum, el) => sum + el.length, 0)
     expect(total).toBeCloseTo(g.arcLen, 6)

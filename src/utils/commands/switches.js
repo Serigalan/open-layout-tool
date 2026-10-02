@@ -1,0 +1,169 @@
+import { generateId, buildTypeFields } from '../identifierUtils'
+import { recalcAbsLengths } from '../trackModel'
+import { computeCurvedValuesUtm, computeStraightValuesUtm } from '../elementUtils'
+import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
+import { computeSwitchGeometryUtm, piecesOnRadius, switchRouteVaries } from '../switchUtils'
+import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../switchModel'
+import { cantExceptionFields, worstCantOf } from '../mapConstants'
+import { placeSwitchOnTrack } from '../switchPlacement'
+import { trackLength } from '../heightUtils'
+import { utmToWgs84 } from '../coordinateUtils'
+
+// What the switch dialogs commit (R4.2), as pure functions of their inputs —
+// each the argument for commitSwitchConnection, one undo step. The dialog
+// checks names and claims the switch number; what is left here is the
+// construction, and the refusals that come out of it.
+
+/** Track the toe must leave behind it, or the split would part off next to nothing [m]. */
+const MIN_BEHIND = 0.5
+
+/**
+ * Where a turnout laid into `track` at `toeStation` lies, and the geometry it
+ * produces (SwitchOnTrackForm's preview and commit read the same) — read in
+ * the track's own plane from the elements' stored nodes; the WGS84 twin of the
+ * toe is derived for the display and never converted back.
+ *
+ * Returns { error: null } before there is a station, { error: { key, params } }
+ * where the turnout cannot go there, else { error: null, place, plain, geom }.
+ */
+export function switchOnTrackPlacement({ track, toeStation, reversed, sw, side, straightLen }) {
+  if (!track || !Number.isFinite(toeStation)) return { error: null }
+  const noRoom = { key: 'switch_on_track_no_room' }
+  const total  = trackLength(track)
+  if (toeStation < 0 || toeStation > total) return { error: { key: 'switch_on_track_outside' } }
+  if ((reversed ? total - toeStation : toeStation) <= MIN_BEHIND) return { error: noRoom }
+  const place = placeSwitchOnTrack(track, toeStation, reversed, straightLen)
+  if (place.error) return { error: { key: place.error } }
+  // A symmetrical turnout has no straight side: unbent, its through route is
+  // the branch's mirror arc, so that is what the track it is carved from has
+  // to be — on anything else the turnout would stand beside its own through
+  // route. On it, it is the ordinary unbent form.
+  if (sw.symmetric && !piecesOnRadius(place.pieces, side === 'left' ? sw.R : -sw.R)) {
+    return { error: { key: 'switch_on_track_symmetric', params: { r: String(sw.R) } } }
+  }
+  // On nothing but straights the turnout is the ordinary, unbent one.
+  const plain  = sw.symmetric || place.pieces.every(p => p.r1 == null && p.r2 == null)
+  const toeWgs = utmToWgs84(place.toeUtm.easting, place.toeUtm.northing, track.epsg)
+  return {
+    error: null, place, plain,
+    geom: computeSwitchGeometryUtm(place.toeUtm, place.bearing, sw, side, false, toeWgs,
+      plain ? null : place.pieces),
+  }
+}
+
+/** Branch element from a piece of the branch with one radius (or none). */
+function constantBranchElement(seg, cant) {
+  const r  = seg.r1
+  const bv = r
+    ? computeCurvedValuesUtm(seg.startUtm, seg.endUtm, r)
+    : computeStraightValuesUtm(seg.startUtm, seg.endUtm)
+  return {
+    elementType: r ? 1 : 0,
+    startNode: bv.startNode, endNode: bv.endNode,
+    bearing: bv.bearing,
+    length: bv.length, absLength: bv.length,
+    ...(r ? { endBearing: bv.endBearing, radius: r } : {}),
+    cant,
+  }
+}
+
+
+/**
+ * The commit of "switch on track" (SwitchOnTrackForm, R4.2): the host track
+ * parted at the toe, its through route carved and marked, the branch as a new
+ * track, and the record — the argument for commitSwitchConnection, or
+ * { noRoom } (the through length) where the route finds no room on the track.
+ *
+ * `place` and `g` are the dialog's placement (placeSwitchOnTrack) and the
+ * turnout geometry it settled on; `plain` whether the turnout is the unbent
+ * form; `tracks` the project's, for the names a split may take.
+ */
+export function buildSwitchOnTrack({
+  track, tracks, place, g, plain, sw, straightLen, cant, cantReason, speed,
+  switchName, switchNumber, name, fields,
+}) {
+  const existingNames = new Set(tracks.map(tr => tr.name).filter(Boolean))
+  // Part the track at the toe (in the plane): on the joint it falls on, or
+  // inside its element — an arc keeps its radius, a clothoid is cut at the
+  // toe's station into two clothoids of its own parameter.
+  const split = place.joint != null
+    ? splitTrackAtJoint(track, place.joint, place.bearing, existingNames)
+    : splitElementAt(track, place.elIdx,
+      place.cutsClothoid ? { ...place.toeUtm, station: place.s } : place.toeUtm, place.bearing, existingNames)
+
+  // The turnout's through route is the host track's own geometry, so it stays
+  // in that track — as the elements it covers, the last one cut at the switch
+  // end, all marked like the branch. A switch is its two routes everywhere it
+  // is built.
+  // The identity the record and the elements of both routes share: the id ties
+  // them together, and it has to exist before the first element is marked.
+  const identity = { ...newSwitchFields(), name: switchName, label: sw.label }
+  const mainMark = switchElementMark(identity, 'main')
+  const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, place.endUtm, mainMark, straightLen)
+  if (!carved) return { noRoom: straightLen }
+  // A cant over the plain switch limit stands on the reason typed for it, and
+  // the reason belongs on the element that carries the cant — otherwise the
+  // element table flags as an error what this dialog just accepted. Only the
+  // elements over the limit get one: a stale reason on the rest would say a
+  // turnout runs on an exception it does not need.
+  const justify = (el) => ({ ...el, ...cantExceptionFields(worstCantOf(el), cantReason) })
+  // The through route is the host track's own elements, carved and marked here.
+  const carvedRoute = {
+    ...carved,
+    elements: carved.elements.map(el => (elementBelongsToSwitch(el, identity) ? justify(el) : el)),
+  }
+  const splitTracks = split.tracks.map(tr => (tr.id === carved.id ? carvedRoute : tr))
+
+  // Diverging branch: the turnout's own branch as a new track, one element per
+  // piece — where the elements under the turnout part, the branch parts too.
+  // Each is built from its ends in the plane, so the first starts on the
+  // junction node exactly and every joint is shared. Bent to the far side of
+  // a curve a piece can come out straight — then it is one; over a clothoid
+  // it is a clothoid, whose cant ramps with the track's.
+  const branchId = generateId()
+  const branchEls = recalcAbsLengths(g.branchSegments.map((seg, i) => {
+    const base = switchRouteVaries(seg)
+      ? {
+          elementType: 2, transitionType: 'clothoid', r1: seg.r1, r2: seg.r2,
+          startNode: [seg.startUtm.easting, seg.startUtm.northing],
+          endNode:   [seg.endUtm.easting, seg.endUtm.northing],
+          bearing: seg.bearing, endBearing: seg.endBearing,
+          length: seg.length,
+          cantStart: place.cantAt(seg.s0, i), cantEnd: place.cantAt(seg.s0 + seg.length, i),
+        }
+      : constantBranchElement(seg, plain ? cant : place.cantAt(seg.s0, i))
+    return justify({
+      ...base,
+      ...switchElementMark(identity, 'branch'),
+      geometry: { type: 'LineString', coordinates: seg.coords },
+    })
+  }))
+  const branchTrack = {
+    id: branchId,
+    name,
+    owner: fields.owner,
+    ...buildTypeFields(fields),
+    epsg: track.epsg,
+    coordinates: g.arcCoords,
+    elements: branchEls,
+  }
+
+  // The record keeps only the ports: both routes are read back from the
+  // tracks' marked elements (switchRoutesFromTracks).
+  const switchRecord = {
+    ...identity,
+    number: switchNumber, trailing: false, speed,
+    portA_trackId:  split.behind.id, portA_endpoint:  split.behindEndpoint,
+    portB1_trackId: branchId,        portB1_endpoint: 'BEGIN',
+    portB2_trackId: split.ahead.id,  portB2_endpoint: split.aheadEndpoint,
+    fillCoords: g.fillCoords, lcsCoords: g.lcsCoords,
+    labelCoords: g.labelCoords, bauform: g.bauform,
+  }
+
+  return {
+    removeTrackIds: [track.id],
+    addTracks:      [...splitTracks, branchTrack],
+    addSwitches:    [switchRecord],
+    remap: [{ oldId: track.id, newId: splitTracks.map(tr => tr.id) }],
+  }
+}

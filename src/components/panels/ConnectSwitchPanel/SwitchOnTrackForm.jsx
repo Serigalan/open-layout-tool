@@ -1,20 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadTracks, commitSwitchConnection } from '../../../storage'
-import { generateId, buildTypeFields } from '../../../utils/identifierUtils'
-import { recalcAbsLengths } from '../../../utils/trackModel'
-import {
-  computeCurvedValuesUtm, computeStraightValuesUtm,
-} from '../../../utils/elementUtils'
-import { wgs84ToUTM, utmToWgs84 } from '../../../utils/coordinateUtils'
-import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../../../utils/trackSplitUtils'
-import {
-  SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, switchStraightLength, computeSwitchGeometryUtm, switchRouteVaries,
-  piecesOnRadius,
-} from '../../../utils/switchUtils'
-import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../../../utils/switchModel'
-import { placeSwitchOnTrack, clickStation } from '../../../utils/switchPlacement'
+import { wgs84ToUTM } from '../../../utils/coordinateUtils'
+import { SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, switchStraightLength, switchRouteVaries } from '../../../utils/switchUtils'
+import { clickStation } from '../../../utils/switchPlacement'
 import { trackLength } from '../../../utils/heightUtils'
-import { cantExceptionFields, computeSwitchCant, computeCantDef, computeCantDefSigned, switchCantError, worstCantOf, MAX_SWITCH_CANT_DEF } from '../../../utils/mapConstants'
+import { computeSwitchCant, computeCantDef, computeCantDefSigned, switchCantError, MAX_SWITCH_CANT_DEF } from '../../../utils/mapConstants'
 import { elementPath } from '../../../utils/lineLookup'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
@@ -31,9 +21,8 @@ import { useProject } from '../../../hooks/useStore'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
+import { buildSwitchOnTrack, switchOnTrackPlacement } from '../../../utils/commands/switches'
 
-/** Track the toe must leave behind it, or the split would part off next to nothing [m]. */
-const MIN_BEHIND = 0.5
 
 // Display only — the stored values keep their full precision.
 const fmtR    = (r) => (r == null ? '∞' : `${Math.round(r)} m`)
@@ -50,22 +39,6 @@ function radiusText(segments, straightText) {
     return r0 == null ? straightText : `${Math.round(r0)} m`
   }
   return `${fmtR(r0)} → ${fmtR(segments[segments.length - 1].r2)}`
-}
-
-/** Branch element from a piece of the branch with one radius (or none). */
-function constantBranchElement(seg, cant) {
-  const r  = seg.r1
-  const bv = r
-    ? computeCurvedValuesUtm(seg.startUtm, seg.endUtm, r)
-    : computeStraightValuesUtm(seg.startUtm, seg.endUtm)
-  return {
-    elementType: r ? 1 : 0,
-    startNode: bv.startNode, endNode: bv.endNode,
-    bearing: bv.bearing,
-    length: bv.length, absLength: bv.length,
-    ...(r ? { endBearing: bv.endBearing, radius: r } : {}),
-    cant,
-  }
 }
 
 /**
@@ -139,29 +112,11 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   // for the display and never converted back (the GK/DB_REF datum round trip is
   // not exact).
   const placement = useMemo(() => {
-    if (!track || !Number.isFinite(toeStation)) return { error: null }
-    const noRoom = fill('switch_on_track_no_room', { m: straightLen.toFixed(1) })
-    const total  = trackLength(track)
-    if (toeStation < 0 || toeStation > total) return { error: t('switch_on_track_outside') }
-    if ((reversed ? total - toeStation : toeStation) <= MIN_BEHIND) return { error: noRoom }
-    const place = placeSwitchOnTrack(track, toeStation, reversed, straightLen)
-    if (place.error) return { error: place.error === 'switch_on_track_no_room' ? noRoom : t(place.error) }
-    // A symmetrical turnout has no straight side: unbent, its through route is
-    // the branch's mirror arc, so that is what the track it is carved from has
-    // to be — on anything else the turnout would stand beside its own through
-    // route. On it, it is the ordinary unbent form.
-    if (sw.symmetric && !piecesOnRadius(place.pieces, side === 'left' ? sw.R : -sw.R)) {
-      return { error: fill('switch_on_track_symmetric', { r: String(sw.R) }) }
-    }
-    // On nothing but straights the turnout is the ordinary, unbent one.
-    const plain  = sw.symmetric || place.pieces.every(p => p.r1 == null && p.r2 == null)
-    const toeWgs = utmToWgs84(place.toeUtm.easting, place.toeUtm.northing, track.epsg)
-    return {
-      error: null, place, plain,
-      geom: computeSwitchGeometryUtm(place.toeUtm, place.bearing, sw, side, false, toeWgs,
-        plain ? null : place.pieces),
-    }
-  }, [track, toeStation, reversed, straightLen, sw, side, t, fill])
+    const p = switchOnTrackPlacement({ track, toeStation, reversed, sw, side, straightLen })
+    if (!p.error) return p
+    const { key, params } = p.error
+    return { error: key === 'switch_on_track_no_room' ? fill(key, { m: straightLen.toFixed(1) }) : fill(key, params ?? {}) }
+  }, [track, toeStation, reversed, straightLen, sw, side, fill])
 
   const placeError = placement.error
   const place      = placement.place ?? null
@@ -230,93 +185,16 @@ export default function SwitchOnTrackForm({ onCommitted }) {
     if (name && existingNames.has(name)) { setNameError(true); return }
     setNameError(false)
 
-    // Part the track at the toe (in the plane): on the joint it falls on, or
-    // inside its element — an arc keeps its radius, a clothoid is cut at the
-    // toe's station into two clothoids of its own parameter.
-    const split = place.joint != null
-      ? splitTrackAtJoint(track, place.joint, place.bearing, existingNames)
-      : splitElementAt(track, place.elIdx,
-        place.cutsClothoid ? { ...place.toeUtm, station: place.s } : place.toeUtm, place.bearing, existingNames)
-
-    // The turnout's through route is the host track's own geometry, so it stays
-    // in that track — as the elements it covers, the last one cut at the switch
-    // end, all marked like the branch. A switch is its two routes everywhere it
-    // is built.
-    // The identity the record and the elements of both routes share: the id ties
-    // them together, and it has to exist before the first element is marked.
-    const identity = { ...newSwitchFields(), name: switchName, label: sw.label }
-    const mainMark = switchElementMark(identity, 'main')
-    const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, place.endUtm, mainMark, straightLen)
-    if (!carved) {
-      setErrors([fill('switch_on_track_no_room', { m: straightLen.toFixed(1) })])
+    const commit = buildSwitchOnTrack({
+      track, tracks, place, g, plain, sw, straightLen, cant, cantReason, speed,
+      switchName, switchNumber: switchNo.number, name, fields,
+    })
+    if (commit.noRoom) {
+      setErrors([fill('switch_on_track_no_room', { m: commit.noRoom.toFixed(1) })])
       return
     }
     if (!switchNo.claim()) return
-    // A cant over the plain switch limit stands on the reason typed for it, and
-    // the reason belongs on the element that carries the cant — otherwise the
-    // element table flags as an error what this dialog just accepted. Only the
-    // elements over the limit get one: a stale reason on the rest would say a
-    // turnout runs on an exception it does not need.
-    const justify = (el) => ({ ...el, ...cantExceptionFields(worstCantOf(el), cantReason) })
-    // The through route is the host track's own elements, carved and marked here.
-    const carvedRoute = {
-      ...carved,
-      elements: carved.elements.map(el => (elementBelongsToSwitch(el, identity) ? justify(el) : el)),
-    }
-    const splitTracks = split.tracks.map(tr => (tr.id === carved.id ? carvedRoute : tr))
-
-    // Diverging branch: the turnout's own branch as a new track, one element per
-    // piece — where the elements under the turnout part, the branch parts too.
-    // Each is built from its ends in the plane, so the first starts on the
-    // junction node exactly and every joint is shared. Bent to the far side of
-    // a curve a piece can come out straight — then it is one; over a clothoid
-    // it is a clothoid, whose cant ramps with the track's.
-    const branchId = generateId()
-    const branchEls = recalcAbsLengths(g.branchSegments.map((seg, i) => {
-      const base = switchRouteVaries(seg)
-        ? {
-            elementType: 2, transitionType: 'clothoid', r1: seg.r1, r2: seg.r2,
-            startNode: [seg.startUtm.easting, seg.startUtm.northing],
-            endNode:   [seg.endUtm.easting, seg.endUtm.northing],
-            bearing: seg.bearing, endBearing: seg.endBearing,
-            length: seg.length,
-            cantStart: place.cantAt(seg.s0, i), cantEnd: place.cantAt(seg.s0 + seg.length, i),
-          }
-        : constantBranchElement(seg, plain ? cant : place.cantAt(seg.s0, i))
-      return justify({
-        ...base,
-        ...switchElementMark(identity, 'branch'),
-        geometry: { type: 'LineString', coordinates: seg.coords },
-      })
-    }))
-    const branchTrack = {
-      id: branchId,
-      name,
-      owner: fields.owner,
-      ...buildTypeFields(fields),
-      epsg: track.epsg,
-      coordinates: g.arcCoords,
-      elements: branchEls,
-    }
-
-    // The record keeps only the ports: both routes are read back from the
-    // tracks' marked elements (switchRoutesFromTracks).
-    const switchRecord = {
-      ...identity,
-      number: switchNo.number, trailing: false, speed,
-      portA_trackId:  split.behind.id, portA_endpoint:  split.behindEndpoint,
-      portB1_trackId: branchId,        portB1_endpoint: 'BEGIN',
-      portB2_trackId: split.ahead.id,  portB2_endpoint: split.aheadEndpoint,
-      fillCoords: g.fillCoords, lcsCoords: g.lcsCoords,
-      labelCoords: g.labelCoords, bauform: g.bauform,
-    }
-
-    commitSwitchConnection({
-      removeTrackIds: [track.id],
-      addTracks:      [...splitTracks, branchTrack],
-      addSwitches:    [switchRecord],
-      remap: [{ oldId: track.id, newId: splitTracks.map(tr => tr.id) }],
-    })
+    commitSwitchConnection(commit)
 
     resetName()
     switchNo.reset()
