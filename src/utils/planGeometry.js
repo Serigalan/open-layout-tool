@@ -4,10 +4,10 @@ import {
 import { sampleTransitionUtm, transitionBearingAtUtm } from './clothoidUtils'
 import { elementAtStation, pointAtStationUtm, trackLength } from './heightUtils'
 import {
-  lcsLineUtm, switchFillRing, switchRoutePointsUtm, switchRoutesFromTracks,
-  crossingRoutesFromTracks, crossingEndDistance, crossingBodyUtm,
-  switchChainPointUtm, switchChainBearingAt, switchChainBauform,
-} from './switchUtils'
+  lcsLineUtm, switchFillRing, switchRoutePointsUtm, switchRoutesFromTracks, crossingRoutesFromTracks, crossingBodyUtm,
+} from './switch/symbol'
+import { crossingEndDistance } from './switch/crossing'
+import { switchChainPointUtm, switchChainBearingAt, switchChainBauform } from './switch/route'
 import { switchNumberOf } from './identifierUtils'
 import { isLinkSwitch } from './switchModel'
 

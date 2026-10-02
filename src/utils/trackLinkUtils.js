@@ -245,7 +245,7 @@ export function linkRecord(joint, name) {
  *
  * Numbering runs `link.001`, `link.002`, … past every name already taken. It is
  * counted here rather than through `storage.nextTrackName`, which does the same
- * thing: this module is imported by switchUtils, which storage imports, so
+ * thing: this module is imported by switch/symbol, which storage imports, so
  * reaching back into storage would close a circle.
  */
 export function linksForJoints(joints, trackById, takenNames = []) {

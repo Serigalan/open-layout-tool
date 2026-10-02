@@ -1,10 +1,7 @@
 import { projectOnArcUtm } from './elementUtils'
 import { projectOnTransitionUtm, clothoidRadiusAt } from './clothoidUtils'
 import { pointAtStationUtm } from './heightUtils'
-import {
-  ALL_SWITCH_TYPES,
-  asRadius, switchBranchLength,
-} from './switchUtils'
+import { ALL_SWITCH_TYPES, asRadius, switchBranchLength } from './switch/catalogue'
 
 /**
  * The switches a file does not state — read out of the alignment itself.
@@ -25,7 +22,7 @@ import {
  * The form is read off the geometry: a turnout is tangential at its toe, so
  * nothing but **curvature** tells its branch from the track running on —
  * κ_form = κ_branch − κ_stem, the relation a bent switch is built on
- * (switchUtils.branchRadius) — and the angle that difference turns through over
+ * (switch/catalogue branchRadius) — and the angle that difference turns through over
  * the branch's arc is the frog angle. Measured against the turnouts the
  * delivered databases state a Bauform for, the pair reproduces the stated form
  * exactly in the median, for every form in the catalogue.

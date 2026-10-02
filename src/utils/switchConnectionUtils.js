@@ -3,11 +3,11 @@ import { arcCoordsFromRadiusUtm, projectOnArcUtm } from './elementUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
 import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, computeCantDefSigned } from './rules/cant'
 import {
-  SWITCH_TYPES, SWITCH_CONNECTION_STAGES, STRAIGHT_CURVATURE,
-  switchStraightLength, switchBranchLength, switchBranchSections, switchBranchChain,
-  switchRouteVaries, switchRoutePointUtm, switchRouteBearingAt, switchRouteRadiusAt,
-  switchRouteSlice, switchChainPointUtm, switchChainBearingAt, switchChainSegmentsUtm,
-} from './switchUtils'
+  SWITCH_TYPES, SWITCH_CONNECTION_STAGES, STRAIGHT_CURVATURE, switchStraightLength, switchBranchLength, switchBranchSections,
+} from './switch/catalogue'
+import {
+  switchBranchChain, switchRouteVaries, switchRoutePointUtm, switchRouteBearingAt, switchRouteRadiusAt, switchRouteSlice, switchChainPointUtm, switchChainBearingAt, switchChainSegmentsUtm,
+} from './switch/route'
 import { computeClothoidUtm } from './clothoidUtils'
 import { arcElement, straightElement, transitionElement } from './elementFactory'
 

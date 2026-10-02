@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitSwitchConnection } from '../../../storage'
 import { nodeUtm } from '../../../utils/elementUtils'
-import { switchElementRoute } from '../../../utils/switchUtils'
+import { switchElementRoute } from '../../../utils/switch/route'
 import { transitionCantEnds } from '../../../utils/clothoidUtils'
 import { stationFromClick } from '../../../utils/platformUtils'
 import { wgs84ToUTM } from '../../../utils/coordinateUtils'

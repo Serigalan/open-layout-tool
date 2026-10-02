@@ -1,10 +1,7 @@
 import { endPointStraightUtm, endPointCurvedUtm, arcCoordsFromRadiusUtm, reverseElement } from './elementUtils'
-import {
-  ALL_SWITCH_TYPES, switchBranchSections, switchStraightLength,
-  CROSSING_TYPES, crossingAngle, crossingEndDistance, crossingLegRadius, computeCrossingGeometryUtm,
-  lcsLine, switchFillRing,
-  switchLabelGeometry, bauform,
-} from './switchUtils'
+import { ALL_SWITCH_TYPES, switchBranchSections, switchStraightLength, CROSSING_TYPES, bauform } from './switch/catalogue'
+import { crossingAngle, crossingEndDistance, crossingLegRadius, computeCrossingGeometryUtm } from './switch/crossing'
+import { lcsLine, switchFillRing, switchLabelGeometry } from './switch/symbol'
 import { newSwitchFields, switchElementMark, LINK_KIND } from './switchModel'
 import { kindForOsrdType, bufferStopsToEndMarks } from './alignmentCodec'
 import { utmToWgs84 } from './coordinateUtils'
@@ -163,7 +160,7 @@ function matchCrossingType(absAngleDeg, legLen, legR, kind) {
  * Rebuild a link — two track ends and the node between them. There is no form
  * to match and no element to mark: the record is its two ports, and the symbol
  * is derived from the tracks on load like every other switch's
- * (switchUtils.rebuildSwitchSymbol). Returns null unless both ports name a
+ * (switch/symbol rebuildSwitchSymbol). Returns null unless both ports name a
  * track the file actually brought.
  */
 function rebuildLink(sw, trackById) {

@@ -3,9 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WEICHEN_REGELWERK, WEICHEN_REGELWERK_ID, weichenGruppen } from './weichenRegelwerk'
-import {
-  SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES,
-} from './switchUtils'
+import { SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES } from './switch/catalogue'
 import { switchKindLabelKey } from './switchModel'
 import { translations } from '../locales/i18n'
 import {

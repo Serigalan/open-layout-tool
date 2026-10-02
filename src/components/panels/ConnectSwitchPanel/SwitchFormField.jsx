@@ -1,4 +1,4 @@
-import { SWITCH_PICK_TYPES } from '../../../utils/switchUtils'
+import { SWITCH_PICK_TYPES } from '../../../utils/switch/catalogue'
 import { useI18n } from '../../../locales/i18nContext'
 
 /**

@@ -1,7 +1,8 @@
 import { nodeUtm, reverseElement, resolveEndBearing, projectOnArcUtm } from './elementUtils'
 import { transitionCantEnds, projectOnTransitionUtm } from './clothoidUtils'
 import { elementAtStation, pointAtStationUtm } from './heightUtils'
-import { switchElementRoute, switchRouteSlice, switchRouteBearingAt, asRadius } from './switchUtils'
+import { switchElementRoute, switchRouteSlice, switchRouteBearingAt } from './switch/route'
+import { asRadius } from './switch/catalogue'
 
 /**
  * A toe this close to an element's end sits on the joint, and a route that ends

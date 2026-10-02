@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { buildInfra } from './exchangeExport'
 import { parseOsrdRailJson } from './osrdImport'
-import {
-  SWITCH_TYPES, computeSwitchGeometryUtm, switchArcLength, switchStraightLength, switchRouteVaries,
-  CROSSING_TYPES, crossingAngle, computeCrossingGeometryUtm, crossingElements,
-} from './switchUtils'
+import { SWITCH_TYPES, switchArcLength, switchStraightLength, CROSSING_TYPES } from './switch/catalogue'
+import { computeSwitchGeometryUtm } from './switch/symbol'
+import { switchRouteVaries } from './switch/route'
+import { crossingAngle, computeCrossingGeometryUtm, crossingElements } from './switch/crossing'
 import { newSwitchFields } from './switchModel'
 import { recalcAbsLengths } from './trackModel'
 

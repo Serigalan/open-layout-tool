@@ -4,7 +4,7 @@ import { buildConnectCurved, buildConnectStraight, buildCurvedLineTrack, buildLi
 import { buildSwitchOnTrack, switchOnTrackPlacement } from '../utils/commands/switches'
 import { arcFrom, straightFrom, transitionElement } from '../utils/elementFactory'
 import { endPointStraightUtm, endPointCurvedUtm } from '../utils/elementUtils'
-import { SWITCH_TYPES, switchStraightLength } from '../utils/switchUtils'
+import { SWITCH_TYPES, switchStraightLength } from '../utils/switch/catalogue'
 import { dehydrateProjects, hydrateProjects } from '../utils/persistenceUtils'
 import {
   expectValidTrack, expectNodesJoin, expectTangentsContinuous, expectSwitchCantAdmissible, expectSwitchRoutesCarved,

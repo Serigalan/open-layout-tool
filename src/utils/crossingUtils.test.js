@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest'
+import { CROSSING_TYPES, switchTypeByLabel } from './switch/catalogue'
 import {
-  CROSSING_TYPES, crossingAngle, crossingEndDistance, computeCrossingGeometryUtm,
-  crossingRoutesFromTracks, rebuildSwitchSymbol, switchTypeByLabel,
-  crossingLegRadius, crossingLegSignedRadius, computeCrossingGeometryFromPortA,
-  crossingElements, crossingLegFitsTrack, crossingBodyUtm,
-} from './switchUtils'
+  crossingAngle, crossingEndDistance, computeCrossingGeometryUtm, crossingLegRadius, crossingLegSignedRadius, computeCrossingGeometryFromPortA, crossingElements, crossingLegFitsTrack,
+} from './switch/crossing'
+import { crossingRoutesFromTracks, rebuildSwitchSymbol, crossingBodyUtm } from './switch/symbol'
 import { newSwitchFields, switchElementMark, portsOf } from './switchModel'
 import { planSwitchDeletion, keptRoutes, switchParts } from './switchDelete'
 import { switchDesignation, switchNumberOf } from './identifierUtils'

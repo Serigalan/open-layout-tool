@@ -1,8 +1,7 @@
-import {
-  ALL_SWITCH_TYPES, CROSSING_TYPES,
-  switchStraightLength, switchBranchLength, crossingEndDistance, crossingAngle, crossingLegRadius,
-  rebuildSwitchSymbol, switchRouteBearingAt, switchElementRoute,
-} from './switchUtils'
+import { ALL_SWITCH_TYPES, CROSSING_TYPES, switchStraightLength, switchBranchLength } from './switch/catalogue'
+import { crossingEndDistance, crossingAngle, crossingLegRadius } from './switch/crossing'
+import { rebuildSwitchSymbol } from './switch/symbol'
+import { switchRouteBearingAt, switchElementRoute } from './switch/route'
 import { newSwitchFields, switchElementMark } from './switchModel'
 import { splitTrackAtJoint, splitElementAt, carveSwitchRoute } from './trackSplitUtils'
 import { placeSwitchOnTrack } from './switchPlacement'

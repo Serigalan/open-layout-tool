@@ -1,6 +1,6 @@
 import { SCHEMA_VERSION, hydrateProjects, dehydrateProjects } from './utils/persistenceUtils'
 import { elementBelongsToSwitch, unmarkSwitchElement } from './utils/switchModel'
-import { rebuildSwitchSymbol } from './utils/switchUtils'
+import { rebuildSwitchSymbol } from './utils/switch/symbol'
 import { splitHeights } from './utils/heightUtils'
 import { flipSwitchEndpoints, makeTrack, portTracks, referencesTrack, remapSwitches, reverseTrack } from './utils/trackModel'
 import { generateId } from './utils/identifierUtils'

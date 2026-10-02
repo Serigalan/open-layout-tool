@@ -1,5 +1,5 @@
 import { reconstructElements } from './elementReconstruct'
-import { rebuildSwitchSymbol } from './switchUtils'
+import { rebuildSwitchSymbol } from './switch/symbol'
 import { rebuildPlatformSymbol } from './platformUtils'
 import { isModelledSwitch } from './switchModel'
 import { rebuildCoords } from './trackModel'

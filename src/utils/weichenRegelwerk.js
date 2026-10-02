@@ -7,16 +7,14 @@
 // crossed with what a row can state, because a turnout, a crossing and a
 // crossing switch do not answer the same columns.
 //
-// It is not a second copy of anything: switchUtils.js reads the same file for
+// It is not a second copy of anything: switch/catalogue.js reads the same file for
 // the geometry, and a form here is that file's entry.
 //
 // The difference to the served regelwerk is where it comes from, not what it
 // is: this one is bundled, so it is there whether or not the optimizer service
 // answers.
 
-import {
-  SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES, WEICHEN_KATALOG,
-} from './switchUtils'
+import { SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES, WEICHEN_KATALOG } from './switch/catalogue'
 
 /**
  * What this rulebook is, as the catalogue states it about itself. The Ril's

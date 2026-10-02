@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parseMdbPayload, buildTracksFromMdb, mdbSwitchInventory, buildAllTracksFromMdb } from './mdbImport'
 import { placeMdbSwitches, locateMdbSwitches, switchTypeFor } from './mdbSwitchPlacement'
-import { switchRoutesFromTracks, rebuildSwitchSymbol, crossingRoutesFromTracks } from './switchUtils'
+import { switchRoutesFromTracks, rebuildSwitchSymbol, crossingRoutesFromTracks } from './switch/symbol'
 import { elementBelongsToSwitch, switchPorts, isModelledSwitch } from './switchModel'
 import {
   expectEpsgThroughout, expectNodesJoin, expectAbsLengthsRunning,

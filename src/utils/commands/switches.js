@@ -2,7 +2,11 @@ import { generateId, buildTypeFields } from '../identifierUtils'
 import { recalcAbsLengths } from '../trackModel'
 import { computeCurvedValuesUtm, computeStraightValuesUtm } from '../elementUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
-import { computeCrossingGeometryUtm, computeSwitchGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius, switchRouteVaries } from '../switchUtils'
+import {
+  computeCrossingGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius,
+} from '../switch/crossing'
+import { computeSwitchGeometryUtm } from '../switch/symbol'
+import { switchRouteVaries } from '../switch/route'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../switchModel'
 import { cantExceptionFields, worstCantOf } from '../rules/cant'
 import { placeSwitchOnTrack } from '../switchPlacement'

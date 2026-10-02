@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { dehydrateProjects, hydrateProjects, parseProjectsPayload, parseTracksPayload, PayloadError, SCHEMA_VERSION } from './persistenceUtils'
-import { SWITCH_TYPES, computeSwitchGeometryUtm, switchArcLength, switchStraightLength } from './switchUtils'
+import { SWITCH_TYPES, switchArcLength, switchStraightLength } from './switch/catalogue'
+import { computeSwitchGeometryUtm } from './switch/symbol'
 import { DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION } from './switchModel'
 import goldenElements from '../test/fixtures/track_optimized.json'
 

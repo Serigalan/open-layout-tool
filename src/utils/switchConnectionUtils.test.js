@@ -4,9 +4,8 @@ import {
   buildConnectionElements,
 } from './switchConnectionUtils'
 import {
-  switchArcLength, switchStraightLength, switchBranchLength, branchRadius,
-  SWITCH_CONNECTION_STAGES,
-} from './switchUtils'
+  switchArcLength, switchStraightLength, switchBranchLength, branchRadius, SWITCH_CONNECTION_STAGES,
+} from './switch/catalogue'
 import { arcCoordsFromRadiusUtm, computeCurvedValuesUtm, endPointCurvedUtm } from './elementUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
 import { planSwitchDeletion } from './switchDelete'

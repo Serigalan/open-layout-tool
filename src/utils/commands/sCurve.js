@@ -1,6 +1,6 @@
 import { generateId, switchDesignation, nextSwitchNumber } from '../identifierUtils'
 import { nextTrackName, rebuildCoords, recalcAbsLengths } from '../trackModel'
-import { computeSwitchGeometryUtm } from '../switchUtils'
+import { computeSwitchGeometryUtm } from '../switch/symbol'
 import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../coordinateUtils'
 import { newSwitchFields, switchElementMark } from '../switchModel'
 import { splitElementAt, carveSwitchRoute } from '../trackSplitUtils'

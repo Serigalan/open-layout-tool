@@ -16,8 +16,9 @@ import HeightDatumField from '../HeightDatumField'
 import { computeSwitchCant, computeCantDef, computeCantDefSigned, switchCantError, MAX_SWITCH_CANT_DEF } from '../../../utils/rules/cant'
 import { pickAt } from '../../../map/pick'
 import {
-  SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, computeSwitchGeometryUtm, asRadius, branchRadius, bauform,
-} from '../../../utils/switchUtils'
+  SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, asRadius, branchRadius, bauform,
+} from '../../../utils/switch/catalogue'
+import { computeSwitchGeometryUtm } from '../../../utils/switch/symbol'
 import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
 import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildLinesGeoJSON, buildFillGeoJSON } from '../../../map/switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
