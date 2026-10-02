@@ -551,22 +551,27 @@ export function addElementsToTrack(trackId, elements) {
   return mutate(p => {
     const track = (p.tracks ?? []).find(t => t.id === trackId)
     if (!track || !elements?.length) return p
-    let els = track.elements ?? []
-    let coords = track.coordinates ?? []
-    for (const element of elements) {
-      const last = els[els.length - 1]
-      const prevAbsLength = last ? (last.absLength ?? last.length) : 0
-      const withAbs = { ...element, absLength: prevAbsLength + element.length }
-      els = [...els, withAbs]
-      // The same polyline rebuildCoords and the reload take, which is the coarse one
-      // wherever the element carries it: appending the fine one instead left the
-      // track drawn at one density until a reload replaced it with the other.
-      const c = withAbs.renderCoords ?? withAbs.geometry?.coordinates
-      if (c?.length) coords = [...coords, ...c.slice(1)]
-    }
-    const updated = { ...track, elements: els, coordinates: coords }
+    const updated = withAppended(track, elements)
     return { ...p, tracks: p.tracks.map(t => (t.id === trackId ? updated : t)) }
   })
+}
+
+/** `track` with `elements` appended at its end, stations and polyline carried on. */
+function withAppended(track, elements) {
+  let els = track.elements ?? []
+  let coords = track.coordinates ?? []
+  for (const element of elements) {
+    const last = els[els.length - 1]
+    const prevAbsLength = last ? (last.absLength ?? last.length) : 0
+    const withAbs = { ...element, absLength: prevAbsLength + element.length }
+    els = [...els, withAbs]
+    // The same polyline rebuildCoords and the reload take, which is the coarse one
+    // wherever the element carries it: appending the fine one instead left the
+    // track drawn at one density until a reload replaced it with the other.
+    const c = withAbs.renderCoords ?? withAbs.geometry?.coordinates
+    if (c?.length) coords = [...coords, ...c.slice(1)]
+  }
+  return { ...track, elements: els, coordinates: coords }
 }
 
 export function addElementToTrack(trackId, element) {
@@ -749,13 +754,19 @@ export function updateSwitch(switchId, patch) {
  * @param {object[]} ops.addSwitches     new switch records
  * @param {object[]} ops.remap           remapSwitches entries for existing switches
  * @param {object[]} [ops.addEndMarks]   buffer stops / boundaries on the new tracks' ends
+ * @param {object[]} [ops.append]        [{ trackId, elements }] appended to standing tracks
+ *                                       (a trailing turnout's through route)
  */
-export function commitSwitchConnection({ removeTrackIds, addTracks, addSwitches, remap, addEndMarks }) {
+export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwitches, remap, addEndMarks, append = [] }) {
   return mutate(p => {
     const removeSet = new Set(removeTrackIds)
+    const appendTo = new Map(append.map(a => [a.trackId, a.elements]))
     let next = {
       ...p,
-      tracks: (p.tracks ?? []).filter(t => !removeSet.has(t.id)).concat(addTracks ?? []),
+      tracks: (p.tracks ?? [])
+        .filter(t => !removeSet.has(t.id))
+        .map(t => (appendTo.has(t.id) ? withAppended(t, appendTo.get(t.id)) : t))
+        .concat(addTracks ?? []),
     }
     if (remap?.length) {
       next = { ...next, switches: remapSwitches(next.switches ?? [], remap), endMarks: remapEndMarks(next.endMarks, remap) }

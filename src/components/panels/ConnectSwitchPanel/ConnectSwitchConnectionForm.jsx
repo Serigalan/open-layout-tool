@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { addElementToTrack, loadTracks, saveTrack, saveSwitch, withUndo } from '../../../storage'
-import { generateId, SIDE_NAMES, buildTypeFields } from '../../../utils/identifierUtils'
+import { loadTracks, commitSwitchConnection } from '../../../storage'
+import { SIDE_NAMES } from '../../../utils/identifierUtils'
 import { elementPath } from '../../../utils/lineLookup'
-import { computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, nodeUtm } from '../../../utils/elementUtils'
+import { resolveEndBearing, nodeUtm } from '../../../utils/elementUtils'
 import { trackTypeName } from '../../../utils/trackGroups'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
@@ -12,12 +12,11 @@ import SwitchNumberField from '../SwitchNumberField'
 import SwitchCantField from './SwitchCantField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import HeightDatumField from '../HeightDatumField'
-import { cantExceptionFields, computeSwitchCant, computeCantDef, switchCantError, MAX_SWITCH_CANT_DEF } from '../../../utils/mapConstants'
+import { computeSwitchCant, computeCantDef, switchCantError, MAX_SWITCH_CANT_DEF } from '../../../utils/mapConstants'
 import { pickAt } from '../../../map/pick'
 import {
   SWITCH_CONNECTION_STAGES, switchBranchLength, computeSwitchGeometryUtm,
 } from '../../../utils/switchUtils'
-import { newSwitchFields, switchElementMark } from '../../../utils/switchModel'
 import { switchEndAnchorRefusal } from '../../../utils/switchPlacement'
 import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildLinesGeoJSON, buildFillGeoJSON } from '../switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
@@ -27,6 +26,7 @@ import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import useMapEvents from '../../../map/useMapEvents'
+import { buildSwitchAtTrackEnd } from '../../../utils/commands/switches'
 
 // ── ConnectSwitchConnectionForm ──────────────────────────────────────────────
 
@@ -209,99 +209,12 @@ export default function ConnectSwitchConnectionForm({ onCommitted }) {
     const sourceTrack = sourceTrackRef.current
     if (!sourceTrack || !startWgsRef.current) return
 
-    const geom = computeSwitchGeometryUtm(startUtmRef.current, bearingRef.current, sw, side, trailing, startWgsRef.current)
-    const { straightCoords, arcCoords, fillCoords, labelCoords, lcsCoords, signedR, startUtm, straightUtm, arcOriginUtm, curvedUtm } = geom
-
-    const sv = computeStraightValuesUtm(startUtm, straightUtm)
-    const cv = computeCurvedValuesUtm(arcOriginUtm, curvedUtm, signedR)
-
-    // The identity the record and the elements of both routes share: the id ties
-    // them together, and it has to exist before the first element is marked.
-    const identity = { ...newSwitchFields(), name: switchName, label: sw.label }
-
-    const straightEl = {
-      elementType:  0,
-      startNode:    sv.startNode,
-      endNode:      sv.endNode,
-      bearing:      sv.bearing,
-      length:       sv.length,
-      absLength:    sv.length,
-      ...switchElementMark(identity, 'main'),
-      geometry:     { type: 'LineString', coordinates: straightCoords },
-    }
-    const curvedEl = {
-      elementType:  1,
-      startNode:    cv.startNode,
-      endNode:      cv.endNode,
-      bearing:      cv.bearing,
-      length:       cv.length,
-      absLength:    cv.length,
-      ...switchElementMark(identity, 'branch'),
-      endBearing:   cv.endBearing,
-      radius:       signedR,
-      cant,
-      ...cantExceptionFields(cant, cantReason),
-      geometry:     { type: 'LineString', coordinates: arcCoords },
-    }
-
-    const curvedId    = generateId()
-    const curvedTrack = {
-      id:          curvedId,
-      name,
-      owner:       fields.owner,
-      ...buildTypeFields(fields),
-      epsg:     cv.epsg,
-      coordinates: arcCoords,
-      elements:    [curvedEl],
-    }
-
-    // One undo step for the whole switch: appended or new straight, branch
-    // track and record together.
-    withUndo(() => {
-      let portA_trackId, portB2_trackId
-
-      if (trailing) {
-        addElementToTrack(selectedTrackIdRef.current, straightEl)
-        portA_trackId  = null
-        portB2_trackId = selectedTrackIdRef.current
-      } else {
-        const straightId    = generateId()
-        const straightTrack = {
-          id:          straightId,
-          name:        mainName,
-          owner:       mainFields.owner,
-          ...buildTypeFields(mainFields),
-          epsg:     sv.epsg,
-          coordinates: straightCoords,
-          elements:    [straightEl],
-        }
-        saveTrack(straightTrack)
-        portA_trackId  = sourceTrack.id
-        portB2_trackId = straightId
-      }
-
-      saveTrack(curvedTrack)
-
-      saveSwitch({
-        ...identity,
-        number:         switchNo.number,
-        trailing,
-        speed,
-        // Node position: the toe (facing) resp. the far end of the appended
-        // straight (trailing). The source track ends there; both new branch
-        // tracks start there.
-        portA_trackId,
-        portA_endpoint:  trailing ? null : 'END',
-        portB1_trackId: curvedId,
-        portB1_endpoint: 'BEGIN',
-        portB2_trackId,
-        portB2_endpoint: trailing ? 'END' : 'BEGIN',
-        fillCoords,
-        labelCoords,
-        bauform: geom.bauform,
-        lcsCoords,
-      })
-    })
+    commitSwitchConnection(buildSwitchAtTrackEnd({
+      start: startUtmRef.current, bearing: bearingRef.current, startWgs: startWgsRef.current,
+      sourceTrackId: trailing ? selectedTrackIdRef.current : sourceTrack.id,
+      sw, side, trailing, stemSigned: null, cant, cantReason, speed,
+      switchName, switchNumber: switchNo.number, name, fields, mainName, mainFields,
+    }))
 
     resetName()
     resetMainName()

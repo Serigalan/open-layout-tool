@@ -8,6 +8,7 @@ import { cantExceptionFields, worstCantOf } from '../mapConstants'
 import { placeSwitchOnTrack } from '../switchPlacement'
 import { trackLength } from '../heightUtils'
 import { utmToWgs84 } from '../coordinateUtils'
+import { arcElement, straightElement } from '../elementFactory'
 
 // What the switch dialogs commit (R4.2), as pure functions of their inputs —
 // each the argument for commitSwitchConnection, one undo step. The dialog
@@ -165,5 +166,88 @@ export function buildSwitchOnTrack({
     addTracks:      [...splitTracks, branchTrack],
     addSwitches:    [switchRecord],
     remap: [{ oldId: track.id, newId: splitTracks.map(tr => tr.id) }],
+  }
+}
+
+/** A route element of a turnout at a track end: the geometry's own polyline, no coarse one. */
+function routeElement(from, to, signedR, coords, extra) {
+  const base = { ...extra, geometry: { type: 'LineString', coordinates: coords } }
+  const el = signedR ? arcElement(from, to, signedR, base) : straightElement(from, to, base)
+  const { renderCoords: _r, ...rest } = el
+  return { ...rest, absLength: el.length }
+}
+
+/**
+ * The commit of a turnout at a track's end (ConnectStraightSwitchForm,
+ * ConnectSwitchConnectionForm, R4.2): the through route and the branch as
+ * elements, the record — the argument for commitSwitchConnection.
+ *
+ * Facing, the through route is a new track and the source track ends at the
+ * toe (port A). Trailing, the through route is appended to the source track,
+ * whose new end is the switch's far end (port B2).
+ *
+ * `start`, `bearing`, `startWgs` are the anchor (the track end); `stemSigned`
+ * the radius of the track the turnout continues, where it is bent into it
+ * (null for an unbent turnout).
+ */
+export function buildSwitchAtTrackEnd({
+  start, bearing, startWgs, sourceTrackId, sw, side, trailing, stemSigned = null,
+  cant, cantReason, speed, switchName, switchNumber, name, fields, mainName, mainFields,
+}) {
+  const geom = computeSwitchGeometryUtm(start, bearing, sw, side, trailing, startWgs, stemSigned)
+  const { straightCoords, arcCoords, fillCoords, labelCoords, lcsCoords, signedR, mainSignedR,
+    startUtm, straightUtm, arcOriginUtm, curvedUtm } = geom
+  // One turnout, one cant. The through route of a trailing switch is built
+  // against the direction the branch leaves the toe in, and cant is stored by
+  // the raised rail, so it turns with the direction.
+  const mainCant = trailing ? -cant : cant
+
+  // The identity the record and the elements of both routes share: the id ties
+  // them together, and it has to exist before the first element is marked.
+  const identity = { ...newSwitchFields(), name: switchName, label: sw.label }
+
+  // Each route is built as whatever it came out as: bent, the through route is
+  // an arc on the stem radius, and the branch is the one that can be straight.
+  const straightEl = routeElement(startUtm, straightUtm, mainSignedR, straightCoords, {
+    ...switchElementMark(identity, 'main'),
+    ...(mainSignedR ? { cant: mainCant, ...cantExceptionFields(mainCant, cantReason) } : {}),
+  })
+  const curvedEl = routeElement(arcOriginUtm, curvedUtm, signedR, arcCoords, {
+    ...switchElementMark(identity, 'branch'),
+    cant,
+    ...cantExceptionFields(cant, cantReason),
+  })
+
+  const curvedTrack = { id: generateId(), name, owner: fields.owner, ...buildTypeFields(fields),
+    epsg: start.zone, coordinates: arcCoords, elements: [curvedEl] }
+  const straightTrack = trailing ? null : { id: generateId(), name: mainName, owner: mainFields.owner,
+    ...buildTypeFields(mainFields), epsg: start.zone, coordinates: straightCoords, elements: [straightEl] }
+
+  return {
+    removeTrackIds: [],
+    append: trailing ? [{ trackId: sourceTrackId, elements: [straightEl] }] : [],
+    addTracks: [...(straightTrack ? [straightTrack] : []), curvedTrack],
+    addSwitches: [{
+      ...identity,
+      number: switchNumber,
+      trailing,
+      speed,
+      // Stem radius of a bent switch, signed away from the node — the frame the
+      // symbol is rebuilt in. Absent means the through route is straight.
+      ...(geom.stemAtToe ? { mainRadius: geom.stemAtToe } : {}),
+      // Node position: the toe (facing) resp. the far end of the appended
+      // straight (trailing). The source track ends there; both new branch
+      // tracks start there.
+      portA_trackId: trailing ? null : sourceTrackId,
+      portA_endpoint: trailing ? null : 'END',
+      portB1_trackId: curvedTrack.id,
+      portB1_endpoint: 'BEGIN',
+      portB2_trackId: trailing ? sourceTrackId : straightTrack.id,
+      portB2_endpoint: trailing ? 'END' : 'BEGIN',
+      fillCoords,
+      labelCoords,
+      bauform: geom.bauform,
+      lcsCoords,
+    }],
   }
 }

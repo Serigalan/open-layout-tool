@@ -1,18 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { recalcAbsLengths, rebuildCoords } from '../utils/trackModel'
-import {
-  computeStraightValuesUtm, computeCurvedValuesUtm, endPointStraightUtm, resolveEndBearing,
-  nodeUtm,
-} from '../utils/elementUtils'
+import { computeStraightValuesUtm, endPointStraightUtm, resolveEndBearing, nodeUtm } from '../utils/elementUtils'
 import { utmToWgs84 } from '../utils/coordinateUtils'
-import { SWITCH_TYPES, computeSwitchGeometryUtm } from '../utils/switchUtils'
-import { newSwitchFields, switchElementMark } from '../utils/switchModel'
+import { SWITCH_TYPES } from '../utils/switchUtils'
 import { switchEndAnchorRefusal } from '../utils/switchPlacement'
 import { carveSwitchRoute } from '../utils/trackSplitUtils'
 import { planSwitchDeletion } from '../utils/switchDelete'
 import {
   expectValidTrack, expectSwitchRoutesCarved, expectNodesJoin,
 } from './chainInvariants'
+import { buildSwitchAtTrackEnd } from '../utils/commands/switches'
 
 /**
  * AP 1.3 — the element boundary at a switch end, across all four dialogs.
@@ -64,61 +61,22 @@ function lineTrack(n = 2, bearing = 20, each = 200) {
 }
 
 /**
- * What ConnectStraightSwitchForm / ConnectSwitchConnectionForm commit: the two
- * route elements from the geometry, hung on the track the anchor belongs to —
- * appended to it (trailing) or as a track of its own (facing).
+ * What ConnectStraightSwitchForm / ConnectSwitchConnectionForm commit —
+ * buildSwitchAtTrackEnd, the function their commits call (R4.2) — applied to
+ * the track: appended to it (trailing) or as a track of its own (facing).
  */
 function connectSwitchAt(track, elIdx, { trailing = false } = {}) {
   const el      = track.elements[elIdx]
   const endWgs  = el.geometry.coordinates[el.geometry.coordinates.length - 1]
-  const startUtm = nodeUtm(el.endNode, endWgs, track.epsg)
-  const bearing  = resolveEndBearing(el, track.epsg)
-  const g = computeSwitchGeometryUtm(startUtm, bearing, FORM, 'left', trailing, endWgs, null)
-
-  const identity = { ...newSwitchFields(), name: 'W 1', label: FORM.label }
-  const sv = computeStraightValuesUtm(g.startUtm, g.straightUtm)
-  const cv = computeCurvedValuesUtm(g.arcOriginUtm, g.curvedUtm, g.signedR)
-
-  const mainEl = {
-    elementType: 0,
-    startNode: sv.startNode, endNode: sv.endNode,
-    bearing: sv.bearing, length: sv.length, absLength: sv.length, speed: 100,
-    ...switchElementMark(identity, 'main'),
-    geometry: { type: 'LineString', coordinates: g.straightCoords },
-  }
-  const branchEl = {
-    elementType: 1,
-    startNode: cv.startNode, endNode: cv.endNode,
-    bearing: cv.bearing, endBearing: cv.endBearing,
-    length: cv.length, absLength: cv.length, radius: g.signedR, cant: 0, speed: 100,
-    ...switchElementMark(identity, 'branch'),
-    geometry: { type: 'LineString', coordinates: g.arcCoords },
-  }
-  const branchTrack = trackOf('t-branch', 'branch.001', [branchEl])
-
-  if (trailing) {
-    // addElementToTrack: appended to the track's last position.
-    const host = trackOf(track.id, track.name, [...track.elements, mainEl])
-    return {
-      tracks: [host, branchTrack],
-      record: {
-        ...identity, trailing: true, speed: 100,
-        portA_trackId: null,           portA_endpoint:  null,
-        portB1_trackId: branchTrack.id, portB1_endpoint: 'BEGIN',
-        portB2_trackId: host.id,        portB2_endpoint: 'END',
-      },
-    }
-  }
-  const mainTrack = trackOf('t-main', 'main.001', [mainEl])
-  return {
-    tracks: [track, mainTrack, branchTrack],
-    record: {
-      ...identity, trailing: false, speed: 100,
-      portA_trackId: track.id,        portA_endpoint:  'END',
-      portB1_trackId: branchTrack.id, portB1_endpoint: 'BEGIN',
-      portB2_trackId: mainTrack.id,   portB2_endpoint: 'BEGIN',
-    },
-  }
+  const commit = buildSwitchAtTrackEnd({
+    start: nodeUtm(el.endNode, endWgs, track.epsg), bearing: resolveEndBearing(el, track.epsg), startWgs: endWgs,
+    sourceTrackId: track.id, sw: FORM, side: 'left', trailing, cant: 0, cantReason: '', speed: 100,
+    switchName: 'W 1', switchNumber: 1, name: 'branch.001', fields: { owner: 'DB', type: 'station_track' },
+    mainName: 'main.001', mainFields: { owner: 'DB', type: 'station_track' },
+  })
+  const appended = commit.append.find(a => a.trackId === track.id)
+  const host = appended ? trackOf(track.id, track.name, [...track.elements, ...appended.elements]) : track
+  return { tracks: [host, ...commit.addTracks], record: commit.addSwitches[0] }
 }
 
 // ── the anchor ──────────────────────────────────────────────────────────────
