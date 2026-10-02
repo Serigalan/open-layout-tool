@@ -332,6 +332,16 @@ export const CrossSectionCutIcon = () => (
   </MenuIcon>
 )
 
+// A point cloud: survey points scattered over the ground line.
+export const PointCloudIcon = () => (
+  <MenuIcon>
+    <path d="M1 14 H15" />
+    {[[3, 10], [6, 6.5], [9.5, 9], [12.5, 4.5], [8, 3], [13, 11]].map(([cx, cy]) => (
+      <IconNode key={`${cx},${cy}`} cx={cx} cy={cy} />
+    ))}
+  </MenuIcon>
+)
+
 // A basemap preview, not a menu icon: it shows the overlays in the colours
 // they are drawn in on the map, so it carries those colours instead of
 // currentColor and its own frame. It lives here for the same reason as every

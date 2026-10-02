@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import PlatformPanel from './PlatformPanel'
 import CrossSectionPanel from './CrossSectionPanel'
-import { BackIcon, NewPlatformIcon, CrossSectionCutIcon } from '../icons'
+import PointCloudPanel from './PointCloudPanel'
+import { BackIcon, NewPlatformIcon, CrossSectionCutIcon, PointCloudIcon } from '../icons'
 
 // The gray line between the two tool groups, the same separator the layers
 // panel draws between its basemap groups.
@@ -45,6 +46,13 @@ export default function PlatformCrossSectionPanel({ t, map, project, onTrackSave
     </>
   )
 
+  if (page === 'point_clouds') return (
+    <>
+      <BackButton t={t} onBack={back} />
+      <PointCloudPanel t={t} map={map} project={project} />
+    </>
+  )
+
   return (
     <>
       <h2>{t('platform_title')}</h2>
@@ -60,6 +68,14 @@ export default function PlatformCrossSectionPanel({ t, map, project, onTrackSave
         <button className="create-element-btn" onClick={() => setPage('cross_section')}>
           <CrossSectionCutIcon />
           {t('cross_section_show')}
+        </button>
+      </div>
+      <hr style={SEPARATOR} />
+      <h2>{t('pointcloud_title')}</h2>
+      <div className="create-element-options">
+        <button className="create-element-btn" onClick={() => setPage('point_clouds')}>
+          <PointCloudIcon />
+          {t('pointcloud_menu')}
         </button>
       </div>
     </>

@@ -1953,3 +1953,47 @@
   margin-right: 6px;
   vertical-align: middle;
 }
+
+/* Point clouds (Phase 11): the import form, its progress, the list. */
+.pointcloud-import,
+.pointcloud-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pointcloud-progress progress {
+  width: 100%;
+}
+
+.pointcloud-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.panel-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pointcloud-meta {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  color: #666;
+}
+
+.pointcloud-list-title {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  margin: 14px 0 4px;
+}
+
+.pointcloud-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+}

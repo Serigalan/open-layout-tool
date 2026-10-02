@@ -151,8 +151,11 @@ function rebuildLists() {
   }
 }
 
-async function readGrid(grid) {
-  const res = await fetch(grid.url ?? gridUrl(grid.file))
+// `base` resolves the relative grid URLs against the page rather than the
+// script — a Web Worker's own URL is under assets/, not beside data/.
+async function readGrid(grid, base) {
+  const url = grid.url ?? gridUrl(grid.file)
+  const res = await fetch(base ? new URL(url, base) : url)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   const tiff = await fromArrayBuffer(await res.arrayBuffer())
   await proj4.nadgrid(grid.key, tiff).ready
@@ -164,10 +167,10 @@ async function readGrid(grid) {
  * for them before it draws anything. One that fails is reported and left out;
  * its datum keeps the 7-parameter shift.
  */
-export async function loadNtv2Grid() {
+export async function loadNtv2Grid({ base = null } = {}) {
   await Promise.all(BASE_GRIDS.map(async (grid) => {
     try {
-      await readGrid(grid)
+      await readGrid(grid, base)
     } catch (err) {
       console.error(`${grid.name} did not load — ${grid.datum} keeps its 7-parameter shift`, err)
     }
@@ -187,12 +190,12 @@ export async function loadNtv2Grid() {
  * One that fails to load is reported and skipped — the area it covers falls
  * back to what was converting it before.
  */
-export async function loadGridsFor(bbox, datums = null) {
+export async function loadGridsFor(bbox, datums = null, { base = null } = {}) {
   for (const grid of gridsCovering(bbox, datums)) {
     if (loaded.has(grid.key)) continue
     if (grid.datum === 'DHDN' && !ntv2Ready()) continue
     try {
-      await readGrid(grid)
+      await readGrid(grid, base)
     } catch (err) {
       console.error(`${grid.name} did not load — its area keeps the shift it had`, err)
     }

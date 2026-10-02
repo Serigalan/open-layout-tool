@@ -81,7 +81,7 @@ export async function* readLasPoints(source, header, { lazPerf = null, onProgres
   const [sx, sy, sz] = header.scale
   const [ox, oy, oz] = header.offset
   const totalPoints = header.pointCount
-  const totalBytes = source.size - header.pointDataOffset
+  let totalBytes = source.size - header.pointDataOffset
   let points = 0
 
   if (!header.compressed) {
@@ -108,6 +108,8 @@ export async function* readLasPoints(source, header, { lazPerf = null, onProgres
 
   if (!lazPerf) throw new Error('laz-perf is needed to read LAZ')
   const chunks = await lazChunks(source, header)
+  // The points end where the chunk table begins.
+  if (chunks.length) totalBytes = chunks[chunks.length - 1].offset + chunks[chunks.length - 1].bytes - header.pointDataOffset
   const decoder = new lazPerf.ChunkDecoder()
   const pointPtr = lazPerf._malloc(header.pointLength)
   let dataPtr = 0, dataCap = 0
