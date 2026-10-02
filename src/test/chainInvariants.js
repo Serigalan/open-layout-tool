@@ -13,7 +13,7 @@ import { switchParts } from '../utils/switchDelete'
  * assertion so a failure names the rule that broke, not just the chain.
  */
 
-export { JOINT_TOL, BEARING_TOL } from '../utils/chainChecks'
+
 
 /** Every element ends where the next begins. */
 export function expectNodesJoin(elements, tol = JOINT_TOL) {

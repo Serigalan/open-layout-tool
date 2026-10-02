@@ -121,7 +121,7 @@ function fallbackChain(speed) {
  * element. Running a stem the other way is that flag and nothing else — the
  * route stays as it is and its radii and cant are turned where they are read.
  */
-export const reverseStem = (g) => ({ ...g, dir: -(g.dir ?? 1) })
+const reverseStem = (g) => ({ ...g, dir: -(g.dir ?? 1) })
 
 /** Station along the element, `s` metres from the pick in the running direction. */
 const stemStation = (g, s) => g.along + (g.dir ?? 1) * s

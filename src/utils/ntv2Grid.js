@@ -71,7 +71,7 @@ const BETA_URL = import.meta.env.VITE_OLT_NTV2_GRID ?? gridUrl('de_adv_BETA2007.
  * One per datum, covering all of it, loaded at startup. `bbox` is
  * [west, south, east, north] in degrees, read off the file itself.
  */
-export const BASE_GRIDS = [
+const BASE_GRIDS = [
   {
     key: GRID_KEY, name: 'BeTA2007', datum: 'DHDN', file: 'de_adv_BETA2007.tif',
     url: BETA_URL, bbox: [5.500, 46.900, 15.833, 55.300],

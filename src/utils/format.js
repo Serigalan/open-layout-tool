@@ -4,7 +4,7 @@
 export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 /** `v` rounded to `digits` decimals (as a number). */
-export const roundTo = (v, digits = 3) => Math.round(v * 10 ** digits) / 10 ** digits
+const roundTo = (v, digits = 3) => Math.round(v * 10 ** digits) / 10 ** digits
 
 /**
  * A number as text: `digits` decimals, a decimal comma when `comma` is set, and

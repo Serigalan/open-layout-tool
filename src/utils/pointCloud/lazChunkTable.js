@@ -90,7 +90,7 @@ class SymbolModel {
   }
 }
 
-export class ArithmeticDecoder {
+class ArithmeticDecoder {
   constructor(bytes, at = 0) {
     this.bytes = bytes
     this.at = at
@@ -186,7 +186,7 @@ export class ArithmeticDecoder {
  * LASzip's IntegerCompressor, decompressing side, for 32-bit values (no
  * corrector range: the result wraps as a signed 32-bit integer).
  */
-export class IntegerDecompressor {
+class IntegerDecompressor {
   constructor(dec, contexts, bitsHigh = 8) {
     this.dec = dec
     this.bitsHigh = bitsHigh

@@ -21,7 +21,7 @@ import { portsOf } from './switchModel'
 
 export const BUFFER_STOP = 'buffer_stop'
 export const BOUNDARY    = 'boundary'
-export const END_MARK_KINDS = [BUFFER_STOP, BOUNDARY]
+const END_MARK_KINDS = [BUFFER_STOP, BOUNDARY]
 
 /**
  * The buffer stop types. A placeholder for now (ROADMAP decision 76): the type
@@ -113,7 +113,7 @@ export function flipEndMarks(marks, trackId) {
 }
 
 /** The `trackId|endpoint` keys a switch port holds. */
-export function portEnds(switches) {
+function portEnds(switches) {
   const held = new Set()
   for (const sw of switches ?? []) {
     for (const { trackKey, endKey: ek } of portsOf(sw)) {

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { hash, verify } from '@node-rs/argon2'
 
 /** Shortest password accepted. */
-export const PASSWORD_MIN = 12
+const PASSWORD_MIN = 12
 
 /** A session lives this long without being used [ms]. */
 export const SESSION_IDLE = 30 * 24 * 3600 * 1000
@@ -10,12 +10,12 @@ export const SESSION_IDLE = 30 * 24 * 3600 * 1000
 /** Failed logins per login and address before the brake … */
 export const BRAKE_ATTEMPTS = 5
 /** … holds for this long [ms]. */
-export const BRAKE_MS = 60 * 1000
+const BRAKE_MS = 60 * 1000
 
 export const COOKIE = 'olt_session'
 
 // argon2id with the library's defaults (19 MiB, 2 passes) — what OWASP names.
-export const hashPassword = (password) => hash(password)
+const hashPassword = (password) => hash(password)
 
 export async function verifyPassword(stored, password) {
   try { return await verify(stored, password) } catch { return false }

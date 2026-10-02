@@ -62,10 +62,6 @@ const stage = (n) => FORMEN
   .sort((a, b) => a.verbindung.rang - b.verbindung.rang)
 export const SWITCH_CONNECTION_STAGES = [stage(1), stage(2), stage(3)]
 
-/** First and second fallback, under the names the connection calculation knows. */
-export const SWITCH_TYPES_ALT1 = SWITCH_CONNECTION_STAGES[1]
-export const SWITCH_TYPES_ALT2 = SWITCH_CONNECTION_STAGES[2]
-
 /** Every turnout form, whatever its class — what an import matches a record against. */
 export const ALL_SWITCH_TYPES = FORMEN.filter(form => form.art === 'weiche')
 

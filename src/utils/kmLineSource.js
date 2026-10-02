@@ -22,7 +22,7 @@ const BASE = import.meta.env?.VITE_OLT_KM_LINES ?? 'data/km/'
 /** How far beyond the tracks a line is kept, so it still answers past the ends. */
 const MARGIN_M = 500
 
-export class KmLineError extends Error {
+class KmLineError extends Error {
   constructor(code, lineNumber) {
     super(code)
     this.name = 'KmLineError'

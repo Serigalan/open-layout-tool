@@ -5,7 +5,7 @@ import { kmTrackName } from '../utils/lineLookup'
 import useLineStation from './useLineStation'
 
 /** Prefix a new track's name is built from: line number, station name, else 'track'. */
-export function trackNamePrefix(fields) {
+function trackNamePrefix(fields) {
   if (fields?.type === 'line_track' && fields.lineNumber) return String(fields.lineNumber)
   if (fields?.type === 'station_track' && fields.stationName) return fields.stationName
   return 'track'

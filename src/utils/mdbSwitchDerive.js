@@ -34,7 +34,7 @@ import { ALL_SWITCH_TYPES, asRadius, switchBranchLength } from './switch/catalog
  */
 
 /** How far a track end may sit from another track's axis and still be on it [m]. */
-export const ON_TOL = 0.5
+const ON_TOL = 0.5
 
 /**
  * How far a Weichenanfang may sit from either of its two tracks before it is
@@ -61,7 +61,7 @@ const CELL = 100
 
 const ALL_TYPES = ALL_SWITCH_TYPES
 
-export const trackLength = (t) => (t.elements ?? []).reduce((s, e) => s + (e.length ?? 0), 0)
+const trackLength = (t) => (t.elements ?? []).reduce((s, e) => s + (e.length ?? 0), 0)
 
 /**
  * Exact offset of a plane point from one element: the perpendicular distance to
@@ -124,7 +124,7 @@ function chordDist(el, pt) {
  * curve leaves that chord and by the tolerance — so a point within tolerance of
  * an element always finds it in its own cell.
  */
-export function trackGrid(tracks) {
+function trackGrid(tracks) {
   const cells = new Map()
   const lengths = new Map()
   for (const track of tracks) {
@@ -164,7 +164,7 @@ const gridAt = (grid, epsg, pt) =>
  * A point at another track's end is a joint: two tracks meeting end to end is
  * how one line is delivered in pieces, and nothing parts there.
  */
-export function throughTrackAt(grid, epsg, pt, skip, tol = ON_TOL) {
+function throughTrackAt(grid, epsg, pt, skip, tol = ON_TOL) {
   let best = null
   for (const { track, el, before } of gridAt(grid, epsg, pt)) {
     if (skip.has(track)) continue

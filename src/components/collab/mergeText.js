@@ -5,16 +5,16 @@
 
 import { fill, tOr } from '../../locales/i18n'
 
-export { fill }
+
 
 const translated = tOr
 
-export const collectionName = (t, collection) => translated(t, `coll_${collection}`, collection)
+const collectionName = (t, collection) => translated(t, `coll_${collection}`, collection)
 
-export const fieldName = (t, field) => translated(t, `field_${field}`, field)
+const fieldName = (t, field) => translated(t, `field_${field}`, field)
 
 /** "Gleis 6050-1", "Weiche switch.001", "Projekt: Titel". */
-export function objectName(t, collection, label, id) {
+function objectName(t, collection, label, id) {
   if (collection === 'project') return `${collectionName(t, 'project')}: ${fieldName(t, label ?? id)}`
   const name = String(label ?? String(id).slice(0, 8))
     .replace(/ BEGIN$/, ` · ${t('end_begin')}`).replace(/ END$/, ` · ${t('end_end')}`)

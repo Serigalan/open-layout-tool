@@ -44,8 +44,6 @@ const SCURVE_PREVIEW_LAYERS = [
 ]
 
 const RAD2DEG = 180 / Math.PI
-const DEG2RAD = Math.PI / 180
-
 // Default speed — the one the R = 1200 form is built for, if it is in the table.
 const DEFAULT_TYPE = Math.max(0,
   CONNECTION_SPEEDS.indexOf(SWITCH_TYPES.find(s => s.R === 1200)?.speed))

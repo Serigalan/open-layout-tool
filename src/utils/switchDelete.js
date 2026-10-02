@@ -167,7 +167,7 @@ export function mergeableRun(els, epsg = null) {
  * and bearings come from the same calls that built the pieces; the display
  * geometry from reconstructElements, the one path a reload takes anyway.
  */
-export function mergeRun(els, epsg) {
+function mergeRun(els, epsg) {
   const first = els[0]
   const last  = els[els.length - 1]
   const startUtm = { easting: first.startNode[0], northing: first.startNode[1], zone: epsg }

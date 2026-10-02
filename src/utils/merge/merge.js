@@ -169,7 +169,7 @@ export function resolve(mergeResult, choices = {}) {
 }
 
 /** Write the value of one side of a conflict into the record. */
-export function applyChoice(record, c, value) {
+function applyChoice(record, c, value) {
   if (c.collection === 'project') {
     if (value === undefined) delete record[c.field]
     else record[c.field] = value

@@ -11,10 +11,6 @@ import {
 } from '../../../components/icons'
 import { useI18n } from '../../../locales/i18nContext'
 
-// The gray line between the switch tools and the crossing tools, the same
-// separator the layers panel draws between its basemap groups.
-const SEPARATOR = { margin: '2px 0', border: 'none', borderTop: '1px solid #ddd' }
-
 function BackButton({ onBack }) {
   const { t } = useI18n()
   return (

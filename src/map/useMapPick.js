@@ -63,7 +63,7 @@ export default function useMapPick({
 }
 
 /** The selection-layer filter for a selection: { switchId } | { trackId, elementIndex? } | null. */
-export function selectionFilter(sel) {
+function selectionFilter(sel) {
   if (!sel) return FILTER_NONE
   if (sel.switchId) return filterForSwitch(sel.switchId)
   if (sel.elementIndex != null) return filterForElement(sel.trackId, sel.elementIndex)

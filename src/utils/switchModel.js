@@ -120,7 +120,7 @@ export const switchRouteLabelKey = (kind, route) => {
 /** A node between two track ends rather than a shape of track (see SWITCH_KINDS). */
 export const isLinkSwitch = (sw) => sw?.kind === LINK_KIND
 
-export const newSwitchId = () => crypto.randomUUID()
+const newSwitchId = () => crypto.randomUUID()
 
 /**
  * What an element of a switch's route carries so it can be found again: the

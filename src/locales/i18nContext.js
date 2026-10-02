@@ -5,7 +5,7 @@ import { fill as fillText } from './i18n'
 export const DEFAULT_LANGUAGE = 'en'
 
 /** The translate function for a language: the key itself where it has no text. */
-export function makeT(language) {
+function makeT(language) {
   const dict = translations[language] ?? translations[DEFAULT_LANGUAGE]
   return (key) => dict[key] ?? key
 }

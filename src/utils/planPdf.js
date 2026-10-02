@@ -1,5 +1,4 @@
 import { jsPDF } from 'jspdf'
-import { PAPER_FORMATS } from './planExport'
 
 /**
  * jsPDF backend for the plan model: it translates the four primitives and
@@ -238,5 +237,3 @@ export function renderPdf(plan) {
   return doc
 }
 
-/** Paper the plan is drawn on, for callers that only have the key. */
-export const paperSize = (paperKey) => PAPER_FORMATS[paperKey]

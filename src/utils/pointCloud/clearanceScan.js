@@ -12,7 +12,7 @@ import { gradientAt, trackLength } from '../heightUtils'
  */
 
 /** Step along the track and thickness of each slice [m]. */
-export const SCAN_STEP = 0.5
+const SCAN_STEP = 0.5
 
 /**
  * Group stations with intrusions into stretches: neighbouring steps belong to

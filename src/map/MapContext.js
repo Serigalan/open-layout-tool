@@ -8,5 +8,3 @@ export const MapContext = createContext({ map: { current: null }, mapVersion: 0 
 /** The map ref — `map.current` is the MapLibre map, or null. */
 export const useMap = () => useContext(MapContext).map
 
-/** Counts the maps made; an effect that draws on the map depends on it. */
-export const useMapVersion = () => useContext(MapContext).mapVersion

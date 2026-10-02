@@ -275,7 +275,7 @@ export function createStore(db, { now = () => Date.now() } = {}) {
 }
 
 /** A member as the API shows them. */
-export const publicMember = (m) => ({ id: m.user_id, login: m.login, name: m.name, active: Boolean(m.active) })
+const publicMember = (m) => ({ id: m.user_id, login: m.login, name: m.name, active: Boolean(m.active) })
 
 export function publicVariant(v, head, parentAhead = 0) {
   return {

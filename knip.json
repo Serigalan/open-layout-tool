@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "src/**/*.test.js",
+    "tools/server/bin/*.mjs",
+    "tools/server/test/**/*.test.js"
+  ],
+  "project": [
+    "src/**/*.{js,jsx}",
+    "tools/server/**/*.{js,mjs}"
+  ],
+  "ignore": [],
+  "ignoreDependencies": [
+    "fastify",
+    "@fastify/cookie",
+    "@node-rs/argon2",
+    "better-sqlite3"
+  ]
+}

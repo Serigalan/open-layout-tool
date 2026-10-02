@@ -86,7 +86,7 @@ const FETCH_CONCURRENCY = 6
 const tileCache = new Map()   // key → { data: Uint8ClampedArray, w: number } | null (no tile)
 
 /** Fractional tile coordinates of a WGS84 point at a zoom level. (exported for tests) */
-export function tileCoords([lng, lat], z) {
+function tileCoords([lng, lat], z) {
   const n = 2 ** z
   const r = lat * Math.PI / 180
   return {
@@ -123,7 +123,7 @@ const decode = (data, i) => -10000 + (data[i] * 65536 + data[i + 1] * 256 + data
  * Height at fractional tile coordinates, bilinear between the four nearest
  * pixels (clamped at the tile edge). null when any of them is "no data".
  */
-export function heightInTile(tile, fx, fy) {
+function heightInTile(tile, fx, fy) {
   const { data, w } = tile
   const px = Math.min(Math.max(fx * w - 0.5, 0), w - 1)
   const py = Math.min(Math.max(fy * w - 0.5, 0), w - 1)

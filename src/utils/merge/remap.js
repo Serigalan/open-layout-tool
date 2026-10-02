@@ -16,10 +16,10 @@ import { portsOf } from '../switchModel'
  */
 
 /** Two ends are one node below this [m]. */
-export const END_TOL = 0.01
+const END_TOL = 0.01
 
 /** A point lies on a track below this [m]. */
-export const ON_TRACK_TOL = 0.05
+const ON_TRACK_TOL = 0.05
 
 const fromEntries = (log) => {
   const map = new Map()
@@ -32,7 +32,7 @@ const fromEntries = (log) => {
 }
 
 /** Every id the log derives from `id`, transitively (not `id` itself). */
-export function descendants(id, log) {
+function descendants(id, log) {
   const next = fromEntries(log)
   const seen = new Set()
   const queue = [...(next.get(id) ?? [])]
@@ -58,14 +58,14 @@ const planePoint = (node) => (Array.isArray(node) && Number.isFinite(node[0]) &&
 const dist = (a, b) => Math.hypot(a.easting - b.easting, a.northing - b.northing)
 
 /** A track end in its plane. */
-export function endPoint(track, endpoint) {
+function endPoint(track, endpoint) {
   const els = track?.elements ?? []
   if (!els.length) return null
   return endpoint === 'BEGIN' ? planePoint(els[0].startNode) : planePoint(els[els.length - 1].endNode)
 }
 
 /** Nearest station of a plane point on a track, with its distance. */
-export function stationOnTrack(track, utm) {
+function stationOnTrack(track, utm) {
   let best = null
   for (const row of elementStations(track)) {
     const s = stationFromClick(track, row.index, utm)
@@ -82,7 +82,7 @@ export function stationOnTrack(track, utm) {
  * The end of one of `candidates` that `oldTrack`'s `endpoint` became, or null
  * when none or more than one end lies there.
  */
-export function mapEnd(oldTrack, endpoint, candidates) {
+function mapEnd(oldTrack, endpoint, candidates) {
   const at = endPoint(oldTrack, endpoint)
   if (!at) return null
   const hits = []
@@ -104,7 +104,7 @@ const bearingGap = (a, b) => Math.abs(((a - b + 540) % 360) - 180)
  * other way. Null when the stretch is not on exactly one piece — a platform
  * over the place a track was split has no single track to stand on.
  */
-export function mapStretch(oldTrack, s0, s1, candidates) {
+function mapStretch(oldTrack, s0, s1, candidates) {
   const p0 = pointAtStation(oldTrack, s0)
   const p1 = pointAtStation(oldTrack, s1)
   if (!p0 || !p1) return null

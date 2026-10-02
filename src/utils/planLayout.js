@@ -1,4 +1,4 @@
-import { FRAME, PAPER_FORMATS, makeTransform, drawingArea } from './planExport'
+import { PAPER_FORMATS, makeTransform, drawingArea } from './planExport'
 import { trackPathUtm, trackPointAt } from './planGeometry'
 import { trackLength } from './heightUtils'
 import { format } from '../locales/i18n'
@@ -29,7 +29,7 @@ function bearingBetween(a, b) {
  * makeTransform turns the content clockwise, so the bearing has to travel the
  * remaining way to east (90°).
  */
-export const rotationFor = (bearing) => ((90 - bearing) % 360 + 360) % 360
+const rotationFor = (bearing) => ((90 - bearing) % 360 + 360) % 360
 
 /** A track's own geometry is a switch symbol, not an alignment to plan along. */
 const isBranchTrack = (track) => {
@@ -38,7 +38,7 @@ const isBranchTrack = (track) => {
 }
 
 /** Bounding box of everything that gets drawn, in the plane. */
-export function tracksBbox(tracks) {
+function tracksBbox(tracks) {
   let minE = Infinity, minN = Infinity, maxE = -Infinity, maxN = -Infinity
   for (const track of tracks) {
     for (const c of trackPathUtm(track)) {
@@ -54,7 +54,7 @@ export function tracksBbox(tracks) {
 }
 
 /** The track a plan is laid out along: the longest one that is not a switch. */
-export function pickLeadTrack(tracks, leadTrackId = null) {
+function pickLeadTrack(tracks, leadTrackId = null) {
   const usable = tracks.filter(tr => (tr.elements ?? []).length > 0 && !isBranchTrack(tr))
   const pool = usable.length ? usable : tracks.filter(tr => (tr.elements ?? []).length > 0)
   if (leadTrackId) {
@@ -277,4 +277,4 @@ function everythingFits(tracks, transform, area) {
   return true
 }
 
-export { FRAME, trackPointAt }
+

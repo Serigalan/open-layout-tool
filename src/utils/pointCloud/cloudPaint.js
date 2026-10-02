@@ -12,7 +12,7 @@ export const CLOUD_COLORINGS = ['intensity', 'height']
 /** Points inside the clearance outline (AP 11.5). */
 export const INTRUSION_COLOR = '#e0201b'
 /** Points in an area the outline allows to be reached into. */
-export const ALLOWED_COLOR = '#e08a1b'
+const ALLOWED_COLOR = '#e08a1b'
 
 const BUCKETS = 32
 

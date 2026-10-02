@@ -10,9 +10,7 @@ import {
   BUFFER_STOP, BUFFER_STOP_LENGTH, BUFFER_STOP_TYPES, DEFAULT_BUFFER_STOP_TYPE, bufferStopStations,
 } from './trackEndMarks'
 
-export const DEG2GON = 10 / 9
-export const GON2DEG = 9 / 10
-
+const DEG2GON = 10 / 9
 // Everything that defines the geometry is written at full precision: the
 // alignment is re-imported by chaining these values, so a rounded bearing walks
 // the whole track off course (1e-4 gon ≈ 9 mm over 44 km). `exact` only trims
@@ -211,7 +209,7 @@ export function platformsToOperationalPoints(platforms, trackMap, foreign = []) 
  * switch types, so the discriminator maps straight onto them — which is the
  * whole reason the record carries a `kind` rather than counting its ports.
  */
-export const OSRD_SWITCH_TYPES = {
+const OSRD_SWITCH_TYPES = {
   turnout:     'point_switch',
   crossing:    'crossing',
   single_slip: 'single_slip_switch',
@@ -298,7 +296,7 @@ export function endMarksToBufferStops(endMarks, trackMap, foreign = []) {
 }
 
 /** How far from a track end [m] a buffer stop from another program may stand to be taken as that end's. */
-export const BUFFER_STOP_REACH = 50
+const BUFFER_STOP_REACH = 50
 
 /**
  * The buffer stops of a RailJSON file back as end marks. One this app wrote

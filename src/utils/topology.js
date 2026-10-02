@@ -25,9 +25,9 @@ import { endKey, BUFFER_STOP, BOUNDARY } from './trackEndMarks'
  */
 
 /** Two ends in one plane closer than this [m] are one node. */
-export const JOINT_EXACT = 0.01
+const JOINT_EXACT = 0.01
 
-export const OPEN_STATES = ['open']
+const OPEN_STATES = ['open']
 export const isOpenState = (state) => OPEN_STATES.includes(state)
 
 // Ends are hashed into cells of about a metre and a half, so a project of a

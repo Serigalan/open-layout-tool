@@ -15,7 +15,7 @@ export const STAFF = [
   { key: 'checked',  labelKey: 'plan_staff_checked' },
 ]
 
-export const BLOCK_STYLES = ['compact', 'full']
+const BLOCK_STYLES = ['compact', 'full']
 
 const pad = (n) => String(n).padStart(2, '0')
 
@@ -39,7 +39,7 @@ export function toIsoDate(value) {
   return v
 }
 
-export const emptyHeader = () => ({
+const emptyHeader = () => ({
   style: 'compact',
   subtitle: '',
   range: '',

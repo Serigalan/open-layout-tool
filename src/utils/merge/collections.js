@@ -16,9 +16,9 @@ const PORT_FIELD = /^port[A-Z0-9]+_(trackId|endpoint)$/
 export const WHOLE = '*'
 
 /** The port fields of a switch, merged as one. */
-export const PORTS = 'ports'
+const PORTS = 'ports'
 
-export const COLLECTIONS = [
+const COLLECTIONS = [
   { name: 'tracks',    key: 'id' },
   { name: 'switches',  key: 'switchId' },
   { name: 'platforms', key: 'id' },
@@ -29,8 +29,6 @@ export const COLLECTIONS = [
 export const COLLECTION_NAMES = COLLECTIONS.map(c => c.name)
 
 const BY_NAME = Object.fromEntries(COLLECTIONS.map(c => [c.name, c]))
-
-export const collectionOf = (name) => BY_NAME[name]
 
 /** The id an object goes by in its collection, as a string (km lines are numbered). */
 export const keyOf = (collection, obj) => String(obj?.[BY_NAME[collection].key])
@@ -88,7 +86,7 @@ export function projectFields(project) {
  * Stable text of a value, for telling whether two values are the same: object
  * keys sorted, `undefined` members left out (JSON drops them the same way).
  */
-export function canonical(value) {
+function canonical(value) {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'undefined'
   if (Array.isArray(value)) return `[${value.map(v => (v === undefined ? 'null' : canonical(v))).join(',')}]`
   const keys = Object.keys(value).filter(k => value[k] !== undefined).sort()

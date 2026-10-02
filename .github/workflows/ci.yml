@@ -20,6 +20,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
         working-directory: tools/server
       - run: npm run lint
+      - run: npm run knip
       - run: npm test
       - run: npx vite build --outDir /tmp/olt-dist
 

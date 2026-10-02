@@ -8,7 +8,7 @@ import projectRoutes from './routes/projects.js'
 import userRoutes from './routes/users.js'
 
 /** Largest request body [bytes] — a large MDB import fits, a runaway does not fill the disk. */
-export const BODY_LIMIT = 20 * 1024 * 1024
+const BODY_LIMIT = 20 * 1024 * 1024
 
 const WRITING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
@@ -18,7 +18,7 @@ const WRITING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
  * directly name its own address, and with it step around the login brake.
  * A Caddy elsewhere (a container) is named in OLT_SERVER_TRUST_PROXY.
  */
-export const TRUSTED_PROXIES = ['127.0.0.1', '::1']
+const TRUSTED_PROXIES = ['127.0.0.1', '::1']
 
 /**
  * The API under /api (phase 10). Same origin as the app, so no CORS: the

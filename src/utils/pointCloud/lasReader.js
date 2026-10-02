@@ -42,7 +42,7 @@ export async function readLasHeader(source) {
  * there means a writer that could not seek back, and the position is then
  * the last eight bytes of the file.
  */
-export async function lazChunks(source, header) {
+async function lazChunks(source, header) {
   const head = await source.read(header.pointDataOffset, 8)
   let tableAt = Number(new DataView(head.buffer, head.byteOffset, 8).getBigInt64(0, true))
   if (tableAt === -1) {
@@ -173,4 +173,4 @@ export async function readFirstPoints(source, header, n, { lazPerf = null } = {}
   return out
 }
 
-export { parseLasHeader }
+

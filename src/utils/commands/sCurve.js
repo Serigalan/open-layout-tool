@@ -77,7 +77,7 @@ function carveThrough(split, cutUtm, mark, length) {
 }
 
 // A plane point expressed in another CRS plane (as it is when already there).
-export function toPlane(p, crs) {
+function toPlane(p, crs) {
   if (Number(p.zone) === Number(crs)) return p
   return wgs84ToUTM(utmToWgs84(p.easting, p.northing, p.zone), crs)
 }
@@ -86,7 +86,7 @@ export function toPlane(p, crs) {
 // CRS; a second track in another CRS gets its point and its grid bearing
 // converted. The radius is carried across as it stands — the two grids differ in
 // scale by parts in ten thousand, which over a turnout is microns.
-export function stemInPlane(g, crs) {
+function stemInPlane(g, crs) {
   const { startUtm, bearing, route, along, cantStart, cantEnd } = g
   if (Number(g.zone) === Number(crs)) return { startUtm, bearing, route, along, cantStart, cantEnd }
   return {
@@ -143,7 +143,7 @@ function turnoutOnElement(pick, toe, dir, opening, throughLength) {
 }
 
 /** Which way the connection runs along the first picked element (+1 with it, −1 against). */
-export const direction1 = (picks) => stems(picks).g1.dir ?? 1
+const direction1 = (picks) => stems(picks).g1.dir ?? 1
 
 /**
  * Shift range [min, max] (metres) over which the connection stands: the first

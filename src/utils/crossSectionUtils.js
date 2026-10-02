@@ -108,9 +108,6 @@ export const rotatePoint = ([y, z], angle) => {
   return [y * c - z * s, y * s + z * c]
 }
 
-/** A polyline turned by the cant — the whole section rotates rigidly. */
-export const rotatePoints = (points, angle) => points.map(p => rotatePoint(p, angle))
-
 /** A polyline turned by `angle` about `pivot` instead of the origin. */
 export const rotatePointsAbout = (points, angle, [py, pz]) => points.map(([y, z]) => {
   const [ry, rz] = rotatePoint([y - py, z - pz], angle)

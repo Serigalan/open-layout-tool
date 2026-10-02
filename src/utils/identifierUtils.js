@@ -52,7 +52,7 @@ const SWITCH_PREFIX   = 'switch'
 const CROSSING_PREFIX = 'crossing'
 
 /** The prefix a kind's designation carries. */
-export const switchPrefix = (kind) =>
+const switchPrefix = (kind) =>
   (kind && kind !== 'turnout' ? CROSSING_PREFIX : SWITCH_PREFIX)
 
 export const switchDesignation = (number, kind = null) =>

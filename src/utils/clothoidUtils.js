@@ -6,7 +6,7 @@ import { SAGITTA_ELEMENT } from './geometryPrecision'
 //   bloss:    κ(s) = κ1 + (κ2−κ1)·(3(s/L)² − 2(s/L)³)
 //             → Δφ(s) = κ1·s + (κ2−κ1)·(s³/L² − s⁴/(2L³))
 // Both reach the same total angle Δφ(L) = (κ1+κ2)·L/2.
-export function transitionHeading(type, kappa1, kappa2, length, s) {
+function transitionHeading(type, kappa1, kappa2, length, s) {
   const dk = kappa2 - kappa1
   return type === 'bloss'
     ? kappa1 * s + dk * (s ** 3 / (length * length) - s ** 4 / (2 * length ** 3))

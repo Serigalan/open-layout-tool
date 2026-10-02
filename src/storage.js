@@ -218,7 +218,7 @@ export function loadIdLog() {
 }
 
 /** Replace the id log — empty once its changes are checked in. */
-export function setIdLog(log) {
+function setIdLog(log) {
   _idLog = [...(log ?? [])]
 }
 

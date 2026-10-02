@@ -11,7 +11,7 @@ import {
 export const primary = (project) => dehydrateProjects([project ?? {}])[0]
 
 /** The fields in which two versions of one object differ. */
-export function changedFields(collection, a, b) {
+function changedFields(collection, a, b) {
   const fa = collection ? fieldsOf(collection, a) : projectFields(a)
   const fb = collection ? fieldsOf(collection, b) : projectFields(b)
   const names = new Set([...fa.keys(), ...fb.keys()])

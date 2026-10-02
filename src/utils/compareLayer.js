@@ -105,7 +105,7 @@ export function recordFeatures(record) {
 const LAYERS = (id) => [`${id}-fill`, `${id}-line`, `${id}-dash`, `${id}-point`]
 
 /** Put features on the map under `id` (replacing what was there under it). */
-export function showFeatures(map, id, features) {
+function showFeatures(map, id, features) {
   if (!map) return
   const data = { type: 'FeatureCollection', features }
   const src = `${id}-src`

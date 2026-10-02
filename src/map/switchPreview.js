@@ -1,9 +1,9 @@
 import { ZOOM_LINE_WIDTH } from './style'
 
 export const SWITCH_LINES_SOURCE = 'switch-preview-lines-source'
-export const SWITCH_LINES_LAYER  = 'switch-preview-lines-layer'
+const SWITCH_LINES_LAYER  = 'switch-preview-lines-layer'
 export const SWITCH_FILL_SOURCE  = 'switch-preview-fill-source'
-export const SWITCH_FILL_LAYER   = 'switch-preview-fill-layer'
+const SWITCH_FILL_LAYER   = 'switch-preview-fill-layer'
 
 
 export function buildLinesGeoJSON({ straightCoords, arcCoords, lcsCoords }) {

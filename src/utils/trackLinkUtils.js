@@ -39,7 +39,7 @@ import { portsOf, newSwitchFields, isLinkSwitch, LINK_KIND } from './switchModel
 export const JOINT_TOL = 1.5
 
 /** …and only when the line runs through: their tangents oppose within this [°]. */
-export const BEARING_TOL = 2
+const BEARING_TOL = 2
 
 /** Half-diagonal of the diamond a link is drawn as [m]. */
 const LINK_BODY_HALF = 2

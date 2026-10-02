@@ -31,7 +31,7 @@ function dbAlignment(track) {
 }
 
 /** RailJSON schema this exporter writes. */
-export const RAILJSON_VERSION = '3.5.4'
+const RAILJSON_VERSION = '3.5.4'
 
 // Infra-level objects the app does not model. An imported file's originals are
 // kept on the project (see osrdImport) and handed back here unchanged.

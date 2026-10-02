@@ -273,7 +273,7 @@ export function switchChainBauform(stem, branch, symmetric = false) {
 
 // ── Pure UTM helpers ────────────────────────────────────────────────────────
 
-export function utmEndStraight(utm, bearing, length) {
+function utmEndStraight(utm, bearing, length) {
   const rad = bearing * Math.PI / 180
   return {
     easting:  utm.easting  + length * Math.sin(rad),

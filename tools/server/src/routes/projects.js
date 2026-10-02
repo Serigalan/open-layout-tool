@@ -4,7 +4,7 @@ import { checkRecord, freshErrors } from '../checks.js'
 import { createStore, publicVariant } from '../store.js'
 
 /** Largest image [bytes]. */
-export const IMAGE_LIMIT = 5 * 1024 * 1024
+const IMAGE_LIMIT = 5 * 1024 * 1024
 
 const text = (v, max = 500) => (v == null ? undefined : String(v).trim().slice(0, max))
 

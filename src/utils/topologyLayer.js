@@ -40,7 +40,7 @@ const LAYERS = [
 
 /** How much of the basemap the view lets through: Liberty, very pale. */
 const VEIL_OPACITY = 0.8
-export const TOPOLOGY_HIGHLIGHT = '#ff8c00'
+const TOPOLOGY_HIGHLIGHT = '#ff8c00'
 
 // What is highlighted, kept here so a redraw — a basemap change throws every
 // layer away — puts it back.
@@ -245,12 +245,12 @@ function featureAt(map, point, layers, tolerance) {
 }
 
 /** The switch or link under a point on the map, or null. */
-export function topologySwitchAt(map, point, tolerance = 4) {
+function topologySwitchAt(map, point, tolerance = 4) {
   return featureAt(map, point, ['topology-switches-layer', 'topology-links-layer'], tolerance)?.properties?.switchId || null
 }
 
 /** The track under a point on the map, or null — the switches come first, so ask this second. */
-export function topologyTrackAt(map, point, tolerance = 5) {
+function topologyTrackAt(map, point, tolerance = 5) {
   return featureAt(map, point, [TRACKS_LAYER], tolerance)?.properties?.trackId || null
 }
 

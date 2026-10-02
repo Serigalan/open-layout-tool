@@ -4,7 +4,7 @@
  * the letters in black. Path data in the template's units (1/96 in), with the
  * block's top left corner at BLOCK_ORIGIN.
  */
-export const LOGO_BLUE = '#1f0f96'
+const LOGO_BLUE = '#1f0f96'
 export const BLOCK_ORIGIN = [4535.4, 907.06]
 export const MM_PER_UNIT = 25.4 / 96
 

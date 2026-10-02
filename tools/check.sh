@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Everything CI runs (.github/workflows/ci.yml), locally: lint, the unit and
+# Everything CI runs (.github/workflows/ci.yml), locally: lint, dead code (knip), the unit and
 # server tests, and — where a Python environment with the optimizer is found
 # (OLT_PYTHON, else .venv/ or WEBSITE/.venv/) — the shared vectors and the
 # optimizer's acceptance tests.
@@ -13,6 +13,7 @@ quick=0
 [ "${1:-}" = --quick ] && quick=1
 
 echo "== lint";  npm run -s lint
+echo "== dead code"; npm run -s knip
 echo "== tests"; npx vitest run
 
 py=${OLT_PYTHON:-}

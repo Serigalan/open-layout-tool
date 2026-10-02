@@ -23,17 +23,17 @@ import { trackLabel } from './trackModel'
  */
 
 /** A node gap above this [m] is worth a warning … */
-export const GAP_WARNING = 0.01
+const GAP_WARNING = 0.01
 /** … and above this a broken chain, not survey noise. */
-export const GAP_ERROR = 0.5
+const GAP_ERROR = 0.5
 
 /** Stations may overshoot the track length by this much [m]. */
-export const STATION_TOL = 0.01
+const STATION_TOL = 0.01
 
 /** Two tracks lying on each other: closer than this [m] … */
-export const OVERLAP_DIST = 0.5
+const OVERLAP_DIST = 0.5
 /** … over more than this [m]. */
-export const OVERLAP_LENGTH = 10
+const OVERLAP_LENGTH = 10
 
 const trackLength = (t) => (t.elements ?? []).reduce((s, e) => s + (e.length ?? 0), 0)
 

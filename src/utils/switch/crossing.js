@@ -111,7 +111,7 @@ export function crossingWedgeRing(toP, toQ) {
  * on `bearing` towards the crossing point: the crossing point, and the main
  * leg's bearing at it — which a curved leg has turned by on the way.
  */
-export function crossingCentreFromPortA(portUtm, bearing, type, crossAngleDeg) {
+function crossingCentreFromPortA(portUtm, bearing, type, crossAngleDeg) {
   const t = crossingEndDistance(type)
   const r = crossingLegSignedRadius(type, crossAngleDeg)
   return {

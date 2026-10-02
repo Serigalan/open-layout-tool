@@ -1,7 +1,7 @@
 import { ApiError } from '../errors.js'
 
 /** Most users one search answers with. */
-export const SEARCH_LIMIT = 20
+const SEARCH_LIMIT = 20
 
 /**
  * Finding a user to add to a project (decision 127). Any signed-in user may

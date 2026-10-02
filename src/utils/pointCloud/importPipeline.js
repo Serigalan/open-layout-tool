@@ -15,7 +15,7 @@ import { TileBuilder, encodeSegment, splitIntoBands, intensityShift, TILE_SIZE, 
  */
 
 /** Index format version — bumped when the tile layout changes. */
-export const INDEX_VERSION = 1
+const INDEX_VERSION = 1
 
 /**
  * How long the import computes before it lets the event loop run [ms]. Decoding

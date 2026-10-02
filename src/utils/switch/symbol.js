@@ -1,4 +1,4 @@
-import { wgs84ToUTM, utmToWgs84 } from '../coordinateUtils'
+import { utmToWgs84 } from '../coordinateUtils'
 import { reverseElement, projectOnArcUtm } from '../elementUtils'
 import { projectOnTransitionUtm } from '../clothoidUtils'
 import { elementBelongsToSwitch, isLinkSwitch } from '../switchModel'
@@ -455,20 +455,6 @@ export function rebuildSwitchSymbol(sw, trackById) {
     bauform: switchChainBauform(stem, branch, type?.symmetric === true),
     ...(lcsCoords ? { lcsCoords } : {}),
   }
-}
-
-/**
- * Compute all geometry for a switch from an element's end point (WGS84).
- * All intermediate calculations in UTM.
- *
- * Facing:   startWgs = portA;  through → portB2;  branch → portB1
- * Trailing: startWgs = portB2; through → portA;   branch departs portA with (bearing+180°) → portB1
- *
- * crs: plane in which bearing/lengths are defined (the element's epsg);
- * without it the zone is auto-detected — wrong for GK-native tracks.
- */
-export function computeSwitchGeometry(startWgs, bearing, sw, side, trailing, crs = null, mainR = null) {
-  return computeSwitchGeometryUtm(wgs84ToUTM(startWgs, crs), bearing, sw, side, trailing, startWgs, mainR)
 }
 
 /**

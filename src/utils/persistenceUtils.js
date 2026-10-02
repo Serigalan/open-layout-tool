@@ -45,18 +45,6 @@ import { rebuildCoords } from './trackModel'
  */
 export const SCHEMA_VERSION = 2
 
-/** Remove embedded images from projects; returns them as [{ id, image }]. */
-export function extractImages(projects) {
-  const images = []
-  for (const p of projects ?? []) {
-    if (p.image) {
-      images.push({ id: p.id, image: p.image })
-      delete p.image
-    }
-  }
-  return images
-}
-
 /**
  * A payload this tool will not take, `code` being the key the UI translates.
  */

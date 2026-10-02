@@ -17,7 +17,7 @@ import { arcFrom, straightFrom, transitionElement } from './elementFactory'
 export const MAX_EDIT_SWITCHES = 1
 export const MAX_EDIT_TRACKS   = 3
 
-export function nodesApproxEqual(a, b) {
+function nodesApproxEqual(a, b) {
   if (!Array.isArray(a) || !Array.isArray(b)) return false
   return Math.abs(a[0] - b[0]) < 0.001 && Math.abs(a[1] - b[1]) < 0.001
 }
@@ -183,15 +183,3 @@ export function mergeElementEdits(storeTracks, edited, { changed = [], reshaped 
   })
 }
 
-/**
- * The same change, as the track array alone — for the callers that only draw a
- * preview from it and do not decide anything.
- */
-export function applyElementChange(tracks, trackId, elIdx, patch) {
-  return planElementChange(tracks, [], trackId, elIdx, patch).tracks
-}
-
-/** Change only the length (interactive length edit). */
-export function applyLengthChange(tracks, trackId, elIdx, newLength) {
-  return applyElementChange(tracks, trackId, elIdx, { length: newLength })
-}

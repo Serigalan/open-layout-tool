@@ -105,7 +105,7 @@ const SHAPES = {
 }
 
 /** The SDF image of one shape, as the `{ width, height, data }` addImage takes. */
-export function sdfImage({ reach, distance }) {
+function sdfImage({ reach, distance }) {
   // Square, centred on the point, with room for the stroke and the ramp around it.
   const box = 2 * Math.ceil(reach + MARKER_STROKE / 2 + RAMP_OUTSIDE)
   const size = box * PIXEL_RATIO

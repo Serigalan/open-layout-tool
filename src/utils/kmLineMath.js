@@ -19,7 +19,7 @@ export function toMercator(lon, lat) {
   return [lon / 360, Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) / (2 * Math.PI)]
 }
 
-export function fromMercator(x, y) {
+function fromMercator(x, y) {
   return [x * 360, (Math.atan(Math.sinh(y * 2 * Math.PI)) * 180) / Math.PI]
 }
 

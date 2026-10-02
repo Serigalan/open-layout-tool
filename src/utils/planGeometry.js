@@ -42,7 +42,7 @@ function dirOf(bearing) {
 }
 
 /** Tangent bearing of an element at station `s` along it. */
-export function tangentAt(el, s) {
+function tangentAt(el, s) {
   if (isTransition(el) && el.r1 !== undefined) {
     return transitionBearingAtUtm(el.bearing, el.length, el.r1, el.r2 ?? null, el.transitionType, s)
   }
@@ -94,7 +94,7 @@ function transitionCommands(startUtm, el) {
  * The last vertex is snapped to the stored end node when the two agree to
  * within JOIN_TOL, so a drawn chain joins exactly where the data says it does.
  */
-export function elementPathUtm(el, epsg) {
+function elementPathUtm(el, epsg) {
   const coords = el.geometry?.coordinates ?? []
   const start = nodeUtm(el.startNode, coords[0], epsg)
 

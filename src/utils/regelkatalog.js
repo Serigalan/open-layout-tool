@@ -117,7 +117,7 @@ function resolveFrom(from, providers) {
  * the language evaluates it itself so that only the chosen branch is computed
  * (see ruleExpr.js).
  */
-export function catalogFunctions({ inContext = () => false, physics = {} } = {}) {
+function catalogFunctions({ inContext = () => false, physics = {} } = {}) {
   return {
     min: (...xs) => Math.min(...xs),
     max: (...xs) => Math.max(...xs),

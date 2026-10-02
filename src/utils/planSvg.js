@@ -105,7 +105,3 @@ export function renderSvg(plan, index = 0, { standalone = false } = {}) {
   return standalone ? `<?xml version="1.0" encoding="UTF-8"?>\n${svg}` : svg
 }
 
-/** Every sheet of a plan as its own SVG document. */
-export function renderSvgSheets(plan, opts) {
-  return plan.sheets.map((_, i) => renderSvg(plan, i, opts))
-}

@@ -24,7 +24,7 @@ export function openDatabase(file) {
  * Apply the numbered SQL files under migrations/ that this database has not
  * seen, each in a transaction of its own, in order.
  */
-export function migrate(db) {
+function migrate(db) {
   db.exec(`CREATE TABLE IF NOT EXISTS schema_migration (
     version    INTEGER PRIMARY KEY,
     name       TEXT NOT NULL,
