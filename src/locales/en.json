@@ -1182,5 +1182,17 @@
   "legend_tracks": "Tracks",
   "legend_preview": "Preview",
   "legend_selected": "Picked",
-  "legend_changed": "Just changed"
+  "legend_changed": "Just changed",
+  "service_server": "Project server",
+  "service_optimizer": "Optimizer service (MDB, DGM1)",
+  "service_terrain": "Terrain DGM5 (BKG)",
+  "service_ok": "reachable",
+  "service_down": "not reachable",
+  "service_unknown": "not asked yet",
+  "service_line": "{name}: {state} ({at})",
+  "service_recheck": "Click to check again.",
+  "service_needs_optimizer": "The optimizer service cannot be reached – an MDB file cannot be converted now.",
+  "run_elapsed": "{s} s",
+  "btn_abort": "Stop",
+  "run_aborted": "Stopped."
 }

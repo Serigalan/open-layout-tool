@@ -9,11 +9,13 @@ import { loadRegionalGrids, loadedRegionalGrids } from '../ntv2Grid'
  * both go on converting alike. Where workers are not to be had (the tests) it
  * runs in place.
  */
-export async function importMdb({ fill, ...args }) {
+export async function importMdb({ fill, signal, ...args }) {
   if (typeof Worker === 'undefined') return runMdbImport({ ...args, fill })
   const worker = new Worker(new URL('./mdbWorker.js', import.meta.url), { type: 'module' })
   try {
     const reply = await new Promise((resolve, reject) => {
+      // Stopped from the page: the worker goes, and with it whatever it was doing.
+      signal?.addEventListener('abort', () => reject(new DOMException('stopped', 'AbortError')), { once: true })
       worker.onmessage = (e) => resolve(e.data)
       worker.onerror = (e) => reject(new Error(e.message || 'worker failed'))
       worker.postMessage({ ...args, base: document.baseURI, grids: loadedRegionalGrids().map(g => g.key) })

@@ -9,6 +9,8 @@ import FilePickButton from '../../form/FilePickButton'
 import MessageList from '../../form/MessageList'
 import ExchangeSection from './ExchangeSection'
 import useMdbFile from './useMdbFile'
+import useServiceHealth from '../../../hooks/useServiceHealth'
+import useElapsed from '../../../hooks/useElapsed'
 
 /** The DB_REF planes an import can write. */
 const DBREF_OPTIONS = EPSG_OPTIONS.filter(o => o.code >= 5681 && o.code <= 5685)
@@ -26,6 +28,9 @@ export default function MdbSection({ dbref = false, onReport }) {
   const mdb = useMdbFile()
   const [withSwitches, setWithSwitches] = useState(true)
   const [target, setTarget] = useState('5684')
+  // The conversion needs the optimizer service; without it the section says so (R10.12).
+  const optimizerDown = useServiceHealth().optimizer.ok === false
+  const elapsed = useElapsed(mdb.busy)
 
   const importIt = async () => {
     const payload = mdb.payloadRef.current
@@ -34,7 +39,7 @@ export default function MdbSection({ dbref = false, onReport }) {
     try {
       const { notes, counts, commit } = await importMdb({
         payload, strecke: mdb.strecke, withSwitches, target: dbref ? Number(target) : null,
-        existing: { tracks: loadTracks(), switches: loadSwitches() }, fill,
+        existing: { tracks: loadTracks(), switches: loadSwitches() }, fill, signal: mdb.startRun(),
       })
       // Every import leaves its report behind, whether it placed anything or
       // not — that is the run whose messages someone comes back to.
@@ -46,7 +51,7 @@ export default function MdbSection({ dbref = false, onReport }) {
       // One commit, one undo step — a whole database is thousands of tracks.
       if (commit) commitImport(commit)
     } catch (err) {
-      mdb.setErrors([`${t('import_parse_error')}: ${err.message}`])
+      mdb.setErrors([err?.name === 'AbortError' ? t('run_aborted') : `${t('import_parse_error')}: ${err.message}`])
     } finally {
       mdb.setBusy(false)
     }
@@ -55,9 +60,18 @@ export default function MdbSection({ dbref = false, onReport }) {
   return (
     <ExchangeSection title={t(dbref ? 'data_exchange_dbref' : 'data_exchange_mdb')}
       description={t(dbref ? 'data_exchange_dbref_desc' : 'data_exchange_mdb_desc')}>
-      <FilePickButton accept=".mdb,.MDB,.accdb,application/x-msaccess" disabled={!project || mdb.busy} onFile={mdb.read}>
+      {optimizerDown && <p className="msg-warn msg-small">{t('service_needs_optimizer')}</p>}
+      <FilePickButton accept=".mdb,.MDB,.accdb,application/x-msaccess" disabled={!project || mdb.busy || optimizerDown}
+        title={optimizerDown ? t('service_needs_optimizer') : undefined} onFile={mdb.read}>
         {mdb.busy ? t('data_exchange_mdb_reading') : t('data_exchange_mdb_choose')}
       </FilePickButton>
+      {/* A run of minutes says how long it has been going, and can be stopped. */}
+      {mdb.busy && (
+        <div className="run-status">
+          <span>{fill('run_elapsed', { s: elapsed })}</span>
+          <button type="button" className="link-btn" onClick={mdb.stop}>{t('btn_abort')}</button>
+        </div>
+      )}
       {mdb.counts && <p className="selecting-hint">{fill('data_exchange_mdb_counts', mdb.counts)}</p>}
       {mdb.strecken.length > 0 && (
         <>

@@ -866,3 +866,4 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
   .sidebar-secondary { width: 280px; padding: 18px 14px; }
   .panel-content { margin: -18px -14px; padding: 18px 14px; }
 }
+.run-status { display: flex; gap: var(--space-5); align-items: center; font-size: var(--fs-s); color: var(--color-text-soft); margin-top: var(--space-3); }

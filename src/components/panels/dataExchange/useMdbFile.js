@@ -13,6 +13,7 @@ import { useI18n } from '../../../locales/i18nContext'
 export default function useMdbFile() {
   const { t } = useI18n()
   const payloadRef = useRef(null)
+  const abortRef = useRef(null)   // the run under way, to stop it (R10.12)
   const [name, setName] = useState('')
   const [strecken, setStrecken] = useState([])
   const [strecke, setStrecke] = useState('')
@@ -24,7 +25,8 @@ export default function useMdbFile() {
     setErrors([]); setBusy(true); setStrecken([]); setCounts(null)
     setName(file.name)
     try {
-      const payload = parseMdbPayload(await convertMdbOnServer(file))
+      abortRef.current = new AbortController()
+      const payload = parseMdbPayload(await convertMdbOnServer(file, { signal: abortRef.current.signal }))
       payloadRef.current = payload
       setCounts(payload.elements.length ? {
         elements: payload.elements.length, tracks: payload.tracks.length, nodes: payload.nodes.length,
@@ -35,6 +37,7 @@ export default function useMdbFile() {
       if (!list.length) setErrors([t('data_exchange_mdb_err_empty')])
     } catch (err) {
       payloadRef.current = null
+      if (err?.name === 'AbortError') { setErrors([t('run_aborted')]); return }
       const code = err instanceof OptimizerError ? err.code : 'internal'
       setErrors([t(`data_exchange_mdb_err_${code}`) ?? code, ...(err?.detail ? [err.detail] : [])])
     } finally {
@@ -42,5 +45,9 @@ export default function useMdbFile() {
     }
   }
 
-  return { payloadRef, name, strecken, strecke, setStrecke, counts, errors, setErrors, busy, setBusy, read }
+  /** A new run that can be stopped: its signal. */
+  const startRun = () => { abortRef.current = new AbortController(); return abortRef.current.signal }
+  const stop = () => abortRef.current?.abort()
+
+  return { payloadRef, startRun, stop, name, strecken, strecke, setStrecke, counts, errors, setErrors, busy, setBusy, read }
 }

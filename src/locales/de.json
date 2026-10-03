@@ -1182,5 +1182,17 @@
   "legend_tracks": "Gleise",
   "legend_preview": "Vorschau",
   "legend_selected": "Ausgewählt",
-  "legend_changed": "Gerade geändert"
+  "legend_changed": "Gerade geändert",
+  "service_server": "Projektserver",
+  "service_optimizer": "Optimierdienst (MDB, DGM1)",
+  "service_terrain": "Gelände DGM5 (BKG)",
+  "service_ok": "erreichbar",
+  "service_down": "nicht erreichbar",
+  "service_unknown": "noch nicht gefragt",
+  "service_line": "{name}: {state} ({at})",
+  "service_recheck": "Klicken, um erneut zu prüfen.",
+  "service_needs_optimizer": "Der Optimierdienst ist nicht erreichbar – eine MDB-Datei kann gerade nicht umgewandelt werden.",
+  "run_elapsed": "{s} s",
+  "btn_abort": "Abbrechen",
+  "run_aborted": "Abgebrochen."
 }

@@ -78,3 +78,13 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 .map-legend-row { display: flex; align-items: center; gap: var(--space-4); line-height: 1.6; }
+
+/* Whether the services are there (R10.12): three dots at the foot of the map. */
+.service-status {
+  position: absolute; left: 10px; bottom: 10px; z-index: 20;
+  display: flex; gap: 5px; padding: 5px 7px; cursor: pointer;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px;
+}
+.service-dot { width: 8px; height: 8px; border-radius: 50%; background: #bbb; }
+.service-dot.ok { background: #2e7d32; }
+.service-dot.down { background: var(--color-error); }

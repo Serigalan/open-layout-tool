@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadTracks, updateTrack } from '../../storage'
 import { trackLabel } from '../../utils/trackModel'
 import {
@@ -15,6 +15,7 @@ import usePreview from '../../map/usePreview'
 import useMapPick from '../../map/useMapPick'
 import { PALETTE } from '../../styles/palette'
 import CommitBar from '../form/CommitBar'
+import useElapsed from '../../hooks/useElapsed'
 import OptimizeSettings from './optimize/OptimizeSettings'
 import OptimizeResult from './optimize/OptimizeResult'
 
@@ -48,7 +49,7 @@ function previewGeoJSON(elements) {
 // it opens the panel straight in a mode and takes the back button back to its
 // own menu. Standalone, the panel starts in its own menu as before.
 export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onShowRegelwerk }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const map = useMap()
   const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element'
   const mode = page
@@ -66,6 +67,8 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
   const [running, setRunning]     = useState(false)
   const [run, setRun]             = useState(null)    // { key, result? , error? }
   const [reachable, setReachable] = useState(null)    // null → not asked yet
+  const abortRef = useRef(null)   // the run under way, to stop it (R10.12)
+  const elapsed = useElapsed(running)
 
   // A result only counts for the parameters it was computed with — derived
   // from the parameter key rather than through an invalidation effect.
@@ -142,12 +145,14 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
     const key = runKey
     setRun(null)
     setRunning(true)
-    optimizeOnServer(optimizeRequest(track, { ...settings, elementIdx: mode === 'element' ? elementIdx : null }))
+    abortRef.current = new AbortController()
+    optimizeOnServer(optimizeRequest(track, { ...settings, elementIdx: mode === 'element' ? elementIdx : null }), { signal: abortRef.current.signal })
       .then(res => {
         setRun({ key, result: { ...res, elements: reconstructElements(res.elements, track.epsg) } })
         setReachable(true)
       })
       .catch(err => {
+        if (err?.name === 'AbortError') { setRun({ key, error: t('run_aborted') }); return }
         const code = err instanceof OptimizerError ? err.code : 'unavailable'
         setRun({ key, error: optimizeErrorText(t, code, err.detail) })
         if (code === 'unavailable') setReachable(false)
@@ -209,7 +214,12 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
         {reachable === false
           ? <p className="msg-error">{t('optimize_err_unavailable')}</p>
           : <button className="panel-btn panel-btn-full" onClick={handleRun} disabled={running || !trackId}>{t('optimize_run')}</button>}
-        {running && <p className="msg-info">{t('optimize_running')}</p>}
+        {running && (
+          <div className="run-status">
+            <span>{t('optimize_running')} {fill('run_elapsed', { s: elapsed })}</span>
+            <button type="button" className="link-btn" onClick={() => abortRef.current?.abort()}>{t('btn_abort')}</button>
+          </div>
+        )}
         {runError && <p className="msg-error">{runError}</p>}
         {result && <OptimizeResult result={result} />}
       </div>

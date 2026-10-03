@@ -19,6 +19,7 @@ import { panelById } from './panels'
 import Sidebar from './Sidebar'
 import StepNotice from './StepNotice'
 import MapLegend from './MapLegend'
+import ServiceStatus from './ServiceStatus'
 import usePanelWidth from './usePanelWidth'
 import RuleFieldsScope from '../components/form/RuleFieldsScope'
 import ConfirmModal from '../components/ConfirmModal'
@@ -328,6 +329,7 @@ export default function MapWorkspace({ wc, onHome }) {
           {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} />}
           <StepNotice />
           <MapLegend color={color} />
+          <ServiceStatus />
 
           <Suspense fallback={null}>
           {overlay?.kind === 'trackTable' && <TrackTableOverlay track={overlay.track}
