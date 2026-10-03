@@ -1162,5 +1162,12 @@
   "notice_show": "Zeigen",
   "notice_undone": "Zurückgenommen: {step}",
   "notice_redone": "Wiederholt: {step}",
-  "commit_blocked_rules": "Eine Regelprüfung meldet einen Fehler – siehe oben"
+  "commit_blocked_rules": "Eine Regelprüfung meldet einen Fehler – siehe oben",
+  "search_tracks": "Name, Strecke, Bahnhof…",
+  "search_kind_all": "Alle Gleise",
+  "search_kind_line": "Streckengleise",
+  "search_kind_station": "Bahnhofsgleise",
+  "search_none": "Kein Treffer.",
+  "search_switches": "Weiche suchen: Name oder Bauform…",
+  "search_count": "{n} von {total}"
 }

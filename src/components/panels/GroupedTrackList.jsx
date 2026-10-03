@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { groupHeading, groupTracks, trackListLabel } from '../../utils/trackGroups'
+import { trackMatches } from '../../utils/search'
+import { fitToTracks } from '../../utils/mapRenderUtils'
 import { useI18n } from '../../locales/i18nContext'
+import { useMap } from '../../map/MapContext'
 
 /**
  * A project's tracks under the line or station they belong to (see
@@ -11,11 +14,42 @@ import { useI18n } from '../../locales/i18nContext'
  * `isActive(track)` marks a track, `onPick(track)` is what a click on one does.
  * With `onPickGroup(group)` the header carries a button that picks the group
  * as a whole — the list of a form that takes several tracks at once.
+ *
+ * Above it a search (R10.6): any part of a name, line number or station, and
+ * the kind of track. A search that leaves one track zooms the map to it.
  */
-export default function GroupedTrackList({ tracks, isActive, onPick, onPickGroup }) {
-  const { t } = useI18n()
+export default function GroupedTrackList({ tracks: all, isActive, onPick, onPickGroup }) {
+  const { t, fill } = useI18n()
+  const map = useMap()
   const [folded, setFolded] = useState(() => new Set())
+  const [query, setQuery] = useState('')
+  const [kind, setKind] = useState('')
+  const searching = !!(query.trim() || kind)
+  const tracks = searching ? all.filter(tr => trackMatches(tr, query, kind)) : all
   const groups = groupTracks(tracks)
+
+  // One track found: the map goes there.
+  const only = query.trim() && tracks.length === 1 ? tracks[0] : null
+  useEffect(() => {
+    if (only) fitToTracks(map?.current, [only], { maxZoom: 17 })
+  }, [only, map])
+
+  const search = (
+    <div className="track-search">
+      <input type="search" value={query} placeholder={t('search_tracks')} aria-label={t('search_tracks')}
+        onChange={e => setQuery(e.target.value)} />
+      <select value={kind} onChange={e => setKind(e.target.value)} aria-label={t('type')}>
+        <option value="">{t('search_kind_all')}</option>
+        <option value="line">{t('search_kind_line')}</option>
+        <option value="station">{t('search_kind_station')}</option>
+      </select>
+      {searching && (
+        <span className="track-search-count">
+          {tracks.length ? fill('search_count', { n: tracks.length, total: all.length }) : t('search_none')}
+        </span>
+      )}
+    </div>
+  )
 
   const item = (track) => (
     <button
@@ -27,8 +61,9 @@ export default function GroupedTrackList({ tracks, isActive, onPick, onPickGroup
     </button>
   )
 
+  if (!groups.length) return search
   if (groups.length === 1 && !groups[0].kind) {
-    return <div className="create-element-options">{groups[0].tracks.map(item)}</div>
+    return <>{search}<div className="create-element-options">{groups[0].tracks.map(item)}</div></>
   }
 
   const toggle = (key) => setFolded(prev => {
@@ -39,9 +74,12 @@ export default function GroupedTrackList({ tracks, isActive, onPick, onPickGroup
   })
 
   return (
+    <>
+    {search}
     <div className="track-groups">
       {groups.map((group) => {
-        const open = !folded.has(group.key)
+        // A search opens every group it found something in.
+        const open = searching || !folded.has(group.key)
         const activeCount = isActive ? group.tracks.filter(isActive).length : 0
         return (
           <div key={group.key} className="track-group">
@@ -64,5 +102,6 @@ export default function GroupedTrackList({ tracks, isActive, onPick, onPickGroup
         )
       })}
     </div>
+    </>
   )
 }

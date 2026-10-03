@@ -838,3 +838,10 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 .form-field:has(.field-rule.rule-sev-warning) input,
 .form-field:has(.field-rule.rule-sev-approval) input,
 .form-field:has(.field-rule.rule-sev-special_case) input { border-color: var(--color-warn, #d68910); }
+
+/* The search above a track or switch list (R10.6). */
+.track-search { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); }
+.track-search input[type="search"] { flex: 1 1 140px; min-width: 0; }
+.track-search select { flex: 0 1 auto; }
+.track-search-count { flex-basis: 100%; font-size: var(--fs-xs); color: var(--color-text-soft); }
+.track-search-hits { flex-basis: 100%; }

@@ -5,6 +5,7 @@ import SwitchOnTrackForm from './SwitchOnTrackForm'
 import CrossingForm from './CrossingForm'
 import CrossingOnTrackForm from './CrossingOnTrackForm'
 import TrackLinkForm from './TrackLinkForm'
+import SwitchSearch from './SwitchSearch'
 import {
   BackIcon, SwitchStraightIcon, SwitchCurvedIcon, SwitchOnTrackIcon, SwitchConnectionIcon,
   CrossingIcon, CrossingSwitchIcon, CrossingOnTrackIcon, SwitchLinkIcon,
@@ -97,6 +98,7 @@ export default function ConnectSwitchPanel() {
   return (
     <>
       <h2>{t('connect_switch')}</h2>
+      <SwitchSearch />
       <div className="create-element-options">
         <button className="create-element-btn" onClick={() => setPage('straight')}>
           <SwitchStraightIcon />

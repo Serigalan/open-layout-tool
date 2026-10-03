@@ -1162,5 +1162,12 @@
   "notice_show": "Show",
   "notice_undone": "Undone: {step}",
   "notice_redone": "Redone: {step}",
-  "commit_blocked_rules": "A rule check reports an error – see the findings above"
+  "commit_blocked_rules": "A rule check reports an error – see the findings above",
+  "search_tracks": "Name, line, station…",
+  "search_kind_all": "All tracks",
+  "search_kind_line": "Line tracks",
+  "search_kind_station": "Station tracks",
+  "search_none": "No match.",
+  "search_switches": "Find a switch: name or form…",
+  "search_count": "{n} of {total}"
 }
