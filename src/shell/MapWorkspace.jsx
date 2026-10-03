@@ -3,13 +3,13 @@ import { useI18n } from '../locales/i18nContext'
 import { MapContext } from '../map/MapContext'
 import useMapInstance, { ELEVATION_BASEMAPS } from '../map/useMapInstance'
 import { renderTracksOnMap, updateMapColors } from '../map/trackLayers'
-import { currentProject, currentWorkingCopy, deleteKmLine, loadSwitches, loadTracks, saveKmLine, undo } from '../storage'
-import { useCanUndo, useProject } from '../hooks/useStore'
+import { currentProject, currentWorkingCopy, deleteKmLine, loadSwitches, loadTracks, redo, saveKmLine, undo } from '../storage'
+import { useProject } from '../hooks/useStore'
 import { FILTER_NONE } from '../map/pick'
 import { highlightTopology, zoomToTopologyTracks } from '../utils/topologyLayer'
 import { selectionHighlight } from '../utils/topologyGraph'
 import { ensureKmLines } from '../utils/kmLineSource'
-import { isProjectUndo } from '../utils/keyboard'
+import { isProjectRedo, isProjectUndo } from '../utils/keyboard'
 import { loadSettings, saveSettings } from '../utils/settings'
 import useKmLineHover from '../hooks/useKmLineHover'
 import useKmOverlays from './useKmOverlays'
@@ -45,7 +45,6 @@ const DEFAULT_COLOR = PALETTE.primaryDefault
 export default function MapWorkspace({ wc, onHome }) {
   const { t, language } = useI18n()
   const project = useProject()
-  const undoAvailable = useCanUndo()
   const projectRef = useRef(project)
   useEffect(() => { projectRef.current = project }, [project])
 
@@ -240,6 +239,9 @@ export default function MapWorkspace({ wc, onHome }) {
       if (isProjectUndo(e)) {
         e.preventDefault()
         undo()
+      } else if (isProjectRedo(e)) {
+        e.preventDefault()
+        redo()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -252,7 +254,7 @@ export default function MapWorkspace({ wc, onHome }) {
   return (
     <MapContext.Provider value={mapCtx}>
       <div className="layout">
-        <Sidebar active={activePanel} onSelect={selectPanel} onUndo={undo} undoAvailable={undoAvailable} onHome={goHome} />
+        <Sidebar active={activePanel} onSelect={selectPanel} onUndo={undo} onRedo={redo} onHome={goHome} />
 
         {PanelComponent && (
           <aside className="sidebar-secondary">

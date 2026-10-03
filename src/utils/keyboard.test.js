@@ -22,3 +22,16 @@ describe('keyboard shortcuts (R0.6)', () => {
     expect(isProjectUndo(key({ ctrlKey: false }))).toBe(false)
   })
 })
+
+describe('redo', () => {
+  it('is Ctrl+Y or Ctrl+Shift+Z outside a field', async () => {
+    const { isProjectRedo } = await import('./keyboard')
+    const ev = (key, mods = {}, target = { tagName: 'DIV' }) => ({ key, target, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods })
+    expect(isProjectRedo(ev('y', { ctrlKey: true }))).toBe(true)
+    expect(isProjectRedo(ev('Z', { ctrlKey: true, shiftKey: true }))).toBe(true)
+    expect(isProjectRedo(ev('z', { metaKey: true, shiftKey: true }))).toBe(true)
+    expect(isProjectRedo(ev('z', { ctrlKey: true }))).toBe(false)
+    expect(isProjectRedo(ev('y', { ctrlKey: true }, { tagName: 'INPUT' }))).toBe(false)
+    expect(isProjectRedo(ev('y'))).toBe(false)
+  })
+})

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { canUndo, currentProject, subscribe } from '../storage'
+import { currentProject, redoStep, subscribe, undoStep } from '../storage'
 
 // The open project, read through a subscription (R1.4): a component that uses
 // one of these renders again after every write and every undo, and only reads
@@ -22,5 +22,6 @@ const platformsOf = part('platforms')
 export const useTracks = () => useSyncExternalStore(subscribe, tracksOf, tracksOf)
 export const useSwitches = () => useSyncExternalStore(subscribe, switchesOf, switchesOf)
 export const usePlatforms = () => useSyncExternalStore(subscribe, platformsOf, platformsOf)
-/** Whether there is a step to take back. */
-export const useCanUndo = () => useSyncExternalStore(subscribe, canUndo, canUndo)
+/** The step undo would take back and the one redo would bring again: { before, after }, or null. */
+export const useUndoStep = () => useSyncExternalStore(subscribe, undoStep, undoStep)
+export const useRedoStep = () => useSyncExternalStore(subscribe, redoStep, redoStep)

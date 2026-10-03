@@ -500,6 +500,14 @@ export const UndoIcon = () => (
   </SidebarIcon>
 )
 
+/** The undo arrow, mirrored. */
+export const RedoIcon = () => (
+  <SidebarIcon>
+    <path d="M15 14 L20 9 L15 4" />
+    <path d="M20 9 H9.5 A5.5 5.5 0 0 0 9.5 20 H13" />
+  </SidebarIcon>
+)
+
 export const InfoIcon = () => (
   <SidebarIcon>
     <circle cx="12" cy="12" r="9.5" />

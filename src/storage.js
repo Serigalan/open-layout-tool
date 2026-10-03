@@ -25,6 +25,8 @@ let _opened = false
 let _wc = null
 const MAX_UNDO = 20
 let _undoStack = []
+// What undo took back, newest last, for redo (R10.1); any new step empties it.
+let _redoStack = []
 let _undoDepth = 0
 // The id log (decision 93): what splitting and joining made of which track ids
 // since the working copy's base — [{ from, to: [ids] }]. A merge reads it to
@@ -84,7 +86,7 @@ function mutate(fn, { undo = true } = {}) {
   const before = _project, logBefore = _idLog
   const next = fn(_project)
   if (!next || next === before) { _idLog = logBefore; return true }
-  if (undo) pushUndo(before, logBefore)
+  if (undo) { pushUndo(before, logBefore); _redoStack = [] }
   setProject(withPrunedMarks(next))
   return true
 }
@@ -125,6 +127,7 @@ export function openWorkingCopy({ variantId, project, base, basePayload, idLog =
   _wc = { variantId, projectId: project.id, base, basePayload }
   _idLog = [...idLog]
   _undoStack = []
+  _redoStack = []
   setProject(withPrunedMarks(hydrateProjects([structuredClone(project)])[0]))
   return _project
 }
@@ -138,6 +141,7 @@ export function openProject(project) {
   _wc = null
   _idLog = []
   _undoStack = []
+  _redoStack = []
   setProject(withPrunedMarks(project))
   return _project
 }
@@ -173,6 +177,7 @@ export async function closeWorkingCopy() {
   _wc = null
   _idLog = []
   _undoStack = []
+  _redoStack = []
   notify()
 }
 
@@ -197,6 +202,7 @@ export async function discardWorkingCopy(variantId) {
 /** Empty the undo stack. */
 export function clearUndo() {
   _undoStack = []
+  _redoStack = []
   notify()
 }
 
@@ -254,7 +260,7 @@ export function withUndo(fn) {
     return fn()
   } finally {
     _undoDepth--
-    if (_undoDepth === 0 && _project !== before) pushUndo(before, logBefore)
+    if (_undoDepth === 0 && _project !== before) { pushUndo(before, logBefore); _redoStack = [] }
   }
 }
 
@@ -324,12 +330,50 @@ export function canUndo() {
 
 export function undo() {
   if (_undoStack.length === 0) return false
-  // The header is not part of the snapshot, so it is kept as it is now.
+  _redoStack.push({ project: _project, idLog: _idLog })
+  restore(_undoStack.pop())
+  return true
+}
+
+export function canRedo() {
+  return _redoStack.length > 0
+}
+
+/** Take the last undo back again (R10.1). */
+export function redo() {
+  if (_redoStack.length === 0) return false
+  _undoStack.push({ project: _project, idLog: _idLog })
+  restore(_redoStack.pop())
+  return true
+}
+
+/**
+ * The step an undo would take back and the one a redo would bring again, as
+ * { before, after } — the two project states, for describing them (stepLabel).
+ * Null where there is none. The same objects while nothing changes, so a
+ * subscriber can hold on to them.
+ */
+export function undoStep() {
+  const top = _undoStack[_undoStack.length - 1]
+  if (!top) return null
+  if (_undoStepCache?.top !== top || _undoStepCache.after !== _project) _undoStepCache = { top, after: _project, step: { before: top.project, after: _project } }
+  return _undoStepCache.step
+}
+export function redoStep() {
+  const top = _redoStack[_redoStack.length - 1]
+  if (!top) return null
+  if (_redoStepCache?.top !== top || _redoStepCache.before !== _project) _redoStepCache = { top, before: _project, step: { before: _project, after: top.project } }
+  return _redoStepCache.step
+}
+let _undoStepCache = null
+let _redoStepCache = null
+
+// A snapshot back into place. The header is not part of the snapshots, so it
+// is kept as it is now.
+function restore({ project, idLog }) {
   const header = _project?.planHeader
-  const { project, idLog } = _undoStack.pop()
   _idLog = idLog
   setProject(project.planHeader === header ? project : { ...project, planHeader: header })
-  return true
 }
 
 /** Merge fields into the project record (used for the OSRD infra passthrough). */

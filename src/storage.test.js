@@ -6,7 +6,7 @@ import {
   saveEndMark, loadEndMarks, deleteEndMark, deleteElement, reverseTrackDirection, deleteTrack,
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
   openWorkingCopy, currentWorkingCopy, markCheckedIn, adoptWorkingCopy, closeWorkingCopy, currentProject,
-  addElementToTrack,
+  addElementToTrack, redo, canRedo, undoStep, redoStep,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 
@@ -308,5 +308,50 @@ describe('the store works on the open project, immutably (R1.3)', () => {
     deleteElement('missing', 0)
     reverseTrackDirection('missing')
     expect(canUndo()).toBe(false)
+  })
+})
+
+describe('redo (R10.1)', () => {
+  const tr = (id) => ({ id, name: id, epsg: 25832, elements: [] })
+
+  it('brings back what undo took, and a new step forgets it', () => {
+    openProject({ id: 'p', title: 'P', tracks: [], switches: [], platforms: [] })
+    saveTrack(tr('a'))
+    saveTrack(tr('b'))
+    const withB = currentProject()
+    expect(undo()).toBe(true)
+    expect(loadTracks().map(t => t.id)).toEqual(['a'])
+    expect(canRedo()).toBe(true)
+    expect(redoStep()).toEqual({ before: currentProject(), after: withB })
+    expect(redo()).toBe(true)
+    expect(currentProject()).toBe(withB)
+    expect(canRedo()).toBe(false)
+    undo()
+    saveTrack(tr('c'))
+    expect(canRedo()).toBe(false)
+    expect(redo()).toBe(false)
+    expect(loadTracks().map(t => t.id)).toEqual(['a', 'c'])
+  })
+
+  it('walks back and forth over several steps', () => {
+    openProject({ id: 'p', title: 'P', tracks: [], switches: [], platforms: [] })
+    saveTrack(tr('a')); saveTrack(tr('b')); saveTrack(tr('c'))
+    undo(); undo()
+    expect(loadTracks().map(t => t.id)).toEqual(['a'])
+    redo()
+    expect(loadTracks().map(t => t.id)).toEqual(['a', 'b'])
+    redo()
+    expect(loadTracks().map(t => t.id)).toEqual(['a', 'b', 'c'])
+    expect(canUndo()).toBe(true)
+  })
+
+  it('names the step it would take, the same object while nothing changes', () => {
+    openProject({ id: 'p', title: 'P', tracks: [], switches: [], platforms: [] })
+    expect(undoStep()).toBe(null)
+    saveTrack(tr('a'))
+    const step = undoStep()
+    expect(step.after.tracks.map(t => t.id)).toEqual(['a'])
+    expect(step.before.tracks).toEqual([])
+    expect(undoStep()).toBe(step)
   })
 })

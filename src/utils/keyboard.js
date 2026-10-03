@@ -18,3 +18,10 @@ export function isProjectUndo(e) {
   return (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey
     && (e.key === 'z' || e.key === 'Z') && !isTypingTarget(e.target)
 }
+
+/** Ctrl/Cmd+Y, or Ctrl/Cmd+Shift+Z, outside a field — the project's redo (R10.1). */
+export function isProjectRedo(e) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || isTypingTarget(e.target)) return false
+  const key = e.key.toLowerCase()
+  return (key === 'y' && !e.shiftKey) || (key === 'z' && e.shiftKey)
+}
