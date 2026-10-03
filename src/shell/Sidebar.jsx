@@ -1,45 +1,62 @@
+import { useState } from 'react'
 import { useI18n } from '../locales/i18nContext'
 import { HomeIcon, RedoIcon, UndoIcon } from '../components/icons'
 import { useRedoStep, useUndoStep } from '../hooks/useStore'
 import { describeStep } from '../utils/stepLabel'
+import { loadSettings, saveSettings } from '../utils/settings'
 import { PANELS } from './panels'
 
-/** The sidebar of the map view, made from the panel register (R2.3). */
+/**
+ * The sidebar of the map view, made from the panel register (R2.3): the work
+ * steps in their order, a line between them, and on request their names
+ * beside the symbols (R10.7) — remembered on this device.
+ */
 export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
   const { t, fill } = useI18n()
+  const [labels, setLabels] = useState(() => !!loadSettings().sidebarLabels)
+  const toggleLabels = () => setLabels(on => { saveSettings({ sidebarLabels: !on }); return !on })
   // What the two buttons would do, said on them (R10.1).
   const undoStep = useUndoStep()
   const redoStep = useRedoStep()
   const stepText = (step) => { const { key, params } = describeStep(step.before, step.after); return fill(key, params) }
   const undoTitle = undoStep ? fill('tooltip_undo_step', { step: stepText(undoStep) }) : t('tooltip_undo')
   const redoTitle = redoStep ? fill('tooltip_redo_step', { step: stepText(redoStep) }) : t('tooltip_redo')
-  const button = (panel) => {
-    const Icon = panel.icon
+
+  const iconButton = ({ key, icon, title, onClick, disabled, active: on, pressed }) => {
+    const Icon = icon
     return (
-      <button key={panel.id} type="button"
-        className={`sidebar-icon-btn ${active === panel.id ? 'active' : ''}`}
-        onClick={() => onSelect(panel.id)} title={t(panel.titleKey)} aria-label={t(panel.titleKey)}
-        aria-pressed={active === panel.id}>
+      <button key={key} type="button" className={`sidebar-icon-btn${on ? ' active' : ''}`}
+        onClick={onClick} disabled={disabled} title={title} aria-label={title} aria-pressed={pressed}>
         <Icon />
+        {labels && <span className="sidebar-label">{title}</span>}
       </button>
     )
   }
+  const panelButton = (panel) => iconButton({
+    key: panel.id, icon: panel.icon, title: t(panel.titleKey), onClick: () => onSelect(panel.id),
+    active: active === panel.id, pressed: active === panel.id,
+  })
+  // A line wherever the work step changes.
+  const withDividers = (panels) => panels.flatMap((panel, i) => (
+    i > 0 && panel.group !== panels[i - 1].group
+      ? [<hr key={`d-${panel.id}`} className="sidebar-divider" />, panelButton(panel)]
+      : [panelButton(panel)]))
+
   return (
-    <aside className="sidebar-primary">
-      <div className="sidebar-top">{PANELS.filter(p => p.place === 'top').map(button)}</div>
+    <aside className={`sidebar-primary${labels ? ' with-labels' : ''}`}>
+      <div className="sidebar-top">
+        {withDividers(PANELS.filter(p => p.place === 'top'))}
+      </div>
       <div className="sidebar-bottom">
-        <button type="button" className="sidebar-icon-btn" onClick={onUndo} disabled={!undoStep}
-          title={undoTitle} aria-label={undoTitle}>
-          <UndoIcon />
+        {iconButton({ key: 'undo', icon: UndoIcon, title: undoTitle, onClick: onUndo, disabled: !undoStep })}
+        {iconButton({ key: 'redo', icon: RedoIcon, title: redoTitle, onClick: onRedo, disabled: !redoStep })}
+        {iconButton({ key: 'home', icon: HomeIcon, title: t('tooltip_home'), onClick: onHome })}
+        {PANELS.filter(p => p.place === 'bottom').map(panelButton)}
+        <button type="button" className="sidebar-label-toggle" onClick={toggleLabels}
+          aria-pressed={labels} title={t(labels ? 'sidebar_labels_hide' : 'sidebar_labels_show')}
+          aria-label={t(labels ? 'sidebar_labels_hide' : 'sidebar_labels_show')}>
+          <span aria-hidden="true">{labels ? '«' : '»'}</span>
         </button>
-        <button type="button" className="sidebar-icon-btn" onClick={onRedo} disabled={!redoStep}
-          title={redoTitle} aria-label={redoTitle}>
-          <RedoIcon />
-        </button>
-        <button type="button" className="sidebar-icon-btn" onClick={onHome} title={t('tooltip_home')} aria-label={t('tooltip_home')}>
-          <HomeIcon />
-        </button>
-        {PANELS.filter(p => p.place === 'bottom').map(button)}
       </div>
     </aside>
   )

@@ -516,6 +516,15 @@ export const InfoIcon = () => (
   </SidebarIcon>
 )
 
+// Check — a clipboard with its tick: the rules the design is held to (R10.7).
+export const CheckIcon = () => (
+  <SidebarIcon>
+    <path d="M9 4 H6 A2 2 0 0 0 4 6 V20 A2 2 0 0 0 6 22 H18 A2 2 0 0 0 20 20 V6 A2 2 0 0 0 18 4 H15" />
+    <path d="M9 2 H15 V6 H9 Z" />
+    <path d="M8 14 L11 17 L16 11" />
+  </SidebarIcon>
+)
+
 // Plan export — the printer the drawing goes out through.
 export const PlanExportIcon = () => (
   <SidebarIcon>

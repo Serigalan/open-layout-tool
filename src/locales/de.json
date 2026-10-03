@@ -1169,5 +1169,11 @@
   "search_kind_station": "Bahnhofsgleise",
   "search_none": "Kein Treffer.",
   "search_switches": "Weiche suchen: Name oder Bauform…",
-  "search_count": "{n} von {total}"
+  "search_count": "{n} von {total}",
+  "check_title": "Prüfen",
+  "check_hint": "Die Regeln, an denen sich der Entwurf messen lässt, und der Optimierer, der ihn daran hält.",
+  "check_optimize": "Optimieren",
+  "sidebar_labels_show": "Beschriftung zeigen",
+  "sidebar_labels_hide": "Beschriftung ausblenden",
+  "info_check": "Misst den Entwurf an den Regeln: die Physik und das Regelwerk, gegen die geprüft wird (je über der Karte geöffnet), und der Optimierer, der ein Gleis oder einen einzelnen Bogen innerhalb eines Korridors an das Regelwerk anpasst."
 }

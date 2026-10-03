@@ -1,7 +1,7 @@
 import {
   LayerIcon, TopologyIcon, PlaceIcon, ConnectSwitchIcon, SpliceElementIcon,
   EditElementIcon, ElevationIcon, StationIcon, DataExchangeIcon,
-  PlanExportIcon, ExternalLinkIcon,
+  PlanExportIcon, ExternalLinkIcon, CheckIcon,
 } from '../icons'
 import { OSRD_URL } from '../../utils/osrdExport'
 import { useI18n } from '../../locales/i18nContext'
@@ -27,11 +27,12 @@ const PANELS = [
   { Icon: LayerIcon,          title: 'tooltip_layers', desc: 'info_layers' },
   { Icon: TopologyIcon,       title: 'topology_title', desc: 'info_topology' },
   { Icon: PlaceIcon,          title: 'create_element', desc: ['info_places', 'info_connect'] },
-  { Icon: ConnectSwitchIcon,  title: 'connect_switch', desc: 'info_connect_switch' },
   { Icon: SpliceElementIcon,  title: 'splice_element', desc: ['info_splice', 'info_optimize'] },
+  { Icon: EditElementIcon,    title: 'edit', desc: 'info_edit' },
+  { Icon: ConnectSwitchIcon,  title: 'connect_switch', desc: 'info_connect_switch' },
   { Icon: ElevationIcon,      title: 'tooltip_elevation', desc: 'info_elevation' },
   { Icon: StationIcon,        title: 'platform_cross_section', desc: ['info_platform', 'info_cross_section'] },
-  { Icon: EditElementIcon,    title: 'edit', desc: 'info_edit' },
+  { Icon: CheckIcon,          title: 'check_title', desc: 'info_check' },
   { Icon: DataExchangeIcon,   title: 'data_exchange', desc: 'info_data' },
   { Icon: PlanExportIcon,     title: 'plan_title', desc: 'info_plan' },
 ]

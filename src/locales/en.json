@@ -1169,5 +1169,11 @@
   "search_kind_station": "Station tracks",
   "search_none": "No match.",
   "search_switches": "Find a switch: name or form…",
-  "search_count": "{n} of {total}"
+  "search_count": "{n} of {total}",
+  "check_title": "Check",
+  "check_hint": "The rules the design is held to, and the optimizer that holds it to them.",
+  "check_optimize": "Optimize",
+  "sidebar_labels_show": "Show labels",
+  "sidebar_labels_hide": "Hide labels",
+  "info_check": "Holds the design to the rules: the physics and the rulebook it is checked against (each opens over the map), and the optimizer that adjusts a track or a single curve within a corridor to the rulebook."
 }

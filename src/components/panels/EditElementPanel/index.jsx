@@ -12,13 +12,13 @@ import AssignTracksForm from './AssignTracksForm'
 import BufferStopForm from '../CreateElementPanel/BufferStopForm'
 import {
   BackIcon, EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
-  ChangeDirectionIcon, AssignTracksIcon, DeleteTrackIcon, DeleteSwitchIcon, PhysicsIcon, RegelwerkIcon,
+  ChangeDirectionIcon, AssignTracksIcon, DeleteTrackIcon, DeleteSwitchIcon,
   BufferStopIcon,
 } from '../../../components/icons'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick from '../../../map/useMapPick'
 
-export default function EditElementPanel({ trackTableId, onShowTrackTable, onShowPhysics, onShowRegelwerk, onCloseConstraints }) {
+export default function EditElementPanel({ trackTableId, onShowTrackTable, onCloseConstraints }) {
   const { t } = useI18n()
   const [page, setPage] = useState('menu')
 
@@ -183,23 +183,6 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onSho
         <button className="create-element-btn" onClick={() => goto('buffer_stop')}>
           <BufferStopIcon />
           {t('buffer_stop_edit')}
-        </button>
-      </div>
-      {/* Not an object on the map but the rules every object is held to, so
-          they sit apart from the menu above rather than among the tracks and
-          switches — pinned to the bottom of the panel (`margin-top: auto` in
-          a flex column that already reaches the bottom of the screen) rather
-          than just the last two entries in a list that might scroll. Each
-          opens its own popup, like the track editor: the tables are wider
-          than the sidebar. */}
-      <div className="edit-panel-footer">
-        <button className="create-element-btn" onClick={() => onShowPhysics?.()}>
-          <PhysicsIcon />
-          {t('constraints_physics')}
-        </button>
-        <button className="create-element-btn" onClick={() => onShowRegelwerk?.()}>
-          <RegelwerkIcon />
-          {t('constraints_regelwerk')}
         </button>
       </div>
     </>

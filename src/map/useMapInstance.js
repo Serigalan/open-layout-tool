@@ -35,8 +35,10 @@ export default function useMapInstance({ onStyleLoad }) {
   useEffect(() => { onStyleLoadRef.current = onStyleLoad })
   useEffect(() => { onElevationRange(setElevationRange) }, [])
 
+  const resizeRef = useRef(null)
   const mapContainer = useCallback((node) => {
     if (!node) {
+      resizeRef.current?.disconnect()
       map.current?.remove()
       map.current = null
       return
@@ -49,6 +51,10 @@ export default function useMapInstance({ onStyleLoad }) {
       zoom: 5,
     })
     map.current = m
+    // The map follows its pane, not only the window: the sidebar folds out,
+    // the panel is dragged wider (R10.7, R10.9).
+    resizeRef.current = new ResizeObserver(() => m.resize())
+    resizeRef.current.observe(node)
     // For browser checks in development: the map, to turn a track's
     // coordinates into a point on the screen.
     if (import.meta.env.DEV) window.__oltMap = m
