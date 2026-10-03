@@ -1177,5 +1177,10 @@
   "sidebar_labels_hide": "Hide labels",
   "info_check": "Holds the design to the rules: the physics and the rulebook it is checked against (each opens over the map), and the optimizer that adjusts a track or a single curve within a corridor to the rulebook.",
   "panel_fold": "Fold the panel away",
-  "panel_unfold": "Show the panel"
+  "panel_unfold": "Show the panel",
+  "legend_title": "Legend",
+  "legend_tracks": "Tracks",
+  "legend_preview": "Preview",
+  "legend_selected": "Picked",
+  "legend_changed": "Just changed"
 }

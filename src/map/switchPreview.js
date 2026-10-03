@@ -1,3 +1,4 @@
+import { PALETTE } from '../styles/palette'
 import { ZOOM_LINE_WIDTH } from './style'
 
 export const SWITCH_LINES_SOURCE = 'switch-preview-lines-source'
@@ -57,7 +58,7 @@ export const SWITCH_PREVIEW_LAYERS = [
     sourceId: SWITCH_LINES_SOURCE,
     layer: {
       id: SWITCH_LINES_LAYER, type: 'line',
-      paint: { 'line-color': '#ff8c00', 'line-width': ZOOM_LINE_WIDTH, 'line-dasharray': [6, 4] },
+      paint: { 'line-color': PALETTE.mapHover, 'line-width': ZOOM_LINE_WIDTH, 'line-dasharray': [6, 4] },
     },
   },
 ]

@@ -3,7 +3,7 @@ import { translations } from '../locales/i18n'
 import { ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM } from './style'
 import { GEOJSON_MAXZOOM } from '../utils/geometryPrecision'
 import { FILTER_NONE } from './pick'
-import { PALETTE } from '../styles/palette'
+import { highlightColors } from '../utils/mapColors'
 import { loadSettings } from '../utils/settings'
 import { bufferStopFeatures } from '../utils/bufferStopGeometry'
 import { showTopology } from '../utils/topologyLayer'
@@ -25,6 +25,11 @@ export function updateMapColors(map, color) {
   if (map.getLayer(SWITCH_FILLS_LAYER))   map.setPaintProperty(SWITCH_FILLS_LAYER,   'fill-color', c)
   if (map.getLayer(TRACK_MARKERS_LAYER)) map.setPaintProperty(TRACK_MARKERS_LAYER, 'icon-color', c)
   if (map.getLayer(BUFFER_STOPS_LAYER))   map.setPaintProperty(BUFFER_STOPS_LAYER,   'line-color', c)
+  // The highlights keep their distance from the tracks' colour (R10.10).
+  const h = highlightColors(c)
+  if (map.getLayer(TRACKS_HOVER_LAYER))    map.setPaintProperty(TRACKS_HOVER_LAYER,    'line-color', h.hover)
+  if (map.getLayer(TRACKS_SELECTED_LAYER)) map.setPaintProperty(TRACKS_SELECTED_LAYER, 'line-color', h.selected)
+  if (map.getLayer(TRACKS_FLASH_LAYER))    map.setPaintProperty(TRACKS_FLASH_LAYER,    'line-color', h.flash)
 }
 
 /**
@@ -298,7 +303,7 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
       type: 'line',
       source: TRACKS_SOURCE,
       filter: FILTER_NONE,
-      paint: { 'line-color': PALETTE.mapFlash, 'line-width': ZOOM_LINE_WIDTH_HOVER, 'line-opacity': 0.8 },
+      paint: { 'line-color': highlightColors(c).flash, 'line-width': ZOOM_LINE_WIDTH_HOVER, 'line-opacity': 0.8 },
     })
     map.addLayer({
       id: TRACKS_HOVER_LAYER,
@@ -306,7 +311,7 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
       source: TRACKS_SOURCE,
       filter: FILTER_NONE,
       paint: {
-        'line-color': '#ff8c00',
+        'line-color': highlightColors(c).hover,
         'line-width': ZOOM_LINE_WIDTH_HOVER,
         'line-opacity': 0.7,
       },
@@ -317,7 +322,7 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
       source: TRACKS_SOURCE,
       filter: FILTER_NONE,
       paint: {
-        'line-color': '#a52a1f',
+        'line-color': highlightColors(c).selected,
         'line-width': ZOOM_LINE_WIDTH_SELECTED,
       },
     })

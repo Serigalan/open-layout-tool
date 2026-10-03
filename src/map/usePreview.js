@@ -3,6 +3,25 @@ import { useMap } from './MapContext'
 import { GEOJSON_MAXZOOM } from '../utils/geometryPrecision'
 import { FILTER_NONE, mapIsLive } from './pick'
 import { EMPTY_FC, asGeoJSON } from './geojson'
+import { highlightColors, resolveHighlight } from '../utils/mapColors'
+import { getColor } from '../utils/mapRenderUtils'
+
+// Which preview sources hold something now (R10.10): what the map legend reads.
+const _shown = new Set()
+const _listeners = new Set()
+const notify = () => { for (const l of [..._listeners]) l() }
+let _shownCount = 0
+/** Whether any preview shows something on the map, and the subscription to it. */
+export const previewShown = () => _shownCount > 0
+export const subscribePreviews = (l) => { _listeners.add(l); return () => _listeners.delete(l) }
+function markShown(sourceId, on) {
+  const had = _shown.has(sourceId)
+  if (on === had) return
+  if (on) _shown.add(sourceId)
+  else _shown.delete(sourceId)
+  _shownCount = _shown.size
+  notify()
+}
 
 /**
  * A panel's preview layers on the map (R3.2): added when the component mounts,
@@ -27,11 +46,15 @@ export default function usePreview(defs, { resetFilters = [], resetCursor = fals
     if (!m) return undefined
     const all = defsRef.current
     const opts = optsRef.current
+    // The highlight colours as they stand against the project colour (R10.10).
+    const colors = highlightColors(getColor())
     for (const { sourceId, layer } of all) {
       if (!m.getSource(sourceId)) m.addSource(sourceId, { type: 'geojson', data: EMPTY_FC, maxzoom: GEOJSON_MAXZOOM })
-      if (!m.getLayer(layer.id)) m.addLayer({ ...layer, source: sourceId })
+      const paint = layer.paint && Object.fromEntries(Object.entries(layer.paint).map(([k, v]) => [k, resolveHighlight(v, colors)]))
+      if (!m.getLayer(layer.id)) m.addLayer({ ...layer, ...(paint ? { paint } : {}), source: sourceId })
     }
     return () => {
+      for (const { sourceId } of all) markShown(sourceId, false)
       if (!mapIsLive(mapRef, m)) return
       for (const { sourceId, layer } of [...all].reverse()) {
         if (m.getLayer(layer.id)) m.removeLayer(layer.id)
@@ -43,7 +66,9 @@ export default function usePreview(defs, { resetFilters = [], resetCursor = fals
   }, [mapRef])
 
   const set = useCallback((sourceId, data) => {
-    mapRef.current?.getSource(sourceId)?.setData(asGeoJSON(data))
+    const geo = asGeoJSON(data)
+    mapRef.current?.getSource(sourceId)?.setData(geo)
+    markShown(sourceId, (geo.features?.length ?? (geo.type === 'Feature' ? 1 : 0)) > 0)
   }, [mapRef])
 
   const clear = useCallback(() => {

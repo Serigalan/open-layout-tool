@@ -1177,5 +1177,10 @@
   "sidebar_labels_hide": "Beschriftung ausblenden",
   "info_check": "Misst den Entwurf an den Regeln: die Physik und das Regelwerk, gegen die geprüft wird (je über der Karte geöffnet), und der Optimierer, der ein Gleis oder einen einzelnen Bogen innerhalb eines Korridors an das Regelwerk anpasst.",
   "panel_fold": "Panel einklappen",
-  "panel_unfold": "Panel zeigen"
+  "panel_unfold": "Panel zeigen",
+  "legend_title": "Legende",
+  "legend_tracks": "Gleise",
+  "legend_preview": "Vorschau",
+  "legend_selected": "Ausgewählt",
+  "legend_changed": "Gerade geändert"
 }

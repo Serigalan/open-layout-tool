@@ -18,6 +18,7 @@ import { OVERLAYS_CLOSED, closesTrackTable, overlayReducer } from './overlays'
 import { panelById } from './panels'
 import Sidebar from './Sidebar'
 import StepNotice from './StepNotice'
+import MapLegend from './MapLegend'
 import usePanelWidth from './usePanelWidth'
 import RuleFieldsScope from '../components/form/RuleFieldsScope'
 import ConfirmModal from '../components/ConfirmModal'
@@ -158,7 +159,9 @@ export default function MapWorkspace({ wc, onHome }) {
 
   // ── the map draws the store ──
   useEffect(() => {
-    if (map.current?.isStyleLoaded()) updateMapColors(map.current, color)
+    // Not on isStyleLoaded(): that stays false while a tile loads, and the
+    // colour would be dropped. updateMapColors only touches layers that exist.
+    if (map.current) updateMapColors(map.current, color)
     // The topology symbols carry the colour too.
     if (topologyRef.current && map.current && projectRef.current) {
       renderTracksOnMap(map.current, projectRef.current, { topology: true })
@@ -324,6 +327,7 @@ export default function MapWorkspace({ wc, onHome }) {
           {wc.note && <button type="button" className="wc-note" onClick={wc.clearNote}>{wc.note}</button>}
           {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} />}
           <StepNotice />
+          <MapLegend color={color} />
 
           <Suspense fallback={null}>
           {overlay?.kind === 'trackTable' && <TrackTableOverlay track={overlay.track}
