@@ -673,21 +673,6 @@ export function deletePlatform(platformId) {
   return mutate(p => ({ ...p, platforms: (p.platforms ?? []).filter(q => q.id !== platformId) }))
 }
 
-// ── kilometrage lines ───────────────────────────────────────────────────────
-
-/**
- * The kilometrage lines the project references its main points against — one
- * per line number, each the stretch around the project with a kilometrage on
- * every vertex (see kmLineSource for where they come from).
- *
- * They are reference data, not something the user drew, so they stay off the
- * undo stack: undoing a track edit must not take a fetched line with it, and
- * fetching one must not eat an undo step.
- */
-export function loadKmLines() {
-  return _project?.kmLines ?? []
-}
-
 /** Add or replace the line with this number. */
 export function saveKmLine(kmLine) {
   const same = (l) => String(l.lineNumber) === String(kmLine.lineNumber)
@@ -757,7 +742,7 @@ export function updateSwitch(switchId, patch) {
  * @param {object[]} [ops.append]        [{ trackId, elements }] appended to standing tracks
  *                                       (a trailing turnout's through route)
  */
-export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwitches, remap, addEndMarks, append = [] }) {
+export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwitches, remap, addEndMarks, append = [], consumed = [] }) {
   return mutate(p => {
     const removeSet = new Set(removeTrackIds)
     const appendTo = new Map(append.map(a => [a.trackId, a.elements]))
@@ -769,7 +754,7 @@ export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwit
         .concat(addTracks ?? []),
     }
     if (remap?.length) {
-      next = { ...next, switches: remapSwitches(next.switches ?? [], remap), endMarks: remapEndMarks(next.endMarks, remap) }
+      next = { ...next, switches: remapSwitches(next.switches ?? [], remap), endMarks: remapEndMarks(next.endMarks, remap, consumed) }
       logRemap(next, remap)
     }
     next = { ...next, switches: [...(next.switches ?? []), ...(addSwitches ?? [])] }

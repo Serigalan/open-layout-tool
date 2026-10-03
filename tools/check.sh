@@ -15,6 +15,7 @@ quick=0
 echo "== lint";  npm run -s lint
 echo "== dead code"; npm run -s knip
 echo "== tests"; npx vitest run
+echo "== build (catches imports of names that are gone)"; npx vite build --outDir "$(mktemp -d)" --logLevel error
 
 py=${OLT_PYTHON:-}
 for cand in .venv/bin/python WEBSITE/.venv/bin/python; do

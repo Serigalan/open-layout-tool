@@ -1,24 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadTracks, loadPlatforms, savePlatform, updatePlatform, deletePlatform } from '../../storage'
+import { loadTracks, savePlatform, updatePlatform, deletePlatform } from '../../storage'
 import { generateId } from '../../utils/identifierUtils'
 import { wgs84ToUTM } from '../../utils/coordinateUtils'
-import { trackLength } from '../../utils/heightUtils'
-import {PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY} from '../../utils/mapRenderUtils'
-import {
-  PLATFORM_FRONT_OFFSET, PLATFORM_WIDTH, PLATFORM_CODE_MAX,
-  PLATFORM_HEIGHTS, DEFAULT_PLATFORM_HEIGHT,
-  platformRing, pointAtStation, stationFromClick, platformLength, platformEdgeElevation,
-} from '../../utils/platformUtils'
-import UtmCoordFields from '../UtmCoordFields'
-import StationNameInput from './StationNameInput'
+import { PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY } from '../../utils/mapRenderUtils'
+import { PLATFORM_CODE_MAX, platformRing, stationFromClick, platformLength } from '../../utils/platformUtils'
+import { EMPTY_PLATFORM_FORM, pickedStation, platformDraft, platformForm, platformFormValid } from '../../utils/platformForm'
 import { useI18n } from '../../locales/i18nContext'
+import { usePlatforms, useTracks } from '../../hooks/useStore'
 import usePreview from '../../map/usePreview'
 import useMapPick, { useSelectedOnMap } from '../../map/useMapPick'
 import useMapEvents from '../../map/useMapEvents'
 import { PALETTE } from '../../styles/palette'
-import ReadOnlyField from '../form/ReadOnlyField'
 import FormSection from '../form/FormSection'
-import { trackLabel } from '../../utils/trackModel'
+import StationNameInput from './StationNameInput'
+import PlatformGeometryFields from './platform/PlatformGeometryFields'
 
 const PREVIEW_FILL_SOURCE = 'platform-preview-fill-source'
 const PREVIEW_LINE_SOURCE = 'platform-preview-line-source'
@@ -28,29 +23,18 @@ const PREVIEW_LINE_SOURCE = 'platform-preview-line-source'
 const PREVIEW_LAYERS = [
   {
     sourceId: PREVIEW_FILL_SOURCE,
-    layer: {
-      id: 'platform-preview-fill-layer', type: 'fill',
-      paint: { 'fill-color': PLATFORM_FILL_COLOR, 'fill-opacity': PLATFORM_FILL_OPACITY },
-    },
+    layer: { id: 'platform-preview-fill-layer', type: 'fill', paint: { 'fill-color': PLATFORM_FILL_COLOR, 'fill-opacity': PLATFORM_FILL_OPACITY } },
   },
   {
     sourceId: PREVIEW_LINE_SOURCE,
-    layer: {
-      id: 'platform-preview-line-layer', type: 'line',
-      paint: { 'line-color': PALETTE.mapHover, 'line-width': 2, 'line-dasharray': [4, 3] },
-    },
+    layer: { id: 'platform-preview-line-layer', type: 'line', paint: { 'line-color': PALETTE.mapHover, 'line-width': 2, 'line-dasharray': [4, 3] } },
   },
 ]
-
-/** Shortest platform that is worth drawing [m]. */
-const MIN_LENGTH = 1
 
 const ringFC = (ring, type) => ring
   ? { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {},
     geometry: type === 'fill' ? { type: 'Polygon', coordinates: [ring] } : { type: 'LineString', coordinates: ring } }] }
   : null
-
-const fmt = (v) => String(Math.round(v * 1000) / 1000)
 
 /**
  * Create platforms along a track: pick the track, then the two points that
@@ -65,140 +49,67 @@ const fmt = (v) => String(Math.round(v * 1000) / 1000)
  *
  * An existing platform can be picked from the list to be edited or deleted; the
  * record keeps only its plane data (track, stations, side, height), and the
- * polygon on the map is derived from it.
+ * polygon on the map is derived from it (R5.5: the fields in utils/platformForm).
  */
 export default function PlatformPanel() {
   const { t } = useI18n()
-  const [phase, setPhase]     = useState('select')   // 'select' | 'edit'
-  const [editingId, setEditingId] = useState(null)   // set when an existing platform is being edited
-  const [trackId, setTrackId] = useState(null)
-  const [start, setStart]     = useState('')
-  const [end, setEnd]         = useState('')
-  const [picking, setPicking] = useState(null)       // 'start' | 'end' | null
-  const [side, setSide]       = useState('right')
-  const [height, setHeight]   = useState(DEFAULT_PLATFORM_HEIGHT)   // mm over top of rail
-  const [freeHeight, setFreeHeight] = useState(false)               // a height outside the standard ones
-  const [stationName, setStationName] = useState('')
-  const [code, setCode]       = useState('')
-
-  // The edge distance is proposed, not fixed: one value for every height and
-  // cant at this design stage, and overridable where the site demands it.
-  const [frontOffset, setFrontOffset] = useState(PLATFORM_FRONT_OFFSET)
-  const offsetIsManual = Number(frontOffset) !== PLATFORM_FRONT_OFFSET
-
+  const [editing, setEditing] = useState(null)    // null while choosing; { id } (null for a new one) while editing
+  const [f, setF] = useState(EMPTY_PLATFORM_FORM)
+  const set = (key, value) => setF(prev => ({ ...prev, [key]: value }))
+  const [picking, setPicking] = useState(null)    // 'start' | 'end' | null
   const preview = usePreview(PREVIEW_LAYERS)
-
-  const tracks    = loadTracks()
-  const platforms = loadPlatforms()
-  const track     = trackId ? tracks.find(tr => tr.id === trackId) : null
-  const total     = track ? trackLength(track) : 0
+  const tracks = useTracks()
+  const platforms = usePlatforms()
+  const track = f.trackId ? tracks.find(tr => tr.id === f.trackId) : null
 
   // ── Pick the host track ───────────────────────────────────────────────────
   useMapPick({
-    active: phase === 'select', noSwitchBranch: true, hover: 'element',
-    onPick: ({ trackId: id }) => {
-      if (!loadTracks().some(tr => tr.id === id)) return
-      setTrackId(id)
-      setPhase('edit')
+    active: !editing, noSwitchBranch: true, hover: 'element',
+    onPick: ({ trackId }) => {
+      if (!loadTracks().some(tr => tr.id === trackId)) return
+      setF({ ...EMPTY_PLATFORM_FORM, trackId })
+      setEditing({ id: null })
       setPicking('start')
     },
   })
-  useSelectedOnMap(trackId ? { trackId } : null)
+  useSelectedOnMap(f.trackId ? { trackId: f.trackId } : null)
 
   // ── Pick the two points on that track ─────────────────────────────────────
   // Only the selected track carries the stations the platform is built on.
+  const pickingStations = !!editing && !!picking && !!track
   useMapPick({
-    active: phase === 'edit' && !!picking && !!track, track: track?.id, cursor: false,
+    active: pickingStations, track: track?.id, cursor: false,
     onPick: ({ elementIndex }, e) => {
-      const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
-      const station  = stationFromClick(track, elementIndex, clickUtm)
+      const station = stationFromClick(track, elementIndex, wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg))
       if (station == null) return
-      if (picking === 'start') { setStart(fmt(station)); setPicking('end') }
-      else                     { setEnd(fmt(station));   setPicking(null) }
+      set(picking, pickedStation(station))
+      setPicking(picking === 'start' ? 'end' : null)
     },
   })
-  useMapEvents(phase === 'edit' && !!picking && !!track, {}, { cursor: 'crosshair' })
+  useMapEvents(pickingStations, {}, { cursor: 'crosshair' })
 
   // ── Derived platform and its preview ──────────────────────────────────────
-  const s1 = Number(start)
-  const s2 = Number(end)
-  const inRange = [s1, s2].every(s => Number.isFinite(s) && s >= 0 && s <= total + 1e-6)
-  const valid   = !!track && inRange && Math.abs(s2 - s1) >= MIN_LENGTH
-    && Number(frontOffset) > 0
-    && height !== '' && Number(height) >= 0
-
-  const front = Number(frontOffset)
-  const draft = useMemo(() => ({
-    trackId,
-    startStation: Math.min(s1, s2),
-    endStation:   Math.max(s1, s2),
-    side,
-    frontOffset:  front,
-    backOffset:   front + PLATFORM_WIDTH,
-    height,
-    stationName,
-    code,
-  }), [trackId, s1, s2, side, front, height, stationName, code])
-
+  const valid = platformFormValid(f, track)
+  const draft = useMemo(() => platformDraft(f), [f])
   const ring = valid ? platformRing(draft, track) : null
-
   useEffect(() => {
     preview.set(PREVIEW_FILL_SOURCE, ringFC(ring, 'fill'))
     preview.set(PREVIEW_LINE_SOURCE, ringFC(ring, 'line'))
   }, [ring, preview])
 
-
-  const reset = () => {
-    preview.clear()
-    setPhase('select'); setEditingId(null); setTrackId(null)
-    setStart(''); setEnd(''); setPicking(null)
-    setSide('right'); setStationName(''); setCode('')
-    setHeight(DEFAULT_PLATFORM_HEIGHT); setFreeHeight(false); setFrontOffset(PLATFORM_FRONT_OFFSET)
-  }
-
-  const loadForEdit = (platform) => {
-    setEditingId(platform.id)
-    setTrackId(platform.trackId)
-    setStart(fmt(platform.startStation))
-    setEnd(fmt(platform.endStation))
-    setSide(platform.side ?? 'right')
-    setStationName(platform.stationName ?? '')
-    setCode(platform.code ?? '')
-    // A record from before the height was modelled has none; it is shown the
-    // default rather than an empty field, and says so as soon as it is seen.
-    const h = Number(platform.height)
-    const stated = Number.isFinite(h) ? h : DEFAULT_PLATFORM_HEIGHT
-    setHeight(stated)
-    setFreeHeight(!PLATFORM_HEIGHTS.includes(stated))
-    const offset = Number(platform.frontOffset)
-    setFrontOffset(Number.isFinite(offset) ? offset : PLATFORM_FRONT_OFFSET)
-    setPicking(null)
-    setPhase('edit')
-  }
+  const reset = () => { preview.clear(); setEditing(null); setF(EMPTY_PLATFORM_FORM); setPicking(null) }
 
   const handleCommit = () => {
     if (!ring) return
     // The polygon rides along in memory so the map can draw it right away; it is
     // stripped on persist and rebuilt from the stations on load.
-    const record = { id: editingId ?? generateId(), ...draft, coords: ring }
-    if (editingId) updatePlatform(record)
-    else           savePlatform(record)
+    const record = { id: editing.id ?? generateId(), ...draft, coords: ring }
+    if (editing.id) updatePlatform(record)
+    else savePlatform(record)
     reset()
   }
 
-  const handleDelete = () => {
-    if (!editingId) return
-    deletePlatform(editingId)
-    reset()
-  }
-
-  const startPoint = valid ? pointAtStation(track, draft.startStation) : null
-  const endPoint   = valid ? pointAtStation(track, draft.endStation)   : null
-  // The edge is only located vertically where the track carries heights.
-  const edgeStart  = valid ? platformEdgeElevation(draft, track, draft.startStation) : null
-  const edgeEnd    = valid ? platformEdgeElevation(draft, track, draft.endStation)   : null
-
-  if (phase === 'select') {
+  if (!editing) {
     return (
       <>
         <h2>{t('platform_title')}</h2>
@@ -207,7 +118,8 @@ export default function PlatformPanel() {
           <div className="create-element-options">
             <span className="create-element-section">{t('platform_existing')}</span>
             {platforms.map((p) => (
-              <button key={p.id} className="create-element-btn" onClick={() => loadForEdit(p)}>
+              <button key={p.id} className="create-element-btn"
+                onClick={() => { setF(platformForm(p)); setEditing({ id: p.id }); setPicking(null) }}>
                 {[p.code, p.stationName].filter(Boolean).join(' · ') || t('platform_unnamed')}
                 {` — ${platformLength(p).toFixed(1)} m`}
               </button>
@@ -221,112 +133,32 @@ export default function PlatformPanel() {
   return (
     <>
       <h2>{t('platform_title')}</h2>
-      {picking && (
-        <p className="selecting-hint">
-          {t(picking === 'start' ? 'platform_hint_start' : 'platform_hint_end')}
-        </p>
-      )}
-
-      <FormSection title={t('section_geometry')}>
-        <ReadOnlyField label={t('platform_track')} value={trackLabel(track)} />
-        <div className="form-field">
-          <label>{t('platform_start')}</label>
-          <input type="number" step="0.001" min="0" max={total} value={start}
-            onChange={e => { setStart(e.target.value); setPicking(null) }} />
-        </div>
-        <div className="form-field">
-          <label>{t('platform_end')}</label>
-          <input type="number" step="0.001" min="0" max={total} value={end}
-            onChange={e => { setEnd(e.target.value); setPicking(null) }} />
-        </div>
-        <ReadOnlyField label={t('field_length')} value={valid ? `${platformLength(draft).toFixed(3)} m` : '–'} />
-        <div className="form-field">
-          <label>{t('platform_side')}</label>
-          <select value={side} onChange={e => setSide(e.target.value)}>
-            <option value="left">{t('switch_side_left')}</option>
-            <option value="right">{t('switch_side_right')}</option>
-          </select>
-        </div>
-        <div className="form-field">
-          <label>{t('platform_height')}</label>
-          <select value={freeHeight ? 'free' : String(height)}
-            onChange={(e) => {
-              if (e.target.value === 'free') { setFreeHeight(true); return }
-              setFreeHeight(false); setHeight(Number(e.target.value))
-            }}>
-            {PLATFORM_HEIGHTS.map(h => <option key={h} value={String(h)}>{`${h} mm`}</option>)}
-            <option value="free">{t('platform_height_free')}</option>
-          </select>
-        </div>
-        {freeHeight && (
-          <div className="form-field">
-            <label>{t('platform_height_value')}</label>
-            <input type="number" step="10" min="0" value={height}
-              onChange={e => setHeight(e.target.value === '' ? '' : Number(e.target.value))} />
-          </div>
-        )}
-        <div className="form-field">
-          <label>{t('platform_front_edge')}</label>
-          <input type="number" step="0.01" min="0" value={frontOffset}
-            onChange={e => setFrontOffset(e.target.value === '' ? '' : Number(e.target.value))} />
-          {offsetIsManual && (
-            <button type="button" className="field-override" onClick={() => setFrontOffset(PLATFORM_FRONT_OFFSET)}>
-              {`${t('platform_front_edge_manual')} (${PLATFORM_FRONT_OFFSET.toFixed(2)} m)`}
-            </button>
-          )}
-        </div>
-        <div className="form-field">
-          <label>{t('platform_back_edge')}</label>
-          <input type="text" readOnly
-            value={valid ? `${draft.backOffset.toFixed(2)} m` : '–'} />
-        </div>
-        {edgeStart != null && (
-          <ReadOnlyField label={t('platform_edge_elevation')} value={`${edgeStart.toFixed(3)} m … ${edgeEnd.toFixed(3)} m`} />
-        )}
-        {startPoint && (
-          <UtmCoordFields label={t('platform_point_start')} zone={track.epsg} readOnly
-            easting={startPoint.utm.easting.toFixed(2)} northing={startPoint.utm.northing.toFixed(2)} />
-        )}
-        {endPoint && (
-          <UtmCoordFields label={t('platform_point_end')} zone={track.epsg} readOnly
-            easting={endPoint.utm.easting.toFixed(2)} northing={endPoint.utm.northing.toFixed(2)} />
-        )}
-      </FormSection>
-
+      {picking && <p className="selecting-hint">{t(picking === 'start' ? 'platform_hint_start' : 'platform_hint_end')}</p>}
+      <PlatformGeometryFields f={f} set={set} track={track} draft={draft} valid={valid}
+        onStation={(key, value) => { set(key, value); setPicking(null) }} />
       <FormSection title={t('section_meta')}>
         <div className="form-field">
           <label>{t('station_name')}</label>
-          <StationNameInput
-            value={stationName}
-            onChange={(e) => setStationName(e.target.value)}
-            onSelectSuggestion={(s) => setStationName(s.name)}
-          />
+          <StationNameInput value={f.stationName} onChange={(e) => set('stationName', e.target.value)}
+            onSelectSuggestion={(s) => set('stationName', s.name)} />
         </div>
         <div className="form-field">
           <label>{t('platform_code')}</label>
-          <input type="text" value={code} maxLength={PLATFORM_CODE_MAX}
-            onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, PLATFORM_CODE_MAX))} />
+          <input type="text" value={f.code} maxLength={PLATFORM_CODE_MAX}
+            onChange={e => set('code', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, PLATFORM_CODE_MAX))} />
         </div>
       </FormSection>
-
       {!valid && <p className="form-error">{t('platform_error_range')}</p>}
-
-      <button className="panel-btn panel-btn-full mt-8"
-        onClick={handleCommit} disabled={!valid}>
-        {t('btn_commit')}
-      </button>
-      <button className="panel-btn panel-btn-full mt-2"
-        onClick={() => { setStart(''); setEnd(''); setPicking('start') }}>
+      <button className="panel-btn panel-btn-full mt-8" onClick={handleCommit} disabled={!valid}>{t('btn_commit')}</button>
+      <button className="panel-btn panel-btn-full mt-2" onClick={() => { set('start', ''); set('end', ''); setPicking('start') }}>
         {t('platform_repick')}
       </button>
-      {editingId && (
-        <button className="panel-btn panel-btn-full panel-btn-danger mt-2" onClick={handleDelete}>
+      {editing.id && (
+        <button className="panel-btn panel-btn-full panel-btn-danger mt-2" onClick={() => { deletePlatform(editing.id); reset() }}>
           {t('platform_delete')}
         </button>
       )}
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={reset}>
-        {t('btn_cancel')}
-      </button>
+      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={reset}>{t('btn_cancel')}</button>
     </>
   )
 }

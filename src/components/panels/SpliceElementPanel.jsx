@@ -1,560 +1,143 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { loadTracks, replaceAllTracks, remapSwitchTrackIds } from '../../storage'
-import { generateId } from '../../utils/identifierUtils'
-import { rebuildCoords, recalcAbsLengths, trackLabel } from '../../utils/trackModel'
-import { computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, reverseElement, nodeUtm } from '../../utils/elementUtils'
-import {
-  computeSpliceWithClothoids, computeArcSpliceWithClothoids, computeArcArcTransition,
-  computeArcStraightSplice, validateSpliceTangents,
-} from '../../utils/spliceUtils'
-import { ZOOM_LINE_WIDTH } from '../../map/style'
-import { cantSign, computeAutoC, computeCantDef, MAX_CANT } from '../../utils/rules/cant'
-import RuleFindings from './RuleFindings'
+import { useEffect, useMemo, useState } from 'react'
+import { loadTracks, commitSwitchConnection } from '../../storage'
+import { computeAutoC } from '../../utils/rules/cant'
 import { hasRuleError } from '../../utils/trassierungCheck'
-import CantField from './CantField'
-import useDerivedField from '../../hooks/useDerivedField'
-import { truncateHeights } from '../../utils/heightUtils'
-import { useI18n } from '../../locales/i18nContext'
+import { buildSplice, secondPickRefusal, solveSplice, splicePick } from '../../utils/commands/splice'
+import { ZOOM_LINE_WIDTH } from '../../map/style'
 import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
 import usePreview from '../../map/usePreview'
 import useMapPick from '../../map/useMapPick'
+import useDerivedField from '../../hooks/useDerivedField'
+import { useI18n } from '../../locales/i18nContext'
 import { PALETTE } from '../../styles/palette'
-import ReadOnlyField from '../form/ReadOnlyField'
+import CommitBar from '../form/CommitBar'
+import RuleFindings from './RuleFindings'
+import SpliceSettings from './splice/SpliceSettings'
 
 const SPLICE_PREVIEW_SOURCE = 'splice-preview-source'
-const SPLICE_PREVIEW_LAYER  = 'splice-preview-layer'
-
-// Layer definitions for usePreview
 const SPLICE_PREVIEW_LAYERS = [{
   sourceId: SPLICE_PREVIEW_SOURCE,
   layer: {
-    id: SPLICE_PREVIEW_LAYER, type: 'line',
-    paint: {
-      'line-color': PALETTE.mapHover,
-      'line-width': ZOOM_LINE_WIDTH,
-      'line-dasharray': [6, 4],
-    },
+    id: 'splice-preview-layer', type: 'line',
+    paint: { 'line-color': PALETTE.mapHover, 'line-width': ZOOM_LINE_WIDTH, 'line-dasharray': [6, 4] },
   },
 }]
 
-function buildPreviewGeoJSON(coords) {
-  return {
-    type: 'FeatureCollection',
-    features: [{
-      type: 'Feature', properties: {},
-      geometry: { type: 'LineString', coordinates: coords },
-    }],
-  }
-}
+const line = (coordinates) => ({
+  type: 'FeatureCollection',
+  features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } }],
+})
 
-
-/**
- * The vertical alignment the merged track starts with: the departure track's,
- * cut where its last element is re-shaped — everything from there on belongs
- * to a track that did not exist before and has no gradient until one is read
- * from the terrain on request (see elevationFill). `heights: undefined` when nothing is left to keep.
- */
-function spliceHeights(depTrack, elIdx) {
-  const cutAt = (depTrack.elements ?? []).slice(0, elIdx).reduce((sum, el) => sum + (el.length ?? 0), 0)
-  return { heights: truncateHeights(depTrack.heights, cutAt) }
-}
-
-export default function SpliceElementPanel() {
-  const { t } = useI18n()
-  const [phase, setPhase]         = useState('select_first')
-  const [picks, setPicks]         = useState([])   // [{trackId,elIdx,endUtm,startUtm,bearing,signedR,epsg,label}]
-  const [radius, setRadius]       = useState(500)
-  const [speed, setSpeed]         = useState(0)
-  // The radius field is a magnitude here, so the cant is one too; it is signed
-  // by the fitted arc when the element is written. Follows speed and radius
-  // unless the user overrode it for that pair.
-  const [cant, setCant] = useDerivedField(`${speed}|${radius}`, Math.abs(computeAutoC(speed, Math.abs(Number(radius)))))
-  const [clothoidEnabled, setClothoidEnabled] = useState(false)
-  const [transitionType, setTransitionType] = useState('clothoid')  // 'clothoid' | 'bloss'
+const DEFAULTS = {
+  radius: 500, speed: 0,
+  clothoidEnabled: false, transitionType: 'clothoid',   // 'clothoid' | 'bloss'
   // Two arcs can be joined either by a straight between them or by a single
   // transition curve straight from one to the other (AP 4.1).
-  const [arcJoin, setArcJoin] = useState('straight')   // 'straight' | 'transition'
-  const [clothoidDep, setClothoidDep] = useState(60)
-  const [clothoidArr, setClothoidArr] = useState(60)
-  // Feedback from picking the two elements; the config phase has its own,
-  // derived from the geometry (see `splice` below).
-  const [selectStatus, setStatus] = useState(null)  // { msg, error }
+  arcJoin: 'straight',                                  // 'straight' | 'transition'
+  clothoidDep: 60, clothoidArr: 60,
+}
 
-  const picksRef = useRef(picks)
-  useEffect(() => { picksRef.current = picks }, [picks])
+/** What the dialog says about a solved splice. */
+function spliceMessage(t, splice) {
+  if (splice.error) return { msg: t(splice.error), error: true }
+  const { result, arcMode, Ld, La } = splice
+  const tr = (Ld > 0 || La > 0) ? ` | ${t('transition_curve')}: ${Ld}+${La} m` : ''
+  if (result.transitionLength != null) {
+    return { msg: `${t(result.compound ? 'splice_compound' : 'splice_reverse')}: ${t('transition_curve')} ~${result.transitionLength.toFixed(1)} m`, error: false }
+  }
+  if (result.straightLength != null) {
+    return { msg: `${t('splice_arrival')} ↔ ${t('splice_departure')}: ~${result.straightLength.toFixed(1)} m${tr}`, error: false }
+  }
+  const len = `${t('splice_arc_length')}: ~${result.arcLength.toFixed(1)} m${tr}`
+  return { msg: arcMode ? len : `${len} | ${result.curveSide}`, error: false }
+}
 
-  // ── Setup / cleanup preview layer ─────────────────────────────────────────
+/**
+ * Splice two tracks into one (R5.5: the construction and the commit are in
+ * utils/commands/splice). Two elements are picked — departure, then arrival —
+ * and joined by an arc, re-shaped arcs or a transition; the merged track is
+ * one commit.
+ */
+export default function SpliceElementPanel() {
+  const { t } = useI18n()
+  const [picks, setPicks] = useState([])   // the departure pick, then the arrival
+  const [s, setS] = useState(DEFAULTS)
+  const set = (key, value) => setS(prev => ({ ...prev, [key]: value }))
+  // The radius is a magnitude here, so the cant is one too. It follows speed
+  // and radius unless the user overrode it for that pair.
+  const [cant, setCant] = useDerivedField(`${s.speed}|${s.radius}`, Math.abs(computeAutoC(s.speed, Math.abs(Number(s.radius)))))
+  const [pickStatus, setPickStatus] = useState(null)   // { msg, error }
+  const configuring = picks.length === 2
+
   const preview = usePreview(SPLICE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
-  // ── Click handler for select phases ──────────────────────────────────────
   useMapPick({
-    active: phase === 'select_first' || phase === 'select_second', hover: 'element',
+    active: !configuring, hover: 'element',
     onPick: ({ trackId, elementIndex }) => {
-      const elIdx = elementIndex
-      const tracks = loadTracks()
-      const track  = tracks.find(tr => tr.id === trackId)
-      const el     = track?.elements?.[elIdx]
-      if (!el) return
-
-      // Clothoid/transition elements can't be spliced directly
-      if (el.elementType === 2) {
-        setStatus({ msg: t('splice_hint_straight_only'), error: true })
-        return
+      const pick = splicePick(loadTracks().find(tr => tr.id === trackId), elementIndex)
+      if (!pick) return
+      if (pick.error) { setPickStatus({ msg: t(pick.error), error: true }); return }
+      if (picks.length === 1) {
+        const why = secondPickRefusal(picks[0], pick)
+        if (why === 'same') return
+        if (why) { setPickStatus({ msg: t(why), error: true }); return }
       }
-
-      const coords   = el.geometry.coordinates
-      const epsg     = track.epsg
-      const endUtm   = nodeUtm(el.endNode, coords[coords.length - 1], epsg)
-      const startUtm = nodeUtm(el.startNode, coords[0], epsg)
-      const bearing  = resolveEndBearing(el, epsg)
-      const signedR  = el.radius != null ? el.radius : null   // null = straight
-      const pick     = { trackId, elIdx, endUtm, startUtm, bearing, signedR, epsg, label: trackLabel(track) }
-
-      if (phase === 'select_first') {
-        setPicks([pick])
-        setStatus(null)
-        setPhase('select_second')
-      } else {
-        // Prevent picking the same element twice
-        const first = picksRef.current[0]
-        if (first && first.trackId === trackId && first.elIdx === elIdx) return
-        if (first && first.trackId === trackId) {
-          setStatus({ msg: t('splice_error_same_track'), error: true })
-          return
-        }
-        // Splicing merges both tracks into one, and a track has exactly one
-        // CRS. Carrying the arrival track's nodes over unchanged would put
-        // them in the wrong plane; reprojecting them would preserve the ground
-        // geometry but distort the design scalars (R 800 m → 799.834 m across
-        // GK4/UTM32). So require a common CRS instead.
-        if (first && Number(first.epsg) !== Number(epsg)) {
-          setStatus({ msg: t('splice_error_crs'), error: true })
-          return
-        }
-
-        setPicks([first, pick])
-        setStatus(null)
-        setPhase('config')
-      }
+      setPicks([...picks, pick])
+      setPickStatus(null)
     },
   })
 
-  // ── Spliced geometry, derived from the two picks and the parameters ──────
-  // The preview and the commit read the same value, so they cannot disagree.
-  const splice = useMemo(() => {
-    const [dep, arr] = picks
-    if (phase !== 'config' || !dep || !arr) return null
-    const Ld = clothoidEnabled ? clothoidDep : 0
-    const La = clothoidEnabled ? clothoidArr : 0
-    const bothArcs = dep.signedR != null && arr.signedR != null
-    const mixed    = (dep.signedR == null) !== (arr.signedR == null)
-    // Two arcs joined directly need no radius and no lengths: the transition's
-    // own length is what closes the construction, so it is solved, not typed.
-    const arcMode  = bothArcs || mixed
+  // The preview and the commit read the same construction, so they cannot disagree.
+  const splice = useMemo(() => (configuring ? solveSplice(picks[0], picks[1], s) : null), [configuring, picks, s])
 
-    // Solved in the shared native plane — the select phase rejects picks whose
-    // tracks differ in CRS, so both picks' points and bearings are in this plane.
-    let result, validationErr = null
-    if (bothArcs && arcJoin === 'transition') {
-      result = computeArcArcTransition(
-        dep.endUtm, dep.bearing, dep.signedR, arr.endUtm, arr.bearing, arr.signedR,
-        dep.startUtm, arr.startUtm, transitionType,
-      )
-    } else if (mixed) {
-      result = computeArcStraightSplice(
-        { pointUtm: dep.endUtm, bearing: dep.bearing, signedR: dep.signedR, farUtm: dep.startUtm },
-        { pointUtm: arr.endUtm, bearing: arr.bearing, signedR: arr.signedR, farUtm: arr.startUtm },
-        radius, Ld, La, transitionType,
-      )
-    } else if (bothArcs) {
-      result = computeArcSpliceWithClothoids(
-        dep.endUtm, dep.bearing, dep.signedR, arr.endUtm, arr.bearing, arr.signedR,
-        dep.startUtm, arr.startUtm, Ld, La, transitionType,
-      )
-    } else {
-      result = computeSpliceWithClothoids(
-        dep.endUtm, dep.bearing, arr.endUtm, arr.bearing, radius, Ld, La, transitionType,
-      )
-      if (result && !result.error) {
-        validationErr = validateSpliceTangents(result, dep.startUtm, result.reverseArr ? arr.startUtm : arr.endUtm, result.reverseArr)
-      }
-    }
-    if (!result || result.error || validationErr) {
-      return { error: result?.error ?? validationErr ?? 'splice_error_parallel' }
-    }
-    return { result, arcMode, Ld, La }
-  }, [phase, picks, radius, clothoidEnabled, clothoidDep, clothoidArr, transitionType, arcJoin])
-
-  // What the panel reports about it — the picking phases have their own message.
-  const configStatus = useMemo(() => {
-    if (!splice) return null
-    if (splice.error) return { msg: t(splice.error), error: true }
-    const { result, arcMode, Ld, La } = splice
-    const tr = (Ld > 0 || La > 0) ? ` | ${t('transition_curve')}: ${Ld}+${La} m` : ''
-    if (result.transitionLength != null) {
-      const kind = result.compound ? 'splice_compound' : 'splice_reverse'
-      return { msg: `${t(kind)}: ${t('transition_curve')} ~${result.transitionLength.toFixed(1)} m`, error: false }
-    }
-    if (result.straightLength != null) {
-      return { msg: `${t('splice_arrival')} ↔ ${t('splice_departure')}: ~${result.straightLength.toFixed(1)} m${tr}`, error: false }
-    }
-    if (arcMode) {
-      return { msg: `${t('splice_arc_length')}: ~${result.arcLength.toFixed(1)} m${tr}`, error: false }
-    }
-    return { msg: `${t('splice_arc_length')}: ~${result.arcLength.toFixed(1)} m${tr} | ${result.curveSide}`, error: false }
-  }, [splice, t])
-
-  const status    = phase === 'config' ? configStatus : selectStatus
-  const canCommit = !!splice?.result
-
-  // Preview of the spliced geometry.
   useEffect(() => {
-    preview.set(SPLICE_PREVIEW_SOURCE, splice?.result ? buildPreviewGeoJSON(splice.result.previewCoords) : null)
+    preview.set(SPLICE_PREVIEW_SOURCE, splice?.result ? line(splice.result.previewCoords) : null)
   }, [splice, preview])
 
-
-  const handleCancel = () => {
-    preview.clear()
-    setPhase('select_first')
-    setPicks([])
-    setStatus(null)
-  }
+  const reset = () => { preview.clear(); setPicks([]); setPickStatus(null) }
 
   const handleCommit = () => {
-    const arc = splice?.result
-    if (!arc) return
-
-    const [dep, arr] = picks
-    const tracks = loadTracks()
-    const depTrack = tracks.find(t => t.id === dep.trackId)
-    const arrTrack = tracks.find(t => t.id === arr.trackId)
-    if (!depTrack || !arrTrack) return
-
-    // ── Chains the solver hands over ready (arc↔arc, arc↔straight) ───────
-    if (arc.elements) {
-      // Reshaped arcs keep their original speed; the new straight + clothoids
-      // take the panel's speed.
-      const depOrig   = depTrack.elements[dep.elIdx]
-      const arrOrig   = arrTrack.elements[arr.elIdx]
-      // A re-shaped arc keeps its cant as well; the arrival arc is folded in
-      // backwards, so the magnitude is re-signed from the rebuilt radius.
-      const keepCant  = (el, orig) => (orig?.cant != null && el.radius != null)
-        ? { ...el, cant: cantSign(el.radius) * Math.abs(orig.cant) }
-        : el
-      const depPrefix = depTrack.elements.slice(0, dep.elIdx).map(el => ({ ...el }))
-      const mid       = arc.elements.map((el, i, a) =>
-        i === 0            ? keepCant({ ...el, speed: depOrig?.speed ?? speed }, depOrig)
-        : i === a.length-1 ? keepCant({ ...el, speed: arrOrig?.speed ?? speed }, arrOrig)
-        :                    { ...el, speed })
-      const arrPrefix = arrTrack.elements.slice(0, arr.elIdx).reverse().map(reverseElement)
-
-      const mergedId       = generateId()
-      const mergedElements = recalcAbsLengths([...depPrefix, ...mid, ...arrPrefix])
-      const mergedTrack    = {
-        ...depTrack,
-        id:          mergedId,
-        elements:    mergedElements,
-        coordinates: rebuildCoords(mergedElements),
-        ...spliceHeights(depTrack, dep.elIdx),
-      }
-      const newTracks = tracks
-        .filter(t => t.id !== dep.trackId && t.id !== arr.trackId)
-        .concat(mergedTrack)
-
-      replaceAllTracks(newTracks)
-      // arrPrefix is folded in reversed, so the arrival track's BEGIN becomes
-      // the merged track's END; the departure side keeps its direction.
-      // The departure track is cut behind the picked element and the arrival
-      // track likewise, so the two ends beyond the cut are gone — whatever
-      // stood on them (a buffer stop) goes with them.
-      remapSwitchTrackIds([
-        { oldId: dep.trackId, newId: mergedId },
-        { oldId: arr.trackId, newId: mergedId, flip: true },
-      ], { consumed: [{ trackId: dep.trackId, endpoint: 'END' }, { trackId: arr.trackId, endpoint: 'END' }] })
-      preview.clear()
-      setPhase('select_first')
-      setPicks([])
-      setStatus(null)
-      return
-    }
-
-    const trackZone = depTrack.epsg
-    const Ld = clothoidEnabled ? arc.clothoidDepLength : 0
-    const La = clothoidEnabled ? arc.clothoidArrLength : 0
-
-    // ── Departure side: shorten last element to clothoid start (or arc start) ─
-    const depElements  = depTrack.elements.slice(0, dep.elIdx).map(el => ({ ...el }))
-    const depOrigEl    = depTrack.elements[dep.elIdx]
-    const depOrigStart = depOrigEl.geometry.coordinates[0]                   // WGS84, for the drawn geometry
-    const depOrigStartUtm = nodeUtm(depOrigEl.startNode, depOrigStart, trackZone)
-    const svDep = computeStraightValuesUtm(depOrigStartUtm, arc.depClStartUtm)
-    depElements.push({
-      ...depOrigEl,
-      length:    svDep.length,
-      bearing:   svDep.bearing,
-      startNode: svDep.startNode,
-      endNode:   svDep.endNode,
-      geometry:  { type: 'LineString', coordinates: [depOrigStart, arc.depTangentWgs] },
+    const commit = buildSplice({
+      tracks: loadTracks(), dep: picks[0], arr: picks[1], splice,
+      speed: s.speed, cant, clothoidEnabled: s.clothoidEnabled,
     })
-
-    // ── Entry clothoid (if Ld > 0) ────────────────────────────────────────
-    if (Ld > 0) {
-      const s = arc.depClStartUtm
-      const e = arc.arcStartUtm
-      depElements.push({
-        elementType: 2,
-        transitionType: arc.transitionType,
-        r1:        null,
-        r2:        arc.signedR,
-        bearing:   arc.depBearing,
-        endBearing: arc.arcStartBearing,
-        length:    Ld,
-        absLength: Ld,
-        speed,
-        startNode: [s.easting, s.northing],
-        endNode:   [e.easting, e.northing],
-        geometry:     { type: 'LineString', coordinates: arc.depClothoidCoords },
-        renderCoords: arc.depClothoidCoordsRender,
-      })
-    }
-
-    // ── Circular arc ──────────────────────────────────────────────────────
-    const arcStartUtm = Ld > 0 ? arc.arcStartUtm : arc.depClStartUtm
-    const arcEndUtm   = La > 0 ? arc.arcEndUtm   : arc.arrClEndUtm
-    const cv = computeCurvedValuesUtm(arcStartUtm, arcEndUtm, arc.signedR)
-    const arcEl = {
-      elementType: 1,
-      startNode:  cv.startNode,
-      endNode:    cv.endNode,
-      bearing:    cv.bearing,
-      length:     cv.length,
-      absLength:  cv.length,
-      speed,
-      cant:       cantSign(arc.signedR) * Math.abs(cant),
-      endBearing: cv.endBearing,
-      radius:     arc.signedR,
-      geometry:     { type: 'LineString', coordinates: arc.arcCoords },
-      renderCoords: arc.arcCoordsRender,
-    }
-
-    const allElements = [...depElements, arcEl]
-
-    // ── Exit clothoid (if La > 0) ─────────────────────────────────────────
-    if (La > 0) {
-      const s = arc.arcEndUtm
-      const e = arc.arrClEndUtm
-      allElements.push({
-        elementType: 2,
-        transitionType: arc.transitionType,
-        r1:        arc.signedR,
-        r2:        null,
-        bearing:   arc.arcEndBearing,
-        endBearing: arc.exitBearing,
-        length:    La,
-        absLength: La,
-        speed,
-        startNode: [s.easting, s.northing],
-        endNode:   [e.easting, e.northing],
-        geometry:     { type: 'LineString', coordinates: arc.arrClothoidCoords },
-        renderCoords: arc.arrClothoidCoordsRender,
-      })
-    }
-
-    // ── Arrival side ─────────────────────────────────────────────────────
-    // Reversed (corner): join at the arrival END, reshape back to its start, and
-    // keep the elements before it (reversed). Forward (continuation): join at the
-    // arrival START, reshape forward to its end, and keep the elements after it.
-    const arrOrigEl    = arrTrack.elements[arr.elIdx]
-    const arrCoordsEl  = arrOrigEl.geometry.coordinates
-    const arrJoinWgs   = arc.reverseArr ? arrCoordsEl[0] : arrCoordsEl[arrCoordsEl.length - 1]
-    const arrJoinUtm   = nodeUtm(arc.reverseArr ? arrOrigEl.startNode : arrOrigEl.endNode, arrJoinWgs, trackZone)
-    const svArr        = computeStraightValuesUtm(arc.arrClEndUtm, arrJoinUtm)
-    const arrEl = {
-      ...arrOrigEl,
-      length:    svArr.length,
-      bearing:   svArr.bearing,
-      startNode: svArr.startNode,
-      endNode:   svArr.endNode,
-      geometry:  { type: 'LineString', coordinates: [arc.arrTangentWgs, arrJoinWgs] },
-    }
-    const arrTail = arc.reverseArr
-      ? arrTrack.elements.slice(0, arr.elIdx).reverse().map(reverseElement)
-      : arrTrack.elements.slice(arr.elIdx + 1).map(el => ({ ...el }))
-
-    const mergedId       = generateId()
-    const mergedElements = recalcAbsLengths([...allElements, arrEl, ...arrTail])
-    const mergedTrack    = {
-      ...depTrack,
-      id:          mergedId,
-      elements:    mergedElements,
-      coordinates: rebuildCoords(mergedElements),
-      ...spliceHeights(depTrack, dep.elIdx),
-    }
-
-    const newTracks = tracks
-      .filter(t => t.id !== dep.trackId && t.id !== arr.trackId)
-      .concat(mergedTrack)
-
-    replaceAllTracks(newTracks)
-    // Reversed join (a corner): the arrival tail is folded in backwards, so its
-    // BEGIN/END swap. Forward join (a continuation): its direction is kept.
-    remapSwitchTrackIds([
-      { oldId: dep.trackId, newId: mergedId },
-      { oldId: arr.trackId, newId: mergedId, flip: arc.reverseArr },
-    ], { consumed: [
-      { trackId: dep.trackId, endpoint: 'END' },
-      { trackId: arr.trackId, endpoint: arc.reverseArr ? 'END' : 'BEGIN' },
-    ] })
-    preview.clear()
-    setPhase('select_first')
-    setPicks([])
-    setStatus(null)
+    if (!commit) return
+    commitSwitchConnection(commit)
+    reset()
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  if (phase === 'config') {
+  if (configuring) {
     const [departure, arrival] = picks
-    const bothArcs = departure?.signedR != null && arrival?.signedR != null
-    // Joined straight from one arc to the other, the transition's length is the
-    // answer rather than an input — there is nothing to type and nothing to switch on.
-    const directTransition = bothArcs && arcJoin === 'transition'
+    const bothArcs = departure.signedR != null && arrival.signedR != null
     // Only the inserted arc takes a cant; an arc+arc splice re-shapes the two
     // existing arcs, which keep theirs — and inserts no element of its own, so
-    // there is nothing for the catalogue to judge in that case.
-    const cantDef = computeCantDef(speed, radius, cant)
+    // there is nothing for the catalogue to judge in that case. The length
+    // judged is the one the construction solved, not one that was typed.
     const inserted = !bothArcs && splice?.result?.arcLength != null
-      ? { elementType: 1, radius: Number(radius), cant, speed, length: splice.result.arcLength }
+      ? { elementType: 1, radius: Number(s.radius), cant, speed: s.speed, length: splice.result.arcLength }
       : null
-    const blocked = inserted ? hasRuleError([inserted]) : false
+    const status = splice ? spliceMessage(t, splice) : null
     return (
       <>
         <h2>{t('splice_element')}</h2>
-        <div className="element-form">
-          <ReadOnlyField label={t('splice_departure')} value={departure?.label ?? ''} />
-          <ReadOnlyField label={t('splice_arrival')} value={arrival?.label ?? ''} />
-          {bothArcs && (
-            <div className="form-field">
-              <label>{t('splice_arc_join')}</label>
-              <select value={arcJoin} onChange={e => setArcJoin(e.target.value)}>
-                <option value="straight">{t('splice_arc_join_straight')}</option>
-                <option value="transition">{t('splice_arc_join_transition')}</option>
-              </select>
-            </div>
-          )}
-          {!bothArcs && (
-            <div className="form-field">
-              <label>{t('field_radius')}</label>
-              <input
-                type="number" min="1" value={radius}
-                onChange={e => setRadius(Number(e.target.value))}
-              />
-            </div>
-          )}
-          <div className="form-field">
-            <label>{t('field_speed')}</label>
-            <input
-              type="number" min="0" value={speed}
-              onChange={e => setSpeed(Number(e.target.value))}
-            />
-          </div>
-          {!bothArcs && (
-            <>
-              {/* The radius field here is a magnitude, so the cant is one
-                  too — it is signed by the fitted arc when the element is
-                  written, and the offer below follows the same convention. */}
-              <CantField value={cant} onChange={setCant}
-                min={0} max={MAX_CANT} speed={speed} radius={Math.abs(Number(radius))} />
-              <ReadOnlyField type="number" label={t('cant_def')} value={cantDef} />
-            </>
-          )}
-          {!directTransition && (
-            <label className="transition-curve-row">
-              <input
-                type="checkbox" checked={clothoidEnabled}
-                onChange={e => setClothoidEnabled(e.target.checked)}
-              />
-              <span>{t('transition_curve')}</span>
-            </label>
-          )}
-          {(clothoidEnabled || directTransition) && (
-            <>
-              <div className="form-field">
-                <label>{t('type')}</label>
-                <select value={transitionType} onChange={e => setTransitionType(e.target.value)}>
-                  <option value="clothoid">{t('transition_type_clothoid')}</option>
-                  <option value="bloss">{t('transition_type_bloss')}</option>
-                </select>
-              </div>
-              {!directTransition && (
-                <>
-                  <div className="form-field">
-                    <label>{t('splice_departure')} – {t('field_length')}</label>
-                    <input
-                      type="number" min="1" step="10" value={clothoidDep}
-                      onChange={e => setClothoidDep(Math.max(1, Number(e.target.value) || 1))}
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label>{t('splice_arrival')} – {t('field_length')}</label>
-                    <input
-                      type="number" min="1" step="10" value={clothoidArr}
-                      onChange={e => setClothoidArr(Math.max(1, Number(e.target.value) || 1))}
-                    />
-                  </div>
-                </>
-              )}
-              {directTransition && (
-                <ReadOnlyField label={t('field_length')} value={splice?.result?.transitionLength != null
-                    ? `${splice.result.transitionLength.toFixed(1)} m` : ''} />
-              )}
-            </>
-          )}
-        </div>
-        {status && (
-          <p className={status.error ? 'msg-error' : 'msg-info'}>
-            {status.msg}
-          </p>
-        )}
-        {/* The length judged here is the one the construction solved, not one
-            that was typed. */}
+        <SpliceSettings departure={departure} arrival={arrival} s={s} set={set} cant={cant} setCant={setCant}
+          transitionLength={splice?.result?.transitionLength} />
+        {status && <p className={status.error ? 'msg-error' : 'msg-info'}>{status.msg}</p>}
         {inserted && <RuleFindings element={inserted} />}
-        <button
-          className="panel-btn panel-btn-full mt-8"
-          onClick={handleCommit}
-          disabled={!canCommit || blocked}
-        >
-          {t('btn_commit')}
-        </button>
-        <button
-          className="panel-btn panel-btn-full mt-2 secondary"
-          onClick={handleCancel}
-        >
-          {t('btn_cancel')}
-        </button>
+        <CommitBar onCommit={handleCommit} onCancel={reset}
+          disabled={!splice?.result || (inserted ? hasRuleError([inserted]) : false)} />
       </>
     )
   }
 
-  // select_first / select_second
   return (
     <>
       <h2>{t('splice_element')}</h2>
-      <p>{phase === 'select_first' ? t('splice_hint_first') : t('splice_hint_second')}</p>
-      {picks.length > 0 && (
-        <p className="msg-info">
-          {t('splice_first_selected')}: {picks[0].label}
-        </p>
-      )}
-      {status && (
-        <p className={status.error ? 'msg-error' : 'msg-hint'}>
-          {status.msg}
-        </p>
-      )}
-      {phase === 'select_second' && (
-        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
-          {t('btn_cancel')}
-        </button>
+      <p>{picks.length === 0 ? t('splice_hint_first') : t('splice_hint_second')}</p>
+      {picks.length > 0 && <p className="msg-info">{t('splice_first_selected')}: {picks[0].label}</p>}
+      {pickStatus && <p className={pickStatus.error ? 'msg-error' : 'msg-hint'}>{pickStatus.msg}</p>}
+      {picks.length === 1 && (
+        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={reset}>{t('btn_cancel')}</button>
       )}
     </>
   )

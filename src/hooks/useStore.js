@@ -18,7 +18,9 @@ const part = (key) => () => currentProject()?.[key] ?? EMPTY
 
 const tracksOf = part('tracks')
 const switchesOf = part('switches')
+const platformsOf = part('platforms')
 export const useTracks = () => useSyncExternalStore(subscribe, tracksOf, tracksOf)
 export const useSwitches = () => useSyncExternalStore(subscribe, switchesOf, switchesOf)
+export const usePlatforms = () => useSyncExternalStore(subscribe, platformsOf, platformsOf)
 /** Whether there is a step to take back. */
 export const useCanUndo = () => useSyncExternalStore(subscribe, canUndo, canUndo)

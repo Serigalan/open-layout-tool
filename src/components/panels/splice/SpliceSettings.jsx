@@ -1,0 +1,79 @@
+import { MAX_CANT, computeCantDef } from '../../../utils/rules/cant'
+import { useI18n } from '../../../locales/i18nContext'
+import CantField from '../CantField'
+import ReadOnlyField from '../../form/ReadOnlyField'
+
+/**
+ * The settings of a splice: how two arcs are joined, the radius of an arc put
+ * between straights with its speed and cant, and the transitions either side
+ * — their kind, and their lengths unless the construction solves them.
+ * `s` holds the settings, `set(key, value)` changes one.
+ */
+export default function SpliceSettings({ departure, arrival, s, set, cant, setCant, transitionLength }) {
+  const { t } = useI18n()
+  const bothArcs = departure?.signedR != null && arrival?.signedR != null
+  // Joined straight from one arc to the other, the transition's length is the
+  // answer rather than an input — there is nothing to type and nothing to switch on.
+  const directTransition = bothArcs && s.arcJoin === 'transition'
+  const number = (key, { min, step, clampMin } = {}) => (
+    <input type="number" min={min} step={step} value={s[key]}
+      onChange={e => set(key, clampMin != null ? Math.max(clampMin, Number(e.target.value) || clampMin) : Number(e.target.value))} />
+  )
+  return (
+    <div className="element-form">
+      <ReadOnlyField label={t('splice_departure')} value={departure?.label ?? ''} />
+      <ReadOnlyField label={t('splice_arrival')} value={arrival?.label ?? ''} />
+      {bothArcs ? (
+        <div className="form-field">
+          <label>{t('splice_arc_join')}</label>
+          <select value={s.arcJoin} onChange={e => set('arcJoin', e.target.value)}>
+            <option value="straight">{t('splice_arc_join_straight')}</option>
+            <option value="transition">{t('splice_arc_join_transition')}</option>
+          </select>
+        </div>
+      ) : (
+        <div className="form-field"><label>{t('field_radius')}</label>{number('radius', { min: 1 })}</div>
+      )}
+      <div className="form-field"><label>{t('field_speed')}</label>{number('speed', { min: 0 })}</div>
+      {/* The radius field here is a magnitude, so the cant is one too — it is
+          signed by the fitted arc when the element is written. */}
+      {!bothArcs && (
+        <>
+          <CantField value={cant} onChange={setCant} min={0} max={MAX_CANT} speed={s.speed} radius={Math.abs(Number(s.radius))} />
+          <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(s.speed, s.radius, cant)} />
+        </>
+      )}
+      {!directTransition && (
+        <label className="transition-curve-row">
+          <input type="checkbox" checked={s.clothoidEnabled} onChange={e => set('clothoidEnabled', e.target.checked)} />
+          <span>{t('transition_curve')}</span>
+        </label>
+      )}
+      {(s.clothoidEnabled || directTransition) && (
+        <>
+          <div className="form-field">
+            <label>{t('type')}</label>
+            <select value={s.transitionType} onChange={e => set('transitionType', e.target.value)}>
+              <option value="clothoid">{t('transition_type_clothoid')}</option>
+              <option value="bloss">{t('transition_type_bloss')}</option>
+            </select>
+          </div>
+          {directTransition ? (
+            <ReadOnlyField label={t('field_length')} value={transitionLength != null ? `${transitionLength.toFixed(1)} m` : ''} />
+          ) : (
+            <>
+              <div className="form-field">
+                <label>{t('splice_departure')} – {t('field_length')}</label>
+                {number('clothoidDep', { min: 1, step: 10, clampMin: 1 })}
+              </div>
+              <div className="form-field">
+                <label>{t('splice_arrival')} – {t('field_length')}</label>
+                {number('clothoidArr', { min: 1, step: 10, clampMin: 1 })}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
+}

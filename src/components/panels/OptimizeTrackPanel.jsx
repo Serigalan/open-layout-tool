@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import { loadTracks, updateTrack } from '../../storage'
-import { recalcAbsLengths, rebuildCoords, trackLabel } from '../../utils/trackModel'
+import { trackLabel } from '../../utils/trackModel'
 import {
   optimizeOnServer, optimizerReachable, fetchRegelwerke, OptimizerError,
 } from '../../utils/optimizerService'
 import { reconstructElements } from '../../utils/elementReconstruct'
 import { ZOOM_LINE_WIDTH } from '../../map/style'
-import { truncateHeights } from '../../utils/heightUtils'
-import { grundText } from '../../utils/optimizeReport'
+import { optimizeRequest, optimizedTrack, optimizeErrorText } from '../../utils/optimizeApply'
 import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
@@ -15,7 +14,9 @@ import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
 import usePreview from '../../map/usePreview'
 import useMapPick from '../../map/useMapPick'
 import { PALETTE } from '../../styles/palette'
-import ReadOnlyField from '../form/ReadOnlyField'
+import CommitBar from '../form/CommitBar'
+import OptimizeSettings from './optimize/OptimizeSettings'
+import OptimizeResult from './optimize/OptimizeResult'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
 const OPTIMIZE_PREVIEW_LAYER  = 'optimize-preview-layer'
@@ -43,26 +44,11 @@ function previewGeoJSON(elements) {
   }
 }
 
-/**
- * The vertical alignment the optimized track keeps. It is stationed along the
- * track and independent of the elements, so re-shaping them changes nothing
- * for it as long as their lengths do — where the first length moves, the
- * stations behind it move with it, and the rest is left without a gradient
- * until it is read from the terrain on request (see elevationFill).
- */
-function reshapedHeights(track, elements) {
-  const old = track.elements ?? []
-  const i = elements.findIndex((el, k) => (el.length ?? 0) !== (old[k]?.length ?? 0))
-  if (i === -1 && elements.length === old.length) return track.heights
-  const cutAt = elements.slice(0, Math.max(0, i)).reduce((sum, el) => sum + (el.length ?? 0), 0)
-  return truncateHeights(track.heights, cutAt)
-}
-
 // `initialPage`/`onExit` are what the merged splice-and-optimize panel passes:
 // it opens the panel straight in a mode and takes the back button back to its
 // own menu. Standalone, the panel starts in its own menu as before.
 export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onShowRegelwerk }) {
-  const { t, fill } = useI18n()
+  const { t } = useI18n()
   const map = useMap()
   const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element'
   const mode = page
@@ -70,16 +56,12 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
   const [trackId, setTrackId]     = useState(null)
   const [elementIdx, setElementIdx] = useState(null)    // nur im Element-Modus
   const [label, setLabel]         = useState('')
-  const [corridorCm, setCorridorCm] = useState(50)
-  // Regelwert or Ermessensgrenze of the rulebook — the level the run is held
-  // to. The deficiency, the ramps and every other limit follow from it on the
-  // server; there is no number here to choose (the u_f field this replaced
-  // let a run use 150 mm where the Ril allows 130).
-  const [grenzwert, setGrenzwert] = useState('reg')
-  const [vMax, setVMax]           = useState('')     // '' → kein Ziel, offen nach oben
+  // What the run is held to (OptimizeSettings). vMax '' sets no target, open
+  // upwards; regelwerkId '' leaves the choice to the service's default.
+  const [settings, setSettings]   = useState({ corridorCm: 50, grenzwert: 'reg', vMax: '', regelwerkId: '' })
+  const setSetting = (key, value) => setSettings(prev => ({ ...prev, [key]: value }))
   const [regelwerke, setRegelwerke] = useState([])   // [{id,name,version}], AP R.3
   const [catalogDrift, setCatalogDrift] = useState(null)   // R0.1
-  const [regelwerkId, setRegelwerkId] = useState('') // '' → Dienst-Vorgabe
   const [selectHint, setSelectHint] = useState(null)
   const [running, setRunning]     = useState(false)
   const [run, setRun]             = useState(null)    // { key, result? , error? }
@@ -87,7 +69,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
 
   // A result only counts for the parameters it was computed with — derived
   // from the parameter key rather than through an invalidation effect.
-  const runKey = [mode, trackId, elementIdx, corridorCm, grenzwert, vMax, regelwerkId, phase].join('|')
+  const runKey = [mode, trackId, elementIdx, settings.corridorCm, settings.grenzwert, settings.vMax, settings.regelwerkId, phase].join('|')
   const result = run?.key === runKey ? run.result ?? null : null
   const runError = run?.key === runKey ? run.error ?? null : null
 
@@ -160,27 +142,14 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
     const key = runKey
     setRun(null)
     setRunning(true)
-    optimizeOnServer({
-      track, corridorCm, grenzwert, uebergang: 'auto', maxiter: 100,
-      ...(Number(vMax) > 0 ? { vMax: Number(vMax) } : {}),
-      ...(regelwerkId ? { regelwerk: regelwerkId } : {}),
-      ...(mode === 'element' ? { targetElementIdx: elementIdx } : {}),
-    })
+    optimizeOnServer(optimizeRequest(track, { ...settings, elementIdx: mode === 'element' ? elementIdx : null }))
       .then(res => {
         setRun({ key, result: { ...res, elements: reconstructElements(res.elements, track.epsg) } })
         setReachable(true)
       })
       .catch(err => {
         const code = err instanceof OptimizerError ? err.code : 'unavailable'
-        // A topology the optimizer will not take comes back with its own
-        // sentence — that names the actual element sequence, which no generic
-        // key can. Everything else is translated from the key.
-        const translated = t(`optimize_err_${code}`)
-        setRun({
-          key,
-          error: err.detail
-            || (translated === `optimize_err_${code}` ? t('optimize_err_internal') : translated),
-        })
+        setRun({ key, error: optimizeErrorText(t, code, err.detail) })
         if (code === 'unavailable') setReachable(false)
       })
       .finally(() => setRunning(false))
@@ -189,15 +158,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
   const handleCommit = () => {
     const track = loadTracks().find(tr => tr.id === trackId)
     if (!track || !result?.report.some(r => r.changed)) return
-    const elements = recalcAbsLengths(result.elements)
-    updateTrack({
-      ...track, elements, coordinates: rebuildCoords(elements),
-      heights: reshapedHeights(track, elements),
-      // The regelwerk this alignment was drawn under, and at which level —
-      // without them a design a few years old is not reproducible.
-      regelwerk: result.regelwerk,
-      regelwerkGrenzwert: result.grenzwert,
-    })
+    updateTrack(optimizedTrack(track, result))
     handleCancel()
   }
 
@@ -234,129 +195,25 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
     )
   }
 
-  const changed = result?.report.filter(r => r.changed).length ?? 0
-  const canCommit = changed > 0
+  const canCommit = (result?.report.filter(r => r.changed).length ?? 0) > 0
   return (
     <>
       {backButton}
       <h2>{title}</h2>
-      <div className="element-form">
-        <ReadOnlyField label={mode === 'element' ? t('optimize_mode_element') : 'Track'} value={label} />
-        <div className="form-field">
-          <label>{t('optimize_corridor')}: {corridorCm} cm</label>
-          <input type="range" min="0" max="50" step="1" value={corridorCm}
-            onChange={e => setCorridorCm(Number(e.target.value))} />
-        </div>
-        <div className="form-field">
-          <label>{t('optimize_vmax')}</label>
-          <input type="number" min="0" step="10" placeholder={t('optimize_vmax_open')}
-            value={vMax} onChange={e => setVMax(e.target.value)} />
-        </div>
-        <div className="form-field">
-          <label>{t('optimize_grenzwert')}</label>
-          <select value={grenzwert} onChange={e => setGrenzwert(e.target.value)}>
-            <option value="reg">{t('optimize_grenzwert_reg')}</option>
-            <option value="discretion">{t('optimize_grenzwert_discretion')}</option>
-          </select>
-          {grenzwert === 'discretion' && (
-            // The catalogue says of every warning that it needs a written
-            // justification — the panel says so before the run, not after.
-            <span className="msg-warn msg-small">
-              {t('optimize_grenzwert_discretion_hint')}
-            </span>
-          )}
-        </div>
-        {regelwerke.length > 0 && (
-          <div className="form-field">
-            <label>{t('optimize_regelwerk')}</label>
-            {regelwerke.length > 1 ? (
-              <select value={regelwerkId || regelwerke[0].id} onChange={e => setRegelwerkId(e.target.value)}>
-                {regelwerke.map(rw => <option key={rw.id} value={rw.id}>{rw.name}</option>)}
-              </select>
-            ) : (
-              <input type="text" readOnly value={regelwerke[0].name} />
-            )}
-            {/* The same popup the edit panel opens, on the regelwerk this
-                run would use — one viewer, not a second copy of the table. */}
-            <button className="link-btn msg-info msg-small" type="button" onClick={() => onShowRegelwerk?.(regelwerkId || regelwerke[0].id)}>
-              {t('optimize_regelwerk_show')}
-            </button>
-          </div>
-        )}
-      </div>
-
+      <OptimizeSettings label={label} what={mode === 'element' ? t('optimize_mode_element') : 'Track'}
+        s={settings} set={setSetting} regelwerke={regelwerke} onShowRegelwerk={onShowRegelwerk} />
       <div className="element-form mt-8">
-        {catalogDrift && (
-          <p className="msg-error">{t('optimizer_catalog_drift')}</p>
-        )}
-        {reachable === false ? (
-          // The run happens on the server and nowhere else; without one the
-          // panel says so rather than offering a button that cannot work.
-          <p className="msg-error">{t('optimize_err_unavailable')}</p>
-        ) : (
-          <button
-            className="panel-btn panel-btn-full"
-            onClick={handleRun}
-            disabled={running || !trackId}
-          >
-            {t('optimize_run')}
-          </button>
-        )}
-        {running && (
-          <p className="msg-info">{t('optimize_running')}</p>
-        )}
-        {runError && (
-          <p className="msg-error">{runError}</p>
-        )}
-        {result && (
-          <div className="mt-4">
-            {result.report.map((r, i) => (
-              <div key={i} className="list-row">
-                <strong>{t('optimize_curve')} {r.group}{r.arcs > 1 ? `.${r.arc}` : ''}{r.target ? ` (${t('optimize_target')})` : ''}</strong>{' '}
-                {r.changed ? (
-                  <>
-                    r {Math.round(r.rAlt)} → {Math.round(r.rNeu)} m · u {r.uAlt} → {r.uNeu} mm<br />
-                    v {r.vAlt.toFixed(0)} → {r.vNeu.toFixed(0)} km/h · {t('optimize_offset_used')} {r.offsetCm.toFixed(0)} cm
-                    {grundText(t, r.grund) && (
-                      <><br /><span className="text-muted">{grundText(t, r.grund)}</span></>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-muted">{t('optimize_unchanged')}</span>
-                )}
-              </div>
-            ))}
-            {result.skipped?.length > 0 && (
-              // Part of the track was left alone. Saying so beats handing back
-              // half an answer in silence — and beats the refusal it used to be.
-              <p className="msg-warn">
-                {fill('optimize_skipped', { count: result.skipped.length, where: result.skipped
-                    .map(s => s.from === s.to ? `#${s.from + 1}` : `#${s.from + 1}–${s.to + 1}`)
-                    .join(', ') })}
-                {' '}{result.skipped[0].why}
-              </p>
-            )}
-            <p className={changed ? 'msg-info' : 'msg-error'}>
-              {changed
-                ? <>{t('optimize_done')}: v {result.vBestand.toFixed(0)} → {result.vNeu.toFixed(0)} km/h
-                    {' · '}{t('optimize_variant')}: {result.variant}
-                    {result.grenzwert && <>{' · '}{t(`optimize_grenzwert_${result.grenzwert}`)}</>}</>
-                : t('optimize_nothing')}
-            </p>
-          </div>
-        )}
+        {catalogDrift && <p className="msg-error">{t('optimizer_catalog_drift')}</p>}
+        {/* The run happens on the server and nowhere else; without one the
+            panel says so rather than offering a button that cannot work. */}
+        {reachable === false
+          ? <p className="msg-error">{t('optimize_err_unavailable')}</p>
+          : <button className="panel-btn panel-btn-full" onClick={handleRun} disabled={running || !trackId}>{t('optimize_run')}</button>}
+        {running && <p className="msg-info">{t('optimize_running')}</p>}
+        {runError && <p className="msg-error">{runError}</p>}
+        {result && <OptimizeResult result={result} />}
       </div>
-
-      <button
-        className="panel-btn panel-btn-full mt-8"
-        onClick={handleCommit}
-        disabled={!canCommit}
-      >
-        {t('btn_commit')}
-      </button>
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={handleCancel}>
-        {t('btn_cancel')}
-      </button>
+      <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!canCommit} />
     </>
   )
 }
