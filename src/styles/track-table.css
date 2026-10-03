@@ -256,3 +256,7 @@
   font-weight: 400;
   color: var(--color-muted);
 }
+
+@media (max-width: 1440px) {
+  .track-table-overlay { height: 42%; }
+}

@@ -1175,5 +1175,7 @@
   "check_optimize": "Optimieren",
   "sidebar_labels_show": "Beschriftung zeigen",
   "sidebar_labels_hide": "Beschriftung ausblenden",
-  "info_check": "Misst den Entwurf an den Regeln: die Physik und das Regelwerk, gegen die geprüft wird (je über der Karte geöffnet), und der Optimierer, der ein Gleis oder einen einzelnen Bogen innerhalb eines Korridors an das Regelwerk anpasst."
+  "info_check": "Misst den Entwurf an den Regeln: die Physik und das Regelwerk, gegen die geprüft wird (je über der Karte geöffnet), und der Optimierer, der ein Gleis oder einen einzelnen Bogen innerhalb eines Korridors an das Regelwerk anpasst.",
+  "panel_fold": "Panel einklappen",
+  "panel_unfold": "Panel zeigen"
 }

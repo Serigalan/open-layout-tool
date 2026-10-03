@@ -191,3 +191,7 @@
   color: var(--color-muted);
   font-size: var(--fs-m);
 }
+
+@media (max-width: 1440px) {
+  .profile-overlay { height: 40%; }
+}

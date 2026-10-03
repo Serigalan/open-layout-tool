@@ -11,6 +11,7 @@ import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import useMapPick from '../map/useMapPick'
 import TrackTableRow from './trackTable/TrackTableRow'
+import { useOverlayHeight } from './chart/useChartViewport'
 import { TrackTableBar, TrackTableHead } from './trackTable/TrackTableHeader'
 
 // Fields that reshape the element geometry (and the downstream chain).
@@ -80,6 +81,10 @@ export default function TrackTableOverlay({
   // the next Save. It is re-read instead, and unsaved edits are gone with the
   // step they were sitting on, which is said rather than left to be noticed.
   // The table's own Save is no such move: it notes what it wrote (`seen`).
+  // Its height by the top edge, like the profile's (R10.9).
+  const scrollRef = useRef(null)
+  const overlay = useOverlayHeight(scrollRef, { min: 140 })
+
   const storeTracks = useTracks()
   const [seen, setSeen] = useState(storeTracks)
   if (seen !== storeTracks) {
@@ -280,12 +285,13 @@ export default function TrackTableOverlay({
   }
 
   return (
-    <div className="track-table-overlay">
+    <div className="track-table-overlay" style={overlay.style}>
+      <div className="profile-resize" onPointerDown={overlay.onResizeStart} />
       <TrackTableBar title={current.name || current.id.slice(0, 8)} length={trackLength}
         cap={cap} onCap={setCap} onMaxSpeeds={handleMaxSpeeds}
         reachError={reachError} notice={notice} reached={reached}
         dirty={dirty} changed={changed.length} onSave={handleSave} onClose={onClose} />
-      <div className="track-table-scroll">
+      <div className="track-table-scroll" ref={scrollRef}>
         <table className="track-table">
           <TrackTableHead />
           {/* Keyed by the track, so a half-typed cell of the previous one does

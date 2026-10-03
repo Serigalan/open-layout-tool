@@ -18,6 +18,7 @@ import { OVERLAYS_CLOSED, closesTrackTable, overlayReducer } from './overlays'
 import { panelById } from './panels'
 import Sidebar from './Sidebar'
 import StepNotice from './StepNotice'
+import usePanelWidth from './usePanelWidth'
 import RuleFieldsScope from '../components/form/RuleFieldsScope'
 import ConfirmModal from '../components/ConfirmModal'
 import ElevationLegend from '../components/ElevationLegend'
@@ -109,7 +110,11 @@ export default function MapWorkspace({ wc, onHome }) {
   }, [wc.replaced])
 
   // ── panels ──
+  const panelSize = usePanelWidth()
   const selectPanel = (id) => {
+    // A folded panel comes back on its icon rather than closing.
+    if (panelSize.folded && activePanel === id) { panelSize.setFolded(false); return }
+    panelSize.setFolded(false)
     const next = activePanel === id ? null : id
     const leaving = panelById(activePanel)
     // Entering and leaving may also keep what they replace (the basemap).
@@ -282,12 +287,25 @@ export default function MapWorkspace({ wc, onHome }) {
         <Sidebar active={activePanel} onSelect={selectPanel} onUndo={undo} onRedo={redo} onHome={goHome} />
 
         {PanelComponent && (
-          <aside className="sidebar-secondary">
+          <aside className={`sidebar-secondary${panelSize.folded ? ' folded' : ''}`}
+            style={panelSize.width && !panelSize.folded ? { width: panelSize.width } : undefined}>
+            <div className="panel-content" hidden={panelSize.folded}>
             <Suspense fallback={<p className="selecting-hint">…</p>}>
               <RuleFieldsScope key={activePanel}>
                 <PanelComponent {...(panel.props?.(shell) ?? {})} />
               </RuleFieldsScope>
             </Suspense>
+            </div>
+            {/* Its width by the right edge, a double click back to the standard
+                one; the fold button gives the map the room (R10.9). */}
+            {!panelSize.folded && (
+              <div className="panel-resize" onPointerDown={panelSize.onResizeStart} onDoubleClick={panelSize.resetWidth} />
+            )}
+            <button type="button" className="panel-fold" onClick={() => panelSize.setFolded(f => !f)}
+              aria-expanded={!panelSize.folded}
+              title={t(panelSize.folded ? 'panel_unfold' : 'panel_fold')} aria-label={t(panelSize.folded ? 'panel_unfold' : 'panel_fold')}>
+              <span aria-hidden="true">{panelSize.folded ? '›' : '‹'}</span>
+            </button>
           </aside>
         )}
 

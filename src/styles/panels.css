@@ -835,3 +835,34 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 .number-field { display: flex; align-items: center; gap: var(--space-3); }
 .number-field input { flex: 1; min-width: 0; }
 .number-unit { flex: 0 0 auto; color: var(--color-text-soft); font-size: var(--fs-s); min-width: 2.2em; }
+
+/* The panel's width and folding (R10.9): the handle on its right edge, the
+   fold button half over the edge, and the strip it leaves when folded. */
+.sidebar-secondary { position: relative; overflow: visible; }
+/* The panel scrolls inside, so the fold button can stand over its edge. */
+.panel-content {
+  display: flex; flex-direction: column; gap: 12px;
+  flex: 1; min-height: 0; overflow-y: auto;
+  margin: -24px -20px; padding: 24px 20px;
+}
+.panel-content[hidden] { display: none; }
+.panel-resize {
+  position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
+  cursor: ew-resize; z-index: 2;
+}
+.panel-resize:hover { background: rgba(0, 0, 0, 0.06); }
+.panel-fold {
+  position: absolute; top: 50%; right: -12px; transform: translateY(-50%);
+  width: 22px; height: 44px; border-radius: 6px; z-index: 3;
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  color: var(--color-text-soft); cursor: pointer; font-size: 16px; padding: 0;
+}
+.panel-fold:hover { color: var(--color-text); }
+.sidebar-secondary.folded { width: 14px; padding: 0; overflow: visible; }
+
+/* Smaller screens (R10.9): from 1280 px on everything stays usable — a
+   narrower panel and lower overlays leave the map its room. */
+@media (max-width: 1440px) {
+  .sidebar-secondary { width: 280px; padding: 18px 14px; }
+  .panel-content { margin: -18px -14px; padding: 18px 14px; }
+}

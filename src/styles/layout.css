@@ -81,3 +81,13 @@
   font-size: 16px; line-height: 1; padding: 4px; align-self: center;
 }
 .sidebar-label-toggle:hover { color: #fff; }
+
+/* A low screen (R10.9): the icons closer together, and the sidebar scrolls
+   rather than cutting off its last ones. */
+.sidebar-primary { overflow-y: auto; overflow-x: hidden; }
+@media (max-height: 900px) {
+  .sidebar-primary { padding: 10px 0; }
+  .sidebar-top, .sidebar-bottom { gap: 4px; }
+  .sidebar-icon-btn { height: 34px; }
+  .sidebar-divider { margin: 1px 0; }
+}
