@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { commitImport, loadSwitches, loadTracks } from '../../../storage'
 import { EPSG_OPTIONS } from '../../../utils/coordinateUtils'
-import { ALL_STRECKEN, runMdbImport } from '../../../utils/import/mdbPipeline'
+import { ALL_STRECKEN } from '../../../utils/import/mdbPipeline'
+import { importMdb } from '../../../utils/import/mdbImportJob'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
 import FilePickButton from '../../form/FilePickButton'
@@ -31,7 +32,7 @@ export default function MdbSection({ dbref = false, onReport }) {
     if (!payload || !mdb.strecke || !project) return
     mdb.setBusy(true)
     try {
-      const { notes, counts, commit } = await runMdbImport({
+      const { notes, counts, commit } = await importMdb({
         payload, strecke: mdb.strecke, withSwitches, target: dbref ? Number(target) : null,
         existing: { tracks: loadTracks(), switches: loadSwitches() }, fill,
       })
@@ -44,6 +45,8 @@ export default function MdbSection({ dbref = false, onReport }) {
       })
       // One commit, one undo step — a whole database is thousands of tracks.
       if (commit) commitImport(commit)
+    } catch (err) {
+      mdb.setErrors([`${t('import_parse_error')}: ${err.message}`])
     } finally {
       mdb.setBusy(false)
     }

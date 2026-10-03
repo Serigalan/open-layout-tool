@@ -203,3 +203,20 @@ export async function loadGridsFor(bbox, datums = null, { base = null } = {}) {
   rebuildLists()
   return loadedRegionalGrids()
 }
+
+/**
+ * Load the regional grids named by `keys` (as loadedRegionalGrids gives them)
+ * — so a worker converts with the grids the page has, and the page with the
+ * ones a worker loaded.
+ */
+export async function loadRegionalGrids(keys, { base = null } = {}) {
+  for (const grid of REGIONAL_GRIDS.filter(g => keys.includes(g.key) && !loaded.has(g.key))) {
+    if (grid.datum === 'DHDN' && !ntv2Ready()) continue
+    try {
+      await readGrid(grid, base)
+    } catch (err) {
+      console.error(`${grid.name} did not load — its area keeps the shift it had`, err)
+    }
+  }
+  rebuildLists()
+}
