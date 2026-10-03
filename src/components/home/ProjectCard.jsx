@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { blobUrl } from '../../api/client'
-import { formatDate, variantTree } from '../collab/homeModel'
+import { variantTree } from '../collab/homeModel'
+import { formatDate } from '../../locales/i18n'
 import { useI18n } from '../../locales/i18nContext'
 
 export default function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit, onOpen, onView, onDialog, onCompare, onMerge, onHistory }) {

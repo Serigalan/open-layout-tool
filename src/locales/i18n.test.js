@@ -83,3 +83,14 @@ describe('filling texts (R6.1)', () => {
     expect(tOr(t, 'nope', 'x')).toBe('x')
   })
 })
+
+describe('formatDate', () => {
+  it('writes a date as the interface language does', async () => {
+    const { formatDate } = await import('./i18n')
+    expect(formatDate('2026-10-02T14:05:00', 'de')).toBe('02.10.2026')
+    expect(formatDate('2026-10-02T14:05:00', 'en')).toBe('02/10/2026')
+    expect(formatDate('2026-10-02T14:05:00', 'de', { time: true })).toBe('02.10.2026, 14:05')
+    expect(formatDate(null, 'de')).toBe('')
+    expect(formatDate('not a date', 'de')).toBe('')
+  })
+})

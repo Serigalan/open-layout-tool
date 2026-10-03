@@ -32,3 +32,20 @@ export function tOr(t, key, fallback) {
   const s = t(key)
   return s === key ? fallback : s
 }
+
+const LOCALE = { de: 'de-DE', en: 'en-GB' }
+
+/**
+ * A date (ISO string, number or Date) as the interface language writes it —
+ * 02.10.2026 or 02/10/2026, with `time` the hour and minute after it. Empty
+ * for no date.
+ */
+export function formatDate(value, language, { time = false } = {}) {
+  if (value == null || value === '') return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString(LOCALE[language] ?? LOCALE.de, {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    ...(time ? { hour: '2-digit', minute: '2-digit' } : {}),
+  })
+}

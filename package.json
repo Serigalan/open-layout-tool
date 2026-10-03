@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "tools/check.sh",
-    "knip": "knip --no-progress"
+    "knip": "knip --no-progress",
+    "i18n:unused": "node tools/i18n-unused.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

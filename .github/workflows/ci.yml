@@ -21,6 +21,7 @@ jobs:
         working-directory: tools/server
       - run: npm run lint
       - run: npm run knip
+      - run: npm run i18n:unused
       - run: npm test
       - run: npx vite build --outDir /tmp/olt-dist
 

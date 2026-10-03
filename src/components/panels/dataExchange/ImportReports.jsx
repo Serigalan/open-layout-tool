@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { downloadText } from '../../../utils/fileUtils'
 import { useI18n } from '../../../locales/i18nContext'
+import { formatDate } from '../../../locales/i18n'
 import ExchangeSection from './ExchangeSection'
 
 const reportFileName = (at) => `import-${new Date(at).toISOString().slice(0, 19).replace(/[:T]/g, '-')}.txt`
 
 /** The kept reports, newest first, each opened on its own. */
 export default function ImportReports({ reports, onClear }) {
-  const { t, fill } = useI18n()
+  const { t, fill, language } = useI18n()
   const [open, setOpen] = useState(null)   // the `at` of the open report
   return (
     <ExchangeSection title={t('data_exchange_reports')} description={t('data_exchange_reports_desc')}>
@@ -16,7 +17,7 @@ export default function ImportReports({ reports, onClear }) {
         <div key={r.at}>
           <button className="panel-btn panel-btn-full mt-2" aria-expanded={open === r.at}
             onClick={() => setOpen(open === r.at ? null : r.at)}>
-            {fill('data_exchange_reports_entry', { when: new Date(r.at).toLocaleString(), source: r.source ?? '', n: r.lines?.length ?? 0 })}
+            {fill('data_exchange_reports_entry', { when: formatDate(r.at, language, { time: true }), source: r.source ?? '', n: r.lines?.length ?? 0 })}
           </button>
           {open === r.at && (
             <>

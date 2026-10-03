@@ -5,6 +5,7 @@ import { heightDatumLabel } from '../../../utils/heightDatums'
 import { outlineFeature, cloudSize } from '../../../utils/pointCloud/cloudOutline'
 import { count, sizeText } from '../../../utils/pointCloud/cloudFormat'
 import { useI18n } from '../../../locales/i18nContext'
+import { formatDate } from '../../../locales/i18n'
 import { useMap } from '../../../map/MapContext'
 import ConfirmModal from '../../ConfirmModal'
 
@@ -12,7 +13,7 @@ const crsText = (code) => crsName(code) ?? `EPSG ${code}`
 
 /** The clouds stored for the project on this device: where each lies, how big, and delete. */
 export default function CloudList({ clouds, busy, onDelete }) {
-  const { t, fill } = useI18n()
+  const { t, fill, language } = useI18n()
   const map = useMap()
   const [asking, setAsking] = useState(null)    // the cloud a delete waits on
 
@@ -42,7 +43,7 @@ export default function CloudList({ clouds, busy, onDelete }) {
               {`${Math.round(w)} × ${Math.round(h)} m · ${c.bounds.minZ.toFixed(1)}–${c.bounds.maxZ.toFixed(1)} m · `
                 + `${fill('pointcloud_points', { n: count(c.points) })} · ${sizeText(c.bytes)}`}
             </span>
-            <span className="pointcloud-meta">{`${c.file?.name ?? ''} · ${new Date(c.createdAt).toLocaleString()}`}</span>
+            <span className="pointcloud-meta">{`${c.file?.name ?? ''} · ${formatDate(c.createdAt, language, { time: true })}`}</span>
             <div className="pointcloud-actions">
               <button className="modal-btn modal-btn-cancel" onClick={() => showOnMap(c)}>{t('pointcloud_show')}</button>
               <button className="modal-btn modal-btn-confirm" disabled={busy} onClick={() => setAsking(c)}>{t('modal_delete')}</button>

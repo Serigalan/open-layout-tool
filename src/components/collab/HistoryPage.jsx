@@ -4,11 +4,9 @@ import { discardWorkingCopy } from '../../storage'
 import { hasLocalChanges } from '../../utils/variantMerge'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
+import { formatDate } from '../../locales/i18n'
 import Modal from '../Modal'
 
-const dateTime = (iso, language) => new Date(iso).toLocaleString(language === 'de' ? 'de-DE' : 'en-GB', {
-  day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-})
 
 /**
  * The history of a variant (AP 10.10): its revisions from the head back, each
@@ -83,7 +81,7 @@ export default function HistoryPage({ project, variant, onBack, onView, onCompar
               <li key={rev.id} className={`history-rev ${rev.mergeParentId ? 'merge' : ''} ${inherited ? 'inherited' : ''}`}>
                 <div className="history-rev-head">
                   <span className="history-rev-number">rev {rev.number}</span>
-                  <span className="collab-muted">{dateTime(rev.createdAt, language)} · {rev.author.name}</span>
+                  <span className="collab-muted">{formatDate(rev.createdAt, language, { time: true })} · {rev.author.name}</span>
                   {isHead && <span className="admin-badge active">{t('history_head')}</span>}
                   {rev.mergeParentId && <span className="admin-badge pending">{t('history_merge')}</span>}
                   {inherited && <span className="admin-badge">{fill('history_inherited', { variant: names.get(rev.variantId) ?? '?' })}</span>}

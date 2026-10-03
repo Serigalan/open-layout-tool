@@ -24,9 +24,6 @@ export function variantTree(variants) {
   return out
 }
 
-export const formatDate = (iso, language) => (iso
-  ? new Date(iso).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  : '')
 
 /**
  * What the start page shows: the server's projects, and per variant the

@@ -14,6 +14,7 @@ quick=0
 
 echo "== lint";  npm run -s lint
 echo "== dead code"; npm run -s knip
+echo "== unused translations"; npm run -s i18n:unused
 echo "== tests"; npx vitest run
 echo "== build (catches imports of names that are gone)"; npx vite build --outDir "$(mktemp -d)" --logLevel error
 

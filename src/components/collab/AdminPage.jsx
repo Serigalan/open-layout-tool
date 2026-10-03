@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import { formatDate } from './homeModel'
+import { formatDate } from '../../locales/i18n'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 import { errorText } from './errorText'
