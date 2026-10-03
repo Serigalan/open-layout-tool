@@ -1194,5 +1194,11 @@
   "service_needs_optimizer": "Der Optimierdienst ist nicht erreichbar – eine MDB-Datei kann gerade nicht umgewandelt werden.",
   "run_elapsed": "{s} s",
   "btn_abort": "Abbrechen",
-  "run_aborted": "Abgebrochen."
+  "run_aborted": "Abgebrochen.",
+  "first_steps_title": "Erste Schritte",
+  "first_steps_hint": "Dieses Projekt hat noch kein Gleis. Zeichne das erste auf der Karte, oder hole herein, was es schon gibt – eine Vermessung (Verm.ESN), eine MDB-Datenbank, eine OSRD- oder Projektdatei.",
+  "first_steps_draw": "Gleis zeichnen",
+  "first_steps_import": "Daten importieren",
+  "first_steps_guide": "Leitfaden lesen",
+  "first_steps_close": "Erst die Karte ansehen"
 }

@@ -88,3 +88,14 @@
 .service-dot { width: 8px; height: 8px; border-radius: 50%; background: #bbb; }
 .service-dot.ok { background: #2e7d32; }
 .service-dot.down { background: var(--color-error); }
+
+/* The first steps of an empty project (R10.13), over the middle of the map. */
+.first-steps {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 25;
+  width: min(380px, calc(100% - 32px)); padding: 20px 22px;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+.first-steps h2 { margin: 0 0 6px; }
+.first-steps-actions { display: flex; flex-direction: column; gap: var(--space-4); margin: 12px 0 8px; }
+.first-steps-close { font-size: var(--fs-s); color: var(--color-text-soft); }

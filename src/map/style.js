@@ -37,3 +37,6 @@ export const ZOOM_ICON_SIZE = lineWidthTimes(1 / MARKER_STROKE)
  * imported Strecke brings thousands of them.
  */
 export const MARKER_MIN_ZOOM = 16
+
+/** The extent of Germany [w, s, e, n] — where an empty project is looked at first (R10.13). */
+export const START_REGION = [5.8, 47.2, 15.1, 55.1]

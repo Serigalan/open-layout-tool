@@ -1194,5 +1194,11 @@
   "service_needs_optimizer": "The optimizer service cannot be reached – an MDB file cannot be converted now.",
   "run_elapsed": "{s} s",
   "btn_abort": "Stop",
-  "run_aborted": "Stopped."
+  "run_aborted": "Stopped.",
+  "first_steps_title": "First steps",
+  "first_steps_hint": "This project has no track yet. Draw the first one on the map, or bring in what exists — a survey (Verm.ESN), an MDB database, an OSRD or project file.",
+  "first_steps_draw": "Draw a track",
+  "first_steps_import": "Import data",
+  "first_steps_guide": "Read the guideline",
+  "first_steps_close": "Look at the map first"
 }

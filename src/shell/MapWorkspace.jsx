@@ -20,6 +20,8 @@ import Sidebar from './Sidebar'
 import StepNotice from './StepNotice'
 import MapLegend from './MapLegend'
 import ServiceStatus from './ServiceStatus'
+import FirstSteps from './FirstSteps'
+import { START_REGION } from '../map/style'
 import usePanelWidth from './usePanelWidth'
 import RuleFieldsScope from '../components/form/RuleFieldsScope'
 import ConfirmModal from '../components/ConfirmModal'
@@ -69,6 +71,8 @@ export default function MapWorkspace({ wc, onHome }) {
     onStyleLoad: ({ fit }) => {
       if (projectRef.current) {
         renderTracksOnMap(map.current, projectRef.current, { fit, topology: topologyRef.current })
+        // An empty project is looked at where railways are planned (R10.13).
+        if (fit && !(projectRef.current.tracks ?? []).length) map.current.fitBounds(START_REGION, { padding: 40, duration: 0 })
       }
       km.restore()
     },
@@ -77,7 +81,9 @@ export default function MapWorkspace({ wc, onHome }) {
   const km = useKmOverlays(map)
   useKmLineHover(map, km.kmOverlays.db || km.kmOverlays.other, t)
 
-  const [activePanel, setActivePanel] = useState('info')
+  // An empty project opens on its first steps, not on the info panel (R10.13).
+  const [activePanel, setActivePanel] = useState(() => ((project?.tracks ?? []).length ? 'info' : null))
+  const [firstStepsClosed, setFirstStepsClosed] = useState(false)
   const [overlays, dispatch] = useReducer(overlayReducer, OVERLAYS_CLOSED)
   const { overlay, popup } = overlays
   // Two states over each other (AP 10.3): { before, after, beforeLabel, afterLabel, drawUnchanged }.
@@ -330,6 +336,10 @@ export default function MapWorkspace({ wc, onHome }) {
           <StepNotice />
           <MapLegend color={color} />
           <ServiceStatus />
+          {!firstStepsClosed && !activePanel && !(project?.tracks ?? []).length && (
+            <FirstSteps onDraw={() => selectPanel('places')} onImport={() => selectPanel('data')}
+              onClose={() => setFirstStepsClosed(true)} />
+          )}
 
           <Suspense fallback={null}>
           {overlay?.kind === 'trackTable' && <TrackTableOverlay track={overlay.track}
