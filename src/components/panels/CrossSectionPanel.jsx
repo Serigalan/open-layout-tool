@@ -16,6 +16,7 @@ import useMapPick from '../../map/useMapPick'
 import ReadOnlyField from '../form/ReadOnlyField'
 import FormSection from '../form/FormSection'
 import CancelButton from '../form/CancelButton'
+import NumberInput from '../form/NumberInput'
 
 /**
  * The cross section of a track, at a station of it: the clearance profile the
@@ -86,9 +87,9 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
                   <option key={key} value={key}>{v.label}</option>
                 ))}
               </select>
-              <input type="number" step="0.001" min="0" max={total} value={r.from ?? 0}
+              <NumberInput step="0.001" min="0" max={total} value={r.from ?? 0}
                 onChange={e => patchRange(field, i, { from: Number(e.target.value) })} />
-              <input type="number" step="0.001" min="0" max={total} value={r.to ?? total}
+              <NumberInput step="0.001" min="0" max={total} value={r.to ?? total}
                 onChange={e => patchRange(field, i, { to: Number(e.target.value) })} />
               <button type="button" className="field-override" onClick={() => dropRange(field, i)} aria-label={t('btn_remove')} title={t('btn_remove')}>✕</button>
             </div>

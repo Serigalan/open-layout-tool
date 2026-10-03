@@ -4,6 +4,7 @@ import { SPEED_STEP } from '../../utils/rules/speed'
 import { useI18n } from '../../locales/i18nContext'
 import { lengthText } from './rowText'
 import CloseButton from '../form/CloseButton'
+import NumberInput from '../form/NumberInput'
 
 /**
  * The bar above the table: the track and its length, the line speed and the
@@ -11,17 +12,17 @@ import CloseButton from '../form/CloseButton'
  * the last one was refused), Save and close.
  */
 export function TrackTableBar({ title, length, cap, onCap, onMaxSpeeds, reachError, notice, reached, dirty, changed, onSave, onClose }) {
-  const { t, fill } = useI18n()
+  const { t, fill, language } = useI18n()
   return (
     <div className="track-table-header">
       <span className="track-table-title">
         {title}
-        <span className="track-table-subtitle">{lengthText(length)} m</span>
+        <span className="track-table-subtitle">{lengthText(length, language)} m</span>
       </span>
       <div className="row-wide">
         <label className="track-table-cap" title={t('table_speed_cap_hint')}>
           {t('table_speed_cap')}
-          <input className="track-table-input track-table-cap-input" type="number" min="0" step={SPEED_STEP}
+          <NumberInput className="track-table-input track-table-cap-input" min="0" step={SPEED_STEP}
             placeholder="–" value={cap} onChange={e => onCap(e.target.value)} />
         </label>
         <button className="track-table-vmax-btn" onClick={onMaxSpeeds} title={t('table_set_max_speeds_hint')}>

@@ -5,6 +5,8 @@ import { useI18n } from '../../../locales/i18nContext'
 import FormSection from '../../form/FormSection'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import UtmCoordFields from '../../UtmCoordFields'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 /**
  * Where the platform lies on its track: the two stations, the side, its
@@ -24,7 +26,7 @@ export default function PlatformGeometryFields({ f, set, onStation, track, draft
   const station = (key, label) => (
     <div className="form-field">
       <label>{t(label)}</label>
-      <input type="number" step="0.001" min="0" max={total} value={f[key]} onChange={e => onStation(key, e.target.value)} />
+      <NumberInput step="0.001" min="0" max={total} value={f[key]} onChange={e => onStation(key, e.target.value)} />
     </div>
   )
   const point = (label, p) => p && (
@@ -58,14 +60,14 @@ export default function PlatformGeometryFields({ f, set, onStation, track, draft
       {f.freeHeight && (
         <div className="form-field">
           <label>{t('platform_height_value')}</label>
-          <input type="number" step="10" min="0" value={f.height}
+          <NumberInput step="10" min="0" value={f.height}
             onChange={e => set('height', e.target.value === '' ? '' : Number(e.target.value))} />
         </div>
       )}
       <div className="form-field">
-        <label>{t('platform_front_edge')}</label>
-        <input type="number" step="0.01" min="0" value={f.frontOffset}
-          onChange={e => set('frontOffset', e.target.value === '' ? '' : Number(e.target.value))} />
+        <label>{splitUnit(t('platform_front_edge')).text}</label>
+        <NumberInput step="0.01" min="0" value={f.frontOffset}
+          onChange={e => set('frontOffset', e.target.value === '' ? '' : Number(e.target.value))} unit="m" />
         {Number(f.frontOffset) !== PLATFORM_FRONT_OFFSET && (
           <button type="button" className="field-override" onClick={() => set('frontOffset', PLATFORM_FRONT_OFFSET)}>
             {`${t('platform_front_edge_manual')} (${PLATFORM_FRONT_OFFSET.toFixed(2)} m)`}

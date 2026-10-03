@@ -18,6 +18,8 @@ import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
 import { firstReason } from '../../form/firstReason'
 import MessageList from '../../form/MessageList'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 export default function ParallelTrackForm({ onDone }) {
   const { t } = useI18n()
@@ -104,8 +106,8 @@ export default function ParallelTrackForm({ onDone }) {
       {!selecting && (
         <FormSection title={t('section_geometry')}>
           <div className="form-field">
-            <label>{t('field_offset')}</label>
-            <input type="number" step="0.01" value={offset} onChange={e => handleOffsetChange(e.target.value)} />
+            <label>{splitUnit(t('field_offset')).text}</label>
+            <NumberInput step="0.01" value={offset} onChange={e => handleOffsetChange(e.target.value)} unit="m" />
           </div>
           <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
         </FormSection>

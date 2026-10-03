@@ -15,6 +15,7 @@ import { clamp } from '../utils/format'
 import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
+import NumberInput from './form/NumberInput'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
 const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
@@ -353,13 +354,13 @@ export default function ElevationOverlay({ trackId, onClose }) {
               <span>{selectedPoints.length === 1
                 ? `${t('elevation_station')} ${selectedPoints[0].station.toFixed(2)} m`
                 : fill('elevation_selected', { n: selectedPoints.length })}</span>
-              <input className="track-table-input" type="number" step="0.01" value={draft} autoFocus
+              <NumberInput className="track-table-input" step="0.01" value={draft} autoFocus
                 placeholder={t('elevation_mixed')}
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
               <span>m</span>
               <span title={t('elevation_vcurve_hint')}>{t('elevation_vcurve')}</span>
-              <input className="track-table-input" type="number" step="100" min="0" value={rvDraft}
+              <NumberInput className="track-table-input" step="100" min="0" value={rvDraft}
                 placeholder={rvMixed ? t('elevation_mixed') : '–'} title={t('elevation_vcurve_hint')}
                 onChange={e => setRvDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />

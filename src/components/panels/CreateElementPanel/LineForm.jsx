@@ -22,6 +22,8 @@ import FormSection from '../../form/FormSection'
 import { firstReason } from '../../form/firstReason'
 import MessageList from '../../form/MessageList'
 import FieldRule from '../../form/FieldRule'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 export default function LineForm({ onDone }) {
   const { t } = useI18n()
@@ -180,17 +182,17 @@ export default function LineForm({ onDone }) {
       {points.length === 2 && (
         <FormSection title={t('section_geometry')}>
           <div className="form-field">
-            <label>{t('field_length')}</label>
-            <input type="number" step="0.001" value={length} onChange={e => handleLengthChange(e.target.value)} />
+            <label>{splitUnit(t('field_length')).text}</label>
+            <NumberInput step="0.001" value={length} onChange={e => handleLengthChange(e.target.value)} unit="m" />
             <FieldRule name="length" />
           </div>
           <div className="form-field">
-            <label>{t('bearing')}</label>
-            <input type="number" step="0.001" min="0" max="360" value={bearing} onChange={e => handleBearingChange(e.target.value)} />
+            <label>{splitUnit(t('bearing')).text}</label>
+            <NumberInput step="0.001" min="0" max="360" value={bearing} onChange={e => handleBearingChange(e.target.value)} unit="°" />
           </div>
           <div className="form-field">
-            <label>{t('field_speed')}</label>
-            <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+            <label>{splitUnit(t('field_speed')).text}</label>
+            <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
             <FieldRule name="speed" />
           </div>
           <div className="form-field">

@@ -27,6 +27,7 @@ import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
+import NumberInput from './form/NumberInput'
 
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
@@ -564,7 +565,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
                 <>
                   <label className="profile-edit" title={t('cross_section_cloud_thickness_hint')}>
                     {t('cross_section_cloud_thickness')}
-                    <input className="track-table-input cross-section-reach" type="number" min={1} max={MAX_THICKNESS} step={2}
+                    <NumberInput className="track-table-input cross-section-reach" min={1} max={MAX_THICKNESS} step={2}
                       value={thickness}
                       onChange={e => setThickness(clamp(Number(e.target.value) || DEFAULT_THICKNESS, 1, MAX_THICKNESS))} />
                     cm
@@ -588,7 +589,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
           )}
           <label className="profile-edit" title={t('cross_section_reach_hint')}>
             {t('cross_section_reach')}
-            <input className="track-table-input cross-section-reach" type="number" min={1} max={MAX_REACH} step={5}
+            <NumberInput className="track-table-input cross-section-reach" min={1} max={MAX_REACH} step={5}
               value={reach}
               onChange={e => setReach(clamp(Number(e.target.value) || DEFAULT_REACH, 1, MAX_REACH))} />
             m

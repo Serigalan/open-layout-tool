@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react'
+import { formatNum, parseNumText } from '../../locales/i18n'
+import { useI18n } from '../../locales/i18nContext'
 
 const inputClass = (wide, className) =>
   `track-table-input${wide ? ' track-table-input-wide' : ''}${className ? ` ${className}` : ''}`
@@ -23,17 +25,21 @@ export function TextCell({ value, wide = false, className = '' }) {
 export function EditCell({
   value, onCommit, disabled = false, step, type = 'number', wide = false, className = '', placeholder,
 }) {
+  const { language } = useI18n()
   const [draft, setDraft] = useState(null)
   const droppedRef = useRef(false)   // Escape took the typing back: the blur commits nothing
-  const shown = value == null ? '' : String(value)
+  // Numbers as the interface language writes them, typed with comma or point (R10.8).
+  const numeric = type === 'number'
+  const shown = value == null ? '' : numeric ? formatNum(value, language) : String(value)
   return (
-    <input className={inputClass(wide, className)} type={type} disabled={disabled} step={step}
+    <input className={inputClass(wide, className)} type={numeric ? 'text' : type} inputMode={numeric ? 'decimal' : undefined}
+      disabled={disabled} data-step={step}
       placeholder={placeholder}
       value={draft ?? shown}
       onFocus={() => setDraft(shown)}
       onChange={e => setDraft(e.target.value)}
       onBlur={() => {
-        if (!droppedRef.current && draft != null && draft !== shown) onCommit(draft)
+        if (!droppedRef.current && draft != null && draft !== shown) onCommit(numeric ? parseNumText(draft) : draft)
         droppedRef.current = false
         setDraft(null)
       }}

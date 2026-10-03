@@ -1,4 +1,5 @@
 import { useI18n } from '../../locales/i18nContext'
+import NumberInput from '../form/NumberInput'
 /**
  * The number a turnout is created under, with the designation it composes shown
  * beside it. The designation is not editable: it follows the number, so the two
@@ -10,8 +11,8 @@ export default function SwitchNumberField({ number, onChange, name, taken }) {
     <>
       <div className="form-field">
         <label>{t('switch_number')}</label>
-        <input
-          type="number" min="1" step="1" value={number}
+        <NumberInput
+          min="1" step="1" value={number}
           onChange={e => onChange(Math.max(1, Math.round(Number(e.target.value) || 0)))}
           className={taken ? 'input-error' : undefined}
         />

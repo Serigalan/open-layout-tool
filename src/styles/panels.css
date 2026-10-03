@@ -830,3 +830,8 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 .track-search select { flex: 0 1 auto; }
 .track-search-count { flex-basis: 100%; font-size: var(--fs-xs); color: var(--color-text-soft); }
 .track-search-hits { flex-basis: 100%; }
+
+/* A number field with its unit behind it (R10.8). */
+.number-field { display: flex; align-items: center; gap: var(--space-3); }
+.number-field input { flex: 1; min-width: 0; }
+.number-unit { flex: 0 0 auto; color: var(--color-text-soft); font-size: var(--fs-s); min-width: 2.2em; }

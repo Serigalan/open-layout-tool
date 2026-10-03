@@ -16,6 +16,7 @@ import { TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
 import useMapPick from '../../../map/useMapPick'
 import { format } from '../../../locales/i18n'
 import FormSection from '../../form/FormSection'
+import NumberInput from '../../form/NumberInput'
 
 const NEW = 'new'
 /** How long the line number has to hold still before the tracks are measured against it. */
@@ -210,7 +211,7 @@ export default function AssignTracksForm({ onCommitted }) {
           <>
             <div className="form-field">
               <label>{t('line_number')}</label>
-              <input type="number" value={entry.lineNumber} onChange={(e) => setField('lineNumber', e.target.value)} />
+              <NumberInput value={entry.lineNumber} onChange={(e) => setField('lineNumber', e.target.value)} />
               {lineOptions.length > 0 && (
                 <div className="line-suggestions">
                   {lineOptions.map(({ lineNumber: number, distance }) => (

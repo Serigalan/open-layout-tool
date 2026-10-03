@@ -1,5 +1,7 @@
 import { useI18n } from '../../../locales/i18nContext'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 /**
  * What a run is held to: the corridor the track may move in, a target speed,
@@ -19,9 +21,9 @@ export default function OptimizeSettings({ label, what, s, set, regelwerke, onSh
           onChange={e => set('corridorCm', Number(e.target.value))} />
       </div>
       <div className="form-field">
-        <label>{t('optimize_vmax')}</label>
-        <input type="number" min="0" step="10" placeholder={t('optimize_vmax_open')}
-          value={s.vMax} onChange={e => set('vMax', e.target.value)} />
+        <label>{splitUnit(t('optimize_vmax')).text}</label>
+        <NumberInput min="0" step="10" placeholder={t('optimize_vmax_open')}
+          value={s.vMax} onChange={e => set('vMax', e.target.value)} unit="km/h" />
       </div>
       <div className="form-field">
         <label>{t('optimize_grenzwert')}</label>

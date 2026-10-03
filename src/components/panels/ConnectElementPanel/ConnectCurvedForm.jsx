@@ -24,6 +24,8 @@ import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import { firstReason } from '../../form/firstReason'
 import FieldRule from '../../form/FieldRule'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 export default function ConnectCurvedForm({ onCommitted }) {
   const { t } = useI18n()
@@ -218,20 +220,20 @@ export default function ConnectCurvedForm({ onCommitted }) {
           {hasArc && (
             <>
               <div className="form-field">
-                <label>{t('arc_length')}</label>
-                <input type="number" step="0.001" value={arcLength} onChange={e => handleArcLengthChange(e.target.value)} />
+                <label>{splitUnit(t('arc_length')).text}</label>
+                <NumberInput step="0.001" value={arcLength} onChange={e => handleArcLengthChange(e.target.value)} unit="m" />
               </div>
               <div className="form-field">
-                <label>{t('field_radius')}</label>
-                <input type="number" step="0.001" value={signedRadius} onChange={e => handleRadiusChange(e.target.value)} />
+                <label>{splitUnit(t('field_radius')).text}</label>
+                <NumberInput step="0.001" value={signedRadius} onChange={e => handleRadiusChange(e.target.value)} unit="m" />
                 <FieldRule name="radius" />
               </div>
               {endBearing && (
                 <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
               )}
               <div className="form-field">
-                <label>{t('field_speed')}</label>
-                <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+                <label>{splitUnit(t('field_speed')).text}</label>
+                <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
                 <FieldRule name="speed" />
               </div>
               <CantField value={cant} onChange={setCant}

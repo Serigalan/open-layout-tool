@@ -49,3 +49,40 @@ export function formatDate(value, language, { time = false } = {}) {
     ...(time ? { hour: '2-digit', minute: '2-digit' } : {}),
   })
 }
+
+// Numbers as the interface language writes them (R10.8).
+
+/** The decimal separator of a language. */
+const decimalOf = (language) => (language === 'en' ? '.' : ',')
+
+/**
+ * A number for the screen: `digits` decimals (as it is when left out), the
+ * language's decimal separator, and `unit` after a space.
+ */
+export function formatNum(value, language, { digits = null, unit = null } = {}) {
+  if (value === '' || value == null || !Number.isFinite(Number(value))) return value == null ? '' : String(value)
+  const text = digits == null ? String(Number(value)) : Number(value).toFixed(digits)
+  const out = text.replace('.', decimalOf(language))
+  return unit ? `${out} ${unit}` : out
+}
+
+/**
+ * What was typed, as a number string with a point: a comma is taken as the
+ * decimal separator as readily as a point; where both are there the last one
+ * is it and the other groups thousands. Anything else is handed on as typed.
+ */
+export function parseNumText(text) {
+  const s = String(text ?? '').trim().replace(/\s+/g, '')
+  const lastComma = s.lastIndexOf(','), lastDot = s.lastIndexOf('.')
+  if (lastComma < 0) return s
+  if (lastDot < 0) return s.replace(',', '.')
+  return lastComma > lastDot ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '')
+}
+
+const UNITS = new Set(['m', 'mm', 'cm', 'km', 'km/h', '°', 'gon', '‰', 's', 'kN', 'm²'])
+
+/** A label and the unit it ends in — "Length (m)" → { text: 'Length', unit: 'm' } — or the label alone. */
+export function splitUnit(label) {
+  const m = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(String(label ?? ''))
+  return m && UNITS.has(m[2].trim()) ? { text: m[1], unit: m[2].trim() } : { text: String(label ?? ''), unit: null }
+}

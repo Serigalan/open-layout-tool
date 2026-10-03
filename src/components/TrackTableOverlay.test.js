@@ -106,7 +106,7 @@ describe('the bearings', () => {
     const { cell } = renderTable()
     expect(cell(0, 'Richtung').editable).toBe(false)
     expect(cell(0, 'Endrichtung').editable).toBe(false)
-    expect(cell(0, 'Richtung').text).toBe('12.35')
+    expect(cell(0, 'Richtung').text).toBe('12,35')   // German: the decimal comma (R10.8)
   })
 
   it('leaves the fields that do shape an element editable', () => {
@@ -127,7 +127,7 @@ describe('the length of a switch route', () => {
 
   it('is shown to the millimetre, not to the last bit of a float', () => {
     const { cell } = renderTable()
-    expect(cell(1, 'Länge').text).toBe('33.2')
+    expect(cell(1, 'Länge').text).toBe('33,2')
   })
 
   it('leaves plain running line as long as it was editable', () => {
@@ -168,7 +168,7 @@ describe('the CRS column', () => {
 describe('the station column', () => {
   it('runs the elements out from the start of the track', () => {
     const { cell } = renderTable()
-    expect([0, 1, 2, 3].map(i => cell(i, 'Station').text)).toEqual(['0', '150', '183.2', '333.2'])
+    expect([0, 1, 2, 3].map(i => cell(i, 'Station').text)).toEqual(['0', '150', '183,2', '333,2'])
   })
 
   it('is read-only — it follows the lengths, it does not set them', () => {
@@ -177,7 +177,7 @@ describe('the station column', () => {
 
   it('adds up to the track’s length, which the title carries', () => {
     const { html } = renderTable()
-    expect(html).toContain('>583.2 m<')
+    expect(html).toContain('>583,2 m<')
   })
 })
 

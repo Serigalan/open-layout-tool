@@ -24,6 +24,8 @@ import ReadOnlyField from '../../form/ReadOnlyField'
 import { firstReason } from '../../form/firstReason'
 import MessageList from '../../form/MessageList'
 import FieldRule from '../../form/FieldRule'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 // Start/end of an element as UTM points. Uses the stored nodes when present,
 // otherwise falls back to the first/last geometry coordinate.
@@ -243,8 +245,8 @@ export default function ParallelLineForm({ onDone }) {
       {points.length === 2 && (
         <FormSection title={t('section_geometry')}>
           <div className="form-field">
-            <label>{t('field_offset')}</label>
-            <input type="number" step="0.01" value={offset} onChange={e => handleOffsetChange(e.target.value)} />
+            <label>{splitUnit(t('field_offset')).text}</label>
+            <NumberInput step="0.01" value={offset} onChange={e => handleOffsetChange(e.target.value)} unit="m" />
           </div>
           {isArc ? (
             <>
@@ -256,19 +258,19 @@ export default function ParallelLineForm({ onDone }) {
           ) : (
             <>
               <div className="form-field">
-                <label>{t('field_length')}</label>
-                <input type="number" step="0.001" value={length} onChange={e => handleLengthChange(e.target.value)} />
+                <label>{splitUnit(t('field_length')).text}</label>
+                <NumberInput step="0.001" value={length} onChange={e => handleLengthChange(e.target.value)} unit="m" />
                 <FieldRule name="length" />
               </div>
               <div className="form-field">
-                <label>{t('bearing')}</label>
-                <input type="number" step="0.001" min="0" max="360" value={bearing} onChange={e => handleBearingChange(e.target.value)} />
+                <label>{splitUnit(t('bearing')).text}</label>
+                <NumberInput step="0.001" min="0" max="360" value={bearing} onChange={e => handleBearingChange(e.target.value)} unit="°" />
               </div>
             </>
           )}
           <div className="form-field">
-            <label>{t('field_speed')}</label>
-            <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+            <label>{splitUnit(t('field_speed')).text}</label>
+            <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
             <FieldRule name="speed" />
           </div>
           <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />

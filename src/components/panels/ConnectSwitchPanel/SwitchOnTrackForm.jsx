@@ -31,6 +31,8 @@ import useFormPhase from '../../form/useFormPhase'
 import CancelButton from '../../form/CancelButton'
 import { firstReason } from '../../form/firstReason'
 import MessageList from '../../form/MessageList'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 
 // Display only — the stored values keep their full precision.
@@ -228,9 +230,9 @@ export default function SwitchOnTrackForm({ onCommitted }) {
 
       <FormSection title={t('section_geometry')}>
         <div className="form-field">
-          <label>{t('switch_on_track_station')}</label>
-          <input type="number" step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
-            onChange={e => setStation(e.target.value)} />
+          <label>{splitUnit(t('switch_on_track_station')).text}</label>
+          <NumberInput step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
+            onChange={e => setStation(e.target.value)} unit="m" />
         </div>
         <ReadOnlyField label={t('switch_on_track_elements')} value={elementsText} />
         <SwitchFormField value={switchTypeIdx} onChange={i => {
@@ -244,8 +246,8 @@ export default function SwitchOnTrackForm({ onCommitted }) {
           </select>
         </div>
         <div className="form-field">
-          <label>{t('field_speed')}</label>
-          <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+          <label>{splitUnit(t('field_speed')).text}</label>
+          <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
         </div>
         <SwitchCantField
           label={cantVaries ? t('switch_cant_ramp') : t('cant')}

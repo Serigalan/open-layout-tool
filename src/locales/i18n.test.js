@@ -94,3 +94,26 @@ describe('formatDate', () => {
     expect(formatDate('not a date', 'de')).toBe('')
   })
 })
+
+describe('numbers in the interface language (R10.8)', async () => {
+  const { formatNum, parseNumText, splitUnit } = await import('./i18n')
+  it('writes a number with the language\'s separator', () => {
+    expect(formatNum(1.5, 'de')).toBe('1,5')
+    expect(formatNum(1.5, 'en')).toBe('1.5')
+    expect(formatNum(2, 'de', { digits: 2, unit: 'm' })).toBe('2,00 m')
+    expect(formatNum('', 'de')).toBe('')
+  })
+  it('reads a comma or a point, and thousands either way', () => {
+    expect(parseNumText('1,5')).toBe('1.5')
+    expect(parseNumText('1.5')).toBe('1.5')
+    expect(parseNumText('1.234,5')).toBe('1234.5')
+    expect(parseNumText('1,234.5')).toBe('1234.5')
+    expect(parseNumText(' -12 ')).toBe('-12')
+    expect(parseNumText('')).toBe('')
+  })
+  it('takes the unit off a label', () => {
+    expect(splitUnit('Length (m)')).toEqual({ text: 'Length', unit: 'm' })
+    expect(splitUnit('Speed (km/h)')).toEqual({ text: 'Speed', unit: 'km/h' })
+    expect(splitUnit('Crossing point (station)')).toEqual({ text: 'Crossing point (station)', unit: null })
+  })
+})

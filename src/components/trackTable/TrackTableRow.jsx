@@ -14,7 +14,7 @@ import {
  * cant and radius cells live.
  */
 export default function TrackTableRow({ elements, i, sw, station, rules, epsg, active, onActivate, onEdit }) {
-  const { t, fill } = useI18n()
+  const { t, fill, language, num } = useI18n()
   const el = elements[i]
   const g = governing(elements, i)
   const cantDef = g ? computeCantDefSigned(el.speed ?? 0, g.radius, g.cant) : 0
@@ -30,24 +30,24 @@ export default function TrackTableRow({ elements, i, sw, station, rules, epsg, a
     <tr className={active ? 'track-table-row-active' : undefined} onClick={onActivate} onFocus={onActivate}>
       <td>{i + 1}</td>
       <td className={ruleClass(rules)} title={ruleNote(t, rules)}>{ruleText(t, rules)}</td>
-      <td><TextCell value={lengthText(station)} /></td>
+      <td><TextCell value={lengthText(station, language)} /></td>
       <td title={hintNote(fill, el) ?? switchNote(t, el, sw)}>
         <TextCell value={typeLabel(t, el, sw)} wide className={el.switchHint ? 'track-table-input-exception' : ''} />
       </td>
-      <td><TextCell value={degText(el.bearing)} /></td>
-      <td><TextCell value={degText(el.endBearing)} /></td>
+      <td><TextCell value={degText(el.bearing, language)} /></td>
+      <td><TextCell value={degText(el.endBearing, language)} /></td>
       {/* A switch route's length is its form's dimension: retyping it would
           move the turnout's ends while the record that states them stands still. */}
       <td title={el.switchBranch ? dimension : undefined}>
         {el.switchBranch
-          ? <TextCell value={lengthText(el.length)} />
+          ? <TextCell value={lengthText(el.length, language)} />
           : <EditCell value={el.length} onCommit={edit('length')} />}
       </td>
       <td title={el.switchBranch && !isTransition(el) && el.radius ? dimension : undefined}>
         {isTransition(el)
-          ? <TextCell value={radiusText(el)} wide />
+          ? <TextCell value={radiusText(el, language)} wide />
           : el.switchBranch
-            ? <TextCell value={el.radius ? lengthText(el.radius) : '–'} />
+            ? <TextCell value={el.radius ? lengthText(el.radius, language) : '–'} />
             : <EditCell value={el.radius} onCommit={edit('radius')} disabled={!el.radius} />}
       </td>
       {/* The speed is the cell to change when the deficiency it makes is too
@@ -68,7 +68,7 @@ export default function TrackTableRow({ elements, i, sw, station, rules, epsg, a
           ? <EditCell value={el.cantException} onCommit={edit('cantException')} type="text" wide placeholder="–" className={cantClass(el)} />
           : <TextCell value="–" />}
       </td>
-      <td title={defTip}><TextCell value={cantDef} className={defClass(level)} /></td>
+      <td title={defTip}><TextCell value={num(cantDef)} className={defClass(level)} /></td>
       <td><TextCell value={vMax ?? '–'} /></td>
       {/* The plane the whole track is stated in — one code per track, so the
           column says which frame these eastings and northings are in. */}

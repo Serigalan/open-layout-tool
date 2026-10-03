@@ -3,6 +3,7 @@ import { useI18n } from '../../../locales/i18nContext'
 import CantField from '../CantField'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import FieldRule from '../../form/FieldRule'
+import NumberInput from '../../form/NumberInput'
 
 /**
  * The settings of a splice: how two arcs are joined, the radius of an arc put
@@ -17,7 +18,7 @@ export default function SpliceSettings({ departure, arrival, s, set, cant, setCa
   // answer rather than an input — there is nothing to type and nothing to switch on.
   const directTransition = bothArcs && s.arcJoin === 'transition'
   const number = (key, { min, step, clampMin } = {}) => (
-    <input type="number" min={min} step={step} value={s[key]}
+    <NumberInput min={min} step={step} value={s[key]}
       onChange={e => set(key, clampMin != null ? Math.max(clampMin, Number(e.target.value) || clampMin) : Number(e.target.value))} />
   )
   return (

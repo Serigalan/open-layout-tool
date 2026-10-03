@@ -2,6 +2,7 @@ import { TYPE_CODES, SIDE_CODES } from '../../utils/identifierUtils'
 import StationNameInput from './StationNameInput'
 import useLineNameSuggestion from '../../hooks/useLineNameSuggestion'
 import { useI18n } from '../../locales/i18nContext'
+import NumberInput from '../form/NumberInput'
 
 const OWNERS = ['DB', 'SNCF', 'other']
 
@@ -42,8 +43,8 @@ export default function TrackFields({ fields, setField, name, onNameChange, name
         <>
           <div className="form-field">
             <label>{t('line_number')}</label>
-            <input
-              type="number"
+            <NumberInput
+             
               value={lineNumber}
               onChange={(e) => setField('lineNumber', e.target.value)}
               className={lineErr ? 'input-error' : undefined}
@@ -122,7 +123,7 @@ export default function TrackFields({ fields, setField, name, onNameChange, name
           </div>
           <div className="form-field">
             <label>{t('track_number')}</label>
-            <input type="number" value={trackNumber} onChange={(e) => setField('trackNumber', e.target.value)} />
+            <NumberInput value={trackNumber} onChange={(e) => setField('trackNumber', e.target.value)} />
           </div>
           {hasNameField && (
             <div className="form-field">

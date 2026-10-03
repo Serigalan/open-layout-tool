@@ -13,6 +13,8 @@ import usePreview from '../../../map/usePreview'
 import useMapEvents from '../../../map/useMapEvents'
 import { PALETTE } from '../../../styles/palette'
 import CancelButton from '../../form/CancelButton'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 /** How close (px) the cursor has to come to an end for it to be the one meant. */
 const PICK_PX = 14
@@ -206,9 +208,9 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
             </select>
           </div>
           <div className="form-field">
-            <label>{t('buffer_stop_brake')}</label>
-            <input type="number" min="0" step="0.1" value={brake}
-              onChange={e => { setBrake(e.target.value); setBrakeTyped(true) }} />
+            <label>{splitUnit(t('buffer_stop_brake')).text}</label>
+            <NumberInput min="0" step="0.1" value={brake}
+              onChange={e => { setBrake(e.target.value); setBrakeTyped(true) }} unit="m" />
           </div>
           <p className="selecting-hint">{t('buffer_stop_hint')}</p>
         </div>

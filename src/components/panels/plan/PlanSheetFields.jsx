@@ -4,6 +4,8 @@ import { DEFAULT_CORRIDOR } from '../../../utils/planSchematic'
 import { groupHeading, groupTracks, trackListLabel } from '../../../utils/trackGroups'
 import { useI18n } from '../../../locales/i18nContext'
 import { useTracks } from '../../../hooks/useStore'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 /** One select of the sheet settings. */
 function Choice({ label, value, onChange, children }) {
@@ -71,9 +73,9 @@ export default function PlanSheetFields({ o, set }) {
       </Choice>
       {schematic ? (
         <div className="form-field">
-          <label>{t('plan_corridor')}</label>
-          <input type="number" min="20" step="50" value={o.corridor}
-            onChange={e => set('corridor', Math.max(20, Number(e.target.value) || DEFAULT_CORRIDOR))} />
+          <label>{splitUnit(t('plan_corridor')).text}</label>
+          <NumberInput min="20" step="50" value={o.corridor}
+            onChange={e => set('corridor', Math.max(20, Number(e.target.value) || DEFAULT_CORRIDOR))} unit="m" />
         </div>
       ) : (
         <>
@@ -83,9 +85,9 @@ export default function PlanSheetFields({ o, set }) {
           </label>
           {o.split && (
             <div className="form-field">
-              <label>{t('plan_overlap')}</label>
-              <input type="number" min="0" step="10" value={o.overlap}
-                onChange={e => set('overlap', Math.max(0, Number(e.target.value) || 0))} />
+              <label>{splitUnit(t('plan_overlap')).text}</label>
+              <NumberInput min="0" step="10" value={o.overlap}
+                onChange={e => set('overlap', Math.max(0, Number(e.target.value) || 0))} unit="m" />
             </div>
           )}
         </>

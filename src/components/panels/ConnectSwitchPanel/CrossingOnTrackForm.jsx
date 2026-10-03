@@ -27,6 +27,7 @@ import useFormPhase from '../../form/useFormPhase'
 import CancelButton from '../../form/CancelButton'
 import { firstReason } from '../../form/firstReason'
 import MessageList from '../../form/MessageList'
+import NumberInput from '../../form/NumberInput'
 
 /**
  * A crossing or crossing switch laid INTO an existing track (AP 3.3) — the
@@ -188,7 +189,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       <FormSection title={t('section_geometry')}>
         <div className="form-field">
           <label>{t('crossing_on_track_station')}</label>
-          <input type="number" step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
+          <NumberInput step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
             onChange={e => setStation(e.target.value)} />
         </div>
         <ReadOnlyField label={t('crossing_on_track_elements')} value={elementsText} />

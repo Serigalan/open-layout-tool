@@ -1,4 +1,6 @@
 import { useI18n } from '../../../locales/i18nContext'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 export default function TransitionCurveSection({ enabled, onEnabledChange, type, onTypeChange, length, onLengthChange }) {
   const { t } = useI18n()
   return (
@@ -17,9 +19,9 @@ export default function TransitionCurveSection({ enabled, onEnabledChange, type,
             </select>
           </div>
           <div className="form-field">
-            <label>{t('field_length')}</label>
-            <input type="number" min="1" value={length}
-              onChange={e => onLengthChange(Math.max(1, Number(e.target.value) || 1))} />
+            <label>{splitUnit(t('field_length')).text}</label>
+            <NumberInput min="1" value={length}
+              onChange={e => onLengthChange(Math.max(1, Number(e.target.value) || 1))} unit="m" />
           </div>
         </>
       )}

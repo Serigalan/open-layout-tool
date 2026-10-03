@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { CANT_STEP, cantFromInput, regelCant } from '../../utils/rules/cant'
 import { useI18n } from '../../locales/i18nContext'
 import FieldRule from '../form/FieldRule'
+import NumberInput from '../form/NumberInput'
 
 /**
  * The cant field of a dialog: a value that is proposed and may be overridden,
@@ -38,8 +39,8 @@ export default function CantField({ label, value, onChange, min, max, speed, rad
   return (
     <div className="form-field">
       <label>{label ?? t('cant')}</label>
-      <input
-        type="number" step={CANT_STEP} min={min} max={max}
+      <NumberInput
+        step={CANT_STEP} min={min} max={max}
         value={draft ?? value}
         onChange={e => setDraft(e.target.value)}
         onBlur={commit}

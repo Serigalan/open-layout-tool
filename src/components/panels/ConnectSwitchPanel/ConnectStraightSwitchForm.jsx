@@ -34,6 +34,8 @@ import DirectionToggle from '../../form/DirectionToggle'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import FormSection from '../../form/FormSection'
 import { firstReason } from '../../form/firstReason'
+import NumberInput from '../../form/NumberInput'
+import { splitUnit } from '../../../locales/i18n'
 
 /**
  * Radius an element ends on, in its running direction — the curvature a switch
@@ -298,15 +300,15 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
           <>
             <div className="form-field">
               <label>{t('switch_stem_radius')}</label>
-              <input type="number" step="any" value={stemInput}
+              <NumberInput step="any" value={stemInput}
                 onChange={e => setStemInput(e.target.value)} />
             </div>
             <ReadOnlyField label={t('switch_bauform')} value={t(`switch_bauform_${bauform(stemAtToe, branchSignedR)}`)} />
           </>
         )}
         <div className="form-field">
-          <label>{t('field_speed')}</label>
-          <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+          <label>{splitUnit(t('field_speed')).text}</label>
+          <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
         </div>
         <SwitchCantField cant={cant} onCant={setCant}
           reason={cantReason} onReason={setCantReason} />

@@ -1,6 +1,7 @@
 import { switchKindLabelKey, switchRouteLabelKey } from '../../utils/switchModel'
 import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
 import { cantExceedsLimit, cantExceptionOf, cantLimit, limitCantDef } from '../../utils/rules/cant'
+import { formatNum } from '../../locales/i18n'
 
 // What the cells of the element table say — the words and marks of one row,
 // worked out from the element, apart from the table that lays them out.
@@ -97,16 +98,16 @@ export function ruleNote(t, entry) {
  * A bearing is shown, never typed: an element starts where the one before it
  * ended, and the chain is what sets that.
  */
-export const degText = (deg) => (Number.isFinite(deg) ? deg.toFixed(2) : '–')
+export const degText = (deg, language) => (Number.isFinite(deg) ? formatNum(deg, language, { digits: 2 }) : '–')
 
 /** A length that is read rather than typed, to the millimetre. */
-export const lengthText = (m) => (Number.isFinite(m) ? String(Math.round(m * 1000) / 1000) : '–')
+export const lengthText = (m, language) => (Number.isFinite(m) ? formatNum(Math.round(m * 1000) / 1000, language) : '–')
 
 /**
  * A transition has no single radius: it runs from r1 to r2 (∞ on the straight
  * end), so the column shows that ramp instead of an empty, uneditable cell.
  */
-export function radiusText(el) {
-  const r = (v) => (v ? String(Math.round(v * 100) / 100) : '∞')
+export function radiusText(el, language) {
+  const r = (v) => (v ? formatNum(Math.round(v * 100) / 100, language) : '∞')
   return `${r(el.r1)} → ${r(el.r2)}`
 }
