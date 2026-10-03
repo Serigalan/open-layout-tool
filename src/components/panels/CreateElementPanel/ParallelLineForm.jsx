@@ -21,6 +21,9 @@ import { buildParallelLineTrack, trackMeta } from '../../../utils/commands/track
 import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import { firstReason } from '../../form/firstReason'
+import MessageList from '../../form/MessageList'
+import FieldRule from '../../form/FieldRule'
 
 // Start/end of an element as UTM points. Uses the stored nodes when present,
 // otherwise falls back to the first/last geometry coordinate.
@@ -255,6 +258,7 @@ export default function ParallelLineForm({ onDone }) {
               <div className="form-field">
                 <label>{t('field_length')}</label>
                 <input type="number" step="0.001" value={length} onChange={e => handleLengthChange(e.target.value)} />
+                <FieldRule name="length" />
               </div>
               <div className="form-field">
                 <label>{t('bearing')}</label>
@@ -265,6 +269,7 @@ export default function ParallelLineForm({ onDone }) {
           <div className="form-field">
             <label>{t('field_speed')}</label>
             <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+            <FieldRule name="speed" />
           </div>
           <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
           <UtmCoordFields label="Start" zone={epsg} easting={startE} northing={startN} readOnly={isArc}
@@ -276,11 +281,7 @@ export default function ParallelLineForm({ onDone }) {
 
       {selecting && <p className="selecting-hint">{t('create_selecting_element')}</p>}
 
-      {errors.length > 0 && (
-        <p className="form-error">
-          ⚠ <span className="form-error-required">{t('error_required')}</span>: {errors.join(', ')}
-        </p>
-      )}
+      <MessageList items={errors} className="form-error-list" small={false} />
 
       {points.length === 2 && !selecting && (() => {
         // A parallel is a straight or an arc, exactly as the element it was
@@ -292,7 +293,7 @@ export default function ParallelLineForm({ onDone }) {
         return (
         <>
           <RuleFindings element={element} />
-          <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={blocked} className="" />
+          <CommitBar onCommit={handleCommit} onCancel={onDone} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} className="" />
         </>
         )
       })()}

@@ -18,6 +18,7 @@ import { OVERLAYS_CLOSED, closesTrackTable, overlayReducer } from './overlays'
 import { panelById } from './panels'
 import Sidebar from './Sidebar'
 import StepNotice from './StepNotice'
+import RuleFieldsScope from '../components/form/RuleFieldsScope'
 import ConfirmModal from '../components/ConfirmModal'
 import ElevationLegend from '../components/ElevationLegend'
 import WorkingCopyBar from '../components/collab/WorkingCopyBar'
@@ -283,7 +284,9 @@ export default function MapWorkspace({ wc, onHome }) {
         {PanelComponent && (
           <aside className="sidebar-secondary">
             <Suspense fallback={<p className="selecting-hint">…</p>}>
-              <PanelComponent {...(panel.props?.(shell) ?? {})} />
+              <RuleFieldsScope key={activePanel}>
+                <PanelComponent {...(panel.props?.(shell) ?? {})} />
+              </RuleFieldsScope>
             </Suspense>
           </aside>
         )}

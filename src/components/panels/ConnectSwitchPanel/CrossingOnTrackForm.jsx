@@ -25,6 +25,8 @@ import ReadOnlyField from '../../form/ReadOnlyField'
 import FormSection from '../../form/FormSection'
 import useFormPhase from '../../form/useFormPhase'
 import CancelButton from '../../form/CancelButton'
+import { firstReason } from '../../form/firstReason'
+import MessageList from '../../form/MessageList'
 
 /**
  * A crossing or crossing switch laid INTO an existing track (AP 3.3) — the
@@ -175,7 +177,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
     return (
       <>
         <p>{t('crossing_on_track_hint')}</p>
-        {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
+        <MessageList items={errors} className="form-error-list" small={false} />
         <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel} />
       </>
     )
@@ -231,15 +233,11 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
           name={name} onNameChange={handleNameChange} nameError={nameError} />
       </FormSection>
 
-      {errors.length > 0 && (
-        <p className="form-error">
-          <span className="form-error-required">{t('error_required')}</span>: {errors.join(', ')}
-        </p>
-      )}
+      <MessageList items={errors} className="form-error-list" small={false} />
       {nameError && <p className="form-error">{t('track_name_exists')}</p>}
       {placeError && <p className="form-error">{placeError}</p>}
 
-      <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!!placeError} className="" />
+      <CommitBar onCommit={handleCommit} onCancel={handleCancel} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), placeError)} className="" />
     </>
   )
 }

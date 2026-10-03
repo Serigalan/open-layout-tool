@@ -22,6 +22,8 @@ import useMapEvents from '../../../map/useMapEvents'
 import { buildConnectCurved } from '../../../utils/commands/tracks'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import { firstReason } from '../../form/firstReason'
+import FieldRule from '../../form/FieldRule'
 
 export default function ConnectCurvedForm({ onCommitted }) {
   const { t } = useI18n()
@@ -222,6 +224,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
               <div className="form-field">
                 <label>{t('field_radius')}</label>
                 <input type="number" step="0.001" value={signedRadius} onChange={e => handleRadiusChange(e.target.value)} />
+                <FieldRule name="radius" />
               </div>
               {endBearing && (
                 <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
@@ -229,6 +232,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
               <div className="form-field">
                 <label>{t('field_speed')}</label>
                 <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+                <FieldRule name="speed" />
               </div>
               <CantField value={cant} onChange={setCant}
                 min={-MAX_CANT} max={MAX_CANT}
@@ -253,7 +257,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
         return (
           <>
             <RuleFindings element={element} />
-            <CommitBar onCommit={handleCommit} onCancel={onCommitted} disabled={blocked} className="" />
+            <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(blocked && t('commit_blocked_rules'))} className="" />
           </>
         )
       })()}

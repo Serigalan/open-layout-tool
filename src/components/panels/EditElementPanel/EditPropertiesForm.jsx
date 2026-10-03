@@ -13,6 +13,7 @@ import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
 import CancelButton from '../../form/CancelButton'
+import { firstReason } from '../../form/firstReason'
 
 export default function EditPropertiesForm({ onCommitted }) {
   const { t } = useI18n()
@@ -95,7 +96,7 @@ export default function EditPropertiesForm({ onCommitted }) {
       )}
       {selectedTrackId ? (
         <>
-          <CommitBar onCommit={handleCommit} onCancel={onCommitted} />
+          <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`))} />
         </>
       ) : (
         <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={onCommitted} />

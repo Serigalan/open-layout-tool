@@ -143,7 +143,6 @@
   "field_speed": "Geschwindigkeit (km/h)",
   "field_length": "Länge (m)",
   "field_radius": "Radius (m)",
-  "error_required": "Pflichtfeld",
   "type": "Typ",
   "height_datum": "Höhenbezug",
   "type_line_track": "Streckengleis",
@@ -1162,5 +1161,6 @@
   "notice_undo": "Rückgängig",
   "notice_show": "Zeigen",
   "notice_undone": "Zurückgenommen: {step}",
-  "notice_redone": "Wiederholt: {step}"
+  "notice_redone": "Wiederholt: {step}",
+  "commit_blocked_rules": "Eine Regelprüfung meldet einen Fehler – siehe oben"
 }

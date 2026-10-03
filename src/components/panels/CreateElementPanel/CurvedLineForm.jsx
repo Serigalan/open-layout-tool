@@ -26,6 +26,8 @@ import { buildCurvedLineTrack, trackMeta } from '../../../utils/commands/tracks'
 import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import { firstReason } from '../../form/firstReason'
+import FieldRule from '../../form/FieldRule'
 
 export default function CurvedLineForm({ onDone }) {
   const { t } = useI18n()
@@ -203,6 +205,7 @@ export default function CurvedLineForm({ onDone }) {
               <div className="form-field">
                 <label>{t('field_length')}</label>
                 <input type="number" step="0.001" value={arcLength} onChange={e => handleArcLengthChange(e.target.value)} />
+                <FieldRule name="length" />
               </div>
               <div className="form-field">
                 <label>{t('bearing')}</label>
@@ -215,6 +218,7 @@ export default function CurvedLineForm({ onDone }) {
               <div className="form-field">
                 <label>{t('field_speed')}</label>
                 <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+                <FieldRule name="speed" />
               </div>
               <CantField value={cant} onChange={setCant}
                 min={-MAX_CANT} max={MAX_CANT} speed={speed} radius={absR} />
@@ -252,7 +256,7 @@ export default function CurvedLineForm({ onDone }) {
         return (
           <>
             <RuleFindings element={element} />
-            <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={blocked} className="" />
+            <CommitBar onCommit={handleCommit} onCancel={onDone} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} className="" />
           </>
         )
       })()}

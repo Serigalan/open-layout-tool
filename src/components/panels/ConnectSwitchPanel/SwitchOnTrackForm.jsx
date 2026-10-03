@@ -29,6 +29,8 @@ import ReadOnlyField from '../../form/ReadOnlyField'
 import FormSection from '../../form/FormSection'
 import useFormPhase from '../../form/useFormPhase'
 import CancelButton from '../../form/CancelButton'
+import { firstReason } from '../../form/firstReason'
+import MessageList from '../../form/MessageList'
 
 
 // Display only — the stored values keep their full precision.
@@ -214,7 +216,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
     return (
       <>
         <p>{t('switch_on_track_hint')}</p>
-        {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
+        <MessageList items={errors} className="form-error-list" small={false} />
         <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel} />
       </>
     )
@@ -279,12 +281,12 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       </FormSection>
 
       {cantVaries && <p className="selecting-hint">{t('switch_in_cant_ramp')}</p>}
-      {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
+      <MessageList items={errors} className="form-error-list" small={false} />
       {placeError && <p className="form-error">{placeError}</p>}
       {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
       {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
 
-      <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!!placeError || !!cantErr || defErr} className="" />
+      <CommitBar onCommit={handleCommit} onCancel={handleCancel} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), placeError, cantErr && t(`switch_cant_error_${cantErr}`), defErr && t('switch_cant_def_error'))} className="" />
     </>
   )
 }

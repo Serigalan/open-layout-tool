@@ -26,6 +26,8 @@ import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import FormSection from '../../form/FormSection'
 import CancelButton from '../../form/CancelButton'
+import { firstReason } from '../../form/firstReason'
+import MessageList from '../../form/MessageList'
 
 /**
  * A crossing or crossing switch (AP 3.2), connected to the end of an existing
@@ -201,7 +203,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
       <>
         <p>{t('crossing_hint_select')}</p>
         {pickError && <p className="form-error">{t(pickError)}</p>}
-        {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
+        <MessageList items={errors} className="form-error-list" small={false} />
         <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel} />
       </>
     )
@@ -249,14 +251,10 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
           name={name} onNameChange={handleNameChange} nameError={nameError} />
       </FormSection>
 
-      {errors.length > 0 && (
-        <p className="form-error">
-          <span className="form-error-required">{t('error_required')}</span>: {errors.join(', ')}
-        </p>
-      )}
+      <MessageList items={errors} className="form-error-list" small={false} />
       {nameError && <p className="form-error">{t('track_name_exists')}</p>}
 
-      <CommitBar onCommit={handleCommit} onCancel={handleCancel} className="" />
+      <CommitBar onCommit={handleCommit} onCancel={handleCancel} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`))} className="" />
     </>
   )
 }

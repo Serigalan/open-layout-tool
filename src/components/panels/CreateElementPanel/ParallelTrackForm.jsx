@@ -16,6 +16,8 @@ import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { buildParallelTrack, trackMeta } from '../../../utils/commands/tracks'
 import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
+import { firstReason } from '../../form/firstReason'
+import MessageList from '../../form/MessageList'
 
 export default function ParallelTrackForm({ onDone }) {
   const { t } = useI18n()
@@ -112,11 +114,7 @@ export default function ParallelTrackForm({ onDone }) {
       {selecting && <p className="selecting-hint">{t('parallel_track_select')}</p>}
       {invalid && <p className="form-error">{t('parallel_track_invalid')}</p>}
 
-      {errors.length > 0 && (
-        <p className="form-error">
-          ⚠ <span className="form-error-required">{t('error_required')}</span>: {errors.join(', ')}
-        </p>
-      )}
+      <MessageList items={errors} className="form-error-list" small={false} />
 
       {!selecting && (
         <>
@@ -124,7 +122,7 @@ export default function ParallelTrackForm({ onDone }) {
               the catalogue has to say about it is mostly what it had to say
               about the track it was drawn beside. */}
           {elements && <RuleFindings elements={elements} />}
-          <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={!elements || blocked} className="" />
+          <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={!elements || !!firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} className="" />
         </>
       )}
     </>

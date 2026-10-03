@@ -13,6 +13,7 @@ import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import useMapEvents from '../../../map/useMapEvents'
 import { PALETTE } from '../../../styles/palette'
 import CommitBar from '../../form/CommitBar'
+import { firstReason } from '../../form/firstReason'
 
 // Layer definitions for usePreview
 const EDIT_PREVIEW_LAYERS = [
@@ -137,7 +138,7 @@ export default function EditLengthForm({ onCommitted }) {
           {fill('table_edit_reach', { tracks: String(plan.touchedTrackIds.length), switches: String(plan.touchedSwitchIds.length) })}
         </p>
       )}
-      <CommitBar onCommit={handleCommit} onCancel={onCommitted} disabled={!!plan?.error} />
+      <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(plan?.error && t(plan.error))} />
     </>
   )
 }

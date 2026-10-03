@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CANT_STEP, cantFromInput, regelCant } from '../../utils/rules/cant'
 import { useI18n } from '../../locales/i18nContext'
+import FieldRule from '../form/FieldRule'
 
 /**
  * The cant field of a dialog: a value that is proposed and may be overridden,
@@ -51,6 +52,7 @@ export default function CantField({ label, value, onChange, min, max, speed, rad
         </button>
       )}
       {children}
+      <FieldRule name="cant" />
     </div>
   )
 }

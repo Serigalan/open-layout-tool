@@ -17,6 +17,8 @@ import useMapEvents from '../../../map/useMapEvents'
 import { buildConnectStraight } from '../../../utils/commands/tracks'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import { firstReason } from '../../form/firstReason'
+import FieldRule from '../../form/FieldRule'
 
 export default function ConnectStraightForm({ onCommitted }) {
   const { t } = useI18n()
@@ -197,10 +199,12 @@ export default function ConnectStraightForm({ onCommitted }) {
               <div className="form-field">
                 <label>{t('field_length')}</label>
                 <input type="number" step="0.001" value={length} onChange={e => handleLengthChange(e.target.value)} />
+                <FieldRule name="length" />
               </div>
               <div className="form-field">
                 <label>{t('field_speed')}</label>
                 <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+                <FieldRule name="speed" />
               </div>
               {endPoint && (
                 <UtmCoordFields label={t('utm_end')} zone={endPoint.zone}
@@ -217,7 +221,7 @@ export default function ConnectStraightForm({ onCommitted }) {
         return (
           <>
             <RuleFindings element={element} />
-            <CommitBar onCommit={handleCommit} onCancel={onCommitted} disabled={blocked} className="" />
+            <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(blocked && t('commit_blocked_rules'))} className="" />
           </>
         )
       })()}

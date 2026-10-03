@@ -2,6 +2,7 @@ import { MAX_CANT, computeCantDef } from '../../../utils/rules/cant'
 import { useI18n } from '../../../locales/i18nContext'
 import CantField from '../CantField'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import FieldRule from '../../form/FieldRule'
 
 /**
  * The settings of a splice: how two arcs are joined, the radius of an arc put
@@ -32,9 +33,11 @@ export default function SpliceSettings({ departure, arrival, s, set, cant, setCa
           </select>
         </div>
       ) : (
-        <div className="form-field"><label>{t('field_radius')}</label>{number('radius', { min: 1 })}</div>
+        <div className="form-field"><label>{t('field_radius')}</label>{number('radius', { min: 1 })}  <FieldRule name="radius" />
+</div>
       )}
-      <div className="form-field"><label>{t('field_speed')}</label>{number('speed', { min: 0 })}</div>
+      <div className="form-field"><label>{t('field_speed')}</label>{number('speed', { min: 0 })}  <FieldRule name="speed" />
+</div>
       {/* The radius field here is a magnitude, so the cant is one too — it is
           signed by the fitted arc when the element is written. */}
       {!bothArcs && (

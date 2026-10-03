@@ -1,4 +1,7 @@
+import { useContext, useEffect } from 'react'
 import { checkTrack } from '../../utils/trassierungCheck'
+import { fieldFindings } from '../../utils/ruleFields'
+import { RuleFieldsContext } from '../form/ruleFieldsContext'
 import { ruleById, severityLabelKey, worstSeverity } from '../../utils/regelkatalog'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -31,6 +34,16 @@ export default function RuleFindings({ element, elements }) {
   const { t } = useI18n()
   const chain = elements ?? (element ? [element] : [])
   const check = checkTrack(chain)
+  // The same findings at the fields they are about (R10.4), while this is shown.
+  const scope = useContext(RuleFieldsContext)
+  const fields = fieldFindings(check.perElement.flatMap(entry => entry.results))
+  const fieldsKey = JSON.stringify(fields)
+  const setFields = scope?.setFields
+  useEffect(() => {
+    if (!setFields) return undefined
+    setFields(JSON.parse(fieldsKey))
+    return () => setFields(null)
+  }, [setFields, fieldsKey])
   // Nothing was judged at all — every element had an unknown design speed.
   if (!check.perElement.some(entry => !entry.unchecked)) return null
 

@@ -19,6 +19,9 @@ import useMapEvents from '../../../map/useMapEvents'
 import { buildLineTrack, trackMeta } from '../../../utils/commands/tracks'
 import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
+import { firstReason } from '../../form/firstReason'
+import MessageList from '../../form/MessageList'
+import FieldRule from '../../form/FieldRule'
 
 export default function LineForm({ onDone }) {
   const { t } = useI18n()
@@ -179,6 +182,7 @@ export default function LineForm({ onDone }) {
           <div className="form-field">
             <label>{t('field_length')}</label>
             <input type="number" step="0.001" value={length} onChange={e => handleLengthChange(e.target.value)} />
+            <FieldRule name="length" />
           </div>
           <div className="form-field">
             <label>{t('bearing')}</label>
@@ -187,6 +191,7 @@ export default function LineForm({ onDone }) {
           <div className="form-field">
             <label>{t('field_speed')}</label>
             <input type="number" min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} />
+            <FieldRule name="speed" />
           </div>
           <div className="form-field">
             <label>{t('create_crs')}</label>
@@ -206,11 +211,7 @@ export default function LineForm({ onDone }) {
 
       {selecting && <p className="selecting-hint">{selectingHint}</p>}
 
-      {errors.length > 0 && (
-        <p className="form-error">
-          ⚠ <span className="form-error-required">{t('error_required')}</span>: {errors.join(', ')}
-        </p>
-      )}
+      <MessageList items={errors} className="form-error-list" small={false} />
 
       {points.length === 2 && !selecting && (() => {
         const element = { elementType: 0, speed, length: Number(length), cant: 0 }
@@ -218,7 +219,7 @@ export default function LineForm({ onDone }) {
         return (
           <>
             <RuleFindings element={element} />
-            <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={blocked} className="" />
+            <CommitBar onCommit={handleCommit} onCancel={onDone} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} className="" />
           </>
         )
       })()}

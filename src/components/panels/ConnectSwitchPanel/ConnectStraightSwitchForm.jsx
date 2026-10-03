@@ -33,6 +33,7 @@ import CommitBar from '../../form/CommitBar'
 import DirectionToggle from '../../form/DirectionToggle'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import FormSection from '../../form/FormSection'
+import { firstReason } from '../../form/firstReason'
 
 /**
  * Radius an element ends on, in its running direction — the curvature a switch
@@ -352,7 +353,7 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
         <>
           {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
           {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
-          <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!!cantErr || defErr} />
+          <CommitBar onCommit={handleCommit} onCancel={handleCancel} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), !trailing && mainLineNumberError && t(`line_number_error_${mainLineNumberError}`), cantErr && t(`switch_cant_error_${cantErr}`), defErr && t('switch_cant_def_error'))} />
         </>
       )}
     </>

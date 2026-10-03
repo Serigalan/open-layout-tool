@@ -143,7 +143,6 @@
   "field_speed": "Speed (km/h)",
   "field_length": "Length (m)",
   "field_radius": "Radius (m)",
-  "error_required": "Required",
   "type": "Type",
   "height_datum": "Height datum",
   "type_line_track": "Line Track",
@@ -1162,5 +1161,6 @@
   "notice_undo": "Undo",
   "notice_show": "Show",
   "notice_undone": "Undone: {step}",
-  "notice_redone": "Redone: {step}"
+  "notice_redone": "Redone: {step}",
+  "commit_blocked_rules": "A rule check reports an error – see the findings above"
 }
