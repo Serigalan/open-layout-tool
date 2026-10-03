@@ -409,7 +409,15 @@
 .home-menu-list button.danger { color: var(--collab-danger); }
 
 .home-section { margin-top: 32px; }
-.home-guide iframe { display: block; width: 100%; height: 70vh; border: 1px solid var(--collab-border); border-radius: 8px; background: #fff; }
+/* The guideline's preview (GuideDialog's GuidePreview): its top, fading out, the whole of it a button. */
+.home-guide-preview { position: relative; height: 280px; overflow: hidden; border: 1px solid var(--collab-border); border-radius: 8px; background: #fff; }
+.home-guide-preview iframe { display: block; width: 100%; height: 100%; border: 0; pointer-events: none; }
+.home-guide-open {
+  position: absolute; inset: 0; border: 0; padding: 0 0 20px; cursor: pointer;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0.95) 85%);
+}
+.home-guide-open:hover .collab-btn { filter: brightness(1.1); }
 a.collab-btn { display: inline-block; text-decoration: none; }
 
 .collab-icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 6px 9px; }

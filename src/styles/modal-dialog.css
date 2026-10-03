@@ -13,6 +13,10 @@
 }
 .modal-btn:disabled { opacity: 0.5; cursor: default; }
 
+/* The whole guideline (components/GuideDialog): as large as the screen allows. */
+.modal.modal-guide { width: min(1000px, calc(100vw - 32px)); height: calc(100vh - 48px); padding: 20px 24px; gap: 14px; }
+.guide-frame { flex: 1; min-height: 0; width: 100%; border: 1px solid var(--color-border); border-radius: 8px; }
+
 /* A dialog whose content brings its own card (the password form). */
 .modal.modal-bare {
   background: none;

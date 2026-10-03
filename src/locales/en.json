@@ -29,6 +29,7 @@
   "start_delete": "Delete",
   "start_export": "Export",
   "start_guideline": "Guideline",
+  "guide_read_all": "Read the whole guideline",
   "start_guideline_download": "Download",
   "start_field_title": "Project Title",
   "start_field_title_placeholder": "e.g. Erfurt Station",

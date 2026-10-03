@@ -10,6 +10,7 @@ import { useI18n } from '../../locales/i18nContext'
 import { errorText } from '../collab/errorText'
 import '../collab/collab.css'
 import Modal from '../Modal'
+import GuideDialog, { GuidePreview } from '../GuideDialog'
 import useMenu from '../form/useMenu'
 import BranchDialog from './BranchDialog'
 import ConfirmDialog from './ConfirmDialog'
@@ -19,13 +20,6 @@ import PairDialog from './PairDialog'
 import ProjectCard from './ProjectCard'
 import RenameProjectDialog from './RenameProjectDialog'
 import VariantDialog from './VariantDialog'
-
-/**
- * The guideline is a static page of its own per language, served from `public`.
- * A language without one falls back to the German original.
- */
-const GUIDE_PAGES = { de: './guideline.html', en: './guideline_en.html' }
-
 
 /**
  * The start page (decision 96, AP 10.7): the projects on the server, each
@@ -45,7 +39,7 @@ const GUIDE_PAGES = { de: './guideline.html', en: './guideline_en.html' }
  * else looks at it read-only.
  */
 export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOut, onAdmin, onCompare, onMerge, onHistory, note = null }) {
-  const { t, language, setLanguage, fill } = useI18n()
+  const { t, setLanguage, fill } = useI18n()
   const [projects, setProjects] = useState(null)
   const [local, setLocal] = useState(new Map())   // variantId → number of local changes
   const [error, setError] = useState(null)
@@ -194,10 +188,11 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
               <a href="./Leitfaden_Trassierung.pdf" download="Leitfaden_Trassierung.pdf" className="collab-btn">{t('start_guideline_download')}</a>
             </div>
           </div>
-          <iframe src={GUIDE_PAGES[language] ?? GUIDE_PAGES.de} title={t('start_guideline')} />
+          <GuidePreview onOpen={() => setDialog({ kind: 'guide' })} />
         </section>
       </main>
 
+      {dialog?.kind === 'guide' && <GuideDialog onClose={() => setDialog(null)} />}
       {dialog?.kind === 'new' && (
         <NewProjectDialog template={Boolean(dialog.template)} onCancel={() => setDialog(null)} onCreated={async () => { setDialog(null); await reload() }} />
       )}
