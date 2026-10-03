@@ -8,7 +8,7 @@ import { bufferStopFeatures } from '../utils/bufferStopGeometry'
 import { showTopology } from '../utils/topologyLayer'
 import { resolveEndBearing, displayCoords } from '../utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderUtils'
-import { updateLabels, clearTrackLabels, createTrackLabel, SWITCH_LABEL_MIN_ZOOM } from '../utils/labelUtils'
+import { updateLabels, clearTrackLabels, createTrackLabel, labelGeneration, removeTrackLabels, SWITCH_LABEL_MIN_ZOOM } from '../utils/labelUtils'
 import { ensureMarkerImages, TRACK_MARKER_ICON_IMAGE } from '../utils/markerImages'
 import { BUFFER_STOPS_BRAKE_LAYER, BUFFER_STOPS_LAYER, BUFFER_STOPS_SOURCE, PLATFORMS_FILL_LAYER, PLATFORMS_OUTLINE_LAYER, PLATFORMS_SOURCE, SWITCH_FILLS_LAYER, SWITCH_FILLS_SOURCE, SWITCH_LCS_LAYER, SWITCH_LCS_SOURCE, TRACKS_HOVER_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER, TRACKS_SOURCE, TRACK_MARKERS_LAYER, TRACK_MARKERS_SOURCE } from './layerIds'
 
@@ -51,6 +51,52 @@ function switchElementLabel(tr, el) {
   return [{ t: 'r' }, { t: sub, sub: true }, { t: ` = ${value}` }]
 }
 
+/** What one track puts on the map: its element lines, the markers at their ends, and their labels. */
+function drawTrack(map, track, tr, switchOf) {
+  const lines = []
+  const points = []
+  const ends = []
+  const labels = []
+  ;(track.elements ?? []).forEach((el, elIdx) => {
+    if (!el.geometry) return
+    lines.push({
+      type: 'Feature', id: track.id,
+      properties: {
+        trackId: track.id, elementIndex: elIdx,
+        switchBranch: el.switchBranch ?? false, switchId: el.switchId ?? '',
+      },
+      geometry: { type: 'LineString', coordinates: displayCoords(el, track.epsg) },
+    })
+    const coords = el.geometry.coordinates
+    const start = coords[0]
+    const end = coords[coords.length - 1]
+    points.push({ type: 'Feature', properties: { markerType: 'start', bearing: el.bearing ?? 0 }, geometry: { type: 'Point', coordinates: start } })
+    points.push({ type: 'Feature', properties: { markerType: el.switchBranch ? 'switch-end' : 'end', bearing: resolveEndBearing(el, track.epsg) }, geometry: { type: 'Point', coordinates: end } })
+    ends.push(start, end)
+    // Display formatting only — stored values keep their full precision.
+    const fmt = (v) => String(Math.round(v * 100) / 100)
+    const labelCoords = el.renderCoords ?? coords
+    if (el.switchBranch) {
+      labels.push(createTrackLabel(map, labelCoords, switchElementLabel(tr, el), { avoid: switchOf(el)?.bodyCentre ?? null }))
+    } else if (el.length) {
+      let labelText
+      if (el.radius != null) {
+        labelText = `r = ${fmt(Math.abs(el.radius))}m | l = ${fmt(el.length)}m`
+      } else if (el.elementType === 2) {
+        const subscript = el.transitionType === 'bloss' ? 'ub' : 'u'
+        labelText = [{ t: 'l' }, { t: subscript, sub: true }, { t: ` = ${fmt(el.length)}m` }]
+      } else {
+        labelText = `l = ${fmt(el.length)}m`
+      }
+      labels.push(createTrackLabel(map, labelCoords, labelText))
+    }
+  })
+  return { lines, points, ends, labels }
+}
+
+/** The tracks and switches drawn so far, with what was drawn for them. */
+const _cache = { lang: null, generation: null, tracks: new Map(), switches: new Map() }
+
 export function renderTracksOnMap(map, project, { fit = false, topology = false } = {}) {
   if (!map || !project) return
   const tracks = project.tracks ?? []
@@ -64,54 +110,41 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
   const switchById = Object.fromEntries(switches.filter(sw => sw.switchId).map(sw => [sw.switchId, sw]))
   const switchOf   = (el) => switchById[el.switchId] ?? null
 
+  // Each track's features and labels are kept with the track object they were
+  // made from (R9.2). The store is immutable, so a track that kept its object
+  // did not change: only the tracks a write touched are drawn again, and the
+  // labels of the rest stay on the map. A switch the track's labels keep clear
+  // of counts as part of the track, and another language or a label layer that
+  // was cleared in the meantime draws everything again.
+  const generation = labelGeneration()
+  if (_cache.lang !== lang || _cache.generation !== generation) {
+    for (const entry of _cache.tracks.values()) removeTrackLabels(entry.labels)
+    for (const entry of _cache.switches.values()) removeTrackLabels(entry.labels)
+    _cache.tracks.clear()
+    _cache.switches.clear()
+    _cache.lang = lang
+    _cache.generation = generation
+  }
+  const seen = new Set()
   const lineFeatures = []
   const pointFeatures = []
   const allCoords = []
-
-  // Remove old labels
-  clearTrackLabels()
-
-  tracks.forEach((track) => {
-    (track.elements ?? []).forEach((el, elIdx) => {
-      if (!el.geometry) return
-      lineFeatures.push({
-        type: 'Feature', id: track.id,
-        properties: {
-          trackId: track.id, elementIndex: elIdx,
-          switchBranch: el.switchBranch ?? false, switchId: el.switchId ?? '',
-        },
-        geometry: { type: 'LineString', coordinates: displayCoords(el, track.epsg) },
-      })
-      const coords = el.geometry.coordinates
-      const start = coords[0]
-      const end = coords[coords.length - 1]
-
-      const startBearing = el.bearing ?? 0
-      const endBearing = resolveEndBearing(el, track.epsg)
-
-      pointFeatures.push({ type: 'Feature', properties: { markerType: 'start', bearing: startBearing }, geometry: { type: 'Point', coordinates: start } })
-      pointFeatures.push({ type: 'Feature', properties: { markerType: el.switchBranch ? 'switch-end' : 'end', bearing: endBearing }, geometry: { type: 'Point', coordinates: end } })
-      allCoords.push(start, end)
-      // Display formatting only — stored values keep their full precision.
-      const fmt = (v) => String(Math.round(v * 100) / 100)
-      const labelCoords = el.renderCoords ?? coords
-      if (el.switchBranch) {
-        createTrackLabel(map, labelCoords, switchElementLabel(tr, el),
-          { avoid: switchOf(el)?.bodyCentre ?? null })
-      } else if (el.length) {
-        let labelText
-        if (el.radius != null) {
-          labelText = `r = ${fmt(Math.abs(el.radius))}m | l = ${fmt(el.length)}m`
-        } else if (el.elementType === 2) {
-          const subscript = el.transitionType === 'bloss' ? 'ub' : 'u'
-          labelText = [{ t: 'l' }, { t: subscript, sub: true }, { t: ` = ${fmt(el.length)}m` }]
-        } else {
-          labelText = `l = ${fmt(el.length)}m`
-        }
-        createTrackLabel(map, labelCoords, labelText)
-      }
-    })
-  })
+  for (const track of tracks) {
+    seen.add(track.id)
+    let entry = _cache.tracks.get(track.id)
+    const avoids = (track.elements ?? []).map(el => (el.switchBranch ? switchOf(el) : null))
+    if (!entry || entry.track !== track || entry.avoids.some((sw, i) => sw !== avoids[i]) || entry.avoids.length !== avoids.length) {
+      if (entry) removeTrackLabels(entry.labels)
+      entry = { track, avoids, ...drawTrack(map, track, tr, switchOf) }
+      _cache.tracks.set(track.id, entry)
+    }
+    lineFeatures.push(...entry.lines)
+    pointFeatures.push(...entry.points)
+    if (fit) allCoords.push(...entry.ends)
+  }
+  for (const [id, entry] of _cache.tracks) {
+    if (!seen.has(id)) { removeTrackLabels(entry.labels); _cache.tracks.delete(id) }
+  }
 
   const lineGeoJSON  = { type: 'FeatureCollection', features: lineFeatures }
   const pointGeoJSON = { type: 'FeatureCollection', features: pointFeatures }
@@ -144,11 +177,22 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
   // The turnout's designation, set beside the body rather than on either route
   // — those carry their own radius. It goes at a higher zoom than the rest: it
   // belongs to no element, so nothing hides it once it stops being legible.
-  switches.forEach((sw) => {
-    if (!sw.labelCoords || !sw.label) return
-    createTrackLabel(map, sw.labelCoords, `${bauformCode(tr, sw.bauform)} ${sw.label}`,
-      { minZoom: SWITCH_LABEL_MIN_ZOOM, avoid: sw.bodyCentre ?? null })
+  const seenSwitches = new Set()
+  switches.forEach((sw, i) => {
+    const key = sw.switchId ?? `#${i}`
+    seenSwitches.add(key)
+    const entry = _cache.switches.get(key)
+    if (entry?.sw === sw) return
+    if (entry) removeTrackLabels(entry.labels)
+    const labels = sw.labelCoords && sw.label
+      ? [createTrackLabel(map, sw.labelCoords, `${bauformCode(tr, sw.bauform)} ${sw.label}`,
+        { minZoom: SWITCH_LABEL_MIN_ZOOM, avoid: sw.bodyCentre ?? null })]
+      : []
+    _cache.switches.set(key, { sw, labels })
   })
+  for (const [key, entry] of _cache.switches) {
+    if (!seenSwitches.has(key)) { removeTrackLabels(entry.labels); _cache.switches.delete(key) }
+  }
 
   // Platforms are polygons derived from their track (see platformUtils); one
   // whose track is gone carries no polygon and is left out.

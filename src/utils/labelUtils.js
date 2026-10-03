@@ -21,6 +21,12 @@ let _labels = []          // { coords, bbox, pathEl, textEl, unitWidth, minZoom,
 let _container = null
 let _svg = null
 let _debounceTimer = null
+// Counts the times every label was dropped at once, so a caller holding on to
+// labels of its own (trackLayers) knows they are gone.
+let _generation = 0
+
+/** Changes whenever clearTrackLabels has dropped every label. */
+export const labelGeneration = () => _generation
 
 function ensureSvg(map) {
   // Container may have been removed from the DOM (e.g. on a style change).
@@ -151,6 +157,7 @@ export function clearTrackLabels() {
     _debounceTimer = null
   }
   _labels = []
+  _generation++
   _container?.remove()
   _container = null
   _svg = null
@@ -184,8 +191,18 @@ export function createTrackLabel(map, coords, text, { minZoom = MIN_ZOOM, avoid 
     if (y > maxY) maxY = y
   }
 
-  _labels.push({
+  const label = {
     coords, bbox: [minX, minY, maxX, maxY], pathEl, textEl,
     unitWidth: estimateUnitWidth(text), minZoom, avoid,
-  })
+  }
+  _labels.push(label)
+  return label
+}
+
+/** Take these labels (as createTrackLabel returned them) off the map, and only these. */
+export function removeTrackLabels(labels) {
+  if (!labels?.length) return
+  const gone = new Set(labels)
+  for (const label of labels) { label.pathEl.remove(); label.textEl.remove() }
+  _labels = _labels.filter(l => !gone.has(l))
 }
