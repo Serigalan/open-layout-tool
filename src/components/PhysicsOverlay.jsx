@@ -1,6 +1,7 @@
 import { flattenPhysics, PHYSICS } from '../utils/constraintsView'
 import FormelMathml from './FormelMathml'
 import { useI18n } from '../locales/i18nContext'
+import CloseButton from './form/CloseButton'
 
 /**
  * The physics beneath the optimizer, read-only, in the same popup shell the
@@ -24,7 +25,7 @@ export default function PhysicsOverlay({ onClose }) {
           {t('constraints_physics')}
           <span className="track-table-subtitle">{t('constraints_readonly')}</span>
         </span>
-        <button className="track-table-close" onClick={onClose}>✕</button>
+        <CloseButton onClick={onClose} />
       </div>
 
       <div className="track-table-scroll constraints-scroll">

@@ -8,6 +8,7 @@ import { useI18n } from '../locales/i18nContext'
 import { useProject } from '../hooks/useStore'
 import { PALETTE } from '../styles/palette'
 import { labelBox, placeLabels } from '../utils/labelPlacement'
+import CloseButton from './form/CloseButton'
 
 const PAD    = 28     // px around a diagram
 const STEP_X = 56     // px between columns — a track two columns at least, its name on the middle one
@@ -105,7 +106,7 @@ export default function TopologyGraphOverlay({ selection, onSelect, onDeleted, o
             {fill('topology_graph_summary', { clusters: data.clusters.length, loose: data.loose.length })}
           </span>
         </span>
-        <button className="track-table-close" onClick={onClose}>✕</button>
+        <CloseButton onClick={onClose} />
       </div>
       {selectedTrack && (
         <div className="topology-graph-toolbar">

@@ -23,7 +23,7 @@ function FileSlot({ label, accept, onFile, file, pickLabel, removeLabel, disable
             <div className="file-slot-name text-ellipsis" title={file.name}>{file.name}</div>
             <div className="msg-hint msg-small">{file.detail}</div>
           </div>
-          <button className="panel-btn" onClick={onRemove} title={removeLabel}>✕</button>
+          <button className="panel-btn" onClick={onRemove} title={removeLabel} aria-label={removeLabel}>✕</button>
         </div>
       ) : (
         <FilePickButton accept={accept} disabled={disabled} onFile={onFile}>{pickLabel}</FilePickButton>

@@ -9,6 +9,7 @@ import { entryText } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
+import CloseButton from '../form/CloseButton'
 
 const LAYER = 'compare'
 const KINDS = ['added', 'changed', 'removed']
@@ -70,7 +71,7 @@ export default function CompareOverlay({ mapVersion = 0, before, after, beforeLa
         </span>
         <div className="collab-header-actions">
           <button type="button" className="collab-tab" onClick={() => setTab('topology')}>{t('compare_topology')}</button>
-          <button className="track-table-close" onClick={onClose} aria-label="close">✕</button>
+          <CloseButton onClick={onClose} />
         </div>
       </div>
       <div className="collab-legend">

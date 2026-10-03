@@ -26,6 +26,7 @@ import usePreview from '../map/usePreview'
 import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
+import CloseButton from './form/CloseButton'
 
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
@@ -592,7 +593,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
               onChange={e => setReach(clamp(Number(e.target.value) || DEFAULT_REACH, 1, MAX_REACH))} />
             m
           </label>
-          <button className="track-table-close" onClick={onClose}>✕</button>
+          <CloseButton onClick={onClose} />
         </div>
       </div>
       <div className="profile-body" ref={bodyRef}>
@@ -603,13 +604,13 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
       </div>
       <div className="cross-section-slider">
         <button className="cross-section-step" disabled={station <= 0} onClick={() => stepTo(-1)}
-          title={t('cross_section_step_back')}>◀</button>
+          title={t('cross_section_step_back')} aria-label={t('cross_section_step_back')}>◀</button>
         <input
           type="range" min={0} max={total} step={0.1} value={station}
           onChange={e => onAtChange?.({ ...at, station: Number(e.target.value) })}
         />
         <button className="cross-section-step" disabled={station >= total} onClick={() => stepTo(1)}
-          title={t('cross_section_step_forward')}>▶</button>
+          title={t('cross_section_step_forward')} aria-label={t('cross_section_step_forward')}>▶</button>
         <span className="cross-section-slider-label">{`${station.toFixed(1)} / ${total.toFixed(1)} m`}</span>
       </div>
     </div>

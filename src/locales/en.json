@@ -115,6 +115,7 @@
   "btn_commit": "Commit",
   "btn_cancel": "Cancel",
   "btn_remove": "Remove",
+  "btn_close": "Close",
   "btn_back": "Back",
   "field_speed": "Speed (km/h)",
   "field_length": "Length (m)",

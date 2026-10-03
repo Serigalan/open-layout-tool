@@ -5,6 +5,7 @@ import { conflictText, entryText, findingText, valueText } from './mergeText'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
+import CloseButton from '../form/CloseButton'
 
 const LAYER = 'conflict'
 
@@ -103,7 +104,7 @@ export default function ConflictDialog({ mapVersion = 0, result, title, mineLabe
           {title ?? t('merge_title')}
           <span className="track-table-subtitle">{fill('compare_from_to', { before: theirsLabel, after: mineLabel })}</span>
         </span>
-        <button className="track-table-close" onClick={onCancel} aria-label="close" disabled={busy}>✕</button>
+        <CloseButton onClick={onCancel} disabled={busy} />
       </div>
       <div className="track-table-scroll collab-scroll">
         <section className="collab-section">

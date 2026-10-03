@@ -10,6 +10,7 @@ import { useI18n } from '../../locales/i18nContext'
 import { errorText } from '../collab/errorText'
 import '../collab/collab.css'
 import Modal from '../Modal'
+import useMenu from '../form/useMenu'
 import BranchDialog from './BranchDialog'
 import ConfirmDialog from './ConfirmDialog'
 import ExportDialog from './ExportDialog'
@@ -51,7 +52,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
   const [notice, setNotice] = useState(note)
   const [dialog, setDialog] = useState(null)      // { kind, project?, variant? }
   const [opening, setOpening] = useState(null)
-  const [userMenu, setUserMenu] = useState(false)
+  const { open: userMenuOpen, close: closeUserMenu, rootRef: userMenuRootRef, buttonRef: userMenuButtonRef, buttonProps: userMenuButtonProps } = useMenu()
   const [showArchived, setShowArchived] = useState(false)
   const importRef = useRef(null)
 
@@ -134,13 +135,13 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
         <div className="home-user">
           <LanguageMenu onChange={setLanguage} />
           {isAdmin && onAdmin && <button type="button" className="collab-btn" onClick={onAdmin}>{t('home_admin')}</button>}
-          <div className="home-menu">
-            <button type="button" className="collab-btn" aria-haspopup="menu" aria-expanded={userMenu} onClick={() => setUserMenu(v => !v)}>
+          <div className="home-menu" ref={userMenuRootRef}>
+            <button ref={userMenuButtonRef} type="button" className="collab-btn" {...userMenuButtonProps}>
               {user.name} ▾
             </button>
-            {userMenu && (
-              <div className="home-menu-list" role="menu" onMouseLeave={() => setUserMenu(false)}>
-                <button type="button" role="menuitem" onClick={() => { setUserMenu(false); setDialog({ kind: 'password' }) }}>{t('password_title')}</button>
+            {userMenuOpen && (
+              <div className="home-menu-list" role="menu">
+                <button type="button" role="menuitem" onClick={() => { closeUserMenu(); setDialog({ kind: 'password' }) }}>{t('password_title')}</button>
                 <button type="button" role="menuitem" onClick={onSignOut}>{t('user_sign_out')}</button>
               </div>
             )}

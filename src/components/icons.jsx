@@ -24,6 +24,7 @@ const IconNode = ({ cx, cy, opacity }) => (
 const MenuIcon = ({ children }) => (
   <svg width={MENU_ICON_SIZE} height={MENU_ICON_SIZE} viewBox={`0 0 ${MENU_ICON_SIZE} ${MENU_ICON_SIZE}`}
     fill="none" stroke="currentColor" strokeWidth={MENU_ICON_STROKE} strokeLinecap="round" strokeLinejoin="round"
+    aria-hidden="true" focusable="false"
   >
     {children}
   </svg>
@@ -376,6 +377,7 @@ const SidebarNode = ({ cx, cy }) => (
 const SidebarIcon = ({ children }) => (
   <svg width={SIDEBAR_ICON_SIZE} height={SIDEBAR_ICON_SIZE} viewBox="0 0 24 24" color="white"
     fill="none" stroke="currentColor" strokeWidth={SIDEBAR_ICON_STROKE} strokeLinecap="round" strokeLinejoin="round"
+    aria-hidden="true" focusable="false"
   >
     {children}
   </svg>
@@ -445,7 +447,7 @@ export const DataExchangeIcon = () => (
 )
 
 export const LogoIcon = ({ className }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" xmlSpace="preserve" viewBox="0 0 135.65 136.98" className={className}>
+  <svg xmlns="http://www.w3.org/2000/svg" xmlSpace="preserve" viewBox="0 0 135.65 136.98" className={className} aria-hidden="true">
     <defs>
       <clipPath id="b"><path d="M-1347.3 1737.07h1920V-923.35h-1920Z"/></clipPath>
       <filter id="a" width="1.06" height="1.06" x="-.03" y="-.03" colorInterpolationFilters="sRGB"><feGaussianBlur stdDeviation="1.593"/></filter>
@@ -476,7 +478,7 @@ export const SpliceElementIcon = () => (
 )
 
 export const ExternalLinkIcon = ({ color = 'currentColor', size = 14 }) => (
-  <svg className="no-shrink" width={size} height={size} viewBox="0 0 24 24" fill="none">
+  <svg className="no-shrink" width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
     <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     <polyline points="15 3 21 3 21 9" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
     <line x1="10" y1="14" x2="21" y2="3" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

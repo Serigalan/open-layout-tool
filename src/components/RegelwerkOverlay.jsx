@@ -8,6 +8,7 @@ import QuerschnittRegelwerk from './QuerschnittRegelwerk'
 import { QUERSCHNITT_KATALOG } from '../utils/gaugeProfiles'
 import RegelkatalogView from './RegelkatalogView'
 import { useI18n } from '../locales/i18nContext'
+import CloseButton from './form/CloseButton'
 
 /**
  * The regelwerke a layout is held to, read-only, in the same popup shell the
@@ -106,7 +107,7 @@ export default function RegelwerkOverlay({ regelwerkId, onClose }) {
           </select>
           <span className="track-table-subtitle">{t('constraints_readonly')}</span>
         </span>
-        <button className="track-table-close" onClick={onClose}>✕</button>
+        <CloseButton onClick={onClose} />
       </div>
 
       <div className="track-table-scroll constraints-scroll">

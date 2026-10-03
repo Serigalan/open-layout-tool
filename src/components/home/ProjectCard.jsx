@@ -1,19 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { blobUrl } from '../../api/client'
 import { variantTree } from '../collab/homeModel'
 import { formatDate } from '../../locales/i18n'
 import { useI18n } from '../../locales/i18nContext'
+import useMenu from '../form/useMenu'
 
 export default function ProjectCard({ project, local, opening, showArchived, canDelete, canEdit, onOpen, onView, onDialog, onCompare, onMerge, onHistory }) {
   const { t, language, fill } = useI18n()
   const rows = useMemo(() => variantTree(project.variants.filter(v => showArchived || !v.archived)), [project, showArchived])
-  const [menu, setMenu] = useState(false)
+  const { open: menuOpen, close: closeMenu, rootRef: menuRootRef, buttonRef: menuButtonRef, buttonProps: menuButtonProps } = useMenu()
   const image = blobUrl(project.imageHash)
   const byId = new Map(project.variants.map(v => [v.id, v]))
   const many = project.variants.filter(v => !v.archived).length > 1
   const item = (label, kind, extra = {}) => (
     <button type="button" role="menuitem" className={extra.danger ? 'danger' : ''}
-      onClick={() => { setMenu(false); onDialog({ kind, project }) }}>{label}</button>
+      onClick={() => { closeMenu(); onDialog({ kind, project }) }}>{label}</button>
   )
   return (
     <li className="home-project">
@@ -28,11 +29,11 @@ export default function ProjectCard({ project, local, opening, showArchived, can
             </p>
           )}
         </div>
-        <div className="home-menu">
-          <button type="button" className="collab-btn collab-btn-small" aria-label={t('home_project_menu')} aria-haspopup="menu"
-            aria-expanded={menu} onClick={() => setMenu(v => !v)}>⋯</button>
-          {menu && (
-            <div className="home-menu-list" role="menu" onMouseLeave={() => setMenu(false)}>
+        <div className="home-menu" ref={menuRootRef}>
+          <button ref={menuButtonRef} type="button" className="collab-btn collab-btn-small" aria-label={t('home_project_menu')}
+            title={t('home_project_menu')} {...menuButtonProps}>⋯</button>
+          {menuOpen && (
+            <div className="home-menu-list" role="menu">
               {canEdit && item(t('home_rename'), 'rename')}
               {item(t('start_export'), 'export')}
               {!project.template && item(t('home_members'), 'members')}
@@ -57,7 +58,7 @@ export default function ProjectCard({ project, local, opening, showArchived, can
                 <span className="home-variant-buttons">
                   {onHistory && <button type="button" className="collab-btn collab-btn-small" onClick={() => onHistory(project, v)}>{t('home_history')}</button>}
                   {!readOnly && (
-                    <button type="button" className="collab-btn collab-btn-small" title={t('home_variant_menu')}
+                    <button type="button" className="collab-btn collab-btn-small" title={t('home_variant_menu')} aria-label={t('home_variant_menu')}
                       onClick={() => onDialog({ kind: 'variant', project, variant: v })}>✎</button>
                   )}
                   {readOnly

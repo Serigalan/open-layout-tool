@@ -89,7 +89,7 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
                 onChange={e => patchRange(field, i, { from: Number(e.target.value) })} />
               <input type="number" step="0.001" min="0" max={total} value={r.to ?? total}
                 onChange={e => patchRange(field, i, { to: Number(e.target.value) })} />
-              <button type="button" className="field-override" onClick={() => dropRange(field, i)}>✕</button>
+              <button type="button" className="field-override" onClick={() => dropRange(field, i)} aria-label={t('btn_remove')} title={t('btn_remove')}>✕</button>
             </div>
             {table[r.type]?.use && (
               <span className="range-use">{t(`cross_section_use_${table[r.type].use}`)}</span>

@@ -29,4 +29,12 @@ describe('architecture', () => {
     const inline = jsx.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/style=\{/g)?.length ?? 0), 0)
     expect(inline).toBeLessThan(30)
   })
+  it('names every button that shows only a symbol, in the interface language (R6.5)', () => {
+    const jsx = sources('.').filter(p => p.endsWith('.jsx'))
+    const unnamed = jsx.flatMap(p => [...readFileSync(p, 'utf8').matchAll(/<button\b((?:[^>]|=>)*)>\s*[✕×⋯✎◀▶]\s*<\/button>/g)]
+      .filter(m => !/aria-label=\{/.test(m[1])).map(() => relative(SRC, p)))
+    expect(unnamed).toEqual([])
+    const fixed = jsx.filter(p => /aria-label="[A-Za-z]/.test(readFileSync(p, 'utf8'))).map(p => relative(SRC, p))
+    expect(fixed).toEqual([])
+  })
 })

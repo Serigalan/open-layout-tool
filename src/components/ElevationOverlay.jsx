@@ -14,6 +14,7 @@ import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
 import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
+import CloseButton from './form/CloseButton'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
 const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
@@ -368,7 +369,7 @@ export default function ElevationOverlay({ trackId, onClose }) {
                 title={t('elevation_delete_hint')} onClick={remove}>
                 {fill('elevation_delete', { n: deletable.length })}
               </button>
-              <button className="track-table-close" onClick={() => select([])}>✕</button>
+              <CloseButton onClick={() => select([])} />
             </div>
           ) : (
             <span className="profile-hint">{t('elevation_hint_edit')}</span>
@@ -379,7 +380,7 @@ export default function ElevationOverlay({ trackId, onClose }) {
               {EXAGGERATIONS.map(x => <option key={x} value={x}>{x}×</option>)}
             </select>
           </label>
-          <button className="track-table-close" onClick={onClose}>✕</button>
+          <CloseButton onClick={onClose} />
         </div>
       </div>
       <div className="profile-body" ref={bodyRef}>
