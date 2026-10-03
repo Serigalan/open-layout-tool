@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useI18n } from '../locales/i18nContext'
 import { MapContext } from '../map/MapContext'
 import useMapInstance, { ELEVATION_BASEMAPS } from '../map/useMapInstance'
@@ -18,17 +18,19 @@ import { panelById } from './panels'
 import Sidebar from './Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
 import ElevationLegend from '../components/ElevationLegend'
-import TrackTableOverlay from '../components/TrackTableOverlay'
-import PhysicsOverlay from '../components/PhysicsOverlay'
-import RegelwerkOverlay from '../components/RegelwerkOverlay'
-import PlanPreviewOverlay from '../components/PlanPreviewOverlay'
-import ElevationOverlay from '../components/ElevationOverlay'
-import CrossSectionOverlay from '../components/CrossSectionOverlay'
-import TopologyGraphOverlay from '../components/TopologyGraphOverlay'
-import CompareOverlay from '../components/collab/CompareOverlay'
-import ConflictDialog from '../components/collab/ConflictDialog'
-import CheckInDialog from '../components/collab/CheckInDialog'
 import WorkingCopyBar from '../components/collab/WorkingCopyBar'
+
+// The overlays and dialogs are chunks of their own (R9.1), loaded when first shown.
+const TrackTableOverlay = lazy(() => import('../components/TrackTableOverlay'))
+const PhysicsOverlay = lazy(() => import('../components/PhysicsOverlay'))
+const RegelwerkOverlay = lazy(() => import('../components/RegelwerkOverlay'))
+const PlanPreviewOverlay = lazy(() => import('../components/PlanPreviewOverlay'))
+const ElevationOverlay = lazy(() => import('../components/ElevationOverlay'))
+const CrossSectionOverlay = lazy(() => import('../components/CrossSectionOverlay'))
+const TopologyGraphOverlay = lazy(() => import('../components/TopologyGraphOverlay'))
+const CompareOverlay = lazy(() => import('../components/collab/CompareOverlay'))
+const ConflictDialog = lazy(() => import('../components/collab/ConflictDialog'))
+const CheckInDialog = lazy(() => import('../components/collab/CheckInDialog'))
 import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 
@@ -254,7 +256,9 @@ export default function MapWorkspace({ wc, onHome }) {
 
         {PanelComponent && (
           <aside className="sidebar-secondary">
-            <PanelComponent {...(panel.props?.(shell) ?? {})} />
+            <Suspense fallback={<p className="selecting-hint">…</p>}>
+              <PanelComponent {...(panel.props?.(shell) ?? {})} />
+            </Suspense>
           </aside>
         )}
 
@@ -273,6 +277,7 @@ export default function MapWorkspace({ wc, onHome }) {
           {wc.note && <button type="button" className="wc-note" onClick={wc.clearNote}>{wc.note}</button>}
           {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} />}
 
+          <Suspense fallback={null}>
           {overlay?.kind === 'trackTable' && <TrackTableOverlay track={overlay.track}
             initialRow={overlay.initialRow} onPickTrack={(track) => openOverlay({ kind: 'trackTable', track, initialRow: null })}
             onDirtyChange={setTableDirty} onClose={() => closeOverlay('trackTable')} />}
@@ -300,6 +305,7 @@ export default function MapWorkspace({ wc, onHome }) {
             <CheckInDialog changes={wc.changes} errors={wc.syncDialog.errors} busy={wc.busy}
               onCancel={wc.cancelDialog} onSubmit={wc.submitCheckIn} />
           )}
+          </Suspense>
           {discardAsk && (
             <ConfirmModal
               message={t('table_discard_confirm')}

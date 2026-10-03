@@ -1,16 +1,19 @@
+import { lazy } from 'react'
 import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, PlanExportIcon, ElevationIcon } from '../components/icons'
-import LayersPanel from '../components/panels/LayersPanel'
-import TopologyPanel from '../components/panels/TopologyPanel'
-import CreateConnectPanel from '../components/panels/CreateConnectPanel'
-import ConnectSwitchPanel from '../components/panels/ConnectSwitchPanel'
-import SpliceOptimizePanel from '../components/panels/SpliceOptimizePanel'
-import ElevationPanel from '../components/panels/ElevationPanel'
-import PlatformCrossSectionPanel from '../components/panels/PlatformCrossSectionPanel'
-import EditElementPanel from '../components/panels/EditElementPanel'
-import SettingsPanel from '../components/panels/SettingsPanel'
-import InfoPanel from '../components/panels/InfoPanel'
-import DataExchangePanel from '../components/panels/DataExchangePanel'
-import PlanExportPanel from '../components/panels/PlanExportPanel'
+
+// Each panel is its own chunk (R9.1), loaded the first time it is opened.
+const LayersPanel = lazy(() => import('../components/panels/LayersPanel'))
+const TopologyPanel = lazy(() => import('../components/panels/TopologyPanel'))
+const CreateConnectPanel = lazy(() => import('../components/panels/CreateConnectPanel'))
+const ConnectSwitchPanel = lazy(() => import('../components/panels/ConnectSwitchPanel'))
+const SpliceOptimizePanel = lazy(() => import('../components/panels/SpliceOptimizePanel'))
+const ElevationPanel = lazy(() => import('../components/panels/ElevationPanel'))
+const PlatformCrossSectionPanel = lazy(() => import('../components/panels/PlatformCrossSectionPanel'))
+const EditElementPanel = lazy(() => import('../components/panels/EditElementPanel'))
+const SettingsPanel = lazy(() => import('../components/panels/SettingsPanel'))
+const InfoPanel = lazy(() => import('../components/panels/InfoPanel'))
+const DataExchangePanel = lazy(() => import('../components/panels/DataExchangePanel'))
+const PlanExportPanel = lazy(() => import('../components/panels/PlanExportPanel'))
 
 /**
  * The panels of the map view (R2.3), in the order the sidebar shows them.

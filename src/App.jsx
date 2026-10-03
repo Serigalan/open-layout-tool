@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import './App.css'
 import I18nProvider from './locales/I18nProvider'
 import { useI18n } from './locales/i18nContext'
@@ -7,17 +7,26 @@ import { loadSettings } from './utils/settings'
 import StartPage from './components/home/StartPage'
 import LoginPage from './components/collab/LoginPage'
 import PasswordForm from './components/collab/PasswordForm'
-import AdminPage from './components/collab/AdminPage'
-import HistoryPage from './components/collab/HistoryPage'
 import useSession from './shell/useSession'
 import useWorkingCopy from './shell/useWorkingCopy'
 import useViewer from './shell/useViewer'
-import MapWorkspace from './shell/MapWorkspace'
-import ViewerView from './shell/ViewerView'
 import { PALETTE } from './styles/palette'
 
+// What the sign-in and the start page do not need is loaded when it is first
+// opened (R9.1) — the map above all, with MapLibre and every panel behind it.
+const AdminPage = lazy(() => import('./components/collab/AdminPage'))
+const HistoryPage = lazy(() => import('./components/collab/HistoryPage'))
+const MapWorkspace = lazy(() => import('./shell/MapWorkspace'))
+const ViewerView = lazy(() => import('./shell/ViewerView'))
+
+/** While a page's chunk is on its way. */
+function Loading() {
+  const { t } = useI18n()
+  return <div className="collab-page collab-center"><p className="collab-muted">{t('home_loading')}</p></div>
+}
+
 export default function App() {
-  return <I18nProvider><Shell /></I18nProvider>
+  return <I18nProvider><Suspense fallback={<Loading />}><Shell /></Suspense></I18nProvider>
 }
 
 /**
