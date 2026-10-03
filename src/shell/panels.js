@@ -8,7 +8,7 @@ const CreatePanel = lazy(() => import('../components/panels/CreatePanel'))
 const ConnectSwitchPanel = lazy(() => import('../components/panels/ConnectSwitchPanel'))
 const SpliceConnectPanel = lazy(() => import('../components/panels/SpliceConnectPanel'))
 const ElevationPanel = lazy(() => import('../components/panels/ElevationPanel'))
-const PlatformCrossSectionPanel = lazy(() => import('../components/panels/PlatformCrossSectionPanel'))
+const CrossSectionsPanel = lazy(() => import('../components/panels/CrossSectionsPanel'))
 const EditElementPanel = lazy(() => import('../components/panels/EditElementPanel'))
 const SettingsPanel = lazy(() => import('../components/panels/SettingsPanel'))
 const InfoPanel = lazy(() => import('../components/panels/InfoPanel'))
@@ -21,8 +21,8 @@ const CheckPanel = lazy(() => import('../components/panels/CheckPanel'))
  * The sidebar and the panel pane are both made from this list.
  *
  * In the order of the work (R10.7): the view on the map; laying out the
- * alignment — create, splice, the switches; editing; the heights; cross
- * section and platforms; checking against the rules; exchange; the plan. The
+ * alignment — create (platforms too), splice, the switches; editing; the
+ * heights; cross sections; checking against the rules; exchange; the plan. The
  * sidebar draws a line where the `group` changes.
  *
  *   id          what the shell calls the panel
@@ -89,7 +89,7 @@ export const PANELS = [
     }),
   },
   {
-    id: 'platform', group: 'section', icon: CrossSectionIcon, titleKey: 'platform_cross_section', place: 'top', Component: PlatformCrossSectionPanel,
+    id: 'section', group: 'section', icon: CrossSectionIcon, titleKey: 'platform_cross_section', place: 'top', Component: CrossSectionsPanel,
     overlay: 'crossSection',
     props: (s) => ({
       crossSectionAt: s.overlay?.kind === 'crossSection' ? s.overlay.at : null,

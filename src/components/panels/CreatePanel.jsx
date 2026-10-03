@@ -4,8 +4,9 @@ import CurvedLineForm from './CreateElementPanel/CurvedLineForm'
 import ParallelLineForm from './CreateElementPanel/ParallelLineForm'
 import ParallelTrackForm from './CreateElementPanel/ParallelTrackForm'
 import BufferStopForm from './CreateElementPanel/BufferStopForm'
+import PlatformPanel from './PlatformPanel'
 import {
-  BackIcon, CreateLineIcon, CreateArcIcon, CreateParallelIcon, CreateParallelTrackIcon, BufferStopIcon,
+  BackIcon, CreateLineIcon, CreateArcIcon, CreateParallelIcon, CreateParallelTrackIcon, BufferStopIcon, NewPlatformIcon,
 } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -22,10 +23,10 @@ function BackButton({ onBack }) {
 }
 
 /**
- * Creating elements and buffer stops in one panel: the menu keeps both
- * headings, separated by the gray line, and a tool click opens that tool's
- * form. The groups share the panel the way the switch panel's tools do — one
- * menu, one back. Connecting to a track end is in the splice panel.
+ * Creating elements, buffer stops and platforms in one panel: the menu keeps
+ * the three headings, separated by the gray line, and a tool click opens that
+ * tool's form. The groups share the panel the way the switch panel's tools do
+ * — one menu, one back. Connecting to a track end is in the splice panel.
  */
 export default function CreatePanel() {
   const { t } = useI18n()
@@ -72,6 +73,13 @@ export default function CreatePanel() {
     </>
   )
 
+  if (page === 'platform') return (
+    <>
+      <BackButton onBack={back} />
+      <PlatformPanel />
+    </>
+  )
+
   return (
     <>
       <h2>{t('create_element')}</h2>
@@ -99,6 +107,14 @@ export default function CreatePanel() {
         <button className="create-element-btn" onClick={() => setPage('buffer_stop')}>
           <BufferStopIcon />
           {t('buffer_stop_create')}
+        </button>
+      </div>
+      <hr className="divider divider-wide" />
+      <h2>{t('platform_title')}</h2>
+      <div className="create-element-options">
+        <button className="create-element-btn" onClick={() => setPage('platform')}>
+          <NewPlatformIcon />
+          {t('platform_new')}
         </button>
       </div>
     </>

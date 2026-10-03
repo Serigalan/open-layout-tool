@@ -318,28 +318,28 @@ export const SpliceJoinIcon = () => (
   </MenuIcon>
 )
 
-// A platform beside its track: the track above, the slab below.
+// An island platform from above: the two tracks along it, the platform
+// between them with its ends ramped to a point.
 export const NewPlatformIcon = () => (
   <MenuIcon>
-    <path d="M1 4 H15" />
-    <rect x="3" y="8" width="10" height="4" rx="1" fill="currentColor" stroke="none" />
+    <path d="M1.5 3 H14.5" />
+    <path d="M1.5 13 H14.5" />
+    <path d="M4.5 6 H11.5 L13.5 8 L11.5 10 H4.5 L2.5 8 Z" fill="currentColor" fillOpacity={0.35} />
   </MenuIcon>
 )
 
-// Where the cross section is taken: the track, and the dashed cut through it.
-export const CrossSectionCutIcon = () => (
-  <MenuIcon>
-    <path d="M1 8 H15" />
-    <path d="M8 2 V14" strokeDasharray="2.5 2" />
-  </MenuIcon>
-)
-
-// A point cloud: survey points scattered over the ground line.
+// A point cloud: the scan of an embankment in cross section — its surface in
+// full points, the returns from inside it and from above fainter. Points, not
+// nodes: small squares, as a scan shows them.
+const CLOUD_POINTS = [
+  ...[[1.7, 12.6], [3, 12.2], [4.4, 11.4], [5.4, 9.8], [6.3, 8.2], [7.6, 7.4], [9, 7.6], [10.4, 7.3], [11.6, 8.4], [12.5, 10], [13.4, 11.5], [14.3, 12.4]].map(p => [...p, 1]),
+  ...[[3.6, 13.8], [6.2, 13.4], [8.6, 13.9], [11, 13.3], [13.2, 13.9], [7.2, 10.6], [9.6, 10.9], [8.4, 9.2]].map(p => [...p, 0.5]),
+  ...[[4, 6.4], [11.8, 5], [8.2, 4.2]].map(p => [...p, 0.35]),
+]
 export const PointCloudIcon = () => (
   <MenuIcon>
-    <path d="M1 14 H15" />
-    {[[3, 10], [6, 6.5], [9.5, 9], [12.5, 4.5], [8, 3], [13, 11]].map(([cx, cy]) => (
-      <IconNode key={`${cx},${cy}`} cx={cx} cy={cy} />
+    {CLOUD_POINTS.map(([x, y, opacity]) => (
+      <rect key={`${x},${y}`} x={x - 0.8} y={y - 0.8} width="1.6" height="1.6" fill="currentColor" stroke="none" opacity={opacity} />
     ))}
   </MenuIcon>
 )
