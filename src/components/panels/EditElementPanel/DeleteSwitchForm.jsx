@@ -5,6 +5,7 @@ import ConfirmModal from '../../ConfirmModal'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { SWITCH_PICK_LAYERS, hasSwitch } from '../../../map/pick'
+import CancelButton from '../../form/CancelButton'
 
 /**
  * Delete a turnout (AP 1.2). The switch is picked on the map — its body, or any
@@ -62,9 +63,7 @@ export default function DeleteSwitchForm({ onCommitted }) {
           </button>
         </>
       )}
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-        {t('btn_cancel')}
-      </button>
+      <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
 
       {confirming && (
         <ConfirmModal

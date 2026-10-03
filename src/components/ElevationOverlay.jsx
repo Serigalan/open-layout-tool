@@ -356,13 +356,13 @@ export default function ElevationOverlay({ trackId, onClose }) {
               <input className="track-table-input" type="number" step="0.01" value={draft} autoFocus
                 placeholder={t('elevation_mixed')}
                 onChange={e => setDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') select([]) }} />
+                onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
               <span>m</span>
               <span title={t('elevation_vcurve_hint')}>{t('elevation_vcurve')}</span>
               <input className="track-table-input" type="number" step="100" min="0" value={rvDraft}
                 placeholder={rvMixed ? t('elevation_mixed') : '–'} title={t('elevation_vcurve_hint')}
                 onChange={e => setRvDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') select([]) }} />
+                onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
               <span>m</span>
               <button className="track-table-save-btn" onClick={commit}>{t('elevation_apply')}</button>
               <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}

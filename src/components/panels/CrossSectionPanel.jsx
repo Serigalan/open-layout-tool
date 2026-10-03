@@ -15,6 +15,7 @@ import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
 import ReadOnlyField from '../form/ReadOnlyField'
 import FormSection from '../form/FormSection'
+import CancelButton from '../form/CancelButton'
 
 /**
  * The cross section of a track, at a station of it: the clearance profile the
@@ -145,9 +146,7 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
               {t('cross_section_show')}
             </button>
           )}
-          <button className="panel-btn panel-btn-full mt-2 secondary" onClick={clear}>
-            {t('btn_cancel')}
-          </button>
+          <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={clear} />
         </>
       )}
     </>

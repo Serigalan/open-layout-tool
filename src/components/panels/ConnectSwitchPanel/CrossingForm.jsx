@@ -25,6 +25,7 @@ import { buildCrossingAtTrackEnd } from '../../../utils/commands/switches'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import FormSection from '../../form/FormSection'
+import CancelButton from '../../form/CancelButton'
 
 /**
  * A crossing or crossing switch (AP 3.2), connected to the end of an existing
@@ -201,9 +202,7 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
         <p>{t('crossing_hint_select')}</p>
         {pickError && <p className="form-error">{t(pickError)}</p>}
         {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
-        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
-          {t('btn_cancel')}
-        </button>
+        <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel} />
       </>
     )
   }

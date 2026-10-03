@@ -1,4 +1,5 @@
 import { useI18n } from '../../locales/i18nContext'
+import useEscape from '../../shell/useEscape'
 
 /**
  * Commit and Cancel at the foot of a dialog (R4.3). `disabled` locks Commit;
@@ -9,6 +10,8 @@ export default function CommitBar({
   onCommit, onCancel, disabled = false, reason = null, commitLabel, cancelLabel, danger = false, className = 'mt-8',
 }) {
   const { t } = useI18n()
+  // Escape is Cancel (R10.2).
+  useEscape(onCancel, !!onCancel)
   return (
     <div className={`commit-bar ${className}`.trim()}>
       <button type="button" className={`panel-btn panel-btn-full${danger ? ' danger' : ''}`}

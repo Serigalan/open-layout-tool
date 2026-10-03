@@ -12,6 +12,7 @@ import { useProject } from '../../../hooks/useStore'
 import usePreview from '../../../map/usePreview'
 import useMapEvents from '../../../map/useMapEvents'
 import { PALETTE } from '../../../styles/palette'
+import CancelButton from '../../form/CancelButton'
 
 /** How close (px) the cursor has to come to an end for it to be the one meant. */
 const PICK_PX = 14
@@ -186,9 +187,7 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
     return (
       <>
         <p className="selecting-hint">{t(edit ? 'buffer_stop_none_existing' : 'buffer_stop_none')}</p>
-        <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-          {t('btn_cancel')}
-        </button>
+        <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
       </>
     )
   }
@@ -232,9 +231,7 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
           {t('buffer_stop_delete')}
         </button>
       )}
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-        {t('btn_cancel')}
-      </button>
+      <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
     </>
   )
 }

@@ -25,3 +25,11 @@ export function isProjectRedo(e) {
   const key = e.key.toLowerCase()
   return (key === 'y' && !e.shiftKey) || (key === 'z' && e.shiftKey)
 }
+
+/** A field whose own keys include Escape: a text area, a select, anything contenteditable. */
+export function isMultilineTarget(target) {
+  if (!target || typeof target !== 'object') return false
+  if (target.isContentEditable) return true
+  const tag = typeof target.tagName === 'string' ? target.tagName.toUpperCase() : ''
+  return tag === 'TEXTAREA' || tag === 'SELECT'
+}

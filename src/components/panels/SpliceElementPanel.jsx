@@ -13,6 +13,7 @@ import { PALETTE } from '../../styles/palette'
 import CommitBar from '../form/CommitBar'
 import RuleFindings from './RuleFindings'
 import SpliceSettings from './splice/SpliceSettings'
+import CancelButton from '../form/CancelButton'
 
 const SPLICE_PREVIEW_SOURCE = 'splice-preview-source'
 const SPLICE_PREVIEW_LAYERS = [{
@@ -137,7 +138,7 @@ export default function SpliceElementPanel() {
       {picks.length > 0 && <p className="msg-info">{t('splice_first_selected')}: {picks[0].label}</p>}
       {pickStatus && <p className={pickStatus.error ? 'msg-error' : 'msg-hint'}>{pickStatus.msg}</p>}
       {picks.length === 1 && (
-        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={reset}>{t('btn_cancel')}</button>
+        <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={reset} />
       )}
     </>
   )

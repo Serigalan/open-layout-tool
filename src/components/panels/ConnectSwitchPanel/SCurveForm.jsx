@@ -15,6 +15,7 @@ import useMapPick from '../../../map/useMapPick'
 import { PALETTE } from '../../../styles/palette'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import { trackLabel } from '../../../utils/trackModel'
+import CancelButton from '../../form/CancelButton'
 
 // ── Preview layers (managed by usePreview) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'
@@ -290,9 +291,7 @@ export default function SCurveForm({ onCommitted }) {
         </p>
       )}
       {phase === 'select_second' && (
-        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
-          {t('btn_cancel')}
-        </button>
+        <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel} />
       )}
     </>
   )

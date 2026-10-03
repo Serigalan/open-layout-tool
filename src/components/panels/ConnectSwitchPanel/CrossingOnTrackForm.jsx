@@ -24,6 +24,7 @@ import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import FormSection from '../../form/FormSection'
 import useFormPhase from '../../form/useFormPhase'
+import CancelButton from '../../form/CancelButton'
 
 /**
  * A crossing or crossing switch laid INTO an existing track (AP 3.3) — the
@@ -175,9 +176,7 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       <>
         <p>{t('crossing_on_track_hint')}</p>
         {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
-        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
-          {t('btn_cancel')}
-        </button>
+        <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel} />
       </>
     )
   }

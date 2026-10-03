@@ -4,6 +4,7 @@ import { existingLinks, findTrackJoints, linksForJoints } from '../../../utils/t
 import { utmToWgs84, crsName } from '../../../utils/coordinateUtils'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
+import CancelButton from '../../form/CancelButton'
 
 /** Where a picked joint is put on the map. */
 const JOINT_ZOOM = 17
@@ -135,9 +136,7 @@ export default function TrackLinkForm({ onCommitted }) {
           case where there are no joints to list. */}
       {fanned > 0 && <p className="selecting-hint">{fill('switch_link_fanned', { n: fanned })}</p>}
 
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-        {t('btn_cancel')}
-      </button>
+      <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
     </>
   )
 }

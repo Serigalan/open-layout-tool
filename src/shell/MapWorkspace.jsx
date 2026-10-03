@@ -9,7 +9,8 @@ import { FILTER_NONE } from '../map/pick'
 import { highlightTopology, zoomToTopologyTracks } from '../utils/topologyLayer'
 import { selectionHighlight } from '../utils/topologyGraph'
 import { ensureKmLines } from '../utils/kmLineSource'
-import { isProjectRedo, isProjectUndo } from '../utils/keyboard'
+import { isMultilineTarget, isProjectRedo, isProjectUndo } from '../utils/keyboard'
+import { escapeAction, frontHandler } from './escape'
 import { loadSettings, saveSettings } from '../utils/settings'
 import useKmLineHover from '../hooks/useKmLineHover'
 import useKmOverlays from './useKmOverlays'
@@ -247,6 +248,28 @@ export default function MapWorkspace({ wc, onHome }) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Escape, in the one order shell/escape states (R10.2). A field keeps its own
+  // Escape, and an open dialog handles it itself.
+  useEffect(() => {
+    const onKey = (e) => {
+      // A text area and an open select keep their Escape; a field that handled
+      // it already says so (defaultPrevented).
+      if (e.key !== 'Escape' || e.defaultPrevented || isMultilineTarget(e.target)) return
+      const formCancel = frontHandler()
+      const action = escapeAction({
+        modalOpen: !!document.querySelector('[aria-modal="true"]'), formCancel, compare, popup, overlay,
+      })
+      if (!action || action === 'modal') return
+      e.preventDefault()
+      if (action === 'form') formCancel()
+      else if (action === 'compare') setCompare(null)
+      else if (action === 'popup') act({ type: 'closePopup' })
+      else closeOverlay(overlay.kind)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [compare, popup, overlay, act, closeOverlay])
 
   const panel = panelById(activePanel)
   const PanelComponent = panel?.Component

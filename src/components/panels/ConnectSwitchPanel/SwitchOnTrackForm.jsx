@@ -28,6 +28,7 @@ import DirectionToggle from '../../form/DirectionToggle'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import FormSection from '../../form/FormSection'
 import useFormPhase from '../../form/useFormPhase'
+import CancelButton from '../../form/CancelButton'
 
 
 // Display only — the stored values keep their full precision.
@@ -214,9 +215,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       <>
         <p>{t('switch_on_track_hint')}</p>
         {errors.length > 0 && <p className="form-error">{errors.join(', ')}</p>}
-        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel}>
-          {t('btn_cancel')}
-        </button>
+        <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={handleCancel} />
       </>
     )
   }

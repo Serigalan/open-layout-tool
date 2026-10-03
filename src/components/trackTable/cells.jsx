@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 const inputClass = (wide, className) =>
   `track-table-input${wide ? ' track-table-input-wide' : ''}${className ? ` ${className}` : ''}`
@@ -24,6 +24,7 @@ export function EditCell({
   value, onCommit, disabled = false, step, type = 'number', wide = false, className = '', placeholder,
 }) {
   const [draft, setDraft] = useState(null)
+  const droppedRef = useRef(false)   // Escape took the typing back: the blur commits nothing
   const shown = value == null ? '' : String(value)
   return (
     <input className={inputClass(wide, className)} type={type} disabled={disabled} step={step}
@@ -32,9 +33,14 @@ export function EditCell({
       onFocus={() => setDraft(shown)}
       onChange={e => setDraft(e.target.value)}
       onBlur={() => {
-        if (draft != null && draft !== shown) onCommit(draft)
+        if (!droppedRef.current && draft != null && draft !== shown) onCommit(draft)
+        droppedRef.current = false
         setDraft(null)
       }}
-      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} />
+      onKeyDown={e => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        // Escape takes the typing back, and only that (R10.2).
+        if (e.key === 'Escape') { e.preventDefault(); droppedRef.current = true; e.currentTarget.blur() }
+      }} />
   )
 }

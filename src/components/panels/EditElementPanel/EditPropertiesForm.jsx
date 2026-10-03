@@ -12,6 +12,7 @@ import { useI18n } from '../../../locales/i18nContext'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
+import CancelButton from '../../form/CancelButton'
 
 export default function EditPropertiesForm({ onCommitted }) {
   const { t } = useI18n()
@@ -97,9 +98,7 @@ export default function EditPropertiesForm({ onCommitted }) {
           <CommitBar onCommit={handleCommit} onCancel={onCommitted} />
         </>
       ) : (
-        <button className="panel-btn panel-btn-full mt-8 secondary" onClick={onCommitted}>
-          {t('btn_cancel')}
-        </button>
+        <CancelButton className="panel-btn panel-btn-full mt-8 secondary" onClick={onCommitted} />
       )}
     </>
   )

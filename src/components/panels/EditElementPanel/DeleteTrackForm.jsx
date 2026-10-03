@@ -3,6 +3,7 @@ import { deleteTrack, loadTracks, switchesOnTrack } from '../../../storage'
 import ConfirmModal from '../../ConfirmModal'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
+import CancelButton from '../../form/CancelButton'
 
 export default function DeleteTrackForm({ onCommitted }) {
   const { t, fill } = useI18n()
@@ -51,9 +52,7 @@ export default function DeleteTrackForm({ onCommitted }) {
           </button>
         </>
       )}
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-        {t('btn_cancel')}
-      </button>
+      <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
 
       {confirming && (
         <ConfirmModal
