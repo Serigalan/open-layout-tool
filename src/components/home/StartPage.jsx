@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, splitDataUrl } from '../../api/client'
 import { parseProjectsPayload, PayloadError } from '../../utils/persistenceUtils'
 import { loadHome } from '../collab/homeModel'
-import { LogoIcon } from '../icons'
+import { LogoIcon, UserIcon } from '../icons'
 import PasswordForm from '../collab/PasswordForm'
 import LanguageMenu from '../collab/LanguageMenu'
 import MembersDialog from '../collab/MembersDialog'
@@ -130,11 +130,14 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
           <LanguageMenu onChange={setLanguage} />
           {isAdmin && onAdmin && <button type="button" className="collab-btn" onClick={onAdmin}>{t('home_admin')}</button>}
           <div className="home-menu" ref={userMenuRootRef}>
-            <button ref={userMenuButtonRef} type="button" className="collab-btn" {...userMenuButtonProps}>
-              {user.name} ▾
+            {/* The user's menu behind their symbol; the name is its label. */}
+            <button ref={userMenuButtonRef} type="button" className="collab-btn collab-icon-btn"
+              aria-label={user.name} title={user.name} {...userMenuButtonProps}>
+              <UserIcon />
             </button>
             {userMenuOpen && (
               <div className="home-menu-list" role="menu">
+                <p className="home-menu-user">{user.name}</p>
                 <button type="button" role="menuitem" onClick={() => { closeUserMenu(); setDialog({ kind: 'password' }) }}>{t('password_title')}</button>
                 <button type="button" role="menuitem" onClick={onSignOut}>{t('user_sign_out')}</button>
               </div>

@@ -406,6 +406,7 @@
   cursor: pointer;
 }
 .home-menu-list button:hover { background: var(--collab-hover); }
+.home-menu-user { margin: 0; padding: 6px 10px 8px; font-weight: 600; border-bottom: 1px solid var(--collab-border); margin-bottom: 4px; }
 .home-menu-list button.danger { color: var(--collab-danger); }
 
 .home-section { margin-top: 32px; }
