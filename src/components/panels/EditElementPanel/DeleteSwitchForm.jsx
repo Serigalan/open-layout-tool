@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { commitSwitchDeletion, loadSwitches, loadTracks } from '../../../storage'
 import { planSwitchDeletion } from '../../../utils/switchDelete'
-import ConfirmModal from '../../ConfirmModal'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { SWITCH_PICK_LAYERS, hasSwitch } from '../../../map/pick'
@@ -16,9 +15,7 @@ import CancelButton from '../../form/CancelButton'
  */
 export default function DeleteSwitchForm({ onCommitted }) {
   const { t, fill } = useI18n()
-  const [selected, setSelected]     = useState(null)   // { sw, plan }
-  const [confirming, setConfirming] = useState(false)
-
+  const [selected, setSelected] = useState(null)   // { sw, plan }
 
   useMapPick({
     active: selected === null, layers: SWITCH_PICK_LAYERS, accept: hasSwitch,
@@ -30,12 +27,11 @@ export default function DeleteSwitchForm({ onCommitted }) {
   })
   useSelectedOnMap(selected ? { switchId: selected.sw.switchId } : null)
 
+  // No question first (R10.5): the step notice offers the way back.
   const handleDelete = () => {
     commitSwitchDeletion(selected.plan)
-    setConfirming(false)
     setSelected(null)
   }
-
 
   const plan = selected?.plan
   const name = selected ? (selected.sw.name || selected.sw.switchId.slice(0, 8)) : ''
@@ -58,20 +54,12 @@ export default function DeleteSwitchForm({ onCommitted }) {
               <li>{fill('switch_delete_merged', { n: plan.mergedElements, m: plan.mergedInto })}</li>
             )}
           </ul>
-          <button className="panel-btn panel-btn-full panel-btn-danger" onClick={() => setConfirming(true)}>
+          <button className="panel-btn panel-btn-full panel-btn-danger" onClick={handleDelete}>
             {t('switch_delete')}
           </button>
         </>
       )}
       <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
-
-      {confirming && (
-        <ConfirmModal
-          message={fill('switch_delete_confirm', { name })}
-          onConfirm={handleDelete}
-          onCancel={() => setConfirming(false)}
-        />
-      )}
     </>
   )
 }

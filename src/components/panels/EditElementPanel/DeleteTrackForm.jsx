@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { deleteTrack, loadTracks, switchesOnTrack } from '../../../storage'
-import ConfirmModal from '../../ConfirmModal'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import CancelButton from '../../form/CancelButton'
@@ -9,9 +8,7 @@ export default function DeleteTrackForm({ onCommitted }) {
   const { t, fill } = useI18n()
   // { id, name, elements, switchNames } – switch branches are not offered: their
   // geometry belongs to a switch and goes with it, not on its own.
-  const [selected, setSelected]     = useState(null)
-  const [confirming, setConfirming] = useState(false)
-
+  const [selected, setSelected] = useState(null)
 
   // Click to pick the track — the whole track is highlighted, since the whole
   // track is what gets deleted.
@@ -30,12 +27,11 @@ export default function DeleteTrackForm({ onCommitted }) {
   })
   useSelectedOnMap(selected ? { trackId: selected.id } : null)
 
+  // No question first (R10.5): the step notice offers the way back.
   const handleDelete = () => {
     deleteTrack(selected.id)
-    setConfirming(false)
     setSelected(null)
   }
-
 
   return (
     <>
@@ -47,20 +43,12 @@ export default function DeleteTrackForm({ onCommitted }) {
           {selected.switchNames.length > 0 && (
             <p className="form-error">{fill('edit_track_delete_switches', { names: selected.switchNames.join(', ') })}</p>
           )}
-          <button className="panel-btn panel-btn-full panel-btn-danger" onClick={() => setConfirming(true)}>
+          <button className="panel-btn panel-btn-full panel-btn-danger" onClick={handleDelete}>
             {t('edit_track_delete')}
           </button>
         </>
       )}
       <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
-
-      {confirming && (
-        <ConfirmModal
-          message={fill('edit_track_delete_confirm', { name: selected.name, elements: selected.elements })}
-          onConfirm={handleDelete}
-          onCancel={() => setConfirming(false)}
-        />
-      )}
     </>
   )
 }
