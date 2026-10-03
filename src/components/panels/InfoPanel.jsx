@@ -1,10 +1,12 @@
 import {
   LayerIcon, TopologyIcon, PlaceIcon, ConnectSwitchIcon, SpliceElementIcon,
-  EditElementIcon, ElevationIcon, StationIcon, DataExchangeIcon,
+  EditElementIcon, ElevationIcon, CrossSectionIcon, DataExchangeIcon,
   PlanExportIcon, ExternalLinkIcon, CheckIcon,
 } from '../icons'
 import { OSRD_URL } from '../../utils/osrdExport'
 import { useI18n } from '../../locales/i18nContext'
+import { useProject } from '../../hooks/useStore'
+import FirstSteps from './FirstSteps'
 
 // Turn every literal "OSRD" in a translated string into a link to the OSRD demo.
 function withOsrdLink(text) {
@@ -26,21 +28,33 @@ function withOsrdLink(text) {
 const PANELS = [
   { Icon: LayerIcon,          title: 'tooltip_layers', desc: 'info_layers' },
   { Icon: TopologyIcon,       title: 'topology_title', desc: 'info_topology' },
-  { Icon: PlaceIcon,          title: 'create_element', desc: ['info_places', 'info_connect'] },
-  { Icon: SpliceElementIcon,  title: 'splice_element', desc: ['info_splice', 'info_optimize'] },
-  { Icon: EditElementIcon,    title: 'edit', desc: 'info_edit' },
+  { Icon: PlaceIcon,          title: 'create_element', desc: 'info_places' },
+  { Icon: SpliceElementIcon,  title: 'splice_element', desc: ['info_splice', 'info_connect'] },
   { Icon: ConnectSwitchIcon,  title: 'connect_switch', desc: 'info_connect_switch' },
+  { Icon: EditElementIcon,    title: 'edit', desc: 'info_edit' },
   { Icon: ElevationIcon,      title: 'tooltip_elevation', desc: 'info_elevation' },
-  { Icon: StationIcon,        title: 'platform_cross_section', desc: ['info_platform', 'info_cross_section'] },
+  { Icon: CrossSectionIcon,        title: 'platform_cross_section', desc: ['info_platform', 'info_cross_section'] },
   { Icon: CheckIcon,          title: 'check_title', desc: 'info_check' },
   { Icon: DataExchangeIcon,   title: 'data_exchange', desc: 'info_data' },
   { Icon: PlanExportIcon,     title: 'plan_title', desc: 'info_plan' },
 ]
 
-export default function InfoPanel() {
+/**
+ * What the tool is and what each panel does — headed, for a project without a
+ * track yet, by its first steps (R10.13). `onDraw` and `onImport` open the
+ * panels those steps lead to.
+ */
+export default function InfoPanel({ onDraw, onImport }) {
   const { t } = useI18n()
+  const project = useProject()
   return (
     <>
+      {!(project?.tracks ?? []).length && (
+        <>
+          <FirstSteps onDraw={onDraw} onImport={onImport} />
+          <hr className="divider divider-wide" />
+        </>
+      )}
       <h2>{t('info')}</h2>
       <p>{withOsrdLink(t('info_description'))}</p>
       <div className="info-panel-list">

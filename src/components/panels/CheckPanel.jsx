@@ -6,8 +6,7 @@ import { useI18n } from '../../locales/i18nContext'
 /**
  * Checking the design (R10.7): the physics and the rulebook it is held to —
  * each a popup over the map, as wide as their tables — and the optimizer that
- * holds a track or an element to them. The optimizer is also where splicing
- * is, beside the other tools that reshape an alignment.
+ * holds a track or an element to them, the one place it is offered.
  */
 export default function CheckPanel({ onShowPhysics, onShowRegelwerk }) {
   const { t } = useI18n()

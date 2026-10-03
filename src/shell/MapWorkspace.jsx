@@ -19,8 +19,6 @@ import { panelById } from './panels'
 import Sidebar from './Sidebar'
 import StepNotice from './StepNotice'
 import MapLegend from './MapLegend'
-import ServiceStatus from './ServiceStatus'
-import FirstSteps from './FirstSteps'
 import { START_REGION } from '../map/style'
 import usePanelWidth from './usePanelWidth'
 import RuleFieldsScope from '../components/form/RuleFieldsScope'
@@ -60,7 +58,7 @@ export default function MapWorkspace({ wc, onHome }) {
   // looking, not a setting of the project. The ref is what the map callbacks
   // read. The basemap the view replaced with Liberty is kept to go back to.
   const topologyRef = useRef(false)
-  const basemapBeforeTopology = useRef(null)
+  const [basemapBeforeTopology, setBasemapBeforeTopology] = useState(null)
   // What is picked in the topology view: { kind: 'switch'|'track', id } or null.
   const [topologySelection, setTopologySelection] = useState(null)
 
@@ -81,9 +79,9 @@ export default function MapWorkspace({ wc, onHome }) {
   const km = useKmOverlays(map)
   useKmLineHover(map, km.kmOverlays.db || km.kmOverlays.other, t)
 
-  // An empty project opens on its first steps, not on the info panel (R10.13).
-  const [activePanel, setActivePanel] = useState(() => ((project?.tracks ?? []).length ? 'info' : null))
-  const [firstStepsClosed, setFirstStepsClosed] = useState(false)
+  // A panel is always open, the info panel first — for an empty project with
+  // its first steps (R10.13).
+  const [activePanel, setActivePanel] = useState('info')
   const [overlays, dispatch] = useReducer(overlayReducer, OVERLAYS_CLOSED)
   const { overlay, popup } = overlays
   // Two states over each other (AP 10.3): { before, after, beforeLabel, afterLabel, drawUnchanged }.
@@ -119,16 +117,14 @@ export default function MapWorkspace({ wc, onHome }) {
 
   // ── panels ──
   const panelSize = usePanelWidth()
-  const selectPanel = (id) => {
-    // A folded panel comes back on its icon rather than closing.
-    if (panelSize.folded && activePanel === id) { panelSize.setFolded(false); return }
-    panelSize.setFolded(false)
-    const next = activePanel === id ? null : id
+  const selectPanel = (next) => {
+    // The open panel's icon leaves it open: there is always one.
+    if (next === activePanel) return
     const leaving = panelById(activePanel)
     // Entering and leaving may also keep what they replace (the basemap).
-    const ctx = { ...shell, basemapBeforeTopology }
+    const ctx = { ...shell, basemapBeforeTopology, setBasemapBeforeTopology }
     act({ type: 'panelChange' }, () => {
-      if (leaving?.id !== next) leaving?.onLeave?.(ctx)
+      leaving?.onLeave?.(ctx)
       setActivePanel(next)
       panelById(next)?.onEnter?.(ctx)
     })
@@ -162,6 +158,7 @@ export default function MapWorkspace({ wc, onHome }) {
       : closeOverlay('trackTable')),
     setCompare,
     color, setColor,
+    selectPanel,
   }
 
   // ── the map draws the store ──
@@ -297,25 +294,16 @@ export default function MapWorkspace({ wc, onHome }) {
         <Sidebar active={activePanel} onSelect={selectPanel} onUndo={undo} onRedo={redo} onHome={goHome} />
 
         {PanelComponent && (
-          <aside className={`sidebar-secondary${panelSize.folded ? ' folded' : ''}`}
-            style={panelSize.width && !panelSize.folded ? { width: panelSize.width } : undefined}>
-            <div className="panel-content" hidden={panelSize.folded}>
+          <aside className="sidebar-secondary" style={panelSize.width ? { width: panelSize.width } : undefined}>
+            <div className="panel-content">
             <Suspense fallback={<p className="selecting-hint">…</p>}>
               <RuleFieldsScope key={activePanel}>
                 <PanelComponent {...(panel.props?.(shell) ?? {})} />
               </RuleFieldsScope>
             </Suspense>
             </div>
-            {/* Its width by the right edge, a double click back to the standard
-                one; the fold button gives the map the room (R10.9). */}
-            {!panelSize.folded && (
-              <div className="panel-resize" onPointerDown={panelSize.onResizeStart} onDoubleClick={panelSize.resetWidth} />
-            )}
-            <button type="button" className="panel-fold" onClick={() => panelSize.setFolded(f => !f)}
-              aria-expanded={!panelSize.folded}
-              title={t(panelSize.folded ? 'panel_unfold' : 'panel_fold')} aria-label={t(panelSize.folded ? 'panel_unfold' : 'panel_fold')}>
-              <span aria-hidden="true">{panelSize.folded ? '›' : '‹'}</span>
-            </button>
+            {/* Its width by the right edge, a double click back to the standard one (R10.9). */}
+            <div className="panel-resize" onPointerDown={panelSize.onResizeStart} onDoubleClick={panelSize.resetWidth} />
           </aside>
         )}
 
@@ -335,11 +323,6 @@ export default function MapWorkspace({ wc, onHome }) {
           {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} />}
           <StepNotice />
           <MapLegend color={color} />
-          <ServiceStatus />
-          {!firstStepsClosed && !activePanel && !(project?.tracks ?? []).length && (
-            <FirstSteps onDraw={() => selectPanel('places')} onImport={() => selectPanel('data')}
-              onClose={() => setFirstStepsClosed(true)} />
-          )}
 
           <Suspense fallback={null}>
           {overlay?.kind === 'trackTable' && <TrackTableOverlay track={overlay.track}

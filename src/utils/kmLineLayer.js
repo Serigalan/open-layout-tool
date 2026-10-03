@@ -1,5 +1,6 @@
 import maplibregl from 'maplibre-gl'
-import { Protocol } from 'pmtiles'
+import { PMTiles, Protocol } from 'pmtiles'
+import { KmTileSource } from './kmTileSource'
 import { kmOnPieces, toMercator } from './kmLineMath'
 import { ZOOM_LINE_WIDTH } from '../map/style'
 
@@ -65,7 +66,7 @@ const layerIds = (key) => [
 const chainLayer = (key) => `km-${key}-linien-layer`
 const pieceLayer = (key) => `km-${key}-100m-layer`
 
-let protocolAdded = false
+let protocol = null
 // The listener waiting to hear that the archive is not there, kept here so
 // switching the overlays off again takes it with it instead of piling another
 // one on with every switch-on.
@@ -101,9 +102,9 @@ function textFont(map) {
 const FALLBACK_GLYPHS = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf'
 
 function addSource(map, onError) {
-  if (!protocolAdded) {
-    maplibregl.addProtocol('pmtiles', new Protocol().tile)
-    protocolAdded = true
+  if (!protocol) {
+    protocol = new Protocol()
+    maplibregl.addProtocol('pmtiles', protocol.tile)
   }
   if (map.getSource(SOURCE)) return
 
@@ -119,10 +120,13 @@ function addSource(map, onError) {
   }
 
   // A relative URL is resolved here rather than left to the protocol handler,
-  // which fetches outside the document's context.
+  // which fetches outside the document's context. The archive is read through
+  // a source that gets past a stale browser cache (see kmTileSource).
+  const url = new URL(TILE_URL, window.location.href).href
+  if (!protocol.get(url)) protocol.add(new PMTiles(new KmTileSource(url)))
   map.addSource(SOURCE, {
     type: 'vector',
-    url: `pmtiles://${new URL(TILE_URL, window.location.href).href}`,
+    url: `pmtiles://${url}`,
     attribution: 'DB InfraGO',
   })
 }

@@ -7,14 +7,11 @@ const MIN = 260
 const MAX = 620
 
 /**
- * The panel's width and whether it is folded away (R10.9), both remembered on
- * this device. `null` width keeps what the stylesheet gives it (narrower on a
- * small screen). Folded away, the panel stays mounted: a form keeps what was
- * typed into it.
+ * The panel's width (R10.9), remembered on this device. `null` keeps what the
+ * stylesheet gives it (narrower on a small screen).
  */
 export default function usePanelWidth() {
   const [width, setWidth] = useState(() => loadSettings().panelWidth ?? null)
-  const [folded, setFolded] = useState(false)
 
   const onResizeStart = (e) => {
     const panel = e.currentTarget.parentElement
@@ -32,5 +29,5 @@ export default function usePanelWidth() {
   }
   const resetWidth = () => { setWidth(null); saveSettings({ panelWidth: null }) }
 
-  return { width, folded, setFolded, onResizeStart, resetWidth }
+  return { width, onResizeStart, resetWidth }
 }

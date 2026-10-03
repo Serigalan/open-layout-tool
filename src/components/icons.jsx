@@ -534,17 +534,16 @@ export const PlanExportIcon = () => (
   </SidebarIcon>
 )
 
-// The merged platform and cross section panel: a cross section — the ballast
-// bed with its two rails, and the platform beside it. Both faces tinted, the
-// ballast stronger, so bed and platform read as two bodies.
-export const StationIcon = () => (
+// The cross-section panel: a track in cross section — the ballast bed, the
+// sleeper and its two rails — under the dashed clearance gauge it is held to.
+export const CrossSectionIcon = () => (
   <SidebarIcon>
     <path d="M1.5 21 H22.5" />
-    <path d="M3 21 L6 16 H13 L16 21" fill="currentColor" fillOpacity={0.5} />
-    <rect x="7" y="13" width="2" height="3" fill="currentColor" stroke="none" />
-    <rect x="10.5" y="13" width="2" height="3" fill="currentColor" stroke="none" />
-    <path d="M17 21 V11 H22.5" />
-    <rect x="17" y="11" width="5.5" height="10" fill="currentColor" fillOpacity={0.3} stroke="none" />
+    <path d="M4 21 L7.5 17 H16.5 L20 21" fill="currentColor" fillOpacity={0.3} />
+    <rect x="6.5" y="15.5" width="11" height="1.5" fill="currentColor" stroke="none" />
+    <rect x="8.2" y="13" width="1.6" height="2.5" fill="currentColor" stroke="none" />
+    <rect x="14.2" y="13" width="1.6" height="2.5" fill="currentColor" stroke="none" />
+    <path d="M5 15.5 V8 L8.5 3.5 H15.5 L19 8 V15.5" strokeDasharray="2.2 1.8" />
   </SidebarIcon>
 )
 

@@ -584,7 +584,6 @@
   "info_connect_switch": "Place plain switches, curved switches, crossings or crossing switches – at the end of an element or inserted into an existing track, across several straights, curves and clothoids if needed. Connect two parallel tracks with a calculated switch connection.",
   "info_splice": "Join two straights with an arc, or two arcs with a straight (including clothoids), for a smooth, continuous alignment.",
   "info_edit": "Select an element to adjust its length and radius or delete it. For a track you can edit its properties, reverse its direction, open the table editor or delete it.",
-  "info_optimize": "Raise the achievable speed by improving curve radii within an offset corridor – for a whole track or a single arc, with an optional global optimization (Python).",
   "info_platform": "Select a track and two points on it to lay out a platform. Its edges follow the track on the side you choose; you state the height above top of rail.",
   "info_cross_section": "Pick an element to see its cross section – the clearance profile the project is designed against, the superstructure of its track, and what cant and curvature do to both.",
   "info_data": "Import and export data – as a project file, individual tracks, survey data, CSV, or for OSRD.",
@@ -615,7 +614,7 @@
   "scurve_branch_too_sharp": "The turnout bent into the curve gets too sharp for this speed.",
   "scurve_cant_mismatch": "The two tracks carry different cant – the middle element would need a ramp.",
   "scurve_cant_over": "Cant above 100 mm: no turnout may be laid there.",
-  "plan_title": "Plan export (PDF)",
+  "plan_title": "Plan export",
   "plan_intro": "Creates a to-scale site plan or a schematic overview plan of the tracks as a PDF.",
   "plan_scale": "Scale",
   "plan_paper": "Paper size",
@@ -688,7 +687,7 @@
   "cross_section_terrain_none": "Terrain: no height data here",
   "cross_section_terrain_no_height": "Terrain cannot be placed: no track in the section has a height",
   "platform_title": "Platforms",
-  "platform_cross_section": "Platforms & Cross Sections",
+  "platform_cross_section": "Cross sections",
   "platform_new": "New platform",
   "platform_hint_track": "Select the track the platform runs along on the map.",
   "platform_hint_start": "Click the start point of the platform on the track",
@@ -1176,8 +1175,6 @@
   "sidebar_labels_show": "Show labels",
   "sidebar_labels_hide": "Hide labels",
   "info_check": "Holds the design to the rules: the physics and the rulebook it is checked against (each opens over the map), and the optimizer that adjusts a track or a single curve within a corridor to the rulebook.",
-  "panel_fold": "Fold the panel away",
-  "panel_unfold": "Show the panel",
   "legend_title": "Legend",
   "legend_tracks": "Tracks",
   "legend_preview": "Preview",
@@ -1199,6 +1196,5 @@
   "first_steps_hint": "This project has no track yet. Draw the first one on the map, or bring in what exists — a survey (Verm.ESN), an MDB database, an OSRD or project file.",
   "first_steps_draw": "Draw a track",
   "first_steps_import": "Import data",
-  "first_steps_guide": "Read the guideline",
-  "first_steps_close": "Look at the map first"
+  "first_steps_guide": "Read the guideline"
 }

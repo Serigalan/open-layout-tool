@@ -584,7 +584,6 @@
   "info_connect_switch": "Setze einfache Weichen, Bogenweichen, Kreuzungen oder Kreuzungsweichen – am Ende eines Elements oder eingefügt in ein bestehendes Gleis, auch über mehrere Geraden, Bögen und Klothoiden hinweg. Zwei parallele Gleise verbindest du mit einer berechneten Weichenverbindung.",
   "info_splice": "Verbinde zwei Geraden mit einem Bogen oder zwei Bögen mit einer Geraden (inkl. Klothoiden) zu einem stetigen Verlauf.",
   "info_edit": "Wähle ein Element, um Länge und Radius anzupassen oder es zu löschen. Bei einem Gleis kannst du Eigenschaften bearbeiten, die Richtung umkehren, den Trackeditor öffnen oder es löschen.",
-  "info_optimize": "Erhöhe die erreichbare Geschwindigkeit, indem Bogenradien innerhalb eines Abrückungskorridors verbessert werden – für ein ganzes Gleis oder einen einzelnen Bogen, optional mit globaler Optimierung (Python).",
   "info_platform": "Wähle ein Gleis und zwei Punkte darauf, um einen Bahnsteig anzulegen. Seine Kanten folgen dem Gleis auf der gewählten Seite, die Höhe gibst du über SO an.",
   "info_cross_section": "Wähle ein Element, um sein Querprofil zu sehen – das Lichtraumprofil, gegen das das Projekt entworfen ist, den Oberbau seines Gleises und was Überhöhung und Krümmung mit beiden machen.",
   "info_data": "Importiere und exportiere Daten – als Projektdatei, einzelne Gleise, Vermessungsdaten, CSV oder für OSRD.",
@@ -615,7 +614,7 @@
   "scurve_branch_too_sharp": "Die in den Bogen gelegte Weiche wird zu eng für diese Geschwindigkeit.",
   "scurve_cant_mismatch": "Die beiden Gleise tragen verschiedene Überhöhung – das Zwischenelement bräuchte eine Rampe.",
   "scurve_cant_over": "Überhöhung über 100 mm: darauf lässt sich keine Weiche legen.",
-  "plan_title": "Zeichenausgabe (PDF)",
+  "plan_title": "Zeichenausgabe",
   "plan_intro": "Erzeugt einen maßstäblichen Lageplan oder einen schematischen Übersichtsplan der Gleise als PDF.",
   "plan_scale": "Maßstab",
   "plan_paper": "Papierformat",
@@ -688,7 +687,7 @@
   "cross_section_terrain_none": "Gelände: keine Höhendaten an dieser Stelle",
   "cross_section_terrain_no_height": "Gelände nicht darstellbar: kein Gleis im Schnitt hat eine Höhe",
   "platform_title": "Bahnsteige",
-  "platform_cross_section": "Bahnsteige & Querprofile",
+  "platform_cross_section": "Querprofile",
   "platform_new": "Neuen Bahnsteig anlegen",
   "platform_hint_track": "Gleis, an dem der Bahnsteig liegt, auf der Karte auswählen.",
   "platform_hint_start": "Anfangspunkt des Bahnsteigs auf dem Gleis anklicken",
@@ -1176,8 +1175,6 @@
   "sidebar_labels_show": "Beschriftung zeigen",
   "sidebar_labels_hide": "Beschriftung ausblenden",
   "info_check": "Misst den Entwurf an den Regeln: die Physik und das Regelwerk, gegen die geprüft wird (je über der Karte geöffnet), und der Optimierer, der ein Gleis oder einen einzelnen Bogen innerhalb eines Korridors an das Regelwerk anpasst.",
-  "panel_fold": "Panel einklappen",
-  "panel_unfold": "Panel zeigen",
   "legend_title": "Legende",
   "legend_tracks": "Gleise",
   "legend_preview": "Vorschau",
@@ -1199,6 +1196,5 @@
   "first_steps_hint": "Dieses Projekt hat noch kein Gleis. Zeichne das erste auf der Karte, oder hole herein, was es schon gibt – eine Vermessung (Verm.ESN), eine MDB-Datenbank, eine OSRD- oder Projektdatei.",
   "first_steps_draw": "Gleis zeichnen",
   "first_steps_import": "Daten importieren",
-  "first_steps_guide": "Leitfaden lesen",
-  "first_steps_close": "Erst die Karte ansehen"
+  "first_steps_guide": "Leitfaden lesen"
 }

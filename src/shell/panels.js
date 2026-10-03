@@ -1,12 +1,12 @@
 import { lazy } from 'react'
-import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, StationIcon, PlanExportIcon, ElevationIcon, CheckIcon } from '../components/icons'
+import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, CrossSectionIcon, PlanExportIcon, ElevationIcon, CheckIcon } from '../components/icons'
 
 // Each panel is its own chunk (R9.1), loaded the first time it is opened.
 const LayersPanel = lazy(() => import('../components/panels/LayersPanel'))
 const TopologyPanel = lazy(() => import('../components/panels/TopologyPanel'))
-const CreateConnectPanel = lazy(() => import('../components/panels/CreateConnectPanel'))
+const CreatePanel = lazy(() => import('../components/panels/CreatePanel'))
 const ConnectSwitchPanel = lazy(() => import('../components/panels/ConnectSwitchPanel'))
-const SpliceOptimizePanel = lazy(() => import('../components/panels/SpliceOptimizePanel'))
+const SpliceConnectPanel = lazy(() => import('../components/panels/SpliceConnectPanel'))
 const ElevationPanel = lazy(() => import('../components/panels/ElevationPanel'))
 const PlatformCrossSectionPanel = lazy(() => import('../components/panels/PlatformCrossSectionPanel'))
 const EditElementPanel = lazy(() => import('../components/panels/EditElementPanel'))
@@ -21,9 +21,9 @@ const CheckPanel = lazy(() => import('../components/panels/CheckPanel'))
  * The sidebar and the panel pane are both made from this list.
  *
  * In the order of the work (R10.7): the view on the map; laying out the
- * alignment — create, splice, edit; the switches; the heights; cross section
- * and platforms; checking against the rules; exchange; the plan. The sidebar
- * draws a line where the `group` changes.
+ * alignment — create, splice, the switches; editing; the heights; cross
+ * section and platforms; checking against the rules; exchange; the plan. The
+ * sidebar draws a line where the `group` changes.
  *
  *   id          what the shell calls the panel
  *   icon        its sidebar symbol, titleKey its name
@@ -55,26 +55,24 @@ export const PANELS = [
     // selection belongs to the view and goes with it.
     onEnter: (s) => {
       if (s.activeBasemap !== 'liberty') {
-        s.basemapBeforeTopology.current = s.activeBasemap
+        s.setBasemapBeforeTopology(s.activeBasemap)
         s.setBasemap('liberty')
       }
       s.openOverlay({ kind: 'topologyGraph' })
     },
     onLeave: (s) => {
       s.setTopologySelection(null)
-      if (s.basemapBeforeTopology.current) {
-        s.setBasemap(s.basemapBeforeTopology.current)
-        s.basemapBeforeTopology.current = null
+      if (s.basemapBeforeTopology) {
+        s.setBasemap(s.basemapBeforeTopology)
+        s.setBasemapBeforeTopology(null)
       }
     },
   },
-  { id: 'places', group: 'design', icon: PlaceIcon, titleKey: 'create_element', place: 'top', Component: CreateConnectPanel },
+  { id: 'places', group: 'design', icon: PlaceIcon, titleKey: 'create_element', place: 'top', Component: CreatePanel },
+  { id: 'splice', group: 'design', icon: SpliceElementIcon, titleKey: 'splice_element', place: 'top', Component: SpliceConnectPanel },
+  { id: 'connect_switch', group: 'design', icon: ConnectSwitchIcon, titleKey: 'connect_switch', place: 'top', Component: ConnectSwitchPanel },
   {
-    id: 'splice', group: 'design', icon: SpliceElementIcon, titleKey: 'splice_element', place: 'top', Component: SpliceOptimizePanel,
-    props: (s) => ({ onShowRegelwerk: s.showRegelwerk }),
-  },
-  {
-    id: 'edit', group: 'design', icon: EditElementIcon, titleKey: 'edit', place: 'top', Component: EditElementPanel,
+    id: 'edit', group: 'edit', icon: EditElementIcon, titleKey: 'edit', place: 'top', Component: EditElementPanel,
     overlay: 'trackTable',
     props: (s) => ({
       trackTableId: s.overlay?.kind === 'trackTable' ? s.overlay.track.id : undefined,
@@ -82,7 +80,6 @@ export const PANELS = [
       onCloseConstraints: s.closePopup,
     }),
   },
-  { id: 'connect_switch', group: 'switches', icon: ConnectSwitchIcon, titleKey: 'connect_switch', place: 'top', Component: ConnectSwitchPanel },
   {
     id: 'elevation', group: 'heights', icon: ElevationIcon, titleKey: 'tooltip_elevation', place: 'top', Component: ElevationPanel,
     overlay: 'profile',
@@ -92,7 +89,7 @@ export const PANELS = [
     }),
   },
   {
-    id: 'platform', group: 'section', icon: StationIcon, titleKey: 'platform_cross_section', place: 'top', Component: PlatformCrossSectionPanel,
+    id: 'platform', group: 'section', icon: CrossSectionIcon, titleKey: 'platform_cross_section', place: 'top', Component: PlatformCrossSectionPanel,
     overlay: 'crossSection',
     props: (s) => ({
       crossSectionAt: s.overlay?.kind === 'crossSection' ? s.overlay.at : null,
@@ -114,7 +111,10 @@ export const PANELS = [
       onShowPlanPreview: (preview) => (preview ? s.openOverlay({ kind: 'planPreview', ...preview }) : s.closeOverlay('planPreview')),
     }),
   },
-  { id: 'info', group: 'app', icon: InfoIcon, titleKey: 'info', place: 'bottom', Component: InfoPanel },
+  {
+    id: 'info', group: 'app', icon: InfoIcon, titleKey: 'info', place: 'bottom', Component: InfoPanel,
+    props: (s) => ({ onDraw: () => s.selectPanel('places'), onImport: () => s.selectPanel('data') }),
+  },
   {
     id: 'settings', group: 'app', icon: SettingsIcon, titleKey: 'settings', place: 'bottom', Component: SettingsPanel,
     props: (s) => ({ color: s.color, onColorChange: s.setColor }),

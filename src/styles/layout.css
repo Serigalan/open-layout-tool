@@ -81,6 +81,10 @@
   font-size: 16px; line-height: 1; padding: 4px; align-self: center;
 }
 .sidebar-label-toggle:hover { color: #fff; }
+/* The service dots and the label button: one under the other in the narrow
+   sidebar, side by side in the wide one. */
+.sidebar-foot { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 4px; }
+.sidebar-primary.with-labels .sidebar-foot { flex-direction: row; justify-content: space-between; padding: 0 4px 0 8px; }
 
 /* A low screen (R10.9): the icons closer together, and the sidebar scrolls
    rather than cutting off its last ones. */

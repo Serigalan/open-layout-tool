@@ -5,15 +5,18 @@ import { useRedoStep, useUndoStep } from '../hooks/useStore'
 import { describeStep } from '../utils/stepLabel'
 import { loadSettings, saveSettings } from '../utils/settings'
 import { PANELS } from './panels'
+import ServiceStatus from './ServiceStatus'
 
 /**
  * The sidebar of the map view, made from the panel register (R2.3): the work
- * steps in their order, a line between them, and on request their names
- * beside the symbols (R10.7) — remembered on this device.
+ * steps in their order, a line between them, and their names beside the
+ * symbols (R10.7), which can be folded away — remembered on this device.
+ * At its foot, beside that button, whether the services are there (R10.12).
  */
 export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
   const { t, fill } = useI18n()
-  const [labels, setLabels] = useState(() => !!loadSettings().sidebarLabels)
+  // Their names show unless they were folded away on this device.
+  const [labels, setLabels] = useState(() => loadSettings().sidebarLabels !== false)
   const toggleLabels = () => setLabels(on => { saveSettings({ sidebarLabels: !on }); return !on })
   // What the two buttons would do, said on them (R10.1).
   const undoStep = useUndoStep()
@@ -52,11 +55,14 @@ export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
         {iconButton({ key: 'redo', icon: RedoIcon, title: redoTitle, onClick: onRedo, disabled: !redoStep })}
         {iconButton({ key: 'home', icon: HomeIcon, title: t('tooltip_home'), onClick: onHome })}
         {PANELS.filter(p => p.place === 'bottom').map(panelButton)}
-        <button type="button" className="sidebar-label-toggle" onClick={toggleLabels}
-          aria-pressed={labels} title={t(labels ? 'sidebar_labels_hide' : 'sidebar_labels_show')}
-          aria-label={t(labels ? 'sidebar_labels_hide' : 'sidebar_labels_show')}>
-          <span aria-hidden="true">{labels ? '«' : '»'}</span>
-        </button>
+        <div className="sidebar-foot">
+          <ServiceStatus />
+          <button type="button" className="sidebar-label-toggle" onClick={toggleLabels}
+            aria-pressed={labels} title={t(labels ? 'sidebar_labels_hide' : 'sidebar_labels_show')}
+            aria-label={t(labels ? 'sidebar_labels_hide' : 'sidebar_labels_show')}>
+            <span aria-hidden="true">{labels ? '«' : '»'}</span>
+          </button>
+        </div>
       </div>
     </aside>
   )

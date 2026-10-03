@@ -79,23 +79,17 @@
 }
 .map-legend-row { display: flex; align-items: center; gap: var(--space-4); line-height: 1.6; }
 
-/* Whether the services are there (R10.12): three dots at the foot of the map. */
+/* Whether the services are there (R10.12): three dots at the foot of the sidebar. */
 .service-status {
-  position: absolute; left: 10px; bottom: 10px; z-index: 20;
-  display: flex; gap: 5px; padding: 5px 7px; cursor: pointer;
-  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px;
+  display: flex; gap: 5px; padding: 5px 6px; cursor: pointer;
+  background: transparent; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 10px;
 }
-.service-dot { width: 8px; height: 8px; border-radius: 50%; background: #bbb; }
+.service-status:hover { border-color: rgba(255, 255, 255, 0.75); }
+/* A light ring keeps the dots apart from the sidebar's colour. */
+.service-dot { width: 8px; height: 8px; border-radius: 50%; background: #bbb; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85); }
 .service-dot.ok { background: #2e7d32; }
 .service-dot.down { background: var(--color-error); }
 
-/* The first steps of an empty project (R10.13), over the middle of the map. */
-.first-steps {
-  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 25;
-  width: min(380px, calc(100% - 32px)); padding: 20px 22px;
-  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-}
+/* The first steps of an empty project (R10.13), at the head of the info panel. */
 .first-steps h2 { margin: 0 0 6px; }
-.first-steps-actions { display: flex; flex-direction: column; gap: var(--space-4); margin: 12px 0 8px; }
-.first-steps-close { font-size: var(--fs-s); color: var(--color-text-soft); }
+.first-steps-actions { display: flex; flex-direction: column; gap: var(--space-4); margin-top: 12px; }

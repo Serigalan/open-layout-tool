@@ -4,11 +4,8 @@ import CurvedLineForm from './CreateElementPanel/CurvedLineForm'
 import ParallelLineForm from './CreateElementPanel/ParallelLineForm'
 import ParallelTrackForm from './CreateElementPanel/ParallelTrackForm'
 import BufferStopForm from './CreateElementPanel/BufferStopForm'
-import ConnectStraightForm from './ConnectElementPanel/ConnectStraightForm'
-import ConnectCurvedForm from './ConnectElementPanel/ConnectCurvedForm'
 import {
-  BackIcon, CreateLineIcon, CreateArcIcon, CreateParallelIcon, CreateParallelTrackIcon,
-  ConnectStraightIcon, ConnectCurvedIcon, BufferStopIcon,
+  BackIcon, CreateLineIcon, CreateArcIcon, CreateParallelIcon, CreateParallelTrackIcon, BufferStopIcon,
 } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -25,12 +22,12 @@ function BackButton({ onBack }) {
 }
 
 /**
- * Creating, connecting and buffer stops in one panel: the menu keeps the three
+ * Creating elements and buffer stops in one panel: the menu keeps both
  * headings, separated by the gray line, and a tool click opens that tool's
  * form. The groups share the panel the way the switch panel's tools do — one
- * menu, one back.
+ * menu, one back. Connecting to a track end is in the splice panel.
  */
-export default function CreateConnectPanel() {
+export default function CreatePanel() {
   const { t } = useI18n()
   const [page, setPage] = useState('menu')
   const back = () => setPage('menu')
@@ -75,22 +72,6 @@ export default function CreateConnectPanel() {
     </>
   )
 
-  if (page === 'connect_straight') return (
-    <>
-      <BackButton onBack={back} />
-      <h2>{t('connect_straight')}</h2>
-      <ConnectStraightForm onCommitted={back} />
-    </>
-  )
-
-  if (page === 'connect_curved') return (
-    <>
-      <BackButton onBack={back} />
-      <h2>{t('connect_curved')}</h2>
-      <ConnectCurvedForm onCommitted={back} />
-    </>
-  )
-
   return (
     <>
       <h2>{t('create_element')}</h2>
@@ -110,18 +91,6 @@ export default function CreateConnectPanel() {
         <button className="create-element-btn" onClick={() => setPage('parallel_track')}>
           <CreateParallelTrackIcon />
           {t('create_parallel_track')}
-        </button>
-      </div>
-      <hr className="divider divider-wide" />
-      <h2>{t('connect_element')}</h2>
-      <div className="create-element-options">
-        <button className="create-element-btn" onClick={() => setPage('connect_straight')}>
-          <ConnectStraightIcon />
-          {t('connect_straight')}
-        </button>
-        <button className="create-element-btn" onClick={() => setPage('connect_curved')}>
-          <ConnectCurvedIcon />
-          {t('connect_curved')}
         </button>
       </div>
       <hr className="divider divider-wide" />

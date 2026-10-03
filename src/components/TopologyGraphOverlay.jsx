@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks, deleteTrack, deleteTracks, switchesOnTrack } from '../storage'
 import ConfirmModal from './ConfirmModal'
 import { buildTopologyGraph, topologyClusters, selectionHighlight } from '../utils/topologyGraph'
@@ -9,6 +9,7 @@ import { useProject } from '../hooks/useStore'
 import { PALETTE } from '../styles/palette'
 import { labelBox, placeLabels } from '../utils/labelPlacement'
 import CloseButton from './form/CloseButton'
+import { useOverlayHeight } from './chart/useChartViewport'
 
 const PAD    = 28     // px around a diagram
 const STEP_X = 56     // px between columns — a track two columns at least, its name on the middle one
@@ -43,6 +44,9 @@ export default function TopologyGraphOverlay({ selection, onSelect, onDeleted, o
   const project = useProject()
   const readOnly = Boolean(source)
   const [confirmDelete, setConfirmDelete] = useState(null)   // { trackIds, message }
+  // Its height by the top edge, like the element table's.
+  const scrollRef = useRef(null)
+  const overlay = useOverlayHeight(scrollRef, { min: 140 })
   const data = useMemo(() => {
     if (!project && !source) return null
     const tracks = source ? source.tracks : loadTracks()
@@ -98,7 +102,8 @@ export default function TopologyGraphOverlay({ selection, onSelect, onDeleted, o
   }
 
   return (
-    <div className="track-table-overlay topology-graph-overlay">
+    <div className="track-table-overlay topology-graph-overlay" style={overlay.style}>
+      <div className="profile-resize" onPointerDown={overlay.onResizeStart} />
       <div className="track-table-header">
         <span className="track-table-title">
           {title ?? t('topology_graph_title')}
@@ -123,7 +128,7 @@ export default function TopologyGraphOverlay({ selection, onSelect, onDeleted, o
           </button>
         </div>
       )}
-      <div className="track-table-scroll topology-graph-scroll">
+      <div className="track-table-scroll topology-graph-scroll" ref={scrollRef}>
         <Legend />
         {data.clusters.map((cluster, i) => (
           <section key={i} className="topology-graph-section">

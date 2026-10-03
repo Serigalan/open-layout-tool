@@ -5,8 +5,8 @@ import { useI18n } from '../locales/i18nContext'
 
 /**
  * Whether what the app depends on is there (R10.12): a dot per service at the
- * foot of the map — green, red, grey while not yet asked — named with the time
- * of the last look; a click asks again at once.
+ * foot of the sidebar — green, red, grey while not yet asked — named with the
+ * time of the last look; a click asks again at once.
  */
 export default function ServiceStatus() {
   const { t, fill, language } = useI18n()

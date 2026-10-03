@@ -16,8 +16,8 @@ import ProviImportSection from './ProviImportSection'
 /**
  * Data exchange: one section per format (R5.1). Behind the dot at the bottom
  * are the imports and exports needed now and then rather than every session —
- * Provi, the Gleislage CSV, the two MDB importers with the reports they leave,
- * and the alignment exchange format.
+ * the comparison with a file, Provi, the Gleislage CSV, the two MDB importers
+ * with the reports they leave, and the alignment exchange format.
  */
 export default function DataExchangePanel({ onShowCompare }) {
   const { t } = useI18n()
@@ -28,12 +28,12 @@ export default function DataExchangePanel({ onShowCompare }) {
     <>
       <h2>{t('data_exchange')}</h2>
       <ProjectSection />
-      <CompareSection onShowCompare={onShowCompare} />
       <TracksSection />
       <VermEsnSection />
       <OsrdSection />
       {more && (
         <>
+          <CompareSection onShowCompare={onShowCompare} />
           <ExchangeSection title={t('data_exchange_provi')} description={t('data_exchange_provi_desc')}>
             <ProviImportSection onReport={(source, counts, lines) => reports.add({ source, ...counts, lines })} />
           </ExchangeSection>
