@@ -79,3 +79,10 @@ export function describeStep(before, after) {
   if (em.changed.length) return { key: 'step_end_mark_changed', params: {} }
   return { key: 'step_project', params: {} }
 }
+
+/** The ids of the tracks a step brought or changed — what the map shows it by. */
+export function stepTrackIds(before, after) {
+  if (!before || !after) return []
+  const { added, changed } = delta(before.tracks, after.tracks)
+  return [...added, ...changed].map(t => t.id)
+}

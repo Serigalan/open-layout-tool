@@ -23,6 +23,7 @@ export const PALETTE = Object.freeze({
   // The map's own highlights
   mapHover: '#ff8c00',
   mapSelected: '#a52a1f',
+  mapFlash: '#00a37a',
   mapCandidate: '#6c5ce7',
 
   // Previews of what a dialog would build

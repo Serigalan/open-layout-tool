@@ -1160,5 +1160,9 @@
   "tracks_import_err_switch_missing": "The tracks belong to a switch that does not exist in this project.",
   "data_exchange_crs_in_project": "Used in the project",
   "data_exchange_crs_other": "Others",
-  "data_exchange_crs_all": "Coordinate systems"
+  "data_exchange_crs_all": "Coordinate systems",
+  "notice_undo": "Undo",
+  "notice_show": "Show",
+  "notice_undone": "Undone: {step}",
+  "notice_redone": "Redone: {step}"
 }

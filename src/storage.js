@@ -27,6 +27,14 @@ const MAX_UNDO = 20
 let _undoStack = []
 // What undo took back, newest last, for redo (R10.1); any new step empties it.
 let _redoStack = []
+// The last step taken, undone or redone (R10.3): { serial, kind: 'do' | 'undo'
+// | 'redo', before, after } — what the step notice says and highlights.
+let _lastStep = null
+let _stepSerial = 0
+const recordStep = (kind, before, after) => { _lastStep = { serial: ++_stepSerial, kind, before, after } }
+
+/** The last step taken, undone or redone, or null since the project was opened. */
+export const lastStep = () => _lastStep
 let _undoDepth = 0
 // The id log (decision 93): what splitting and joining made of which track ids
 // since the working copy's base — [{ from, to: [ids] }]. A merge reads it to
@@ -87,7 +95,9 @@ function mutate(fn, { undo = true } = {}) {
   const next = fn(_project)
   if (!next || next === before) { _idLog = logBefore; return true }
   if (undo) { pushUndo(before, logBefore); _redoStack = [] }
-  setProject(withPrunedMarks(next))
+  const after = withPrunedMarks(next)
+  if (undo && _undoDepth === 0) recordStep('do', before, after)
+  setProject(after)
   return true
 }
 
@@ -128,6 +138,7 @@ export function openWorkingCopy({ variantId, project, base, basePayload, idLog =
   _idLog = [...idLog]
   _undoStack = []
   _redoStack = []
+  _lastStep = null
   setProject(withPrunedMarks(hydrateProjects([structuredClone(project)])[0]))
   return _project
 }
@@ -142,6 +153,7 @@ export function openProject(project) {
   _idLog = []
   _undoStack = []
   _redoStack = []
+  _lastStep = null
   setProject(withPrunedMarks(project))
   return _project
 }
@@ -178,6 +190,7 @@ export async function closeWorkingCopy() {
   _idLog = []
   _undoStack = []
   _redoStack = []
+  _lastStep = null
   notify()
 }
 
@@ -203,6 +216,7 @@ export async function discardWorkingCopy(variantId) {
 export function clearUndo() {
   _undoStack = []
   _redoStack = []
+  _lastStep = null
   notify()
 }
 
@@ -260,7 +274,12 @@ export function withUndo(fn) {
     return fn()
   } finally {
     _undoDepth--
-    if (_undoDepth === 0 && _project !== before) { pushUndo(before, logBefore); _redoStack = [] }
+    if (_undoDepth === 0 && _project !== before) {
+      pushUndo(before, logBefore)
+      _redoStack = []
+      recordStep('do', before, _project)
+      notify()
+    }
   }
 }
 
@@ -330,8 +349,11 @@ export function canUndo() {
 
 export function undo() {
   if (_undoStack.length === 0) return false
+  const before = _project
   _redoStack.push({ project: _project, idLog: _idLog })
-  restore(_undoStack.pop())
+  const entry = _undoStack.pop()
+  recordStep('undo', before, entry.project)
+  restore(entry)
   return true
 }
 
@@ -342,8 +364,11 @@ export function canRedo() {
 /** Take the last undo back again (R10.1). */
 export function redo() {
   if (_redoStack.length === 0) return false
+  const before = _project
   _undoStack.push({ project: _project, idLog: _idLog })
-  restore(_redoStack.pop())
+  const entry = _redoStack.pop()
+  recordStep('redo', before, entry.project)
+  restore(entry)
   return true
 }
 

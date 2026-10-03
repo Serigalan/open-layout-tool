@@ -10,6 +10,8 @@ export const TRACKS_LAYER          = 'tracks-layer'
 export const TRACKS_HOVER_LAYER    = 'tracks-hover-layer'
 /** What a panel has picked; its filter belongs to the open panel. */
 export const TRACKS_SELECTED_LAYER = 'tracks-selected-layer'
+/** What the last step brought or changed, lit for a moment (R10.3); its filter belongs to the step notice. */
+export const TRACKS_FLASH_LAYER    = 'tracks-flash-layer'
 
 export const TRACK_MARKERS_SOURCE  = 'tracks-markers-source'
 export const TRACK_MARKERS_LAYER   = 'tracks-markers-layer'

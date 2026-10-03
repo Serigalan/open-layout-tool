@@ -3,6 +3,7 @@ import { translations } from '../locales/i18n'
 import { ZOOM_LINE_WIDTH, ZOOM_LINE_WIDTH_HOVER, ZOOM_LINE_WIDTH_SELECTED, ZOOM_LINE_WIDTH_BUFFER_STOP, ZOOM_ICON_SIZE, MARKER_MIN_ZOOM } from './style'
 import { GEOJSON_MAXZOOM } from '../utils/geometryPrecision'
 import { FILTER_NONE } from './pick'
+import { PALETTE } from '../styles/palette'
 import { loadSettings } from '../utils/settings'
 import { bufferStopFeatures } from '../utils/bufferStopGeometry'
 import { showTopology } from '../utils/topologyLayer'
@@ -10,7 +11,7 @@ import { resolveEndBearing, displayCoords } from '../utils/elementUtils'
 import { getColor, PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderUtils'
 import { updateLabels, clearTrackLabels, createTrackLabel, labelGeneration, removeTrackLabels, SWITCH_LABEL_MIN_ZOOM } from '../utils/labelUtils'
 import { ensureMarkerImages, TRACK_MARKER_ICON_IMAGE } from '../utils/markerImages'
-import { BUFFER_STOPS_BRAKE_LAYER, BUFFER_STOPS_LAYER, BUFFER_STOPS_SOURCE, PLATFORMS_FILL_LAYER, PLATFORMS_OUTLINE_LAYER, PLATFORMS_SOURCE, SWITCH_FILLS_LAYER, SWITCH_FILLS_SOURCE, SWITCH_LCS_LAYER, SWITCH_LCS_SOURCE, TRACKS_HOVER_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER, TRACKS_SOURCE, TRACK_MARKERS_LAYER, TRACK_MARKERS_SOURCE } from './layerIds'
+import { BUFFER_STOPS_BRAKE_LAYER, BUFFER_STOPS_LAYER, BUFFER_STOPS_SOURCE, PLATFORMS_FILL_LAYER, PLATFORMS_OUTLINE_LAYER, PLATFORMS_SOURCE, SWITCH_FILLS_LAYER, SWITCH_FILLS_SOURCE, SWITCH_LCS_LAYER, SWITCH_LCS_SOURCE, TRACKS_FLASH_LAYER, TRACKS_HOVER_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER, TRACKS_SOURCE, TRACK_MARKERS_LAYER, TRACK_MARKERS_SOURCE } from './layerIds'
 
 // The project on the map: tracks, switch bodies, platforms, buffer stops, the
 // start/end markers and the labels — drawn from a project record. One source
@@ -291,6 +292,13 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
         'icon-size': ZOOM_ICON_SIZE,
       },
       paint: { 'icon-color': c },
+    })
+    map.addLayer({
+      id: TRACKS_FLASH_LAYER,
+      type: 'line',
+      source: TRACKS_SOURCE,
+      filter: FILTER_NONE,
+      paint: { 'line-color': PALETTE.mapFlash, 'line-width': ZOOM_LINE_WIDTH_HOVER, 'line-opacity': 0.8 },
     })
     map.addLayer({
       id: TRACKS_HOVER_LAYER,

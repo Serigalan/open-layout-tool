@@ -37,3 +37,13 @@ describe('describing a step', () => {
     expect(describeStep(base, { ...base, title: 'x' })).toEqual({ key: 'step_project', params: {} })
   })
 })
+
+describe('the tracks of a step', async () => {
+  const { stepTrackIds } = await import('./stepLabel')
+  it('are the ones it brought or changed', () => {
+    const after = { ...base, tracks: [{ ...base.tracks[0] }, track('c', 'C')] }
+    expect(stepTrackIds(base, after)).toEqual(['c', 'a'])
+    expect(stepTrackIds(base, base)).toEqual([])
+    expect(stepTrackIds(null, base)).toEqual([])
+  })
+})

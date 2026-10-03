@@ -56,3 +56,16 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
+
+/* The notice after a step (R10.3): over the map, bottom centre. */
+.step-notice {
+  position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+  z-index: 30; display: flex; align-items: center; gap: var(--space-5);
+  padding: var(--space-4) var(--space-5); max-width: min(640px, calc(100% - 32px));
+  background: var(--color-surface); color: var(--color-text);
+  border: 1px solid var(--color-border); border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); font-size: var(--fs-m);
+}
+.step-notice-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.step-notice .link-btn { white-space: nowrap; color: var(--color-primary); }
+.step-notice-close { background: none; border: 0; cursor: pointer; color: var(--color-text-soft); padding: 0 2px; font-size: 14px; }
