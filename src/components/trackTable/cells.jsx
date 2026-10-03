@@ -16,6 +16,28 @@ export function TextCell({ value, wide = false, className = '' }) {
   return <input className={inputClass(wide, className)} disabled readOnly value={value} />
 }
 
+/** The editable cell beside `input` in direction `step` ('up', 'down', 'left', 'right'), or null. */
+function neighbourCell(input, step) {
+  const td = input.closest('td')
+  const tr = td?.parentElement
+  if (!td || !tr) return null
+  const editable = (cell) => cell?.querySelector('input:not([disabled])') ?? null
+  if (step === 'up' || step === 'down') {
+    for (let row = step === 'up' ? tr.previousElementSibling : tr.nextElementSibling; row;
+      row = step === 'up' ? row.previousElementSibling : row.nextElementSibling) {
+      const hit = editable(row.cells[td.cellIndex])
+      if (hit) return hit
+    }
+    return null
+  }
+  for (let cell = step === 'left' ? td.previousElementSibling : td.nextElementSibling; cell;
+    cell = step === 'left' ? cell.previousElementSibling : cell.nextElementSibling) {
+    const hit = editable(cell)
+    if (hit) return hit
+  }
+  return null
+}
+
 /**
  * Editable cell with a typing draft, committed on blur or Enter. Numeric
  * unless told otherwise — the justification is the one text column. Only a
@@ -44,9 +66,22 @@ export function EditCell({
         setDraft(null)
       }}
       onKeyDown={e => {
-        if (e.key === 'Enter') e.currentTarget.blur()
         // Escape takes the typing back, and only that (R10.2).
-        if (e.key === 'Escape') { e.preventDefault(); droppedRef.current = true; e.currentTarget.blur() }
+        if (e.key === 'Escape') { e.preventDefault(); droppedRef.current = true; e.currentTarget.blur(); return }
+        // Like a spreadsheet (R10.11): Enter takes the value and goes down,
+        // ↑/↓ go up and down the column, ←/→ to the neighbouring cell once the
+        // caret stands at the edge of what is typed.
+        const el = e.currentTarget
+        const atStart = el.selectionStart === 0 && el.selectionEnd === 0
+        const atEnd = el.selectionStart === el.value.length
+        const step = e.key === 'Enter' ? (e.shiftKey ? 'up' : 'down')
+          : e.key === 'ArrowDown' ? 'down' : e.key === 'ArrowUp' ? 'up'
+            : e.key === 'ArrowLeft' && atStart ? 'left' : e.key === 'ArrowRight' && atEnd ? 'right' : null
+        if (!step) return
+        const next = neighbourCell(el, step)
+        if (e.key === 'Enter' || next) e.preventDefault()
+        if (next) next.focus()
+        else if (e.key === 'Enter') el.blur()
       }} />
   )
 }

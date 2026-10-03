@@ -80,3 +80,15 @@ body {
 .clickable { cursor: pointer; }
 .text-muted { color: var(--color-muted); }
 .text-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A visible focus ring on everything one can reach by keyboard (R10.11) —
+   only for the keyboard (:focus-visible), so a click leaves no ring behind. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+/* On the blue of the icon sidebar the ring is white. */
+.sidebar-primary :focus-visible {
+  outline-color: #fff;
+  outline-offset: 1px;
+}

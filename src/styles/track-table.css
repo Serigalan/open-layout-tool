@@ -172,7 +172,8 @@
 }
 
 .track-table-input:focus {
-  outline: none;
+  outline: 2px solid var(--color-primary);
+  outline-offset: -1px;
   border-color: var(--color-primary);
 }
 
