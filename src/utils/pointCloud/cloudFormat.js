@@ -13,6 +13,9 @@ export const mb = (bytes) => `${(bytes / 1e6).toLocaleString(undefined, oneDecim
 /** Bytes in MB, or in GB from one GB on. */
 export const sizeText = (bytes) => (bytes >= 1e9 ? `${(bytes / 1e9).toLocaleString(undefined, oneDecimal)} GB` : mb(bytes))
 
+/** A grid step [m] in millimetres, „1 mm“ or „0,1 mm“. */
+export const stepText = (m) => `${(m * 1000).toLocaleString(undefined, { maximumSignificantDigits: 3 })} mm`
+
 /** A count with the thousands grouped. */
 export const count = (n) => Number(n).toLocaleString()
 

@@ -39,9 +39,15 @@ export async function persistStorage() {
 /**
  * Bytes a file of `pointCount` points will take once imported: 2-cm voxels
  * keep about 28 % of mobile-mapping points at 3.9 bytes each (measured on the
- * sample, ~1.1 bytes per point read), with some room for a denser survey.
+ * sample, ~1.1 bytes per point read), with some room for a denser survey. The
+ * original resolution keeps every point, about 4.0 bytes each on a millimetre
+ * grid (the sample); each tenfold finer `step` [m] may add some ten bits of
+ * noise a point.
  */
-export const estimateCloudBytes = (pointCount) => Math.round(pointCount * 1.25)
+export function estimateCloudBytes(pointCount, { original = false, step = 0.001 } = {}) {
+  if (!original) return Math.round(pointCount * 1.25)
+  return Math.round(pointCount * (4.5 + 1.25 * Math.max(0, Math.log10(0.001 / step))))
+}
 
 /** Whether the browser has promised to keep this origin's storage. */
 export async function storagePersisted() {

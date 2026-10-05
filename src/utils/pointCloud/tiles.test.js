@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  encodeSegment, decodeSegment, splitIntoBands, TileBuilder, intensityShift, tileOf,
+  encodeSegment, decodeSegment, encodeGridSegment, decodeGridSegment, splitIntoBands, TileBuilder,
+  intensityShift, tileOf, originalGrid, segmentPlacement,
 } from './tiles'
 import { planeMapper } from './cloudCrs'
 import { transformPlanePoint } from '../coordinateUtils'
@@ -38,6 +39,45 @@ describe('tile segments', () => {
   })
 })
 
+describe('segments of the original resolution', () => {
+  it('come back as they went in — 32-bit steps, the intensity as stored', () => {
+    const pts = Array.from({ length: 5000 }, (_, k) => [
+      (k * 7919) % 200001, (k * 104729) % 200001, 5310000 + ((k * 13) % 900000), (k * 977) % 65536,
+    ])
+    const seg = encodeGridSegment({
+      count: pts.length,
+      x: Uint32Array.from(pts.map(p => p[0])), y: Uint32Array.from(pts.map(p => p[1])),
+      z: Float64Array.from(pts.map(p => p[2])), i: Uint16Array.from(pts.map(p => p[3])),
+    })
+    expect(seg.z0).toBe(5310000)
+    const back = decodeGridSegment(seg.bytes, seg.count, 8)
+    const got = Array.from({ length: seg.count }, (_, k) => [back.x[k], back.y[k], back.z[k] + seg.z0, back.intensity[k]])
+    expect(sorted(got)).toEqual(sorted(pts))
+    for (let k = 0; k < seg.count; k++) expect(back.i[k]).toBe(back.intensity[k] >> 8)
+  })
+
+  it('are not split into bands below 4 · 10⁹ steps of height', () => {
+    const b = new TileBuilder({ grid: { scale: [0.001, 0.001, 0.001], offset: [0, 0, 0] }, onTile: (tx, ty, cols) => {
+      expect(splitIntoBands(cols)).toHaveLength(1)
+    } })
+    b.add(0.5, 0.5, -100, 1)
+    b.add(0.5, 0.5, 3000000, 2)
+    b.flushAll()
+  })
+})
+
+describe('originalGrid', () => {
+  it('is the scale and offset of a LAS file', () => {
+    expect(originalGrid({ scale: [0.001, 0.001, 0.0001], offset: [4470683.058, 5332199.76, 536.83] }))
+      .toEqual({ scale: [0.001, 0.001, 0.0001], offset: [4470683.058, 5332199.76, 536.83] })
+  })
+
+  it('is a tenth of a millimetre for E57, or its finer integer step', () => {
+    expect(originalGrid({ format: 'e57', scale: [0.001, 0.001, 0.001] }).scale).toEqual([0.0001, 0.0001, 0.0001])
+    expect(originalGrid({ format: 'e57', scale: [0.00001, 0.00001, 0.00001] }).scale).toEqual([0.00001, 0.00001, 0.00001])
+  })
+})
+
 describe('TileBuilder', () => {
   it('keeps the first point of every 2-cm voxel and sorts points into 2-m tiles', () => {
     const tiles = []
@@ -66,6 +106,39 @@ describe('TileBuilder', () => {
     b.add(0.5, 0.5, 0, 0)            // the way back: same voxel, but the tile was written
     b.flushAll()
     expect(tiles.filter(t => t[0] === 0 && t[1] === 0)).toEqual([[0, 0, 1], [0, 0, 1]])
+  })
+
+  it('keeps every point on a grid, doubles too, and they come back to the bit', () => {
+    // A LAS grid whose offset is not on the millimetre, as in the sample file.
+    const grid = { scale: [0.001, 0.001, 0.001], offset: [4470683.058286359, 5332199.762836749, 536.8305144555818] }
+    const file = []
+    for (let k = 0; k < 400; k++) {
+      const X = -3000 + k * 17, Y = 2000 - k * 11, Z = -5000 + (k % 9) * 3
+      file.push([X, Y, Z, 60000 - k])
+      if (k % 4 === 0) file.push([X, Y, Z, 7])           // the same spot scanned twice
+    }
+    const tiles = []
+    const b = new TileBuilder({ grid, onTile: (tx, ty, cols) => tiles.push({ tx, ty, cols }) })
+    const metres = ([X, Y, Z]) => [X * 0.001 + grid.offset[0], Y * 0.001 + grid.offset[1], Z * 0.001 + grid.offset[2]]
+    for (const p of file) b.add(...metres(p), p[3])
+    b.flushAll()
+    expect(b.kept).toBe(file.length)
+    const back = []
+    for (const { tx, ty, cols } of tiles) {
+      const seg = encodeGridSegment(cols)
+      const s = decodeGridSegment(seg.bytes, seg.count)
+      const at = segmentPlacement({ grid }, tx, ty, seg.z0)
+      for (let k = 0; k < seg.count; k++) {
+        const e = at.ox + s.x[k] * at.sx, n = at.oy + s.y[k] * at.sy, z = at.oz + s.z[k] * at.sz
+        expect(Math.floor(e / 2)).toBe(tx)
+        expect(Math.floor(n / 2)).toBe(ty)
+        // Back on the file's integers exactly.
+        back.push([Math.round((e - grid.offset[0]) / 0.001), Math.round((n - grid.offset[1]) / 0.001),
+          Math.round((z - grid.offset[2]) / 0.001), s.intensity[k]])
+        expect(Math.abs(e - metres(back.at(-1))[0])).toBeLessThan(1e-8)
+      }
+    }
+    expect(sorted(back)).toEqual(sorted(file))
   })
 
   it('brings any intensity range into a byte', () => {

@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl'
 import { crsName } from '../../../utils/coordinateUtils'
 import { heightDatumLabel } from '../../../utils/heightDatums'
 import { outlineFeature, cloudSize } from '../../../utils/pointCloud/cloudOutline'
-import { count, sizeText } from '../../../utils/pointCloud/cloudFormat'
+import { count, sizeText, stepText } from '../../../utils/pointCloud/cloudFormat'
 import { useI18n } from '../../../locales/i18nContext'
 import { formatDate } from '../../../locales/i18n'
 import { useMap } from '../../../map/MapContext'
@@ -38,6 +38,11 @@ export default function CloudList({ clouds, busy, onDelete }) {
               {`${t('pointcloud_crs_short')}: ${crsText(c.sourceCrs)}`
                 + (c.sourceCrs !== c.crs ? ` → ${crsText(c.crs)}` : '')
                 + ` · ${t('pointcloud_height_short')}: ${heightDatumLabel(c.heightEpsg)}`}
+            </span>
+            <span className="pointcloud-meta">
+              {c.grid
+                ? fill('pointcloud_resolution_original_short', { step: stepText(c.grid.scale[0]) })
+                : t('pointcloud_resolution_voxel_short')}
             </span>
             <span className="pointcloud-meta">
               {`${Math.round(w)} × ${Math.round(h)} m · ${c.bounds.minZ.toFixed(1)}–${c.bounds.maxZ.toFixed(1)} m · `

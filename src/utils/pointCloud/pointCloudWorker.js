@@ -1,6 +1,6 @@
 // The point cloud import, off the main thread: a file of gigabytes takes
 // minutes, and the page stays usable meanwhile. Messages in:
-//   { type: 'import', file, projectId, cloudId, meta, sourceCrs, targetCrs, base }
+//   { type: 'import', file, projectId, cloudId, meta, sourceCrs, targetCrs, original, base }
 //   { type: 'abort' }
 // and out: { type: 'progress', … }, { type: 'done', index }, { type: 'aborted' },
 // { type: 'error', message }.
@@ -24,7 +24,9 @@ let controller = null
 /** Progress is posted at most this often [ms]. */
 const PROGRESS_EVERY = 250
 
-async function runImport({ file, projectId, cloudId, meta, sourceCrs, targetCrs, base }) {
+async function runImport({ file, projectId, cloudId, meta, sourceCrs, targetCrs: wanted, original = false, base }) {
+  // The original resolution stays in the file's plane (Entscheidung 145).
+  const targetCrs = original ? sourceCrs : wanted
   controller = new AbortController()
   const { signal } = controller
   const dir = await projectDir(projectId, true)
@@ -58,7 +60,7 @@ async function runImport({ file, projectId, cloudId, meta, sourceCrs, targetCrs,
     }
     let lastPost = 0
     const body = await importPointCloud({
-      source, header, lazPerf, writer, signal,
+      source, header, lazPerf, writer, signal, original,
       mapper: planeMapper(sourceCrs, targetCrs),
       onProgress: (p) => {
         const now = Date.now()

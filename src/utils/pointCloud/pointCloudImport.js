@@ -3,9 +3,10 @@
  * (pointCloudWorker), ended once it has answered. `done` resolves to
  * `{ status: 'done', index }` or `{ status: 'aborted' }` and rejects on an
  * error; `abort()` stops it at the next chunk, and the worker clears away what
- * it had written.
+ * it had written. `original` keeps every point on the file's grid and in its
+ * plane instead of thinning and converting it (Entscheidung 145).
  */
-export function startImport({ file, projectId, meta, sourceCrs, targetCrs, onProgress }) {
+export function startImport({ file, projectId, meta, sourceCrs, targetCrs, original = false, onProgress }) {
   const worker = new Worker(new URL('./pointCloudWorker.js', import.meta.url), { type: 'module' })
   const cloudId = crypto.randomUUID()
   const done = new Promise((resolve, reject) => {
@@ -19,7 +20,7 @@ export function startImport({ file, projectId, meta, sourceCrs, targetCrs, onPro
     worker.onerror = (e) => { worker.terminate(); reject(new Error(e.message || 'worker failed')) }
   })
   worker.postMessage({
-    type: 'import', file, projectId: String(projectId), cloudId, meta, sourceCrs, targetCrs,
+    type: 'import', file, projectId: String(projectId), cloudId, meta, sourceCrs, targetCrs, original,
     base: document.baseURI,
   })
   return { cloudId, done, abort: () => worker.postMessage({ type: 'abort' }) }

@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { sliceFrame, tilesInSlice, sliceSegment, SlicePoints } from './cloudSlice'
 import { importPointCloud } from './importPipeline'
-import { readLasHeader } from './lasReader'
-import { decodeSegment, encodeSegment } from './tiles'
+import { readLasHeader, readLasPoints } from './lasReader'
+import { decodeCloudSegment, decodeSegment, encodeSegment, segmentPlacement } from './tiles'
 import { hasLaz, LAZ_PATH, nodeFileSource, nodeLazPerf } from '../../test/pointCloudFixture'
 
 const slice = (index, bytes, frame, toPlane = null) => {
   const out = new SlicePoints()
   for (const [tx, ty, segs] of tilesInSlice(index, frame)) {
     for (const [offset, length, count, z0] of segs) {
-      sliceSegment(out, decodeSegment(bytes.subarray(offset, offset + length), count),
-        { tx, ty, z0, tileSize: index.tileSize }, frame, toPlane)
+      sliceSegment(out, decodeCloudSegment(index, bytes.subarray(offset, offset + length), count),
+        segmentPlacement(index, tx, ty, z0), frame, toPlane)
     }
   }
   return out
@@ -37,7 +37,7 @@ describe('the slice of a cross section', () => {
     const out = new SlicePoints()
     for (const t of tiles.values()) {
       const seg = encodeSegment({ ...t, count: t.x.length })
-      sliceSegment(out, decodeSegment(seg.bytes, seg.count), { tx: t.tx, ty: t.ty, z0: seg.z0, tileSize: 2 }, frame)
+      sliceSegment(out, decodeSegment(seg.bytes, seg.count), segmentPlacement({ tileSize: 2 }, t.tx, t.ty, seg.z0), frame)
     }
     const got = Array.from({ length: out.count }, (_, k) => [out.y[k], out.z[k], out.i[k]]).sort((a, b) => a[0] - b[0])
     expect(got.map(([y]) => Math.round(y * 1000))).toEqual([-1000, 500])
@@ -93,6 +93,43 @@ describe.skipIf(!hasLaz)('the slice of the LAZ sample', () => {
         expect(hi).toBeCloseTo(zMax, 3)
         expect(ms).toBeLessThan(500)   // decoding included; the page caches decoded tiles
       }
+    } finally {
+      await source.close()
+    }
+  }, 60000)
+
+  it('holds every point of the file in the slice when kept in original resolution', async () => {
+    const source = await nodeFileSource(LAZ_PATH)
+    try {
+      const header = await readLasHeader(source)
+      const lazPerf = await nodeLazPerf()
+      const parts = []
+      let at = 0
+      const writer = { append(b) { const o = at; parts.push(b); at += b.length; return o } }
+      const index = await importPointCloud({ source, header, writer, lazPerf, original: true })
+      const bytes = new Uint8Array(at)
+      let o = 0
+      for (const p of parts) { bytes.set(p, o); o += p.length }
+
+      const frame = sliceFrame({ easting: 4470688.083, northing: 5332206.905, bearing: 45.35, halfWidth: 30, thickness: 0.1 })
+      const out = slice(index, bytes, frame)
+      // The same slice straight from the file's points.
+      let count = 0, ySum = 0, zSum = 0
+      for await (const b of readLasPoints(source, header, { lazPerf })) {
+        for (let k = 0; k < b.count; k++) {
+          const de = b.x[k] - frame.e, dn = b.y[k] - frame.n
+          const d = de * frame.along[0] + dn * frame.along[1]
+          const q = de * frame.right[0] + dn * frame.right[1]
+          if (Math.abs(d) > frame.half || Math.abs(q) > frame.halfWidth) continue
+          count++; ySum += q; zSum += b.z[k]
+        }
+      }
+      expect(count).toBeGreaterThan(6122 * 3)     // the thinned slice has 6122
+      expect(out.count).toBe(count)
+      let y = 0, z = 0
+      for (let k = 0; k < out.count; k++) { y += out.y[k]; z += out.z[k] }
+      expect(y).toBeCloseTo(ySum, 1)
+      expect(z).toBeCloseTo(zSum, 6)
     } finally {
       await source.close()
     }

@@ -4,7 +4,7 @@ import { soHeight, cantMm } from './railTrace'
 import { sliceFrame, tilesInSlice, sliceSegment, SlicePoints } from './cloudSlice'
 import { importPointCloud } from './importPipeline'
 import { readLasHeader } from './lasReader'
-import { decodeSegment } from './tiles'
+import { decodeCloudSegment, segmentPlacement } from './tiles'
 import { hasLaz, LAZ_PATH, nodeFileSource, nodeLazPerf } from '../../test/pointCloudFixture'
 
 /** A small deterministic noise source, so a test sees the same slice every run. */
@@ -146,8 +146,8 @@ describe.skipIf(!hasLaz)('detectTrack on the LAZ sample', () => {
       const out = new SlicePoints()
       for (const [tx, ty, segs] of tilesInSlice(index, frame)) {
         for (const [offset, length, count, z0] of segs) {
-          sliceSegment(out, decodeSegment(bytes.subarray(offset, offset + length), count),
-            { tx, ty, z0, tileSize: index.tileSize }, frame)
+          sliceSegment(out, decodeCloudSegment(index, bytes.subarray(offset, offset + length), count),
+            segmentPlacement(index, tx, ty, z0), frame)
         }
       }
       const det = detectTrack(out, { around: 1.53, window: 0.3, rail: '54E4' })

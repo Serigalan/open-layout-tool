@@ -7,7 +7,8 @@ import { probeExtent, projectPlane } from '../../../utils/pointCloud/cloudProbe'
 import { startImport, previewPoints } from '../../../utils/pointCloud/pointCloudImport'
 import { formatName, pointsAsText, PREVIEW_POINTS } from '../../../utils/pointCloud/lasText'
 import { persistStorage, estimateCloudBytes } from '../../../utils/pointCloud/cloudStore'
-import { CLOUD_CRS, count, crsHint, duration, mb, sizeText } from '../../../utils/pointCloud/cloudFormat'
+import { CLOUD_CRS, count, crsHint, duration, mb, sizeText, stepText } from '../../../utils/pointCloud/cloudFormat'
+import { originalGrid } from '../../../utils/pointCloud/tiles'
 import { downloadText } from '../../../utils/fileUtils'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject, useTracks } from '../../../hooks/useStore'
@@ -71,7 +72,9 @@ function ImportProgress({ run }) {
  * vertical datum of the file before anything is read — both required, neither
  * preselected (Entscheidung 118) — and checks the box the file states for
  * itself against the tracks, so a wrong choice shows before an hour of
- * reading. `onMessage` reports how it went, `onChanged` that the stored clouds
+ * reading. It keeps the cloud thinned to 2-cm voxels in the project's plane,
+ * or on request every point as the file states it (Entscheidung 145).
+ * `onMessage` reports how it went, `onChanged` that the stored clouds
  * changed, `onRunning` whether an import runs.
  */
 export default function CloudImportForm({ storage, onMessage, onChanged, onRunning }) {
@@ -82,6 +85,7 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
   const [pick, setPick] = useState(null)        // { file, header } once a file is chosen
   const [crs, setCrs] = useState('')
   const [heightEpsg, setHeightEpsg] = useState('')
+  const [resolution, setResolution] = useState('voxel')   // or 'original'
   const [run, setRunState] = useState(null)     // { abort, progress } while importing
   const [preview, setPreview] = useState(null)  // { busy } while reading, then { text, name }
   const setRun = (next) => { setRunState(next); onRunning?.(!!next) }
@@ -115,6 +119,8 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
     }
   }
 
+  const original = resolution === 'original'
+
   const begin = async () => {
     if (!pick || !crs || !heightEpsg) return
     await persistStorage()
@@ -123,14 +129,15 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
       projectId: project.id,
       meta: { name: baseName(pick.file.name), heightEpsg: Number(heightEpsg) },
       sourceCrs: Number(crs),
-      targetCrs: target ?? Number(crs),
+      targetCrs: original ? Number(crs) : (target ?? Number(crs)),
+      original,
       onProgress: (progress) => setRunState(r => (r ? { ...r, progress } : r)),
     })
     setRun({ abort: job.abort, progress: null })
     try {
       const result = await job.done
       onMessage(result.status === 'done'
-        ? { kind: 'done', text: fill('pointcloud_import_done', { points: count(result.index.points) }) }
+        ? { kind: 'done', text: fill(original ? 'pointcloud_import_done_original' : 'pointcloud_import_done', { points: count(result.index.points) }) }
         : { kind: 'done', text: t('pointcloud_import_aborted') })
       if (result.status === 'done') setPick(null)
     } catch (err) {
@@ -147,7 +154,8 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
   }
 
   const probe = crs ? probeExtent(pick.header, Number(crs), tracks) : null
-  const needed = estimateCloudBytes(pick.header.pointCount)
+  const grid = originalGrid(pick.header)
+  const needed = estimateCloudBytes(pick.header.pointCount, { original, step: grid.scale[0] })
   return (
     <div className="pointcloud-import">
       <ReadOnlyField label={t('pointcloud_file')} value={`${pick.file.name} · ${mb(pick.file.size)}`} />
@@ -180,10 +188,28 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
           {HEIGHT_DATUMS.map(d => <option key={d.epsg} value={d.epsg}>{heightDatumLabel(d.epsg)}</option>)}
         </select>
       </div>
+      <div className="form-field">
+        <label>{t('pointcloud_resolution')}</label>
+        <select value={resolution} disabled={!!run} onChange={e => setResolution(e.target.value)}>
+          <option value="voxel">{t('pointcloud_resolution_voxel')}</option>
+          <option value="original">{t('pointcloud_resolution_original')}</option>
+        </select>
+      </div>
+      <p className="selecting-hint">
+        {original
+          ? fill('pointcloud_resolution_original_hint', { step: stepText(grid.scale[0]) })
+          : t('pointcloud_resolution_voxel_hint')}
+      </p>
       {probe?.ok === true && <p className="selecting-hint">{t('pointcloud_probe_ok')}</p>}
       {probe?.ok === false && <p className="form-error">{t('pointcloud_probe_off')}</p>}
       {probe && probe.ok === null && <p className="selecting-hint">{t('pointcloud_probe_no_tracks')}</p>}
-      {crs && <p className="selecting-hint">{fill('pointcloud_target', { crs: crsLabel(target ?? Number(crs)) })}</p>}
+      {crs && (
+        <p className="selecting-hint">
+          {original
+            ? fill('pointcloud_target_original', { crs: crsLabel(Number(crs)) })
+            : fill('pointcloud_target', { crs: crsLabel(target ?? Number(crs)) })}
+        </p>
+      )}
       {run ? <ImportProgress run={run} /> : (
         <div className="pointcloud-actions">
           <button className="panel-btn" disabled={!crs || !heightEpsg} onClick={begin}>{t('pointcloud_start')}</button>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { importPointCloud } from './importPipeline'
-import { readLasHeader } from './lasReader'
-import { decodeSegment, TILE_SIZE } from './tiles'
+import { readLasHeader, readLasPoints } from './lasReader'
+import { decodeSegment, decodeCloudSegment, segmentPlacement, TILE_SIZE } from './tiles'
 import { probeExtent, projectPlane } from './cloudProbe'
 import { utmToWgs84 } from '../coordinateUtils'
 import { hasLaz, LAZ_PATH, nodeFileSource, nodeLazPerf, bytesSource, makeLas } from '../../test/pointCloudFixture'
@@ -33,6 +33,29 @@ function readBack(index, bytes) {
   }
   return pts
 }
+
+/** Every point of an original-resolution cloud as integers on the cloud's grid, with its intensity. */
+function readBackOnGrid(index, bytes) {
+  const { scale, offset } = index.grid
+  const pts = []
+  for (const [tx, ty, segs] of index.tiles) {
+    for (const [at, length, count, z0] of segs) {
+      const s = decodeCloudSegment(index, bytes.subarray(at, at + length), count)
+      const p = segmentPlacement(index, tx, ty, z0)
+      for (let k = 0; k < count; k++) {
+        pts.push([
+          Math.round((p.ox + s.x[k] * p.sx - offset[0]) / scale[0]),
+          Math.round((p.oy + s.y[k] * p.sy - offset[1]) / scale[1]),
+          Math.round((p.oz + s.z[k] * p.sz - offset[2]) / scale[2]),
+          s.intensity[k],
+        ])
+      }
+    }
+  }
+  return pts
+}
+
+const byValue = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2] || a[3] - b[3]
 
 describe('importPointCloud', () => {
   it('stores every point of a file, thinned to the voxel, at the millimetre', async () => {
@@ -82,6 +105,65 @@ describe('importPointCloud', () => {
     expect(x).toBeCloseTo(470700, 3)
     expect(y).toBeCloseTo(5332201, 3)
   })
+})
+
+describe('importPointCloud — original resolution', () => {
+  it('keeps every point, doubles included, on the file\'s grid and in its plane', async () => {
+    const offset = [4470683.058286359, 5332199.762836749, 536.8305144555818]
+    const pts = []
+    for (let a = 0; a < 30; a++) for (let b = 0; b < 30; b++) {
+      const p = { x: offset[0] + (a * 7 - 100) * 0.001, y: offset[1] + (b * 5 + 3) * 0.001, z: offset[2] + ((a * b) % 11 - 5) * 0.001 }
+      pts.push({ ...p, intensity: 40000 + a })
+      pts.push({ ...p, intensity: 100 })              // the same spot twice
+    }
+    const source = bytesSource(makeLas(pts, { offset }))
+    const header = await readLasHeader(source)
+    const writer = memoryWriter()
+    const index = await importPointCloud({
+      source, header, writer, original: true, mapper: () => { throw new Error('no conversion wanted') },
+    })
+    expect(index).toMatchObject({
+      version: 2, resolution: 'original', voxel: null, sourcePoints: 1800, points: 1800,
+      grid: { scale: [0.001, 0.001, 0.001], offset },
+    })
+    const want = []
+    for await (const b of readLasPoints(source, header)) {
+      for (let k = 0; k < b.count; k++) {
+        want.push([Math.round((b.x[k] - offset[0]) / 0.001), Math.round((b.y[k] - offset[1]) / 0.001),
+          Math.round((b.z[k] - offset[2]) / 0.001), b.intensity[k]])
+      }
+    }
+    expect(readBackOnGrid(index, writer.bytes()).sort(byValue)).toEqual(want.sort(byValue))
+  })
+})
+
+describe.skipIf(!hasLaz)('importPointCloud — the LAZ sample in original resolution', () => {
+  it('keeps all 3 239 356 points to the bit, in about 4 bytes each', async () => {
+    const source = await nodeFileSource(LAZ_PATH)
+    try {
+      const header = await readLasHeader(source)
+      const lazPerf = await nodeLazPerf()
+      const writer = memoryWriter()
+      const index = await importPointCloud({ source, header, writer, lazPerf, original: true })
+      expect(index.points).toBe(3239356)
+      expect(index.bytes / index.points).toBeLessThan(4.3)
+      // Sums over the file's integers, as read, and over what came back.
+      const { scale, offset } = index.grid
+      const want = [0, 0, 0, 0], got = [0, 0, 0, 0]
+      for await (const b of readLasPoints(source, header, { lazPerf })) {
+        for (let k = 0; k < b.count; k++) {
+          want[0] += Math.round((b.x[k] - offset[0]) / scale[0])
+          want[1] += Math.round((b.y[k] - offset[1]) / scale[1])
+          want[2] += Math.round((b.z[k] - offset[2]) / scale[2])
+          want[3] += b.intensity[k]
+        }
+      }
+      for (const p of readBackOnGrid(index, writer.bytes())) for (let c = 0; c < 4; c++) got[c] += p[c]
+      expect(got).toEqual(want)
+    } finally {
+      await source.close()
+    }
+  }, 120000)
 })
 
 // Measured against the roadmap's table: 2-cm voxel keeps 28 %, ~4 bytes a point.

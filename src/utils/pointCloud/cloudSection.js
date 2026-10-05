@@ -1,5 +1,5 @@
 import { cloudTilesFile } from './cloudStore'
-import { decodeSegment } from './tiles'
+import { decodeCloudSegment, segmentPlacement } from './tiles'
 import { sliceFrame, tilesInSlice, sliceSegment, SlicePoints } from './cloudSlice'
 import { planeMapper } from './cloudCrs'
 import { transformPlanePoint, transformGridBearing } from '../coordinateUtils'
@@ -12,17 +12,32 @@ import { transformPlanePoint, transformGridBearing } from '../coordinateUtils'
  * few tiles that come new into reach.
  */
 
-/** Decoded segments kept, across all clouds — some 50 MB at the outside. */
-const CACHE_SEGMENTS = 600
+/**
+ * Bytes of decoded segments kept, across all clouds. A segment of the original
+ * resolution holds every point of its tile — up to some 100 000 — so the cache
+ * counts bytes, not segments.
+ */
+const CACHE_BYTES = 64 * 1024 * 1024
 const cache = new Map()   // "cloudId|offset" → decoded segment (insertion order = age)
+let cachedBytes = 0
 const files = new Map()   // "projectId|cloudId" → Promise<File>
 
 /** Segments closer together than this in the tile file are read in one go [bytes]. */
 const MERGE_GAP = 256 * 1024
 
+const segmentBytes = (seg) => seg.x.byteLength + seg.y.byteLength + seg.z.byteLength + seg.i.byteLength
+  + (seg.intensity?.byteLength ?? 0)
+
+const forget = (key) => {
+  cachedBytes -= segmentBytes(cache.get(key))
+  cache.delete(key)
+}
+
 const remember = (key, seg) => {
+  if (cache.has(key)) forget(key)
   cache.set(key, seg)
-  while (cache.size > CACHE_SEGMENTS) cache.delete(cache.keys().next().value)
+  cachedBytes += segmentBytes(seg)
+  while (cachedBytes > CACHE_BYTES && cache.size > 1) forget(cache.keys().next().value)
 }
 
 /**
@@ -33,7 +48,8 @@ const remember = (key, seg) => {
  */
 let decodeMs = 0
 
-async function segments(projectId, cloudId, wanted) {
+async function segments(projectId, cloud, wanted) {
+  const cloudId = cloud.id
   decodeMs = 0
   const got = new Map()
   const missing = []
@@ -63,7 +79,7 @@ async function segments(projectId, cloudId, wanted) {
     const bytes = new Uint8Array(await file.slice(start, end).arrayBuffer())
     const t0 = performance.now()
     for (const [offset, length, count] of segs) {
-      const seg = decodeSegment(bytes.subarray(offset - start, offset - start + length), count)
+      const seg = decodeCloudSegment(cloud, bytes.subarray(offset - start, offset - start + length), count)
       remember(`${cloudId}|${offset}`, seg)
       got.set(offset, seg)
     }
@@ -74,7 +90,7 @@ async function segments(projectId, cloudId, wanted) {
 
 /** Forget what was read of a cloud — after it was deleted. */
 export function forgetCloud(cloudId) {
-  for (const key of [...cache.keys()]) if (key.startsWith(`${cloudId}|`)) cache.delete(key)
+  for (const key of [...cache.keys()]) if (key.startsWith(`${cloudId}|`)) forget(key)
   for (const key of [...files.keys()]) if (key.endsWith(`|${cloudId}`)) files.delete(key)
 }
 
@@ -102,11 +118,11 @@ export async function cloudSectionPoints(projectId, cloud, { origin, bearing, cr
     }))
     toPlane = planeMapper(cloud.crs, crs)
   }
-  const decoded = await segments(projectId, cloud.id, tiles.flatMap(([, , segs]) => segs))
+  const decoded = await segments(projectId, cloud, tiles.flatMap(([, , segs]) => segs))
   const t0 = performance.now()
   for (const [tx, ty, segs] of tiles) {
     for (const s of segs) {
-      sliceSegment(out, decoded.get(s[0]), { tx, ty, z0: s[3], tileSize: cloud.tileSize }, frame, toPlane)
+      sliceSegment(out, decoded.get(s[0]), segmentPlacement(cloud, tx, ty, s[3]), frame, toPlane)
     }
   }
   // What the slice cost in computation alone, apart from waiting for the reads.

@@ -62,22 +62,23 @@ export class SlicePoints {
 }
 
 /**
- * Add the points of one decoded segment of tile (tx, ty) that lie in the
- * slice to `out`. `toPlane`, where given, carries a point from the cloud's
- * plane into the frame's (the track's), when the two differ.
+ * Add the points of one decoded segment that lie in the slice to `out`.
+ * `place` (segmentPlacement) says where the segment's points lie; `toPlane`,
+ * where given, carries a point from the cloud's plane into the frame's (the
+ * track's), when the two differ.
  */
-export function sliceSegment(out, seg, { tx, ty, z0, tileSize }, frame, toPlane = null) {
+export function sliceSegment(out, seg, place, frame, toPlane = null) {
   const { e, n, along, right, halfWidth, half } = frame
-  const ox = tx * tileSize, oy = ty * tileSize
+  const { ox, oy, oz, sx, sy, sz } = place
   const { x, y, z, i } = seg
   for (let k = 0; k < x.length; k++) {
-    let pe = ox + x[k] * 0.001, pn = oy + y[k] * 0.001
+    let pe = ox + x[k] * sx, pn = oy + y[k] * sy
     if (toPlane) [pe, pn] = toPlane(pe, pn)
     const de = pe - e, dn = pn - n
     const d = de * along[0] + dn * along[1]
     if (d > half || d < -half) continue
     const q = de * right[0] + dn * right[1]
     if (q > halfWidth || q < -halfWidth) continue
-    out.push(q, (z0 + z[k]) * 0.001, i[k])
+    out.push(q, oz + z[k] * sz, i[k])
   }
 }
