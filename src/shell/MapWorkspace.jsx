@@ -349,13 +349,6 @@ export default function MapWorkspace({ wc, onHome }) {
           {overlay?.kind === 'crossSection' && <CrossSectionOverlay at={overlay.at}
             onAtChange={(at) => openOverlay({ kind: 'crossSection', at })} onClose={() => closeOverlay('crossSection')}
             onDetach={() => detachOverlay('crossSection')} />}
-          {detached?.kind === 'crossSection' && (
-            <PopoutWindow win={detached.win} onClose={() => dispatch({ type: 'closeDetached' })}>
-              <CrossSectionOverlay at={detached.at} detached
-                onAtChange={(at) => openOverlay({ kind: 'crossSection', at })}
-                onClose={() => dispatch({ type: 'closeDetached' })} onDock={dockDetached} />
-            </PopoutWindow>
-          )}
           {overlay?.kind === 'planPreview' && <PlanPreviewOverlay plan={overlay.plan} filenameBase={overlay.filenameBase}
             onClose={() => closeOverlay('planPreview')} />}
           {overlay?.kind === 'topologyGraph' && topology && <TopologyGraphOverlay
@@ -378,6 +371,18 @@ export default function MapWorkspace({ wc, onHome }) {
               onCancel={wc.cancelDialog} onSubmit={wc.submitCheckIn} />
           )}
           </Suspense>
+          {/* The cross section in its own window, beside whatever overlay the
+              map shows — under a boundary of its own, so an overlay loading
+              for the first time does not blank the window meanwhile. */}
+          {detached?.kind === 'crossSection' && (
+            <Suspense fallback={null}>
+              <PopoutWindow win={detached.win} onClose={() => dispatch({ type: 'closeDetached' })}>
+                <CrossSectionOverlay at={detached.at} detached
+                  onAtChange={(at) => openOverlay({ kind: 'crossSection', at })}
+                  onClose={() => dispatch({ type: 'closeDetached' })} onDock={dockDetached} />
+              </PopoutWindow>
+            </Suspense>
+          )}
           {discardAsk && (
             <ConfirmModal
               message={t('table_discard_confirm')}

@@ -63,4 +63,19 @@ describe('overlay state (R2.4)', () => {
     expect(overlayReducer(s, { type: 'closeAll' })).toEqual(OVERLAYS_CLOSED)
     expect(overlayReducer(s, { type: 'detach', kind: 'profile', win: {} })).toBe(s)
   })
+
+  it('lets every other overlay come and go over the map while one is detached', () => {
+    const win = {}
+    let s = run(
+      { type: 'open', overlay: { kind: 'crossSection', at: { station: 1 } } },
+      { type: 'detach', kind: 'crossSection', win },
+    )
+    for (const overlay of [{ kind: 'profile', trackId: 'a' }, { kind: 'trackTable', track: { id: 't' } }, { kind: 'planPreview' }, { kind: 'topologyGraph' }]) {
+      s = overlayReducer(overlayReducer(s, { type: 'panelChange' }), { type: 'open', overlay })
+      expect(s.overlay).toEqual(overlay)
+      expect(overlayReducer(s, { type: 'close', kind: overlay.kind })).toEqual({ ...OVERLAYS_CLOSED, detached: s.detached })
+    }
+    expect(overlayReducer(s, { type: 'close', kind: 'crossSection' }).detached.win).toBe(win)
+    expect(s.detached.at).toEqual({ station: 1 })
+  })
 })
