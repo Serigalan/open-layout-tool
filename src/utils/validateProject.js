@@ -4,6 +4,7 @@ import { sampleTransitionUtm } from './clothoidUtils'
 import { endKey } from './trackEndMarks'
 import { absLengthErrors, epsgMismatches, nodeGaps, untrueLengths } from './chainChecks'
 import { trackLabel } from './trackModel'
+import { surveyDefect } from './axisSurvey'
 
 /**
  * Whether a project record holds together — the check every merge result and
@@ -124,6 +125,12 @@ export function validateProject(project) {
     else if (held.has(k)) add(errors, 'end_mark_not_free', 'endMarks', m.id, label, { switch: held.get(k).label })
     else if (seen.has(k)) add(errors, 'end_mark_twice', 'endMarks', m.id, label, {})
     seen.add(k)
+  }
+
+  // ── measured axes: a plane and arrays of one length ──
+  for (const s of project?.axisSurveys ?? []) {
+    const defect = surveyDefect(s)
+    if (defect) add(errors, 'axis_survey_malformed', 'axisSurveys', s?.id ?? '?', s?.name ?? s?.id, { field: defect })
   }
 
   // ── tracks drawn twice ──

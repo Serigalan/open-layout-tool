@@ -7,7 +7,7 @@
  * "field" is whatever is merged as one value — for a track `elements` and
  * `heights` are one field each (the elements carry no ids of their own,
  * decision 92), for a switch every port field together is one field, and a
- * km line or an end mark is one value altogether.
+ * km line, an end mark or a measured axis (axisSurvey) is one value altogether.
  */
 
 const PORT_FIELD = /^port[A-Z0-9]+_(trackId|endpoint)$/
@@ -24,6 +24,7 @@ const COLLECTIONS = [
   { name: 'platforms', key: 'id' },
   { name: 'kmLines',   key: 'lineNumber', whole: true },
   { name: 'endMarks',  key: 'id', whole: true },
+  { name: 'axisSurveys', key: 'id', whole: true },
 ]
 
 export const COLLECTION_NAMES = COLLECTIONS.map(c => c.name)
@@ -110,6 +111,7 @@ export function objectLabel(collection, obj, tracksById = null) {
   if (collection === 'switches') return obj.name ?? obj.label ?? obj.switchId
   if (collection === 'platforms') return [obj.stationName, obj.code].filter(Boolean).join(' ') || obj.id
   if (collection === 'kmLines') return String(obj.lineNumber)
+  if (collection === 'axisSurveys') return obj.name ?? obj.id
   if (collection === 'endMarks' && tracksById) {
     const track = tracksById.get(obj.trackId)
     if (track) return `${objectLabel('tracks', track)} ${obj.endpoint}`

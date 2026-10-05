@@ -778,6 +778,22 @@ export function deleteEndMark(markId) {
   return mutate(p => ({ ...p, endMarks: (p.endMarks ?? []).filter(m => m.id !== markId) }))
 }
 
+// ── measured axes ───────────────────────────────────────────────────────────
+
+/** The track axes measured in point clouds and kept with the project (axisSurvey). */
+export function loadAxisSurveys() {
+  return _project?.axisSurveys ?? []
+}
+
+/** Add a measured axis, or replace the one with its id. One undo step. */
+export function saveAxisSurvey(survey) {
+  return mutate(p => ({ ...p, axisSurveys: [...(p.axisSurveys ?? []).filter(s => s.id !== survey.id), survey] }))
+}
+
+export function deleteAxisSurvey(surveyId) {
+  return mutate(p => ({ ...p, axisSurveys: (p.axisSurveys ?? []).filter(s => s.id !== surveyId) }))
+}
+
 // ── switches ────────────────────────────────────────────────────────────────
 
 export function loadSwitches() {

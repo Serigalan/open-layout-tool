@@ -10,6 +10,7 @@ import { PALETTE } from '../../styles/palette'
 import CloudImportForm from './pointCloud/CloudImportForm'
 import CloudList from './pointCloud/CloudList'
 import RailTraceSection from './pointCloud/RailTraceSection'
+import AxisSurveyList from './pointCloud/AxisSurveyList'
 
 // Where each cloud lies, while the panel is open.
 const OUTLINE_SOURCE = 'pointcloud-outline-source'
@@ -58,7 +59,16 @@ export default function PointCloudPanel() {
     refresh()
   }
 
-  if (!opfsAvailable()) return <p className="form-error">{t('pointcloud_no_opfs')}</p>
+  // The measured axes are the project's, not the device's: they show without
+  // a cloud here, and even where the browser cannot hold one.
+  if (!opfsAvailable()) {
+    return (
+      <>
+        <p className="form-error">{t('pointcloud_no_opfs')}</p>
+        <AxisSurveyList />
+      </>
+    )
+  }
 
   return (
     <>
@@ -68,6 +78,7 @@ export default function PointCloudPanel() {
       {message && <p className={message.kind === 'error' ? 'form-error' : 'selecting-hint'}>{message.text}</p>}
       <CloudList clouds={clouds} busy={running} onDelete={remove} />
       {clouds?.length > 0 && !running && <RailTraceSection clouds={clouds} />}
+      <AxisSurveyList />
       {storage && (
         <p className="pointcloud-meta pointcloud-storage">
           {fill('pointcloud_storage', { used: sizeText(storage.usage), free: sizeText(storage.free) })}

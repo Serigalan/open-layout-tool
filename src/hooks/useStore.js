@@ -19,9 +19,11 @@ const part = (key) => () => currentProject()?.[key] ?? EMPTY
 const tracksOf = part('tracks')
 const switchesOf = part('switches')
 const platformsOf = part('platforms')
+const axisSurveysOf = part('axisSurveys')
 export const useTracks = () => useSyncExternalStore(subscribe, tracksOf, tracksOf)
 export const useSwitches = () => useSyncExternalStore(subscribe, switchesOf, switchesOf)
 export const usePlatforms = () => useSyncExternalStore(subscribe, platformsOf, platformsOf)
+export const useAxisSurveys = () => useSyncExternalStore(subscribe, axisSurveysOf, axisSurveysOf)
 /** The step undo would take back and the one redo would bring again: { before, after }, or null. */
 export const useUndoStep = () => useSyncExternalStore(subscribe, undoStep, undoStep)
 export const useRedoStep = () => useSyncExternalStore(subscribe, redoStep, redoStep)

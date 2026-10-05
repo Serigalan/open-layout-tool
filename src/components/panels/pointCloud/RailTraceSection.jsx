@@ -3,8 +3,10 @@ import { loadTracks } from '../../../storage'
 import { trackLabel } from '../../../utils/trackModel'
 import { RAILS, DEFAULT_RAIL, superstructureAt } from '../../../utils/crossSectionUtils'
 import { wgs84ToUTM, utmToWgs84 } from '../../../utils/coordinateUtils'
-import { traceTrack, trackGuide, lineGuide, axisPointsCsv } from '../../../utils/pointCloud/railTrace'
-import { downloadText } from '../../../utils/fileUtils'
+import { traceTrack, trackGuide, lineGuide, TRACE_STEP } from '../../../utils/pointCloud/railTrace'
+import { surveyFromTrace } from '../../../utils/axisSurvey'
+import { generateId } from '../../../utils/identifierUtils'
+import { saveAxisSurvey } from '../../../storage'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
 import { useMap } from '../../../map/MapContext'
@@ -13,6 +15,7 @@ import useMapPick from '../../../map/useMapPick'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import { PALETTE } from '../../../styles/palette'
 import FormSection from '../../form/FormSection'
+import { SO_REFERENCES, exportAxisPoints } from './axisExport'
 
 // The guide drawn by hand, and the axis points found along it.
 const GUIDE_SOURCE = 'railtrace-guide-source'
@@ -39,16 +42,12 @@ const TRACE_LAYERS = [
   },
 ]
 
-/** What the top of rail of an exported point is (Entscheidung 130). */
-const SO_REFERENCES = ['lower', 'axis', 'left', 'right']
-
-const fileSafe = (text) => String(text).replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '') || 'Gleis'
-
 /**
  * Finding a track's axis in the point clouds (AP 12.2): walk a guide — a
  * track of the project or a line drawn on the map (Entscheidung 129) — find
  * the rail heads every 50 cm, show the axis points on the map and hand them
- * out as a point file (Entscheidung 138).
+ * out as a point file (Entscheidung 138) or keep them with the project as a
+ * measured axis (AP 12.3).
  */
 export default function RailTraceSection({ clouds }) {
   const { t, fill } = useI18n()
@@ -62,6 +61,8 @@ export default function RailTraceSection({ clouds }) {
   const [soReference, setSoReference] = useState('lower')
   const [run, setRun] = useState(null)           // { share } while tracing
   const [result, setResult] = useState(null)     // { points, gaps, epsg, name } | { error }
+  const [surveyName, setSurveyName] = useState('')
+  const [saved, setSaved] = useState(null)       // the name of the measured axis just kept
   const abortRef = useRef(null)
   useEffect(() => () => abortRef.current?.abort(), [])
 
@@ -120,22 +121,35 @@ export default function RailTraceSection({ clouds }) {
     const ctl = new AbortController()
     abortRef.current = ctl
     setResult(null)
+    setSaved(null)
     setRun({ share: 0 })
     try {
       const r = await traceTrack({
         projectId: project.id, clouds, guide, rail,
         signal: ctl.signal, onProgress: (share) => setRun({ share }),
       })
-      setResult({ ...r, name: mode === 'track' ? trackLabel(track) : t('railtrace_line_name') })
+      const name = mode === 'track' ? trackLabel(track) : t('railtrace_line_name')
+      setResult({ ...r, name })
+      setSurveyName(name)
     } catch (err) {
       if (err?.name !== 'AbortError') setResult({ error: err.message })
     }
     setRun(null)
   }
 
-  const exportCsv = () => {
-    downloadText(axisPointsCsv(result.points, { soReference }),
-      `Gleisachse_${fileSafe(result.name)}_EPSG${result.epsg}.csv`, 'text/csv')
+  const exportCsv = () => exportAxisPoints(result.points, { name: result.name, epsg: result.epsg, soReference })
+
+  // Kept with the project, the points show in the list of measured axes;
+  // the trace's own preview gives way to it.
+  const keep = () => {
+    const name = surveyName.trim() || result.name
+    saveAxisSurvey(surveyFromTrace({
+      id: generateId(), name, rail,
+      guide: mode === 'track' ? { kind: 'track', trackId } : { kind: 'line' },
+      cloudNames: clouds.map(c => c.name), createdAt: new Date().toISOString(), step: TRACE_STEP,
+    }, result))
+    setResult(null)
+    setSaved(name)
   }
 
   const good = result?.points?.filter(p => p.quality === 'good').length ?? 0
@@ -197,6 +211,7 @@ export default function RailTraceSection({ clouds }) {
         <button className="panel-btn panel-btn-full" disabled={!guide} onClick={start}>{t('railtrace_start')}</button>
       )}
       {result?.error && <p className="form-error">{result.error}</p>}
+      {saved && <p className="selecting-hint">{fill('axis_survey_saved', { name: saved })}</p>}
       {result?.points && (
         <>
           <p className="selecting-hint">
@@ -219,6 +234,12 @@ export default function RailTraceSection({ clouds }) {
               </div>
               <button className="panel-btn panel-btn-full" onClick={exportCsv}>{t('railtrace_export')}</button>
               <span className="range-use">{fill('railtrace_export_hint', { epsg: String(result.epsg) })}</span>
+              <div className="form-field">
+                <label>{t('axis_survey_name')}</label>
+                <input type="text" value={surveyName} onChange={e => setSurveyName(e.target.value)} />
+              </div>
+              <button className="panel-btn panel-btn-full" onClick={keep}>{t('axis_survey_save')}</button>
+              <span className="range-use">{t('axis_survey_save_hint')}</span>
             </>
           )}
         </>
