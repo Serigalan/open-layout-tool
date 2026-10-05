@@ -88,7 +88,7 @@ export default function useMapInstance({ onStyleLoad }) {
     m.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showZoom: true, showCompass: true }), 'top-right')
     // Below the compass, a place for the 3D checkbox; React fills it.
     const tiltBox = document.createElement('div')
-    tiltBox.className = 'maplibregl-ctrl maplibregl-ctrl-group map-tilt-ctrl'
+    tiltBox.className = 'maplibregl-ctrl maplibregl-ctrl-group'
     m.addControl({ onAdd: () => tiltBox, onRemove: () => tiltBox.remove() }, 'top-right')
     setTiltNode(tiltBox)
     // The elevation layers colour the range that is on screen, so the scale is

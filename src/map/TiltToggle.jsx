@@ -2,17 +2,19 @@ import { createPortal } from 'react-dom'
 import { useI18n } from '../locales/i18nContext'
 
 /**
- * The checkbox below the map's compass that lets the map be tilted into 3D
- * (`tilt` is useMapInstance's). Off, the right mouse button only turns it.
+ * The toggle button below the map's compass that lets the map be tilted into
+ * 3D (`tilt` is useMapInstance's), a button like the zoom and compass ones.
+ * Off, the right mouse button only turns the map.
  */
 export default function TiltToggle({ tilt }) {
   const { t } = useI18n()
   if (!tilt.node) return null
   return createPortal(
-    <label className="map-tilt-toggle" title={t('map_tilt_hint')}>
-      <input type="checkbox" checked={tilt.on} onChange={e => tilt.set(e.target.checked)} />
+    <button type="button" className={`map-tilt-toggle${tilt.on ? ' active' : ''}`}
+      title={t('map_tilt_hint')} aria-label={t('map_tilt_hint')} aria-pressed={tilt.on}
+      onClick={() => tilt.set(!tilt.on)}>
       3D
-    </label>,
+    </button>,
     tilt.node,
   )
 }

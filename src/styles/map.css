@@ -94,10 +94,11 @@
 .first-steps h2 { margin: 0 0 6px; }
 .first-steps-actions { display: flex; flex-direction: column; gap: var(--space-4); margin-top: 12px; }
 
-/* The 3D checkbox below the compass (TiltToggle). */
-.map-tilt-ctrl { padding: 3px 4px; }
-.map-tilt-toggle {
-  display: flex; flex-direction: column; align-items: center; gap: 1px;
-  font-size: 10px; font-weight: 600; line-height: 1; color: #333; cursor: pointer; user-select: none;
+/* The 3D toggle below the compass (TiltToggle): a button of MapLibre's
+   control group, its label in the grey of the group's icons, and in the
+   app's colour on a light tint while tilting is allowed. */
+.maplibregl-ctrl-group button.map-tilt-toggle {
+  font: 700 11px/1 var(--font-ui); letter-spacing: 0.02em; color: #333; user-select: none;
 }
-.map-tilt-toggle input { margin: 0; cursor: pointer; }
+.maplibregl-ctrl-group button.map-tilt-toggle.active { color: var(--color-primary); background: rgba(48, 51, 131, 0.12); }
+.maplibregl-ctrl-group button.map-tilt-toggle.active:hover { background: rgba(48, 51, 131, 0.2); }
