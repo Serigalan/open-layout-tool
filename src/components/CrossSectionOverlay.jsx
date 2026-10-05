@@ -15,6 +15,7 @@ import { listClouds } from '../utils/pointCloud/cloudStore'
 import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
 import { paintCloudCanvas, CLOUD_COLORINGS, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
 import { checkClearance, BOTTOM_BAND } from '../utils/pointCloud/clearanceCheck'
+import { detectInClouds, soHeight, cantMm } from '../utils/pointCloud/railTrace'
 import {
   gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
   DEFAULT_GAUGE_PROFILE,
@@ -48,6 +49,7 @@ const MAX_THICKNESS = 100
 /** How far beyond the reach the point cloud is still read [m] — the drawing runs past the outer tracks. */
 const CLOUD_MARGIN = 5
 const CLOUD_COLOR = PALETTE.cloud
+const MEASURED_COLOR = PALETTE.measuredAxis
 const CLEAR_COLOR = PALETTE.clear
 /** How far the drawing can be zoomed out and in, relative to the fitted view. */
 const MIN_ZOOM = 0.5
@@ -115,6 +117,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
   const [thickness, setThickness] = useState(DEFAULT_THICKNESS)
   const [coloring, setColoring] = useState(CLOUD_COLORINGS[0])
   const [slice, setSlice] = useState(null)          // { key, parts: [{ cloud, points }], ms }
+  const [railsFound, setRailsFound] = useState(null) // { key, det } — the heads in the cloud (AP 12.1)
   // Zoom relative to the fitted drawing, and the point [mm] held in the middle
   // of the box — null while the section is centred by itself.
   const [zoom, setZoom] = useState(1)
@@ -243,6 +246,24 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
     // track and station are part of the key; the track object is new on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloudKey])
+
+  // The rail heads of this track in the clouds (AP 12.1): a slice of its own,
+  // as thick as a trace step, searched about the track's axis.
+  const mainRail = track ? superstructureAt(track, station).rail : null
+  const railsKey = cloudKey ? `${cloudKey}|${mainRail}` : null
+  useEffect(() => {
+    if (!railsKey || !track) return
+    let cancelled = false
+    const origin = sectionOrigin(track, station)
+    if (!origin) return
+    detectInClouds(project.id, clouds, { origin: origin.utm, bearing: origin.bearing, crs: track.epsg, rail: mainRail })
+      .then(det => { if (!cancelled) setRailsFound({ key: railsKey, det }) })
+      .catch(() => { if (!cancelled) setRailsFound({ key: railsKey, det: { reason: 'failed' } }) })
+    return () => { cancelled = true }
+    // track and station are part of the key; the track object is new on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [railsKey])
+  const rails = cloudOn && railsFound?.key === railsKey ? railsFound.det : null
 
   // The last slice stays on screen while the next is read, so the drawing does
   // not flicker as the slider moves.
@@ -403,8 +424,26 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
     } else if (cloudCount) {
       check = { text: t('cross_section_clearance_far'), color: CLEAR_COLOR }
     }
+    let measured = null
+    if (rails?.reason && rails.reason !== 'failed') measured = { text: t('cross_section_rails_none'), color: PALETTE.muted }
+    else if (rails && !rails.reason) {
+      const so = soHeight(rails)
+      const dy = Math.round(rails.axis * 1000)
+      measured = {
+        text: fill('cross_section_rails_axis', {
+          mm: String(Math.abs(dy)),
+          side: t(dy >= 0 ? 'cross_section_rails_right' : 'cross_section_rails_left'),
+          u: String(Math.abs(cantMm(rails))),
+          gauge: String(Math.round(rails.gauge * 1000)),
+        }) + (rails.quality === 'good' ? '' : t('cross_section_rails_doubtful')),
+        sub: fill('cross_section_rails_so', { so: fmt(so) })
+          + (main.z != null ? fill('cross_section_rails_so_diff', { mm: String(Math.round((so - main.z) * 1000)) }) : ''),
+        color: MEASURED_COLOR,
+      }
+    }
     return {
       check,
+      measured,
       text: fill('cross_section_cloud_count', { n: cloudCount.toLocaleString(), half: String(thickness / 2) }),
       datum: others.length
         ? fill('cross_section_cloud_datum', { cloud: others.join(', '), track: heightName(trackDatum) })
@@ -508,6 +547,14 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
           <text x={MARGIN / 2} y={16} fontSize="11" fill={CLOUD_COLOR}
             stroke={PALETTE.white} strokeWidth="3" paintOrder="stroke" strokeLinejoin="round">
             <tspan x={MARGIN / 2}>{cloudState.text}</tspan>
+            {cloudState.measured && (
+              <>
+                <tspan x={MARGIN / 2} dy="13" fill={cloudState.measured.color}>{cloudState.measured.text}</tspan>
+                {cloudState.measured.sub && (
+                  <tspan x={MARGIN / 2} dy="13" fill={cloudState.measured.color}>{cloudState.measured.sub}</tspan>
+                )}
+              </>
+            )}
             {cloudState.check && (
               <tspan x={MARGIN / 2} dy="13" fill={cloudState.check.color} fontWeight="600">{cloudState.check.text}</tspan>
             )}
@@ -518,6 +565,18 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
             )}
             {cloudState.datum && <tspan x={MARGIN / 2} dy="13" fill={PALETTE.datumNote}>{cloudState.datum}</tspan>}
           </text>
+        )}
+        {/* the rail heads found in the cloud and the axis point between them */}
+        {rails && !rails.reason && zRef != null && (
+          <g className="cross-section-rails" stroke={MEASURED_COLOR} fill="none" strokeWidth="1.5">
+            {[rails.left, rails.right].map((h, i) => (
+              <path key={i} d={`M${X(h.y * 1000) - 5},${Y((h.z - zRef) * 1000) - 9} l5,8 l5,-8 Z`} fill={MEASURED_COLOR} />
+            ))}
+            <line x1={X(rails.left.y * 1000)} y1={Y((rails.left.z - zRef) * 1000)}
+              x2={X(rails.right.y * 1000)} y2={Y((rails.right.z - zRef) * 1000)} strokeDasharray="3 3" />
+            <circle cx={X(rails.axis * 1000)} cy={Y(((rails.left.z + rails.right.z) / 2 - zRef) * 1000)} r="4"
+              fill={PALETTE.white} />
+          </g>
         )}
         {/* the point reaching deepest into the outline, or the nearest outside it */}
         {clearance && zRef != null && [clearance.deepest ?? clearance.nearest].filter(Boolean).map(p => (

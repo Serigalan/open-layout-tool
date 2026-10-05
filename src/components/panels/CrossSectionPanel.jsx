@@ -26,7 +26,7 @@ import NumberInput from '../form/NumberInput'
  * transition, constant elsewhere).
  *
  * The superstructure belongs to the track as stretches along it (Entscheidung
- * 18): every track is 54 E 4 on B70 from begin to end, and only an adjustment
+ * 18): every track is 54 E4 on B70 from begin to end, and only an adjustment
  * is written down.
  */
 export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }) {

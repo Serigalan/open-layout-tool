@@ -27,12 +27,30 @@ export const TRACK_GAUGE             = 1435
 
 /**
  * Rail profiles by their current designation, the former name alongside because
- * that is what drawings and the MDB stock data still say. All in mm.
+ * that is what drawings and the MDB stock data still say (Entscheidung 131).
+ * All in mm, after DIN EN 13674-1 (figures from the Dlubal catalogue, which
+ * lists the profiles under their former names).
+ *
+ * `head` is the head's width at the top, `headBottom` where its flanks end —
+ * they spread 1:20. Heights are measured from the head's top: `height` the
+ * whole rail, `headHeight` down to the web, `flankHeight` the head's vertical
+ * flank. A worn rail is lower by up to about 10 mm; the `…Worn` figures are the
+ * least a rail in service may have, so a head height of a 54 E4 lies between
+ * 44.2 and 55 mm.
  */
 export const RAILS = {
-  '49E5': { label: '49 E 5 (S 49)',  head: 67, height: 149, web: 14,   foot: 125 },
-  '54E4': { label: '54 E 4 (S 54)',  head: 67, height: 154, web: 16,   foot: 125 },
-  '60E2': { label: '60 E 2 (UIC 60)', head: 72, height: 172, web: 16.5, foot: 150 },
+  '49E5': {
+    label: '49 E5 (S 49)', head: 67, headBottom: 70, web: 14, foot: 125,
+    height: 149, heightWorn: 139.1, headHeight: 51.5, headHeightWorn: 41.6, flankHeight: 39.8, flankHeightWorn: 29.8,
+  },
+  '54E4': {
+    label: '54 E4 (S 54)', head: 67, headBottom: 70, web: 16, foot: 125,
+    height: 154, heightWorn: 143.2, headHeight: 55, headHeightWorn: 44.2, flankHeight: 43.3, flankHeightWorn: 32.5,
+  },
+  '60E2': {
+    label: '60 E2 (UIC 60)', head: 72, headBottom: 74.3, web: 16.5, foot: 150,
+    height: 172, heightWorn: 162.6, headHeight: 51, headHeightWorn: 41.6, flankHeight: 37.5, flankHeightWorn: 28.1,
+  },
 }
 
 /** Sleepers by type, with what each is laid for (`use` is a translation key). */
