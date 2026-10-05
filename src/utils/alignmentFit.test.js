@@ -26,7 +26,10 @@ describe('the point file', () => {
     const parsed = parseAxisPointFile(axisPointsCsv(tracePoints), 'Gleisachse_5550L_EPSG5684.csv')
     expect(parsed.epsg).toBe(5684)
     expect(parsed.points).toHaveLength(12)
-    expect(parsed.points[0]).toEqual({ station: 35.5, easting: 4467335.487, northing: 5333806.389, z: 508.149 })
+    // The export writes a cant under its noise as 0; a stated one is read in mm.
+    expect(parsed.points[0]).toEqual({ station: 35.5, easting: 4467335.487, northing: 5333806.389, z: 508.149, cant: 0 })
+    const canted = parseAxisPointFile(axisPointsCsv(tracePoints.map(p => ({ ...p, cant: -0.045 }))), 'x_EPSG5684.csv')
+    expect(canted.points[0].cant).toBe(-45)
     expect(parsed.points[11].station).toBeCloseTo(41, 6)
   })
 
@@ -67,7 +70,8 @@ describe('the point file', () => {
     const axis = surveyAxis(survey)
     expect(axis).toHaveLength(12)
     expect(axis[2].easting).toBeCloseTo(tracePoints[2].easting, 3)
-    expect(Object.keys(axis[0]).sort()).toEqual(['easting', 'northing', 'station', 'z'])
+    expect(Object.keys(axis[0]).sort()).toEqual(['cant', 'easting', 'northing', 'station', 'z'])
+    expect(axis[0].cant).toBe(1)
     // The top of the lower rail, as the point file has it.
     expect(axis[0].z).toBeCloseTo(508.149, 3)
   })
@@ -75,7 +79,8 @@ describe('the point file', () => {
 
 describe('the request', () => {
   it('sends the points in travel order, the first station and the settings in metres', () => {
-    const body = alignRequest(tracePoints, { settings: ALIGN_DEFAULTS })
+    const points = tracePoints.map(({ station, easting, northing }) => ({ station, easting, northing }))
+    const body = alignRequest(points, { settings: ALIGN_DEFAULTS })
     expect(body.points[0]).toEqual([4467335.487, 5333806.389])
     expect(body.station0).toBe(35.5)
     expect(body.straights).toBeNull()
@@ -87,6 +92,11 @@ describe('the request', () => {
   it('sends a height with the points that have one', () => {
     const body = alignRequest([{ station: 0, easting: 1, northing: 2, z: 3 }, { station: 1, easting: 4, northing: 5 }])
     expect(body.points).toEqual([[1, 2, 3], [4, 5]])
+  })
+
+  it('sends a cant after the height, a missing height as null', () => {
+    const body = alignRequest([{ station: 0, easting: 1, northing: 2, z: 3, cant: -40 }, { station: 1, easting: 4, northing: 5, cant: 0 }])
+    expect(body.points).toEqual([[1, 2, 3, -40], [4, 5, null, 0]])
   })
 
   it('sends straights set by hand as station ranges', () => {
@@ -132,6 +142,24 @@ describe('the answer', () => {
     expect(grades[0]).toBeCloseTo(3, 1)
     expect(grades[1]).toBeCloseTo(-2, 1)
     expect(answer.gradient.rms).toBeLessThan(0.003)
+  })
+
+  it('puts the cant on the straights and the arc, the transitions ramping between them', () => {
+    const track = trackFromFit(answer, { name: 'Achse Ist', epsg, newId: () => 'new' })
+    expect(track.elements.map(el => el.cant)).toEqual([0, undefined, -60, undefined, 0])
+    expect(elementReport(answer, 0.01).map(r => r.cant)).toEqual([0, null, -60, null, 0])
+  })
+
+  it('makes a track without cant where the points had none', () => {
+    const track = trackFromFit({ ...answer, elementCants: null }, { name: 'x', epsg })
+    expect(track.elements.every(el => el.cant === undefined)).toBe(true)
+  })
+
+  it('ends a transition at an open end with the cant the points stop with', () => {
+    const elementCants = [...answer.elementCants.slice(0, 3), { cant: null, measured: null, n: 0, cantEnd: -35 }]
+    const cut = { ...answer, elements: answer.elements.slice(0, 4), elementCants }
+    const track = trackFromFit(cut, { name: 'x', epsg })
+    expect(track.elements[3].cantEnd).toBe(-35)
   })
 
   it('makes a track without a gradient where the points had no heights', () => {

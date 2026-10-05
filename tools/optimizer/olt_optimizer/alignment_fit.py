@@ -2,7 +2,7 @@
 
 The points come in travel order, as the point file of stage A has them
 (Entscheidung 138): easting and northing in one plane, and the height of the
-top of rail where it is known. What goes back is a
+top of rail and the cant where they are known. What goes back is a
 chain of straights, arcs and transitions in the app's element form, and what
 the user needs to judge and correct it:
 
@@ -31,6 +31,12 @@ the user needs to judge and correct it:
    largest and the RMS.
 6. **The gradient**, where the points carry heights (the top of rail as a
    third value): stationed along the chain, fitted by gradient_fit.py.
+7. **The cant**, where the points carry it (a fourth value, mm, positive with
+   the left rail higher — the app's sign): per straight and arc the median of
+   the points on it, away from its ends where the ramp runs, rounded to the
+   step cant is designed in. A transition carries none of its own — it ramps
+   between its neighbours' — except at an open end, where it starts or stops
+   with the cant the points have there.
 
 Conventions are the geometry kernel's: bearings in degrees clockwise from grid
 north, signed radius > 0 for a right-hand curve. Lengths in metres.
@@ -94,6 +100,10 @@ SAMPLE_STEP = 1.0          # metres between the points a fitted chain is drawn w
 SAMPLE_SAGITTA = 0.0002    # … or closer, where a tight arc needs it
 STRAIGHT_STEP = 5.0        # … and on a straight
 NEAR_VERTICES = 3          # vertices whose segments a point is measured against
+CANT_STEP = 5.0            # mm — the step cant is designed in (LP.KB.03)
+CANT_TRIM = 5.0            # m — points this close to an element's ends, in its ramp, say nothing of its cant
+CANT_END = 5.0             # m — the cant an open end starts or stops with is read over this
+CANT_MIN_POINTS = 3
 
 
 class AlignError(Exception):
@@ -795,8 +805,8 @@ def _assemble(pts, s, kappa, ranges, o):
 
 
 def align(points, station0=0.0, straights=None, settings=None):
-    """The fit (module docstring). `points` [[e, n], ...] or [[e, n, z], ...]
-    (z null where a point has none) in travel order;
+    """The fit (module docstring). `points` [[e, n], ...], [[e, n, z], ...] or
+    [[e, n, z, cant], ...] (null where a point has none) in travel order;
     `straights` [[from, to], ...] stations set by hand, or None to look for
     them. Returns the answer of `POST /align`."""
     o = dict(DEFAULTS)
@@ -809,10 +819,13 @@ def align(points, station0=0.0, straights=None, settings=None):
     raw = np.asarray([p[:2] for p in points], dtype=float)
     if raw.ndim != 2 or raw.shape[1] < 2:
         raise AlignError("align_error_few_points")
-    heights = np.asarray([p[2] if len(p) > 2 and p[2] is not None else np.nan for p in points], dtype=float)
+    def column(i):
+        return np.asarray([p[i] if len(p) > i and p[i] is not None else np.nan for p in points], dtype=float)
+
+    heights, cants = column(2), column(3)
     # Repeated points carry no direction.
     keep = np.concatenate([[True], np.hypot(*np.diff(raw, axis=0).T) > 1e-4])
-    raw, heights = raw[keep], heights[keep]
+    raw, heights, cants = raw[keep], heights[keep], cants[keep]
     origin = raw[0].copy()
     pts = raw - origin
     s, seg = stations_of(pts, station0)
@@ -829,6 +842,7 @@ def align(points, station0=0.0, straights=None, settings=None):
         "gaps": [{"from": round(float(s[g]), 3), "to": round(float(s[g + 1]), 3)} for g in gaps],
         "settings": o,
         "curves": [], "elements": None, "offsets": None, "elementStats": None, "gradient": None,
+        "elementCants": None,
     }
     if not ranges:
         answer["error"] = "align_error_no_straight"
@@ -859,6 +873,7 @@ def align(points, station0=0.0, straights=None, settings=None):
     along = report(answer, chain.pieces, pts, s, o, origin)
     length = float(sum(pc["length"] for pc in chain.pieces))
     answer["gradient"] = fit_gradient(along, heights, length, o["heightTolerance"])
+    answer["elementCants"] = element_cants(chain.pieces, along, cants)
 
     # Where every element starts, on the stations of the points.
     starts = s[0] + np.concatenate([[0.0], np.cumsum([pc["length"] for pc in chain.pieces])])
@@ -893,6 +908,50 @@ def _reverse_pieces(pieces):
             rev["r1"] = -pc["r2"] if pc["r2"] else None
             rev["r2"] = -pc["r1"] if pc["r1"] else None
         out.append(rev)
+    return out
+
+
+def _cant_step(v):
+    return float(round(v / CANT_STEP) * CANT_STEP) + 0.0   # never -0.0
+
+
+def element_cants(pieces, along, cants):
+    """Per element the cant the points on it carry (module docstring, 7):
+    [{cant, measured, n}] in mm — `cant` rounded, `measured` the median, null
+    for a transition and where too few points say — with `cantStart` /
+    `cantEnd` on a transition at an open end. None where no point carries a
+    cant."""
+    have = np.isfinite(cants)
+    if have.sum() < CANT_MIN_POINTS:
+        return None
+    at, u = along[have], cants[have]
+    starts = np.concatenate([[0.0], np.cumsum([pc["length"] for pc in pieces])])
+
+    def median(lo, hi):
+        m = (at >= lo) & (at <= hi)
+        return (float(np.median(u[m])), int(m.sum())) if m.sum() >= CANT_MIN_POINTS else (None, int(m.sum()))
+
+    out = []
+    for k, pc in enumerate(pieces):
+        a, b = starts[k], starts[k + 1]
+        entry = {"cant": None, "measured": None, "n": 0}
+        if pc["kind"] == "transition":
+            if k == 0:
+                v, _ = median(a, a + CANT_END)
+                if v is not None:
+                    entry["cantStart"] = _cant_step(v)
+            if k == len(pieces) - 1:
+                v, _ = median(b - CANT_END, b)
+                if v is not None:
+                    entry["cantEnd"] = _cant_step(v)
+        else:
+            trim = min(CANT_TRIM, (b - a) / 4)
+            v, n = median(a + trim, b - trim)
+            entry["n"] = n
+            if v is not None:
+                entry["cant"] = _cant_step(v)
+                entry["measured"] = round(v, 1)
+        out.append(entry)
     return out
 
 

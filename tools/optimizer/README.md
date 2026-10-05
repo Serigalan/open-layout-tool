@@ -124,6 +124,14 @@ die Höhen dazwischen über der Toleranz (`heightTolerance`, 2 cm) liegen. Am
 Messdatensatz 5550L trifft das die Soll-Gradiente aus der GRA auf rund einen
 Meter in der Lage der Neigungswechsel.
 
+Trägt jeder Punkt als vierten Wert die Überhöhung (mm, positiv bei höherer
+linker Schiene — das Vorzeichen der App), bekommt jede Gerade und jeder Bogen
+den Median der Punkte darauf, ohne je 5 m an den Enden (dort läuft die Rampe),
+auf 5 mm gerundet (`elementCants`). Übergangsbögen tragen keine eigene, sie
+rampen zwischen ihren Nachbarn; nur ein Übergangsbogen an einem offenen Ende
+beginnt oder endet mit der Überhöhung, die die Punkte dort haben
+(`cantStart`/`cantEnd`).
+
 Läuft wie ein Optimiererlauf in einem eigenen Prozess unter der Frist und den
 Plätzen; rund 2 s je km mit fünf Bögen. Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_align.py`; die Antwort,

@@ -21,7 +21,8 @@ from olt_optimizer.gradient_fit import gradient_at                              
 # 80 m straight, 30 m clothoid into R 400 left for 60 m, 30 m out, 80 m straight;
 # a point every metre, a millimetre of scatter, in DB_REF GK4 (EPSG 5684). The
 # top of rail rises at 3 ‰ to station 140 and falls at 2 ‰ from there, rounded
-# with R 8000, with a millimetre and a half of scatter.
+# with R 8000, with a millimetre and a half of scatter. The curve carries 60 mm
+# of cant (the right rail raised, so negative), ramped in the transitions.
 pieces = chain_from((4467300.0, 5333800.0), 110.0, [
     ("straight", 80, None), ("transition", 30, (None, -400.0)), ("arc", 60, -400.0),
     ("transition", 30, (-400.0, None)), ("straight", 80, None)])
@@ -32,9 +33,12 @@ pts = np.stack([np.interp(st, along, poly[:, 0]), np.interp(st, along, poly[:, 1
 pts += np.random.default_rng(7).normal(0.0, 0.001, pts.shape)
 z = gradient_at([{"station": 0, "z": 300.0}, {"station": 140, "z": 300.42, "rv": 8000},
                  {"station": 280, "z": 300.14}], st) + np.random.default_rng(8).normal(0.0, 0.0015, len(st))
-request = {"points": [[round(e, 4), round(n, 4), round(h, 4)] for (e, n), h in zip(pts, z)], "station0": 35.5}
+u = np.interp(st, [0, 80, 110, 170, 200, 280], [0, 0, -60, -60, 0, 0]) + np.random.default_rng(9).normal(0.0, 1.5, len(st))
+request = {"points": [[round(e, 4), round(n, 4), round(h, 4), round(c, 1)] for (e, n), h, c in zip(pts, z, u)],
+           "station0": 35.5}
 answer = align_payload(request)
 out = pathlib.Path(__file__).resolve().parents[3] / "src" / "test" / "fixtures" / "align_answer.json"
 out.write_text(json.dumps({"epsg": 5684, "request": request, "answer": answer}) + "\n", encoding="utf-8")
 print(f"{out}: {len(answer['elements'])} elements, curves {[(c['radius'], c['l1'], c['l2']) for c in answer['curves']]}, "
-      f"gradient {[(h['station'], h['z'], h.get('rv')) for h in answer['gradient']['heights']]}")
+      f"gradient {[(h['station'], h['z'], h.get('rv')) for h in answer['gradient']['heights']]}, "
+      f"cant {[c['cant'] for c in answer['elementCants']]}")

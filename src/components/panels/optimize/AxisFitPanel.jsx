@@ -64,6 +64,7 @@ const revisionOf = (survey) => {
 }
 
 const fmt = (v, digits = 1) => (v == null ? '–' : Number(v).toFixed(digits))
+const cantText = (u) => (u == null ? '' : ` · u ${fmt(u, 0)} mm`)
 const mm = (m) => (m == null ? '–' : (m * 1000).toFixed(1))
 
 /** What one element of the fit is called in the report. */
@@ -79,7 +80,7 @@ function elementLabel(t, r) {
  * transitions out — fitted by the service, corrected by hand in the
  * curvature diagram (Entscheidung 133), taken over as a new track
  * (Entscheidung 134) — with the gradient the service fits to the points'
- * heights, where they have them. The first run is asked for; after it, every
+ * heights and the cant it reads off theirs, where they have them. The first run is asked for; after it, every
  * change of the straights or the settings asks the service again once it
  * rests.
  */
@@ -230,6 +231,9 @@ export default function AxisFitPanel({ backButton }) {
   const over = report.filter(r => r.over).length
   const grades = gradientReport(data)
   const sourceHeights = source?.points.some(p => Number.isFinite(p.z))
+  const sourceCant = source?.points.some(p => Number.isFinite(p.cant))
+  /** The cant of the arc of a curve of the answer. */
+  const curveCant = (c) => report.find(r => r.elementType === 1 && r.index >= c.elements?.[0] && r.index <= c.elements?.[1])?.cant
   const canCommit = !!data?.elements && !running && answer?.key === requestKey
 
   return (
@@ -340,7 +344,7 @@ export default function AxisFitPanel({ backButton }) {
           {data.curves.map((c, i) => (
             <div key={i} className="list-row">
               <strong>{t(`align_curve_${c.kind}`)} {i + 1}</strong>{' '}
-              R {fmt(c.radius, 1)} m · L₁ {fmt(c.l1)} m · L₂ {fmt(c.l2)} m
+              R {fmt(c.radius, 1)} m · L₁ {fmt(c.l1)} m · L₂ {fmt(c.l2)} m{cantText(curveCant(c))}
               <br /><span className="text-muted">{fmt(c.from)}–{fmt(c.to)} m</span>
               {c.notes.map(n => <span key={n} className="msg-warn msg-small"><br />{t(`align_note_${n}`)}</span>)}
             </div>
@@ -349,7 +353,7 @@ export default function AxisFitPanel({ backButton }) {
             <summary>{fill('align_elements', { n: report.length })}</summary>
             {report.map(r => (
               <div key={r.index} className={`list-row${r.over ? ' msg-error' : ''}`}>
-                {r.index + 1}. {elementLabel(t, r)} · {fmt(r.length)} m
+                {r.index + 1}. {elementLabel(t, r)} · {fmt(r.length)} m{cantText(r.cant)}
                 <br /><span className={r.over ? '' : 'text-muted'}>
                   {fmt(r.from)}–{fmt(r.to)} m · {r.n ? fill('align_el_offset', { max: mm(r.max), rms: mm(r.rms) }) : t('align_el_no_points')}
                 </span>
@@ -375,6 +379,9 @@ export default function AxisFitPanel({ backButton }) {
             </details>
           ) : data.elements && (
             <p className="msg-hint msg-small">{t(sourceHeights ? 'align_gradient_failed' : 'align_gradient_none')}</p>
+          )}
+          {data.elements && !data.elementCants && (
+            <p className="msg-hint msg-small">{t(sourceCant ? 'align_cant_failed' : 'align_cant_none')}</p>
           )}
           <CommitBar onCommit={handleCommit} onCancel={reset} disabled={!canCommit}
             commitLabel={t('align_commit')} reason={data.elements ? null : t('align_commit_none')} />

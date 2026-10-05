@@ -173,7 +173,32 @@ z = np.where(np.arange(len(s)) % 3, gradient_at(DESIGN, s), np.nan)
 g = fit_gradient(s, z, 460.0, 0.02)
 ok("Punkte ohne Höhe: übergangen, ohne Abweichung", g is not None and g["offsets"][0] is None and g["offsets"][1] is not None)
 
-# ── 6) The request ───────────────────────────────────────────────────────────
+# ── 6) The cant ──────────────────────────────────────────────────────────────
+
+# SIMPLE with 80 mm in its curve to the left (the right rail raised: negative),
+# ramped in the transitions, measured to a millimetre or two.
+st = np.arange(len(axis_points(SIMPLE, bearing=200.0))) * 0.5
+cant = np.interp(st, [0, 120, 170, 270, 320, 440], [0, 0, -80, -80, 0, 0])
+cant += np.random.default_rng(9).normal(0.0, 1.5, len(st))
+pts = axis_points(SIMPLE, bearing=200.0)
+four = np.concatenate([pts, np.full((len(pts), 1), np.nan), cant[:, None]], axis=1)
+ans = align([[e, n, None, u] for e, n, _, u in four.tolist()])
+cants = ans["elementCants"]
+kinds = [el["elementType"] for el in ans["elements"]]
+ok("Überhöhung: je Element eine", cants is not None and len(cants) == len(ans["elements"]) and kinds == [0, 2, 1, 2, 0])
+ok("Überhöhung: Bogen −80 mm, Geraden 0, Übergangsbögen ohne eigene",
+   [c["cant"] for c in cants] == [0.0, None, -80.0, None, 0.0])
+ok("Überhöhung: gemessen auf 1 mm", near(cants[2]["measured"], -80, 1.0) and cants[2]["n"] > 100)
+ok("Überhöhung ohne Messwerte: keine", align(pts.tolist())["elementCants"] is None)
+# The points stop inside the exit transition, 20 m before its end: it ends
+# with the cant they have there, −32 mm.
+cut = st <= 300
+ans = align([[e, n, None, u] for e, n, _, u in four[cut].tolist()])
+end = ans["elementCants"][-1]
+ok("offenes Ende im Übergangsbogen: endet mit der gemessenen Überhöhung",
+   ans["elements"][-1]["elementType"] == 2 and near(end.get("cantEnd", 0), -32, 5))
+
+# ── 7) The request ───────────────────────────────────────────────────────────
 
 ok("zu wenig Punkte: Fehlerschlüssel", align_payload({"points": [[0, 0], [1, 1]]})["error"] == "align_error_few_points")
 for bad in ({"points": "x"}, {"points": [[0, 0]] * 20, "straights": "x"}, [], {"points": [[0, 0]] * 20, "settings": 3}):
