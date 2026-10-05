@@ -9,6 +9,7 @@ import usePreview from '../../map/usePreview'
 import { PALETTE } from '../../styles/palette'
 import CloudImportForm from './pointCloud/CloudImportForm'
 import CloudList from './pointCloud/CloudList'
+import RailTraceSection from './pointCloud/RailTraceSection'
 
 // Where each cloud lies, while the panel is open.
 const OUTLINE_SOURCE = 'pointcloud-outline-source'
@@ -22,8 +23,9 @@ const OUTLINE_LAYERS = [{
 
 /**
  * Point clouds of the project, on this device only (Entscheidung 119): the
- * import of a LAS/LAZ file into tiles, and the list of what is there (R5.5:
- * both are components of their own).
+ * import of a LAS/LAZ file into tiles, the list of what is there (R5.5:
+ * both are components of their own), and finding a track's axis in them
+ * (AP 12.2).
  */
 export default function PointCloudPanel() {
   const { t, fill } = useI18n()
@@ -65,6 +67,7 @@ export default function PointCloudPanel() {
       <CloudImportForm storage={storage} onMessage={setMessage} onChanged={refresh} onRunning={setRunning} />
       {message && <p className={message.kind === 'error' ? 'form-error' : 'selecting-hint'}>{message.text}</p>}
       <CloudList clouds={clouds} busy={running} onDelete={remove} />
+      {clouds?.length > 0 && !running && <RailTraceSection clouds={clouds} />}
       {storage && (
         <p className="pointcloud-meta pointcloud-storage">
           {fill('pointcloud_storage', { used: sizeText(storage.usage), free: sizeText(storage.free) })}
