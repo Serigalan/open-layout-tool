@@ -1,6 +1,9 @@
 """HTTP service around `optimize_payload` — the optimizer as it runs on the server.
 
     POST /optimize        body: the panel's payload, answer: optimize_payload's result
+    POST /splice          body: two picked elements and the splice settings,
+                          answer: splice_payload's chain (or its error key) —
+                          "Elemente verbinden", AP 12.4
     POST /mdb             body: an Access file, answer: its Satzarten as JSON
     POST /terrain         body: {"lnglat": [[lng, lat], ...]} (or, as first
                           built, {"points": [[e, n], ...]} in EPSG:25832),
@@ -35,6 +38,7 @@ from .api import optimize_payload, variants_for
 from .grenzen import DEFAULT_STUFE, STUFEN, grenzen_for
 from .mdb import MdbError, convert as mdb_convert
 from .regelwerk import DEFAULT_REGELWERK_ID, catalog_hash, list_regelwerke
+from .splice import splice_payload
 from .terrain import sample as terrain_sample, to_lnglat
 
 HOST = os.environ.get("OLT_OPTIMIZER_HOST", "127.0.0.1")
@@ -58,6 +62,9 @@ MAX_MDB_BODY = int(os.environ.get("OLT_MDB_MAX_BODY", str(128 * 1024 * 1024)))
 # Points per terrain request: a cross section asks for a few hundred, a whole
 # station's gradient for a few thousand.
 MAX_TERRAIN_POINTS = int(os.environ.get("OLT_TERRAIN_MAX_POINTS", "20000"))
+
+# A splice request is two elements and a few numbers.
+MAX_SPLICE_BODY = 64 * 1024
 
 MAX_ITER = 150
 MAX_ELEMENTS = 2000
@@ -307,8 +314,28 @@ class Handler(BaseHTTPRequestHandler):
                          sum(h is not None for h in heights), time.monotonic() - started)
         self._respond(200, {"heights": heights, "sources": sources})
 
+    def _do_splice(self):
+        """A splice is a few milliseconds of geometry: answered in this thread, no
+        child process and no slot. One that does not fit is an answer, not a
+        failure — it comes back with 200 and its error key."""
+        body = self._read_body(MAX_SPLICE_BODY)
+        try:
+            payload = json.loads(body.decode("utf-8"))
+            result = splice_payload(payload)
+        except (ValueError, KeyError, TypeError, UnicodeDecodeError):
+            raise ServiceError(400, "invalid_payload")
+        self._respond(200, result)
+
     def do_POST(self):                                         # noqa: N802
         route = self.path.rstrip("/")
+        if route == "/splice":
+            try:
+                self._do_splice()
+            except ServiceError as exc:
+                self._respond(exc.status, {"error": exc.code})
+            except Exception:                                  # noqa: BLE001
+                self._respond(500, {"error": "internal"})
+            return
         if route in ("/mdb", "/terrain"):
             try:
                 self._do_mdb() if route == "/mdb" else self._do_terrain()

@@ -780,10 +780,7 @@ export function deleteEndMark(markId) {
 
 // ── measured axes ───────────────────────────────────────────────────────────
 
-/** The track axes measured in point clouds and kept with the project (axisSurvey). */
-export function loadAxisSurveys() {
-  return _project?.axisSurveys ?? []
-}
+// (read through useAxisSurveys, hooks/useStore)
 
 /** Add a measured axis, or replace the one with its id. One undo step. */
 export function saveAxisSurvey(survey) {

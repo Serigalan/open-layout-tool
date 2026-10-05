@@ -1,21 +1,29 @@
 import { describe, it, expect } from 'vitest'
-import { buildSplice, secondPickRefusal, solveSplice, splicePick } from './splice'
-import { straightElement, transitionElement } from '../elementFactory'
+import { buildSplice, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest } from './splice'
+import { straightElement, arcElement, transitionElement } from '../elementFactory'
 import { recalcAbsLengths, rebuildCoords } from '../trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
+import answers from '../../test/fixtures/splice_answers.json'
+
+// The construction is the service's (olt_optimizer/splice.py); what is tested
+// here is the app's half — the request it sends and the track it builds from
+// the answer. The answers are real ones, written by
+// tools/optimizer/tests/splice_fixture.py for the very same picks.
 
 const EPSG = 25832
 const P = (x, y, zone = EPSG) => ({ easting: 500000 + x, northing: 5700000 + y, zone })
-const track = (id, a, b, extra = {}) => {
-  const elements = recalcAbsLengths([straightElement(a, b, { speed: 80 })])
-  return { id, name: id, epsg: a.zone, elements, coordinates: rebuildCoords(elements), ...extra }
+const at = ([e, n]) => ({ easting: e, northing: n, zone: EPSG })
+const track = (id, elements, extra = {}) => {
+  const els = recalcAbsLengths(elements)
+  return { id, name: id, epsg: EPSG, elements: els, coordinates: rebuildCoords(els), ...extra }
 }
 const settings = { radius: 300, clothoidEnabled: false, clothoidDep: 60, clothoidArr: 60, transitionType: 'clothoid', arcJoin: 'straight' }
 
 // Track a runs east to x = 200; track b runs north from y = 100 at x = 400. An
 // arc of R 300 turns the one into the other: a quarter circle, 471 m.
-const a = track('a', P(0, 0), P(200, 0), { heights: [{ station: 0, z: 100 }, { station: 200, z: 102 }] })
-const b = track('b', P(400, 100), P(400, 700))
+const a = track('a', [straightElement(P(0, 0), P(200, 0), { speed: 80 })],
+  { heights: [{ station: 0, z: 100 }, { station: 200, z: 102 }] })
+const b = track('b', [straightElement(P(400, 100), P(400, 700), { speed: 80 })])
 let n = 0
 const newId = () => `m${++n}`
 
@@ -33,28 +41,62 @@ describe('picking the two elements', () => {
     const first = splicePick(a, 0)
     expect(secondPickRefusal(first, first)).toBe('same')
     expect(secondPickRefusal(first, { ...first, elIdx: 1 })).toBe('splice_error_same_track')
-    expect(secondPickRefusal(first, splicePick(track('c', P(0, 0, 25833), P(0, 100, 25833)), 0))).toBe('splice_error_crs')
+    const other = { id: 'c', epsg: 25833, elements: [straightElement(P(0, 0, 25833), P(0, 100, 25833))] }
+    expect(secondPickRefusal(first, splicePick(other, 0))).toBe('splice_error_crs')
     expect(secondPickRefusal(first, splicePick(b, 0))).toBe(null)
   })
 })
 
-describe('the splice', () => {
+describe('the request to the service', () => {
+  const dep = splicePick(a, 0), arr = splicePick(b, 0)
+
+  it('holds both picks and the settings, as the service is asked', () => {
+    const req = spliceRequest(dep, arr, settings)
+    const want = answers.corner.request
+    expect(req.radius).toBe(want.radius)
+    expect(req.lDep).toBe(0)
+    for (const side of ['dep', 'arr']) {
+      for (const key of ['start', 'end']) {
+        expect(req[side][key][0]).toBeCloseTo(want[side][key][0], 6)
+        expect(req[side][key][1]).toBeCloseTo(want[side][key][1], 6)
+      }
+      expect(req[side].bearing).toBeCloseTo(want[side].bearing, 9)
+      expect(req[side].radius).toBe(want[side].radius)
+    }
+  })
+
+  it('asks for transitions only where they are switched on', () => {
+    expect(spliceRequest(dep, arr, { ...settings, clothoidEnabled: true })).toMatchObject({ lDep: 60, lArr: 60 })
+  })
+
+  it('reads a splice that does not fit as an error with its numbers', () => {
+    expect(spliceFromAnswer({ error: 'splice_error_dep_too_large', params: { rMax: 400 } }, dep, arr, settings))
+      .toEqual({ error: 'splice_error_dep_too_large', params: { rMax: 400 } })
+  })
+})
+
+describe('the track built from the answer', () => {
   const dep = splicePick(a, 0), arr = splicePick(b, 0)
 
   it('solves the arc between two straights', () => {
-    const splice = solveSplice(dep, arr, settings)
+    const splice = spliceFromAnswer(answers.corner.answer, dep, arr, settings)
     expect(splice.result.arcLength).toBeCloseTo(300 * Math.PI / 2, 3)
     expect(splice.arcMode).toBe(false)
+    expect(splice.result.previewCoords.length).toBeGreaterThan(10)
   })
 
   it('merges both tracks into one, in one commit', () => {
-    const splice = solveSplice(dep, arr, settings)
-    const commit = buildSplice({ tracks: [a, b], dep, arr, splice, speed: 60, cant: 40, clothoidEnabled: false, newId })
+    const splice = spliceFromAnswer(answers.corner.answer, dep, arr, settings)
+    const commit = buildSplice({ tracks: [a, b], dep, arr, splice, speed: 60, cant: 40, newId })
     expect(commit.removeTrackIds).toEqual(['a', 'b'])
     const [merged] = commit.addTracks
     expectValidTrack(merged)
     expect(merged.elements.map(e => e.elementType)).toEqual([0, 1, 0])
     expect(merged.elements[1]).toMatchObject({ radius: -300, cant: -40, speed: 60 })   // a left turn
+    // What is left of the picked straights keeps their speed.
+    expect(merged.elements[0].speed).toBe(80)
+    expect(merged.elements[2].speed).toBe(80)
+    expect(merged.elements.some(e => 'role' in e)).toBe(false)
     // The arrival track runs on in its own direction: it is not folded in.
     expect(commit.remap).toEqual([{ oldId: 'a', newId: merged.id }, { oldId: 'b', newId: merged.id, flip: false }])
     expect(commit.consumed).toEqual([{ trackId: 'a', endpoint: 'END' }, { trackId: 'b', endpoint: 'BEGIN' }])
@@ -64,10 +106,31 @@ describe('the splice', () => {
 
   it('puts transitions either side when asked', () => {
     const s = { ...settings, clothoidEnabled: true }
-    const splice = solveSplice(dep, arr, s)
-    const commit = buildSplice({ tracks: [a, b], dep, arr, splice, speed: 60, cant: 40, clothoidEnabled: true, newId })
+    const splice = spliceFromAnswer(answers.cornerTransitions.answer, dep, arr, s)
+    const commit = buildSplice({ tracks: [a, b], dep, arr, splice, speed: 60, cant: 40, newId })
     expect(commit.addTracks[0].elements.map(e => e.elementType)).toEqual([0, 2, 1, 2, 0])
     expectValidTrack(commit.addTracks[0])
+  })
+
+  it('folds an arrival arc in backwards, both arcs keeping their cant', () => {
+    const { request, answer } = answers.arcsStraight
+    const c = track('c', [arcElement(at(request.dep.start), at(request.dep.end), request.dep.radius, { speed: 100, cant: 50 })])
+    const d = track('d', [arcElement(at(request.arr.start), at(request.arr.end), request.arr.radius, { speed: 90, cant: 30 })])
+    const dc = splicePick(c, 0), dd = splicePick(d, 0)
+    const splice = spliceFromAnswer(answer, dc, dd, { ...settings, clothoidEnabled: true, clothoidDep: 40, clothoidArr: 40 })
+    expect(splice.arcMode).toBe(true)
+    const commit = buildSplice({ tracks: [c, d], dep: dc, arr: dd, splice, speed: 70, cant: 0, newId })
+    const [merged] = commit.addTracks
+    expectValidTrack(merged)
+    expect(merged.elements.map(e => e.elementType)).toEqual([1, 2, 0, 2, 1])
+    expect(merged.elements[0]).toMatchObject({ radius: 600, cant: 50, speed: 100 })
+    // stored as a right arc running back, it is run forwards as the left arc it
+    // is — and its cant changes side with it
+    expect(merged.elements[4]).toMatchObject({ radius: -900, cant: -30, speed: 90 })
+    expect(splice.result.straightLength).toBeCloseTo(100, 4)
+    expect(merged.elements[2].speed).toBe(70)
+    expect(commit.remap[1]).toMatchObject({ oldId: 'd', flip: true })
+    expect(commit.consumed[1]).toEqual({ trackId: 'd', endpoint: 'END' })
   })
 
   it('has nothing to commit without a solution', () => {

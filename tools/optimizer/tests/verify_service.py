@@ -138,6 +138,18 @@ try:
     status, body, _ = call(BASE, "/regelwerke/nicht-vorhanden")
     ok("GET /regelwerke/<unbekannt> → 404", status == 404 and body == {"error": "not_found"})
 
+    # ── 1c) Splice (AP 12.4) ──────────────────────────────────────────────────
+    east = {"start": [500000.0, 5600000.0], "end": [500200.0, 5600000.0], "bearing": 90.0, "radius": None}
+    north = {"start": [500400.0, 5600100.0], "end": [500400.0, 5600700.0], "bearing": 0.0, "radius": None}
+    status, body, _ = call(BASE, "/splice", {"dep": east, "arr": north, "radius": 300, "lDep": 60, "lArr": 60})
+    ok("POST /splice: Bogen zwischen zwei Geraden mit Übergangsbögen",
+       status == 200 and [e["elementType"] for e in body.get("elements", [])] == [0, 2, 1, 2, 0])
+    status, body, _ = call(BASE, "/splice", {"dep": east, "arr": north, "radius": 2000})
+    ok("POST /splice: passt nicht → 200 mit Fehlerschlüssel und größtem Radius",
+       status == 200 and body.get("error") == "splice_error_dep_too_large" and body["params"].get("rMax") == 400)
+    status, body, _ = call(BASE, "/splice", {"dep": {"start": [0, 0]}, "arr": north, "radius": 300})
+    ok("POST /splice: unvollständige Wahl → 400 invalid_payload", status == 400 and body == {"error": "invalid_payload"})
+
     # ── 2) Korbbogen über die Leitung (AP 4.2 durch den Dienst) ──────────────
     track = korbbogen_track()
     started = time.monotonic()

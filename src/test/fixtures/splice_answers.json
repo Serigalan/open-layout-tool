@@ -1,0 +1,335 @@
+{
+ "corner": {
+  "request": {
+   "radius": 300,
+   "lDep": 0,
+   "lArr": 0,
+   "transition": "clothoid",
+   "arcJoin": "straight",
+   "dep": {
+    "start": [
+     500000.0,
+     5700000.0
+    ],
+    "end": [
+     500200.0,
+     5700000.0
+    ],
+    "bearing": 90.0,
+    "radius": null
+   },
+   "arr": {
+    "start": [
+     500400.0,
+     5700100.0
+    ],
+    "end": [
+     500400.0,
+     5700700.0
+    ],
+    "bearing": 0.0,
+    "radius": null
+   }
+  },
+  "answer": {
+   "elements": [
+    {
+     "elementType": 0,
+     "role": "dep",
+     "startNode": [
+      500000.0,
+      5700000.0
+     ],
+     "endNode": [
+      500100.0,
+      5700000.0
+     ],
+     "bearing": 90.0,
+     "length": 100.0
+    },
+    {
+     "elementType": 1,
+     "role": "new",
+     "radius": -300.0,
+     "startNode": [
+      500100.0,
+      5700000.0
+     ],
+     "endNode": [
+      500400.0,
+      5700300.0
+     ],
+     "bearing": 90.0,
+     "endBearing": 0.0,
+     "length": 471.23889803846896
+    },
+    {
+     "elementType": 0,
+     "role": "arr",
+     "startNode": [
+      500400.0,
+      5700300.0
+     ],
+     "endNode": [
+      500400.0,
+      5700700.0
+     ],
+     "bearing": 0.0,
+     "length": 400.0
+    }
+   ],
+   "reverseArr": false,
+   "info": {
+    "arcLength": 471.23889803846896,
+    "signedR": -300.0,
+    "curveSide": "left"
+   }
+  }
+ },
+ "cornerTransitions": {
+  "request": {
+   "radius": 300,
+   "lDep": 60,
+   "lArr": 60,
+   "transition": "clothoid",
+   "arcJoin": "straight",
+   "dep": {
+    "start": [
+     500000.0,
+     5700000.0
+    ],
+    "end": [
+     500200.0,
+     5700000.0
+    ],
+    "bearing": 90.0,
+    "radius": null
+   },
+   "arr": {
+    "start": [
+     500400.0,
+     5700100.0
+    ],
+    "end": [
+     500400.0,
+     5700700.0
+    ],
+    "bearing": 0.0,
+    "radius": null
+   }
+  },
+  "answer": {
+   "elements": [
+    {
+     "elementType": 0,
+     "role": "dep",
+     "startNode": [
+      500000.0,
+      5700000.0
+     ],
+     "endNode": [
+      500069.51017575624,
+      5700000.0
+     ],
+     "bearing": 90.0,
+     "length": 69.510175756237
+    },
+    {
+     "elementType": 2,
+     "role": "new",
+     "transitionType": "clothoid",
+     "r1": null,
+     "r2": -300.0,
+     "startNode": [
+      500069.51017575624,
+      5700000.0
+     ],
+     "endNode": [
+      500129.4502035276,
+      5700001.998571883
+     ],
+     "bearing": 90.0,
+     "endBearing": 84.27042204869178,
+     "length": 60.0
+    },
+    {
+     "elementType": 1,
+     "role": "new",
+     "radius": -300.0,
+     "startNode": [
+      500129.4502035276,
+      5700001.998571883
+     ],
+     "endNode": [
+      500398.0014281169,
+      5700270.549796472
+     ],
+     "bearing": 84.27042204868937,
+     "endBearing": 5.729577951310631,
+     "length": 411.2388980384439
+    },
+    {
+     "elementType": 2,
+     "role": "new",
+     "transitionType": "clothoid",
+     "r1": -300.0,
+     "r2": null,
+     "startNode": [
+      500398.0014281169,
+      5700270.549796472
+     ],
+     "endNode": [
+      500400.0,
+      5700330.489824244
+     ],
+     "bearing": 5.729577951308215,
+     "endBearing": 0.0,
+     "length": 60.0
+    },
+    {
+     "elementType": 0,
+     "role": "arr",
+     "startNode": [
+      500400.0,
+      5700330.489824244
+     ],
+     "endNode": [
+      500400.0,
+      5700700.0
+     ],
+     "bearing": 0.0,
+     "length": 369.5101757561788
+    }
+   ],
+   "reverseArr": false,
+   "info": {
+    "arcLength": 411.2388980384689,
+    "signedR": -300.0,
+    "curveSide": "left"
+   }
+  }
+ },
+ "arcsStraight": {
+  "request": {
+   "radius": 300,
+   "lDep": 40,
+   "lArr": 40,
+   "transition": "clothoid",
+   "arcJoin": "straight",
+   "dep": {
+    "start": [
+     500000.0,
+     5700000.0
+    ],
+    "end": [
+     500018.6525469736,
+     5700148.442375553
+    ],
+    "bearing": 14.32394487827058,
+    "radius": 600.0
+   },
+   "arr": {
+    "start": [
+     500091.4293682432,
+     5700439.117909258
+    ],
+    "end": [
+     500068.25996223686,
+     5700321.466483725
+    ],
+    "bearing": 194.96056465063816,
+    "radius": 900.0
+   }
+  },
+  "answer": {
+   "elements": [
+    {
+     "elementType": 1,
+     "role": "dep",
+     "radius": 600.0,
+     "startNode": [
+      500000.0,
+      5700000.0
+     ],
+     "endNode": [
+      500018.65254697343,
+      5700148.442375552
+     ],
+     "bearing": 9.43778388773353e-12,
+     "endBearing": 14.323944878201344,
+     "length": 149.9999999991761
+    },
+    {
+     "elementType": 2,
+     "role": "new",
+     "transitionType": "clothoid",
+     "r1": 600.0,
+     "r2": null,
+     "startNode": [
+      500018.65254697343,
+      5700148.442375552
+     ],
+     "endNode": [
+      500029.4069194804,
+      5700186.967503118
+     ],
+     "bearing": 14.323944878197238,
+     "endBearing": 16.23380419529999,
+     "length": 40.0
+    },
+    {
+     "elementType": 0,
+     "role": "new",
+     "startNode": [
+      500029.4069194804,
+      5700186.967503118
+     ],
+     "endNode": [
+      500057.36268202617,
+      5700282.980394653
+     ],
+     "bearing": 16.233804195414614,
+     "length": 100.00000000185817
+    },
+    {
+     "elementType": 2,
+     "role": "new",
+     "transitionType": "clothoid",
+     "r1": null,
+     "r2": -900.0,
+     "startNode": [
+      500057.36268202617,
+      5700282.980394653
+     ],
+     "endNode": [
+      500068.25996223715,
+      5700321.466483726
+     ],
+     "bearing": 16.23380419529999,
+     "endBearing": 14.960564650564827,
+     "length": 40.0
+    },
+    {
+     "elementType": 1,
+     "role": "arr",
+     "radius": -900.0,
+     "startNode": [
+      500068.25996223715,
+      5700321.466483726
+     ],
+     "endNode": [
+      500091.4293682432,
+      5700439.117909258
+     ],
+     "bearing": 14.960564650534215,
+     "endBearing": 7.3211273821840255,
+     "length": 119.99999999904514
+    }
+   ],
+   "reverseArr": true,
+   "info": {
+    "straightLength": 100.00000000185815
+   }
+  }
+ }
+}

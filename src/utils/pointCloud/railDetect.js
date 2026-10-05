@@ -61,7 +61,7 @@ const HEIGHT_SLACK = 0.01
 const MAX_CANT = 0.2
 
 /** The rail profile a detection works with, `RAILS` key or the default. */
-export const railProfile = (rail) => RAILS[rail] ?? RAILS['54E4']
+const railProfile = (rail) => RAILS[rail] ?? RAILS['54E4']
 
 const quantile = (sorted, p) => sorted.length
   ? sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(p * (sorted.length - 1))))]
@@ -137,7 +137,7 @@ export function edgeCandidates(surface, from, to, headWidth, side) {
  * the points GAUGE_BAND under the head's top `z`: their median across.
  * `{ y, points }` or null where the flank was not seen.
  */
-export function innerFlank(points, edge, z) {
+function innerFlank(points, edge, z) {
   const ys = []
   for (let k = 0; k < points.count; k++) {
     const y = points.y[k], d = z - points.z[k]

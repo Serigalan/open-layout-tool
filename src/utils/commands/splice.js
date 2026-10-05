@@ -1,17 +1,16 @@
 import { generateId } from '../identifierUtils'
 import { rebuildCoords, recalcAbsLengths, trackLabel } from '../trackModel'
-import { computeStraightValuesUtm, computeCurvedValuesUtm, resolveEndBearing, reverseElement, nodeUtm } from '../elementUtils'
-import {
-  computeSpliceWithClothoids, computeArcSpliceWithClothoids, computeArcArcTransition,
-  computeArcStraightSplice, validateSpliceTangents,
-} from '../spliceUtils'
+import { resolveEndBearing, reverseElement, nodeUtm } from '../elementUtils'
+import { reconstructElements } from '../elementReconstruct'
 import { cantSign } from '../rules/cant'
 import { truncateHeights } from '../heightUtils'
 
-// Splicing two tracks into one (R5.5): what a picked element offers the
-// splice, the construction for the two picks, and the commit that merges
-// them — pure, so the dialog only collects the settings and the tests call
-// the same functions.
+// Splicing two tracks into one (R5.5, AP 12.4): what a picked element offers
+// the splice, the request the service builds the construction from, and the
+// commit that merges the two tracks around the chain it answers with. The
+// construction itself lives in the optimizer service (olt_optimizer/splice.py)
+// and nowhere else; what is here is pure, so the dialog only collects the
+// settings and the tests call the same functions.
 
 /**
  * What the splice needs of a picked element: its ends in the track's plane,
@@ -51,46 +50,53 @@ export function secondPickRefusal(first, pick) {
 }
 
 /**
- * The construction between the departure pick `dep` and the arrival pick
- * `arr`, solved in their shared plane: an arc of `radius` between two
- * straights, re-shaped arcs joined by a straight, or — with `arcJoin`
- * 'transition' — one transition from arc to arc. Returns { result, arcMode,
- * Ld, La } or { error } with a locale key.
+ * The request for the service's `POST /splice`: the two picks — their ends in
+ * the shared plane, the bearing at the picked end, the signed radius — and the
+ * settings. The service decides the case from the radii: two straights take
+ * `radius` and the transitions, two arcs a straight between them (with the
+ * transitions) or with `arcJoin` 'transition' one transition from arc to arc,
+ * an arc and a straight a new arc of `radius`.
  */
-export function solveSplice(dep, arr, { radius, clothoidEnabled, clothoidDep, clothoidArr, transitionType, arcJoin }) {
-  const Ld = clothoidEnabled ? clothoidDep : 0
-  const La = clothoidEnabled ? clothoidArr : 0
-  const bothArcs = dep.signedR != null && arr.signedR != null
-  const mixed    = (dep.signedR == null) !== (arr.signedR == null)
-  // Two arcs joined directly need no radius and no lengths: the transition's
-  // own length is what closes the construction, so it is solved, not typed.
-  const arcMode  = bothArcs || mixed
-
-  let result, validationErr = null
-  if (bothArcs && arcJoin === 'transition') {
-    result = computeArcArcTransition(
-      dep.endUtm, dep.bearing, dep.signedR, arr.endUtm, arr.bearing, arr.signedR,
-      dep.startUtm, arr.startUtm, transitionType,
-    )
-  } else if (mixed) {
-    result = computeArcStraightSplice(
-      { pointUtm: dep.endUtm, bearing: dep.bearing, signedR: dep.signedR, farUtm: dep.startUtm },
-      { pointUtm: arr.endUtm, bearing: arr.bearing, signedR: arr.signedR, farUtm: arr.startUtm },
-      radius, Ld, La, transitionType,
-    )
-  } else if (bothArcs) {
-    result = computeArcSpliceWithClothoids(
-      dep.endUtm, dep.bearing, dep.signedR, arr.endUtm, arr.bearing, arr.signedR,
-      dep.startUtm, arr.startUtm, Ld, La, transitionType,
-    )
-  } else {
-    result = computeSpliceWithClothoids(dep.endUtm, dep.bearing, arr.endUtm, arr.bearing, radius, Ld, La, transitionType)
-    if (result && !result.error) {
-      validationErr = validateSpliceTangents(result, dep.startUtm, result.reverseArr ? arr.startUtm : arr.endUtm, result.reverseArr)
-    }
+export function spliceRequest(dep, arr, { radius, clothoidEnabled, clothoidDep, clothoidArr, transitionType, arcJoin }) {
+  const ends = (p) => ({
+    start: [p.startUtm.easting, p.startUtm.northing],
+    end: [p.endUtm.easting, p.endUtm.northing],
+    bearing: p.bearing,
+    radius: p.signedR,
+  })
+  return {
+    dep: ends(dep), arr: ends(arr),
+    radius: Math.abs(Number(radius)) || 0,
+    lDep: clothoidEnabled ? Number(clothoidDep) || 0 : 0,
+    lArr: clothoidEnabled ? Number(clothoidArr) || 0 : 0,
+    transition: transitionType ?? 'clothoid',
+    arcJoin: arcJoin ?? 'straight',
   }
-  if (!result || result.error || validationErr) return { error: result?.error ?? validationErr ?? 'splice_error_parallel' }
-  return { result, arcMode, Ld, La }
+}
+
+/**
+ * The service's answer as the dialog and the commit read it: { result, arcMode,
+ * Ld, La } — `result` holding the chain with its display geometry rebuilt in
+ * the track's plane (`epsg`), the preview line and what the service says about
+ * it (arcLength, straightLength, transitionLength, …) — or { error, params }
+ * for a splice that does not fit.
+ */
+export function spliceFromAnswer(answer, dep, arr, { clothoidEnabled, clothoidDep, clothoidArr }) {
+  if (!answer || answer.error) return { error: answer?.error ?? 'splice_error_parallel', params: answer?.params ?? {} }
+  const epsg = dep.epsg
+  const elements = reconstructElements(answer.elements.map(el => ({ ...el, epsg })), epsg)
+  const previewCoords = elements.reduce((acc, el, i) => {
+    const c = el.renderCoords ?? el.geometry?.coordinates ?? []
+    return i === 0 ? [...c] : [...acc, ...c.slice(1)]
+  }, [])
+  return {
+    result: { ...answer.info, elements, reverseArr: answer.reverseArr, previewCoords },
+    // Two arcs, or an arc and a straight: re-shaped elements and a solved
+    // construction rather than an arc rounding a corner.
+    arcMode: dep.signedR != null || arr.signedR != null,
+    Ld: clothoidEnabled ? Number(clothoidDep) || 0 : 0,
+    La: clothoidEnabled ? Number(clothoidArr) || 0 : 0,
+  }
 }
 
 /**
@@ -102,83 +108,34 @@ export function solveSplice(dep, arr, { radius, clothoidEnabled, clothoidDep, cl
 const spliceHeights = (depTrack, elIdx) => truncateHeights(depTrack.heights,
   (depTrack.elements ?? []).slice(0, elIdx).reduce((sum, el) => sum + (el.length ?? 0), 0))
 
-/** The chain an arc↔arc or arc↔straight solver hands over ready, between what stays of both tracks. */
-function readyChain(arc, dep, arr, depTrack, arrTrack, speed) {
-  // Reshaped arcs keep their original speed; the new straight and transitions
-  // take the dialog's. A re-shaped arc keeps its cant as well; the arrival arc
-  // is folded in backwards, so the magnitude is re-signed from the new radius.
+/**
+ * The merged chain: what stays of the departure track, the service's chain,
+ * what stays of the arrival track. The chain's re-shaped ends keep what their
+ * elements carried — speed, a re-signed cant — while what the splice inserts
+ * takes the dialog's speed, and an inserted arc its cant.
+ */
+function mergedChain(chain, reverseArr, dep, arr, depTrack, arrTrack, { speed, cant }) {
   const depOrig = depTrack.elements[dep.elIdx]
   const arrOrig = arrTrack.elements[arr.elIdx]
+  // The arrival is folded in reversed (a corner, every arc case) or run on in
+  // its own direction (a continuation of two straights).
+  const arrBase = reverseArr ? reverseElement(arrOrig) : arrOrig
+  const plane = ({ role: _role, ...el }) => el
   const keepCant = (el, orig) => (orig?.cant != null && el.radius != null
-    ? { ...el, cant: cantSign(el.radius) * Math.abs(orig.cant) } : el)
-  const mid = arc.elements.map((el, i, a) =>
-    i === 0            ? keepCant({ ...el, speed: depOrig?.speed ?? speed }, depOrig)
-    : i === a.length - 1 ? keepCant({ ...el, speed: arrOrig?.speed ?? speed }, arrOrig)
-    :                    { ...el, speed })
-  return {
-    elements: [
-      ...depTrack.elements.slice(0, dep.elIdx).map(el => ({ ...el })),
-      ...mid,
-      ...arrTrack.elements.slice(0, arr.elIdx).reverse().map(reverseElement),
-    ],
-    // The arrival track is folded in reversed, so its BEGIN becomes the
-    // merged track's END.
-    reverseArr: true,
-  }
-}
-
-/** The chain of an arc between two straights: departure cut back, transitions, the arc, arrival cut back. */
-function arcChain(arc, dep, arr, depTrack, arrTrack, { speed, cant, clothoidEnabled }) {
-  const zone = depTrack.epsg
-  const Ld = clothoidEnabled ? arc.clothoidDepLength : 0
-  const La = clothoidEnabled ? arc.clothoidArrLength : 0
-
-  // Departure side: the last element shortened to where the transition (or the arc) starts.
-  const elements = depTrack.elements.slice(0, dep.elIdx).map(el => ({ ...el }))
-  const depOrig = depTrack.elements[dep.elIdx]
-  const depStartWgs = depOrig.geometry.coordinates[0]   // WGS84, for the drawn geometry
-  const svDep = computeStraightValuesUtm(nodeUtm(depOrig.startNode, depStartWgs, zone), arc.depClStartUtm)
-  elements.push({
-    ...depOrig, length: svDep.length, bearing: svDep.bearing, startNode: svDep.startNode, endNode: svDep.endNode,
-    geometry: { type: 'LineString', coordinates: [depStartWgs, arc.depTangentWgs] },
+    ? { cant: cantSign(el.radius) * Math.abs(orig.cant) } : {})
+  const mid = chain.map(el => {
+    if (el.role === 'dep') return { ...depOrig, ...plane(el), ...keepCant(el, depOrig) }
+    if (el.role === 'arr') return { ...arrBase, ...plane(el), ...keepCant(el, arrOrig) }
+    const inserted = { ...plane(el), speed }
+    return el.elementType === 1 ? { ...inserted, cant: cantSign(el.radius) * Math.abs(cant) } : inserted
   })
-  const transition = (s, e, r1, r2, bearing, endBearing, length, coordinates, renderCoords) => ({
-    elementType: 2, transitionType: arc.transitionType, r1, r2, bearing, endBearing, length, absLength: length,
-    speed, startNode: [s.easting, s.northing], endNode: [e.easting, e.northing],
-    geometry: { type: 'LineString', coordinates }, renderCoords,
-  })
-  if (Ld > 0) {
-    elements.push(transition(arc.depClStartUtm, arc.arcStartUtm, null, arc.signedR, arc.depBearing,
-      arc.arcStartBearing, Ld, arc.depClothoidCoords, arc.depClothoidCoordsRender))
-  }
-  const cv = computeCurvedValuesUtm(Ld > 0 ? arc.arcStartUtm : arc.depClStartUtm, La > 0 ? arc.arcEndUtm : arc.arrClEndUtm, arc.signedR)
-  elements.push({
-    elementType: 1, startNode: cv.startNode, endNode: cv.endNode, bearing: cv.bearing, length: cv.length,
-    absLength: cv.length, speed, cant: cantSign(arc.signedR) * Math.abs(cant), endBearing: cv.endBearing,
-    radius: arc.signedR, geometry: { type: 'LineString', coordinates: arc.arcCoords }, renderCoords: arc.arcCoordsRender,
-  })
-  if (La > 0) {
-    elements.push(transition(arc.arcEndUtm, arc.arrClEndUtm, arc.signedR, null, arc.arcEndBearing,
-      arc.exitBearing, La, arc.arrClothoidCoords, arc.arrClothoidCoordsRender))
-  }
-
-  // Arrival side. Reversed (a corner): joined at the arrival END, re-shaped
-  // back to its start, the elements before it kept reversed. Forward (a
-  // continuation): joined at its START, re-shaped forward, the elements after
-  // it kept.
-  const arrOrig = arrTrack.elements[arr.elIdx]
-  const arrCoords = arrOrig.geometry.coordinates
-  const joinWgs = arc.reverseArr ? arrCoords[0] : arrCoords[arrCoords.length - 1]
-  const joinUtm = nodeUtm(arc.reverseArr ? arrOrig.startNode : arrOrig.endNode, joinWgs, zone)
-  const svArr = computeStraightValuesUtm(arc.arrClEndUtm, joinUtm)
-  elements.push({
-    ...arrOrig, length: svArr.length, bearing: svArr.bearing, startNode: svArr.startNode, endNode: svArr.endNode,
-    geometry: { type: 'LineString', coordinates: [arc.arrTangentWgs, joinWgs] },
-  })
-  elements.push(...(arc.reverseArr
-    ? arrTrack.elements.slice(0, arr.elIdx).reverse().map(reverseElement)
-    : arrTrack.elements.slice(arr.elIdx + 1).map(el => ({ ...el }))))
-  return { elements, reverseArr: arc.reverseArr }
+  return [
+    ...depTrack.elements.slice(0, dep.elIdx).map(el => ({ ...el })),
+    ...mid,
+    ...(reverseArr
+      ? arrTrack.elements.slice(0, arr.elIdx).reverse().map(reverseElement)
+      : arrTrack.elements.slice(arr.elIdx + 1).map(el => ({ ...el }))),
+  ]
 }
 
 /**
@@ -190,14 +147,13 @@ function arcChain(arc, dep, arr, depTrack, arrTrack, { speed, cant, clothoidEnab
  *
  * Returns the argument for commitSwitchConnection, or null without a solution.
  */
-export function buildSplice({ tracks, dep, arr, splice, speed, cant, clothoidEnabled, newId = generateId }) {
-  const arc = splice?.result
+export function buildSplice({ tracks, dep, arr, splice, speed, cant, newId = generateId }) {
+  const result = splice?.result
   const depTrack = tracks.find(t => t.id === dep.trackId)
   const arrTrack = tracks.find(t => t.id === arr.trackId)
-  if (!arc || !depTrack || !arrTrack) return null
-  const { elements, reverseArr } = arc.elements
-    ? readyChain(arc, dep, arr, depTrack, arrTrack, speed)
-    : arcChain(arc, dep, arr, depTrack, arrTrack, { speed, cant, clothoidEnabled })
+  if (!result?.elements || !depTrack || !arrTrack) return null
+  const { reverseArr } = result
+  const elements = mergedChain(result.elements, reverseArr, dep, arr, depTrack, arrTrack, { speed, cant })
   const id = newId()
   const merged = recalcAbsLengths(elements)
   const heights = spliceHeights(depTrack, dep.elIdx)

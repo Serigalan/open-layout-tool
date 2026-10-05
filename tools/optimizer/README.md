@@ -78,3 +78,15 @@ python3 -m venv .venv
 Elementketten mit den erwarteten Befunden des Regelkatalogs. Die App liest dieselben
 Dateien (`ruleExpr.vectors.test.js`, `trassierungCheck.vectors.test.js`); weichen
 JavaScript und Python voneinander ab, schlägt eine der beiden Seiten fehl.
+
+## Elemente verbinden (`POST /splice`)
+
+Seit AP 12.4 rechnet der Dienst auch die Konstruktion von „Elemente verbinden"
+(`olt_optimizer/splice.py`); in der App gibt es keine zweite Fassung mehr. Vier
+Fälle: Bogen zwischen zwei Geraden (mit Übergangsbögen, auch ungleich lang),
+zwei Bögen über eine Zwischengerade, zwei Bögen über einen einzigen
+Übergangsbogen (Korb- oder S-Bogen) und ein neuer Bogen zwischen Bogen und
+Gerade. Passt ein Bogen nicht auf die gewählten Elemente, nennt die Antwort den
+größten Radius, der passt (`params.rMax`). Prüfung:
+`WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
+Antworten, gegen die die App testet, schreibt `tests/splice_fixture.py`.

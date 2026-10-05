@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { loadTracks, commitSwitchConnection } from '../../storage'
 import { computeAutoC } from '../../utils/rules/cant'
 import { hasRuleError } from '../../utils/trassierungCheck'
-import { buildSplice, secondPickRefusal, solveSplice, splicePick } from '../../utils/commands/splice'
+import { buildSplice, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest } from '../../utils/commands/splice'
+import { spliceOnServer } from '../../utils/optimizerService'
 import { ZOOM_LINE_WIDTH } from '../../map/style'
 import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
 import usePreview from '../../map/usePreview'
@@ -24,6 +25,9 @@ const SPLICE_PREVIEW_LAYERS = [{
   },
 }]
 
+/** How long the settings must rest before the service is asked [ms]. */
+const SPLICE_DEBOUNCE = 150
+
 const line = (coordinates) => ({
   type: 'FeatureCollection',
   features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } }],
@@ -39,8 +43,14 @@ const DEFAULTS = {
 }
 
 /** What the dialog says about a solved splice. */
-function spliceMessage(t, splice) {
-  if (splice.error) return { msg: t(splice.error), error: true }
+function spliceMessage(t, fill, splice) {
+  if (splice.error) {
+    const rMax = splice.params?.rMax
+    const text = t(splice.error)
+    // The error texts end with or without a full stop; the hint is a sentence of its own.
+    const hint = rMax != null ? `${/[.!?]$/.test(text) ? '' : '.'} ${fill('splice_r_max', { r: String(rMax) })}` : ''
+    return { msg: text + hint, error: true }
+  }
   const { result, arcMode, Ld, La } = splice
   const tr = (Ld > 0 || La > 0) ? ` | ${t('transition_curve')}: ${Ld}+${La} m` : ''
   if (result.transitionLength != null) {
@@ -54,13 +64,14 @@ function spliceMessage(t, splice) {
 }
 
 /**
- * Splice two tracks into one (R5.5: the construction and the commit are in
- * utils/commands/splice). Two elements are picked — departure, then arrival —
- * and joined by an arc, re-shaped arcs or a transition; the merged track is
- * one commit.
+ * Splice two tracks into one (R5.5, AP 12.4: the construction is the service's,
+ * the commit in utils/commands/splice). Two elements are picked — departure,
+ * then arrival — and joined by an arc, re-shaped arcs or a transition; the
+ * merged track is one commit. Every change of the settings asks the service
+ * again, once they rest; without the service there is no splice.
  */
 export default function SpliceElementPanel() {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
   const [picks, setPicks] = useState([])   // the departure pick, then the arrival
   const [s, setS] = useState(DEFAULTS)
   const set = (key, value) => setS(prev => ({ ...prev, [key]: value }))
@@ -88,8 +99,26 @@ export default function SpliceElementPanel() {
     },
   })
 
-  // The preview and the commit read the same construction, so they cannot disagree.
-  const splice = useMemo(() => (configuring ? solveSplice(picks[0], picks[1], s) : null), [configuring, picks, s])
+  // The preview and the commit read the same answer, so they cannot disagree.
+  // An answer counts only for the request it was given to.
+  const [answer, setAnswer] = useState(null)   // { key, splice }
+  const requestKey = configuring ? JSON.stringify(spliceRequest(picks[0], picks[1], s)) : null
+  useEffect(() => {
+    if (!requestKey) return undefined
+    const ctl = new AbortController()
+    const timer = setTimeout(async () => {
+      try {
+        const a = await spliceOnServer(JSON.parse(requestKey), { signal: ctl.signal })
+        setAnswer({ key: requestKey, splice: spliceFromAnswer(a, picks[0], picks[1], s) })
+      } catch (err) {
+        if (err?.name !== 'AbortError') setAnswer({ key: requestKey, splice: { error: 'splice_service_unavailable' } })
+      }
+    }, SPLICE_DEBOUNCE)
+    return () => { clearTimeout(timer); ctl.abort() }
+    // picks and settings are what the key is made of
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestKey])
+  const splice = answer?.key === requestKey ? answer.splice : null
 
   useEffect(() => {
     preview.set(SPLICE_PREVIEW_SOURCE, splice?.result ? line(splice.result.previewCoords) : null)
@@ -99,8 +128,7 @@ export default function SpliceElementPanel() {
 
   const handleCommit = () => {
     const commit = buildSplice({
-      tracks: loadTracks(), dep: picks[0], arr: picks[1], splice,
-      speed: s.speed, cant, clothoidEnabled: s.clothoidEnabled,
+      tracks: loadTracks(), dep: picks[0], arr: picks[1], splice, speed: s.speed, cant,
     })
     if (!commit) return
     commitSwitchConnection(commit)
@@ -117,7 +145,7 @@ export default function SpliceElementPanel() {
     const inserted = !bothArcs && splice?.result?.arcLength != null
       ? { elementType: 1, radius: Number(s.radius), cant, speed: s.speed, length: splice.result.arcLength }
       : null
-    const status = splice ? spliceMessage(t, splice) : null
+    const status = splice ? spliceMessage(t, fill, splice) : { msg: t('splice_solving'), error: false }
     return (
       <>
         <h2>{t('splice_element')}</h2>

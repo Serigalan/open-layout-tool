@@ -12,7 +12,7 @@ import { trackLength } from '../heightUtils'
  */
 
 /** Thickness of the slice the heads are looked for in [m] — the step of a trace. */
-export const DETECT_THICKNESS = 0.5
+const DETECT_THICKNESS = 0.5
 /** Step of a trace along its guide [m]. */
 export const TRACE_STEP = 0.5
 /**
@@ -21,7 +21,7 @@ export const TRACE_STEP = 0.5
  * the track lay 0.53–0.84 m beside the axis of its own Verm.ESN alignment.
  * Neighbouring tracks stand 3.5 m and more apart.
  */
-export const GUIDE_WINDOW = 1.5
+const GUIDE_WINDOW = 1.5
 /** How far off the axis foreseen from the last points the next one may be [m]. */
 const FOLLOW_WINDOW = 0.1
 /** The points that foresee the next one: within this distance back [m], at least this many. */
@@ -214,7 +214,7 @@ export function soHeight(p, reference = 'lower') {
 }
 
 /** Cant below this is taken as none [m] — the two heads differ by noise. */
-export const CANT_NOISE = 0.003
+const CANT_NOISE = 0.003
 
 /** The cant of a detection or point [mm], positive = left raised, under CANT_NOISE none. */
 export const cantMm = (p) => (Math.abs(p.cant) < CANT_NOISE ? 0 : Math.round(p.cant * 1000))
