@@ -11,12 +11,13 @@ import { surveyPoints } from './axisSurvey'
 // (olt_optimizer/alignment_fit.py) and nowhere else.
 
 /**
- * The settings of the straight search as the panel shows them: lengths in
- * metres, the two small ones in millimetres. `alignRequest` turns them into
- * the service's metres.
+ * The settings of the fit as the panel shows them — the chord of the
+ * curvature diagram and those of the straight search: lengths in metres, the
+ * two small ones in millimetres. `alignRequest` turns them into the service's
+ * metres.
  */
 export const ALIGN_DEFAULTS = Object.freeze({
-  window: 6, toleranceMm: 10, step: 0.5, spacing: 6, sagittaMm: 3, minLength: 20,
+  chord: 10, window: 6, toleranceMm: 10, step: 0.5, spacing: 6, sagittaMm: 3, minLength: 20,
 })
 
 /** The axis points of a survey, as the fit reads them. */
@@ -83,7 +84,7 @@ export function alignRequest(points, { straights = null, settings = ALIGN_DEFAUL
     station0: points[0]?.station ?? 0,
     straights,
     settings: {
-      window: Number(settings.window), step: Number(settings.step), spacing: Number(settings.spacing),
+      chord: Number(settings.chord), window: Number(settings.window), step: Number(settings.step), spacing: Number(settings.spacing),
       minLength: Number(settings.minLength),
       tolerance: Number(settings.toleranceMm) / 1000, sagitta: Number(settings.sagittaMm) / 1000,
     },

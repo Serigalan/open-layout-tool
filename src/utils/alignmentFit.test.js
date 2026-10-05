@@ -68,7 +68,7 @@ describe('the request', () => {
     expect(body.points[0]).toEqual([4467335.487, 5333806.389])
     expect(body.station0).toBe(35.5)
     expect(body.straights).toBeNull()
-    expect(body.settings).toEqual({ window: 6, step: 0.5, spacing: 6, minLength: 20, tolerance: 0.01, sagitta: 0.003 })
+    expect(body.settings).toEqual({ chord: 10, window: 6, step: 0.5, spacing: 6, minLength: 20, tolerance: 0.01, sagitta: 0.003 })
   })
 
   it('sends straights set by hand as station ranges', () => {

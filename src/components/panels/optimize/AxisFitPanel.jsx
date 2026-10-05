@@ -40,7 +40,10 @@ const FIT_LAYERS = [
     paint: { 'circle-radius': 6, 'circle-color': PALETTE.mapHover, 'circle-opacity': 0.8 } } },
 ]
 
+// The chord the service reads the curvature diagram with: shorter is sharper
+// at the ends of a transition but noisier (κ = 8f/c²); it clamps to 2–50 m.
 const SETTINGS = [
+  { key: 'chord', unit: 'm', step: 1, min: 2, max: 50, hint: 'align_set_chord_hint' },
   { key: 'window', unit: 'm', step: 0.5 },
   { key: 'toleranceMm', unit: 'mm', step: 1 },
   { key: 'step', unit: 'm', step: 0.1 },
@@ -236,11 +239,12 @@ export default function AxisFitPanel({ backButton }) {
         )}
         <details className="form-field">
           <summary>{t('align_settings')}</summary>
-          {SETTINGS.map(({ key, unit, step }) => (
+          {SETTINGS.map(({ key, unit, step, min = 0, max, hint }) => (
             <div key={key} className="form-field">
               <label>{t(`align_set_${key}`)}</label>
-              <NumberInput min="0" step={step} unit={unit} value={settings[key]}
+              <NumberInput min={min} max={max} step={step} unit={unit} value={settings[key]}
                 onChange={e => setSettings(prev => ({ ...prev, [key]: e.target.value }))} />
+              {hint && <span className="msg-hint msg-small">{t(hint)}</span>}
             </div>
           ))}
           <button type="button" className="link-btn msg-small" onClick={() => setSettings(ALIGN_DEFAULTS)}>
