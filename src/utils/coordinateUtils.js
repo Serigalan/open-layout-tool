@@ -138,6 +138,18 @@ export const EPSG_OPTIONS = [25831, 25832, 25833, 5681, 5682, 5683, 5684, 5685]
   .map(code => ({ code, label: crsName(code) }))
 
 /**
+ * Every plane a file may be stated in — all of them projStringFor knows, not
+ * only the ones a new track is offered: a survey, a point cloud or an export
+ * comes in whatever system the surveyor used, DHDN Gauss-Krüger among them.
+ */
+export const FILE_CRS_OPTIONS = [...new Set([
+  ...EPSG_OPTIONS.map(o => o.code),
+  5680, 5676, 5677, 5678, 5679,   // DHDN / GK 1–5
+  3396, 3397, 3398, 3399,         // PD/83, RD/83
+  2397, 2398, 2399, 3068,         // 42/83, Soldner Berlin
+])].map(code => ({ code, label: crsName(code) }))
+
+/**
  * The planes a project's tracks lie in, most used first — [{ code, label,
  * count }]. Codes the tool cannot name are left out.
  */

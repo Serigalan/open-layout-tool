@@ -4,7 +4,7 @@ import { generateId } from '../../../utils/identifierUtils'
 import { nextTrackName, rebuildCoords, recalcAbsLengths } from '../../../utils/trackModel'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../../utils/gleislageCsvImport'
 import { readFileText } from '../../../utils/fileUtils'
-import { EPSG_OPTIONS } from '../../../utils/coordinateUtils'
+import { FILE_CRS_OPTIONS } from '../../../utils/coordinateUtils'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
 import FilePickButton from '../../form/FilePickButton'
@@ -17,7 +17,7 @@ function CrsField({ label, value, onChange }) {
     <div className="form-field">
       <label>{label}</label>
       <select className="settings-select" value={value} onChange={e => onChange(e.target.value)}>
-        {EPSG_OPTIONS.map(o => <option key={o.code} value={o.code}>EPSG {o.code} – {o.label}</option>)}
+        {FILE_CRS_OPTIONS.map(o => <option key={o.code} value={o.code}>EPSG {o.code} – {o.label}</option>)}
       </select>
     </div>
   )

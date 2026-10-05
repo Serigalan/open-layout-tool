@@ -1,18 +1,9 @@
-import { EPSG_OPTIONS } from '../coordinateUtils'
+import { FILE_CRS_OPTIONS } from '../coordinateUtils'
 
 // How the point cloud dialog states numbers, and which planes it offers.
 
-/**
- * Every plane a cloud may be stated in — all of them projStringFor knows, not
- * only the ones a new track is offered: a survey comes in whatever system the
- * surveyor used, DHDN Gauss-Krüger among them.
- */
-export const CLOUD_CRS = [...new Set([
-  ...EPSG_OPTIONS.map(o => o.code),
-  5680, 5676, 5677, 5678, 5679,   // DHDN / GK 1–5
-  3396, 3397, 3398, 3399,         // PD/83, RD/83
-  2397, 2398, 2399, 3068,         // 42/83, Soldner Berlin
-])]
+/** Every plane a cloud may be stated in: any a file may be. */
+export const CLOUD_CRS = FILE_CRS_OPTIONS.map(o => o.code)
 
 const oneDecimal = { maximumFractionDigits: 1 }
 

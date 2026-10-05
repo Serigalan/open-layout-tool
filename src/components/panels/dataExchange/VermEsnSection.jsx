@@ -4,7 +4,7 @@ import { generateId } from '../../../utils/identifierUtils'
 import { recalcAbsLengths, rebuildCoords } from '../../../utils/trackModel'
 import { parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode } from '../../../utils/vermEsnImport'
 import { readFileBuffer } from '../../../utils/fileUtils'
-import { EPSG_OPTIONS, projectCrsOptions } from '../../../utils/coordinateUtils'
+import { FILE_CRS_OPTIONS, projectCrsOptions } from '../../../utils/coordinateUtils'
 import { HEIGHT_DATUMS, heightDatumLabel } from '../../../utils/heightDatums'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject, useTracks } from '../../../hooks/useStore'
@@ -42,9 +42,10 @@ export default function VermEsnSection() {
   const project = useProject()
   const tracks = useTracks()
   // The planes the project's tracks already lie in come first and the most
-  // used one is preset — a survey usually belongs to the same frame.
+  // used one is preset — a survey usually belongs to the same frame. The track
+  // is created in the plane the file is stated in, whichever that is.
   const projectCrs = projectCrsOptions(tracks)
-  const otherCrs = EPSG_OPTIONS.filter(o => !projectCrs.some(p => p.code === o.code))
+  const otherCrs = FILE_CRS_OPTIONS.filter(o => !projectCrs.some(p => p.code === o.code))
   const [epsg, setEpsg] = useState(() => String(projectCrs[0]?.code ?? 5683))
   const [tra, setTra] = useState(null)              // { name, records, count }
   const [gra, setGra] = useState(null)              // { name, points, code }

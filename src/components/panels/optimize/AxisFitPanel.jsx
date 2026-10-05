@@ -8,7 +8,7 @@ import {
 import { alignOnServer, optimizerReachable, OptimizerError } from '../../../utils/optimizerService'
 import { optimizeErrorText } from '../../../utils/optimizeApply'
 import { reconstructElements } from '../../../utils/elementReconstruct'
-import { EPSG_OPTIONS, crsLabel, projectCrsOptions, utmToWgs84 } from '../../../utils/coordinateUtils'
+import { FILE_CRS_OPTIONS, crsLabel, projectCrsOptions, utmToWgs84 } from '../../../utils/coordinateUtils'
 import { useI18n } from '../../../locales/i18nContext'
 import { useAxisSurveys, useTracks } from '../../../hooks/useStore'
 import { useMap } from '../../../map/MapContext'
@@ -197,7 +197,7 @@ export default function AxisFitPanel({ backButton }) {
   }
 
   const projectCrs = projectCrsOptions(tracks)
-  const crsChoice = [...projectCrs, ...EPSG_OPTIONS.filter(o => !projectCrs.some(p => p.code === o.code))]
+  const crsChoice = [...projectCrs, ...FILE_CRS_OPTIONS.filter(o => !projectCrs.some(p => p.code === o.code))]
   const report = data ? elementReport(data, tolerance) : []
   const over = report.filter(r => r.over).length
   const canCommit = !!data?.elements && !running && answer?.key === requestKey
