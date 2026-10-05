@@ -1276,6 +1276,7 @@
   "sidebar_labels_show": "Beschriftung zeigen",
   "sidebar_labels_hide": "Beschriftung ausblenden",
   "info_check": "Misst den Entwurf an den Regeln: die Physik und das Regelwerk, gegen die geprüft wird (je über der Karte geöffnet), und der Optimierer, der ein Gleis oder einen einzelnen Bogen innerhalb eines Korridors an das Regelwerk anpasst.",
+  "map_tilt_hint": "Karte neigen (3D) erlauben – sonst dreht die rechte Maustaste die Karte nur in der Ebene",
   "legend_title": "Legende",
   "legend_tracks": "Gleise",
   "legend_preview": "Vorschau",

@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useReducer, useRef, useState } 
 import { useI18n } from '../locales/i18nContext'
 import { MapContext } from '../map/MapContext'
 import useMapInstance, { ELEVATION_BASEMAPS } from '../map/useMapInstance'
+import TiltToggle from '../map/TiltToggle'
 import { renderTracksOnMap, updateMapColors } from '../map/trackLayers'
 import { currentProject, currentWorkingCopy, deleteKmLine, loadSwitches, loadTracks, redo, saveKmLine, undo } from '../storage'
 import { useProject } from '../hooks/useStore'
@@ -65,7 +66,7 @@ export default function MapWorkspace({ wc, onHome }) {
   // The map, its basemap and the elevation legend's range (R2.1). Every style
   // that loads — the first and each basemap change — gets the project and the
   // kilometrage overlays drawn onto it again.
-  const { map, mapContainer, mapVersion, activeBasemap, setBasemap, elevationRange } = useMapInstance({
+  const { map, mapContainer, mapVersion, activeBasemap, setBasemap, elevationRange, tilt } = useMapInstance({
     onStyleLoad: ({ fit }) => {
       if (projectRef.current) {
         renderTracksOnMap(map.current, projectRef.current, { fit, topology: topologyRef.current })
@@ -309,6 +310,7 @@ export default function MapWorkspace({ wc, onHome }) {
 
         <div className="map-pane">
           <div className="map-container" ref={mapContainer} />
+          <TiltToggle tilt={tilt} />
           {wc.wc && (
             <WorkingCopyBar projectTitle={wc.wc.project.title} variantName={wc.wc.variant.name} base={wc.base}
               changes={wc.changes.length} serverNewer={wc.serverNewer} busy={wc.busy}

@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useI18n } from '../locales/i18nContext'
 import { MapContext } from '../map/MapContext'
 import useMapInstance from '../map/useMapInstance'
+import TiltToggle from '../map/TiltToggle'
 import { clearFeatures, comparisonFeatures, drawable, recordFeatures, showFeaturesSoon, zoomToFeatures } from '../utils/compareLayer'
 import { diffEntries, diffProject } from '../utils/merge'
 import CompareOverlay from '../components/collab/CompareOverlay'
@@ -15,7 +16,7 @@ import ConflictDialog from '../components/collab/ConflictDialog'
 export default function ViewerView({ viewer: v }) {
   const { t } = useI18n()
   const { viewer } = v
-  const { map, mapContainer, mapVersion } = useMapInstance({})
+  const { map, mapContainer, mapVersion, tilt } = useMapInstance({})
   const mapCtx = useMemo(() => ({ map, mapVersion }), [map, mapVersion])
 
   // A merge being decided shows on the map what it brings into the target:
@@ -44,6 +45,7 @@ export default function ViewerView({ viewer: v }) {
       <div className="layout">
         <div className="map-pane">
           <div className="map-container" ref={mapContainer} />
+          <TiltToggle tilt={tilt} />
           <div className="wc-bar" role="status">
             <span className="wc-where">
               <strong>{viewer.title}</strong>

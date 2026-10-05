@@ -1276,6 +1276,7 @@
   "sidebar_labels_show": "Show labels",
   "sidebar_labels_hide": "Hide labels",
   "info_check": "Holds the design to the rules: the physics and the rulebook it is checked against (each opens over the map), and the optimizer that adjusts a track or a single curve within a corridor to the rulebook.",
+  "map_tilt_hint": "Allow tilting the map (3D) – otherwise the right mouse button only turns it in the plane",
   "legend_title": "Legend",
   "legend_tracks": "Tracks",
   "legend_preview": "Preview",
