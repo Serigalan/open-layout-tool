@@ -10,8 +10,8 @@ describe('the profile table', () => {
     expect(GAUGE_PROFILES[DEFAULT_GAUGE_PROFILE]).toBeDefined()
   })
 
-  it('is the Lichtraum of Ril 800.0130A01 — Hauptgleise, Nebengleise and S-Bahn', () => {
-    expect(Object.keys(GAUGE_PROFILES)).toEqual(['hauptgleis', 'nebengleis', 's_bahn'])
+  it('is the Lichtraum of Ril 800.0130A01 — Hauptgleise, Nebengleise, S-Bahn and S-Bahn tunnels', () => {
+    expect(Object.keys(GAUGE_PROFILES)).toEqual(['hauptgleis', 'nebengleis', 's_bahn', 's_bahn_tunnel'])
     expect(LICHTRAUM_SOURCE).toBe('DB Ril 800.0130A01')
     expect(GAUGE_PROFILES.nebengleis.points)
       .toEqual([[0, 0], [2200, 0], [2200, 3900], [1860, 4900], [0, 4900]])
@@ -24,15 +24,23 @@ describe('the profile table', () => {
     }
   })
 
-  it('states the S-Bahn profile with its three named areas', () => {
+  // The roof chamfer both S-Bahn profiles share, from 2400/3173 to 1075/4800.
+  const chamfer = (y) => 3173 + (2400 - y) / (2400 - 1075) * (4800 - 3173)
+
+  it('states the S-Bahn profile 2100/2400: platform and signals or masts reach in', () => {
     const p = GAUGE_PROFILES.s_bahn
     expect(p.points).toEqual([[0, 0], [2400, 0], [2400, 3173], [1075, 4800], [0, 4800]])
-    expect(p.einragungen).toHaveLength(3)
-    expect(p.areaKinds).toEqual(['bahnsteig', 'signal_mast', 'tunnel'])
-    // The inner corners of the signal and tunnel areas lie on the chamfer of the outline.
-    const chamfer = (y) => 3173 + (2400 - y) / (2400 - 1075) * (4800 - 3173)
+    expect(p.areaKinds).toEqual(['bahnsteig', 'signal_mast'])
+    expect(p.einragungen[1][2][0]).toBe(2100)
     expect(p.einragungen[1][2][1]).toBeCloseTo(chamfer(2100), 0)
-    expect(p.einragungen[2][2][1]).toBeCloseTo(chamfer(1900), 0)
+  })
+
+  it('states the S-Bahn tunnel profile –/1900: the outline narrowed, nothing but a platform reaches in', () => {
+    const p = GAUGE_PROFILES.s_bahn_tunnel
+    expect(p.points).toEqual([[0, 0], [1900, 0], [1900, 3787], [1075, 4800], [0, 4800]])
+    expect(p.points[2][1]).toBeCloseTo(chamfer(1900), 0)
+    expect(p.areaKinds).toEqual(['bahnsteig'])
+    expect(Math.max(...p.einragungen[0].map(([y]) => y))).toBe(1900)
   })
 
   it('names every profile and every named area in both languages', () => {

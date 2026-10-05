@@ -349,6 +349,7 @@
   "constraints_querschnitt_profil_hauptgleis": "Hauptgleise",
   "constraints_querschnitt_profil_nebengleis": "Nebengleise",
   "constraints_querschnitt_profil_s_bahn": "S-Bahn",
+  "constraints_querschnitt_profil_s_bahn_tunnel": "S-Bahn-Tunnel",
   "constraints_querschnitt_einragung_bahnsteig": "Bahnsteig",
   "constraints_querschnitt_einragung_signal_mast": "Signale oder Masten",
   "constraints_querschnitt_einragung_tunnel": "In Tunneln",

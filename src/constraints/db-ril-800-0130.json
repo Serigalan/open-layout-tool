@@ -2,15 +2,15 @@
   "katalog": {
     "id": "db-ril-800-0130",
     "title": "DB Ril 800.0130 | Streckenquerschnitte auf Erdkörpern",
-    "katalog_version": "0.2.0",
+    "katalog_version": "0.3.0",
     "status": "draft",
-    "date": "2026-10-02",
+    "date": "2026-10-05",
     "language": "de",
     "scope": {
       "included": [
         "Regelquerschnitte je Streckenkategorie: Gleisabstand, Abstand Gleismitte – Planumskante, Planumsbreite",
         "Lichtraum für Haupt- und Nebengleise mit den Bereichen, in die eingeragt werden darf (A01)",
-        "Lichtraum für S-Bahnen mit den Einragungen für Bahnsteige, Signale oder Masten und in Tunneln"
+        "Lichtraum für S-Bahnen mit den Einragungen für Bahnsteige, Signale oder Masten, und für S-Bahn-Tunnel"
       ],
       "excluded": [
         "Überhöhte Querschnitte — die Planumsbreite gilt hier nur bei u = 0"
@@ -18,6 +18,14 @@
     }
   },
   "changelog": [
+    {
+      "version": "0.3.0",
+      "date": "2026-10-05",
+      "changes": [
+        "S-Bahn-Lichtraum aufgeteilt: „S-Bahn“ mit Umriss 2400 und Einragung für Signale oder Masten bis 2100, „S-Bahn-Tunnel“ mit Umriss 1900 ohne Einragung für Signale oder Masten; die Tunnel-Einragung bis 1900 ist damit der Umriss des Tunnelprofils",
+        "Die Bahnsteig-Einragung gilt in beiden, im Tunnelprofil am Umriss 1900 geschnitten"
+      ]
+    },
     {
       "version": "0.2.0",
       "date": "2026-10-02",
@@ -91,10 +99,19 @@
         "umriss": [[0, 0], [2400, 0], [2400, 3173], [1075, 4800], [0, 4800]],
         "einragungen": [
           [[1275, 0], [1600, 380], [1680, 380], [1680, 960], [2400, 960], [2400, 0]],
-          [[2400, 0], [2100, 0], [2100, 3541], [2400, 3173]],
-          [[2400, 0], [1900, 0], [1900, 3787], [2400, 3173]]
+          [[2400, 0], [2100, 0], [2100, 3541], [2400, 3173]]
         ],
-        "einragungen_arten": ["bahnsteig", "signal_mast", "tunnel"]
+        "einragungen_arten": ["bahnsteig", "signal_mast"]
+      },
+      {
+        "id": "s_bahn_tunnel",
+        "title": "S-Bahn-Tunnel",
+        "source": { "ref": "RIL_800_0130_A01", "section": "S. 3" },
+        "umriss": [[0, 0], [1900, 0], [1900, 3787], [1075, 4800], [0, 4800]],
+        "einragungen": [
+          [[1275, 0], [1600, 380], [1680, 380], [1680, 960], [1900, 960], [1900, 0]]
+        ],
+        "einragungen_arten": ["bahnsteig"]
       }
     ]
   }
