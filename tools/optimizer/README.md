@@ -90,3 +90,27 @@ Gerade. Passt ein Bogen nicht auf die gewählten Elemente, nennt die Antwort den
 größten Radius, der passt (`params.rMax`). Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
 Antworten, gegen die die App testet, schreibt `tests/splice_fixture.py`.
+
+## Trassieren aus Achspunkten (`POST /align`)
+
+Seit AP 12.5 rechnet der Dienst aus gemessenen Achspunkten (Punktdatei oder
+Messachse des Projekts, Rechtswert/Hochwert in Fahrtrichtung) eine Trassierung
+(`olt_optimizer/alignment_fit.py`): Krümmungsbild aus Pfeilhöhen auf 10-m-Sehnen,
+Geraden nach dem Verfahren des Auftraggebers (Fenster 6 m, 1 cm um die
+Ausgleichsgerade, Schritt 0,5 m, Pfeilhöhe des Kreises < 3 mm, mindestens 20 m,
+6 m Abstand — alles einstellbar), dazwischen Bögen mit Übergangsbögen über
+`fit_curve_group`, R, L₁ und L₂ nach kleinsten Quadraten an die Punkte
+ausgeglichen (Nelder-Mead); ein Übergangsbogen, den die Punkte nicht zeigen,
+entfällt (L = 0). Beginnen oder enden die Punkte in einem Bogen, wird er vom
+Tangentenpunkt der Geraden aus angepasst und am ersten bzw. letzten Punkt
+geschnitten. Geraden lassen sich als Stationsbereiche vorgeben (`straights`),
+dann entfällt die Suche. Passt zwischen zwei automatisch gefundenen Geraden kein
+Bogen (Versatz statt Richtungsänderung), werden sie zu einer zusammengefasst und
+die Stelle genannt (`merged`). Die Antwort trägt neben der Elementkette die
+Krümmung und die Abweichung jedes Punkts sowie Maximum und RMS je Element; eine
+Trassierung, die sich nicht bilden lässt, kommt mit `error` und dem
+Krümmungsbild zurück, damit die Geraden von Hand korrigiert werden können.
+Läuft wie ein Optimiererlauf in einem eigenen Prozess unter der Frist und den
+Plätzen; rund 2 s je km mit fünf Bögen. Prüfung:
+`WEBSITE/.venv/bin/python tools/optimizer/tests/verify_align.py`; die Antwort,
+gegen die die App testet, schreibt `tests/align_fixture.py`.

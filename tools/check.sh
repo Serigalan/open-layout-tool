@@ -29,6 +29,8 @@ fi
 cd tools/optimizer
 echo "== optimizer: shared vectors"; "$py" tests/vectors.py
 echo "== optimizer: service";        "$py" tests/verify_service.py | tail -1
+echo "== optimizer: splice";         "$py" tests/verify_splice.py | tail -1
+echo "== optimizer: alignment fit";  "$py" tests/verify_align.py | tail -1
 if [ "$quick" = 0 ]; then
   echo "== optimizer: kernel and runs"; "$py" tests/verify.py | tail -1
 fi

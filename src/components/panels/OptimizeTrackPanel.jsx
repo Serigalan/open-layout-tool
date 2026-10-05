@@ -7,7 +7,7 @@ import {
 import { reconstructElements } from '../../utils/elementReconstruct'
 import { ZOOM_LINE_WIDTH } from '../../map/style'
 import { optimizeRequest, optimizedTrack, optimizeErrorText } from '../../utils/optimizeApply'
-import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../icons'
+import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
@@ -18,6 +18,7 @@ import CommitBar from '../form/CommitBar'
 import useElapsed from '../../hooks/useElapsed'
 import OptimizeSettings from './optimize/OptimizeSettings'
 import OptimizeResult from './optimize/OptimizeResult'
+import AxisFitPanel from './optimize/AxisFitPanel'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
 const OPTIMIZE_PREVIEW_LAYER  = 'optimize-preview-layer'
@@ -51,7 +52,7 @@ function previewGeoJSON(elements) {
 export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onShowRegelwerk }) {
   const { t, fill } = useI18n()
   const map = useMap()
-  const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element'
+  const [page, setPage]           = useState(initialPage)    // 'menu' | 'track' | 'element' | 'axis'
   const mode = page
   const [phase, setPhase]         = useState('select')
   const [trackId, setTrackId]     = useState(null)
@@ -80,7 +81,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
 
   // ── Track/element selection ────────────────────────────────────────────────
   useMapPick({
-    active: page !== 'menu' && phase === 'select', hover: 'element',
+    active: (page === 'track' || page === 'element') && phase === 'select', hover: 'element',
     onPick: ({ trackId: id, elementIndex: elIdx }) => {
       const track = loadTracks().find(tr => tr.id === id)
       if (!track) return
@@ -108,7 +109,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
   // error here, `reachable` already says so; the panel just falls back to
   // sending no id, which the service reads as its own default.
   useEffect(() => {
-    if (page === 'menu') return
+    if (page !== 'track' && page !== 'element') return
     let cancelled = false
     optimizerReachable().then(ok => { if (!cancelled) setReachable(ok) })
     fetchRegelwerke().then(({ regelwerke: list, drift }) => {
@@ -180,10 +181,17 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
             <OptimizeElementModeIcon />
             {t('optimize_mode_element')}
           </button>
+          <button className="create-element-btn" onClick={() => setPage('axis')}>
+            <AxisFitModeIcon />
+            {t('optimize_mode_axis')}
+          </button>
         </div>
       </>
     )
   }
+
+  // From measured axis points (AP 12.5): a mode of its own, no track to pick.
+  if (page === 'axis') return <AxisFitPanel backButton={backButton} />
 
   const title = t(mode === 'element' ? 'optimize_mode_element' : 'optimize_mode_track')
 

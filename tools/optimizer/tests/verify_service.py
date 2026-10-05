@@ -150,6 +150,23 @@ try:
     status, body, _ = call(BASE, "/splice", {"dep": {"start": [0, 0]}, "arr": north, "radius": 300})
     ok("POST /splice: unvollständige Wahl → 400 invalid_payload", status == 400 and body == {"error": "invalid_payload"})
 
+    # ── 1d) Trassieren aus Achspunkten (AP 12.5) ──────────────────────────────
+    # 100 m nach Osten, ein Viertelkreis R 300 nach links, 100 m nach Norden — alle 0,5 m ein Punkt.
+    axis = [[500000.0 + 0.5 * i, 5600000.0] for i in range(200)]
+    axis += [[500100.0 + 300 * math.sin(a / 300), 5600000.0 + 300 * (1 - math.cos(a / 300))]
+             for a in (0.5 * i for i in range(1, int(150 * math.pi / 0.5)))]
+    axis += [[500400.0, 5600300.0 + 0.5 * i] for i in range(200)]
+    status, body, _ = call(BASE, "/align", {"points": axis})
+    ok("POST /align: Gerade, Bogen R 300 links, Gerade",
+       status == 200 and body.get("error") is None and len(body["straights"]) == 2
+       and len(body["curves"]) == 1 and abs(body["curves"][0]["radius"] + 300) < 0.5
+       and [e["elementType"] for e in body["elements"]] == [0, 1, 0] and body["max"] < 0.002)
+    status, body, _ = call(BASE, "/align", {"points": axis, "straights": []})
+    ok("POST /align: ohne Gerade → 200 mit Fehlerschlüssel und Krümmungsbild",
+       status == 200 and body.get("error") == "align_error_no_straight" and len(body["kappa"]) == len(axis))
+    status, body, _ = call(BASE, "/align", {"points": "nein"})
+    ok("POST /align: keine Punkte → 400 invalid_payload", status == 400 and body == {"error": "invalid_payload"})
+
     # ── 2) Korbbogen über die Leitung (AP 4.2 durch den Dienst) ──────────────
     track = korbbogen_track()
     started = time.monotonic()

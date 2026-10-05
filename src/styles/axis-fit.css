@@ -1,0 +1,57 @@
+/* The alignment fit from measured axis points (AP 12.5): the curvature diagram and its tools. */
+
+.curvature-chart {
+  position: relative;
+  width: 100%;
+  user-select: none;
+  touch-action: none;
+  cursor: grab;
+}
+
+.curvature-chart.dragging { cursor: grabbing; }
+.curvature-chart.inserting { cursor: crosshair; }
+
+.curvature-chart svg { display: block; }
+
+.curvature-chart .chart-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  fill: var(--color-muted);
+}
+
+.curvature-chart .straight-band {
+  fill: var(--color-primary);
+  fill-opacity: 0.08;
+  cursor: pointer;
+}
+
+.curvature-chart .straight-band.selected { fill-opacity: 0.22; }
+.curvature-chart.inserting .straight-band { cursor: crosshair; }
+
+.curvature-chart .straight-edge {
+  stroke: var(--color-primary);
+  stroke-width: 6;
+  stroke-opacity: 0.25;
+  cursor: ew-resize;
+}
+
+.curvature-chart .straight-edge:hover { stroke-opacity: 0.6; }
+
+.chart-readout {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  color: var(--color-text-soft);
+  min-height: 1.4em;
+}
+
+.axis-fit-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+
+.axis-fit-tools .panel-btn.active {
+  background: var(--color-primary);
+  color: var(--color-surface);
+}

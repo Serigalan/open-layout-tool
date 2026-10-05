@@ -4,6 +4,9 @@
     POST /splice          body: two picked elements and the splice settings,
                           answer: splice_payload's chain (or its error key) —
                           "Elemente verbinden", AP 12.4
+    POST /align           body: measured axis points and the settings of the
+                          fit, answer: align_payload's alignment from them —
+                          "Aus Messachse trassieren", AP 12.5
     POST /mdb             body: an Access file, answer: its Satzarten as JSON
     POST /terrain         body: {"lnglat": [[lng, lat], ...]} (or, as first
                           built, {"points": [[e, n], ...]} in EPSG:25832),
@@ -34,6 +37,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from .alignment_fit import align_payload
 from .api import optimize_payload, variants_for
 from .grenzen import DEFAULT_STUFE, STUFEN, grenzen_for
 from .mdb import MdbError, convert as mdb_convert
@@ -65,6 +69,8 @@ MAX_TERRAIN_POINTS = int(os.environ.get("OLT_TERRAIN_MAX_POINTS", "20000"))
 
 # A splice request is two elements and a few numbers.
 MAX_SPLICE_BODY = 64 * 1024
+# An alignment fit: up to MAX_POINTS axis points of ~30 bytes each.
+MAX_ALIGN_BODY = 2 * 1024 * 1024
 
 MAX_ITER = 150
 MAX_ELEMENTS = 2000
@@ -91,6 +97,45 @@ def _child(pipe, payload):
         pipe.send((False, f"__internal__{exc}"))
     finally:
         pipe.close()
+
+
+def _align_child(pipe, payload):
+    try:
+        pipe.send((True, align_payload(payload)))
+    except (ValueError, KeyError, TypeError) as exc:
+        pipe.send((False, f"__invalid__{exc}"))
+    except Exception as exc:                                   # noqa: BLE001
+        pipe.send((False, f"__internal__{exc}"))
+    finally:
+        pipe.close()
+
+
+def run_align(payload, timeout=TIMEOUT):
+    """An alignment fit under the deadline, in a process of its own: a few
+    seconds a kilometre, but a long axis with many curves runs for a while,
+    and pure-Python Nelder-Mead cannot be stopped from another thread."""
+    ctx = multiprocessing.get_context("fork")
+    rx, tx = ctx.Pipe(duplex=False)
+    proc = ctx.Process(target=_align_child, args=(tx, payload), daemon=True)
+    proc.start()
+    tx.close()
+    try:
+        if not rx.poll(timeout):
+            raise ServiceError(504, "timeout")
+        try:
+            ok, value = rx.recv()
+        except EOFError:
+            raise ServiceError(500, "internal") from None
+    finally:
+        if proc.is_alive():
+            proc.terminate()
+        proc.join(5)
+        rx.close()
+    if not ok:
+        if value.startswith("__invalid__"):
+            raise ServiceError(400, "invalid_payload")
+        raise ServiceError(500, "internal", value[len("__internal__"):])
+    return value
 
 
 def _spawn(ctx, load):
@@ -326,8 +371,38 @@ class Handler(BaseHTTPRequestHandler):
             raise ServiceError(400, "invalid_payload")
         self._respond(200, result)
 
+    def _do_align(self):
+        """An alignment from axis points: held to the slots and the deadline
+        like an optimizer run, which it resembles in cost. A fit that cannot be
+        made is an answer (200 with its error key), the curvature and the
+        straights still in it for the user to correct."""
+        try:
+            payload = json.loads(self._read_body(MAX_ALIGN_BODY).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            raise ServiceError(400, "invalid_payload") from None
+        if not _slots.acquire(timeout=TIMEOUT):
+            raise ServiceError(503, "busy")
+        try:
+            started = time.monotonic()
+            result = run_align(payload)
+        finally:
+            _slots.release()
+        self.log_message("align %d points → %d elements in %.1fs", len(payload.get("points") or []),
+                         len(result.get("elements") or []), time.monotonic() - started)
+        self._respond(200, result)
+
     def do_POST(self):                                         # noqa: N802
         route = self.path.rstrip("/")
+        if route == "/align":
+            try:
+                self._do_align()
+            except ServiceError as exc:
+                if exc.code == "internal":
+                    self.log_message("align failure: %s", exc.message or "?")
+                self._respond(exc.status, {"error": exc.code})
+            except Exception:                                  # noqa: BLE001
+                self._respond(500, {"error": "internal"})
+            return
         if route == "/splice":
             try:
                 self._do_splice()

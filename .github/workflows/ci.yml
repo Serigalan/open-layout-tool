@@ -39,6 +39,10 @@ jobs:
         working-directory: tools/optimizer
       - run: python tests/verify_service.py
         working-directory: tools/optimizer
+      - run: python tests/verify_splice.py
+        working-directory: tools/optimizer
+      - run: python tests/verify_align.py
+        working-directory: tools/optimizer
       - run: python tests/verify.py
         working-directory: tools/optimizer
 

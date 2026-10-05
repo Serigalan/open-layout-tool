@@ -46,7 +46,9 @@ const DEFAULTS = {
 function spliceMessage(t, fill, splice) {
   if (splice.error) {
     const rMax = splice.params?.rMax
-    const text = t(splice.error)
+    // The keys are the service's (splice.py); one this bundle does not know yet reads as no fit.
+    const known = splice.error.startsWith('splice_error_') || splice.error === 'splice_service_unavailable'
+    const text = t(known ? splice.error : 'splice_error_no_fit')
     // The error texts end with or without a full stop; the hint is a sentence of its own.
     const hint = rMax != null ? `${/[.!?]$/.test(text) ? '' : '.'} ${fill('splice_r_max', { r: String(rMax) })}` : ''
     return { msg: text + hint, error: true }

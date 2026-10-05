@@ -111,26 +111,39 @@ def heading_at(profile, k1, k2, length, s):
     return s * (a1 + s * (a2 + s * (a3 + s * a4)))
 
 
+# Gauss-Legendre nodes and weights on [0, 1] for the integrations below.
+_GL_NODES = (
+    (0.01985507175123191, 0.05061426814518834),
+    (0.10166676129318664, 0.11119051722668717),
+    (0.23723379504183550, 0.15685332293894352),
+    (0.40828267875217511, 0.18134189168918088),
+    (0.59171732124782483, 0.18134189168918088),
+    (0.76276620495816450, 0.15685332293894352),
+    (0.89833323870681336, 0.11119051722668717),
+    (0.98014492824876809, 0.05061426814518834),
+)
+
+
 def transition_shift(length, radius, profile="clothoid"):
     """Shift parameters (p, t, phi) of a straight-to-arc transition.
 
-    Simpson integration like clothoidUtils.transitionShift; n = 200 is exact to
-    well below 1e-9 m for railway L/R and keeps the optimizer fast.
+    Integrated with the eight Gauss-Legendre nodes `transition_end` uses (it
+    was Simpson with n = 200 like clothoidUtils.transitionShift): the same
+    values to 1e-12 m for railway L/R at a seventy-fifth of the work, which
+    counts where a fit builds a curve on every try (alignment_fit.py, AP 12.5).
     """
     if not length > 0:
         return 0.0, 0.0, 0.0
-    k2 = 1.0 / radius
-    n = 200
-    h = length / n
+    a1, a2, a3, a4 = heading_coeffs(profile, 0.0, 1.0 / radius, length)
     x = 0.0
     y = 0.0
-    for i in range(n):
-        s0 = i * h
-        pa = heading_at(profile, 0.0, k2, length, s0)
-        pm = heading_at(profile, 0.0, k2, length, s0 + h / 2)
-        pb = heading_at(profile, 0.0, k2, length, s0 + h)
-        x += h / 6 * (math.cos(pa) + 4 * math.cos(pm) + math.cos(pb))
-        y += h / 6 * (math.sin(pa) + 4 * math.sin(pm) + math.sin(pb))
+    for u, w in _GL_NODES:
+        s = u * length
+        p = s * (a1 + s * (a2 + s * (a3 + s * a4)))
+        x += w * math.cos(p)
+        y += w * math.sin(p)
+    x *= length
+    y *= length
     phi = length / (2 * radius)
     return y + radius * math.cos(phi) - radius, x - radius * math.sin(phi), phi
 
@@ -165,19 +178,6 @@ def sample_transition(e, n, bearing_deg, length, r1, r2, profile="clothoid", ste
         y += w * (sin(pa) + 4 * sin(pm) + sin(pb))
         pts.append((x, y))
     return pts
-
-
-# Gauss-Legendre nodes and weights on [0, 1] for the forward march below.
-_GL_NODES = (
-    (0.01985507175123191, 0.05061426814518834),
-    (0.10166676129318664, 0.11119051722668717),
-    (0.23723379504183550, 0.15685332293894352),
-    (0.40828267875217511, 0.18134189168918088),
-    (0.59171732124782483, 0.18134189168918088),
-    (0.76276620495816450, 0.15685332293894352),
-    (0.89833323870681336, 0.11119051722668717),
-    (0.98014492824876809, 0.05061426814518834),
-)
 
 
 def transition_end(e, n, bearing_deg, length, r1, r2, profile="clothoid"):

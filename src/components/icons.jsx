@@ -259,6 +259,17 @@ export const OptimizeElementModeIcon = () => (
   </MenuIcon>
 )
 
+// An alignment fitted through measured axis points (AP 12.5).
+export const AxisFitModeIcon = () => (
+  <MenuIcon>
+    <path d="M1 13 L6 13 Q11 13 12.5 8.5 Q13.5 5 14 1.5" />
+    <IconNode cx={3.5} cy={11.4} />
+    <IconNode cx={8.5} cy={14.2} />
+    <IconNode cx={14.2} cy={9} />
+    <IconNode cx={11.8} cy={4} />
+  </MenuIcon>
+)
+
 // The two crossing kinds AP 3.2/3.3 will place — drawn ahead of the geometry,
 // so the panels that place them reach for an icon instead of a placeholder.
 // A crossing is two routes that cross, one node per port. A crossing switch is

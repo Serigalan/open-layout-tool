@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import OptimizeTrackPanel from './OptimizeTrackPanel'
-import { PhysicsIcon, RegelwerkIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon } from '../icons'
+import { PhysicsIcon, RegelwerkIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 
 /**
  * Checking the design (R10.7): the physics and the rulebook it is held to —
  * each a popup over the map, as wide as their tables — and the optimizer that
- * holds a track or an element to them, the one place it is offered.
+ * holds a track or an element to them, the one place it is offered; beside it
+ * the alignment fit from a measured axis (AP 12.5).
  */
 export default function CheckPanel({ onShowPhysics, onShowRegelwerk }) {
   const { t } = useI18n()
@@ -38,6 +39,10 @@ export default function CheckPanel({ onShowPhysics, onShowRegelwerk }) {
         <button className="create-element-btn" onClick={() => setPage('element')}>
           <OptimizeElementModeIcon />
           {t('optimize_mode_element')}
+        </button>
+        <button className="create-element-btn" onClick={() => setPage('axis')}>
+          <AxisFitModeIcon />
+          {t('optimize_mode_axis')}
         </button>
       </div>
     </>

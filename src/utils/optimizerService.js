@@ -109,6 +109,18 @@ export async function spliceOnServer(payload, { signal } = {}) {
   return postJson('/splice', payload, { signal })
 }
 
+/**
+ * "Aus Messachse trassieren" (AP 12.5): an alignment from axis points, fitted
+ * by the service — curvature, straights, curves, the chain and every point's
+ * offset from it. See alignmentFit.alignRequest for the payload. A fit that
+ * cannot be made is an answer with `error` (and `errorParams`), the curvature
+ * and the straights still in it; throws an OptimizerError where the service
+ * cannot be asked.
+ */
+export async function alignOnServer(payload, { signal } = {}) {
+  return postJson('/align', payload, { signal })
+}
+
 /** A JSON request to the service and its answer; every failure an OptimizerError. */
 async function postJson(path, payload, { signal } = {}) {
   let res

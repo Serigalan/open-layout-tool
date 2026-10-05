@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
-  optimizeOnServer, optimizerReachable, fetchRegelwerke, fetchRegelwerk, OptimizerError,
+  optimizeOnServer, optimizerReachable, fetchRegelwerke, fetchRegelwerk, OptimizerError, alignOnServer,
 } from './optimizerService'
 import { bundledCatalogHash } from './catalogHash'
 import { reconstructElements } from './elementReconstruct'
@@ -40,6 +40,20 @@ describe('what the panel gets back from the optimizer service', () => {
     expect(url).toMatch(/\/optimize$/)
     expect(init.method).toBe('POST')
     expect(JSON.parse(init.body)).toMatchObject({ corridorCm: 50, uf: 130 })
+  })
+})
+
+describe('an alignment fit (AP 12.5)', () => {
+  it('is asked for on /align, and a fit that cannot be made is an answer', async () => {
+    const fetchMock = vi.fn(async () => json({ error: 'align_error_no_straight', kappa: [null, 0.001] }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(alignOnServer({ points: [[0, 0]] })).resolves.toMatchObject({ error: 'align_error_no_straight' })
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/align$/)
+  })
+
+  it('throws where the service cannot be asked', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('offline') }))
+    await expect(alignOnServer({ points: [] })).rejects.toBeInstanceOf(OptimizerError)
   })
 })
 
