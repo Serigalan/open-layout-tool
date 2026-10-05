@@ -1151,7 +1151,7 @@
   "railtrace_guide_track": "Gleis des Projekts",
   "railtrace_guide_line": "Linie in der Karte zeichnen",
   "railtrace_track": "Gleis",
-  "railtrace_track_hint": "Auch per Klick in der Karte wählbar. Gesucht wird bis 30 cm neben seiner Achse.",
+  "railtrace_track_hint": "Auch per Klick in der Karte wählbar. Gesucht wird bis 1,5 m neben seiner Achse – ein Gleis aus einer Trassierung liegt oft einige Dezimeter neben dem gemessenen.",
   "railtrace_line_hint": "Die Linie muss nur ungefähr über dem Gleis liegen (bis 1,5 m daneben, einige Grad schräg) und in Richtung der Messung gezeichnet sein.",
   "railtrace_line_draw": "Linie zeichnen",
   "railtrace_line_redraw": "Neu zeichnen",

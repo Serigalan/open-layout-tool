@@ -15,9 +15,13 @@ import { trackLength } from '../heightUtils'
 export const DETECT_THICKNESS = 0.5
 /** Step of a trace along its guide [m]. */
 export const TRACE_STEP = 0.5
-/** How far off its guide the track may be [m]: a track of the project, a line drawn by hand. */
-export const TRACK_GUIDE_WINDOW = 0.3
-export const LINE_GUIDE_WINDOW = 1.5
+/**
+ * How far off its guide the track may be [m] — a line drawn by hand, and a
+ * track of the project too: measured against the cloud of line 5550 (km 0.5),
+ * the track lay 0.53–0.84 m beside the axis of its own Verm.ESN alignment.
+ * Neighbouring tracks stand 3.5 m and more apart.
+ */
+export const GUIDE_WINDOW = 1.5
 /** How far off the axis foreseen from the last points the next one may be [m]. */
 const FOLLOW_WINDOW = 0.1
 /** The points that foresee the next one: within this distance back [m], at least this many. */
@@ -53,7 +57,7 @@ async function slicePoints(projectId, clouds, frame) {
  * `bearing` through `origin` (in plane `crs`), searched `window` either side
  * of `around` [m across]. What detectTrack returns.
  */
-export async function detectInClouds(projectId, clouds, { origin, bearing, crs, around = 0, window = 0.3, rail }) {
+export async function detectInClouds(projectId, clouds, { origin, bearing, crs, around = 0, window = GUIDE_WINDOW, rail }) {
   const halfWidth = Math.abs(around) + window + 1.2
   const points = await slicePoints(projectId, clouds, {
     origin, bearing, crs, halfWidth, thickness: DETECT_THICKNESS,
@@ -69,7 +73,7 @@ export function trackGuide(track) {
   return {
     epsg: track.epsg,
     length: trackLength(track),
-    window: TRACK_GUIDE_WINDOW,
+    window: GUIDE_WINDOW,
     at: (s) => {
       const o = sectionOrigin(track, s)
       return o && { easting: o.utm.easting, northing: o.utm.northing, bearing: o.bearing }
@@ -85,7 +89,7 @@ export function lineGuide(vertices, epsg) {
   return {
     epsg,
     length: cum[cum.length - 1],
-    window: LINE_GUIDE_WINDOW,
+    window: GUIDE_WINDOW,
     at: (s) => {
       if (pts.length < 2) return null
       let i = 1

@@ -1151,7 +1151,7 @@
   "railtrace_guide_track": "Track of the project",
   "railtrace_guide_line": "Draw a line on the map",
   "railtrace_track": "Track",
-  "railtrace_track_hint": "Can also be picked on the map. Searched up to 30 cm beside its axis.",
+  "railtrace_track_hint": "Can also be picked on the map. Searched up to 1.5 m beside its axis – a track from an alignment file often lies some decimetres beside the measured one.",
   "railtrace_line_hint": "The line only has to lie roughly over the track (up to 1.5 m beside it, a few degrees askew) and be drawn in the direction of the survey.",
   "railtrace_line_draw": "Draw line",
   "railtrace_line_redraw": "Draw again",
