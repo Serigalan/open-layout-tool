@@ -20,6 +20,7 @@ import CommitBar from '../../form/CommitBar'
 import FilePickButton from '../../form/FilePickButton'
 import NumberInput from '../../form/NumberInput'
 import CurvatureChart from '../../chart/CurvatureChart'
+import useAxisPointEraser from '../pointCloud/useAxisPointEraser'
 
 /** How long edits must rest before the service is asked again [ms]. */
 const ALIGN_DEBOUNCE = 300
@@ -51,6 +52,15 @@ const SETTINGS = [
   { key: 'sagittaMm', unit: 'mm', step: 0.5 },
   { key: 'minLength', unit: 'm', step: 1 },
 ]
+
+// A survey the user took points out of is another object in the store, and
+// another request: numbered by identity, so an undo is the earlier one again.
+const revisions = new WeakMap()
+let lastRevision = 0
+const revisionOf = (survey) => {
+  if (!revisions.has(survey)) revisions.set(survey, ++lastRevision)
+  return revisions.get(survey)
+}
 
 const fmt = (v, digits = 1) => (v == null ? '–' : Number(v).toFixed(digits))
 const mm = (m) => (m == null ? '–' : (m * 1000).toFixed(1))
@@ -87,6 +97,7 @@ export default function AxisFitPanel({ backButton }) {
   const [reachable, setReachable] = useState(null)
   const [hover, setHover] = useState(null)
   const [done, setDone] = useState(null)
+  const [erasing, setErasing] = useState(false)    // taking single points out of the survey on the map
 
   useEffect(() => {
     let cancelled = false
@@ -95,12 +106,19 @@ export default function AxisFitPanel({ backButton }) {
   }, [])
 
   // The points in use: a survey's, or the file's in the plane chosen for it.
+  // `id` is which points they are, `key` which state of them.
   const survey = surveys.find(s => s.id === sourceId)
   const source = useMemo(() => {
-    if (survey) return { key: survey.id, name: survey.name, epsg: Number(survey.epsg), points: surveyAxis(survey) }
+    if (survey) {
+      return {
+        id: survey.id, key: `${survey.id}#${revisionOf(survey)}`,
+        name: survey.name, epsg: Number(survey.epsg), points: surveyAxis(survey),
+      }
+    }
     if (sourceId === 'file' && file?.points) {
       const epsg = file.epsg ?? (Number(fileEpsg) || null)
-      return epsg ? { key: `file:${file.name}:${epsg}`, name: file.name.replace(/\.[^.]*$/, ''), epsg, points: file.points } : null
+      const key = `file:${file.name}:${epsg}`
+      return epsg ? { id: key, key, name: file.name.replace(/\.[^.]*$/, ''), epsg, points: file.points } : null
     }
     return null
   }, [survey, sourceId, file, fileEpsg])
@@ -113,12 +131,12 @@ export default function AxisFitPanel({ backButton }) {
       try {
         const body = alignRequest(source.points, { straights: straights && straightRanges(straights), settings })
         const data = await alignOnServer(body, { signal: ctl.signal })
-        setAnswer({ key: requestKey, data, sourceKey: source.key })
+        setAnswer({ key: requestKey, data, sourceId: source.id })
         setReachable(true)
       } catch (err) {
         if (err?.name === 'AbortError') return
         const code = err instanceof OptimizerError ? err.code : 'unavailable'
-        setAnswer({ key: requestKey, error: optimizeErrorText(t, code, err.detail), sourceKey: source.key })
+        setAnswer({ key: requestKey, error: optimizeErrorText(t, code, err.detail), sourceId: source.id })
         if (code === 'unavailable') setReachable(false)
       }
     }, ALIGN_DEBOUNCE)
@@ -128,8 +146,9 @@ export default function AxisFitPanel({ backButton }) {
   }, [requestKey])
   const running = !!requestKey && answer?.key !== requestKey
   const elapsed = useElapsed(running)
-  // The last answer for these points stays in view while the next is computed.
-  const data = answer?.sourceKey === source?.key ? answer?.data ?? null : null
+  // The last answer for these points stays in view while the next is computed —
+  // also while it is computed for points taken out by hand.
+  const data = answer?.sourceId === source?.id ? answer?.data ?? null : null
   const failure = answer?.key === requestKey ? answer?.error ?? null : null
   const shownStraights = straights ?? data?.straights ?? []
   const tolerance = Number(settings.toleranceMm) / 1000
@@ -150,15 +169,20 @@ export default function AxisFitPanel({ backButton }) {
       { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: fittedLine } }] } : null)
   }, [preview, fittedLine])
   useEffect(() => {
-    const offsets = data?.offsets
+    // Offsets of an answer for other points (before one was taken out) say nothing about these.
+    const offsets = data?.offsets?.length === pointsWgs.length ? data.offsets : null
+    const st = survey?.points.st
     preview.set(POINT_SOURCE, pointsWgs.length ? { type: 'FeatureCollection', features: pointsWgs.map((c, i) => ({
-      type: 'Feature', properties: { over: offsets ? Math.abs(offsets[i]) > tolerance : false },
+      type: 'Feature',
+      properties: { over: offsets ? Math.abs(offsets[i]) > tolerance : false, surveyId: survey?.id ?? null, st: st?.[i] ?? null },
       geometry: { type: 'Point', coordinates: c } })) } : null)
-  }, [preview, pointsWgs, data, tolerance])
+  }, [preview, pointsWgs, data, tolerance, survey])
   useEffect(() => {
     preview.set(HOVER_SOURCE, hover != null && pointsWgs[hover] ? { type: 'FeatureCollection', features: [
       { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: pointsWgs[hover] } }] } : null)
   }, [preview, pointsWgs, hover])
+
+  useAxisPointEraser({ survey: erasing ? survey : null, layer: FIT_LAYERS[1].layer.id })
 
   const showOnMap = (points, epsg) => {
     const coords = points.map(p => utmToWgs84(p.easting, p.northing, epsg))
@@ -174,6 +198,7 @@ export default function AxisFitPanel({ backButton }) {
   const chooseSource = (id) => {
     reset()
     setDone(null)
+    setErasing(false)
     setSourceId(id)
     const s = surveys.find(x => x.id === id)
     if (s) showOnMap(surveyAxis(s), s.epsg)
@@ -216,6 +241,12 @@ export default function AxisFitPanel({ backButton }) {
             <option value="file">{t('align_source_file')}</option>
           </select>
           {!surveys.length && <span className="msg-hint msg-small">{t('align_no_surveys')}</span>}
+          {survey && (
+            <button type="button" className={`panel-btn${erasing ? ' active' : ''}`} onClick={() => setErasing(v => !v)}>
+              {t(erasing ? 'axis_survey_erase_done' : 'axis_survey_erase')}
+            </button>
+          )}
+          {erasing && survey && <span className="msg-hint msg-small">{t('axis_survey_erase_hint')}</span>}
         </div>
         {sourceId === 'file' && (
           <div className="form-field">

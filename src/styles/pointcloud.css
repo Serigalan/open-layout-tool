@@ -14,7 +14,15 @@
 
 .pointcloud-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+/* A measured axis whose points are being taken out on the map. */
+.pointcloud-actions .modal-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
 }
 
 .panel-btn:disabled {

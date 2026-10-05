@@ -35,6 +35,9 @@ export default function PointCloudPanel() {
   const [storage, setStorage] = useState(null)  // { usage, quota, free, persisted }
   const [message, setMessage] = useState(null)  // { kind: 'error'|'done', text }
   const [running, setRunning] = useState(false)
+  // The measured axis whose points are being taken out on the map — the
+  // trace's own clicks on the map wait meanwhile.
+  const [erasingId, setErasingId] = useState(null)
 
   const refresh = async () => {
     setClouds(await listClouds(project.id).catch(() => []))
@@ -65,7 +68,7 @@ export default function PointCloudPanel() {
     return (
       <>
         <p className="form-error">{t('pointcloud_no_opfs')}</p>
-        <AxisSurveyList />
+        <AxisSurveyList erasingId={erasingId} onErasing={setErasingId} />
       </>
     )
   }
@@ -77,8 +80,8 @@ export default function PointCloudPanel() {
       <CloudImportForm storage={storage} onMessage={setMessage} onChanged={refresh} onRunning={setRunning} />
       {message && <p className={message.kind === 'error' ? 'form-error' : 'selecting-hint'}>{message.text}</p>}
       <CloudList clouds={clouds} busy={running} onDelete={remove} />
-      {clouds?.length > 0 && !running && <RailTraceSection clouds={clouds} />}
-      <AxisSurveyList />
+      {clouds?.length > 0 && !running && <RailTraceSection clouds={clouds} paused={!!erasingId} />}
+      <AxisSurveyList erasingId={erasingId} onErasing={setErasingId} />
       {storage && (
         <p className="pointcloud-meta pointcloud-storage">
           {fill('pointcloud_storage', { used: sizeText(storage.usage), free: sizeText(storage.free) })}

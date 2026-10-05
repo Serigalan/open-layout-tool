@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { surveyFromTrace, surveyPoints, surveyStats, surveyDefect } from './axisSurvey'
+import { surveyFromTrace, surveyPoints, surveyStats, surveyDefect, withoutPoints } from './axisSurvey'
 import { validateProject } from './validateProject'
 import { mergeProject } from './merge'
 import { describeStep } from './stepLabel'
@@ -46,6 +46,16 @@ describe('a measured axis in the record', () => {
   it('says how many points and what stretch', () => {
     expect(surveyStats(surveyFromTrace(meta, trace))).toEqual({ points: 3, good: 2, from: 0, to: 1.5 })
     expect(surveyStats({})).toEqual({ points: 0, good: 0, from: 0, to: 0 })
+  })
+
+  it('loses single points by hand, the others unchanged', () => {
+    const survey = surveyFromTrace(meta, trace)
+    const cut = withoutPoints(survey, [1])
+    expect(surveyDefect(cut)).toBeNull()
+    expect(surveyPoints(cut)).toEqual([surveyPoints(survey)[0], surveyPoints(survey)[2]])
+    expect(surveyStats(cut)).toEqual({ points: 2, good: 2, from: 0, to: 1.5 })
+    expect(surveyPoints(withoutPoints(survey, [0, 2]))[0].station).toBe(0.5)
+    expect(survey.points.st).toHaveLength(3)
   })
 
   it('is an error in the record where it does not hold together', () => {

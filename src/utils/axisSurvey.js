@@ -58,6 +58,21 @@ export function surveyPoints(survey) {
   })
 }
 
+/**
+ * The survey without the points at `indices` (their places in the arrays, as
+ * surveyPoints numbers them) — taken out by hand where a trace went wrong.
+ * The origin stays, so every other point keeps its coordinates to the mm.
+ */
+export function withoutPoints(survey, indices) {
+  const drop = new Set(indices)
+  const p = survey.points
+  const keep = (a) => a.filter((_, i) => !drop.has(i))
+  return {
+    ...survey,
+    points: { ...p, st: keep(p.st), de: keep(p.de), dn: keep(p.dn), zl: keep(p.zl), zr: keep(p.zr), ga: keep(p.ga), q: keep(p.q) },
+  }
+}
+
 /** How many points a survey has, how many of them good, and the stretch of the guide they cover [m]. */
 export function surveyStats(survey) {
   const p = survey?.points

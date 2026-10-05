@@ -47,9 +47,9 @@ const TRACE_LAYERS = [
  * track of the project or a line drawn on the map (Entscheidung 129) — find
  * the rail heads every 50 cm, show the axis points on the map and hand them
  * out as a point file (Entscheidung 138) or keep them with the project as a
- * measured axis (AP 12.3).
+ * measured axis (AP 12.3). `paused` leaves the map's clicks to someone else.
  */
-export default function RailTraceSection({ clouds }) {
+export default function RailTraceSection({ clouds, paused = false }) {
   const { t, fill } = useI18n()
   const project = useProject()
   const tracks = loadTracks()
@@ -76,11 +76,11 @@ export default function RailTraceSection({ clouds }) {
   // A track is picked on the map as well as from the list; a guide line is
   // drawn click by click.
   useMapPick({
-    active: mode === 'track' && !run, hover: 'track',
+    active: mode === 'track' && !run && !paused, hover: 'track',
     onPick: (hit) => chooseTrack(hit.trackId),
   })
   const addVertex = (e) => setLine(prev => [...prev, [e.lngLat.lng, e.lngLat.lat]])
-  useMapPick({ active: drawing, onPick: (_hit, e) => addVertex(e), onMiss: addVertex, cursor: false })
+  useMapPick({ active: drawing && !paused, onPick: (_hit, e) => addVertex(e), onMiss: addVertex, cursor: false })
 
   // A cross hair while a guide is drawn.
   const map = useMap()

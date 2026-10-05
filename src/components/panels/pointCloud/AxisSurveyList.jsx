@@ -12,6 +12,7 @@ import usePreview from '../../../map/usePreview'
 import { PALETTE } from '../../../styles/palette'
 import ConfirmModal from '../../ConfirmModal'
 import { SO_REFERENCES, exportAxisPoints } from './axisExport'
+import useAxisPointEraser from './useAxisPointEraser'
 
 // The measured axes of the project, while the panel is open.
 const SURVEY_SOURCE = 'axis-survey-source'
@@ -30,9 +31,10 @@ const SURVEY_LAYERS = [{
 /**
  * The measured axes kept with the project (AP 12.3, Entscheidung 132): on
  * every device, whether or not the clouds they came from are there — shown on
- * the map, exported as a point file, deleted.
+ * the map, exported as a point file, deleted, or cleared of single wrong
+ * points on the map (`erasingId` the survey that is, `onErasing` to change it).
  */
-export default function AxisSurveyList() {
+export default function AxisSurveyList({ erasingId = null, onErasing }) {
   const { t, fill, language } = useI18n()
   const map = useMap()
   const surveys = useAxisSurveys()
@@ -43,12 +45,14 @@ export default function AxisSurveyList() {
   useEffect(() => {
     preview.set(SURVEY_SOURCE, {
       type: 'FeatureCollection',
-      features: surveys.flatMap(s => surveyPoints(s).map(p => ({
-        type: 'Feature', properties: { quality: p.quality },
+      features: surveys.flatMap(s => surveyPoints(s).map((p, i) => ({
+        type: 'Feature', properties: { quality: p.quality, surveyId: s.id, st: s.points.st[i] },
         geometry: { type: 'Point', coordinates: utmToWgs84(p.easting, p.northing, s.epsg) },
       }))),
     })
   }, [preview, surveys])
+
+  useAxisPointEraser({ survey: surveys.find(s => s.id === erasingId), layer: SURVEY_LAYERS[0].layer.id })
 
   const showOnMap = (survey) => {
     const coords = surveyPoints(survey).map(p => utmToWgs84(p.easting, p.northing, survey.epsg))
@@ -86,8 +90,13 @@ export default function AxisSurveyList() {
                 onClick={() => exportAxisPoints(surveyPoints(s), { name: s.name, epsg: s.epsg, soReference })}>
                 {t('axis_survey_export')}
               </button>
+              <button className={`modal-btn modal-btn-cancel${erasingId === s.id ? ' active' : ''}`}
+                onClick={() => onErasing?.(erasingId === s.id ? null : s.id)}>
+                {t(erasingId === s.id ? 'axis_survey_erase_done' : 'axis_survey_erase')}
+              </button>
               <button className="modal-btn modal-btn-confirm" onClick={() => setAsking(s)}>{t('modal_delete')}</button>
             </div>
+            {erasingId === s.id && <span className="selecting-hint">{t('axis_survey_erase_hint')}</span>}
           </div>
         )
       })}
