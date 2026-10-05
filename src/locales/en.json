@@ -742,6 +742,8 @@
   "cross_section_no_gradient": "No gradient",
   "cross_section_reach": "Width ±",
   "cross_section_reach_hint": "How far either side of the track other tracks are drawn",
+  "cross_section_detach": "Show the cross section in a window of its own – it follows every change",
+  "cross_section_dock": "Dock",
   "cross_section_fit": "Fit",
   "cross_section_view_hint": "Wheel zooms, drag pans, double click fits",
   "cross_section_terrain": "Terrain",

@@ -195,3 +195,25 @@
 @media (max-width: 1440px) {
   .profile-overlay { height: 40%; }
 }
+
+/* The cross section in a window of its own: the whole window, no edge to drag. */
+.popout-root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-overlay.detached {
+  position: static;
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  border-top: none;
+}
+
+.cross-section-detach {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--fs-s);
+}

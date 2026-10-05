@@ -80,7 +80,7 @@ export function drawCloudPoints(ctx, { w, h, dpr = 1, k, cx, cy, zRef, parts, co
  * transform (`k`, `cx`, `cy`) — or left empty without one.
  */
 export function paintCloudCanvas(canvas, { w, h, view, zRef, parts, coloring }) {
-  const dpr = window.devicePixelRatio || 1
+  const dpr = (canvas.ownerDocument.defaultView ?? window).devicePixelRatio || 1
   if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
     canvas.width = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)

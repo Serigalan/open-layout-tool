@@ -16,7 +16,7 @@ import { loadSettings, saveSettings } from '../utils/settings'
 import useKmLineHover from '../hooks/useKmLineHover'
 import useKmOverlays from './useKmOverlays'
 import { OVERLAYS_CLOSED, closesTrackTable, overlayReducer } from './overlays'
-import { panelById } from './panels'
+import { PANELS, panelById } from './panels'
 import Sidebar from './Sidebar'
 import StepNotice from './StepNotice'
 import MapLegend from './MapLegend'
@@ -25,6 +25,7 @@ import usePanelWidth from './usePanelWidth'
 import RuleFieldsScope from '../components/form/RuleFieldsScope'
 import ConfirmModal from '../components/ConfirmModal'
 import ElevationLegend from '../components/ElevationLegend'
+import PopoutWindow from '../components/PopoutWindow'
 import WorkingCopyBar from '../components/collab/WorkingCopyBar'
 
 // The overlays and dialogs are chunks of their own (R9.1), loaded when first shown.
@@ -84,7 +85,7 @@ export default function MapWorkspace({ wc, onHome }) {
   // its first steps (R10.13).
   const [activePanel, setActivePanel] = useState('info')
   const [overlays, dispatch] = useReducer(overlayReducer, OVERLAYS_CLOSED)
-  const { overlay, popup } = overlays
+  const { overlay, popup, detached } = overlays
   // Two states over each other (AP 10.3): { before, after, beforeLabel, afterLabel, drawUnchanged }.
   const [compare, setCompare] = useState(null)
   const [color, setColorState] = useState(() => loadSettings().color ?? DEFAULT_COLOR)
@@ -110,6 +111,13 @@ export default function MapWorkspace({ wc, onHome }) {
   const openOverlay = useCallback((o) => act({ type: 'open', overlay: o }), [act])
   const closeOverlay = useCallback((kind) => act({ type: 'close', kind }), [act])
 
+  // The cross section in a window of its own: opened here, in the click, so
+  // the browser lets it through. A blocked window leaves it over the map.
+  const detachOverlay = (kind) => {
+    const win = window.open('', `olt-${kind}`, 'popup,width=1100,height=600')
+    if (win) dispatch({ type: 'detach', kind, win })
+  }
+
   // An update put a merged record in place of the working copy: the element
   // table's edits were made on the old one and go with it.
   useEffect(() => {
@@ -118,9 +126,9 @@ export default function MapWorkspace({ wc, onHome }) {
 
   // ── panels ──
   const panelSize = usePanelWidth()
-  const selectPanel = (next) => {
+  const selectPanel = (next, then) => {
     // The open panel's icon leaves it open: there is always one.
-    if (next === activePanel) return
+    if (next === activePanel) { then?.(); return }
     const leaving = panelById(activePanel)
     // Entering and leaving may also keep what they replace (the basemap).
     const ctx = { ...shell, basemapBeforeTopology, setBasemapBeforeTopology }
@@ -128,7 +136,14 @@ export default function MapWorkspace({ wc, onHome }) {
       leaving?.onLeave?.(ctx)
       setActivePanel(next)
       panelById(next)?.onEnter?.(ctx)
+      then?.()
     })
+  }
+
+  // Docked again it is the overlay of its panel, so that panel is opened.
+  const dockDetached = () => {
+    const owner = PANELS.find(p => p.overlay === detached?.kind)
+    if (owner) selectPanel(owner.id, () => dispatch({ type: 'dock' }))
   }
 
   const goHome = () => act({ type: 'closeAll' }, async () => {
@@ -148,7 +163,7 @@ export default function MapWorkspace({ wc, onHome }) {
     activeBasemap, setBasemap,
     kmOverlays: km.kmOverlays, setKmOverlay: km.setKmOverlay, kmLinesError: km.kmLinesError,
     topologySelection, setTopologySelection,
-    overlay, openOverlay, closeOverlay,
+    overlay, openOverlay, closeOverlay, detached,
     showPhysics: () => act({ type: 'popup', popup: { kind: 'physics' } }),
     showRegelwerk: (regelwerkId = '') => act({ type: 'popup', popup: { kind: 'regelwerk', regelwerkId } }),
     closePopup: () => act({ type: 'closePopup' }),
@@ -332,7 +347,15 @@ export default function MapWorkspace({ wc, onHome }) {
             onDirtyChange={setTableDirty} onClose={() => closeOverlay('trackTable')} />}
           {overlay?.kind === 'profile' && <ElevationOverlay trackId={overlay.trackId} onClose={() => closeOverlay('profile')} />}
           {overlay?.kind === 'crossSection' && <CrossSectionOverlay at={overlay.at}
-            onAtChange={(at) => openOverlay({ kind: 'crossSection', at })} onClose={() => closeOverlay('crossSection')} />}
+            onAtChange={(at) => openOverlay({ kind: 'crossSection', at })} onClose={() => closeOverlay('crossSection')}
+            onDetach={() => detachOverlay('crossSection')} />}
+          {detached?.kind === 'crossSection' && (
+            <PopoutWindow win={detached.win} onClose={() => dispatch({ type: 'closeDetached' })}>
+              <CrossSectionOverlay at={detached.at} detached
+                onAtChange={(at) => openOverlay({ kind: 'crossSection', at })}
+                onClose={() => dispatch({ type: 'closeDetached' })} onDock={dockDetached} />
+            </PopoutWindow>
+          )}
           {overlay?.kind === 'planPreview' && <PlanPreviewOverlay plan={overlay.plan} filenameBase={overlay.filenameBase}
             onClose={() => closeOverlay('planPreview')} />}
           {overlay?.kind === 'topologyGraph' && topology && <TopologyGraphOverlay

@@ -28,6 +28,7 @@ import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
+import { ExternalLinkIcon } from './icons'
 import NumberInput from './form/NumberInput'
 
 const MARGIN = 28
@@ -104,8 +105,12 @@ const inRange = (p, station) => station >= (p.startStation ?? 0) && station <= (
  * The slider walks the station along the whole track; nothing here is
  * editable. The section is a view of the alignment; what it shows is changed
  * by changing the track (see CrossSectionPanel).
+ *
+ * `onDetach` takes it into a window of its own; there (`detached`) it fills
+ * the window, follows every edit made in the app's window as it is written,
+ * and `onDock` brings it back over the map.
  */
-export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
+export default function CrossSectionOverlay({ at, onAtChange, onClose, detached = false, onDetach, onDock }) {
   const { t, fill } = useI18n()
   const map = useMap()
   const project = useProject()
@@ -139,6 +144,13 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
   if (centeredFor !== centerKey) { setCenteredFor(centerKey); setCenter(null) }
 
   const preview = usePreview(MARKER_LAYERS, { resetCursor: true })
+
+  // In a window of its own, the window is named after what it shows.
+  const title = track ? `${track.name || track.id.slice(0, 8)} · ${t('cross_section_station')} ${station.toFixed(1)} m` : ''
+  useEffect(() => {
+    const doc = bodyRef.current?.ownerDocument
+    if (detached && doc && title) doc.title = `${t('platform_cross_section')} · ${title}`
+  }, [detached, title, t])
 
   // The marker follows the station, on the track's own geometry, and the
   // section line reaches as far as other tracks are looked for.
@@ -602,12 +614,10 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
 
   const state = main.state
   return (
-    <div className="profile-overlay" style={overlay.style}>
-      <div className="profile-resize" onPointerDown={overlay.onResizeStart} />
+    <div className={`profile-overlay${detached ? ' detached' : ''}`} style={detached ? undefined : overlay.style}>
+      {!detached && <div className="profile-resize" onPointerDown={overlay.onResizeStart} />}
       <div className="track-table-header cross-section-header">
-        <span className="track-table-title">
-          {`${track.name || track.id.slice(0, 8)} · ${t('cross_section_station')} ${station.toFixed(1)} m`}
-        </span>
+        <span className="track-table-title">{title}</span>
         <div className="profile-controls">
           <span className="profile-hint">
             {`u=${Math.round(Math.abs(state?.cant ?? 0))} mm`}
@@ -653,6 +663,20 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose }) {
               onChange={e => setReach(clamp(Number(e.target.value) || DEFAULT_REACH, 1, MAX_REACH))} />
             m
           </label>
+          {detached ? (
+            onDock && (
+              <button type="button" className="track-table-close cross-section-detach" onClick={onDock}>
+                {t('cross_section_dock')}
+              </button>
+            )
+          ) : (
+            onDetach && (
+              <button type="button" className="track-table-close cross-section-detach" onClick={onDetach}
+                title={t('cross_section_detach')} aria-label={t('cross_section_detach')}>
+                <ExternalLinkIcon />
+              </button>
+            )
+          )}
           <CloseButton onClick={onClose} />
         </div>
       </div>

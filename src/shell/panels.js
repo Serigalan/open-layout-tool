@@ -92,7 +92,8 @@ export const PANELS = [
     id: 'section', group: 'section', icon: CrossSectionIcon, titleKey: 'platform_cross_section', place: 'top', Component: CrossSectionsPanel,
     overlay: 'crossSection',
     props: (s) => ({
-      crossSectionAt: s.overlay?.kind === 'crossSection' ? s.overlay.at : null,
+      // Over the map or in its own window — a station picked goes to where it is shown.
+      crossSectionAt: [s.overlay, s.detached].find(o => o?.kind === 'crossSection')?.at ?? null,
       onShowCrossSection: (at) => (at ? s.openOverlay({ kind: 'crossSection', at }) : s.closeOverlay('crossSection')),
     }),
   },

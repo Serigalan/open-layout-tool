@@ -13,7 +13,10 @@ export function useElementSize(ref) {
     if (!el) return
     const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight })
     measure()
-    const ro = new ResizeObserver(measure)
+    // The observer of the element's own window: one from another (a popout)
+    // is not told about it.
+    const Observer = el.ownerDocument.defaultView?.ResizeObserver ?? ResizeObserver
+    const ro = new Observer(measure)
     ro.observe(el)
     return () => ro.disconnect()
   }, [ref])
