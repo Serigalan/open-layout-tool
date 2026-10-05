@@ -460,6 +460,48 @@ export function clearImportReports() {
   try { localStorage.removeItem(reportKey()) } catch { /* already gone */ }
 }
 
+// ── tracks hidden on the map ────────────────────────────────────────────────
+
+/**
+ * The tracks hidden from the map (Bearbeiten → Gleise ein-/ausblenden): a way
+ * of looking at the project, not part of it — kept on this device per project
+ * like the import reports, outside the record, so it rides through no undo
+ * step, no check-in and no exchange file. The variants of a project share it,
+ * as they share their track ids. An id whose track is gone is never asked
+ * about again; a track is shown unless it is named here.
+ *
+ * The set is the same object until it changes, as useSyncExternalStore wants.
+ */
+const HIDDEN_KEY_PREFIX = 'olt_hidden_tracks_'
+const hiddenKey = () => HIDDEN_KEY_PREFIX + (_project?.id ?? 'none')
+let _hidden = { key: null, ids: new Set() }
+
+export function hiddenTracks() {
+  const key = hiddenKey()
+  if (_hidden.key !== key) {
+    let ids = []
+    try { ids = JSON.parse(localStorage.getItem(key) ?? '[]') } catch { /* none kept, or no storage */ }
+    _hidden = { key, ids: new Set(Array.isArray(ids) ? ids : []) }
+  }
+  return _hidden.ids
+}
+
+/** Hide (`hidden` true) or show the tracks `trackIds` on the map. */
+export function setTracksHidden(trackIds, hidden) {
+  const next = new Set(hiddenTracks())
+  for (const id of trackIds) {
+    if (hidden) next.add(id)
+    else next.delete(id)
+  }
+  const key = hiddenKey()
+  _hidden = { key, ids: next }
+  try {
+    if (next.size) localStorage.setItem(key, JSON.stringify([...next]))
+    else localStorage.removeItem(key)
+  } catch { /* kept for this session only */ }
+  notify()
+}
+
 /**
  * The open project as a file ({ version, projects }), dehydrated. Its image
  * goes by the hash the server keeps it under (`imageHash`).

@@ -13,12 +13,15 @@ import { useMap } from '../../map/MapContext'
  *
  * `isActive(track)` marks a track, `onPick(track)` is what a click on one does.
  * With `onPickGroup(group)` the header carries a button that picks the group
- * as a whole — the list of a form that takes several tracks at once.
+ * as a whole — the list of a form that takes several tracks at once —, named
+ * by `groupLabel(group)` where picking means something else. With
+ * `isChecked(track)` every track is a checkbox instead of a button, and
+ * ticking it is the pick.
  *
  * Above it a search (R10.6): any part of a name, line number or station, and
  * the kind of track. A search that leaves one track zooms the map to it.
  */
-export default function GroupedTrackList({ tracks: all, isActive, onPick, onPickGroup }) {
+export default function GroupedTrackList({ tracks: all, isActive, onPick, onPickGroup, groupLabel, isChecked }) {
   const { t, fill } = useI18n()
   const map = useMap()
   const [folded, setFolded] = useState(() => new Set())
@@ -51,7 +54,12 @@ export default function GroupedTrackList({ tracks: all, isActive, onPick, onPick
     </div>
   )
 
-  const item = (track) => (
+  const item = (track) => (isChecked ? (
+    <label key={track.id} className="transition-curve-row overlay-item track-group-item">
+      <input type="checkbox" checked={isChecked(track)} onChange={() => onPick?.(track)} />
+      <span>{trackListLabel(track)}</span>
+    </label>
+  ) : (
     <button
       key={track.id}
       className={`create-element-btn track-group-item${isActive?.(track) ? ' active' : ''}`}
@@ -59,7 +67,7 @@ export default function GroupedTrackList({ tracks: all, isActive, onPick, onPick
     >
       {trackListLabel(track)}
     </button>
-  )
+  ))
 
   if (!groups.length) return search
   if (groups.length === 1 && !groups[0].kind) {
@@ -93,7 +101,7 @@ export default function GroupedTrackList({ tracks: all, isActive, onPick, onPick
               </button>
               {onPickGroup && (
                 <button type="button" className="track-group-all" onClick={() => onPickGroup(group)}>
-                  {t('track_group_pick_all')}
+                  {groupLabel ? groupLabel(group) : t('track_group_pick_all')}
                 </button>
               )}
             </div>

@@ -5,7 +5,7 @@ import useMapInstance, { ELEVATION_BASEMAPS } from '../map/useMapInstance'
 import TiltToggle from '../map/TiltToggle'
 import { renderTracksOnMap, updateMapColors } from '../map/trackLayers'
 import { currentProject, currentWorkingCopy, deleteKmLine, loadSwitches, loadTracks, redo, saveKmLine, undo } from '../storage'
-import { useProject } from '../hooks/useStore'
+import { useHiddenTracks, useProject } from '../hooks/useStore'
 import { FILTER_NONE } from '../map/pick'
 import { highlightTopology, zoomToTopologyTracks } from '../utils/topologyLayer'
 import { selectionHighlight } from '../utils/topologyGraph'
@@ -53,6 +53,8 @@ const DEFAULT_COLOR = PALETTE.primaryDefault
 export default function MapWorkspace({ wc, onHome }) {
   const { t, language } = useI18n()
   const project = useProject()
+  // The tracks hidden on the map — a redraw when that changes, like a write.
+  const hidden = useHiddenTracks()
   const projectRef = useRef(project)
   useEffect(() => { projectRef.current = project }, [project])
 
@@ -233,11 +235,12 @@ export default function MapWorkspace({ wc, onHome }) {
   }, [])
 
   // Whenever what the map shows changed — a write, an undo, a merge taken
-  // over — it is drawn again. Nothing that writes has to say so.
+  // over, a track hidden or shown — it is drawn again. Nothing that writes
+  // has to say so.
   const drawn = useRef(null)
   useEffect(() => {
     if (!project) { drawn.current = null; return }
-    const parts = [project.tracks, project.switches, project.platforms, project.endMarks]
+    const parts = [project.tracks, project.switches, project.platforms, project.endMarks, hidden]
     const before = drawn.current
     drawn.current = parts
     if (before && parts.every((x, i) => x === before[i])) return
@@ -247,7 +250,7 @@ export default function MapWorkspace({ wc, onHome }) {
       renderTracksOnMap(map.current, project, { topology: topologyRef.current })
     }
     if (!before || parts[0] !== before[0]) syncKmLines()
-  }, [project, syncKmLines, map])
+  }, [project, hidden, syncKmLines, map])
 
   // Element and switch labels are language-dependent, so a language change has
   // to redraw them.

@@ -6,7 +6,7 @@ import {
   saveEndMark, loadEndMarks, deleteEndMark, deleteElement, reverseTrackDirection, deleteTrack,
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
   openWorkingCopy, currentWorkingCopy, markCheckedIn, adoptWorkingCopy, closeWorkingCopy, currentProject,
-  addElementToTrack, redo, canRedo, undoStep, redoStep,
+  addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 
@@ -353,5 +353,30 @@ describe('redo (R10.1)', () => {
     expect(step.after.tracks.map(t => t.id)).toEqual(['a'])
     expect(step.before.tracks).toEqual([])
     expect(undoStep()).toBe(step)
+  })
+})
+
+describe('tracks hidden on the map', () => {
+  it('are kept per project on this device, outside the record and the undo', () => {
+    openProject({ id: 'h1', tracks: [{ id: 'a', elements: [] }, { id: 'b', elements: [] }], switches: [] })
+    expect(hiddenTracks().size).toBe(0)
+    let told = 0
+    const stop = subscribe(() => { told++ })
+    setTracksHidden(['a', 'b'], true)
+    setTracksHidden(['b'], false)
+    stop()
+    expect([...hiddenTracks()]).toEqual(['a'])
+    expect(told).toBe(2)
+    // The same set until it changes, as a subscription wants it.
+    expect(hiddenTracks()).toBe(hiddenTracks())
+    expect(canUndo()).toBe(false)
+    expect(currentProject().hiddenTracks).toBeUndefined()
+
+    openProject({ id: 'h2', tracks: [], switches: [] })
+    expect(hiddenTracks().size).toBe(0)
+    openProject({ id: 'h1', tracks: [], switches: [] })
+    expect([...hiddenTracks()]).toEqual(['a'])
+    setTracksHidden(['a'], false)
+    expect(localStorage.getItem('olt_hidden_tracks_h1')).toBeNull()
   })
 })

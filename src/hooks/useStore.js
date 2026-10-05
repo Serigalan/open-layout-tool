@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { currentProject, lastStep, redoStep, subscribe, undoStep } from '../storage'
+import { currentProject, hiddenTracks, lastStep, redoStep, subscribe, undoStep } from '../storage'
 
 // The open project, read through a subscription (R1.4): a component that uses
 // one of these renders again after every write and every undo, and only reads
@@ -24,6 +24,8 @@ export const useTracks = () => useSyncExternalStore(subscribe, tracksOf, tracksO
 export const useSwitches = () => useSyncExternalStore(subscribe, switchesOf, switchesOf)
 export const usePlatforms = () => useSyncExternalStore(subscribe, platformsOf, platformsOf)
 export const useAxisSurveys = () => useSyncExternalStore(subscribe, axisSurveysOf, axisSurveysOf)
+/** The ids of the tracks hidden on the map (a Set, kept on this device). */
+export const useHiddenTracks = () => useSyncExternalStore(subscribe, hiddenTracks, hiddenTracks)
 /** The step undo would take back and the one redo would bring again: { before, after }, or null. */
 export const useUndoStep = () => useSyncExternalStore(subscribe, undoStep, undoStep)
 export const useRedoStep = () => useSyncExternalStore(subscribe, redoStep, redoStep)

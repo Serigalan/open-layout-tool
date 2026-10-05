@@ -197,6 +197,14 @@ export const AssignTracksIcon = () => (
   </MenuIcon>
 )
 
+// Which tracks the map shows: an eye.
+export const TrackVisibilityIcon = () => (
+  <MenuIcon>
+    <path d="M2 8 Q8 2 14 8 Q8 14 2 8 Z" />
+    <circle cx="8" cy="8" r="1.5" fill="currentColor" />
+  </MenuIcon>
+)
+
 export const DeleteTrackIcon = () => (
   <MenuIcon>
     <path d="M3 4 H13 M6 4 V2 H10 V4 M5 4 V13 H11 V4" />

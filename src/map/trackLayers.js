@@ -5,6 +5,7 @@ import { GEOJSON_MAXZOOM } from '../utils/geometryPrecision'
 import { FILTER_NONE } from './pick'
 import { highlightColors } from '../utils/mapColors'
 import { loadSettings } from '../utils/settings'
+import { hiddenTracks } from '../storage'
 import { bufferStopFeatures } from '../utils/bufferStopGeometry'
 import { showTopology } from '../utils/topologyLayer'
 import { resolveEndBearing, displayCoords } from '../utils/elementUtils'
@@ -16,7 +17,9 @@ import { BUFFER_STOPS_BRAKE_LAYER, BUFFER_STOPS_LAYER, BUFFER_STOPS_SOURCE, PLAT
 // The project on the map: tracks, switch bodies, platforms, buffer stops, the
 // start/end markers and the labels — drawn from a project record. One source
 // per kind; the first call adds sources and layers, every later one only
-// replaces their data.
+// replaces their data. Tracks hidden on this device (storage.hiddenTracks) are
+// left out, and with them what only they carry: their labels, platforms and
+// buffer stops, and a switch none of whose tracks is shown.
 
 export function updateMapColors(map, color) {
   if (!map) return
@@ -105,12 +108,19 @@ const _cache = { lang: null, generation: null, tracks: new Map(), switches: new 
 
 export function renderTracksOnMap(map, project, { fit = false, topology = false } = {}) {
   if (!map || !project) return
-  const tracks = project.tracks ?? []
+  const hidden = hiddenTracks()
+  const allTracks = project.tracks ?? []
+  const tracks = hidden.size ? allTracks.filter(tr => !hidden.has(tr.id)) : allTracks
   // Labels are language-dependent and this runs outside the component tree, so
   // the language comes from the settings the app writes it to.
   const lang = loadSettings().language ?? 'en'
   const tr = (key) => translations[lang]?.[key] ?? key
-  const switches = project.switches ?? []
+  // A switch is shown with any of its tracks; one no track names stays.
+  const onTracks = (list) => new Set(list.flatMap(tr => (tr.elements ?? []).map(el => el.switchId).filter(Boolean)))
+  const shownSwitchIds = hidden.size ? onTracks(tracks) : null
+  const namedSwitchIds = hidden.size ? onTracks(allTracks) : null
+  const switches = (project.switches ?? []).filter(sw =>
+    !shownSwitchIds || !sw.switchId || shownSwitchIds.has(sw.switchId) || !namedSwitchIds.has(sw.switchId))
   // The switch an element belongs to, so its radius label knows which side of
   // its own line the turnout body fills and can go to the other one.
   const switchById = Object.fromEntries(switches.filter(sw => sw.switchId).map(sw => [sw.switchId, sw]))
@@ -205,7 +215,7 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
   const platformGeoJSON = {
     type: 'FeatureCollection',
     features: (project.platforms ?? [])
-      .filter(p => (p.coords?.length ?? 0) > 3)
+      .filter(p => (p.coords?.length ?? 0) > 3 && !hidden.has(p.trackId))
       .map(p => ({
         type: 'Feature',
         properties: { platformId: p.id },
@@ -331,7 +341,8 @@ export function renderTracksOnMap(map, project, { fit = false, topology = false 
   // The topology view shows the connections and nothing else (AP 9.3): no
   // labels, and its own layers in place of the detailed ones.
   if (topology) clearTrackLabels()
-  showTopology(map, { on: topology, tracks, switches, endMarks: project.endMarks ?? [], color: getColor() })
+  // The network diagram is of the whole network, hidden tracks or not.
+  showTopology(map, { on: topology, tracks: allTracks, switches: project.switches ?? [], endMarks: project.endMarks ?? [], color: getColor() })
 
   updateLabels(map)
   map.once('idle', () => updateLabels(map))
