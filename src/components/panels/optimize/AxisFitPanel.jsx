@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import { commitImport } from '../../../storage'
 import {
-  ALIGN_DEFAULTS, alignRequest, deleteStraight, elementReport, fittedCurvature, parseAxisPointFile,
+  ALIGN_DEFAULTS, alignRequest, deleteStraight, elementReport, fittedCurvature, gradientReport, parseAxisPointFile,
   straightRanges, surveyAxis, trackFromFit,
 } from '../../../utils/alignmentFit'
 import { alignOnServer, optimizerReachable, OptimizerError } from '../../../utils/optimizerService'
@@ -51,6 +51,7 @@ const SETTINGS = [
   { key: 'spacing', unit: 'm', step: 1 },
   { key: 'sagittaMm', unit: 'mm', step: 0.5 },
   { key: 'minLength', unit: 'm', step: 1 },
+  { key: 'heightToleranceMm', unit: 'mm', step: 1, hint: 'align_set_heightToleranceMm_hint' },
 ]
 
 // A survey the user took points out of is another object in the store, and
@@ -77,8 +78,10 @@ function elementLabel(t, r) {
  * of the project or a point file in, an alignment of straights, arcs and
  * transitions out — fitted by the service, corrected by hand in the
  * curvature diagram (Entscheidung 133), taken over as a new track
- * (Entscheidung 134). The first run is asked for; after it, every change of
- * the straights or the settings asks the service again once it rests.
+ * (Entscheidung 134) — with the gradient the service fits to the points'
+ * heights, where they have them. The first run is asked for; after it, every
+ * change of the straights or the settings asks the service again once it
+ * rests.
  */
 export default function AxisFitPanel({ backButton }) {
   const { t, fill } = useI18n()
@@ -225,6 +228,8 @@ export default function AxisFitPanel({ backButton }) {
   const crsChoice = [...projectCrs, ...FILE_CRS_OPTIONS.filter(o => !projectCrs.some(p => p.code === o.code))]
   const report = data ? elementReport(data, tolerance) : []
   const over = report.filter(r => r.over).length
+  const grades = gradientReport(data)
+  const sourceHeights = source?.points.some(p => Number.isFinite(p.z))
   const canCommit = !!data?.elements && !running && answer?.key === requestKey
 
   return (
@@ -351,6 +356,26 @@ export default function AxisFitPanel({ backButton }) {
               </div>
             ))}
           </details>
+          {data.gradient ? (
+            <details className="mt-4">
+              <summary>
+                {fill('align_gradient', { n: grades.length - 1, rms: mm(data.gradient.rms), max: mm(data.gradient.max) })}
+              </summary>
+              {grades.map((g, i) => (
+                <div key={i} className="list-row">
+                  {fmt(g.from)}–{fmt(g.to)} m · {g.grade > 0 ? '+' : ''}{fmt(g.grade, 2)} ‰
+                  {i < grades.length - 1 && (
+                    <><br /><span className="text-muted">
+                      {fill('align_gradient_change', { station: fmt(g.end.station), z: fmt(g.end.z, 3) })}
+                      {g.end.rv ? ` · R ${fmt(g.end.rv, 0)} m` : ''}
+                    </span></>
+                  )}
+                </div>
+              ))}
+            </details>
+          ) : data.elements && (
+            <p className="msg-hint msg-small">{t(sourceHeights ? 'align_gradient_failed' : 'align_gradient_none')}</p>
+          )}
           <CommitBar onCommit={handleCommit} onCancel={reset} disabled={!canCommit}
             commitLabel={t('align_commit')} reason={data.elements ? null : t('align_commit_none')} />
         </div>

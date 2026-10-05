@@ -110,6 +110,20 @@ die Stelle genannt (`merged`). Die Antwort trägt neben der Elementkette die
 Krümmung und die Abweichung jedes Punkts sowie Maximum und RMS je Element; eine
 Trassierung, die sich nicht bilden lässt, kommt mit `error` und dem
 Krümmungsbild zurück, damit die Geraden von Hand korrigiert werden können.
+
+Tragen die Punkte als dritten Wert eine Höhe (SO der tieferen Schiene, wie die
+Punktdatei sie hat), leitet `olt_optimizer/gradient_fit.py` daraus die
+Gradiente ab (`gradient`): die Punkte werden auf die gefundene Kette
+stationiert und zu Höhen je Meter zusammengefasst; im Neigungsbild (Steigung
+auf 15 m) sind gleichbleibende Neigungen Plateaus und Ausrundungen Rampen.
+Plateaus ab 20 m bekommen eine Ausgleichsgerade, benachbarte Geraden schneiden
+sich im Neigungswechsel, die Tangentenlänge der Ausrundung wird an die Höhen
+ausgeglichen und als Radius gerundet (ab 2000 m auf 100 m). Kurze Neigungen
+zwischen zwei Ausrundungen, die das Neigungsbild verwischt, werden gesucht, wo
+die Höhen dazwischen über der Toleranz (`heightTolerance`, 2 cm) liegen. Am
+Messdatensatz 5550L trifft das die Soll-Gradiente aus der GRA auf rund einen
+Meter in der Lage der Neigungswechsel.
+
 Läuft wie ein Optimiererlauf in einem eigenen Prozess unter der Frist und den
 Plätzen; rund 2 s je km mit fünf Bögen. Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_align.py`; die Antwort,

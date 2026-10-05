@@ -1,7 +1,8 @@
 """An alignment from measured axis points — phase 12, stage B (AP 12.5).
 
 The points come in travel order, as the point file of stage A has them
-(Entscheidung 138): easting and northing in one plane. What goes back is a
+(Entscheidung 138): easting and northing in one plane, and the height of the
+top of rail where it is known. What goes back is a
 chain of straights, arcs and transitions in the app's element form, and what
 the user needs to judge and correct it:
 
@@ -28,6 +29,8 @@ the user needs to judge and correct it:
    points, it is fitted too.
 5. **Report:** the offset of every point from the chain and, per element, the
    largest and the RMS.
+6. **The gradient**, where the points carry heights (the top of rail as a
+   third value): stationed along the chain, fitted by gradient_fit.py.
 
 Conventions are the geometry kernel's: bearings in degrees clockwise from grid
 north, signed radius > 0 for a right-hand curve. Lengths in metres.
@@ -39,6 +42,7 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.spatial import cKDTree
 
+from .gradient_fit import fit_gradient
 from .geometry import RAD2DEG, _arc_forward, fit_curve_group, sample_transition, transition_end
 from .splice import arc as arc_element, straight as straight_element, transition as transition_element
 
@@ -50,10 +54,12 @@ DEFAULTS = {
     "sagitta": 0.003,     # largest mid-ordinate of the circle through a straight [m]
     "minLength": 20.0,    # shortest straight [m]
     "chord": 10.0,        # chord of the curvature diagram [m]
+    "heightTolerance": 0.02,  # largest height difference of a point from a constant gradient [m]
 }
 LIMITS = {
     "window": (1.0, 100.0), "tolerance": (0.001, 0.2), "step": (0.1, 10.0), "spacing": (0.0, 100.0),
     "sagitta": (0.0005, 0.1), "minLength": (2.0, 1000.0), "chord": (2.0, 50.0),
+    "heightTolerance": (0.001, 0.5),
 }
 
 MAX_POINTS = 40000
@@ -789,7 +795,8 @@ def _assemble(pts, s, kappa, ranges, o):
 
 
 def align(points, station0=0.0, straights=None, settings=None):
-    """The fit (module docstring). `points` [[e, n], ...] in travel order;
+    """The fit (module docstring). `points` [[e, n], ...] or [[e, n, z], ...]
+    (z null where a point has none) in travel order;
     `straights` [[from, to], ...] stations set by hand, or None to look for
     them. Returns the answer of `POST /align`."""
     o = dict(DEFAULTS)
@@ -797,13 +804,15 @@ def align(points, station0=0.0, straights=None, settings=None):
         if key in o and value is not None:
             lo, hi = LIMITS[key]
             o[key] = min(hi, max(lo, float(value)))
-    raw = np.asarray(points, dtype=float)
-    if raw.ndim != 2 or raw.shape[1] < 2 or len(raw) < 10:
+    if len(points) < 10:
         raise AlignError("align_error_few_points")
-    raw = raw[:, :2]
+    raw = np.asarray([p[:2] for p in points], dtype=float)
+    if raw.ndim != 2 or raw.shape[1] < 2:
+        raise AlignError("align_error_few_points")
+    heights = np.asarray([p[2] if len(p) > 2 and p[2] is not None else np.nan for p in points], dtype=float)
     # Repeated points carry no direction.
     keep = np.concatenate([[True], np.hypot(*np.diff(raw, axis=0).T) > 1e-4])
-    raw = raw[keep]
+    raw, heights = raw[keep], heights[keep]
     origin = raw[0].copy()
     pts = raw - origin
     s, seg = stations_of(pts, station0)
@@ -819,7 +828,7 @@ def align(points, station0=0.0, straights=None, settings=None):
         "auto": auto,
         "gaps": [{"from": round(float(s[g]), 3), "to": round(float(s[g + 1]), 3)} for g in gaps],
         "settings": o,
-        "curves": [], "elements": None, "offsets": None, "elementStats": None,
+        "curves": [], "elements": None, "offsets": None, "elementStats": None, "gradient": None,
     }
     if not ranges:
         answer["error"] = "align_error_no_straight"
@@ -847,7 +856,9 @@ def align(points, station0=0.0, straights=None, settings=None):
             ranges = ranges[:k] + [(ranges[k][0], ranges[k + 1][1])] + ranges[k + 2:]
     answer["straights"] = [{"from": round(float(s[i]), 3), "to": round(float(s[j]), 3)} for i, j in ranges]
     answer["merged"] = merged
-    report(answer, chain.pieces, pts, s, o, origin)
+    along = report(answer, chain.pieces, pts, s, o, origin)
+    length = float(sum(pc["length"] for pc in chain.pieces))
+    answer["gradient"] = fit_gradient(along, heights, length, o["heightTolerance"])
 
     # Where every element starts, on the stations of the points.
     starts = s[0] + np.concatenate([[0.0], np.cumsum([pc["length"] for pc in chain.pieces])])
@@ -887,7 +898,8 @@ def _reverse_pieces(pieces):
 
 def report(answer, pieces, pts, s, o, origin):
     """Elements in the plane, every point's offset from them, per element the
-    largest offset and the RMS."""
+    largest offset and the RMS. Returns where every point stands along the
+    chain [m from its start]."""
     elements = []
     for pc in pieces:
         el = piece_element({**pc, "start": (pc["start"][0] + origin[0], pc["start"][1] + origin[1])})
@@ -895,6 +907,7 @@ def report(answer, pieces, pts, s, o, origin):
     poly, owner = chain_points(pieces)
     offsets = np.zeros(len(pts))
     which = np.zeros(len(pts), dtype=int)
+    along = np.zeros(len(pts))
     # In blocks along the chain, so no block measures every point against every vertex.
     chain_s = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(poly, axis=0).T))])
     rel = s - s[0]
@@ -903,8 +916,9 @@ def report(answer, pieces, pts, s, o, origin):
         b = min(len(pts), a + block)
         lo = max(0, int(np.searchsorted(chain_s, rel[a] - 50.0)) - 1)
         hi = min(len(poly), int(np.searchsorted(chain_s, rel[b - 1] + 50.0)) + 2)
-        off, seg, _ = project(pts[a:b], poly[lo:hi])
+        off, seg, ts = project(pts[a:b], poly[lo:hi])
         offsets[a:b] = off
+        along[a:b] = chain_s[lo + seg] + ts * (chain_s[lo + seg + 1] - chain_s[lo + seg])
         which[a:b] = owner[np.minimum(lo + seg + 1, len(owner) - 1)]
     stats = []
     for k in range(len(pieces)):
@@ -920,6 +934,9 @@ def report(answer, pieces, pts, s, o, origin):
     answer["elementStats"] = stats
     answer["rms"] = round(float(math.sqrt((offsets * offsets).mean())), 4)
     answer["max"] = round(float(np.abs(offsets).max()), 4)
+    # The polyline is a little shorter than the arcs it is drawn with.
+    length = sum(pc["length"] for pc in pieces)
+    return along * (length / chain_s[-1]) if chain_s[-1] > 0 else along
 
 
 # ── the request ──────────────────────────────────────────────────────────────
@@ -927,10 +944,11 @@ def report(answer, pieces, pts, s, o, origin):
 def align_payload(payload):
     """The answer to `POST /align`.
 
-    Body: {"points": [[e, n], ...], "station0": m, "straights": [[from, to], ...] | null,
-           "settings": {window, tolerance, step, spacing, sagitta, minLength, chord}}
+    Body: {"points": [[e, n] | [e, n, z], ...], "station0": m, "straights": [[from, to], ...] | null,
+           "settings": {window, tolerance, step, spacing, sagitta, minLength, chord, heightTolerance}}
     Answers {stations, kappa, straights, auto, gaps, settings, curves, elements,
-    offsets, elementStats, rms, max} — or with `error` (and `errorParams`) where
+    offsets, elementStats, rms, max, gradient} — gradient_fit's, null where the
+    points carry no heights — or with `error` (and `errorParams`) where
     no chain could be made, the curvature and the straights still there for the
     user to correct. A body that is not one raises ValueError.
     """

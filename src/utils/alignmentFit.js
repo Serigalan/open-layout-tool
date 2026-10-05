@@ -7,26 +7,32 @@ import { surveyPoints } from './axisSurvey'
 // An alignment from measured axis points (AP 12.5, Entscheidungen 133, 134,
 // 138): what the panel sends the service, what it makes of the point file the
 // points may come in, and the new track it builds from the answer. The fit
-// itself — curvature, straights, curves — is the service's
-// (olt_optimizer/alignment_fit.py) and nowhere else.
+// itself — curvature, straights, curves, and from the points' heights the
+// gradient — is the service's (olt_optimizer/alignment_fit.py,
+// gradient_fit.py) and nowhere else.
 
 /**
  * The settings of the fit as the panel shows them — the chord of the
- * curvature diagram and those of the straight search: lengths in metres, the
- * two small ones in millimetres. `alignRequest` turns them into the service's
- * metres.
+ * curvature diagram, those of the straight search and the tolerance of the
+ * gradient: lengths in metres, the small ones in millimetres. `alignRequest`
+ * turns them into the service's metres.
  */
 export const ALIGN_DEFAULTS = Object.freeze({
-  chord: 10, window: 6, toleranceMm: 10, step: 0.5, spacing: 6, sagittaMm: 3, minLength: 20,
+  chord: 10, window: 6, toleranceMm: 10, step: 0.5, spacing: 6, sagittaMm: 3, minLength: 20, heightToleranceMm: 20,
 })
 
-/** The axis points of a survey, as the fit reads them. */
-export const surveyAxis = (survey) => surveyPoints(survey).map(({ station, easting, northing }) => ({ station, easting, northing }))
+/**
+ * The axis points of a survey, as the fit reads them: with the top of the
+ * lower rail as their height (Entscheidung 130, as the point file has it).
+ */
+export const surveyAxis = (survey) => surveyPoints(survey).map(({ station, easting, northing, zLeft, zRight }) =>
+  ({ station, easting, northing, z: Math.min(zLeft, zRight) }))
 
 const HEADER_NAMES = {
   station: /^(station|stat|km|s)\b/i,
   easting: /^(rechtswert|rechts|easting|ost|east|e|y)\b/i,
   northing: /^(hochwert|hoch|northing|nord|north|n|x)\b/i,
+  height: /^(so|sok|höhe|hoehe|height|h|z)\b/i,
 }
 
 const number = (text) => Number(String(text).trim().replace(/\s/g, ''))
@@ -35,13 +41,14 @@ const number = (text) => Number(String(text).trim().replace(/\s/g, ''))
  * A point file of axis points (Entscheidung 138): the export of stage A —
  * `Nr;Station [m];Rechtswert [m];Hochwert [m];SO [m];Überhöhung [mm];Güte` —
  * or one from elsewhere with a header naming Rechtswert and Hochwert (or
- * Easting/Northing), or without a header: easting and northing first, or
- * after a running number. Semicolons, commas, tabs or blanks between the
- * columns; with semicolons a decimal comma is read too. The plane comes from
+ * Easting/Northing) and, if it has them, the heights (SO, Höhe, Height, Z),
+ * or without a header: easting and northing first, or after a running number,
+ * and a height after them where there is a number. Semicolons, commas, tabs
+ * or blanks between the columns; with semicolons a decimal comma is read too. The plane comes from
  * the file name where it says `EPSG<code>`, as the export names its files.
  *
- * Returns { points: [{ station, easting, northing }], epsg } or { error } with
- * a locale key.
+ * Returns { points: [{ station, easting, northing, z? }], epsg } or { error }
+ * with a locale key.
  */
 export function parseAxisPointFile(text, fileName = '') {
   const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'))
@@ -53,12 +60,15 @@ export function parseAxisPointFile(text, fileName = '') {
   let col
   if (header) {
     const find = (re) => header.findIndex(h => re.test(h.replace(/^["']|["']$/g, '')))
-    col = { station: find(HEADER_NAMES.station), easting: find(HEADER_NAMES.easting), northing: find(HEADER_NAMES.northing) }
+    col = {
+      station: find(HEADER_NAMES.station), easting: find(HEADER_NAMES.easting),
+      northing: find(HEADER_NAMES.northing), height: find(HEADER_NAMES.height),
+    }
     if (col.easting < 0 || col.northing < 0) return { error: 'align_file_columns' }
   } else {
     // A running number first is a counter, not a coordinate.
     const counter = rows.length > 1 && rows.slice(0, 5).every((r, i) => number(r[0]) === number(rows[0][0]) + i)
-    col = counter ? { station: -1, easting: 1, northing: 2 } : { station: -1, easting: 0, northing: 1 }
+    col = counter ? { station: -1, easting: 1, northing: 2, height: 3 } : { station: -1, easting: 0, northing: 1, height: 2 }
   }
   rows = rows.filter(r => Number.isFinite(number(r[col.easting])) && Number.isFinite(number(r[col.northing])))
   if (rows.length < 10) return { error: 'align_file_few_points' }
@@ -67,26 +77,29 @@ export function parseAxisPointFile(text, fileName = '') {
     const easting = number(r[col.easting]), northing = number(r[col.northing])
     if (i > 0) along += Math.hypot(easting - number(rows[i - 1][col.easting]), northing - number(rows[i - 1][col.northing]))
     const station = col.station >= 0 ? number(r[col.station]) : along
-    return { station: Number.isFinite(station) ? station : along, easting, northing }
+    const z = col.height >= 0 && r[col.height] !== undefined && r[col.height] !== '' ? number(r[col.height]) : NaN
+    return { station: Number.isFinite(station) ? station : along, easting, northing, ...(Number.isFinite(z) && { z }) }
   })
   const code = Number(/EPSG[_ -]?(\d{4,5})/i.exec(fileName)?.[1])
   return { points, epsg: crsName(code) ? code : null }
 }
 
 /**
- * The request for the service's `POST /align`: the points in travel order,
- * the station the first one has, the straights set by hand (null to have them
- * searched for) and the settings in metres.
+ * The request for the service's `POST /align`: the points in travel order —
+ * with their height where they have one —, the station the first one has,
+ * the straights set by hand (null to have them searched for) and the settings
+ * in metres.
  */
 export function alignRequest(points, { straights = null, settings = ALIGN_DEFAULTS } = {}) {
   return {
-    points: points.map(p => [p.easting, p.northing]),
+    points: points.map(p => (Number.isFinite(p.z) ? [p.easting, p.northing, p.z] : [p.easting, p.northing])),
     station0: points[0]?.station ?? 0,
     straights,
     settings: {
       chord: Number(settings.chord), window: Number(settings.window), step: Number(settings.step), spacing: Number(settings.spacing),
       minLength: Number(settings.minLength),
       tolerance: Number(settings.toleranceMm) / 1000, sagitta: Number(settings.sagittaMm) / 1000,
+      heightTolerance: Number(settings.heightToleranceMm) / 1000,
     },
   }
 }
@@ -127,18 +140,33 @@ export function elementReport(answer, tolerance) {
 }
 
 /**
+ * The gradient of the answer stretch by stretch, for the report: [{ from, to,
+ * grade, end }] with the grade in ‰ and `end` the height point it ends at.
+ */
+export function gradientReport(answer) {
+  const heights = answer?.gradient?.heights ?? []
+  return heights.slice(1).map((b, i) => {
+    const a = heights[i]
+    return { from: a.station, to: b.station, grade: (b.z - a.z) / (b.station - a.station) * 1000, end: b }
+  })
+}
+
+/**
  * The new track the fit is taken over as (Entscheidung 134): in the plane of
- * the points, named "<axis> Ist", standing (Bestand). Speed and cant are not
- * the points' to say — the elements start without them, like an import.
+ * the points, named "<axis> Ist", standing (Bestand), with the gradient the
+ * points' heights gave. Speed and cant are not the points' to say — the
+ * elements start without them, like an import.
  */
 export function trackFromFit(answer, { name, epsg, newId = generateId }) {
   if (!answer?.elements?.length) return null
   const plane = Number(epsg)
   const rebuilt = reconstructElements(answer.elements.map(el => ({ ...el, epsg: plane, speed: 0 })), plane)
   const elements = recalcAbsLengths(rebuilt)
+  const heights = answer.gradient?.heights?.map(({ station, z, rv }) => ({ station, z, ...(rv && { rv }) }))
   return {
     id: newId(), epsg: plane, name, status: 'existing',
     elements, coordinates: rebuildCoords(elements),
+    ...(heights?.length >= 2 && { heights }),
   }
 }
 

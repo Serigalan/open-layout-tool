@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
-  ALIGN_DEFAULTS, alignRequest, deleteStraight, elementReport, fittedCurvature, insertStraight,
+  ALIGN_DEFAULTS, alignRequest, deleteStraight, elementReport, fittedCurvature, gradientReport, insertStraight,
   moveStraightEnd, parseAxisPointFile, straightRanges, surveyAxis, trackFromFit,
 } from './alignmentFit'
 import { axisPointsCsv } from './pointCloud/railTrace'
 import { surveyFromTrace } from './axisSurvey'
 import { expectValidTrack } from '../test/chainInvariants'
+import { trackLength } from './heightUtils'
 import fixture from '../test/fixtures/align_answer.json'
 
 // The fit is the service's (olt_optimizer/alignment_fit.py); what is tested
@@ -25,7 +26,7 @@ describe('the point file', () => {
     const parsed = parseAxisPointFile(axisPointsCsv(tracePoints), 'Gleisachse_5550L_EPSG5684.csv')
     expect(parsed.epsg).toBe(5684)
     expect(parsed.points).toHaveLength(12)
-    expect(parsed.points[0]).toEqual({ station: 35.5, easting: 4467335.487, northing: 5333806.389 })
+    expect(parsed.points[0]).toEqual({ station: 35.5, easting: 4467335.487, northing: 5333806.389, z: 508.149 })
     expect(parsed.points[11].station).toBeCloseTo(41, 6)
   })
 
@@ -34,6 +35,7 @@ describe('the point file', () => {
     const parsed = parseAxisPointFile(['Easting;Northing', ...rows].join('\n'), 'achse.csv')
     expect(parsed.epsg).toBeNull()
     expect(parsed.points[1].easting).toBeCloseTo(4467335.957, 6)
+    expect(parsed.points[1].z).toBeUndefined()
     // Without a station column the points are stationed along themselves.
     expect(parsed.points[1].station).toBeCloseTo(Math.hypot(0.47, 0.17), 3)
   })
@@ -44,6 +46,13 @@ describe('the point file', () => {
     expect(parsed.points).toHaveLength(12)
     expect(parsed.points[0].easting).toBe(4467335.487)
     expect(parsed.points[0].northing).toBe(5333806.389)
+    expect(parsed.points[0].z).toBe(508.1)
+  })
+
+  it('reads the heights from a column named for them', () => {
+    const rows = tracePoints.map(p => `${p.easting},${p.northing},${p.zLeft},x`)
+    const parsed = parseAxisPointFile(['East,North,Height,Code', ...rows].join('\n'))
+    expect(parsed.points[0].z).toBe(508.15)
   })
 
   it('says what is wrong with one it cannot read', () => {
@@ -58,7 +67,9 @@ describe('the point file', () => {
     const axis = surveyAxis(survey)
     expect(axis).toHaveLength(12)
     expect(axis[2].easting).toBeCloseTo(tracePoints[2].easting, 3)
-    expect(Object.keys(axis[0]).sort()).toEqual(['easting', 'northing', 'station'])
+    expect(Object.keys(axis[0]).sort()).toEqual(['easting', 'northing', 'station', 'z'])
+    // The top of the lower rail, as the point file has it.
+    expect(axis[0].z).toBeCloseTo(508.149, 3)
   })
 })
 
@@ -68,7 +79,14 @@ describe('the request', () => {
     expect(body.points[0]).toEqual([4467335.487, 5333806.389])
     expect(body.station0).toBe(35.5)
     expect(body.straights).toBeNull()
-    expect(body.settings).toEqual({ chord: 10, window: 6, step: 0.5, spacing: 6, minLength: 20, tolerance: 0.01, sagitta: 0.003 })
+    expect(body.settings).toEqual({
+      chord: 10, window: 6, step: 0.5, spacing: 6, minLength: 20, tolerance: 0.01, sagitta: 0.003, heightTolerance: 0.02,
+    })
+  })
+
+  it('sends a height with the points that have one', () => {
+    const body = alignRequest([{ station: 0, easting: 1, northing: 2, z: 3 }, { station: 1, easting: 4, northing: 5 }])
+    expect(body.points).toEqual([[1, 2, 3], [4, 5]])
   })
 
   it('sends straights set by hand as station ranges', () => {
@@ -98,6 +116,27 @@ describe('the answer', () => {
     expectValidTrack(track)
     const length = track.elements.reduce((s, el) => s + el.length, 0)
     expect(length).toBeCloseTo(answer.elementStations.at(-1) - answer.elementStations[0], 1)
+  })
+
+  it('takes the gradient over: rising, rounded with R 8000, falling', () => {
+    const track = trackFromFit(answer, { name: 'Achse Ist', epsg, newId: () => 'new' })
+    const { heights } = track
+    expect(heights).toHaveLength(3)
+    expect(heights[0].station).toBe(0)
+    expect(heights.at(-1).station).toBeCloseTo(trackLength(track), 2)
+    expect(heights[1].station).toBeCloseTo(140, 0)
+    expect(heights[1].rv).toBeGreaterThan(7500)
+    expect(heights[1].rv).toBeLessThan(8500)
+    expect(heights[0].rv).toBeUndefined()
+    const grades = gradientReport(answer).map(g => g.grade)
+    expect(grades[0]).toBeCloseTo(3, 1)
+    expect(grades[1]).toBeCloseTo(-2, 1)
+    expect(answer.gradient.rms).toBeLessThan(0.003)
+  })
+
+  it('makes a track without a gradient where the points had no heights', () => {
+    const track = trackFromFit({ ...answer, gradient: null }, { name: 'x', epsg })
+    expect(track.heights).toBeUndefined()
   })
 
   it('makes no track of an answer without a chain', () => {

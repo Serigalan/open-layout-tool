@@ -69,8 +69,8 @@ MAX_TERRAIN_POINTS = int(os.environ.get("OLT_TERRAIN_MAX_POINTS", "20000"))
 
 # A splice request is two elements and a few numbers.
 MAX_SPLICE_BODY = 64 * 1024
-# An alignment fit: up to MAX_POINTS axis points of ~30 bytes each.
-MAX_ALIGN_BODY = 2 * 1024 * 1024
+# An alignment fit: up to MAX_POINTS axis points of ~45 bytes each, with their heights.
+MAX_ALIGN_BODY = 3 * 1024 * 1024
 
 MAX_ITER = 150
 MAX_ELEMENTS = 2000
