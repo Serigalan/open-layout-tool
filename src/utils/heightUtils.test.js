@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { heightAt, gradientAt, verticalCurve, splitHeights, endOfIndex } from './heightUtils'
+import { heightAt, gradientAt, verticalCurve, splitHeights, endOfIndex, insertHeightPoint } from './heightUtils'
 
 describe('gradientAt — the height a track is built at', () => {
   // +10 ‰ up to a crest at 100 m, −10 ‰ down from it, rounded with R 2000:
@@ -59,5 +59,29 @@ describe('heights that cover only part of their track', () => {
     const whole = { elements: [{ length: 400 }], heights: [{ station: 0, z: 1 }, { station: 400, z: 2 }] }
     expect(endOfIndex(whole, 0)).toBe('BEGIN')
     expect(endOfIndex(whole, 1)).toBe('END')
+  })
+})
+
+describe('insertHeightPoint — splitting a gradient', () => {
+  const heights = [{ station: 0, z: 100 }, { station: 200, z: 102, rv: 5000 }, { station: 400, z: 101 }]
+
+  it('adds a point on the stretch, at its height, keeping the others', () => {
+    const r = insertHeightPoint(heights, 50)
+    expect(r.index).toBe(1)
+    expect(r.heights).toEqual([heights[0], { station: 50, z: 100.5 }, heights[1], heights[2]])
+  })
+
+  it('works on the last stretch too', () => {
+    const r = insertHeightPoint(heights, 300)
+    expect(r.index).toBe(2)
+    expect(r.heights[2]).toEqual({ station: 300, z: 101.5 })
+  })
+
+  it('adds nothing outside the points or on top of one', () => {
+    expect(insertHeightPoint(heights, -1)).toBeNull()
+    expect(insertHeightPoint(heights, 400)).toBeNull()
+    expect(insertHeightPoint(heights, 401)).toBeNull()
+    expect(insertHeightPoint(heights, 200.05)).toBeNull()
+    expect(insertHeightPoint([{ station: 0, z: 1 }], 0.5)).toBeNull()
   })
 })

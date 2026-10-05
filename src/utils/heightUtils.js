@@ -84,6 +84,22 @@ export function heightAt(heights, station) {
 }
 
 /**
+ * The heights with a point added at `station` inside the stretch it falls in,
+ * at the height of that stretch — the gradient is split there, not changed:
+ * both halves keep its slope until the new point is edited. Null outside the
+ * stretch the points cover and closer than `minGap` [m] to a point already
+ * there. `index` is where the new point sits.
+ */
+export function insertHeightPoint(heights, station, minGap = 0.1) {
+  if (!(heights?.length >= 2)) return null
+  const i = heights.findIndex(p => p.station > station)
+  if (i <= 0) return null
+  if (station - heights[i - 1].station < minGap || heights[i].station - station < minGap) return null
+  const z = Math.round(heightAt(heights, station) * 1000) / 1000
+  return { heights: [...heights.slice(0, i), { station, z }, ...heights.slice(i)], index: i }
+}
+
+/**
  * The heights of the two halves of a track split at station `sJ`: both halves
  * meet at the interpolated height, the second one restarts its stations at 0.
  * A half is undefined when the track had no heights.

@@ -3,6 +3,7 @@ import { setTrackHeights, setHeightsForTracks, currentProject } from '../storage
 import { useSwitches, useTracks } from '../hooks/useStore'
 import {
   trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, elementAtStation,
+  gradientAt, insertHeightPoint,
 } from '../utils/heightUtils'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
 import { fillHeights } from '../utils/elevationFill'
@@ -22,6 +23,10 @@ const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
 const MIN_OVERLAY_PX = 140
 // Narrower than this and the gradient label would not fit between its points.
 const GRADE_LABEL_MIN_PX = 46
+// How close to the gradient a double click splits it, and how far it has to
+// stay from a point already there.
+const INSERT_HIT_PX = 8
+const INSERT_POINT_GAP_PX = 7
 /** A gradient in ‰, signed — a rise is written with its plus, a level stretch as 0. */
 const gradeLabel = (perMille) => {
   const v = Number(perMille.toFixed(1)) || 0   // ... and never as "-0.0"
@@ -43,14 +48,19 @@ const gradeLabel = (perMille) => {
  * Shift-drag pick more of them. A point may carry the radius of the vertical
  * curve rounding the gradient change there — drawn in light grey between its
  * tangent points. Every stretch is labelled with its gradient in ‰. Any point
- * but the two ends of the track can be deleted.
+ * but the two ends of the track can be deleted. A double click on the
+ * gradient splits it there with a new point at its height.
+ *
+ * Where the cross section in its own window stands on this track, its station
+ * is marked as on the map — the line across and the height the track is built
+ * at there.
  *
  * A track without a gradient shows none — the terrain is not read on its own.
  * The empty profile offers to compute one from the height data instead.
  */
 // The profile is read from the store, through the subscription: every write
 // draws it again.
-export default function ElevationOverlay({ trackId, onClose }) {
+export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const { t, fill } = useI18n()
   const map = useMap()
   const tracks   = useTracks()
@@ -63,6 +73,7 @@ export default function ElevationOverlay({ trackId, onClose }) {
   const [draft, setDraft]       = useState('')
   const [rvDraft, setRvDraft]   = useState('')     // vertical curve radius of the selection
   const [band, setBand]         = useState(null)     // rubber band { x0, y0, x1, y1 } while Shift-dragging
+  const [hover, setHover]       = useState(null)     // { station, z } a double click would add a point at
   const bodyRef = useRef(null)
   const svgRef  = useRef(null)
   const size = useElementSize(bodyRef)                // { w, h } of the drawing area
@@ -92,8 +103,11 @@ export default function ElevationOverlay({ trackId, onClose }) {
   const [fitKey, setFitKey] = useState(null)
   // Re-fitted for another track or exaggeration, once the area is measured,
   // and when points appear or go (the terrain fill arriving, a reload) — not
-  // for an edited height, which must not throw the view around.
-  const wantFit = `${trackId}|${exaggeration}|${size ? 1 : 0}|${allPoints.length}`
+  // for an edited height, which must not throw the view around — nor for a
+  // point added or deleted here (`keepView`).
+  const fitKeyFor = (n) => `${trackId}|${exaggeration}|${size ? 1 : 0}|${n}`
+  const wantFit = fitKeyFor(allPoints.length)
+  const keepView = (n) => setFitKey(fitKeyFor(allPoints.length + n))
   if (size && allPoints.length && fitKey !== wantFit) {
     const stations = allPoints.map(p => p.station), zs = allPoints.map(p => p.z)
     const sMin = Math.min(...stations), sMax = Math.max(...stations)
@@ -211,7 +225,34 @@ export default function ElevationOverlay({ trackId, onClose }) {
     if (!track || !deletable.length) return
     const drop = new Set(deletable.map(p => p.index))
     setTrackHeights(track.id, (track.heights ?? []).filter((_, i) => !drop.has(i)))
+    keepView(-drop.size)
     select([])
+  }
+
+  // ── Splitting the gradient with a new point ──────────────────────────────
+  /** The point a double click at (x, y) would add: on the gradient, between two points. */
+  const insertAt = ({ x, y }) => {
+    if (!view || !size || x < MARGIN.left || x > size.w - MARGIN.right) return null
+    const station = Math.round((view.x0 + (x - MARGIN.left) / view.k) * 100) / 100
+    const r = insertHeightPoint(track.heights, station)
+    if (!r) return null
+    const z = r.heights[r.index].z
+    const [a, b] = [r.heights[r.index - 1], r.heights[r.index + 1]]
+    if (Math.abs(Y(z) - y) > INSERT_HIT_PX
+      || x - X(a.station) < INSERT_POINT_GAP_PX || X(b.station) - x < INSERT_POINT_GAP_PX) return null
+    return { station, z, ...r }
+  }
+  const showInsert = (e) => {
+    const c = e.buttons ? null : insertAt(svgXY(e))
+    setHover(h => (h?.station === c?.station ? h : c && { station: c.station, z: c.z }))
+  }
+  const insert = (e) => {
+    const c = insertAt(svgXY(e))
+    if (!c) return
+    setTrackHeights(track.id, c.heights)
+    keepView(1)
+    setHover(null)
+    setSelection([c.index]); setDraft(String(c.z)); setRvDraft('')
   }
 
   if (!track) return null
@@ -238,6 +279,11 @@ export default function ElevationOverlay({ trackId, onClose }) {
     }
     setReading({ trackId, state })
   }
+
+  // The cross section's station on this track, and the height built there.
+  const sectionStation = section?.trackId === trackId && Number.isFinite(section.station)
+    ? clamp(section.station, 0, profile.length) : null
+  const sectionZ = sectionStation != null ? gradientAt(track.heights, sectionStation) : null
 
   const drawing = () => {
     if (!size || !view) return null
@@ -268,7 +314,11 @@ export default function ElevationOverlay({ trackId, onClose }) {
 
     return (
       <svg ref={svgRef} className={`profile-svg${drag.dragging ? ' dragging' : ''}`} width={size.w} height={size.h}
-        {...drag.handlers}>
+        style={hover && !drag.dragging ? { cursor: 'copy' } : undefined}
+        {...drag.handlers}
+        onPointerMove={e => { drag.handlers.onPointerMove(e); showInsert(e) }}
+        onPointerLeave={() => setHover(null)}
+        onDoubleClick={insert}>
         <defs>
           <clipPath id="profile-clip"><rect x={MARGIN.left} y={MARGIN.top} width={plotW} height={plotH} /></clipPath>
         </defs>
@@ -324,6 +374,20 @@ export default function ElevationOverlay({ trackId, onClose }) {
               {p.z.toFixed(2)}{p.rv != null && <tspan fill={PALETTE.label}> R{Math.round(p.rv)}</tspan>}
             </text>
           ))}
+          {/* where the cross section is taken */}
+          {sectionStation != null && (
+            <g pointerEvents="none">
+              <line x1={X(sectionStation)} x2={X(sectionStation)} y1={MARGIN.top} y2={bottom}
+                stroke={PALETTE.mapSelected} strokeWidth="1.5" strokeDasharray="3 2" />
+              {sectionZ != null && (
+                <circle cx={X(sectionStation)} cy={Y(sectionZ)} r="4.5" fill={PALETTE.mapSelected} stroke={PALETTE.white} strokeWidth="1.5" />
+              )}
+            </g>
+          )}
+          {hover && (
+            <circle cx={X(hover.station)} cy={Y(hover.z)} r="4" fill={PALETTE.white}
+              stroke="var(--color-primary)" strokeWidth="1.5" strokeDasharray="2 2" pointerEvents="none" />
+          )}
           {points.map(p => {
             const on = isSelected(p)
             return (
@@ -334,6 +398,14 @@ export default function ElevationOverlay({ trackId, onClose }) {
             )
           })}
         </g>
+        {sectionStation != null && X(sectionStation) >= MARGIN.left && X(sectionStation) <= right && (
+          <text x={X(sectionStation)} y={MARGIN.top - 6} fontSize="10" fill={PALETTE.mapSelected} textAnchor="middle" pointerEvents="none">
+            {fill('elevation_section_marker', {
+              station: sectionStation.toFixed(1),
+              z: sectionZ != null ? ` · ${sectionZ.toFixed(2)} m` : '',
+            })}
+          </text>
+        )}
         {band && (
           <rect x={Math.min(band.x0, band.x1)} y={Math.min(band.y0, band.y1)}
             width={Math.abs(band.x1 - band.x0)} height={Math.abs(band.y1 - band.y0)}
