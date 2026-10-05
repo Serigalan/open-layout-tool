@@ -31,3 +31,15 @@ export function duration(s) {
   const m = Math.floor(s / 60), sec = Math.round(s % 60)
   return m ? `${m} min ${String(sec).padStart(2, '0')} s` : `${sec} s`
 }
+
+/**
+ * The coordinate system an E57 file states, short enough for the dialog: a
+ * WKT's name with its EPSG code (the outermost one comes last in WKT 1 and 2),
+ * anything else as written, cut.
+ */
+export function crsHint(text) {
+  const name = text.match(/^\s*[A-Z_0-9]+\s*\[\s*"([^"]+)"/)?.[1]
+  const code = [...text.matchAll(/(?:AUTHORITY|ID)\s*\[\s*"EPSG"\s*,\s*"?(\d+)"?\s*\]/gi)].at(-1)?.[1]
+  if (name) return code ? `${name} (EPSG:${code})` : name
+  return text.length > 120 ? `${text.slice(0, 119)}…` : text
+}

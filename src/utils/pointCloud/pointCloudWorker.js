@@ -11,7 +11,8 @@
 // and one only a worker may hold. An import that does not finish removes its
 // directory again: an aborted import leaves nothing.
 import { loadLazPerf } from './lazPerfBrowser'
-import { readLasHeader, readFirstPoints, fileSource } from './lasReader'
+import { fileSource } from './lasReader'
+import { readCloudHeader, readFirstPoints } from './cloudReader'
 import { importPointCloud } from './importPipeline'
 import { planeMapper } from './cloudCrs'
 import { projectDir, INDEX_FILE, TILES_FILE } from './cloudStore'
@@ -34,7 +35,7 @@ async function runImport({ file, projectId, cloudId, meta, sourceCrs, targetCrs,
     // and the regional one the cloud's area may have.
     await loadNtv2Grid({ base })
     const source = fileSource(file)
-    const header = await readLasHeader(source)
+    const header = await readCloudHeader(source)
     if (Number(sourceCrs) !== Number(targetCrs)) {
       const datums = [crsDatum(sourceCrs), crsDatum(targetCrs)].filter(Boolean)
       if (datums.length) {
@@ -73,7 +74,9 @@ async function runImport({ file, projectId, cloudId, meta, sourceCrs, targetCrs,
     const index = {
       ...meta, ...body,
       crs: Number(targetCrs), sourceCrs: Number(sourceCrs),
-      file: { name: file.name, size: file.size, lasVersion: header.version, pointFormat: header.pointFormat },
+      file: header.format === 'e57'
+        ? { name: file.name, size: file.size, format: 'e57', e57Version: header.version, scans: header.scans.length }
+        : { name: file.name, size: file.size, lasVersion: header.version, pointFormat: header.pointFormat },
       createdAt: new Date().toISOString(),
     }
     const indexHandle = await (await cloudDir.getFileHandle(INDEX_FILE, { create: true })).createSyncAccessHandle()
@@ -96,7 +99,7 @@ async function runImport({ file, projectId, cloudId, meta, sourceCrs, targetCrs,
 async function runPreview({ file, count }) {
   try {
     const source = fileSource(file)
-    const header = await readLasHeader(source)
+    const header = await readCloudHeader(source)
     const lazPerf = header.compressed ? await loadLazPerf() : null
     const points = await readFirstPoints(source, header, count, { lazPerf })
     self.postMessage({ type: 'preview', header, points })

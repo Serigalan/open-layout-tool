@@ -1,6 +1,6 @@
 import { format } from '../../locales/i18n'
 /**
- * The head of a LAS/LAZ file as plain text, one point per line — what las2txt
+ * The head of a LAS/LAZ/E57 file as plain text, one point per line — what las2txt
  * would print — so the coordinates can be read before the file is imported:
  * many deliveries state no coordinate system, and the numbers themselves tell
  * (a Gauss-Krüger easting has seven digits and begins with its zone, a UTM one
@@ -20,12 +20,18 @@ const fmt = (v, d) => (Number.isFinite(v) ? v.toFixed(d) : String(v))
 
 const DEFAULT_LABELS = {
   format: 'point format', points: 'points', scale: 'scale', offset: 'offset',
-  first: 'first {n} points', intensity: 'intensity',
+  first: 'first {n} points', intensity: 'intensity', scans: 'scans', crs: 'coordinate system',
 }
 
+/** The file's format and version: „LAS 1.2“, „LAS 1.4 (LAZ)“, „E57 1.0“. */
+export const formatName = (header) => (header.format === 'e57'
+  ? `E57 ${header.version}`
+  : `LAS ${header.version}${header.compressed ? ' (LAZ)' : ''}`)
+
 /**
- * The text: a short commented header (file, LAS version, point count, scale,
- * offset, extent), a column line, then `x y z intensity` per point, separated
+ * The text: a short commented header (file, format and version, point count,
+ * scale and offset — for E57 the scans and the coordinate system it states —,
+ * extent), a column line, then `x y z intensity` per point, separated
  * by tabs so it pastes into a spreadsheet as columns. `labels` translate the
  * header's words (DEFAULT_LABELS).
  */
@@ -35,9 +41,15 @@ export function pointsAsText(header, points, { name = '', labels = {} } = {}) {
   const triple = (v) => `${fmt(v[0], dx)} ${fmt(v[1], dy)} ${fmt(v[2], dz)}`
   const lines = [
     ...(name ? [`# ${name}`] : []),
-    `# LAS ${header.version}${header.compressed ? ' (LAZ)' : ''}, ${l.format} ${header.pointFormat}, `
-      + `${header.pointCount} ${l.points}`,
-    `# ${l.scale} ${header.scale.join(' ')}  ${l.offset} ${header.offset.join(' ')}`,
+    ...(header.format === 'e57'
+      ? [
+        `# ${formatName(header)}, ${l.scans}: ${header.scans.length}, ${header.pointCount} ${l.points}`,
+        ...(header.coordinateMetadata ? [`# ${l.crs}: ${header.coordinateMetadata}`] : []),
+      ]
+      : [
+        `# ${formatName(header)}, ${l.format} ${header.pointFormat}, ${header.pointCount} ${l.points}`,
+        `# ${l.scale} ${header.scale.join(' ')}  ${l.offset} ${header.offset.join(' ')}`,
+      ]),
     `# min ${triple(header.min)}`,
     `# max ${triple(header.max)}`,
     `# ${format(l.first, { n: points.length })}:`,

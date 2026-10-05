@@ -155,22 +155,3 @@ export async function* readLasPoints(source, header, { lazPerf = null, onProgres
     decoder.delete()
   }
 }
-
-/**
- * The first `n` points of a file, as `[{ x, y, z, intensity }]` — for reading
- * them as a human would (lasText). Only the first chunk or block is decoded;
- * leaving the loop early closes the reader and frees what it holds.
- */
-export async function readFirstPoints(source, header, n, { lazPerf = null } = {}) {
-  const out = []
-  if (!(n > 0)) return out
-  for await (const b of readLasPoints(source, header, { lazPerf })) {
-    for (let i = 0; i < b.count && out.length < n; i++) {
-      out.push({ x: b.x[i], y: b.y[i], z: b.z[i], intensity: b.intensity[i] })
-    }
-    if (out.length >= n) break
-  }
-  return out
-}
-
-

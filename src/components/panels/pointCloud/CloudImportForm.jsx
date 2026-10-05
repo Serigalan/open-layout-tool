@@ -1,18 +1,22 @@
 import { useState } from 'react'
 import { crsLabel } from '../../../utils/coordinateUtils'
 import { HEIGHT_DATUMS, heightDatumLabel } from '../../../utils/heightDatums'
-import { readLasHeader, fileSource } from '../../../utils/pointCloud/lasReader'
+import { fileSource } from '../../../utils/pointCloud/lasReader'
+import { readCloudHeader } from '../../../utils/pointCloud/cloudReader'
 import { probeExtent, projectPlane } from '../../../utils/pointCloud/cloudProbe'
 import { startImport, previewPoints } from '../../../utils/pointCloud/pointCloudImport'
-import { pointsAsText, PREVIEW_POINTS } from '../../../utils/pointCloud/lasText'
+import { formatName, pointsAsText, PREVIEW_POINTS } from '../../../utils/pointCloud/lasText'
 import { persistStorage, estimateCloudBytes } from '../../../utils/pointCloud/cloudStore'
-import { CLOUD_CRS, count, duration, mb, sizeText } from '../../../utils/pointCloud/cloudFormat'
+import { CLOUD_CRS, count, crsHint, duration, mb, sizeText } from '../../../utils/pointCloud/cloudFormat'
 import { downloadText } from '../../../utils/fileUtils'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject, useTracks } from '../../../hooks/useStore'
 import FilePickButton from '../../form/FilePickButton'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import Modal from '../../Modal'
+
+/** A file's name without its point cloud extension. */
+const baseName = (name) => name.replace(/\.(laz|las|e57)$/i, '')
 
 /** The first points of the file as text, to read the coordinates before choosing their system. */
 function PointsTextModal({ preview, onClose }) {
@@ -28,7 +32,7 @@ function PointsTextModal({ preview, onClose }) {
           {copied ? t('pointcloud_text_copied') : t('pointcloud_text_copy')}
         </button>
         <button type="button" className="modal-btn modal-btn-cancel"
-          onClick={() => downloadText(preview.text, `${preview.name.replace(/\.(laz|las)$/i, '')}_${PREVIEW_POINTS}.txt`)}>
+          onClick={() => downloadText(preview.text, `${baseName(preview.name)}_${PREVIEW_POINTS}.txt`)}>
           {t('pointcloud_text_save')}
         </button>
         <button type="button" className="modal-btn modal-btn-primary" onClick={onClose}>{t('pointcloud_text_close')}</button>
@@ -63,7 +67,7 @@ function ImportProgress({ run }) {
 }
 
 /**
- * The import of a LAS/LAZ file into tiles. It asks for the horizontal and the
+ * The import of a LAS, LAZ or E57 file into tiles. It asks for the horizontal and the
  * vertical datum of the file before anything is read — both required, neither
  * preselected (Entscheidung 118) — and checks the box the file states for
  * itself against the tracks, so a wrong choice shows before an hour of
@@ -85,7 +89,7 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
   const choose = async (file) => {
     onMessage(null)
     try {
-      setPick({ file, header: await readLasHeader(fileSource(file)) })
+      setPick({ file, header: await readCloudHeader(fileSource(file)) })
       setCrs('')
       setHeightEpsg('')
     } catch (err) {
@@ -102,6 +106,7 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
         format: t('pointcloud_text_format'), points: t('pointcloud_text_points'),
         scale: t('pointcloud_text_scale'), offset: t('pointcloud_text_offset'),
         first: t('pointcloud_text_first'), intensity: t('pointcloud_text_intensity'),
+        scans: t('pointcloud_text_scans'), crs: t('pointcloud_text_crs'),
       }
       setPreview({ name: pick.file.name, text: pointsAsText(header, points, { name: pick.file.name, labels }) })
     } catch (err) {
@@ -116,7 +121,7 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
     const job = startImport({
       file: pick.file,
       projectId: project.id,
-      meta: { name: pick.file.name.replace(/\.(laz|las)$/i, ''), heightEpsg: Number(heightEpsg) },
+      meta: { name: baseName(pick.file.name), heightEpsg: Number(heightEpsg) },
       sourceCrs: Number(crs),
       targetCrs: target ?? Number(crs),
       onProgress: (progress) => setRunState(r => (r ? { ...r, progress } : r)),
@@ -137,7 +142,7 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
 
   if (!pick) {
     return (
-      <FilePickButton accept=".laz,.las" onFile={choose}>{t('pointcloud_import')}</FilePickButton>
+      <FilePickButton accept=".laz,.las,.e57" onFile={choose}>{t('pointcloud_import')}</FilePickButton>
     )
   }
 
@@ -147,10 +152,14 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
     <div className="pointcloud-import">
       <ReadOnlyField label={t('pointcloud_file')} value={`${pick.file.name} · ${mb(pick.file.size)}`} />
       <span className="pointcloud-meta">
-        {`LAS ${pick.header.version}${pick.header.compressed ? ' (LAZ)' : ''} · `
+        {`${formatName(pick.header)} · `
+          + (pick.header.format === 'e57' ? `${fill('pointcloud_scans', { n: count(pick.header.scans.length) })} · ` : '')
           + `${fill('pointcloud_points', { n: count(pick.header.pointCount) })} · `
           + `${fill('pointcloud_needs', { size: sizeText(needed) })}`}
       </span>
+      {pick.header.coordinateMetadata && (
+        <span className="pointcloud-meta">{fill('pointcloud_file_crs', { crs: crsHint(pick.header.coordinateMetadata) })}</span>
+      )}
       <button className="modal-btn modal-btn-cancel pointcloud-text-btn" disabled={preview?.busy} onClick={showPreview}>
         {preview?.busy ? t('pointcloud_text_reading') : fill('pointcloud_text_show', { n: PREVIEW_POINTS })}
       </button>

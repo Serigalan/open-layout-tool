@@ -1,8 +1,8 @@
-import { readLasPoints } from './lasReader'
+import { readCloudPoints } from './cloudReader'
 import { TileBuilder, encodeSegment, splitIntoBands, intensityShift, TILE_SIZE, VOXEL_SIZE } from './tiles'
 
 /**
- * The import of one LAS/LAZ file into tiles: read chunk by chunk, convert
+ * The import of one LAS/LAZ/E57 file into tiles: read chunk by chunk, convert
  * into the project's plane, thin to the voxel, write each tile once the
  * scanner has moved on. Nothing of the file is held beyond the tiles still
  * open, so a file of several gigabytes goes through in a bounded heap
@@ -51,7 +51,7 @@ export async function importPointCloud({
 
   const started = Date.now()
   let lastPause = started
-  for await (const batch of readLasPoints(source, header, { lazPerf, signal, onProgress: (p) => {
+  for await (const batch of readCloudPoints(source, header, { lazPerf, signal, onProgress: (p) => {
     const elapsed = (Date.now() - started) / 1000
     const share = p.totalBytes ? p.bytes / p.totalBytes : 0
     onProgress?.({

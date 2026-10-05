@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { readLasHeader, readFirstPoints } from './lasReader'
+import { readLasHeader } from './lasReader'
+import { readFirstPoints } from './cloudReader'
 import { pointsAsText, decimalsOf } from './lasText'
 import { hasLaz, LAZ_PATH, nodeFileSource, nodeLazPerf, bytesSource, makeLas } from '../../test/pointCloudFixture'
 
