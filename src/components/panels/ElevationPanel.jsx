@@ -26,7 +26,8 @@ import useMapPick from '../../map/useMapPick'
  *
  * Above the list, what the Höhenplan rules say about the gradient on show,
  * and the line category of the project they judge a line track by — above
- * it, since the list of a large project runs far below the screen.
+ * it, since the list of a large project runs far below the screen. The
+ * crossovers to fit come last.
  */
 export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   const { t, fill } = useI18n()
@@ -93,7 +94,6 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
       <p>{t('elevation_hint')}</p>
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
       <FormSection title={t('elevation_rules')}>
-        <p className="selecting-hint">{t('elevation_rules_hint')}</p>
         <div className="form-field">
           <label title={t('elevation_line_category_hint')}>{t('elevation_line_category')}</label>
           <select value={projectLineCategory(project)} title={t('elevation_line_category_hint')}
@@ -110,20 +110,6 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
             </button>
           </>
         )}
-      </FormSection>
-      <FormSection title={t('crossover_section')}>
-        <p className="selecting-hint">{t('crossover_section_hint')}</p>
-        {crossovers.length === 0 && <p className="selecting-hint">{t('crossover_none')}</p>}
-        {crossovers.map(c => (
-          <div key={c.conn.id} className="crossover-pair">
-            <span className={onShown(c) ? 'track-group-item active' : 'track-group-item'}>
-              {fill('crossover_title_switches', { a: c.w1.name ?? '', b: c.w2.name ?? '' })}
-            </span>
-            <button className="panel-btn secondary" onClick={() => setCrossover([c.w1.switchId, c.w2.switchId])}>
-              {t('crossover_open')}
-            </button>
-          </div>
-        ))}
       </FormSection>
       <GroupedTrackList tracks={tracks}
         isActive={(track) => track.id === profileTrackId}
@@ -142,6 +128,20 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
       </button>
       {busy && <p className="selecting-hint">{t('elevation_loading')}</p>}
       {result && !busy && <p className={result.failed ? 'form-error' : 'selecting-hint'}>{resultText(result)}</p>}
+      <FormSection title={t('crossover_section')}>
+        <p className="selecting-hint">{t('crossover_section_hint')}</p>
+        {crossovers.length === 0 && <p className="selecting-hint">{t('crossover_none')}</p>}
+        {crossovers.map(c => (
+          <div key={c.conn.id} className="crossover-pair">
+            <span className={onShown(c) ? 'track-group-item active' : 'track-group-item'}>
+              {fill('crossover_title_switches', { a: c.w1.name ?? '', b: c.w2.name ?? '' })}
+            </span>
+            <button className="panel-btn secondary" onClick={() => setCrossover([c.w1.switchId, c.w2.switchId])}>
+              {t('crossover_open')}
+            </button>
+          </div>
+        ))}
+      </FormSection>
     </>
   )
 }
