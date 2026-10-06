@@ -33,6 +33,16 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
   const { t } = useI18n()
   const [trackId, setTrackId] = useState(null)
 
+  // The overlay may walk on to the next track at an end; the panel follows it,
+  // so the superstructure shown is the one of the track in the section.
+  // Adjusted while rendering, the way React has it for state that follows a prop.
+  const shownId = crossSectionAt?.trackId ?? null
+  const [followed, setFollowed] = useState(shownId)
+  if (shownId !== followed) {
+    setFollowed(shownId)
+    if (shownId) setTrackId(shownId)
+  }
+
   const tracks = loadTracks()
   const track  = tracks.find(tr => tr.id === trackId) ?? null
   const shown  = crossSectionAt != null && crossSectionAt.trackId === trackId

@@ -1,5 +1,5 @@
 import { utmToWgs84, crsName } from './coordinateUtils'
-import { portsOf, isLinkSwitch } from './switchModel'
+import { portsOf, isLinkSwitch, switchRoutePorts } from './switchModel'
 import { trackEndAt } from './trackLinkUtils'
 import { endKey, BUFFER_STOP, BOUNDARY } from './trackEndMarks'
 
@@ -141,3 +141,64 @@ export function classifyTrackEnds(tracks, switches, endMarks = []) {
 
 /** The ends a buffer stop or a boundary may be put on: the open ones. */
 export const freeEnds = (ends) => ends.filter(e => isOpenState(e.state))
+
+/**
+ * The tracks that carry on from one end of a track — the way a train leaving
+ * it there could go: the other end on its node where two tracks are laid end
+ * to end (a joint, see above), across a link into another plane, or over a
+ * switch along each route that runs from the port holding this end (a
+ * turnout's toe leads into both of its routes, either of its branches back to
+ * the toe).
+ *
+ * Returns [{ trackId, endpoint }], each the end of the other track that is met
+ * — where its station is 0 (BEGIN) or its length (END) — in the order the
+ * switches and tracks are stored, without duplicates.
+ */
+export function tracksOnFrom(trackId, endpoint, tracks, switches) {
+  const found = []
+  const add = (id, ep) => {
+    if (id && ep && !found.some(f => f.trackId === id && f.endpoint === ep)) found.push({ trackId: id, endpoint: ep })
+  }
+  let held = false
+  for (const sw of switches ?? []) {
+    const ports = portsOf(sw)
+    const mine = ports.filter(p => sw[p.trackKey] === trackId && sw[p.endKey] === endpoint)
+    if (!mine.length) continue
+    held = true
+    const routes = Object.values(switchRoutePorts(sw.kind))
+    for (const { port } of mine) {
+      // A link has no routes: its two ports are one node, met from either side.
+      const others = isLinkSwitch(sw)
+        ? ports.filter(p => p.port !== port).map(p => p.port)
+        : routes.filter(r => r.includes(port)).map(r => r[0] === port ? r[1] : r[0])
+      for (const other of others) {
+        const p = ports.find(q => q.port === other)
+        if (p) add(sw[p.trackKey], sw[p.endKey])
+      }
+    }
+  }
+  if (held) return found
+
+  // A joint: exactly one other free end on the node, in the same plane.
+  const here = trackEndAt((tracks ?? []).find(t => t.id === trackId), endpoint)
+  if (!here) return found
+  const claimed = new Set()
+  for (const sw of switches ?? []) {
+    for (const { trackKey, endKey: ek } of portsOf(sw)) {
+      if (sw[trackKey] && sw[ek]) claimed.add(endKey(sw[trackKey], sw[ek]))
+    }
+  }
+  const partners = []
+  for (const track of tracks ?? []) {
+    if (track.id === trackId) continue
+    for (const ep of ['BEGIN', 'END']) {
+      const end = trackEndAt(track, ep)
+      if (!end || end.epsg !== here.epsg) continue
+      if (Math.hypot(end.easting - here.easting, end.northing - here.northing) > JOINT_EXACT) continue
+      if (claimed.has(endKey(track.id, ep))) return found   // crowded: no joint
+      partners.push(end)
+    }
+  }
+  if (partners.length === 1) add(partners[0].trackId, partners[0].endpoint)
+  return found
+}

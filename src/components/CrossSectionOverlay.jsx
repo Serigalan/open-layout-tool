@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadPlatforms, loadSwitches, currentProject } from '../storage'
 import { trackLength } from '../utils/heightUtils'
+import { tracksOnFrom } from '../utils/topology'
 import { trackHeightAt } from '../utils/switchGradient'
 import { utmToWgs84 } from '../utils/coordinateUtils'
 import { pointAtStation } from '../utils/platformUtils'
@@ -81,6 +82,9 @@ const MARKER_LAYERS = [{
     },
   },
 }]
+
+/** From this close to an end of the track on [m], the tracks carrying on there are offered. */
+const ON_REACH = 1
 
 const inRange = (p, station) => station >= (p.startStation ?? 0) && station <= (p.endStation ?? Infinity)
 
@@ -608,9 +612,31 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
     )
   }
 
+  // Near an end, the tracks that carry on there: one click takes the section
+  // onto one of them, at the end of it that is met (Gleiswechsel im Querprofil).
+  const onward = (endpoint) => tracksOnFrom(track.id, endpoint, tracks, switches)
+    .map(o => ({ ...o, track: tracks.find(tr => tr.id === o.trackId) }))
+    .filter(o => o.track)
+  const onwardAt = [
+    ...(station <= ON_REACH ? onward('BEGIN').map(o => ({ ...o, from: 'BEGIN' })) : []),
+    ...(station >= total - ON_REACH ? onward('END').map(o => ({ ...o, from: 'END' })) : []),
+  ]
+  const goOnto = (o) => onAtChange?.({
+    ...at, trackId: o.trackId,
+    station: o.endpoint === 'END' ? Math.round(trackLength(o.track) * 10) / 10 : 0,
+  })
+  // Stepping over an end goes on by itself where only one track carries on.
+  const soleOnward = (endpoint) => {
+    const here = onwardAt.filter(o => o.from === endpoint)
+    return here.length === 1 ? here[0] : null
+  }
+
   // One metre on or back, to the next whole metre — from 30.4 to 31 or 30 —
   // so stepping walks the stations a surveyor would read off.
   const stepTo = (dir) => {
+    const atEnd = dir > 0 ? station >= total : station <= 0
+    const sole = atEnd ? soleOnward(dir > 0 ? 'END' : 'BEGIN') : null
+    if (sole) { goOnto(sole); return }
     const next = dir > 0 ? Math.floor(station + 1e-6) + 1 : Math.ceil(station - 1e-6) - 1
     onAtChange?.({ ...at, station: clamp(next, 0, total) })
   }
@@ -690,15 +716,27 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
         {drawing()}
       </div>
       <div className="cross-section-slider">
-        <button className="cross-section-step" disabled={station <= 0} onClick={() => stepTo(-1)}
+        <button className="cross-section-step" disabled={station <= 0 && !soleOnward('BEGIN')} onClick={() => stepTo(-1)}
           title={t('cross_section_step_back')} aria-label={t('cross_section_step_back')}>◀</button>
         <input
           type="range" min={0} max={total} step={0.1} value={station}
           onChange={e => onAtChange?.({ ...at, station: Number(e.target.value) })}
         />
-        <button className="cross-section-step" disabled={station >= total} onClick={() => stepTo(1)}
+        <button className="cross-section-step" disabled={station >= total && !soleOnward('END')} onClick={() => stepTo(1)}
           title={t('cross_section_step_forward')} aria-label={t('cross_section_step_forward')}>▶</button>
         <span className="cross-section-slider-label">{`${station.toFixed(1)} / ${total.toFixed(1)} m`}</span>
+        {onwardAt.length > 0 && (
+          <span className="cross-section-onward">
+            {t('cross_section_onward')}
+            {onwardAt.map(o => (
+              <button key={`${o.from}|${o.trackId}|${o.endpoint}`} type="button" className="cross-section-onward-btn"
+                title={t(o.from === 'END' ? 'cross_section_onward_end' : 'cross_section_onward_begin')}
+                onClick={() => goOnto(o)}>
+                {`${o.from === 'END' ? '▶' : '◀'} ${o.track.name || o.trackId.slice(0, 8)}`}
+              </button>
+            ))}
+          </span>
+        )}
       </div>
     </div>
   )
