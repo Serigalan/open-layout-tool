@@ -1,10 +1,14 @@
 import { generateId, switchDesignation, nextSwitchNumber } from '../identifierUtils'
-import { nextTrackName, rebuildCoords, recalcAbsLengths } from '../trackModel'
+import { nextTrackName, rebuildCoords, recalcAbsLengths, trackLabel } from '../trackModel'
+import { nodeUtm } from '../elementUtils'
+import { switchElementRoute } from '../switch/route'
+import { transitionCantEnds } from '../clothoidUtils'
 import { computeSwitchGeometryUtm } from '../switch/symbol'
 import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../coordinateUtils'
 import { newSwitchFields, switchElementMark } from '../switchModel'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
 import { solveSwitchConnection, buildConnectionElements, orientStemToward } from '../switchConnectionUtils'
+import { catalogLimit } from '../regelkatalog'
 
 // The S-curve between two line tracks (SCurveForm): solving the connection
 // for a shift, the range of shifts it stands over, and the commit.
@@ -55,6 +59,32 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, side, sw, spee
       fillCoords: shown.fillCoords, lcsCoords: shown.lcsCoords,
       labelCoords: shown.labelCoords, bauform: shown.bauform,
     },
+  }
+}
+
+/**
+ * A pick as the dialog takes one: element `elIdx` of `track`, clicked
+ * `along` metres from its start — where it lies, the route the turnout is laid
+ * on, the cant that runs over it, its design speed (for LP.EL.01) and which of
+ * its nodes are the track's open ends.
+ */
+export function connectionPick(track, elIdx, along) {
+  const el = track.elements[elIdx]
+  const coords = el.geometry?.coordinates ?? []
+  // A transition carries no cant of its own; what runs over it is the ramp
+  // its neighbours state (transitionCantEnds).
+  const ramp = el.elementType === 2 ? transitionCantEnds(track.elements, elIdx) : null
+  return {
+    trackId: track.id, elIdx,
+    startUtm: nodeUtm(el.startNode, coords[0], track.epsg),
+    endUtm: nodeUtm(el.endNode, coords[coords.length - 1], track.epsg),
+    bearing: el.bearing,
+    route: switchElementRoute(el), along,
+    cantStart: ramp ? ramp.start : (el.cant ?? 0),
+    cantEnd:   ramp ? ramp.end   : (el.cant ?? 0),
+    zone: track.epsg, label: trackLabel(track), name: track.name || trackLabel(track),
+    speed: el.speed || null,
+    trackEnds: [elIdx === 0, elIdx === track.elements.length - 1],
   }
 }
 
@@ -148,6 +178,7 @@ export const REASON_MSG = {
   cant_mismatch:    'scurve_cant_mismatch',
   cant_over:        'scurve_cant_over',
   off_element:      'scurve_off_element',
+  min_element_length: 'scurve_min_element_length',
 }
 
 /** Below this a turnout still counts as lying on its element [m]. */
@@ -175,6 +206,162 @@ function turnoutsOnElements([p1, p2], dir1, shift, res) {
   const dir2 = res.flipped2 ? -1 : 1
   return turnoutOnElement(p1, p1.along + dir1 * shift, dir1, 1, res.throughLength)
       && turnoutOnElement(p2, p2.along + dir2 * res.s2, dir2, -1, res.throughLength)
+}
+
+// ── Minimum element length (LP.EL.01) ────────────────────────────────────────
+
+/**
+ * l_min of LP.EL.01 for an element of design speed `v` [m] — or null where the
+ * catalogue gives none (no speed, or one below its table).
+ */
+export function minElementLength(v) {
+  if (!(v > 0)) return null
+  try {
+    return catalogLimit('LP.EL.01', 'l_min', { 'element.design_speed': v, 'element.length': 0 })
+  } catch {
+    return null
+  }
+}
+
+/** Shorter than this a piece is none: the turnout sits on the node [m] (switchPlacement's JOINT_TOL). */
+const NODE_TOL = 1e-3
+
+/**
+ * Where turnout `k` (0 or 1) of a solved connection lies on the element it was
+ * picked on, as stations along that element: its toe (WA), its switch end (WE)
+ * and the node behind its toe — the end of the element on the side away from
+ * the turnout.
+ */
+function turnoutSpan(picks, k, shift, res) {
+  const p = picks[k]
+  const dir = k === 0 ? (stems(picks).g1.dir ?? 1) : (res.flipped2 ? -1 : 1)
+  const toe = k === 0 ? p.along + dir * shift : p.along + dir * res.s2
+  // The first turnout opens with the connection, the second against it.
+  const far = toe + dir * (k === 0 ? 1 : -1) * res.throughLength
+  const len = p.route.length
+  return { toe, far, len, node: far > toe ? 0 : len }
+}
+
+/**
+ * The pieces a connection leaves of the two elements it is laid into: on
+ * either track the piece before WA and the piece behind WE. Each has to be
+ * none at all (the turnout on the node) or at least l_min of LP.EL.01 at its
+ * element's speed (`pick.speed`); `short` marks the ones that are neither.
+ * `pick.trackEnds` says whether the element's start and end node are its
+ * track's open ends ([start, end]).
+ *
+ * Returns [{ track: 0|1, side: 'before'|'after', length, lMin, short }].
+ */
+export function connectionRemnants(picks, shift, res) {
+  const out = []
+  for (const k of [0, 1]) {
+    const { toe, far, len } = turnoutSpan(picks, k, shift, res)
+    const lMin = minElementLength(picks[k].speed)
+    const before = far > toe ? toe : len - toe
+    const after = far > toe ? len - far : far
+    for (const [side, length] of [['before', before], ['after', after]]) {
+      const l = Math.max(0, length)
+      out.push({ track: k, side, length: l, lMin, short: lMin != null && l > NODE_TOL && l < lMin - NODE_TOL })
+    }
+  }
+  return out
+}
+
+/**
+ * The shift that puts the toe of the second turnout on station `target` of its
+ * element, searched over [lo, hi] for the crossing nearest to `from` — or null.
+ * The second toe goes wherever the construction puts it, so it is found, not
+ * computed.
+ */
+function shiftForSecondToe({ picks, speed }, target, from, lo, hi) {
+  const off = (s) => {
+    const res = solveConnection({ picks, speed, shift: s })
+    return res?.valid ? turnoutSpan(picks, 1, s, res).toe - target : null
+  }
+  const span = hi - lo
+  if (!(span > 0)) return null
+  const n = Math.ceil(span / Math.max(0.5, span / 400))
+  let best = null
+  let prevS = null, prevF = null
+  for (let i = 0; i <= n; i++) {
+    const s = lo + span * i / n
+    const f = off(s)
+    if (f != null && prevF != null && (prevF <= 0) !== (f <= 0)) {
+      let a = prevS, b = s, fa = prevF
+      for (let it = 0; it < 60 && b - a > 1e-7; it++) {
+        const m = (a + b) / 2, fm = off(m)
+        if (fm == null) break
+        if ((fa <= 0) === (fm <= 0)) { a = m; fa = fm } else b = m
+      }
+      const root = (a + b) / 2
+      if (best == null || Math.abs(root - from) < Math.abs(best - from)) best = root
+    }
+    prevS = s
+    prevF = f
+  }
+  return best
+}
+
+/**
+ * The connection at the slider's `shift`, held to the minimum element length:
+ * where a turnout would leave a piece of its element before WA shorter than
+ * l_min, it is pushed back onto the element's node (Entscheidung 166) — the
+ * first by moving the shift, the second by finding the shift that puts it
+ * there. Whatever is still too short then, before WA or behind WE on either
+ * track, makes it no connection (reason `min_element_length`, the piece as
+ * `short`).
+ *
+ * Returns { shift, result, moved: [k…], remnants } — `shift` the one the
+ * connection is built at, `moved` the turnouts pushed onto their nodes.
+ */
+export function settleConnection({ picks, speed, shift }) {
+  let res = solveConnection({ picks, speed, shift })
+  if (!res?.valid) return { shift, result: res, moved: [], remnants: [] }
+  const moved = []
+  const shortBefore = (k, r, s) => connectionRemnants(picks, s, r).find(x => x.track === k && x.side === 'before' && x.short)
+  const fail = (s, r, piece) => ({
+    shift: s, moved, remnants: connectionRemnants(picks, s, r),
+    result: { ...r, valid: false, reason: 'min_element_length', short: piece },
+  })
+
+  // The first turnout: its toe onto the node behind it.
+  // A node that is the track's open end has nothing behind it to part from:
+  // a turnout is not pushed there.
+  const openEnd = (k, node) => !!picks[k].trackEnds?.[node === 0 ? 0 : 1]
+
+  const first = shortBefore(0, res, shift)
+  if (first) {
+    const { node } = turnoutSpan(picks, 0, shift, res)
+    if (openEnd(0, node)) return fail(shift, res, first)
+    const s = (node - picks[0].along) * (stems(picks).g1.dir ?? 1)
+    const r = solveConnection({ picks, speed, shift: s })
+    if (!r?.valid) return fail(shift, res, first)
+    shift = s
+    res = r
+    moved.push(0)
+  }
+
+  // The second turnout likewise, found by searching the shift — over the
+  // whole of the first element, as computeShiftBounds does.
+  const second = shortBefore(1, res, shift)
+  if (second) {
+    const { node } = turnoutSpan(picks, 1, shift, res)
+    if (openEnd(1, node)) return fail(shift, res, second)
+    const dir1 = stems(picks).g1.dir ?? 1
+    const sA = -dir1 * picks[0].along
+    const sB = dir1 * (picks[0].route.length - picks[0].along)
+    const s = shiftForSecondToe({ picks, speed }, node, shift, Math.min(sA, sB), Math.max(sA, sB))
+    const r = s == null ? null : solveConnection({ picks, speed, shift: s })
+    if (!r?.valid) return fail(shift, res, second)
+    shift = s
+    res = r
+    moved.push(1)
+  }
+
+  const remnants = connectionRemnants(picks, shift, res)
+  const still = remnants.find(x => x.short)
+  if (still) return fail(shift, res, still)
+  return { shift, result: res, moved, remnants }
 }
 
 /**

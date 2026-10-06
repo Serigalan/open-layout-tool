@@ -1,20 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitSwitchConnection } from '../../../storage'
-import { nodeUtm } from '../../../utils/elementUtils'
-import { switchElementRoute } from '../../../utils/switch/route'
-import { transitionCantEnds } from '../../../utils/clothoidUtils'
-import { stationFromClick } from '../../../utils/platformUtils'
+import { elementStations, stationFromClick } from '../../../utils/platformUtils'
 import { wgs84ToUTM } from '../../../utils/coordinateUtils'
 import { SWITCH_TYPES, CONNECTION_SPEEDS, computeSwitchConnections } from '../../../utils/switchConnectionUtils'
 import { ZOOM_LINE_WIDTH } from '../../../map/style'
 import { useI18n } from '../../../locales/i18nContext'
-import { REASON_MSG, buildSCurve, computeShiftBounds, isUsableStem, solveConnection, stems } from '../../../utils/commands/sCurve'
+import { REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, isUsableStem, settleConnection, stems } from '../../../utils/commands/sCurve'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import { PALETTE } from '../../../styles/palette'
 import ReadOnlyField from '../../form/ReadOnlyField'
-import { trackLabel } from '../../../utils/trackModel'
 import CancelButton from '../../form/CancelButton'
 
 // ── Preview layers (managed by usePreview) ────────────────────────────
@@ -110,23 +106,12 @@ export default function SCurveForm({ onCommitted }) {
         return
       }
 
-      const coords   = el.geometry.coordinates
-      const startUtm = nodeUtm(el.startNode, coords[0], track.epsg)
-      const endUtm   = nodeUtm(el.endNode, coords[coords.length - 1], track.epsg)
       // The clicked point as a station along the element — along its own curve,
-      // whatever kind it is.
+      // whatever kind it is. stationFromClick counts along the whole track.
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
-      const along    = Math.min(el.length, Math.max(0, stationFromClick(track, elIdx, clickUtm) ?? 0))
-      // A transition carries no cant of its own; what runs over it is the ramp
-      // its neighbours state (transitionCantEnds).
-      const ramp     = el.elementType === 2 ? transitionCantEnds(track.elements, elIdx) : null
-      const pick     = {
-        trackId, elIdx, startUtm, endUtm, bearing: el.bearing,
-        route: switchElementRoute(el), along,
-        cantStart: ramp ? ramp.start : (el.cant ?? 0),
-        cantEnd:   ramp ? ramp.end   : (el.cant ?? 0),
-        zone: track.epsg, label: trackLabel(track),
-      }
+      const elStart  = elementStations(track)[elIdx]?.start ?? 0
+      const along    = Math.min(el.length, Math.max(0, (stationFromClick(track, elIdx, clickUtm) ?? elStart) - elStart))
+      const pick     = connectionPick(track, elIdx, along)
 
       if (phase === 'select_first') {
         setPicks([pick])
@@ -163,12 +148,15 @@ export default function SCurveForm({ onCommitted }) {
 
   // ── The connection itself ─────────────────────────────────────────────────
   // Closed-form and pure, so it is derived from the picks, the speed and the
-  // slider rather than pushed into state by an effect.
-  const result = useMemo(() => (
+  // slider rather than pushed into state by an effect. A turnout that would
+  // leave too short a piece of its element before WA is pushed onto the
+  // element's node (settleConnection, LP.EL.01).
+  const settled = useMemo(() => (
     phase === 'config' && picks[0] && picks[1] && speed
-      ? solveConnection({ picks, speed, shift })
+      ? settleConnection({ picks, speed, shift })
       : null
   ), [phase, picks, speed, shift])
+  const result = settled?.result ?? null
 
   // ── Preview (the map is the only thing outside React here) ────────────────
   useEffect(() => {
@@ -229,7 +217,7 @@ export default function SCurveForm({ onCommitted }) {
           <ReadOnlyField label={t('scurve_gap')} value={result ? `${result.gap.toFixed(2)} m` : ''} />
 
           <div className="form-field">
-            <label>{t('scurve_shift')}: {shift} m</label>
+            <label>{t('scurve_shift')}: {settled && settled.shift !== shift ? `${shift} → ${settled.shift.toFixed(2)}` : shift} m</label>
             <input type="range" min={shiftRange.min} max={shiftRange.max} step="1" value={shift}
               onChange={e => { setCarveError(null); setShift(Number(e.target.value)) }} />
           </div>
@@ -260,6 +248,29 @@ export default function SCurveForm({ onCommitted }) {
         <p className={result?.valid ? 'msg-info' : 'msg-error'}>
           {result?.valid ? t('scurve_valid') : t(REASON_MSG[result?.reason] ?? 'scurve_invalid')}
         </p>
+        {settled?.moved.length > 0 && (
+          <p className="msg-hint">
+            {fill('scurve_min_element_moved', { tracks: settled.moved.map(k => picks[k]?.name ?? '').join(', ') })}
+          </p>
+        )}
+        {result?.valid && settled.remnants.some(r => r.lMin == null) && (
+          <p className="msg-hint">
+            {fill('scurve_min_element_unchecked', {
+              tracks: [...new Set(settled.remnants.filter(r => r.lMin == null).map(r => picks[r.track]?.name ?? ''))].join(', '),
+            })}
+          </p>
+        )}
+        {result?.short && (
+          <p className="msg-error">
+            {fill('scurve_min_element_short', {
+              side: t(result.short.side === 'before' ? 'scurve_side_before_wa' : 'scurve_side_after_we'),
+              track: picks[result.short.track]?.name ?? '',
+              l: result.short.length.toFixed(2),
+              lmin: result.short.lMin.toFixed(2),
+              v: String(picks[result.short.track]?.speed ?? ''),
+            })}
+          </p>
+        )}
         {carveError != null && (
           <p className="form-error">
             {fill('switch_on_track_no_room', { m: carveError.toFixed(1) })}
