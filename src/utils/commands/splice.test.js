@@ -180,6 +180,20 @@ describe('the track built from the answer', () => {
     expect(h).toHaveLength(j + 3)
   })
 
+  it('joins the arrival\'s gradient also where the departure\'s stops short of the cut', () => {
+    // Track a's gradient ends at 50 m — its length was edited behind it.
+    const ah = { ...a, heights: [{ station: 0, z: 100 }, { station: 50, z: 100.5, rv: 3000 }] }
+    const bh = { ...b, heights: [{ station: 0, z: 110 }, { station: 600, z: 116 }] }
+    const dep = splicePick(ah, 0), arr = splicePick(bh, 0)
+    const splice = spliceFromAnswer(answers.corner.answer, dep, arr, settings)
+    const [merged] = buildSplice({ tracks: [ah, bh], dep, arr, splice, speed: 60, cant: 40, newId }).addTracks
+    const L = merged.elements.reduce((sum, el) => sum + el.length, 0)
+    expect(merged.heights).toEqual([
+      { station: 0, z: 100 }, { station: 50, z: 100.5 },
+      { station: expect.closeTo(L - 400, 6), z: expect.closeTo(112, 9) }, { station: expect.closeTo(L, 6), z: 116 },
+    ])
+  })
+
   it('takes over the gradient of an arrival folded in backwards', () => {
     const { request, answer } = answers.arcsStraight
     const c0 = track('c', [arcElement(at(request.dep.start), at(request.dep.end), request.dep.radius, { speed: 100 })])

@@ -163,8 +163,7 @@ export function spliceFromAnswer(answer, dep, arr, { clothoidEnabled, clothoidDe
 }
 
 const lengthOf = (els) => els.reduce((sum, el) => sum + (el.length ?? 0), 0)
-const NODE_TOL = 1e-3      // m — two nodes this close are the same
-const STATION_TOL = 1e-6   // m — heightUtils' own
+const NODE_TOL = 1e-3   // m — two nodes this close are the same
 
 const sameNode = (a, b) => Array.isArray(a) && Array.isArray(b)
   && Math.abs(a[0] - b[0]) < NODE_TOL && Math.abs(a[1] - b[1]) < NODE_TOL
@@ -191,8 +190,10 @@ const plain = ({ rv: _rv, ...p }) => p
  * end (decision 171). The stretch the splice inserts has no gradient of its
  * own, so it takes the one that joins the two.
  *
- * Where only one of the tracks has a gradient up to its cut, the merged track
- * keeps that one alone: nothing is made up for the other's side (decision 64).
+ * A gradient that stops short of its cut — an element's length edited
+ * behind its last point — is joined from where it stops: the straight
+ * gradient runs from its last point to the other's first. Where only one of
+ * the tracks has a gradient at all, the merged track keeps that one alone.
  */
 function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseArr, mergedLength }) {
   const depOrig = depTrack.elements[dep.elIdx]
@@ -209,8 +210,6 @@ function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseArr, merged
     + overlapOf(arrPiece, arrOrig, reverseArr ? arrOrig.startNode : arrOrig.endNode, 'endNode')
   const offset = mergedLength - arrKeep
 
-  const reaches = (h, station) => h?.length && Math.abs(h[h.length - 1].station - station) < STATION_TOL
-  const starts  = (h, station) => h?.length && Math.abs(h[0].station - station) < STATION_TOL
   const depH = splitHeights(depTrack.heights, depKeep)[0]
   let arrH
   if (reverseArr) {
@@ -221,11 +220,11 @@ function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseArr, merged
   }
   arrH = arrH?.map(p => ({ ...p, station: p.station + offset }))
 
-  const depOk = reaches(depH, depKeep) && depH.length >= 2
-  const arrOk = starts(arrH, offset) && arrH.length >= 2
+  const depOk = depH?.length >= 2
+  const arrOk = arrH?.length >= 2
   if (depOk && arrOk) return [...depH.slice(0, -1), plain(depH.at(-1)), plain(arrH[0]), ...arrH.slice(1)]
-  if (depH?.length >= 2) return depH
-  if (arrH?.length >= 2) return arrH
+  if (depOk) return depH
+  if (arrOk) return arrH
   return undefined
 }
 
