@@ -194,30 +194,51 @@ function connectionFrame(g1, g2, s) {
   const toe1 = stemPoint(g1, s)
   const psiToe1 = psiOf(stemBearing(g1, s))
 
-  // Which side track 2 is on, seen from the toe: the left normal of track 1 there.
+  // Which side track 2 is on, seen from the toe: the left normal of track 1
+  // there, towards the point of track 2 abreast of the toe. Not towards the
+  // pick on track 2: in a curve that may lie far enough ahead for the curve to
+  // carry it across the toe's tangent, and the connection would then be built
+  // to the wrong side.
   const n1E = -Math.sin(psiToe1), n1N = Math.cos(psiToe1)
-  const p2 = stemPoint(t2, 0)
-  const dE = p2.easting - toe1.easting, dN = p2.northing - toe1.northing
+  const foot2 = footOnStem(t2, toe1)
+  const dE = foot2.easting - toe1.easting, dN = foot2.northing - toe1.northing
   const side = Math.sign(dE * n1E + dN * n1N) || 1
 
-  return { stem1: g1, stem2: t2, s1: s, toe1, psiToe1, side, flipped2 }
+  // Track spacing at the toe — straight, arc or transition alike.
+  return { stem1: g1, stem2: t2, s1: s, toe1, psiToe1, side, flipped2, gap: Math.hypot(dE, dN) }
 }
 
-/** Track spacing at the toe: the distance from it to track 2, straight or arc. */
-function trackGap(frame) {
-  const { toe1, stem2 } = frame
-  const p2 = stemPoint(stem2, 0)
-  const psi = psiOf(stemBearing(stem2, 0))
-  const Rs2 = stemRadius(stem2, 0)
-  if (!Rs2) {
-    const dE = p2.easting - toe1.easting, dN = p2.northing - toe1.northing
-    return Math.abs(dE * -Math.sin(psi) + dN * Math.cos(psi))
+/**
+ * The point of a stem abreast of `p`: its foot, found by stepping along the
+ * tangent onto the normal through `p`. Off a straight one step is exact; on a
+ * curve each step shrinks the miss by the ratio of offset to radius, so a few
+ * reach any track spacing. Beyond the element a straight or an arc runs on as
+ * it is, as everywhere in the construction; a transition curve cannot be
+ * evaluated past its ends, so it runs on along its end tangent.
+ */
+function footOnStem(g, p) {
+  const L = g.route.length
+  const varies = switchRouteVaries(g.route)
+  const at = (s) => {
+    const station = stemStation(g, s)
+    const edge = varies ? Math.min(L, Math.max(0, station)) : station
+    const q = switchRoutePointUtm(g.startUtm, g.bearing, g.route, edge)
+    const rad = switchRouteBearingAt(g.bearing, g.route, edge) * DEG2RAD
+    const d = station - edge
+    const dir = g.dir ?? 1
+    return {
+      point: { easting: q.easting + d * Math.sin(rad), northing: q.northing + d * Math.cos(rad), zone: q.zone },
+      rad: dir > 0 ? rad : rad + Math.PI,
+    }
   }
-  // Centre of track 2's curvature there, then the distance from the toe to it.
-  const sg  = Rs2 >= 0 ? -1 : 1
-  const cE  = p2.easting  + sg * Math.abs(Rs2) * -Math.sin(psi)
-  const cN  = p2.northing + sg * Math.abs(Rs2) *  Math.cos(psi)
-  return Math.abs(Math.hypot(toe1.easting - cE, toe1.northing - cN) - Math.abs(Rs2))
+  let s = 0
+  for (let i = 0; i < 20; i++) {
+    const { point: q, rad } = at(s)
+    const ds = (p.easting - q.easting) * Math.sin(rad) + (p.northing - q.northing) * Math.cos(rad)
+    s += ds
+    if (Math.abs(ds) < 1e-9) break
+  }
+  return at(s).point
 }
 
 /**
@@ -462,7 +483,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
   }
   if (!c) return null
 
-  const gap = trackGap(frame)
+  const gap = frame.gap
   const throughLength = switchStraightLength(c.sw)
 
   // A pick the construction has no answer for comes back before anything is
@@ -517,7 +538,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
   return {
     TP1, B1E, B2A, TP2,
     tp1Wgs, b1eWgs, b2aWgs, tp2Wgs,
-    delta: c.delta, s2: c.s2, flipped2: frame.flipped2,
+    delta: c.delta, s2: c.s2, flipped2: frame.flipped2, side: c.side,
     R: c.R, w: c.w, L1: c.L1, L2: c.L2, Lg: c.Lg,
     signedR1, signedR2, signedRg,
     chain1: c.chain1, chain2: c.chain2, branch1, branch2, bearing2A: c.bearing2A,

@@ -696,6 +696,7 @@
   "scurve_invalid": "Keine gültige Weichenverbindung.",
   "scurve_no_solution": "Keine Lösung: die Gleise treffen sich zu spitz.",
   "scurve_too_short": "Zwischenelement kürzer als das Mindestmaß der Weichenform.",
+  "scurve_off_element": "Eine Weiche läge nicht mehr auf dem gewählten Element — Verschiebung ändern oder ein anderes Element wählen.",
   "scurve_too_sharp": "Gleise laufen zu stark zusammen: Zwischenbogen zu eng für diese Geschwindigkeit.",
   "scurve_hint_no_bloss": "Auf einem Bloss-Bogen kann keine Weichenverbindung liegen – seine Stücke sind selbst keine Bloss-Bögen.",
   "scurve_branch_radius": "Radius Zweiggleise",

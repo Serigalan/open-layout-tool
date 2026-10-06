@@ -9,31 +9,24 @@ import { solveSwitchConnection, buildConnectionElements, orientStemToward } from
 // The S-curve between two line tracks (SCurveForm): solving the connection
 // for a shift, the range of shifts it stands over, and the commit.
 
-const DEG2RAD = Math.PI / 180
-
 // ── Commit helpers (split lines + build junction switches) ──────────────────
 
 // Build a switch record at a junction. The symbol is derived from
-// computeSwitchGeometry (same as connect switch); the curve side is chosen so the
-// symbol's branch overlays the real connection arc (toward `branchUtm`).
+// computeSwitchGeometry (same as connect switch), on the side the construction
+// laid the form to — not read off where the branch ends: an outer-bent turnout
+// whose stem radius is the form's own has a straight branch, which ends on the
+// tangent and so on neither side of it.
 // `throughEnd` comes back with it: the switch end on the running track, where
 // that track has to be parted so the turnout's through route is its own element.
-function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, branchUtm, sw, speed, switchNumber,
+function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, side, sw, speed, switchNumber,
                                identity, stemR = null,
                                behindTrackId, behindEndpoint, aheadTrackId, aheadEndpoint,
                                branchTrackId, branchEndpoint }) {
-  const tE = Math.sin(tangentBearing * DEG2RAD), tN = Math.cos(tangentBearing * DEG2RAD)
-  const crossSign = (p) => Math.sign(tE * (p.northing - jNode[1]) - tN * (p.easting - jNode[0]))
-  const target = crossSign(branchUtm)
   const jUtm = { easting: jNode[0], northing: jNode[1], zone }
   // `stemR` bends the turnout into the track it is laid in: both of its routes
   // take that curvature on top of their own, so in a curve the symbol follows
   // the track instead of standing beside it.
-  let geom = computeSwitchGeometryUtm(jUtm, tangentBearing, sw, 'left', false, jWgs, stemR)
-  for (const side of ['left', 'right']) {
-    const g  = computeSwitchGeometryUtm(jUtm, tangentBearing, sw, side, false, jWgs, stemR)
-    if (crossSign(g.curvedUtm) === target) { geom = g; break }
-  }
+  const geom = computeSwitchGeometryUtm(jUtm, tangentBearing, sw, side, false, jWgs, stemR)
   return {
     throughEnd: geom.straightUtm,
     throughLength: geom.straightLen,
@@ -106,11 +99,16 @@ export function stems(picks) {
 }
 
 // Solve the connection geometry for a given shift (pure — no React state).
+// A construction that closes but puts a turnout off the element it was picked
+// on is no connection either: the commit parts that element, and a turnout
+// beyond its end would be cut into a track it does not lie on.
 export function solveConnection({ picks, speed, shift }) {
   const [g1, g2] = picks
   if (!g1 || !g2 || !speed) return null
   const { g1: a, g2: b } = stems(picks)
-  return solveSwitchConnection(a, b, speed, shift)
+  const res = solveSwitchConnection(a, b, speed, shift)
+  if (!res?.valid || turnoutsOnElements(picks, a.dir ?? 1, shift, res)) return res
+  return { ...res, valid: false, reason: 'off_element' }
 }
 
 // Why a shift has no connection, in the words the panel shows.
@@ -121,6 +119,7 @@ export const REASON_MSG = {
   branch_too_sharp: 'scurve_branch_too_sharp',
   cant_mismatch:    'scurve_cant_mismatch',
   cant_over:        'scurve_cant_over',
+  off_element:      'scurve_off_element',
 }
 
 /** Below this a turnout still counts as lying on its element [m]. */
@@ -142,42 +141,53 @@ function turnoutOnElement(pick, toe, dir, opening, throughLength) {
   return Math.min(toe, far) >= -FIT_TOL && Math.max(toe, far) <= pick.route.length + FIT_TOL
 }
 
-/** Which way the connection runs along the first picked element (+1 with it, −1 against). */
-const direction1 = (picks) => stems(picks).g1.dir ?? 1
+/** Both turnouts of a solved connection on the elements they were picked on. */
+function turnoutsOnElements([p1, p2], dir1, shift, res) {
+  if (res.s2 == null) return false
+  const dir2 = res.flipped2 ? -1 : 1
+  return turnoutOnElement(p1, p1.along + dir1 * shift, dir1, 1, res.throughLength)
+      && turnoutOnElement(p2, p2.along + dir2 * res.s2, dir2, -1, res.throughLength)
+}
 
 /**
- * Shift range [min, max] (metres) over which the connection stands: the first
- * turnout on its element, the second one — wherever the solver puts it — on
- * its own, and the geometry valid throughout. The first is analytic, the second
- * follows the construction, so the solver is walked outward from shift 0 until
- * one of them gives. The valid region is a single interval around 0.
+ * Shift range [min, max] (metres) over which the connection stands: both
+ * turnouts on their elements and the geometry valid throughout. The second
+ * turnout goes wherever the construction puts it, so the solver is asked over
+ * the whole of the first element. The pick need not be where it stands — a
+ * click near an element's end leaves no room for the turnout there — so the
+ * stretch that holds is the one nearest to the pick, and the slider starts on
+ * its near end.
  */
 export function computeShiftBounds({ picks, speed }) {
-  const [p1, p2] = picks
-  const dir1 = direction1(picks)
+  const [p1] = picks
+  const dir1 = stems(picks).g1.dir ?? 1
   // The shifts that put the first toe on either end of its element.
   const sA = -dir1 * p1.along
-  const sB = dir1 * (p1.elLength - p1.along)
+  const sB = dir1 * (p1.route.length - p1.along)
   const lo1 = Math.min(sA, sB), hi1 = Math.max(sA, sB)
   const span = hi1 - lo1
   if (!(span > 0)) return { min: 0, max: 0 }
-  const step = Math.max(0.5, span / 400)
+  // The slider moves in whole metres; a probe a metre apart is all it can tell.
+  const n = Math.ceil(span / Math.max(1, span / 200))
 
-  const probe = (s) => {
-    const res = solveConnection({ picks, speed, shift: s })
-    if (!res?.valid || res.s2 == null) return false
-    const dir2 = (res.flipped2 ? -1 : 1)
-    return turnoutOnElement(p1, p1.along + dir1 * s, dir1, 1, res.throughLength)
-        && turnoutOnElement(p2, p2.along + dir2 * res.s2, dir2, -1, res.throughLength)
-  }
+  const probe = (s) => !!solveConnection({ picks, speed, shift: s })?.valid
 
   const c = Math.min(hi1, Math.max(lo1, 0))
-  let hi = c
-  for (let s = c; s <= hi1 + 1e-9; s += step) { if (!probe(s)) break; hi = s }
-  let lo = c
-  for (let s = c; s >= lo1 - 1e-9; s -= step) { if (!probe(s)) break; lo = s }
-  const min = Math.ceil(lo), max = Math.floor(hi)
-  if (min > max) { const m = Math.round(c); return { min: m, max: m } }
+  const miss = (run) => Math.max(0, run.lo - c, c - run.hi)
+  let best = null, run = null
+  const close = () => {
+    if (run && (!best || miss(run) < miss(best))) best = run
+    run = null
+  }
+  for (let i = 0; i <= n; i++) {
+    const s = lo1 + span * i / n
+    if (probe(s)) run = run ? { lo: run.lo, hi: s } : { lo: s, hi: s }
+    else close()
+  }
+  close()
+  if (!best) { const m = Math.round(c); return { min: m, max: m } }
+  const min = Math.ceil(best.lo), max = Math.floor(best.hi)
+  if (min > max) { const m = Math.round((best.lo + best.hi) / 2); return { min: m, max: m } }
   return { min, max }
 }
 
@@ -203,6 +213,10 @@ export function buildSCurve({ result, picks, tracks, switches, speed }) {
 
   const zone   = res.zone
   const swType = res.switchType   // the form the solver settled on (primary or fallback)
+  // The side the form is laid to, the same for both turnouts: track 2 lies to
+  // the left of track 1 where track 1 lies to the left of track 2 run backwards,
+  // which is the way the second turnout opens.
+  const side = res.side > 0 ? 'left' : 'right'
 
   // The tangent each turnout opens on, as the construction settled them: at S1
   // the direction the connection leaves track 1 in, at S2 the direction back
@@ -251,7 +265,7 @@ export function buildSCurve({ result, picks, tracks, switches, speed }) {
   // The connection track runs S1 → S2, so it begins at switch 1 and ends at switch 2.
   const j1 = buildJunctionSwitch({
     jWgs: res.tp1Wgs, jNode: [res.TP1.easting, res.TP1.northing], zone,
-    tangentBearing: b1, branchUtm: res.B1E, sw: swType, speed, switchNumber: no1, identity: id1,
+    tangentBearing: b1, side, sw: swType, speed, switchNumber: no1, identity: id1,
     stemR: res.stemR1,
     behindTrackId: s1.behind.id, behindEndpoint: s1.behindEndpoint,
     aheadTrackId:  s1.ahead.id,  aheadEndpoint:  s1.aheadEndpoint,
@@ -259,7 +273,7 @@ export function buildSCurve({ result, picks, tracks, switches, speed }) {
   })
   const j2 = buildJunctionSwitch({
     jWgs: res.tp2Wgs, jNode: [res.TP2.easting, res.TP2.northing], zone,
-    tangentBearing: res.bearing2, branchUtm: res.B2A, sw: swType, speed, switchNumber: no2, identity: id2,
+    tangentBearing: res.bearing2, side, sw: swType, speed, switchNumber: no2, identity: id2,
     // Turnout 2 opens against the direction the connection runs, so its stem
     // turns the other way under it.
     stemR: res.stemR2 == null ? null : -res.stemR2,
