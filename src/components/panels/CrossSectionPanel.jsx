@@ -114,7 +114,12 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
       {tracks.length > 0 && (
         <GroupedTrackList tracks={tracks}
           isActive={(tr) => tr.id === trackId}
-          onPick={(tr) => setTrackId(tr.id)} />
+          onPick={(tr) => {
+            setTrackId(tr.id)
+            // Picked from the list, the track opens at its begin — or stays
+            // where it is shown already.
+            if (crossSectionAt?.trackId !== tr.id) onShowCrossSection?.({ trackId: tr.id, station: 0 })
+          }} />
       )}
 
       <FormSection title={t('cross_section_profile_section')}>
