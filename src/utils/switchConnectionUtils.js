@@ -280,6 +280,8 @@ function buildConnection(sw, frame, speed) {
   // clothoid of the stem's own parameter. It parts where the form's sections
   // part and where the elements under the turnout do. It does not depend on s₂.
   const chain1  = switchBranchChain(formChain, stemUnder(stem1, s1, Lb))
+  // Off the element it was picked on there is no stem to lay the turnout in.
+  if (!chain1.length) return { sw, valid: false, reason: 'no_solution', Lg: NaN, s2: null }
   const bear1   = stemBearing(stem1, s1)
   const B1E     = switchChainPointUtm(toe1, bear1, chain1)
   const t1      = psiOf(switchChainBearingAt(bear1, chain1))
@@ -296,6 +298,8 @@ function buildConnection(sw, frame, speed) {
     // In turnout 2's own frame the toe sits at −s₂ from the pick.
     const bearOwn = stemBearing(back2, -s2)
     const chain2own = switchBranchChain(formChain, stemUnder(back2, -s2, Lb))
+    // A station off track 2's element has no stem under the turnout: no residual.
+    if (!chain2own.length) return { residual: NaN, Lg: NaN }
     const B2A = switchChainPointUtm(TP2, bearOwn, chain2own)
     const t2  = psiOf(switchChainBearingAt(bearOwn, chain2own)) + Math.PI
 
