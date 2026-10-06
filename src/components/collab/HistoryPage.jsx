@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../api/client'
-import { discardWorkingCopy } from '../../storage'
+import { discardWorkingCopy, loadWorkingCopy } from '../../storage'
 import { hasLocalChanges } from '../../utils/variantMerge'
+import { localChanges } from '../../utils/workingCopySync'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 import { formatDate } from '../../locales/i18n'
 import Modal from '../Modal'
+import ConfirmModal from '../ConfirmModal'
 
 
 /**
@@ -16,6 +18,10 @@ import Modal from '../Modal'
  * An older revision can be looked at (read-only), compared with the head, and
  * restored — as a new revision with that state on top of the head, never by
  * moving the head back: what came after stays in the history.
+ *
+ * Changes not checked in that this browser holds for the variant are named
+ * above the list and can be thrown away: the next opening then starts from
+ * the server's head.
  */
 export default function HistoryPage({ project, variant, onBack, onView, onCompareWithHead }) {
   const { t, language, fill } = useI18n()
@@ -24,6 +30,33 @@ export default function HistoryPage({ project, variant, onBack, onView, onCompar
   const [notice, setNotice] = useState(null)
   const [confirm, setConfirm] = useState(null)   // the revision to restore
   const [busy, setBusy] = useState(false)
+  const [local, setLocal] = useState(0)          // changes not checked in, in this browser
+  const [askDiscard, setAskDiscard] = useState(false)
+
+  const countLocal = useCallback(async () => {
+    const wc = await loadWorkingCopy(variant.id)
+    return wc?.basePayload && wc.project ? localChanges(wc).length : 0
+  }, [variant.id])
+  useEffect(() => {
+    let alive = true
+    countLocal().then(n => { if (alive) setLocal(n) }, () => {})
+    return () => { alive = false }
+  }, [countLocal])
+
+  const discardLocal = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      await discardWorkingCopy(variant.id)
+      setLocal(0)
+      setNotice(t('wc_discarded'))
+    } catch {
+      setError('generic')
+    } finally {
+      setBusy(false)
+      setAskDiscard(false)
+    }
+  }
 
   const load = useCallback(() => api.history(variant.id).then(r => r.revisions), [variant.id])
   useEffect(() => {
@@ -50,6 +83,7 @@ export default function HistoryPage({ project, variant, onBack, onView, onCompar
       if (!(await hasLocalChanges(variant.id))) await discardWorkingCopy(variant.id).catch(() => {})
       setNotice(fill('history_restored', { n: rev.number, m: res.revision.number }))
       setRevisions(await load())
+      setLocal(await countLocal())
     } catch (err) {
       setError(err.body?.errors?.length ? 'invalid_record' : (err.code ?? 'generic'))
     } finally {
@@ -72,6 +106,12 @@ export default function HistoryPage({ project, variant, onBack, onView, onCompar
       <main className="home-main">
         {error && <p className="collab-error" role="alert">{t(`history_err_${error}`) === `history_err_${error}` ? t('collab_err_generic') : t(`history_err_${error}`)}</p>}
         {notice && <p className="collab-ok" role="status">{notice}</p>}
+        {local > 0 && (
+          <p className="history-local">
+            <span>● {fill('home_local_changes', { n: local })}</span>
+            <button type="button" className="collab-btn collab-btn-small" disabled={busy} onClick={() => setAskDiscard(true)}>{t('wc_discard')}</button>
+          </p>
+        )}
         {revisions === null && !error && <p className="collab-muted">{t('home_loading')}</p>}
         <ol className="history-list">
           {(revisions ?? []).map(rev => {
@@ -105,6 +145,10 @@ export default function HistoryPage({ project, variant, onBack, onView, onCompar
           </>}>
           <p className="collab-muted">{t('history_restore_desc')}</p>
         </Modal>
+      )}
+      {askDiscard && (
+        <ConfirmModal message={fill('wc_discard_ask', { n: local })} confirmLabel={t('wc_discard')}
+          busy={busy} onConfirm={discardLocal} onCancel={() => setAskDiscard(false)} />
       )}
     </div>
   )

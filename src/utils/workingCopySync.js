@@ -68,6 +68,19 @@ export function adoptUpdate(prepared, record) {
 }
 
 /**
+ * Throw the working copy's own changes away: it becomes the variant's head as
+ * the server has it now, with an empty id log and an empty undo. Resolves the
+ * head's revision (meta).
+ */
+export async function revertToHead() {
+  const wc = currentWorkingCopy()
+  if (!wc) return null
+  const { revision, payload } = await api.head(wc.variantId)
+  adoptWorkingCopy({ project: payload, base: revision, basePayload: payload, idLog: [] })
+  return revision
+}
+
+/**
  * Check the working copy in. Resolves { revision, warnings }, or { stale: true }
  * when the head moved on. A record the server refuses (422) throws an
  * ApiError whose body names the errors.

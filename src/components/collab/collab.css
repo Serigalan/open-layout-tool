@@ -567,6 +567,7 @@ a.collab-btn { display: inline-block; text-decoration: none; }
 /* ── the history of a variant ────────────────────────────────────────── */
 
 .history-where { margin-left: 4px; overflow-wrap: anywhere; }
+.history-local { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13px; color: var(--collab-warn); }
 .history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .history-rev {
   border: 1px solid var(--collab-border);

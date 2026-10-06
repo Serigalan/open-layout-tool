@@ -51,7 +51,7 @@ const DEFAULT_COLOR = PALETTE.primaryDefault
  * `onHome` is called once the working copy is closed.
  */
 export default function MapWorkspace({ wc, onHome }) {
-  const { t, language } = useI18n()
+  const { t, fill, language } = useI18n()
   const project = useProject()
   // The tracks hidden on the map — a redraw when that changes, like a write.
   const hidden = useHiddenTracks()
@@ -120,8 +120,8 @@ export default function MapWorkspace({ wc, onHome }) {
     if (win) dispatch({ type: 'detach', kind, win })
   }
 
-  // An update put a merged record in place of the working copy: the element
-  // table's edits were made on the old one and go with it.
+  // An update or a discard put another record in place of the working copy:
+  // the element table's edits were made on the old one and go with it.
   useEffect(() => {
     if (wc.replaced) dispatch({ type: 'close', kind: 'trackTable' })
   }, [wc.replaced])
@@ -334,6 +334,7 @@ export default function MapWorkspace({ wc, onHome }) {
               changes={wc.changes.length} serverNewer={wc.serverNewer} busy={wc.busy}
               onCheckIn={wc.askCheckIn}
               onUpdate={() => wc.startUpdate()}
+              onDiscard={wc.askDiscard}
               onShowChanges={() => setCompare({
                 before: currentWorkingCopy().basePayload, after: currentWorkingCopy().project,
                 beforeLabel: `${wc.wc.variant.name} · ${t('wc_base')}`, afterLabel: t('wc_working_copy'),
@@ -369,6 +370,10 @@ export default function MapWorkspace({ wc, onHome }) {
               title={t('wc_merge_title')} mineLabel={t('wc_working_copy')}
               theirsLabel={`${t('wc_server')} (${wc.syncDialog.prepared.head.author.name})`}
               onCancel={wc.cancelDialog} onApply={wc.applyMerge} />
+          )}
+          {wc.syncDialog?.kind === 'discard' && (
+            <ConfirmModal message={fill('wc_discard_ask', { n: wc.changes.length })} confirmLabel={t('wc_discard')}
+              busy={wc.busy} onConfirm={wc.discardChanges} onCancel={wc.cancelDialog} />
           )}
           {wc.syncDialog?.kind === 'checkin' && (
             <CheckInDialog changes={wc.changes} errors={wc.syncDialog.errors} busy={wc.busy}

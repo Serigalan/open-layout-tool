@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { closeWorkingCopy, currentWorkingCopy, openWorkingCopy, saveTrack } from '../storage'
-import { checkIn, localChanges, prepareUpdate } from './workingCopySync'
+import { closeWorkingCopy, currentWorkingCopy, loadIdLog, openWorkingCopy, saveTrack, undo } from '../storage'
+import { checkIn, localChanges, prepareUpdate, revertToHead } from './workingCopySync'
 
 beforeAll(() => {
   const store = new Map()
@@ -59,5 +59,23 @@ describe('checking the working copy in', () => {
     expect(prepared.head.id).toBe(3)
     expect(prepared.result.conflicts).toEqual([])
     expect(prepared.result.merged.tracks.map(t => t.id).sort()).toEqual(['mine', 't1', 'theirs'])
+  })
+})
+
+describe('throwing the local changes away', () => {
+  it('makes the working copy the server head, with no changes, no id log and nothing to undo', async () => {
+    openWorkingCopy({ variantId: 'v', project: base, base: { id: 1, number: 1 }, basePayload: base,
+      idLog: [{ from: 't1', to: ['t1a', 't1b'] }] })
+    saveTrack(straight('mine', 50))
+    const theirs = { ...base, tracks: [...base.tracks, straight('theirs', 100)] }
+    serve({ 'GET /api/variants/v/head': [200, { revision: { id: 3, number: 3 }, payload: theirs }] })
+    const revision = await revertToHead()
+    expect(revision.id).toBe(3)
+    expect(currentWorkingCopy().base.id).toBe(3)
+    expect(currentWorkingCopy().project.tracks.map(t => t.id)).toEqual(['t1', 'theirs'])
+    expect(localChanges()).toEqual([])
+    expect(loadIdLog()).toEqual([])
+    undo()
+    expect(currentWorkingCopy().project.tracks.map(t => t.id)).toEqual(['t1', 'theirs'])
   })
 })

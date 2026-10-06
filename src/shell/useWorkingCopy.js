@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { closeWorkingCopy, currentWorkingCopy } from '../storage'
-import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, serverHead } from '../utils/workingCopySync'
+import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, revertToHead, serverHead } from '../utils/workingCopySync'
 import { useProject } from '../hooks/useStore'
 
 // How often the open app asks whether the server has moved on [ms].
@@ -11,17 +11,17 @@ const CHANGES_SETTLE = 400
 /**
  * The open working copy against the server (AP 10.6, R2.5): which variant it
  * is, its own changes, whether the server has moved on, and checking in and
- * updating.
+ * updating, and throwing the local changes away.
  *
  *   wc           { project, variant } — the server's project and variant, or null
  *   changes      the local changes (diff entries)
  *   base         the revision the working copy rests on; serverNewer when the head moved on
- *   syncDialog   { kind: 'checkin', errors } | { kind: 'merge', prepared, then } | null
+ *   syncDialog   { kind: 'checkin', errors } | { kind: 'merge', prepared, then } | { kind: 'discard' } | null
  *   busy, note   a sync running; a one-line word about the last one
  *
- *   replaced     counts the updates that put a merged record in place of the
- *                working copy — whatever held onto the old one (the element
- *                table) has to let go
+ *   replaced     counts the updates and discards that put another record in
+ *                place of the working copy — whatever held onto the old one
+ *                (the element table) has to let go
  */
 export default function useWorkingCopy({ t }) {
   const project = useProject()
@@ -112,6 +112,24 @@ export default function useWorkingCopy({ t }) {
     if (then) await then()
   }
 
+  // The local changes thrown away: the working copy is the server's head again.
+  const discardChanges = async () => {
+    setBusy(true)
+    setNote(null)
+    try {
+      const revision = await revertToHead()
+      setHead(revision)
+      setSyncDialog(null)
+      setReplaced(n => n + 1)
+      setNote(t('wc_discarded'))
+    } catch {
+      setSyncDialog(null)
+      setNote(t('collab_err_generic'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const submitCheckIn = async (message) => {
     setBusy(true)
     try {
@@ -137,8 +155,9 @@ export default function useWorkingCopy({ t }) {
 
   return {
     wc, changes, base, head, serverNewer, syncDialog, busy, note, replaced,
-    open, close, startUpdate, applyMerge, submitCheckIn,
+    open, close, startUpdate, applyMerge, submitCheckIn, discardChanges,
     askCheckIn: () => setSyncDialog({ kind: 'checkin', errors: [] }),
+    askDiscard: () => setSyncDialog({ kind: 'discard' }),
     cancelDialog: () => setSyncDialog(null),
     clearNote: () => setNote(null),
   }
