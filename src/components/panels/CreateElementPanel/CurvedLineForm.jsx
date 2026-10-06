@@ -87,14 +87,17 @@ export default function CurvedLineForm({ onDone }) {
       } else {
         const fp1 = p1Ref.current, fp2 = p2Ref.current
         const fp3 = wgs84ToUTM(wgs, fp1.zone)
+        // Three points in a line make no arc: the click is ignored, the
+        // third point is still to be picked.
+        const fitted = signedRadiusFrom3PointsUtm(fp1, fp2, fp3)
+        const r = fitted !== null ? Math.round(fitted) : null
+        if (!r) return
         p1Ref.current = null; p2Ref.current = null
         setSelecting(false); setSelPhase(0)
         draw.markers([toWgs(fp1), toWgs(fp2)])
-        const fitted = signedRadiusFrom3PointsUtm(fp1, fp2, fp3)
-        const r = fitted !== null ? Math.round(fitted) : null
         setStartPoint(fp1)
         setEndPoint(fp2)
-        setSignedRadius(r !== null ? String(r) : '')
+        setSignedRadius(String(r))
         applyDerived(fp1, fp2, r)
       }
     },
@@ -258,7 +261,7 @@ export default function CurvedLineForm({ onDone }) {
         return (
           <>
             <RuleFindings element={element} />
-            <CommitBar onCommit={handleCommit} onCancel={onDone} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} className="" />
+            <CommitBar onCommit={handleCommit} onCancel={onDone} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), !Number(signedRadius) && t('arc_radius_required'), blocked && t('commit_blocked_rules'))} className="" />
           </>
         )
       })()}

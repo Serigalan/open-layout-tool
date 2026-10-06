@@ -1393,6 +1393,7 @@
   "notice_show": "Zeigen",
   "notice_undone": "Zurückgenommen: {step}",
   "notice_redone": "Wiederholt: {step}",
+  "arc_radius_required": "Ein Bogen braucht einen Radius ungleich 0.",
   "commit_blocked_rules": "Eine Regelprüfung meldet einen Fehler – siehe oben",
   "search_tracks": "Name, Strecke, Bahnhof…",
   "search_kind_all": "Alle Gleise",

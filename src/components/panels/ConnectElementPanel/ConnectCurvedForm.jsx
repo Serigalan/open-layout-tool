@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { addElementsToTrack, loadTracks } from '../../../storage'
 import {
-  computeCurvedValuesUtm, arcCoordsFromRadiusUtm, projectOnBearingUtm,
-  endPointStraightUtm, endPointCurvedUtm,
+  computeCurvedValuesUtm, arcCoordsFromRadiusUtm, projectOnBearingUtm, endPointCurvedUtm,
 } from '../../../utils/elementUtils'
 import { wgs84ToUTM, toWgs } from '../../../utils/coordinateUtils'
 import { computeClothoidUtm } from '../../../utils/clothoidUtils'
@@ -86,19 +85,10 @@ export default function ConnectCurvedForm({ onCommitted }) {
         const { along, perp: rawPerp } = projectOnBearingUtm(spUtm, mouseUtm, b)
         if (along <= 1) return
 
+        // Always an arc, however close the cursor runs to the tangent — a
+        // straight is "Gerade verbinden". Only exactly on it is there none.
         const spWgs = toWgs(spUtm)
-        if (Math.abs(rawPerp) < 0.5) {
-          const epUtm = endPointStraightUtm(spUtm, b, along)
-          const epWgs = toWgs(epUtm)
-          draw.line([spWgs, epWgs], `L = ${Math.round(along * 100) / 100}m`)
-          draw.markers([spWgs, epWgs])
-          setEndPoint(epUtm)
-          setArcLength(String(Math.round(along * 1000) / 1000))
-          setSignedRadius('')
-          setEndBearing('')
-          return
-        }
-
+        if (Math.abs(rawPerp) < 1e-6) return
         const R      = (along * along + rawPerp * rawPerp) / (2 * rawPerp)
         const epUtm  = mouseUtm
         const coords = arcCoordsFromRadiusUtm(spUtm, epUtm, R)
@@ -111,7 +101,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
         setSignedRadius(String(Math.round(R * 1000) / 1000))
         setEndBearing(String(v.endBearing))
     },
-    click: () => setPhase('done'),
+    click: () => { if (Number(signedRadiusRef.current)) setPhase('done') },
   }, { cursor: 'crosshair' })
 
   const updatePreviewFromFields = useCallback((len, r) => {
@@ -259,7 +249,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
         return (
           <>
             <RuleFindings element={element} />
-            <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(blocked && t('commit_blocked_rules'))} className="" />
+            <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(!Number(signedRadius) && t('arc_radius_required'), blocked && t('commit_blocked_rules'))} className="" />
           </>
         )
       })()}

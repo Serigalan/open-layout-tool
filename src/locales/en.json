@@ -1393,6 +1393,7 @@
   "notice_show": "Show",
   "notice_undone": "Undone: {step}",
   "notice_redone": "Redone: {step}",
+  "arc_radius_required": "An arc needs a radius other than 0.",
   "commit_blocked_rules": "A rule check reports an error – see the findings above",
   "search_tracks": "Name, line, station…",
   "search_kind_all": "All tracks",
