@@ -892,7 +892,7 @@
   "crossover_after": "Range towards {name} [m]",
   "crossover_pick": "Mark the range on the map",
   "crossover_pick_done": "Done marking",
-  "crossover_pick_hint": "Click the track: a click before or behind the crossover sets the end of the range there.",
+  "crossover_pick_hint": "Click either of the two tracks: a click before or behind the crossover sets the end of that track's range there.",
   "crossover_result": "Result",
   "crossover_u_from_heights": "Cant from the heights: {exact} mm, set to {u} mm",
   "crossover_target": "At u = {u} mm the outer track has to lie {dz} m higher",

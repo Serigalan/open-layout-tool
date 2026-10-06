@@ -892,7 +892,7 @@
   "crossover_after": "Bereich Richtung {name} [m]",
   "crossover_pick": "Bereich auf der Karte markieren",
   "crossover_pick_done": "Markieren beenden",
-  "crossover_pick_hint": "Auf das Gleis klicken: ein Klick vor oder hinter der Weichenverbindung setzt dort das Ende des Bereichs.",
+  "crossover_pick_hint": "Auf eines der beiden Gleise klicken: ein Klick vor oder hinter der Weichenverbindung setzt dort das Ende des Bereichs dieses Gleises.",
   "crossover_result": "Ergebnis",
   "crossover_u_from_heights": "Überhöhung aus der Gleislage: {exact} mm, gesetzt {u} mm",
   "crossover_target": "Bei u = {u} mm muss das äußere Gleis {dz} m höher liegen",

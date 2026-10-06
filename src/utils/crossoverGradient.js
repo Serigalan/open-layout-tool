@@ -526,6 +526,24 @@ export function lineDistance(line, trackId, station) {
   return seg ? distanceOf(seg, station) : null
 }
 
+/**
+ * Where a click on the map sets the end of a range: `trackId` and `station`
+ * (along that whole track) say where it fell. Whichever of the two lines the
+ * track is on is the one whose range it sets — before the zone or after it,
+ * as far as the click. Returns { index, key: 'before' | 'after', length } or
+ * null for a track on neither line or a click inside the zone.
+ */
+export function rangeEndFromClick(ranges, trackId, station) {
+  for (const [index, r] of (ranges ?? []).entries()) {
+    const d = lineDistance(r.line, trackId, station)
+    if (d == null) continue
+    if (d < r.zone[0]) return { index, key: 'before', length: r.zone[0] - d }
+    if (d > r.zone[1]) return { index, key: 'after', length: d - r.zone[1] }
+    return null
+  }
+  return null
+}
+
 /** The track a line runs on at a distance — what a range end is named after. */
 export const lineTrackAt = (line, d) => {
   const lo = line[0].from, hi = line[line.length - 1].from + line[line.length - 1].length

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  findCrossovers, crossoverFrame, lineChain, planCrossoverGradient, shareCorrection,
+  findCrossovers, crossoverFrame, crossoverRanges, lineChain, planCrossoverGradient, rangeEndFromClick, shareCorrection,
 } from './crossoverGradient'
 import { checkVertical } from './gradientCheck'
 import { gradientAt } from './heightUtils'
@@ -99,6 +99,26 @@ describe('finding a crossover and its frame', () => {
     // From turnout 1's toe to turnout 2's, laid across.
     expect(f.zone1[0]).toBeCloseTo(0, 1)
     expect(f.zone1[1]).toBeCloseTo(130, 0)
+  })
+})
+
+describe('marking the range on the map', () => {
+  const { tracks, switches } = layout()
+  const f = crossoverFrame(tracks, switches, findCrossovers(tracks, switches)[0])
+  const ranges = crossoverRanges(f, [LIMITS, LIMITS])
+
+  it('sets the range of whichever line the clicked track is on', () => {
+    // Track 1 before the crossover: 200 m into t1a is 100 m before turnout 1's toe.
+    expect(rangeEndFromClick(ranges, 't1a', 200)).toEqual({ index: 0, key: 'before', length: expect.closeTo(100 + f.zone1[0], 6) })
+    // Track 2 behind it: t2b runs on from turnout 2's toe.
+    const hit = rangeEndFromClick(ranges, 't2b', 250)
+    expect(hit).toMatchObject({ index: 1, key: 'after' })
+    expect(hit.length).toBeGreaterThan(200)
+  })
+
+  it('ignores the connecting track and a click inside the crossover', () => {
+    expect(rangeEndFromClick(ranges, 'c', 10)).toBeNull()
+    expect(rangeEndFromClick(ranges, 't1b', 50)).toBeNull()
   })
 })
 

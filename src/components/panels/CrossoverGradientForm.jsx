@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { applyCrossoverGradient } from '../../storage'
 import { useProject } from '../../hooks/useStore'
 import {
-  findCrossovers, crossoverFrame, crossoverCant, crossoverRanges, lineCoordinates, lineDistance,
+  findCrossovers, crossoverFrame, crossoverCant, crossoverRanges, lineCoordinates, rangeEndFromClick,
   lineTrackAt, planCrossoverGradient,
 } from '../../utils/crossoverGradient'
 import { stationFromClick } from '../../utils/platformUtils'
@@ -108,21 +108,22 @@ export default function CrossoverGradientForm({ switchIds, ask = false, onDone }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rangesKey, asked, preview])
 
-  // A click on a track of a line moves the end of its range on that side.
+  // A click on a track of either line moves the end of that line's range on
+  // the side it falls — the two lines are two tracks, and a click on the one
+  // is no click on the other.
+  const onLine = (trackId) => !!ranges?.some(r => r.line.some(seg => seg.track.id === trackId))
   useMapPick({
     active: picking != null, hover: 'element',
+    accept: (p) => onLine(p.trackId),
     onPick: ({ trackId, elementIndex }, e) => {
-      const r = ranges?.[picking]
       const track = tracks.find(tr => tr.id === trackId)
-      if (!r || !track) return
+      if (!track) return
+      // stationFromClick counts along the whole track already.
       const station = stationFromClick(track, elementIndex, wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg))
-      const elStart = (track.elements ?? []).slice(0, elementIndex).reduce((s, el) => s + (el.length ?? 0), 0)
-      const d = station == null ? null : lineDistance(r.line, trackId, elStart + station)
-      if (d == null) return
-      const key = d < r.zone[0] ? 'before' : d > r.zone[1] ? 'after' : null
-      if (!key) return
-      const length = key === 'before' ? r.zone[0] - d : d - r.zone[1]
-      setLim(ls => ls.map((l, i) => (i === picking ? { ...l, [key]: String(Math.round(length)) } : l)))
+      const hit = station == null ? null : rangeEndFromClick(ranges, trackId, station)
+      if (!hit) return
+      setPicking(hit.index)
+      setLim(ls => ls.map((l, i) => (i === hit.index ? { ...l, [hit.key]: String(Math.round(hit.length)) } : l)))
     },
   })
 
