@@ -703,7 +703,7 @@
   "scurve_zgl": "Länge Zwischenelement",
   "scurve_mid_radius": "Radius Zwischenelement",
   "scurve_delta": "Gleiswinkel Δ",
-  "scurve_shift": "Startpunkt verschieben",
+  "scurve_shift": "Weichenanfang ab Elementwechsel",
   "scurve_hint_first": "Erstes Gleis klicken",
   "scurve_hint_second": "Zweites Gleis klicken",
   "scurve_mid_straight": "gerade",

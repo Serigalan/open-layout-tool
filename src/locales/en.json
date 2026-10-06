@@ -703,7 +703,7 @@
   "scurve_zgl": "Intermediate length",
   "scurve_mid_radius": "Intermediate radius",
   "scurve_delta": "Track angle Δ",
-  "scurve_shift": "Shift start point",
+  "scurve_shift": "Switch toe from element joint",
   "scurve_hint_first": "Click the first track",
   "scurve_hint_second": "Click the second track",
   "scurve_mid_straight": "straight",

@@ -82,7 +82,7 @@ export function connectionPick(track, elIdx, along) {
     route: switchElementRoute(el), along,
     cantStart: ramp ? ramp.start : (el.cant ?? 0),
     cantEnd:   ramp ? ramp.end   : (el.cant ?? 0),
-    zone: track.epsg, label: trackLabel(track), name: track.name || trackLabel(track),
+    zone: track.epsg, name: track.name || trackLabel(track),
     speed: el.speed || null,
     trackEnds: [elIdx === 0, elIdx === track.elements.length - 1],
   }
@@ -357,8 +357,11 @@ export function settleConnection({ picks, speed, shift }) {
  * turnout goes wherever the construction puts it, so the solver is asked over
  * the whole of the first element. The pick need not be where it stands — a
  * click near an element's end leaves no room for the turnout there — so the
- * stretch that holds is the one nearest to the pick, and the slider starts on
- * its near end.
+ * stretch that holds is the one nearest to the pick.
+ *
+ * The ends are exact: an element end where the stretch runs up to it, else
+ * the edge of what holds, found to a micron — so a toe can be
+ * put right onto its element's node.
  */
 export function computeShiftBounds({ picks, speed }) {
   const [p1] = picks
@@ -369,30 +372,101 @@ export function computeShiftBounds({ picks, speed }) {
   const lo1 = Math.min(sA, sB), hi1 = Math.max(sA, sB)
   const span = hi1 - lo1
   if (!(span > 0)) return { min: 0, max: 0 }
-  // The slider moves in whole metres; a probe a metre apart is all it can tell.
   const n = Math.ceil(span / Math.max(1, span / 200))
 
   const probe = (s) => !!solveConnection({ picks, speed, shift: s })?.valid
+  // The edge between an invalid shift `bad` and a valid one `good`, on the valid side.
+  const edge = (bad, good) => {
+    while (Math.abs(good - bad) > 1e-6) {
+      const m = (bad + good) / 2
+      if (probe(m)) good = m; else bad = m
+    }
+    return good
+  }
 
   const c = Math.min(hi1, Math.max(lo1, 0))
   const miss = (run) => Math.max(0, run.lo - c, c - run.hi)
   let best = null, run = null
-  const close = () => {
+  const close = (bad) => {
+    if (run && bad != null) run.hi = edge(bad, run.hi)
     if (run && (!best || miss(run) < miss(best))) best = run
     run = null
   }
+  let prev = null
   for (let i = 0; i <= n; i++) {
     const s = lo1 + span * i / n
-    if (probe(s)) run = run ? { lo: run.lo, hi: s } : { lo: s, hi: s }
-    else close()
+    if (probe(s)) run = run ? { lo: run.lo, hi: s } : { lo: prev == null ? s : edge(prev, s), hi: s }
+    else close(s)
+    prev = s
   }
-  close()
-  if (!best) { const m = Math.round(c); return { min: m, max: m } }
-  const min = Math.ceil(best.lo), max = Math.floor(best.hi)
-  if (min > max) { const m = Math.round((best.lo + best.hi) / 2); return { min: m, max: m } }
-  return { min, max }
+  close(null)
+  if (!best) return { min: c, max: c }
+  return { min: best.lo, max: best.hi }
 }
 
+/**
+ * How far the first toe stands from the element change behind it at shift 0:
+ * the click's distance from that node. The slider shows the toe's distance
+ * from the element change, `shift + waOffset(picks)`.
+ */
+export function waOffset(picks) {
+  const dir1 = stems(picks).g1.dir ?? 1
+  return dir1 > 0 ? picks[0].along : picks[0].route.length - picks[0].along
+}
+
+/**
+ * The shift that puts the second toe onto the element change behind it, within
+ * `bounds` — or null where that node is its track's open end or no connection
+ * stands there.
+ */
+function secondToeOnNode({ picks, speed }, bounds) {
+  if (bounds.max <= bounds.min) return null
+  const res = solveConnection({ picks, speed, shift: bounds.min })
+    ?? solveConnection({ picks, speed, shift: bounds.max })
+  if (!res?.valid) return null
+  const { node } = turnoutSpan(picks, 1, bounds.min, res)
+  if (picks[1].trackEnds?.[node === 0 ? 0 : 1]) return null
+  // Often the node is what ends the range: beyond it the turnout leaves its element.
+  for (const s of [bounds.min, bounds.max]) {
+    const r = solveConnection({ picks, speed, shift: s })
+    if (r?.valid && Math.abs(turnoutSpan(picks, 1, s, r).toe - node) < NODE_TOL) return s
+  }
+  return shiftForSecondToe({ picks, speed }, node, 0, bounds.min, bounds.max)
+}
+
+/**
+ * The shifts the slider can stand on, ascending: the first toe on whole metres
+ * from the element change behind it, the exact ends of `bounds`, and the shift
+ * that puts the second toe onto its element change.
+ */
+export function shiftStops({ picks, speed }, bounds) {
+  const d0 = waOffset(picks)
+  const stops = [bounds.min, bounds.max]
+  for (let d = Math.ceil(bounds.min + d0); d <= bounds.max + d0; d++) stops.push(d - d0)
+  const s2 = secondToeOnNode({ picks, speed }, bounds)
+  if (s2 != null) stops.push(s2)
+  stops.sort((a, b) => a - b)
+  return stops.filter((s, i) => i === 0 || s - stops[i - 1] > 1e-6)
+}
+
+/**
+ * Where the dialog lays the connection first: the toe (WA) on the element
+ * change behind it (Entscheidung 170) — the first turnout's, else the second
+ * one's, whichever stands nearer to the click where both do; a node that is
+ * its track's open end is no element change. Where neither stands, the shift
+ * nearest to the click.
+ */
+export function preferredShift({ picks, speed }, bounds) {
+  const ok = (s) => s != null && settleConnection({ picks, speed, shift: s }).result?.valid
+  const candidates = []
+  const d0 = waOffset(picks)
+  const node1 = (stems(picks).g1.dir ?? 1) > 0 ? 0 : 1
+  if (!picks[0].trackEnds?.[node1] && -d0 >= bounds.min - 1e-6) candidates.push(-d0)
+  const s2 = secondToeOnNode({ picks, speed }, bounds)
+  if (s2 != null) candidates.push(s2)
+  const fit = candidates.filter(ok).sort((a, b) => Math.abs(a) - Math.abs(b))
+  return fit.length ? fit[0] : Math.min(bounds.max, Math.max(bounds.min, 0))
+}
 
 /**
  * The commit of the S-curve dialog (R4.2): the two picked line tracks parted

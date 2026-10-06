@@ -5,7 +5,7 @@ import { wgs84ToUTM } from '../../../utils/coordinateUtils'
 import { SWITCH_TYPES, CONNECTION_SPEEDS, computeSwitchConnections } from '../../../utils/switchConnectionUtils'
 import { ZOOM_LINE_WIDTH } from '../../../map/style'
 import { useI18n } from '../../../locales/i18nContext'
-import { REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, isUsableStem, settleConnection, stems } from '../../../utils/commands/sCurve'
+import { REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, isUsableStem, preferredShift, settleConnection, shiftStops, stems, waOffset } from '../../../utils/commands/sCurve'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
@@ -75,7 +75,7 @@ export default function SCurveForm({ onCommitted }) {
   const [phase, setPhase]   = useState('select_first')  // select_first | select_second | config
   const [picks, setPicks]   = useState([])
   const [speedIdx, setSpeedIdx] = useState(DEFAULT_TYPE)   // selected design speed (index into CONNECTION_SPEEDS)
-  const [shiftRaw, setShift] = useState(0)              // start-point offset along line 1 [m]
+  const [shiftRaw, setShift] = useState(null)           // start-point offset along line 1 [m]; null: the preferred one
   const [pickStatus, setPickStatus] = useState(null)    // { msg, error } — selection phases only
   // Straight the turnouts' through routes need beside the junction [m], set
   // when the commit found too little of it (see carveThrough).
@@ -127,15 +127,29 @@ export default function SCurveForm({ onCommitted }) {
     },
   })
 
-  // ── Valid shift range: keep both turnouts on the elements they were picked on
-  const shiftRange = useMemo(() => {
-    const wide = { min: -200, max: 200 }
-    if (phase !== 'config' || !picks[0] || !picks[1] || !speed) return wide
-    return computeShiftBounds({ picks, speed })
+  // ── Where the slider may stand: both turnouts on the elements they were
+  // picked on. It stops on whole metres of WA from the element change behind
+  // it, on the exact ends of the range and where WA 2 lies on its element
+  // change; untouched it stands where WA lies on an element change.
+  const slider = useMemo(() => {
+    if (phase !== 'config' || !picks[0] || !picks[1] || !speed) return null
+    const bounds = computeShiftBounds({ picks, speed })
+    return {
+      stops: shiftStops({ picks, speed }, bounds),
+      preferred: preferredShift({ picks, speed }, bounds),
+      offset: waOffset(picks),
+    }
   }, [phase, picks, speed])
 
-  // The slider's own value, held inside the range the geometry allows.
-  const shift = Math.min(shiftRange.max, Math.max(shiftRange.min, shiftRaw))
+  // The slider's own value: the stop nearest to the one asked for.
+  const stopIdx = useMemo(() => {
+    if (!slider) return 0
+    const want = shiftRaw ?? slider.preferred
+    let best = 0
+    slider.stops.forEach((s, i) => { if (Math.abs(s - want) < Math.abs(slider.stops[best] - want)) best = i })
+    return best
+  }, [slider, shiftRaw])
+  const shift = slider?.stops[stopIdx] ?? 0
 
   // Which speeds these two tracks can be connected with where the slider stands
   // — the dropdown's disabled state. It follows from the picks and the shift, so
@@ -176,7 +190,7 @@ export default function SCurveForm({ onCommitted }) {
     preview.clear()
     setPhase('select_first')
     setPicks([])
-    setShift(0)
+    setShift(null)
     setPickStatus(null)
     setCarveError(null)
   }
@@ -197,11 +211,16 @@ export default function SCurveForm({ onCommitted }) {
   // ── Render ─────────────────────────────────────────────────────────────────
   if (phase === 'config') {
     const deg = (r) => (r * RAD2DEG).toFixed(3)
+    // WA's distance from the element change behind it, for the slider's label.
+    const wa = (s) => {
+      const d = s + (slider?.offset ?? 0)
+      return Math.abs(d - Math.round(d)) < 5e-3 ? String(Math.round(d)) : d.toFixed(2)
+    }
     return (
       <>
         <div className="element-form">
-          <ReadOnlyField label={t('scurve_line1')} value={picks[0]?.label ?? ''} />
-          <ReadOnlyField label={t('scurve_line2')} value={picks[1]?.label ?? ''} />
+          <ReadOnlyField label={t('scurve_line1')} value={picks[0]?.name ?? ''} />
+          <ReadOnlyField label={t('scurve_line2')} value={picks[1]?.name ?? ''} />
 
           <div className="form-field">
             <label>{t('field_speed')}</label>
@@ -217,9 +236,10 @@ export default function SCurveForm({ onCommitted }) {
           <ReadOnlyField label={t('scurve_gap')} value={result ? `${result.gap.toFixed(2)} m` : ''} />
 
           <div className="form-field">
-            <label>{t('scurve_shift')}: {settled && settled.shift !== shift ? `${shift} → ${settled.shift.toFixed(2)}` : shift} m</label>
-            <input type="range" min={shiftRange.min} max={shiftRange.max} step="1" value={shift}
-              onChange={e => { setCarveError(null); setShift(Number(e.target.value)) }} />
+            <label>{t('scurve_shift')}: {settled && settled.shift !== shift
+              ? `${wa(shift)} → ${wa(settled.shift)}` : wa(shift)} m</label>
+            <input type="range" min={0} max={(slider?.stops.length ?? 1) - 1} step="1" value={stopIdx}
+              onChange={e => { setCarveError(null); setShift(slider?.stops[Number(e.target.value)] ?? null) }} />
           </div>
         </div>
 
@@ -300,7 +320,7 @@ export default function SCurveForm({ onCommitted }) {
       <p>{phase === 'select_first' ? t('scurve_hint_first') : t('scurve_hint_second')}</p>
       {picks.length > 0 && (
         <p className="msg-info">
-          {t('scurve_line1')}: {picks[0].label}
+          {t('scurve_line1')}: {picks[0].name}
         </p>
       )}
       {pickStatus && (

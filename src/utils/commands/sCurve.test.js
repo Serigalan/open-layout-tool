@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { SWITCH_TYPES } from '../switchConnectionUtils'
-import { stems, solveConnection, computeShiftBounds, settleConnection, connectionRemnants, connectionPick, buildSCurve } from './sCurve'
+import { stems, solveConnection, computeShiftBounds, settleConnection, connectionRemnants, connectionPick, buildSCurve, shiftStops, preferredShift, waOffset } from './sCurve'
 import { minElementLength } from '../rules/elementLength'
 import { hasPekBestand, loadPekBestand } from '../../test/pekFixture'
 import { hydrateProjects } from '../persistenceUtils'
@@ -71,6 +71,45 @@ describe('where the slider may stand', () => {
     expect(min).toBeLessThan(max)
     expect(solveConnection({ picks, speed: SPEED_60, shift: max }).valid).toBe(true)
     expect(solveConnection({ picks, speed: SPEED_60, shift: min }).valid).toBe(true)
+  })
+
+  it('reaches the element change exactly and stops on whole metres from it', () => {
+    const picks = [bare(P(500000, 5600000), 0, 400, 100.4), bare(P(499995.5, 5599700), 0, 2000, 460)]
+    const bounds = computeShiftBounds({ picks, speed: SPEED_60 })
+    expect(bounds.min).toBe(-100.4)
+    const stops = shiftStops({ picks, speed: SPEED_60 }, bounds)
+    expect(stops[0]).toBe(-100.4)
+    expect(stops.at(-1)).toBe(bounds.max)
+    expect(waOffset(picks)).toBe(100.4)
+    expect(stops[1] + 100.4).toBeCloseTo(1, 9)
+    const res = solveConnection({ picks, speed: SPEED_60, shift: stops[0] })
+    expect(res.TP1.northing).toBeCloseTo(5600000, 9)
+  })
+
+  it('stops where the second toe lies on its element change', () => {
+    // The connection runs north; the second turnout opens back south, so the
+    // element change behind its WA is its element's end, at northing 5600230.
+    const picks = [bare(P(500000, 5600000), 0, 400, 100), bare(P(499995.5, 5599700), 0, 530, 490)]
+    const bounds = computeShiftBounds({ picks, speed: SPEED_60 })
+    const stops = shiftStops({ picks, speed: SPEED_60 }, bounds)
+    const onNode = stops.map(s => solveConnection({ picks, speed: SPEED_60, shift: s }))
+      .filter(r => r?.valid && Math.abs(r.TP2.northing - 5600230) < 1e-4)
+    expect(onNode).toHaveLength(1)
+  })
+
+  it('lays WA on the element change behind it first', () => {
+    const picks = [bare(P(500000, 5600000), 0, 400, 100), bare(P(499995.5, 5599700), 0, 2000, 460)]
+    const bounds = computeShiftBounds({ picks, speed: SPEED_60 })
+    expect(preferredShift({ picks, speed: SPEED_60 }, bounds)).toBe(-100)
+  })
+
+  it('takes the second WA onto its element change where the first stands at an open track end', () => {
+    const picks = [{ ...bare(P(500000, 5600000), 0, 400, 100), trackEnds: [true, false] },
+      bare(P(499995.5, 5599700), 0, 530, 490)]
+    const bounds = computeShiftBounds({ picks, speed: SPEED_60 })
+    const s = preferredShift({ picks, speed: SPEED_60 }, bounds)
+    expect(s).not.toBe(-100)
+    expect(solveConnection({ picks, speed: SPEED_60, shift: s }).TP2.northing).toBeCloseTo(5600230, 4)
   })
 })
 
@@ -222,5 +261,34 @@ describe.skipIf(!hasPekBestand)('minimum element length on the PEK Bestand', () 
     for (const sw of commit.addSwitches) expectSwitchRoutesCarved(sw, commit.addTracks)
     // The first track is parted at the joint: its element 4 stays whole.
     expect(commit.addTracks.some(tr => tr.elements.at(-1)?.length === t1.elements[4].length)).toBe(true)
+  })
+
+  it('lays WA on the element change by default, also where no speed asks for it', () => {
+    const { tracks } = hydrateProjects([loadPekBestand()])[0]
+    const t1 = tracks.find(tr => tr.name === '6340.19604')
+    const t2 = tracks.find(tr => tr.name === '6340.20386')
+    const p1 = connectionPick(t1, 5, 10.4)
+    expect(p1.name).toBe('6340.19604')
+    const b1 = t1.elements[5].bearing * Math.PI / 180
+    const s2 = connectionPick(t2, 4, 0).startUtm
+    const b2 = t2.elements[4].bearing * Math.PI / 180
+    const ahead = { easting: p1.startUtm.easting + 110 * Math.sin(b1), northing: p1.startUtm.northing + 110 * Math.cos(b1) }
+    const p2 = connectionPick(t2, 4, (ahead.easting - s2.easting) * Math.sin(b2) + (ahead.northing - s2.northing) * Math.cos(b2))
+    const picks = [p1, p2]
+    const speed = 60
+    const bounds = computeShiftBounds({ picks, speed })
+    const shift = preferredShift({ picks, speed }, bounds)
+    expect(shift).toBe(-10.4)
+    expect(shiftStops({ picks, speed }, bounds)[0]).toBe(-10.4)
+    const out = settleConnection({ picks, speed, shift })
+    expect(out.result.valid).toBe(true)
+    expect(out.remnants.find(r => r.track === 0 && r.side === 'before').length).toBeCloseTo(0, 9)
+    const commit = buildSCurve({ result: out.result, picks, tracks, switches: [], speed })
+    expect(commit.carveError).toBeUndefined()
+    // Parted at the joint: no new piece shorter than a metre on either track.
+    const before = new Set([...t1.elements, ...t2.elements].map(el => el.length.toFixed(3)))
+    const pieces = commit.addTracks.slice(0, -1).flatMap(tr => tr.elements)
+      .filter(el => !el.switchId && !before.has(el.length.toFixed(3)))
+    for (const el of pieces) expect(el.length, `piece of ${el.length} m`).toBeGreaterThan(1)
   })
 })
