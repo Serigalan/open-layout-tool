@@ -184,22 +184,26 @@ export default function SCurveForm({ onCommitted }) {
     setSpeedIdx(i)
   }
 
-  const handleCancel = () => {
+  const reset = () => {
     preview.clear()
     setPhase('select_first')
     setPicks([])
     setShift(0)
     setPickStatus(null)
     setCarveError(null)
-    onCommitted?.()
   }
+  const handleCancel = () => { reset(); onCommitted?.() }
 
   const handleCommit = () => {
     const commit = buildSCurve({ result, picks, tracks: loadTracks(), switches: loadSwitches(), speed })
     if (!commit) return
     if (commit.carveError) { setCarveError(commit.carveError); return }
     commitSwitchConnection(commit)
-    handleCancel()
+    // Laid in a cant, the two tracks have to be fitted to each other: the
+    // panel asks next whether their heights may be changed (decision 159).
+    const canted = picks.some(p => p.cantStart || p.cantEnd)
+    reset()
+    onCommitted?.({ switchIds: commit.addSwitches.map(sw => sw.switchId), canted })
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────

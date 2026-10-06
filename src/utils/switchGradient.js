@@ -51,6 +51,17 @@ const mainRouteLength = (track, sw) => (track.elements ?? [])
   .filter(el => elementBelongsToSwitch(el, sw) && (el.switchRoute ?? 'main') === 'main')
   .reduce((sum, el) => sum + (el.length ?? 0), 0)
 
+/**
+ * How far from WA along the main route the turnout's body reaches: to the
+ * ldS, or to WE where the form states none. Null without a main route.
+ */
+export function ldsFromToe(tracks, sw, { formOf } = {}) {
+  const main = tracks.find(t => t.id === sw?.portB2_trackId)
+  const we = main ? mainRouteLength(main, sw) : 0
+  if (!(we > 0)) return null
+  return we + (switchLds(sw, formOf) ?? 0)
+}
+
 const isTurnout = (sw) => (sw?.kind ?? 'turnout') === 'turnout'
 
 /** A track as seen from the switch toe: station ↔ distance from WA. */

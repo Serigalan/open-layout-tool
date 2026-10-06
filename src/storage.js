@@ -301,6 +301,24 @@ function withCoupledGradients(before, project) {
 }
 
 /**
+ * Apply what fitting a crossover worked out (crossoverGradient): the new
+ * heights of the tracks it reached and the new cant of their curve, as one
+ * undo step — the coupling of the turnouts follows in the same step.
+ */
+export function applyCrossoverGradient(plan) {
+  if (!plan?.ok) return false
+  return mutate(p => ({
+    ...p,
+    tracks: (p.tracks ?? []).map(t => {
+      const heights = plan.heights.get(t.id)
+      const elements = plan.elements.get(t.id)
+      if (!heights && !elements) return t
+      return { ...t, ...(heights ? { heights } : {}), ...(elements ? { elements } : {}) }
+    }),
+  }))
+}
+
+/**
  * Couple the branch of every turnout to its main route, as one undo step —
  * for a project whose turnouts were never written since coupling began, and
  * which the store couples only where a write reaches them.

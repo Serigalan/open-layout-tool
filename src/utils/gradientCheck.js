@@ -19,7 +19,7 @@
  */
 
 import { evaluateRules, rulesForScope, severityRank, worstSeverity } from './regelkatalog'
-import { tangentLength, trackLength } from './heightUtils'
+import { tangentLength } from './heightUtils'
 import { trackKind } from './trackGroups'
 import { portsOf } from './switchModel'
 import { transitionCantEnds } from './clothoidUtils'
@@ -97,13 +97,21 @@ const MAX_CONNECTION_LENGTH = 20
 
 /**
  * Is the track a track connection of its own — running into a switch at both
- * its ends, and no longer than 20 m between them? A longer track between two
- * switches is a track like any other.
+ * its ends, and no longer than 20 m between them? Between them: a crossover's
+ * connecting track carries both turnouts' branches as its own elements
+ * (commands/sCurve), and those are the switches, not the track between them.
+ * A longer track between two switches is a track like any other.
  */
 function isConnectionTrack(track, switches) {
-  const at = (end) => (switches ?? []).some(sw =>
+  const at = (end) => (switches ?? []).find(sw =>
     portsOf(sw).some(p => sw[p.trackKey] === track.id && sw[p.endKey] === end))
-  return at('BEGIN') && at('END') && trackLength(track) <= MAX_CONNECTION_LENGTH + STATION_EPS
+  const first = at('BEGIN'), last = at('END')
+  if (!first || !last) return false
+  const ids = new Set([first.switchId, last.switchId].filter(id => id != null))
+  const between = (track.elements ?? [])
+    .filter(el => el.switchId == null || !ids.has(el.switchId))
+    .reduce((sum, el) => sum + (el.length ?? 0), 0)
+  return between <= MAX_CONNECTION_LENGTH + STATION_EPS
 }
 
 /** A rule that needs the design speed — not to be applied where it is unknown. */

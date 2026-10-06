@@ -866,3 +866,24 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
   .panel-content { margin: -18px -14px; padding: 18px 14px; }
 }
 .run-status { display: flex; gap: var(--space-5); align-items: center; font-size: var(--fs-s); color: var(--color-text-soft); margin-top: var(--space-3); }
+
+/* Fitting a crossover's gradient: a choice per line, two fields side by side. */
+.crossover-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  cursor: pointer;
+}
+
+.crossover-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.crossover-pair input {
+  width: 100%;
+  box-sizing: border-box;
+}

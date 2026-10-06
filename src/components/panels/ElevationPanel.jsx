@@ -9,6 +9,9 @@ import { chosenTerrainSource } from '../../utils/elevationSource'
 import TerrainSourceSelect from '../TerrainSourceSelect'
 import GroupedTrackList from './GroupedTrackList'
 import GradientFindings from './GradientFindings'
+import CrossoverGradientForm from './CrossoverGradientForm'
+import { BackIcon } from '../icons'
+import { findCrossovers } from '../../utils/crossoverGradient'
 import FormSection from '../form/FormSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
@@ -31,6 +34,7 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   const [result, setResult] = useState(null)   // { updated, missing } of the last run
   const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
   const project = useProject()
+  const [crossover, setCrossover] = useState(null)   // switchIds of the crossover being fitted
   // Turnouts whose branch does not yet follow its main route: the store couples
   // a turnout when a write reaches it, so a project from before has some.
   const uncoupled = project ? switchCouplings(project.tracks, project.switches)
@@ -41,7 +45,8 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   // Unlike the element table, the profile overlay takes no clicks of its own —
   // it only marks the elements its selection falls in — so this stays live
   // while a profile is open, and a click swaps it over to the track clicked.
-  useMapPick({ hover: 'track', onPick: ({ trackId }) => onShowProfile?.(trackId) })
+  // While a crossover is being fitted, a click on the map marks its range instead.
+  useMapPick({ active: !crossover, hover: 'track', onPick: ({ trackId }) => onShowProfile?.(trackId) })
 
   const run = async (opts) => {
     setBusy(true)
@@ -60,6 +65,25 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   const resultText = (r) => r.failed
     ? t('elevation_failed')
     : fill('elevation_result', { updated: r.updated, missing: r.missing })
+
+  if (crossover) {
+    return (
+      <>
+        <button className="back-btn" onClick={() => setCrossover(null)}>
+          <BackIcon />
+          {t('btn_back')}
+        </button>
+        <h2>{t('crossover_title')}</h2>
+        <CrossoverGradientForm switchIds={crossover} onDone={() => setCrossover(null)} />
+      </>
+    )
+  }
+
+  // The project's crossovers, those on the track on show first.
+  const crossovers = project ? findCrossovers(project.tracks, project.switches) : []
+  const onShown = (c) => [c.w1.portA_trackId, c.w1.portB2_trackId, c.w2.portA_trackId, c.w2.portB2_trackId, c.conn.id]
+    .includes(profileTrackId)
+  crossovers.sort((a, b) => Number(onShown(b)) - Number(onShown(a)))
 
   return (
     <>
@@ -84,6 +108,20 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
             </button>
           </>
         )}
+      </FormSection>
+      <FormSection title={t('crossover_section')}>
+        <p className="selecting-hint">{t('crossover_section_hint')}</p>
+        {crossovers.length === 0 && <p className="selecting-hint">{t('crossover_none')}</p>}
+        {crossovers.map(c => (
+          <div key={c.conn.id} className="crossover-pair">
+            <span className={onShown(c) ? 'track-group-item active' : 'track-group-item'}>
+              {fill('crossover_title_switches', { a: c.w1.name ?? '', b: c.w2.name ?? '' })}
+            </span>
+            <button className="panel-btn secondary" onClick={() => setCrossover([c.w1.switchId, c.w2.switchId])}>
+              {t('crossover_open')}
+            </button>
+          </div>
+        ))}
       </FormSection>
       <GroupedTrackList tracks={tracks}
         isActive={(track) => track.id === profileTrackId}

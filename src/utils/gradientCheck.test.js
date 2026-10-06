@@ -97,6 +97,15 @@ describe('HP.AR · rounding of a gradient change', () => {
     expect(sev(curveOf(connecting(4.6, null), { switches }), 'HP.AR.01')).toBe('error')
     // Longer than 20 m between the two switches, it is a track like any other.
     expect(sev(curveOf(connecting(4.5, null, { length: 21 }), { switches }), 'HP.AR.01')).toBe('error')
+    // The turnouts' own branches on it do not count: 30 m of track, 10 of them between the switches.
+    const crossover = connecting(4.5, null, { length: 30 })
+    crossover.elements = [
+      { elementType: 0, length: 10, speed: 100, switchId: 'w1' },
+      { elementType: 0, length: 10, speed: 100 },
+      { elementType: 0, length: 10, speed: 100, switchId: 'w2' },
+    ]
+    const own = [{ ...switches[0], switchId: 'w1' }, { ...switches[1], switchId: 'w2' }]
+    expect(sev(curveOf(crossover, { switches: own }), 'HP.AR.01')).toBe('ok')
   })
 
   it('grades the radius of a crest by Tabelle 12 at 100 km/h', () => {
