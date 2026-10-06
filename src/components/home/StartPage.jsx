@@ -15,6 +15,7 @@ import useMenu from '../form/useMenu'
 import BranchDialog from './BranchDialog'
 import ConfirmDialog from './ConfirmDialog'
 import ExportDialog from './ExportDialog'
+import LocalStorageDialog from './LocalStorageDialog'
 import NewProjectDialog from './NewProjectDialog'
 import PairDialog from './PairDialog'
 import ProjectCard from './ProjectCard'
@@ -33,6 +34,9 @@ import VariantDialog from './VariantDialog'
  * come in. The "⋯" menu of a project renames, exports (a variant's head),
  * lists and changes who works on it, and deletes it (its admin or creator
  * only). Branching, comparing and merging act on its variants.
+ *
+ * The user's menu also opens what the app keeps in this browser — point
+ * clouds, working copies, settings — to look at and delete.
  *
  * Below them the templates: everyone branches a variant of their own off one;
  * the template itself — its root variants — only an admin edits, everyone
@@ -139,6 +143,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
               <div className="home-menu-list" role="menu">
                 <p className="home-menu-user">{user.name}</p>
                 <button type="button" role="menuitem" onClick={() => { closeUserMenu(); setDialog({ kind: 'password' }) }}>{t('password_title')}</button>
+                <button type="button" role="menuitem" onClick={() => { closeUserMenu(); setDialog({ kind: 'local' }) }}>{t('local_store_menu')}</button>
                 <button type="button" role="menuitem" onClick={onSignOut}>{t('user_sign_out')}</button>
               </div>
             )}
@@ -227,6 +232,10 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
       )}
       {dialog?.kind === 'variant' && (
         <VariantDialog variant={dialog.variant} onCancel={() => setDialog(null)} onDone={async () => { setDialog(null); await reload() }} />
+      )}
+      {dialog?.kind === 'local' && (
+        <LocalStorageDialog projects={projects}
+          onClose={async (changed) => { setDialog(null); if (changed) await reload() }} />
       )}
       {dialog?.kind === 'password' && (
         <Modal className="modal-bare" ariaLabel={t('password_title')} onClose={() => setDialog(null)}>

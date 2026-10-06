@@ -617,3 +617,26 @@ a.collab-btn { display: inline-block; text-decoration: none; }
 .members-who .collab-muted { font-size: 12.5px; }
 .members-add { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--collab-border); padding-top: 12px; }
 .members-hits { max-height: 220px; overflow-y: auto; }
+
+/* ── local storage dialog ───────────────────────────────────────────────── */
+
+.modal.collab-modal.local-store { width: min(680px, calc(100vw - 32px)); }
+.local-store-section { display: flex; flex-direction: column; gap: 4px; }
+.local-store-section h3 { margin: 4px 0 0; }
+.local-store-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.local-store-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px;
+  padding: 7px 0; border-top: 1px solid var(--collab-border); font-size: 13.5px;
+}
+.local-store-row:first-child { border-top: none; }
+.local-store-what { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 1px; overflow-wrap: anywhere; }
+.local-store-what .collab-muted { font-size: 12.5px; }
+.local-store-size { font-variant-numeric: tabular-nums; color: var(--collab-muted); white-space: nowrap; }
+.local-store-ask { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; }
+.local-store-warn { color: var(--collab-warn); font-size: 12.5px; }
+.local-store-confirm-all {
+  border: 1px solid var(--collab-danger); border-radius: 8px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px; font-size: 13.5px;
+}
+.local-store-confirm-all p { margin: 0; }
+.local-store-all { margin-right: auto; }

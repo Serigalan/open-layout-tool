@@ -8,7 +8,7 @@ import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trac
 import * as idb from './utils/idbStorage'
 import { coupleSwitchGradients, touchedTurnouts } from './utils/switchGradient'
 
-const REPORT_KEY_PREFIX = 'olt_reports_'
+export const REPORT_KEY_PREFIX = 'olt_reports_'
 
 // The project store: the one project that is open — the working copy of a
 // variant (phase 10) — held in memory as the single source of truth for every
@@ -513,9 +513,14 @@ export function clearImportReports() {
  *
  * The set is the same object until it changes, as useSyncExternalStore wants.
  */
-const HIDDEN_KEY_PREFIX = 'olt_hidden_tracks_'
+export const HIDDEN_KEY_PREFIX = 'olt_hidden_tracks_'
 const hiddenKey = () => HIDDEN_KEY_PREFIX + (_project?.id ?? 'none')
 let _hidden = { key: null, ids: new Set() }
+
+/** Read the hidden tracks afresh next time — their entry was deleted from outside. */
+export function forgetHiddenTracks() {
+  _hidden = { key: null, ids: new Set() }
+}
 
 export function hiddenTracks() {
   const key = hiddenKey()

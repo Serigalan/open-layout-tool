@@ -94,6 +94,12 @@ export function forgetCloud(cloudId) {
   for (const key of [...files.keys()]) if (key.endsWith(`|${cloudId}`)) files.delete(key)
 }
 
+/** Forget what was read of every cloud — after all of them were deleted. */
+export function forgetAllClouds() {
+  for (const key of [...cache.keys()]) forget(key)
+  files.clear()
+}
+
 /**
  * The points of `cloud` in the section through `origin` (`{ easting,
  * northing }` in plane `crs`, the track's) square to `bearing`: `{ count, y,
