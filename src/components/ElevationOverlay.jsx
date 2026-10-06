@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { setTrackHeights, setHeightsForTracks, currentProject } from '../storage'
 import { useProject, useSwitches, useTracks } from '../hooks/useStore'
 import { checkVertical, verticalFindings } from '../utils/gradientCheck'
+import { coupledPoints, trackHeightAt } from '../utils/switchGradient'
 import { ruleById, severityLabelKey } from '../utils/regelkatalog'
 import {
   trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, elementAtStation,
-  gradientAt, insertHeightPoint,
+  insertHeightPoint,
 } from '../utils/heightUtils'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
 import { fillHeights } from '../utils/elevationFill'
@@ -66,6 +67,10 @@ const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
  * ring in that colour, and the tooltip of either says what was found. The
  * list of findings stands in the panel.
  *
+ * On a turnout's branch, the points between WA and the last through sleeper
+ * are the main route's (switchGradient): drawn dashed, and not edited or
+ * deleted here — the store would put them back.
+ *
  * A track without a gradient shows none — the terrain is not read on its own.
  * The empty profile offers to compute one from the height data instead.
  */
@@ -113,6 +118,13 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const check = track ? checkVertical(track, { project, switches }) : null
   const stretchAt = new Map((check?.stretches ?? []).map(s => [s.index, s]))
   const curveAt = new Map((check?.curves ?? []).map(c => [c.index, c]))
+  // Points a turnout's main route sets on this branch, by index → switch.
+  const locked = track ? coupledPoints(tracks, switches, track) : new Map()
+  const mainOf = (sw) => {
+    const main = tracks.find(tr => tr.id === sw.portB2_trackId)
+    return main?.name || main?.id.slice(0, 8) || '–'
+  }
+  const lockedNote = (sw) => fill('elevation_coupled_point', { name: sw.name ?? sw.label ?? '', main: mainOf(sw) })
 
   // ── Fit the view to the data when the track or the exaggeration changes ───
   const plotW = size ? size.w - MARGIN.left - MARGIN.right : 0
@@ -230,14 +242,16 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     if (!Object.keys(patch).length) return
     // Where tracks meet there is one point, whatever its index is on each of
     // them: it moves on all of them — over a switch too.
-    const entries = selectedPoints.map(p => ({ trackId: track.id, index: p.index, ...patch }))
+    const entries = selectedPoints.filter(p => !locked.has(p.index))
+      .map(p => ({ trackId: track.id, index: p.index, ...patch }))
+    if (!entries.length) return
     setHeightsForTracks(jointHeightUpdates(tracks, switches, entries))
   }
 
   // Only the two ends of the track have to stay: they are where its height
   // meets the tracks joined to it.
   const isInner = (p) => p.index > 0 && p.index < points.length - 1
-  const deletable = selectedPoints.filter(isInner)
+  const deletable = selectedPoints.filter(p => isInner(p) && !locked.has(p.index))
   const remove = () => {
     if (!track || !deletable.length) return
     const drop = new Set(deletable.map(p => p.index))
@@ -313,7 +327,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   // The cross section's station on this track, and the height built there.
   const sectionStation = section?.trackId === trackId && Number.isFinite(section.station)
     ? clamp(section.station, 0, profile.length) : null
-  const sectionZ = sectionStation != null ? gradientAt(track.heights, sectionStation) : null
+  const sectionZ = sectionStation != null ? trackHeightAt(tracks, switches, track, sectionStation) : null
 
   const drawing = () => {
     if (!size || !view) return null
@@ -440,9 +454,14 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
             return (
               <circle className="clickable" key={`p${p.index}`} cx={X(p.station)} cy={Y(p.z)} r={on ? 5.5 : 3.5}
                 fill={on ? PALETTE.mapSelected : PALETTE.white} stroke={on ? PALETTE.mapSelected : 'var(--color-primary)'} strokeWidth="2"
-
+                strokeDasharray={locked.has(p.index) ? '2 1.5' : undefined}
                 onPointerDown={e => e.stopPropagation()} onClick={e => pick(p, e)}>
-                {curveAt.has(p.index) && <title>{curveNote(curveAt.get(p.index))}</title>}
+                {(curveAt.has(p.index) || locked.has(p.index)) && (
+                  <title>
+                    {[locked.has(p.index) && lockedNote(locked.get(p.index)),
+                      curveAt.has(p.index) && curveNote(curveAt.get(p.index))].filter(Boolean).join('\n')}
+                  </title>
+                )}
               </circle>
             )
           })}
@@ -470,7 +489,12 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
       <div className="track-table-header">
         <span className="track-table-title">{track.name || track.id.slice(0, 8)}</span>
         <div className="profile-controls">
-          {selectedPoints.length ? (
+          {selectedPoints.length && selectedPoints.every(p => locked.has(p.index)) ? (
+            <div className="profile-edit">
+              <span className="profile-hint">{lockedNote(locked.get(selectedPoints[0].index))}</span>
+              <CloseButton onClick={() => select([])} />
+            </div>
+          ) : selectedPoints.length ? (
             <div className="profile-edit">
               <span>{selectedPoints.length === 1
                 ? `${t('elevation_station')} ${selectedPoints[0].station.toFixed(2)} m`

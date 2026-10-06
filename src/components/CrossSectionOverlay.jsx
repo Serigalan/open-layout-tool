@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { loadTracks, loadPlatforms, currentProject } from '../storage'
-import { trackLength, gradientAt } from '../utils/heightUtils'
+import { loadTracks, loadPlatforms, loadSwitches, currentProject } from '../storage'
+import { trackLength } from '../utils/heightUtils'
+import { trackHeightAt } from '../utils/switchGradient'
 import { utmToWgs84 } from '../utils/coordinateUtils'
 import { pointAtStation } from '../utils/platformUtils'
 import { PLATFORM_FILL_COLOR, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderUtils'
@@ -134,6 +135,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   const overlay = useOverlayHeight(bodyRef, { min: MIN_OVERLAY_PX, fallback: 320 })
 
   const tracks = loadTracks()
+  const switches = loadSwitches()
   const track = tracks.find(tr => tr.id === at.trackId)
   const total = track ? Math.round(trackLength(track) * 10) / 10 : 0
   const station = track ? clamp(at.station ?? 0, 0, total) : 0
@@ -184,7 +186,8 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
     const { rail, sleeper } = superstructureAt(tr, st)
     return {
       track: tr, station: st, offset, mirrored, state, rail, sleeper,
-      z: gradientAt(tr.heights, st),
+      // On a turnout's branch between WA and ldS: the plane of the turnout.
+      z: trackHeightAt(tracks, switches, tr, st),
       section: crossSection({ cant: state?.cant ?? 0, gaugeRing: ring, gaugeAreas: areas, rail, sleeper }),
       // The platforms laid along the track here, level beside it as they are built.
       platforms: allPlatforms.filter(p => p.trackId === tr.id && inRange(p, st))

@@ -6,6 +6,7 @@ import { flipSwitchEndpoints, makeTrack, portTracks, referencesTrack, remapSwitc
 import { generateId } from './utils/identifierUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
+import { coupleSwitchGradients, touchedTurnouts } from './utils/switchGradient'
 
 const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -95,7 +96,7 @@ function mutate(fn, { undo = true } = {}) {
   const next = fn(_project)
   if (!next || next === before) { _idLog = logBefore; return true }
   if (undo) { pushUndo(before, logBefore); _redoStack = [] }
-  const after = withPrunedMarks(next)
+  const after = withCoupledGradients(before, withPrunedMarks(next))
   if (undo && _undoDepth === 0) recordStep('do', before, after)
   setProject(after)
   return true
@@ -286,6 +287,28 @@ export function withUndo(fn) {
 // A track end mark lives only as long as its end is free (trackEndMarks): any
 // write that takes the track away or connects a switch to that end drops it.
 // Done here rather than in each writer, because every writer comes by here.
+/**
+ * The project with the branch of every turnout a write reached coupled to its
+ * main route again (switchGradient): the main route leads, so a height, a cant
+ * or a geometry changed there moves the branch along, and a height changed on
+ * the branch between WA and ldS goes back to the plane — in the same step, so
+ * one undo takes back both. Turnouts the write did not reach are left alone,
+ * coupled or not.
+ */
+function withCoupledGradients(before, project) {
+  const only = touchedTurnouts(before, project)
+  return only.size ? coupleSwitchGradients(project, { only }) : project
+}
+
+/**
+ * Couple the branch of every turnout to its main route, as one undo step —
+ * for a project whose turnouts were never written since coupling began, and
+ * which the store couples only where a write reaches them.
+ */
+export function coupleAllSwitchGradients() {
+  return mutate(p => coupleSwitchGradients(p))
+}
+
 function withPrunedMarks(project) {
   if (!project?.endMarks?.length) return project
   const kept = pruneEndMarks(project.endMarks, project.tracks, project.switches)

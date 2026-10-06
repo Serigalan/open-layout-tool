@@ -170,9 +170,29 @@ describe('HP.AR · rounding of a gradient change', () => {
     expect(sev(curveOf(ramped(4000)), 'HP.AR.05')).toBe('hint')
     expect(sev(curveOf(ramped(3000)), 'HP.AR.05')).toBe('warning')
     expect(sev(curveOf(crest(3000)), 'HP.AR.05')).toBeNull()
-    const inSwitch = line(crest(4000).heights, {})
-    inSwitch.elements = [{ elementType: 0, length: 2000, speed: 100, switchId: 's1' }]
-    expect(sev(curveOf(inSwitch), 'HP.AR.05')).toBe('hint')
+  })
+
+  it('warns of any change between WA and WE where the form states no ldS, curve or not', () => {
+    // A switch whose elements run from 900 to 1100 m.
+    const inSwitch = (heights) => ({
+      id: 't1', trackType: 1,
+      elements: [
+        { elementType: 0, length: 900, speed: 100 },
+        { elementType: 0, length: 200, speed: 100, switchId: 's1' },
+        { elementType: 0, length: 900, speed: 100 },
+      ],
+      heights,
+    })
+    const at = (station, rv) => [
+      { station: 0, z: 100 }, { station, z: 101, ...(rv ? { rv } : {}) }, { station: 2000, z: 100 },
+    ]
+    expect(sev(curveOf(inSwitch(at(1000, 30000))), 'HP.AR.06')).toBe('warning')
+    expect(sev(curveOf(inSwitch(at(1000, 30000))), 'HP.AR.05')).toBeNull()
+    // Outside it, but its curve reaching in: T = 30000 · 2 ‰ / 2 = 30 m.
+    expect(sev(curveOf(inSwitch(at(880, 30000))), 'HP.AR.06')).toBe('warning')
+    expect(sev(curveOf(inSwitch(at(860, 30000))), 'HP.AR.06')).toBeNull()
+    // A point on WA itself is not between WA and WE.
+    expect(sev(curveOf(inSwitch(at(900, null))), 'HP.AR.06')).toBeNull()
   })
 
   it('leaves the speed rules out where the design speed is unknown', () => {

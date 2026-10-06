@@ -2,14 +2,15 @@
   "katalog": {
     "id": "db-ril-800-0120",
     "title": "DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen",
-    "katalog_version": "0.2.0",
+    "katalog_version": "0.3.0",
     "status": "draft",
-    "date": "2026-09-22",
+    "date": "2026-10-06",
     "language": "de",
     "scope": {
       "included": [
         "Formen der Weichen, Kreuzungen und Kreuzungsweichen mit ihren Maßen",
-        "Klasse je Form: Regelform (A01) oder Sonderbauform (A02)"
+        "Klasse je Form: Regelform (A01) oder Sonderbauform (A02)",
+        "Lage der letzten durchgehenden Schwelle (ldS) je Weichenform — Grenze des Weichenbereichs im Höhenplan"
       ],
       "excluded": [
         "Linienführung — eigener Katalog db-ril-800-0110",
@@ -20,6 +21,14 @@
     "label_note": "Die Labels sind Schlüssel: ein gespeichertes Projekt schlägt seine Form darüber nach (switchTypeByLabel, switchModel.SWITCH_FORM_VERSION). Ein Label wird deshalb nicht umbenannt, auch wenn die Ril die Form anders schreibt."
   },
   "changelog": [
+    {
+      "version": "0.3.0",
+      "date": "2026-10-06",
+      "changes": [
+        "Neues Feld lds: Abstand der letzten durchgehenden Schwelle hinter dem Weichenende entlang des Stammgleises, geliefert vom Auftraggeber am 2026-10-06 für vierzehn der fünfzehn Weichenformen. Bis WA–ldS liegen Stamm- und Zweiggleis in einer Ebene, ihre Gradiente ist gekoppelt; der Höhenplan behandelt WA–ldS als Weichenbereich (db-ril-800-0110, HP.AR.06)",
+        "Für 190 – 1:6.3 steht der Wert aus (OP.W.06)"
+      ]
+    },
     {
       "version": "0.2.0",
       "date": "2026-09-22",
@@ -80,6 +89,7 @@
     "routen": "Geschwindigkeit und Radius je Fahrweg, wo eine Form mehrere trägt (Kreuzungsweichen)",
     "dLcs": "Abstand der Weichenmarke vom Weichen- bzw. Kreuzungsende [m]; bei einer Kreuzung negativ möglich",
     "minl": "Mindestzwischengerade [m] zwischen zwei Weichen — steht hier noch je Form, gehört aber an v (OP.W.01)",
+    "lds": "Abstand der letzten durchgehenden Schwelle (ldS) hinter dem Weichenende (WE) [m], entlang des Stammgleises; 0 bei einer Form, deren WE die ldS ist. Vom Weichenanfang (WA) aus liegt die ldS um die Länge der Weiche (WA bis WE) und diesen Abstand weiter. Bis dorthin liegen Stamm- und Zweiggleis auf einer Ebene: das Zweiggleis hat die Höhe des Stammgleises, in der Überhöhung um u/1500 · Achsabstand gehoben bzw. gesenkt. Fehlt der Wert, wird nicht gekoppelt, und der Weichenbereich reicht im Höhenplan bis WE",
     "branch": "Der Zweig als Folge seiner Abschnitte ab der Spitze: arc (Radius R der Form) und straight mit eigener Länge [m]. Fehlt der Eintrag, ist der Zweig genau ein Bogen.",
     "symmetric": "Beide Fahrwege verlassen die Spitze auf demselben Radius, je durch den halben Winkel — die Form hat keinen durchgehenden Strang",
     "lt": "Tangente einer Kreuzung [m]: vom Kreuzungspunkt bis zu jedem ihrer vier Enden",
@@ -93,6 +103,7 @@
   "formen": [
     {
       "label": "190 – 1:7.5",
+      "lds": 3.348,
       "art": "weiche",
       "klasse": "regel",
       "R": 190,
@@ -116,6 +127,7 @@
     },
     {
       "label": "190 – 1:9",
+      "lds": 3.94,
       "art": "weiche",
       "klasse": "regel",
       "R": 190,
@@ -139,6 +151,7 @@
     },
     {
       "label": "215 – 1:4.8",
+      "lds": 0,
       "art": "weiche",
       "klasse": "regel",
       "R": 215,
@@ -150,6 +163,7 @@
     },
     {
       "label": "300 – 1:9",
+      "lds": 3.94,
       "art": "weiche",
       "klasse": "regel",
       "R": 300,
@@ -164,6 +178,7 @@
     },
     {
       "label": "500 – 1:12",
+      "lds": 6.334,
       "art": "weiche",
       "klasse": "regel",
       "R": 500,
@@ -178,6 +193,7 @@
     },
     {
       "label": "760 – 1:14",
+      "lds": 5.125,
       "art": "weiche",
       "klasse": "regel",
       "R": 760,
@@ -192,6 +208,7 @@
     },
     {
       "label": "1200 – 1:18.5",
+      "lds": 9.92,
       "art": "weiche",
       "klasse": "regel",
       "R": 1200,
@@ -206,6 +223,7 @@
     },
     {
       "label": "2500 – 1:26.5",
+      "lds": 13.145,
       "art": "weiche",
       "klasse": "regel",
       "R": 2500,
@@ -330,6 +348,7 @@
     },
     {
       "label": "300 – 1:9.4",
+      "lds": 3.94,
       "art": "weiche",
       "klasse": "sonderbauform",
       "R": 300,
@@ -353,6 +372,7 @@
     },
     {
       "label": "300 – 1:14",
+      "lds": 5.125,
       "art": "weiche",
       "klasse": "sonderbauform",
       "R": 300,
@@ -379,6 +399,7 @@
     },
     {
       "label": "500 – 1:14",
+      "lds": 5.125,
       "art": "weiche",
       "klasse": "sonderbauform",
       "R": 500,
@@ -402,6 +423,7 @@
     },
     {
       "label": "760 – 1:15",
+      "lds": 5.125,
       "art": "weiche",
       "klasse": "sonderbauform",
       "R": 760,
@@ -425,6 +447,7 @@
     },
     {
       "label": "760 – 1:18.5",
+      "lds": 9.92,
       "art": "weiche",
       "klasse": "sonderbauform",
       "R": 760,
@@ -448,6 +471,7 @@
     },
     {
       "label": "1200 – 1:19.277",
+      "lds": 9.92,
       "art": "weiche",
       "klasse": "sonderbauform",
       "R": 1200,
@@ -662,6 +686,12 @@
       ],
       "topic": "Regelteil der 0120",
       "assumption": "„Es sollen Regelformen verwendet werden\" ist eine Regel, ihre Stufe (Hinweis, Warnung, Zustimmung) steht aus. Ebenso die Regeln zu Mindestzwischengerade, gebogener Weiche und Krümmungssprung innerhalb der Weiche, den die 0110 ausdrücklich diesem Katalog überlässt."
+    },
+    {
+      "id": "OP.W.06",
+      "refs": ["felder.lds", "formen[*].lds"],
+      "topic": "Lage der letzten durchgehenden Schwelle",
+      "assumption": "Für 190 – 1:6.3 ist lds nicht geliefert. Dort wird das Zweiggleis nicht an sein Stammgleis gekoppelt, und der Weichenbereich im Höhenplan reicht von WA bis WE."
     }
   ]
 }

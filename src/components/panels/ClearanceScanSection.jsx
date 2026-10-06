@@ -38,7 +38,7 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
     const profile = gaugeProfile(currentProject()?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
     try {
       const r = await scanClearance({
-        projectId: project.id, clouds, track,
+        projectId: project.id, clouds, track, tracks: project.tracks, switches: project.switches,
         ring: gaugeProfileRing(profile.points), areas: gaugeProfileAreas(profile.einragungen),
         signal: ctl.signal, onProgress: (share) => setRun({ share }),
       })

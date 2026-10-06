@@ -1,7 +1,8 @@
 import { cloudSectionPoints } from './cloudSection'
 import { checkClearance } from './clearanceCheck'
 import { sectionOrigin, sectionAtStation } from '../crossSectionUtils'
-import { gradientAt, trackLength } from '../heightUtils'
+import { trackLength } from '../heightUtils'
+import { trackHeightAt } from '../switchGradient'
 
 /**
  * The clearance check along a whole track (AP 11.5, the optional part): the
@@ -40,6 +41,7 @@ export function stretchesOf(hits, step = SCAN_STEP) {
  */
 export async function scanClearance({
   projectId, clouds, track, ring, areas, from = 0, to = null, step = SCAN_STEP, onProgress, signal,
+  tracks = [track], switches = [],
 }) {
   if (!track?.heights?.length) return { noGradient: true, stretches: [], checked: 0 }
   const end = to ?? trackLength(track)
@@ -49,7 +51,7 @@ export async function scanClearance({
   for (let s = from + step / 2; s < end; s += step) {
     if (signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' })
     const origin = sectionOrigin(track, s)
-    const zTrack = gradientAt(track.heights, s)
+    const zTrack = trackHeightAt(tracks, switches, track, s)
     if (origin && zTrack != null) {
       const cant = sectionAtStation(track, s)?.cant ?? 0
       let inside = 0, depth = 0

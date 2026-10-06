@@ -2,7 +2,7 @@
   "catalog": {
     "id": "db-ril-800-0110",
     "title": "DB Ril 800.0110 | Linienführung",
-    "katalog_version": "0.4.0",
+    "katalog_version": "0.5.0",
     "status": "draft",
     "date": "2026-10-06",
     "language": "de",
@@ -25,6 +25,14 @@
   },
 
   "changelog": [
+    {
+      "version": "0.5.0",
+      "date": "2026-10-06",
+      "changes": [
+        "HP.AR.06: Neigungswechsel und Ausrundungen zwischen Weichenanfang und letzter durchgehender Schwelle sind eine Warnung (Festlegung des Auftraggebers); HP.AR.05 gilt nur noch für Überhöhungsrampen",
+        "Kontext switch_body: Weichenbereich im Höhenplan von WA bis ldS, ohne ldS im Weichenkatalog bis WE; OP.14 neu"
+      ]
+    },
     {
       "version": "0.4.0",
       "date": "2026-10-06",
@@ -201,6 +209,7 @@
       { "id": "s_bahn", "group": "line_category", "title": "S-Bahn" },
       { "id": "track_connection", "group": "area", "title": "Gleis- bzw. Weichenverbindung", "extent": "Gleis, das an beiden Enden in eine Weiche läuft und zwischen den beiden Weichen nicht länger als 20 m ist" },
       { "id": "cant_ramp", "group": "area", "title": "Überhöhungsrampe", "extent": "Übergangsbogen, über den sich die Überhöhung ändert" },
+      { "id": "switch_body", "group": "area", "title": "Weichenbereich im Höhenplan", "extent": "zwischen Weichenanfang (WA) und letzter durchgehender Schwelle (ldS), auf Stamm- und Zweiggleis; ohne ldS im Weichenkatalog bis Weichenende (WE). Ein Neigungswechsel liegt darin, wenn sein Punkt zwischen WA und ldS liegt oder seine Ausrundung den Bereich auf einer Länge > 0 überdeckt" },
       { "id": "main_track", "group": "track_use", "title": "Hauptgleis" },
       { "id": "siding", "group": "track_use", "title": "Nebengleis" }
     ],
@@ -870,7 +879,7 @@
     },
     {
       "id": "HP.AR.05",
-      "title": "Neigungswechsel in Überhöhungsrampe oder Weiche",
+      "title": "Neigungswechsel in Überhöhungsrampe",
       "applies_to": { "scope": "vertical_curve" },
       "inputs": {
         "v": { "from": "point.design_speed", "unit": "km/h" },
@@ -878,7 +887,7 @@
         "ra": { "from": "point.vertical_radius", "unit": "m" },
         "ds_free": { "expr": "if(in_context('siding') or in_context('track_connection'), 4.5, 1)", "unit": "‰" }
       },
-      "condition": "ds > 0 and (in_context('cant_ramp') or in_context('switch_area'))",
+      "condition": "ds > 0 and in_context('cant_ramp')",
       "thresholds": {
         "reg": { "expr": "if(v <= 230, max(0.4 * v^2, 2000), 22500)", "unit": "m" }
       },
@@ -888,9 +897,29 @@
       ],
       "notes": [
         "Neigungswechsel, auch deren Ausrundungen, sollen in Überhöhungsrampen und in Weichen vermieden werden.",
-        "Ist dies nicht möglich, soll r_a nicht kleiner als der Regelwert nach Tabelle 12 sein (wie HP.AR.03)."
+        "Ist dies nicht möglich, soll r_a nicht kleiner als der Regelwert nach Tabelle 12 sein (wie HP.AR.03).",
+        "In Weichen gilt statt dessen HP.AR.06."
       ],
       "source": { "ref": "RIL_800_0110", "section": "Kap. 10" },
+      "status": "confirmed"
+    },
+    {
+      "id": "HP.AR.06",
+      "title": "Neigungswechsel im Weichenbereich (WA bis ldS)",
+      "applies_to": { "scope": "vertical_curve" },
+      "inputs": {
+        "ds": { "from": "physics.gradient_change", "unit": "‰" }
+      },
+      "condition": "ds > 0 and in_context('switch_body')",
+      "evaluation": [
+        { "else": "warning" }
+      ],
+      "notes": [
+        "Neigungswechsel, auch deren Ausrundungen, sollen nicht zwischen Weichenanfang und letzter durchgehender Schwelle liegen; die Ril lässt sie in Weichen mit r_a mindestens Regelwert zu (HP.AR.05), das Werkzeug verlangt für jeden eine Begründung.",
+        "Bis zur ldS liegen Stamm- und Zweiggleis auf einer Ebene, die Gradiente des Zweiggleises folgt der des Stammgleises (db-ril-800-0120, lds)."
+      ],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10; Festlegung des Auftraggebers vom 2026-10-06" },
+      "open_point": "OP.14",
       "status": "confirmed"
     }
   ],
@@ -919,6 +948,12 @@
       "refs": ["rules[HP.LN.03]", "contexts.tunnel"],
       "topic": "Tunnel",
       "assumption": "Tunnel werden im Modell noch nicht geführt; HP.LN.03 steht im Katalog und wird angewendet, sobald ein Tunnel angegeben werden kann."
+    },
+    {
+      "id": "OP.14",
+      "refs": ["rules[HP.AR.06]", "contexts.switch_body"],
+      "topic": "Letzte durchgehende Schwelle",
+      "assumption": "Die ldS je Weichenform steht noch nicht im Weichenkatalog (db-ril-800-0120, OP.W.06); bis dahin reicht der Weichenbereich im Höhenplan von WA bis WE."
     },
     {
       "id": "OP.13",

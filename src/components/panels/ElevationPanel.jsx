@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { loadTracks, currentProject, setHeightsForTracks, updateProject } from '../../storage'
+import { loadTracks, currentProject, setHeightsForTracks, updateProject, coupleAllSwitchGradients } from '../../storage'
+import { coupledBranchHeights, switchCouplings } from '../../utils/switchGradient'
 import { useProject } from '../../hooks/useStore'
 import { LINE_CATEGORIES } from '../../utils/identifierUtils'
 import { projectLineCategory } from '../../utils/gradientCheck'
@@ -30,6 +31,10 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   const [result, setResult] = useState(null)   // { updated, missing } of the last run
   const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
   const project = useProject()
+  // Turnouts whose branch does not yet follow its main route: the store couples
+  // a turnout when a write reaches it, so a project from before has some.
+  const uncoupled = project ? switchCouplings(project.tracks, project.switches)
+    .filter(c => coupledBranchHeights(c)).length : 0
 
   // A track is picked on the map as readily as from the list, and the one under
   // the cursor is drawn on the hover layer so it is clear which it would be.
@@ -71,6 +76,14 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
           </select>
         </div>
         <GradientFindings trackId={profileTrackId} />
+        {uncoupled > 0 && (
+          <>
+            <p className="selecting-hint">{fill('elevation_couple_hint', { n: uncoupled })}</p>
+            <button className="panel-btn panel-btn-full mt-2 secondary" onClick={() => coupleAllSwitchGradients()}>
+              {fill('elevation_couple_all', { n: uncoupled })}
+            </button>
+          </>
+        )}
       </FormSection>
       <GroupedTrackList tracks={tracks}
         isActive={(track) => track.id === profileTrackId}

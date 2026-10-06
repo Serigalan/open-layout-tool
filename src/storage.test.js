@@ -7,8 +7,10 @@ import {
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
   openWorkingCopy, currentWorkingCopy, markCheckedIn, adoptWorkingCopy, closeWorkingCopy, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
+  setTrackHeights, setHeightsForTracks,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
+import { endPointCurvedUtm, endPointStraightUtm } from './utils/elementUtils'
 
 // Outside the browser the store keeps its project in memory; the import
 // reports and the settings still go to localStorage — a stub is all the node
@@ -380,3 +382,62 @@ describe('tracks hidden on the map', () => {
     expect(localStorage.getItem('olt_hidden_tracks_h1')).toBeNull()
   })
 })
+
+describe('the gradient of a turnout is coupled', () => {
+  // A 500 – 1:12 laid at (1000, 1000), its body 30 m long: the main route
+  // straight east, the branch on R 500 to the left. The catalogue puts the
+  // ldS 6.334 m behind WE.
+  const START = { easting: 1000, northing: 1000, zone: 5684 }
+  const node = (p) => [p.easting, p.northing]
+  const WE = endPointStraightUtm(START, 90, 30)
+  const BE = endPointCurvedUtm(START, 90, 30, -500)
+  const turned = 90 - (30 / 500) * 180 / Math.PI
+  const lds = 36.334
+  const offset = 500 - Math.sqrt(500 ** 2 - lds ** 2)
+  const project = () => ({
+    id: 'coupled',
+    tracks: [
+      { id: 'm', epsg: 5684, elements: [
+        { elementType: 0, startNode: node(START), endNode: node(WE), bearing: 90, length: 30, cant: 60,
+          switchId: 's1', switchRoute: 'main' },
+        { elementType: 0, startNode: node(WE), endNode: node(endPointStraightUtm(WE, 90, 30)), bearing: 90,
+          length: 30, cant: 60 },
+      ], heights: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }] },
+      { id: 'b', epsg: 5684, elements: [
+        { elementType: 1, startNode: node(START), endNode: node(BE), bearing: 90, endBearing: turned, radius: -500,
+          length: 30, switchId: 's1', switchRoute: 'branch' },
+        { elementType: 1, startNode: node(BE), endNode: node(endPointCurvedUtm(BE, turned, 30, -500)),
+          bearing: turned, radius: -500, length: 30 },
+      ], heights: [{ station: 0, z: 100 }, { station: 60, z: 100.2 }] },
+    ],
+    switches: [{
+      switchId: 's1', kind: 'turnout', label: '500 – 1:12',
+      portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'm', portB2_endpoint: 'BEGIN',
+    }],
+  })
+  const branch = () => loadTracks().find(t => t.id === 'b').heights
+  const expected = (slope) => 100 + slope * lds + 0.06 * offset / 1.5
+
+  it('follows a height edited on the main route, and undoes with it in one step', () => {
+    openProject(project())
+    expect(branch()).toHaveLength(2)          // opened as it was: nothing written yet
+    setTrackHeights('m', [{ station: 0, z: 100 }, { station: 60, z: 101.2 }])
+    const ldsPoint = branch()[1]
+    expect(ldsPoint.station).toBeCloseTo(500 * Math.asin(lds / 500), 2)
+    expect(ldsPoint.z).toBeCloseTo(expected(1.2 / 60), 3)
+    undo()
+    expect(branch()).toHaveLength(2)
+    expect(loadTracks().find(t => t.id === 'm').heights[1].z).toBe(100.6)
+  })
+
+  it('puts the branch\'s ldS point back when it is edited there', () => {
+    openProject(project())
+    // A write to the branch reaches the turnout as well: it is coupled at once.
+    setHeightsForTracks(new Map([['b', [{ station: 0, z: 100 }, { station: 60, z: 100.2 }]]]))
+    const coupled = branch()
+    expect(coupled).toHaveLength(3)
+    setHeightsForTracks(new Map([['b', coupled.map((p, i) => (i === 1 ? { ...p, z: 999 } : p))]]))
+    expect(branch()[1].z).toBeCloseTo(expected(0.6 / 60), 3)
+  })
+})
+

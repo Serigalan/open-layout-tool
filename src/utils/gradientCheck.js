@@ -24,6 +24,7 @@ import { trackKind } from './trackGroups'
 import { portsOf } from './switchModel'
 import { transitionCantEnds } from './clothoidUtils'
 import { LINE_CATEGORIES } from './identifierUtils'
+import { switchBodySpans } from './switchGradient'
 
 const DEFAULT_LINE_CATEGORY = 'main'
 
@@ -61,8 +62,8 @@ function stretchGrades(heights) {
 }
 
 /**
- * Where each element begins and ends along the track, with its design speed,
- * whether it belongs to a switch and whether it is a cant ramp — a transition
+ * Where each element begins and ends along the track, with its design speed
+ * and whether it is a cant ramp — a transition
  * the cant changes over (the app ramps the cant on the transition and nowhere
  * else, see trassierungCheck's rampScope).
  */
@@ -74,7 +75,6 @@ function elementSpans(elements) {
       from: start,
       to: start + (el.length ?? 0),
       speed: el.speed ?? 0,
-      inSwitch: el.switchId != null,
       ramp: !!ends && Math.abs((ends.end ?? 0) - (ends.start ?? 0)) > 0,
     }
     start = span.to
@@ -113,7 +113,10 @@ const readsSpeed = (rule) => Object.values(rule.inputs ?? {}).some(input => inpu
  * Every Höhenplan rule of the catalogue applied to one track.
  *
  * `project` gives the line category a track without one of its own runs on,
- * `switches` say which tracks are connections between two of them.
+ * `switches` say which tracks are connections between two of them and where
+ * a turnout's body lies (WA to ldS, switchGradient), for which `tracks` are
+ * needed too — the project's unless stated. `formOf` looks a switch form up
+ * (the catalogue's, unless a test states one).
  *
  * Returns `stretches` [{ index, from, to, grade, results, severity }] with
  * `index` the point the stretch ends at and `grade` signed in ‰, `curves`
@@ -123,7 +126,7 @@ const readsSpeed = (rule) => Object.values(rule.inputs ?? {}).some(input => inpu
  * need one — the same as an element in the element table — and judged by
  * the rest.
  */
-export function checkVertical(track, { project = null, switches = [] } = {}) {
+export function checkVertical(track, { project = null, switches = [], tracks = project?.tracks ?? [], formOf } = {}) {
   const heights = track?.heights ?? []
   const category = lineCategoryOf(track, project)
   const kind = trackKind(track) === 'station' ? 'station_track' : 'open_line'
@@ -150,6 +153,7 @@ export function checkVertical(track, { project = null, switches = [] } = {}) {
 
   const spans = elementSpans(track?.elements)
   const connection = isConnectionTrack(track ?? {}, switches)
+  const bodies = track ? switchBodySpans(tracks, switches, track, { formOf }) : []
   const curveRules = rulesForScope('vertical_curve')
   const tangent = (i) => tangentLength(heights, i) ?? 0
   const curves = []
@@ -165,9 +169,12 @@ export function checkVertical(track, { project = null, switches = [] } = {}) {
     const under = overlapping(spans, p.station - t, p.station + t)
     // The fastest element under the curve decides; an unknown speed (0) is no speed.
     const speed = Math.max(0, ...under.map(s => s.speed))
-    const inSwitch = under.some(s => s.inSwitch)
+    // Between WA and ldS: the point strictly inside, or its curve over a length.
+    const inBody = bodies.some(b => (t > STATION_EPS
+      ? Math.min(b.to, p.station + t) - Math.max(b.from, p.station - t) > STATION_EPS
+      : p.station > b.from + STATION_EPS && p.station < b.to - STATION_EPS))
     const areas = new Set([
-      ...(inSwitch ? ['switch_area'] : []),
+      ...(inBody ? ['switch_body'] : []),
       // A connection is a track of its own between two switches; a turnout
       // in a main track does not make that track one.
       ...(connection ? ['track_connection'] : []),

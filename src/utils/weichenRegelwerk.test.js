@@ -145,7 +145,7 @@ describe('what rulebook it is', () => {
     // statement beside it.
     expect(WEICHEN_REGELWERK.id).toBe('db-ril-800-0120')
     expect(WEICHEN_REGELWERK.title).toBe('DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen')
-    expect(WEICHEN_REGELWERK.katalog_version).toBe('0.2.0')
+    expect(WEICHEN_REGELWERK.katalog_version).toBe('0.3.0')
     expect(WEICHEN_REGELWERK.status).toBe('draft')
     // The Ril's own edition and validity date are stated nowhere.
     expect(WEICHEN_REGELWERK.version).toBeUndefined()
