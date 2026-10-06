@@ -215,7 +215,10 @@ export default function CrossoverGradientForm({ switchIds, ask = false, onDone }
         {plan?.ok && (
           <ul className="rule-findings">
             {mode === 'cant' && <li>{fill('crossover_u_from_heights', { exact: plan.uExact.toFixed(1), u: plan.u })}</li>}
-            <li>{fill('crossover_target', { u: plan.u, dz: (plan.u * Math.abs(frame.y) / 1500).toFixed(3) })}</li>
+            <li>{fill('crossover_now', {
+              b: nameOf(names[1]), a: nameOf(names[0]), start: signed(plan.now[0]), end: signed(plan.now[1]),
+            })}</li>
+            <li>{fill('crossover_target', { u: plan.u, b: nameOf(names[1]), a: nameOf(names[0]), dz: signed(plan.target) })}</li>
             {[0, 1].map(i => (
               <li key={i}>{fill('crossover_share', {
                 name: nameOf(names[i]),

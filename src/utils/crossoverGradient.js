@@ -396,10 +396,11 @@ function curveRun(chain, d) {
  * far it may be raised and lowered [m] — 0 where it may not move — and how
  * far before and after the crossover the change may reach [m].
  *
- * Returns { ok: false, reason, … } or { ok: true, u, uExact, y, e, shares,
- * heights: Map(trackId → heights), elements: Map(trackId → elements),
- * warnings } — `heights` and `elements` are the writes, `shares` what each
- * track moves at the zone's two ends.
+ * Returns { ok: false, reason, … } or { ok: true, u, uExact, y, e, now,
+ * target, shares, heights: Map(trackId → heights), elements: Map(trackId →
+ * elements), warnings } — `now` how far line 2 lies above line 1 at the
+ * zone's two ends as the tracks stand, `target` how far it has to, `heights`
+ * and `elements` the writes, `shares` what each track moves at those ends.
  */
 export function planCrossoverGradient(tracks, switches, crossover, { mode, cant, limits }) {
   const frame = crossoverFrame(tracks, switches, crossover)
@@ -489,7 +490,7 @@ export function planCrossoverGradient(tracks, switches, crossover, { mode, cant,
   }
 
   return {
-    ok: true, u: Math.abs(uSigned), uExact: Math.abs(uExact), y, e, shares, heights, elements,
+    ok: true, u: Math.abs(uSigned), uExact: Math.abs(uExact), y, e, now: deltaNow, target, shares, heights, elements,
     warnings: [...warnings], frame,
   }
 }
