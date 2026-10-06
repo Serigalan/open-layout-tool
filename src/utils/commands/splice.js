@@ -4,7 +4,7 @@ import { resolveEndBearing, reverseElement, nodeUtm } from '../elementUtils'
 import { reconstructElements } from '../elementReconstruct'
 import { cantSign, AUTO_CANT_MODEL } from '../rules/cant'
 import { minElementLength } from '../rules/elementLength'
-import { truncateHeights } from '../heightUtils'
+import { reverseHeights, splitHeights, trackLength } from '../heightUtils'
 import { elementStations, pointOnElement } from '../platformUtils'
 import { sectionAtStation } from '../crossSectionUtils'
 import { transformPlanePoint } from '../coordinateUtils'
@@ -162,14 +162,72 @@ export function spliceFromAnswer(answer, dep, arr, { clothoidEnabled, clothoidDe
   }
 }
 
+const lengthOf = (els) => els.reduce((sum, el) => sum + (el.length ?? 0), 0)
+const NODE_TOL = 1e-3      // m — two nodes this close are the same
+const STATION_TOL = 1e-6   // m — heightUtils' own
+
+const sameNode = (a, b) => Array.isArray(a) && Array.isArray(b)
+  && Math.abs(a[0] - b[0]) < NODE_TOL && Math.abs(a[1] - b[1]) < NODE_TOL
+
 /**
- * The vertical alignment the merged track starts with: the departure track's,
- * cut where its last element is re-shaped — everything from there on belongs
- * to a track that did not exist before and has no gradient until one is read
- * from the terrain on request (see elevationFill).
+ * How much of a picked element its re-shaped piece still runs over [m]: the
+ * piece starts on the element's own node `node` and has its curvature, so it
+ * lies on the element over the shorter of the two. 0 where it does not.
  */
-const spliceHeights = (depTrack, elIdx) => truncateHeights(depTrack.heights,
-  (depTrack.elements ?? []).slice(0, elIdx).reduce((sum, el) => sum + (el.length ?? 0), 0))
+function overlapOf(piece, orig, node, pieceNode) {
+  if (!piece || !sameNode(piece[pieceNode], node)) return 0
+  if (Math.abs(Math.abs(piece.radius ?? 0) - Math.abs(orig.radius ?? 0)) > 1e-6) return 0
+  return Math.min(piece.length ?? 0, orig.length ?? 0)
+}
+
+/** A point the merged gradient meets the splice at: a plain point, no curve. */
+const plain = ({ rv: _rv, ...p }) => p
+
+/**
+ * The vertical alignment of the merged track: the departure track's gradient
+ * as far as the merged track still runs over it, the arrival track's from
+ * where it does again, and between the two a single straight gradient from
+ * the one to the other — no point in between and no vertical curve at either
+ * end (decision 171). The stretch the splice inserts has no gradient of its
+ * own, so it takes the one that joins the two.
+ *
+ * Where only one of the tracks has a gradient up to its cut, the merged track
+ * keeps that one alone: nothing is made up for the other's side (decision 64).
+ */
+function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseArr, mergedLength }) {
+  const depOrig = depTrack.elements[dep.elIdx]
+  const arrOrig = arrTrack.elements[arr.elIdx]
+  const depPiece = chain.find(el => el.role === 'dep')
+  const arrPiece = [...chain].reverse().find(el => el.role === 'arr')
+  // The departure's gradient up to where the merged track leaves its element.
+  const depKeep = lengthOf(depTrack.elements.slice(0, dep.elIdx))
+    + overlapOf(depPiece, depOrig, depOrig.startNode, 'startNode')
+  // The arrival's from where the merged track runs on it again: its far end in
+  // travel, which is its start where it is folded in reversed.
+  const arrRest = reverseArr ? arrTrack.elements.slice(0, arr.elIdx) : arrTrack.elements.slice(arr.elIdx + 1)
+  const arrKeep = lengthOf(arrRest)
+    + overlapOf(arrPiece, arrOrig, reverseArr ? arrOrig.startNode : arrOrig.endNode, 'endNode')
+  const offset = mergedLength - arrKeep
+
+  const reaches = (h, station) => h?.length && Math.abs(h[h.length - 1].station - station) < STATION_TOL
+  const starts  = (h, station) => h?.length && Math.abs(h[0].station - station) < STATION_TOL
+  const depH = splitHeights(depTrack.heights, depKeep)[0]
+  let arrH
+  if (reverseArr) {
+    const [part] = splitHeights(arrTrack.heights, arrKeep)
+    arrH = part && reverseHeights(part, arrKeep)
+  } else {
+    arrH = splitHeights(arrTrack.heights, trackLength(arrTrack) - arrKeep)[1]
+  }
+  arrH = arrH?.map(p => ({ ...p, station: p.station + offset }))
+
+  const depOk = reaches(depH, depKeep) && depH.length >= 2
+  const arrOk = starts(arrH, offset) && arrH.length >= 2
+  if (depOk && arrOk) return [...depH.slice(0, -1), plain(depH.at(-1)), plain(arrH[0]), ...arrH.slice(1)]
+  if (depH?.length >= 2) return depH
+  if (arrH?.length >= 2) return arrH
+  return undefined
+}
 
 /**
  * The merged chain: what stays of the departure track, the service's chain,
@@ -219,7 +277,9 @@ export function buildSplice({ tracks, dep, arr, splice, speed, cant, newId = gen
   const elements = mergedChain(result.elements, reverseArr, dep, arr, depTrack, arrTrack, { speed, cant })
   const id = newId()
   const merged = recalcAbsLengths(elements)
-  const heights = spliceHeights(depTrack, dep.elIdx)
+  const heights = spliceHeights({
+    depTrack, arrTrack, dep, arr, chain: result.elements, reverseArr, mergedLength: lengthOf(merged),
+  })
   const { heights: _h, ...meta } = depTrack
   return {
     removeTrackIds: [dep.trackId, arr.trackId],

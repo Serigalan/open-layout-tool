@@ -100,8 +100,9 @@ describe('the track built from the answer', () => {
     // The arrival track runs on in its own direction: it is not folded in.
     expect(commit.remap).toEqual([{ oldId: 'a', newId: merged.id }, { oldId: 'b', newId: merged.id, flip: false }])
     expect(commit.consumed).toEqual([{ trackId: 'a', endpoint: 'END' }, { trackId: 'b', endpoint: 'BEGIN' }])
-    // The departure track's gradient ends where its last element is re-shaped.
-    expect(merged.heights).toBeUndefined()
+    // The departure track's gradient runs as far as the merged track runs over
+    // it: to the tangent point 100 m along. Track b has none to join.
+    expect(merged.heights).toEqual([{ station: 0, z: 100 }, { station: 100, z: 101 }])
   })
 
   it('puts transitions either side when asked', () => {
@@ -156,6 +157,50 @@ describe('the track built from the answer', () => {
     expect(merged.elements[3].endNode[0]).toBeCloseTo(onward[0], 6)
     expect(commit.remap[1]).toMatchObject({ oldId: 'f', flip: false })
     expect(commit.consumed[1]).toEqual({ trackId: 'f', endpoint: 'BEGIN' })
+  })
+
+  it('joins the gradients of both tracks with one straight gradient, no vertical curve at either end', () => {
+    // Track b climbs 6 m over its 600 m; the merged track runs on it from 200 m.
+    const bh = { ...b, heights: [{ station: 0, z: 110 }, { station: 600, z: 116 }] }
+    // Track a's crest at 100 m, rounded with R 5000 (T = 50 m): the cut falls on it.
+    const ah = { ...a, heights: [{ station: 0, z: 100 }, { station: 100, z: 101, rv: 5000 }, { station: 200, z: 100 }] }
+    const splice = spliceFromAnswer(answers.corner.answer, splicePick(ah, 0), splicePick(bh, 0), settings)
+    const commit = buildSplice({ tracks: [ah, bh], dep: splicePick(ah, 0), arr: splicePick(bh, 0), splice, speed: 60, cant: 40, newId })
+    const [merged] = commit.addTracks
+    const L = merged.elements.reduce((sum, el) => sum + el.length, 0)
+    const h = merged.heights
+    const j = h.findIndex(p => Math.abs(p.station - 100) < 1e-6)
+    // The departure's own curve runs up to the cut, and stops there.
+    expect(h[j - 1].rv).toBe(5000)
+    expect(h[j].rv).toBeUndefined()
+    expect(h[j].z).toBeCloseTo(101 - 50 ** 2 / (2 * 5000), 9)
+    // Then straight on to the arrival's gradient at its station 200 m: 112 m.
+    expect(h[j + 1]).toEqual({ station: expect.closeTo(L - 400, 6), z: expect.closeTo(112, 9) })
+    expect(h[j + 2]).toEqual({ station: expect.closeTo(L, 6), z: 116 })
+    expect(h).toHaveLength(j + 3)
+  })
+
+  it('takes over the gradient of an arrival folded in backwards', () => {
+    const { request, answer } = answers.arcsStraight
+    const c0 = track('c', [arcElement(at(request.dep.start), at(request.dep.end), request.dep.radius, { speed: 100 })])
+    const c = { ...c0, heights: [{ station: 0, z: 50 }, { station: c0.elements[0].length, z: 52 }] }
+    const d = track('d', [arcElement(at(request.arr.start), at(request.arr.end), request.arr.radius, { speed: 90 })])
+    const dLen = d.elements[0].length
+    const dh = { ...d, heights: [{ station: 0, z: 60 }, { station: dLen, z: 60 + dLen / 100 }] }
+    const dc = splicePick(c, 0), dd = splicePick(dh, 0)
+    const splice = spliceFromAnswer(answer, dc, dd, { ...settings, clothoidEnabled: true, clothoidDep: 40, clothoidArr: 40 })
+    const commit = buildSplice({ tracks: [c, dh], dep: dc, arr: dd, splice, speed: 70, cant: 0, newId })
+    const [merged] = commit.addTracks
+    const L = merged.elements.reduce((sum, el) => sum + el.length, 0)
+    const h = merged.heights
+    expect(h[0]).toEqual({ station: 0, z: 50 })
+    // The arrival runs backwards: its start, 60 m, is the merged track's end,
+    // and its height 120 m in — where the kept arc begins — the joint.
+    expect(h.at(-1).station).toBeCloseTo(L, 6)
+    expect(h.at(-1).z).toBeCloseTo(60, 9)
+    expect(h.at(-2).station).toBeCloseTo(L - 120, 6)
+    expect(h.at(-2).z).toBeCloseTo(60 + 1.2, 9)
+    expect(h.every(p => p.rv == null)).toBe(true)
   })
 
   it('has nothing to commit without a solution', () => {
