@@ -191,6 +191,91 @@ ok(f"arc to straight without transitions: chain holds ({chain_holds(res.get('ele
    "error" not in res and chain_holds(res["elements"]) is None)
 
 
+# ── the arrival a continuation: met at its start, run on its own way ─────────
+# The same ideal chains, the arrival element stored as it runs on — from the
+# splice away. Every arc case has to meet it at its start and keep its direction.
+
+def arrival_ahead(start, end, bearing_at_end, radius=None):
+    return pick(start, end, bearing_at_end, radius)
+
+
+A, bA, D, bD, E = mixed_chain()
+res = splice_payload({"dep": pick(P0, A, bA, 900.0), "arr": arrival_ahead(D, E, bD), "radius": 400, "lDep": 80, "lArr": 80})
+ok("arc on to a straight: no error", "error" not in res)
+if "error" not in res:
+    ok("arc on to a straight: the arrival runs on, not folded in", res["reverseArr"] is False)
+    ok(f"arc on to a straight: finds the arc of R -400 and 160 m back ({res['info']['arcLength']:.6f})",
+       res["info"]["signedR"] == -400 and abs(res["info"]["arcLength"] - 160.0) < 1e-3)
+    ok("arc on to a straight: ends at the straight's far end, in its direction",
+       near(res["elements"][-1]["endNode"], E, 1e-6) and abs(turn(res["elements"][-1]["bearing"], bD)) < 1e-6)
+    ok(f"arc on to a straight: chain holds ({chain_holds(res['elements'])})", chain_holds(res["elements"]) is None)
+
+# A straight running on into an arc: straight, transition, R -400, transition, R 900.
+E = along(P0, 20.0, 200.0)
+B, bB = trans_step(E, 20.0, 80.0, None, -400.0)
+C, bC = arc_step(B, bB, 160.0, -400.0)
+D, bD = trans_step(C, bC, 80.0, -400.0, 900.0)
+F, bF = arc_step(D, bD, 300.0, 900.0)
+res = splice_payload({"dep": pick(P0, E, 20.0), "arr": arrival_ahead(D, F, bF, 900.0), "radius": 400, "lDep": 80, "lArr": 80})
+ok("straight on to an arc: no error", "error" not in res)
+if "error" not in res:
+    els = res["elements"]
+    ok("straight on to an arc: runs on", res["reverseArr"] is False)
+    ok(f"straight on to an arc: finds the arc of R -400 and 160 m back ({res['info']['arcLength']:.6f})",
+       res["info"]["signedR"] == -400 and abs(res["info"]["arcLength"] - 160.0) < 1e-3)
+    ok("straight on to an arc: ends at the arc's far end on its own radius",
+       near(els[-1]["endNode"], F, 1e-6) and els[-1]["radius"] == 900.0)
+    ok(f"straight on to an arc: chain holds ({chain_holds(els)})", chain_holds(els) is None)
+
+r1, r2, L = 900.0, -700.0, 70.0
+A, bA = arc_step(P0, 20.0, 250.0, r1)
+S1, bS1 = trans_step(A, bA, L, r1, None)
+S2 = along(S1, bS1, 120.0)
+B, bB = trans_step(S2, bS1, L, None, r2)
+C, bC = arc_step(B, bB, 200.0, r2)
+res = splice_payload({"dep": pick(P0, A, bA, r1), "arr": arrival_ahead(B, C, bC, r2), "lDep": L, "lArr": L})
+ok("arcs on by a straight: no error", "error" not in res)
+if "error" not in res:
+    ok("arcs on by a straight: runs on", res["reverseArr"] is False)
+    ok(f"arcs on by a straight: finds the straight back ({res['info']['straightLength']:.6f})",
+       abs(res["info"]["straightLength"] - 120.0) < 1e-4)
+    ok("arcs on by a straight: the arrival arc keeps its radius and far end",
+       res["elements"][-1]["radius"] == r2 and near(res["elements"][-1]["endNode"], C, 1e-6))
+    ok(f"arcs on by a straight: chain holds ({chain_holds(res['elements'])})", chain_holds(res["elements"]) is None)
+
+for r1, r2, length, label in ((1000.0, 600.0, 120.0, "compound curve running on"), (800.0, -600.0, 150.0, "reverse curve running on")):
+    A, bA = arc_step(P0, 20.0, 300.0, r1)
+    B, bB = trans_step(A, bA, length, r1, r2)
+    C, bC = arc_step(B, bB, 250.0, r2)
+    res = splice_payload({"dep": pick(P0, A, bA, r1), "arr": arrival_ahead(B, C, bC, r2), "arcJoin": "transition"})
+    ok(f"{label}: no error", "error" not in res)
+    if "error" not in res:
+        ok(f"{label}: runs on", res["reverseArr"] is False)
+        ok(f"{label}: finds the transition length back ({res['info']['transitionLength']:.6f})",
+           abs(res["info"]["transitionLength"] - length) < 1e-4)
+        ok(f"{label}: arc, transition, arc with the radii", res["elements"][2]["radius"] == r2
+           and near(res["elements"][-1]["endNode"], C, 1e-6))
+        ok(f"{label}: chain holds ({chain_holds(res['elements'])})", chain_holds(res["elements"]) is None)
+
+# Line 5550 (EPSG 5678): track .00046 ends on 15 m of R 510 at a bearing of
+# 102.5°, .00253 runs on 150 m further at 115.6° — one way, a
+# continuation. Folding the straight in backwards asked for nearly a U-turn.
+dep_5550 = {"start": [4468124.249792, 5333465.913663], "end": [4468138.953721783, 5333462.876345586],
+            "bearing": 102.51457363522997, "radius": 510.0}
+arr_5550 = {"start": [4468280.554942, 5333410.790463], "end": [4468321.738641341, 5333391.050201301],
+            "bearing": 115.60943487690275, "radius": None}
+res = splice_payload({"dep": dep_5550, "arr": arr_5550, "radius": 700})
+ok("line 5550: R 700 runs on from the arc to the straight", "error" not in res and res["reverseArr"] is False)
+if "error" not in res:
+    ok("line 5550: re-shaped arc, new arc, lengthened straight",
+       [(e["elementType"], e["role"]) for e in res["elements"]] == [(1, "dep"), (1, "new"), (0, "arr")])
+    ok("line 5550: ends at the straight's far end",
+       near(res["elements"][-1]["endNode"], arr_5550["end"], 1e-6))
+    ok(f"line 5550: chain holds ({chain_holds(res['elements'])})", chain_holds(res["elements"]) is None)
+ok("line 5550: R 500 does not fit",
+   splice_payload({"dep": dep_5550, "arr": arr_5550, "radius": 500}).get("error") == "splice_error_no_fit")
+
+
 # ── what a malformed request does ────────────────────────────────────────────
 try:
     splice_payload({"dep": {"start": [0, 0]}, "arr": b, "radius": 300})

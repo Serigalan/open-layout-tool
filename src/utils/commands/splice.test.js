@@ -133,6 +133,31 @@ describe('the track built from the answer', () => {
     expect(commit.consumed[1]).toEqual({ trackId: 'd', endpoint: 'END' })
   })
 
+  it('runs on into an arrival track that points the same way, keeping what follows', () => {
+    const { request, answer } = answers.arcOnToStraight
+    const e = track('e', [arcElement(at(request.dep.start), at(request.dep.end), request.dep.radius, { speed: 100, cant: 40 })])
+    const [fe, fn] = request.arr.end
+    const rad = request.arr.bearing * Math.PI / 180
+    const onward = [fe + 100 * Math.sin(rad), fn + 100 * Math.cos(rad)]
+    const f = track('f', [
+      straightElement(at(request.arr.start), at(request.arr.end), { speed: 90 }),
+      straightElement(at(request.arr.end), at(onward), { speed: 120 }),
+    ])
+    const de = splicePick(e, 0), df = splicePick(f, 0)
+    const splice = spliceFromAnswer(answer, de, df, { ...settings, radius: 400 })
+    const commit = buildSplice({ tracks: [e, f], dep: de, arr: df, splice, speed: 70, cant: 30, newId })
+    const [merged] = commit.addTracks
+    expectValidTrack(merged)
+    expect(merged.elements.map(el => el.elementType)).toEqual([1, 1, 0, 0])
+    expect(merged.elements[1]).toMatchObject({ radius: -400, cant: -30, speed: 70 })
+    // The arrival track runs on in its own direction, its next element kept.
+    expect(merged.elements[2].speed).toBe(90)
+    expect(merged.elements[3]).toMatchObject({ speed: 120 })
+    expect(merged.elements[3].endNode[0]).toBeCloseTo(onward[0], 6)
+    expect(commit.remap[1]).toMatchObject({ oldId: 'f', flip: false })
+    expect(commit.consumed[1]).toEqual({ trackId: 'f', endpoint: 'BEGIN' })
+  })
+
   it('has nothing to commit without a solution', () => {
     expect(buildSplice({ tracks: [a, b], dep, arr, splice: { error: 'x' }, speed: 0, cant: 0 })).toBe(null)
   })

@@ -180,8 +180,8 @@ const spliceHeights = (depTrack, elIdx) => truncateHeights(depTrack.heights,
 function mergedChain(chain, reverseArr, dep, arr, depTrack, arrTrack, { speed, cant }) {
   const depOrig = depTrack.elements[dep.elIdx]
   const arrOrig = arrTrack.elements[arr.elIdx]
-  // The arrival is folded in reversed (a corner, every arc case) or run on in
-  // its own direction (a continuation of two straights).
+  // The arrival is folded in reversed (a corner) or run on in its own
+  // direction (a continuation) — the service says which.
   const arrBase = reverseArr ? reverseElement(arrOrig) : arrOrig
   const plane = ({ role: _role, ...el }) => el
   const keepCant = (el, orig) => (orig?.cant != null && el.radius != null

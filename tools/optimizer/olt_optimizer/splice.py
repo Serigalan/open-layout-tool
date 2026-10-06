@@ -8,9 +8,13 @@ src/utils/spliceUtils.js.
 The two picked elements come in the plane of their track (one CRS for both):
 each with its two ends, the bearing at its picked end in the element's own
 direction and its signed radius (None for a straight). The departure element
-runs into the splice at its end; the arrival element is met at its end too and
-traversed against its direction — unless two straights point the same way, in
-which case the arrival is a continuation and met at its start.
+runs into the splice at its end. The arrival element is met either at its end
+and traversed against its direction (a corner, `reverseArr`) or at its start
+and run on in its own direction (a continuation). Two straights are met the
+way that turns less, or the other where only that one fits; an arc case is
+met at the arrival's end nearer the departure — its own geometry, unlike two
+straights, leaves no way that merely turns less, and a fallback would let the
+search for the largest radius slip into a loop the other way round.
 
 What comes back is the chain from the departure element's start to the far end
 of the arrival element, in travel order, every element in the app's plane form
@@ -484,7 +488,9 @@ def splice_arc_straight(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoi
     if math.hypot(b["start"][0] - c["end"][0], b["start"][1] - c["end"][1]) > 1e-6:
         els.append(straight(c["end"], b["start"], role_b))
     if not arc_is_dep:
+        # Solved read backwards: the chain, and the hand of the new arc, turned round.
         els = [reversed_element(el) for el in reversed(els)]
+        rn = -rn
     return {"elements": els, "reverseArr": True, "info": {"arcLength": c["arc_len"], "signedR": rn}}
 
 
@@ -506,15 +512,48 @@ def _pick(raw):
     }
 
 
+def _start_bearing(p):
+    """The bearing at a pick's start, in its own direction."""
+    if p["radius"] is None:
+        return p["bearing"]
+    r = p["radius"]
+    centre = _centre_of(p["end"], p["bearing"], r)
+    v = (centre[0] - p["start"][0], centre[1] - p["start"][1])
+    # The centre lies `r` to the right of the tangent: (cos b, -sin b) · r.
+    return (math.atan2(-v[1] / r, v[0] / r) * RAD2DEG) % 360.0
+
+
+def _flipped(p):
+    """The pick run the other way. The arc constructions meet the arrival at its
+    end and traverse it backwards; handed the arrival flipped, they meet it at
+    its start and run it on in its own direction — a continuation."""
+    return {
+        **p, "start": p["end"], "end": p["start"],
+        "bearing": (_start_bearing(p) + 180.0) % 360.0,
+        "radius": -p["radius"] if p["radius"] is not None else None,
+    }
+
+
 def _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join):
     """The splice of the case the two picks make (raises SpliceError)."""
     if dep["radius"] is None and arr["radius"] is None:
         return splice_straights(dep, arr, radius, l_dep, l_arr, profile)
     if dep["radius"] is not None and arr["radius"] is not None:
         if arc_join == "transition":
-            return splice_arcs_transition(dep, arr, profile)
-        return splice_arcs_straight(dep, arr, l_dep, l_arr, profile)
-    return splice_arc_straight(dep, arr, radius, l_dep, l_arr, profile)
+            def build(d, a):
+                return splice_arcs_transition(d, a, profile)
+        else:
+            def build(d, a):
+                return splice_arcs_straight(d, a, l_dep, l_arr, profile)
+    else:
+        def build(d, a):
+            return splice_arc_straight(d, a, radius, l_dep, l_arr, profile)
+    # The arrival is joined at its end nearer the departure: its end — a corner,
+    # traversed backwards — or its start, a continuation run on as it is.
+    reverse = math.dist(dep["end"], arr["end"]) < math.dist(dep["end"], arr["start"])
+    res = build(dep, arr if reverse else _flipped(arr))
+    res["reverseArr"] = reverse
+    return res
 
 
 def _with_clearance(dep, arr, radius, l_dep, l_arr, profile, arc_join, cl):

@@ -39,11 +39,20 @@ x, y, b2 = transition_end(s2[0], s2[1], b1, 40.0, None, -900.0, "clothoid")
 d_far, _ = _arc_forward(x, y, b2, -900.0, 120.0 / 900.0)
 d = {"start": list(d_far), "end": [x, y], "bearing": (b2 + 180.0) % 360.0, "radius": 900.0}
 
+# An arc running on into a straight: e (R 900, right) – R 400 left – the
+# straight f, stored as it runs on away from the splice, so it is met at its start.
+e_end, e_b = _arc_forward(E0, N0, 20.0, 900.0, 300.0 / 900.0)
+f_start, b3 = _arc_forward(e_end[0], e_end[1], e_b, -400.0, 160.0 / 400.0)
+f_end = (f_start[0] + 200.0 * math.sin(math.radians(b3)), f_start[1] + 200.0 * math.cos(math.radians(b3)))
+e = {"start": [E0, N0], "end": list(e_end), "bearing": e_b, "radius": 900.0}
+f = {"start": list(f_start), "end": list(f_end), "bearing": b3, "radius": None}
+
 base = {"radius": 300, "lDep": 0, "lArr": 0, "transition": "clothoid", "arcJoin": "straight"}
 cases = {
     "corner": {**base, "dep": a, "arr": b},
     "cornerTransitions": {**base, "dep": a, "arr": b, "lDep": 60, "lArr": 60},
     "arcsStraight": {**base, "dep": c, "arr": d, "lDep": 40, "lArr": 40},
+    "arcOnToStraight": {**base, "dep": e, "arr": f, "radius": 400},
 }
 out = {name: {"request": req, "answer": splice_payload(req)} for name, req in cases.items()}
 for name, case in out.items():
