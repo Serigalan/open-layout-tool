@@ -13,6 +13,9 @@ import { fillHeights } from '../utils/elevationFill'
 import { chosenTerrainSource } from '../utils/elevationSource'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
+import usePreview from '../map/usePreview'
+import { pointAtStation } from '../utils/platformUtils'
+import { utmToWgs84 } from '../utils/coordinateUtils'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
@@ -31,6 +34,22 @@ const GRADE_LABEL_MIN_PX = 46
 // stay from a point already there.
 const INSERT_HIT_PX = 8
 const INSERT_POINT_GAP_PX = 7
+// Where the cursor stands on the profile, shown on the map: a dot on the
+// track at that station.
+const CURSOR_SOURCE = 'elevation-cursor-source'
+const CURSOR_LAYERS = [{
+  sourceId: CURSOR_SOURCE,
+  layer: {
+    id: 'elevation-cursor-layer', type: 'circle',
+    paint: {
+      'circle-radius': 6,
+      'circle-color': PALETTE.mapHover,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': PALETTE.white,
+    },
+  },
+}]
+
 /** A gradient in ‰, signed — a rise is written with its plus, a level stretch as 0. */
 const gradeLabel = (perMille) => {
   const v = Number(perMille.toFixed(1)) || 0   // ... and never as "-0.0"
@@ -57,6 +76,9 @@ const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
  * tangent points. Every stretch is labelled with its gradient in ‰. Any point
  * but the two ends of the track can be deleted. A double click on the
  * gradient splits it there with a new point at its height.
+ *
+ * Wherever the cursor stands over the profile, its station is marked on the
+ * map, on the track — the dot follows the cursor.
  *
  * Where the cross section in its own window stands on this track, its station
  * is marked as on the map — the line across and the height the track is built
@@ -92,6 +114,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const [rvDraft, setRvDraft]   = useState('')     // vertical curve radius of the selection
   const [band, setBand]         = useState(null)     // rubber band { x0, y0, x1, y1 } while Shift-dragging
   const [hover, setHover]       = useState(null)     // { station, z } a double click would add a point at
+  const [cursor, setCursor]     = useState(null)     // station [m] the cursor stands over, shown on the map
   const bodyRef = useRef(null)
   const svgRef  = useRef(null)
   const size = useElementSize(bodyRef)                // { w, h } of the drawing area
@@ -177,6 +200,15 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     const z = v.z0 + (size.h - MARGIN.bottom - py) / (v.k * exaggeration)
     return { k, x0: s - (px - MARGIN.left) / k, z0: z - (size.h - MARGIN.bottom - py) / (k * exaggeration) }
   }), !!size)
+
+  // ── The cursor's station on the map ──────────────────────────────────────
+  const cursorPreview = usePreview(CURSOR_LAYERS)
+  useEffect(() => {
+    const point = track && cursor != null ? pointAtStation(track, cursor) : null
+    if (!point) { cursorPreview.clear(); return }
+    const [lng, lat] = utmToWgs84(point.utm.easting, point.utm.northing, track.epsg)
+    cursorPreview.set(CURSOR_SOURCE, { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lng, lat] } })
+  }, [track, cursor, cursorPreview])
 
   // ── Pan by dragging, pick a group of points with Shift ────────────────────
   // A drag that stays put is a click on the background: it drops the selection.
@@ -274,6 +306,13 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
       || x - X(a.station) < INSERT_POINT_GAP_PX || X(b.station) - x < INSERT_POINT_GAP_PX) return null
     return { station, z, ...r }
   }
+  // The station under the cursor, on the track — or null beside the plot.
+  const cursorAt = ({ x, y }) => {
+    if (!view || !size || x < MARGIN.left || x > size.w - MARGIN.right
+      || y < MARGIN.top || y > size.h - MARGIN.bottom) return null
+    const station = view.x0 + (x - MARGIN.left) / view.k
+    return station >= 0 && station <= (profile?.length ?? 0) ? station : null
+  }
   const showInsert = (e) => {
     const c = e.buttons ? null : insertAt(svgXY(e))
     setHover(h => (h?.station === c?.station ? h : c && { station: c.station, z: c.z }))
@@ -329,6 +368,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const sectionStation = section?.trackId === trackId && Number.isFinite(section.station)
     ? clamp(section.station, 0, profile.length) : null
   const sectionZ = sectionStation != null ? trackHeightAt(tracks, switches, track, sectionStation) : null
+  const cursorZ = cursor != null ? trackHeightAt(tracks, switches, track, cursor) : null
 
   const drawing = () => {
     if (!size || !view) return null
@@ -361,8 +401,8 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
       <svg ref={svgRef} className={`profile-svg${drag.dragging ? ' dragging' : ''}`} width={size.w} height={size.h}
         style={hover && !drag.dragging ? { cursor: 'copy' } : undefined}
         {...drag.handlers}
-        onPointerMove={e => { drag.handlers.onPointerMove(e); showInsert(e) }}
-        onPointerLeave={() => setHover(null)}
+        onPointerMove={e => { drag.handlers.onPointerMove(e); showInsert(e); setCursor(cursorAt(svgXY(e))) }}
+        onPointerLeave={() => { setHover(null); setCursor(null) }}
         onDoubleClick={insert}>
         <defs>
           <clipPath id="profile-clip"><rect x={MARGIN.left} y={MARGIN.top} width={plotW} height={plotH} /></clipPath>
@@ -446,6 +486,15 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               )}
             </g>
           )}
+          {cursor != null && (
+            <g pointerEvents="none">
+              <line x1={X(cursor)} x2={X(cursor)} y1={MARGIN.top} y2={bottom}
+                stroke={PALETTE.mapHover} strokeWidth="1" strokeDasharray="2 2" />
+              {cursorZ != null && (
+                <circle cx={X(cursor)} cy={Y(cursorZ)} r="3.5" fill={PALETTE.mapHover} stroke={PALETTE.white} strokeWidth="1.5" />
+              )}
+            </g>
+          )}
           {hover && (
             <circle cx={X(hover.station)} cy={Y(hover.z)} r="4" fill={PALETTE.white}
               stroke="var(--color-primary)" strokeWidth="1.5" strokeDasharray="2 2" pointerEvents="none" />
@@ -473,6 +522,12 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               station: sectionStation.toFixed(1),
               z: sectionZ != null ? ` · ${sectionZ.toFixed(2)} m` : '',
             })}
+          </text>
+        )}
+        {cursor != null && sectionStation == null && (
+          <text x={clamp(X(cursor), MARGIN.left + 40, right - 40)} y={MARGIN.top - 6} fontSize="10" fill={PALETTE.mapHover}
+            textAnchor="middle" pointerEvents="none">
+            {`${cursor.toFixed(1)} m${cursorZ != null ? ` · ${cursorZ.toFixed(3)} m` : ''}`}
           </text>
         )}
         {band && (
