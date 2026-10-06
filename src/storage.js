@@ -1,8 +1,8 @@
 import { SCHEMA_VERSION, hydrateProjects, dehydrateProjects } from './utils/persistenceUtils'
-import { elementBelongsToSwitch, unmarkSwitchElement } from './utils/switchModel'
+import { elementBelongsToSwitch, portsOf, unmarkSwitchElement } from './utils/switchModel'
 import { rebuildSwitchSymbol } from './utils/switch/symbol'
-import { splitHeights } from './utils/heightUtils'
-import { flipSwitchEndpoints, makeTrack, portTracks, referencesTrack, remapSwitches, reverseTrack } from './utils/trackModel'
+import { sliceHeights } from './utils/heightUtils'
+import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTrack, remapSwitches, reverseTrack } from './utils/trackModel'
 import { generateId } from './utils/identifierUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
@@ -590,33 +590,46 @@ export function switchesOnTrack(trackId) {
 
 /** The project without `trackId` — see deleteTrack. */
 function withoutTrack(project, trackId) {
-  const tracks   = project.tracks ?? []
-  const switches = project.switches ?? []
+  const doomed = (project.switches ?? []).filter(sw => referencesTrack(sw, trackId))
+  const next = withoutSwitches(project, doomed, [trackId])
+  return {
+    ...next,
+    tracks: next.tracks.filter(t => t.id !== trackId),
+    ...(next.platforms?.length ? { platforms: next.platforms.filter(p => p.trackId !== trackId) } : {}),
+  }
+}
 
-  // A track that is nothing but this switch's own geometry. Asking whose
-  // geometry it is — and not merely whether it is some switch's — keeps a track
-  // two turnouts share, as a crossover's connection is, out of one of them.
+/**
+ * The project without the switches `doomed`, and without the tracks that were
+ * nothing but one of their own geometry — a track whose elements all belong
+ * to that switch's branch. Asking whose geometry it is — and not merely
+ * whether it is some switch's — keeps a track two turnouts share, as a
+ * crossover's connection is, out of one of them. `alsoGone` are tracks the
+ * caller removes anyway. The tracks that stay keep their geometry, but no
+ * longer a gone switch's marks: an element naming a switch that is gone would
+ * point at nothing.
+ */
+function withoutSwitches(project, doomed, alsoGone = []) {
+  if (!doomed.length) return project
+  const tracks = project.tracks ?? []
   const isBranchTrack = (id, sw) => {
     const tr = tracks.find(t => t.id === id)
     const els = tr?.elements ?? []
     return els.length > 0 && els.every(el => el.switchBranch && elementBelongsToSwitch(el, sw))
   }
-
-  const doomed  = new Set(switches.filter(sw => referencesTrack(sw, trackId)))
-  const removed = new Set([trackId])
-  doomed.forEach(sw => portTracks(sw).forEach(id => { if (isBranchTrack(id, sw)) removed.add(id) }))
-
-  // The tracks that stay keep their geometry, but no longer a switch's marks:
-  // an element naming a switch that is gone would point at nothing.
-  const goneIds = new Set([...doomed].map(sw => sw.switchId).filter(Boolean))
+  const removed = new Set(alsoGone)
+  const branchGone = new Set()
+  doomed.forEach(sw => portTracks(sw).forEach(id => { if (isBranchTrack(id, sw)) { removed.add(id); branchGone.add(id) } }))
+  const goneIds = new Set(doomed.map(sw => sw.switchId).filter(Boolean))
+  const doomedSet = new Set(doomed)
   return {
     ...project,
-    tracks: tracks.filter(t => !removed.has(t.id)).map(t => (
+    tracks: tracks.filter(t => !branchGone.has(t.id)).map(t => (
       (t.elements ?? []).some(el => el.switchId && goneIds.has(el.switchId))
         ? { ...t, elements: t.elements.map(el => (el.switchId && goneIds.has(el.switchId) ? unmarkSwitchElement(el) : el)) }
         : t)),
-    switches: switches.filter(sw => !doomed.has(sw)),
-    ...(project.platforms?.length ? { platforms: project.platforms.filter(p => !removed.has(p.trackId)) } : {}),
+    switches: (project.switches ?? []).filter(sw => !doomedSet.has(sw)),
+    ...(project.platforms?.length ? { platforms: project.platforms.filter(p => !branchGone.has(p.trackId)) } : {}),
   }
 }
 
@@ -667,37 +680,104 @@ export function remapSwitchTrackIds(remap, { consumed = [] } = {}) {
 }
 
 export function deleteElement(trackId, elementIndex) {
-  return mutate(p => {
-    const track = (p.tracks ?? []).find(t => t.id === trackId)
-    if (!track?.elements) return p
+  return deleteElements([{ trackId, elementIndex: Number(elementIndex) }])
+}
 
-    const idx    = Number(elementIndex)
-    const before = track.elements.slice(0, idx)
-    const after  = track.elements.slice(idx + 1)
+/**
+ * Delete elements — any number, on any tracks — as one undo step. What is
+ * left of a track falls apart into its runs of elements still next to each
+ * other, each a track of its own: the first keeps the track's name, the
+ * others take the next free one. A track with nothing left goes the way
+ * deleteTrack takes one.
+ *
+ * The vertical alignment is the track's, stationed along it: each run keeps
+ * its stretch of it, and where the gradient runs over a cut it gets a height
+ * point there at the height the gradient has (sliceHeights).
+ *
+ * A switch standing at an end that is deleted has lost that end and goes with
+ * its own branch, as with deleteTrack; the others stay on the run that holds
+ * their end. End marks on a deleted end go, the others follow their end.
+ * A platform stays where its run holds it whole, re-stationed, and goes where
+ * the cut runs through it.
+ *
+ * `picks` is [{ trackId, elementIndex }].
+ */
+export function deleteElements(picks) {
+  return mutate(p => withoutElements(p, picks))
+}
 
-    const beforeId = generateId()
-    const afterId  = generateId()
+function withoutElements(project, picks) {
+  const byTrack = new Map()
+  for (const { trackId, elementIndex } of picks ?? []) {
+    if (!byTrack.has(trackId)) byTrack.set(trackId, new Set())
+    byTrack.get(trackId).add(Number(elementIndex))
+  }
+  const names = new Set((project.tracks ?? []).map(t => t.name).filter(Boolean))
+  const replaced = new Map()   // old track id → its runs
+  const remap = [], logged = [], deadEnds = [], emptied = []
+  let platforms = project.platforms
+  for (const [trackId, gone] of byTrack) {
+    const track = (project.tracks ?? []).find(t => t.id === trackId)
+    const els = track?.elements ?? []
+    if (!els.some((_, i) => gone.has(i))) continue
+    if (els.every((_, i) => gone.has(i))) { emptied.push(trackId); continue }
 
-    // The vertical alignment is stationed along the track: the stretch over the
-    // deleted element goes with it, the tail restarts at 0.
-    const cutAt   = before.reduce((sum, el) => sum + (el.length ?? 0), 0)
-    const [headH] = splitHeights(track.heights, cutAt)
-    const [, tailH] = splitHeights(track.heights, cutAt + (track.elements[idx]?.length ?? 0))
+    // The runs of elements left, with the stretch of the track each covers.
+    const runs = []
+    let station = 0
+    els.forEach((el, i) => {
+      const len = el.length ?? 0
+      if (!gone.has(i)) {
+        const last = runs[runs.length - 1]
+        if (last && last.to === i - 1) { last.to = i; last.s1 = station + len }
+        else runs.push({ from: i, to: i, s0: station, s1: station + len })
+      }
+      station += len
+    })
+    const prefix = (track.name?.split('.')[0]) || 'track'
+    const pieces = runs.map((run, k) => {
+      const piece = makeTrack(track, els.slice(run.from, run.to + 1), generateId(), sliceHeights(track.heights, run.s0, run.s1))
+      if (k > 0 && track.name) {
+        piece.name = nextTrackName(prefix, names)
+        names.add(piece.name)
+      }
+      return { ...run, track: piece }
+    })
+    replaced.set(trackId, pieces.map(r => r.track))
 
-    const newTracks = []
-    if (before.length > 0) newTracks.push(makeTrack(track, before, beforeId, headH))
-    if (after.length > 0)  newTracks.push(makeTrack(track, after,  afterId, tailH))
+    const keepsBegin = !gone.has(0), keepsEnd = !gone.has(els.length - 1)
+    if (!keepsBegin) deadEnds.push({ trackId, endpoint: 'BEGIN' })
+    if (!keepsEnd) deadEnds.push({ trackId, endpoint: 'END' })
+    remap.push({ oldId: trackId, newId: [keepsBegin ? pieces[0].track.id : null, keepsEnd ? pieces[pieces.length - 1].track.id : null] })
+    logged.push({ oldId: trackId, newId: pieces.map(r => r.track.id) })
 
-    const remap = [{ oldId: trackId, newId: [beforeId, afterId] }]
-    const next = {
-      ...p,
-      tracks:   (p.tracks ?? []).filter(t => t.id !== trackId).concat(newTracks),
-      switches: remapSwitches(p.switches ?? [], remap),
-      endMarks: remapEndMarks(p.endMarks, remap),
-    }
-    logRemap(next, remap)
-    return next
-  })
+    platforms = platforms?.flatMap(pl => {
+      if (pl.trackId !== trackId) return [pl]
+      const lo = Math.min(pl.startStation ?? 0, pl.endStation ?? 0), hi = Math.max(pl.startStation ?? 0, pl.endStation ?? 0)
+      const run = pieces.find(r => lo >= r.s0 - 1e-6 && hi <= r.s1 + 1e-6)
+      return run ? [{ ...pl, trackId: run.track.id,
+        startStation: (pl.startStation ?? 0) - run.s0, endStation: (pl.endStation ?? 0) - run.s0 }] : []
+    })
+  }
+
+  if (!replaced.size && !emptied.length) return project
+
+  // The switches standing at a deleted end go, as deleteTrack lets them.
+  const dead = new Set(deadEnds.map(e => `${e.trackId}|${e.endpoint}`))
+  const doomed = (project.switches ?? []).filter(sw => portsOf(sw).some(pt => dead.has(`${sw[pt.trackKey]}|${sw[pt.endKey]}`)))
+  let next = {
+    ...project,
+    tracks: (project.tracks ?? []).flatMap(t => replaced.get(t.id) ?? [t]),
+    ...(platforms ? { platforms } : {}),
+  }
+  next = withoutSwitches(next, doomed)
+  next = {
+    ...next,
+    switches: remapSwitches(next.switches ?? [], remap),
+    endMarks: remapEndMarks(next.endMarks, remap, deadEnds),
+  }
+  logRemap(next, logged)
+  return emptied.reduce(withoutTrack, next)
 }
 
 /**

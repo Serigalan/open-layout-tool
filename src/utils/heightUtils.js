@@ -207,15 +207,28 @@ function mendCurveAt(points, j) {
 /**
  * The heights of a track whose stretch from `at` on has been re-shaped — an
  * element's length edited, a track spliced. What lies before `at` keeps its
- * points and the point at `at` itself is kept as the new end; the rest is
- * dropped and the stretch stays without a gradient until it is read from
- * the terrain on request (see elevationFill). Undefined when nothing is left
- * to keep.
+ * points, and `at` itself gets one at the height the gradient has there (the
+ * rounded one, see splitHeights), so the kept gradient reaches the element
+ * boundary; the rest is dropped and the stretch stays without a gradient
+ * until it is read from the terrain on request (see elevationFill).
+ * Undefined when nothing is left to keep.
  */
 export function truncateHeights(heights, at) {
   if (!heights?.length || !(at > 0)) return undefined
-  const kept = heights.filter(p => p.station <= at + STATION_TOL)
-  return kept.length >= 2 ? kept : undefined
+  const [kept] = splitHeights(heights, at)
+  return kept?.length >= 2 ? kept : undefined
+}
+
+/**
+ * The heights of the stretch [from, to] of a track, restationed to begin at 0:
+ * cut at both ends the way splitHeights cuts, so where the gradient runs over
+ * a cut it gets a point there. Undefined where the stretch keeps fewer than
+ * two points.
+ */
+export function sliceHeights(heights, from, to) {
+  const [head] = splitHeights(heights, to)
+  const [, piece] = splitHeights(head, from)
+  return piece?.length >= 2 ? piece : undefined
 }
 
 /** The heights of a track that has been reversed: mirrored about its length. */

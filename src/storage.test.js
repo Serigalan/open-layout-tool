@@ -3,7 +3,7 @@ import {
   withUndo, openProject, saveTrack, saveSwitch, loadTracks, loadSwitches,
   undo, canUndo, loadImportReports, saveImportReport, clearImportReports,
   loadPlanHeader, savePlanHeader, exportProjectsPayload,
-  saveEndMark, loadEndMarks, deleteEndMark, deleteElement, reverseTrackDirection, deleteTrack,
+  saveEndMark, loadEndMarks, deleteEndMark, deleteElement, deleteElements, reverseTrackDirection, deleteTrack,
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
   openWorkingCopy, currentWorkingCopy, markCheckedIn, adoptWorkingCopy, closeWorkingCopy, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
@@ -221,6 +221,60 @@ describe('the id log of splits and joins (decision 93)', () => {
       addSwitches: [], remap: [{ oldId: 'line', newId: ['l1', 'l2'] }],
     })
     expect(loadIdLog()).toEqual([{ from: 'line', to: ['l1', 'l2'] }])
+  })
+})
+
+describe('deleting several elements at once', () => {
+  // Five straights of 100 m end to end, climbing 1 m per 100 m; one point at
+  // 250 m rounds a change from 10 to 20 per mille with R 10000 (T = 50 m).
+  const el = (i) => ({ elementType: 0, length: 100, bearing: 90, startNode: [i * 100, 0], endNode: [i * 100 + 100, 0] })
+  const heights = [{ station: 0, z: 100 }, { station: 250, z: 102.5, rv: 10000 }, { station: 500, z: 107.5 }]
+  const setup = (id, extra = {}) => openProject({
+    id, tracks: [{ id: 't', name: '5550.00200', elements: [0, 1, 2, 3, 4].map(el), heights }], switches: [], ...extra,
+  })
+
+  it('leaves the runs between them as tracks, in one undo step', () => {
+    setup('md1')
+    deleteElements([{ trackId: 't', elementIndex: 1 }, { trackId: 't', elementIndex: 3 }])
+    const tracks = loadTracks()
+    expect(tracks.map(t => t.elements.length)).toEqual([1, 1, 1])
+    expect(tracks[0].name).toBe('5550.00200')
+    expect(new Set(tracks.map(t => t.name)).size).toBe(3)
+    undo()
+    expect(loadTracks().map(t => t.id)).toEqual(['t'])
+  })
+
+  it('gives each run a height point at its cuts, on the gradient as built', () => {
+    setup('md2')
+    deleteElements([{ trackId: 't', elementIndex: 1 }, { trackId: 't', elementIndex: 3 }])
+    const [a, b, c] = loadTracks()
+    expect(a.heights).toEqual([{ station: 0, z: 100 }, { station: 100, z: 101 }])
+    // 200–300 m: the curve from 200 to 300 m, cut at both of its tangent points.
+    expect(b.heights[0]).toEqual({ station: 0, z: 102 })
+    expect(b.heights.at(-1).station).toBe(100)
+    expect(b.heights.at(-1).z).toBeCloseTo(103.5, 9)
+    expect(b.heights.some(p => p.rv === 10000)).toBe(true)
+    expect(c.heights).toEqual([{ station: 0, z: expect.closeTo(105.5, 9) }, { station: 100, z: 107.5 }])
+  })
+
+  it('takes the switch at a deleted end with it, and moves a platform onto its run', () => {
+    setup('md3', {
+      tracks: [
+        { id: 't', name: 'a.001', elements: [0, 1, 2].map(el) },
+        { id: 'b', elements: [{ ...el(3), switchBranch: true, switchId: 'w', switchRoute: 'branch' }] },
+      ],
+      platforms: [{ id: 'pl', trackId: 't', startStation: 220, endStation: 280 }, { id: 'p2', trackId: 't', startStation: 50, endStation: 150 }],
+    })
+    saveSwitch({ switchId: 'w', kind: 'turnout', portA_trackId: 't', portA_endpoint: 'END', portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'x', portB2_endpoint: 'BEGIN' })
+    deleteElements([{ trackId: 't', elementIndex: 1 }])
+    expect(loadSwitches()).toHaveLength(1)
+    deleteElements([{ trackId: loadTracks().find(t => t.elements[0].startNode[0] === 200).id, elementIndex: 0 }])
+    // The switch stood at the end that went: it goes with its branch.
+    expect(loadSwitches()).toEqual([])
+    expect(loadTracks().map(t => t.elements[0].startNode[0])).toEqual([0])
+    undo()
+    const plat = currentProject().platforms
+    expect(plat).toEqual([{ id: 'pl', trackId: loadTracks().find(t => t.elements[0].startNode[0] === 200).id, startStation: 20, endStation: 80 }])
   })
 })
 

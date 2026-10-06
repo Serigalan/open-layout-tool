@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useMap } from './MapContext'
 import useMapEvents from './useMapEvents'
 import { TRACKS_HOVER_LAYER, TRACKS_LAYER, TRACKS_SELECTED_LAYER } from './layerIds'
-import { FILTER_NONE, filterForElement, filterForSwitch, filterForTrack, mapIsLive, notSwitchBranch, pickAt } from './pick'
+import { FILTER_NONE, filterForElement, filterForElements, filterForSwitch, filterForTrack, mapIsLive, notSwitchBranch, pickAt } from './pick'
 
 /**
  * Picking on the map (R3.1) — the one way a panel asks the user to click a
@@ -66,6 +66,12 @@ export default function useMapPick({
 function selectionFilter(sel) {
   if (!sel) return FILTER_NONE
   if (sel.switchId) return filterForSwitch(sel.switchId)
+  if (sel.elements) {
+    // Several elements, on one track or more.
+    const byTrack = new Map()
+    for (const { trackId, elementIndex } of sel.elements) byTrack.set(trackId, [...(byTrack.get(trackId) ?? []), elementIndex])
+    return byTrack.size ? ['any', ...[...byTrack].map(([id, idx]) => filterForElements(id, idx))] : FILTER_NONE
+  }
   if (sel.elementIndex != null) return filterForElement(sel.trackId, sel.elementIndex)
   if (sel.trackId) return filterForTrack(sel.trackId)
   return FILTER_NONE
@@ -73,12 +79,13 @@ function selectionFilter(sel) {
 
 /**
  * What a panel has picked, drawn on the selection layer (R3.1) — a switch,
- * a whole track or one element — for as long as the panel shows it, and
+ * a whole track, one element or several (`elements`: [{ trackId,
+ * elementIndex }]) — for as long as the panel shows it, and
  * cleared once it does not or the panel closes.
  */
 export function useSelectedOnMap(selection) {
   const mapRef = useMap()
-  const key = selection ? JSON.stringify([selection.switchId ?? null, selection.trackId ?? null, selection.elementIndex ?? null]) : ''
+  const key = selection ? JSON.stringify([selection.switchId ?? null, selection.trackId ?? null, selection.elementIndex ?? null, selection.elements ?? null]) : ''
   const sel = useRef(selection)
   useEffect(() => { sel.current = selection })
   useEffect(() => {
