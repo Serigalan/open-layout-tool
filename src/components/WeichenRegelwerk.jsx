@@ -60,6 +60,7 @@ export default function WeichenRegelwerk() {
                   <th>{t('constraints_weichen_marke')}</th>
                   <th>{t('constraints_weichen_minl')}</th>
                   <th>{t('constraints_weichen_gerade')}</th>
+                  <th title={t('constraints_weichen_lds_hint')}>{t('constraints_weichen_lds')}</th>
                 </tr>
               ) : (
                 <tr>
@@ -90,6 +91,7 @@ export default function WeichenRegelwerk() {
                       <td>{zahl(form.marke)}</td>
                       <td>{zahl(form.minl)}</td>
                       <td>{form.gerade ? String(form.gerade) : '–'}</td>
+                      <td>{form.lds === 0 ? t('constraints_weichen_lds_we') : zahl(form.lds)}</td>
                     </>
                   ) : (
                     <>

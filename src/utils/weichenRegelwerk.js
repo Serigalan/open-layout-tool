@@ -39,6 +39,8 @@ const weicheRow = (form) => ({
   marke: form.dLcs ?? null,
   minl: form.minl ?? null,
   gerade: geradesEndstueck(form),
+  // How far behind WE the last through sleeper lies — 0 where WE is the ldS.
+  lds: form.lds ?? null,
   // The symmetrical turnout has no through route that runs on: both routes
   // leave the toe on the one radius. A reader of the table would otherwise
   // read it as an ordinary form with a very sharp branch.

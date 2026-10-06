@@ -63,8 +63,14 @@ describe('the switch forms as a regelwerk', () => {
   it('reads a turnout form as the table states it', () => {
     expect(form('regel_weichen', '190 – 1:9')).toEqual({
       label: '190 – 1:9', radius: 190, neigung: 9, speed: 40, marke: 3.9, minl: 6,
-      gerade: 6.092, symmetrisch: false,
+      gerade: 6.092, lds: 3.94, symmetrisch: false,
     })
+  })
+
+  it('states the last through sleeper of every turnout form, 0 where it is the switch end', () => {
+    const weichen = gruppen.filter(g => g.art === 'weiche').flatMap(g => g.formen)
+    for (const f of weichen) expect(f.lds, f.label).toEqual(expect.any(Number))
+    expect(form('regel_weichen', '215 – 1:4.8').lds).toBe(0)
   })
 
   it('gives a branch that is one arc no straight end piece', () => {
@@ -133,7 +139,8 @@ describe('what the viewer asks the locales for', () => {
       'constraints_weichen', 'constraints_weichen_hint', 'constraints_weichen_form',
       'constraints_weichen_art', 'constraints_weichen_radius', 'constraints_weichen_neigung',
       'constraints_weichen_speed', 'constraints_weichen_marke', 'constraints_weichen_minl',
-      'constraints_weichen_gerade', 'constraints_weichen_tangente',
+      'constraints_weichen_gerade', 'constraints_weichen_lds', 'constraints_weichen_lds_hint',
+      'constraints_weichen_lds_we', 'constraints_weichen_tangente',
       'constraints_weichen_symmetrisch', 'constraints_service_down',
     ]) expect(says(key), key).toBe(true)
   })
