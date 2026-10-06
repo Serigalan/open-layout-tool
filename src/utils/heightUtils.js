@@ -103,6 +103,10 @@ export function insertHeightPoint(heights, station, minGap = 0.1) {
  * The heights of the two halves of a track split at station `sJ`: both halves
  * meet at the interpolated height, the second one restarts its stations at 0.
  * A half is undefined when the track had no heights.
+ *
+ * A cut inside a vertical curve parts the curve with it (splitCurveAt): each
+ * half takes its piece of the parabola, so both still run at the height the
+ * track is built at, and meet there on the same gradient.
  */
 export function splitHeights(heights, sJ) {
   if (!heights?.length) return [undefined, undefined]
@@ -112,6 +116,8 @@ export function splitHeights(heights, sJ) {
     return [undefined, heights.map(p => ({ ...p, station: p.station - sJ }))]
   }
   if (sJ > heights[heights.length - 1].station + STATION_TOL) return [heights, undefined]
+  const curve = splitCurveAt(heights, sJ)
+  if (curve) return curve
   // Where a point already sits on the cut it stays that point on both halves,
   // with everything it carries; otherwise the halves meet at the interpolated
   // height.
@@ -123,18 +129,79 @@ export function splitHeights(heights, sJ) {
 }
 
 /**
+ * A cut at `sJ` inside the vertical curve of point i, as the two halves of
+ * splitHeights — or null where the cut lies in no curve.
+ *
+ * A piece of a parabola is a vertical curve of the same radius again, between
+ * the tangents at its two ends, and those meet halfway between the two in
+ * station. So the half before the cut takes, in place of point i, the point
+ * where the incoming gradient meets the tangent at the cut, rounded with the
+ * same radius, and ends on the curve at the cut; the half after it starts there
+ * and takes the point where that tangent meets the outgoing gradient. Each
+ * curve then runs exactly from a tangent point to the cut, the points on
+ * either side keep their gradients, and joinHeights puts point i back.
+ */
+function splitCurveAt(heights, sJ) {
+  for (let i = 1; i < heights.length - 1; i++) {
+    const t = tangentLength(heights, i)
+    const p = heights[i]
+    const x = sJ - p.station
+    if (!t || Math.abs(x) >= t - STATION_TOL) continue
+    const { before, after } = gradients(heights, i)
+    const delta = after - before
+    const sIn = p.station - t, sOut = p.station + t
+    const zIn = p.z - before * t
+    const zCut = p.z + before * x + (x + t) ** 2 * delta / (4 * t)
+    const gCut = before + (x + t) * delta / (2 * t)
+    const cut = { station: sJ, z: zCut }
+    const a = [...heights.slice(0, i)]
+    if (sJ - sIn > STATION_TOL) a.push({ station: (sIn + sJ) / 2, z: zIn + before * (sJ - sIn) / 2, rv: p.rv })
+    a.push(cut)
+    const b = [{ ...cut, station: 0 }]
+    if (sOut - sJ > STATION_TOL) b.push({ station: (sOut - sJ) / 2, z: zCut + gCut * (sOut - sJ) / 2, rv: p.rv })
+    b.push(...heights.slice(i + 1).map(q => ({ ...q, station: q.station - sJ })))
+    return [a, b]
+  }
+  return null
+}
+
+/**
  * The inverse: the heights of a track joined from two, `b` picking up where `a`
  * ends after `aLength`. Where both state the joint — which is how splitHeights
  * leaves them — it is kept once, `a`'s, so a point's own gradient radius
  * survives the round trip. A half that carries no heights contributes none, and
  * the join then has them only over the stretch the other half had them for.
+ * A vertical curve splitHeights parted at the joint is made one again.
  */
 export function joinHeights(a, b, aLength) {
   const left  = a ?? []
   const right = (b ?? []).map(p => ({ ...p, station: p.station + aLength }))
   if (!left.length && !right.length) return undefined
   const last = left[left.length - 1]
-  return [...left, ...right.filter(p => !last || p.station > last.station + STATION_TOL)]
+  return mendCurveAt([...left, ...right.filter(p => !last || p.station > last.station + STATION_TOL)], left.length - 1)
+}
+
+/**
+ * `points` with the vertical curve that splitCurveAt parted at point `j` made
+ * one again: `j` a plain point on the curve between two points of the same
+ * radius whose curves both end exactly on it. Those three become the point
+ * where the outer gradients meet. Anything else is left as it is.
+ */
+function mendCurveAt(points, j) {
+  const a = points[j - 1], c = points[j], b = points[j + 1]
+  if (!a?.rv || c?.rv || !b?.rv || Math.abs(Math.abs(a.rv) - Math.abs(b.rv)) > 1e-9 * Math.abs(a.rv)) return points
+  const ta = tangentLength(points, j - 1), tb = tangentLength(points, j + 1)
+  if (!ta || !tb || Math.abs(ta - (c.station - a.station)) > STATION_TOL
+    || Math.abs(tb - (b.station - c.station)) > STATION_TOL) return points
+  // The tangents at the joint agree, so c lies on no gradient change of its own.
+  const g = gradients(points, j)
+  if (!g || Math.abs(g.after - g.before) > 1e-9) return points
+  const gIn = gradients(points, j - 1)?.before, gOut = gradients(points, j + 1)?.after
+  if (gIn == null || gOut == null || Math.abs(gOut - gIn) < 1e-12) return points
+  // Where the line through a with gIn meets the one through b with gOut.
+  const station = (b.z - a.z + gIn * a.station - gOut * b.station) / (gIn - gOut)
+  const z = a.z + gIn * (station - a.station)
+  return [...points.slice(0, j - 1), { station, z, rv: a.rv }, ...points.slice(j + 2)]
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { heightAt, gradientAt, verticalCurve, splitHeights, endOfIndex, insertHeightPoint } from './heightUtils'
+import { heightAt, gradientAt, verticalCurve, splitHeights, joinHeights, endOfIndex, insertHeightPoint } from './heightUtils'
 
 describe('gradientAt — the height a track is built at', () => {
   // +10 ‰ up to a crest at 100 m, −10 ‰ down from it, rounded with R 2000:
@@ -36,6 +36,44 @@ describe('gradientAt — the height a track is built at', () => {
   })
 })
 
+describe('splitHeights inside a vertical curve', () => {
+  // The crest of gradientAt's test: T = 20 m, the curve from 80 to 120 m.
+  const heights = [{ station: 0, z: 100 }, { station: 100, z: 101, rv: 2000 }, { station: 200, z: 100 }]
+  const along = (a, b, sJ) => (s) => (s <= sJ ? gradientAt(a, s) : gradientAt(b, s - sJ))
+
+  for (const sJ of [85, 100, 113.7]) {
+    it(`gives both halves the rounded gradient when cut at ${sJ} m`, () => {
+      const [a, b] = splitHeights(heights, sJ)
+      expect(a.at(-1).station).toBe(sJ)
+      expect(b[0].station).toBe(0)
+      expect(a.at(-1).z).toBeCloseTo(gradientAt(heights, sJ), 9)
+      expect(b[0].z).toBeCloseTo(a.at(-1).z, 9)
+      const split = along(a, b, sJ)
+      for (let s = 0; s <= 200; s += 0.5) expect(split(s), `at ${s} m`).toBeCloseTo(gradientAt(heights, s), 9)
+      // The same gradient on either side of the joint.
+      const e = 1e-4
+      expect((split(sJ) - split(sJ - e)) / e).toBeCloseTo((split(sJ + e) - split(sJ)) / e, 4)
+    })
+  }
+
+  it('leaves the curve whole where the cut lies outside it', () => {
+    const [a, b] = splitHeights(heights, 60)
+    expect(a).toEqual([{ station: 0, z: 100 }, { station: 60, z: 100.6 }])
+    expect(b[1]).toEqual({ station: 40, z: 101, rv: 2000 })
+  })
+
+  it('is made one curve again by joinHeights', () => {
+    for (const sJ of [85, 100, 113.7]) {
+      const [a, b] = splitHeights(heights, sJ)
+      const joined = joinHeights(a, b, sJ)
+      expect(joined).toHaveLength(3)
+      expect(joined[1].station).toBeCloseTo(100, 9)
+      expect(joined[1].z).toBeCloseTo(101, 9)
+      expect(joined[1].rv).toBe(2000)
+    }
+  })
+})
+
 describe('heights that cover only part of their track', () => {
   // An imported gradient beginning 100 m into a 400 m track and ending at 300 m.
   const heights = [{ station: 100, z: 10 }, { station: 200, z: 12, rv: 4000 }, { station: 300, z: 11 }]
@@ -48,9 +86,10 @@ describe('heights that cover only part of their track', () => {
   })
 
   it('split inside them meet at the interpolated height, as always', () => {
-    const [a, b] = splitHeights(heights, 150)
-    expect(a).toEqual([{ station: 100, z: 10 }, { station: 150, z: 11 }])
-    expect(b).toEqual([{ station: 0, z: 11 }, { station: 50, z: 12, rv: 4000 }, { station: 150, z: 11 }])
+    // (Ahead of the curve at 200 m, which reaches back to 140 m.)
+    const [a, b] = splitHeights(heights, 120)
+    expect(a).toEqual([{ station: 100, z: 10 }, { station: 120, z: 10.4 }])
+    expect(b).toEqual([{ station: 0, z: 10.4 }, { station: 80, z: 12, rv: 4000 }, { station: 180, z: 11 }])
   })
 
   it('have no point on a joint where they stop short of the end', () => {
