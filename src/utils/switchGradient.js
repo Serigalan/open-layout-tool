@@ -34,7 +34,7 @@
 import { switchTypeByLabel } from './switch/catalogue'
 import { elementAtStation, gradientAt, pointAtStationUtm, trackLength } from './heightUtils'
 import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from './crossSectionUtils'
-import { elementBelongsToSwitch } from './switchModel'
+import { elementBelongsToSwitch, turnoutDivergingPort, turnoutLinePort, turnoutLineRoute } from './switchModel'
 
 const STATION_TOL = 0.01    // m — a height point this close to the ldS is the ldS point
 const Z_TOL = 0.0005        // m — heights that agree to this already agree
@@ -46,9 +46,13 @@ export function switchLds(sw, formOf = switchTypeByLabel) {
   return Number.isFinite(lds) && lds >= 0 ? lds : null
 }
 
-/** Length of the turnout's main route, WA to WE: its elements on the main track. */
+/**
+ * Length of the turnout's main route, WA to WE: its elements on the main track.
+ * The main track is the line the turnout lies on, so on a swapped turnout it
+ * is the branch that leads (switchModel.turnoutLinePort).
+ */
 const mainRouteLength = (track, sw) => (track.elements ?? [])
-  .filter(el => elementBelongsToSwitch(el, sw) && (el.switchRoute ?? 'main') === 'main')
+  .filter(el => elementBelongsToSwitch(el, sw) && (el.switchRoute ?? 'main') === turnoutLineRoute(sw))
   .reduce((sum, el) => sum + (el.length ?? 0), 0)
 
 /**
@@ -56,7 +60,7 @@ const mainRouteLength = (track, sw) => (track.elements ?? [])
  * ldS, or to WE where the form states none. Null without a main route.
  */
 export function ldsFromToe(tracks, sw, { formOf } = {}) {
-  const main = tracks.find(t => t.id === sw?.portB2_trackId)
+  const main = tracks.find(t => t.id === sw?.[`port${turnoutLinePort(sw)}_trackId`])
   const we = main ? mainRouteLength(main, sw) : 0
   if (!(we > 0)) return null
   return we + (switchLds(sw, formOf) ?? 0)
@@ -159,8 +163,8 @@ export function switchCoupling(tracks, sw, { formOf } = {}) {
   if (!isTurnout(sw)) return null
   const behindWe = switchLds(sw, formOf)
   if (behindWe == null) return null
-  const main = routeFrom(tracks, sw, 'B2')
-  const branch = routeFrom(tracks, sw, 'B1')
+  const main = routeFrom(tracks, sw, turnoutLinePort(sw))
+  const branch = routeFrom(tracks, sw, turnoutDivergingPort(sw))
   if (!main || !branch || main.track.id === branch.track.id) return null
   const we = mainRouteLength(main.track, sw)
   if (!(we > 0)) return null

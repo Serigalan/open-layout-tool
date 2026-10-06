@@ -16,6 +16,7 @@ import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
+import { turnoutLinePort } from '../utils/switchModel'
 import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
@@ -121,7 +122,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   // Points a turnout's main route sets on this branch, by index → switch.
   const locked = track ? coupledPoints(tracks, switches, track) : new Map()
   const mainOf = (sw) => {
-    const main = tracks.find(tr => tr.id === sw.portB2_trackId)
+    const main = tracks.find(tr => tr.id === sw[`port${turnoutLinePort(sw)}_trackId`])
     return main?.name || main?.id.slice(0, 8) || '–'
   }
   const lockedNote = (sw) => fill('elevation_coupled_point', { name: sw.name ?? sw.label ?? '', main: mainOf(sw) })

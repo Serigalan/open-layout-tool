@@ -457,6 +457,33 @@ export function rebuildSwitchSymbol(sw, trackById) {
   }
 }
 
+const isStraightPiece = (piece) => piece.r1 == null && piece.r2 == null
+
+/**
+ * The bent turnout a stem makes straight — an outer-bent turnout laid onto a
+ * stem that is its form's own branch, mirrored — as what it is: the plain form
+ * with its two routes swapped (switchModel.turnoutLinePort). The stem is then
+ * the form's branch and the straight the form's through route, each with the
+ * form's own dimensions, so the plain turnout is laid from its toe on the side
+ * the stem curves to. Facing, the toe is the bent one's; trailing, the branch
+ * has to end where the stem begins, so the toe lies the branch's length along
+ * the stem and the plain turnout faces back from there.
+ *
+ * Returns the plain turnout's geometry (facing from its toe), or null where
+ * the branch is not straight all along — that turnout is the bent one it is.
+ */
+function swappedPlainGeometry(startUtm, startWgs, bearing, sw, trailing, stem, branchChain, arcLen) {
+  if (stem.every(isStraightPiece) || !branchChain.every(isStraightPiece)) return null
+  const toe = trailing ? switchChainPointUtm(startUtm, bearing, stem, arcLen) : startUtm
+  const toeBearing = trailing ? (switchChainBearingAt(bearing, stem, arcLen) + 180) % 360 : bearing
+  const target = trailing ? startUtm : switchChainPointUtm(startUtm, bearing, stem, arcLen)
+  const toeUtm = { easting: toe.easting, northing: toe.northing, zone: startUtm.zone }
+  const miss = (g) => Math.hypot(g.curvedUtm.easting - target.easting, g.curvedUtm.northing - target.northing)
+  const [left, right] = ['left', 'right'].map(side =>
+    computeSwitchGeometryUtm(toeUtm, toeBearing, sw, side, false, trailing ? null : startWgs, null))
+  return miss(left) <= miss(right) ? left : right
+}
+
 /**
  * The same from a start point already in the track's plane ({ easting,
  * northing, zone }). A caller holding the point in the plane uses this so it is
@@ -488,6 +515,10 @@ export function rebuildSwitchSymbol(sw, trackById) {
  * are their pieces placed in the plane (switchChainSegmentsUtm), the branch's
  * with their own polylines, one per element a caller builds.
  * `branchEndBearing` is the branch's tangent at its end.
+ *
+ * `swapped` is set where bending leaves the branch straight all along: the
+ * same turnout as the plain form with its routes swapped, which is what it is
+ * built as (swappedPlainGeometry). Null otherwise.
  */
 export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, startWgs = null, mainR = null) {
   const arcLen      = switchBranchLength(sw)
@@ -566,6 +597,7 @@ export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, 
   return {
     straightCoords, arcCoords, fillCoords, ...labelGeom,
     bauform: switchChainBauform(stemChain, branchChain, symmetric),
+    swapped: symmetric ? null : swappedPlainGeometry(startUtm, sWgs, bearing, sw, trailing, stem, branchChain, arcLen),
     portA, portB1, portB2,
     portA_wgs, portB1_wgs, portB2_wgs,
     lcsCoords,

@@ -6,6 +6,7 @@ import {
   computeCrossingGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius,
 } from '../switch/crossing'
 import { computeSwitchGeometryUtm } from '../switch/symbol'
+import { switchBranchLength } from '../switch/catalogue'
 import { switchRouteVaries } from '../switch/route'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../switchModel'
 import { cantExceptionFields, worstCantOf } from '../rules/cant'
@@ -103,9 +104,17 @@ export function buildSwitchOnTrack({
   // The identity the record and the elements of both routes share: the id ties
   // them together, and it has to exist before the first element is marked.
   const identity = { ...newSwitchFields(), name: switchName, label: sw.label }
-  const mainMark = switchElementMark(identity, 'main')
-  const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, place.endUtm, mainMark, straightLen)
-  if (!carved) return { noRoom: straightLen }
+  // Bent so that its branch comes out straight, the turnout is the plain form
+  // with its routes swapped (computeSwitchGeometryUtm): the host track runs on
+  // over its branch and the new track is its through route. Everything below
+  // is the same with the two routes' roles exchanged.
+  const swapped = g.swapped
+  const shown   = swapped ?? g
+  const lineRoute  = swapped ? 'branch' : 'main'
+  const lineLength = swapped ? switchBranchLength(sw) : straightLen
+  const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint,
+    swapped ? swapped.curvedUtm : place.endUtm, switchElementMark(identity, lineRoute), lineLength)
+  if (!carved) return { noRoom: lineLength }
   // A cant over the plain switch limit stands on the reason typed for it, and
   // the reason belongs on the element that carries the cant — otherwise the
   // element table flags as an error what this dialog just accepted. Only the
@@ -126,7 +135,9 @@ export function buildSwitchOnTrack({
   // a curve a piece can come out straight — then it is one; over a clothoid
   // it is a clothoid, whose cant ramps with the track's.
   const branchId = generateId()
-  const branchEls = recalcAbsLengths(g.branchSegments.map((seg, i) => {
+  const newRoute = swapped ? 'main' : 'branch'
+  const newSegments = swapped ? swapped.stemSegments : g.branchSegments
+  const branchEls = recalcAbsLengths(newSegments.map((seg, i) => {
     const base = switchRouteVaries(seg)
       ? {
           elementType: 2, transitionType: 'clothoid', r1: seg.r1, r2: seg.r2,
@@ -139,7 +150,7 @@ export function buildSwitchOnTrack({
       : constantBranchElement(seg, plain ? cant : place.cantAt(seg.s0, i))
     return justify({
       ...base,
-      ...switchElementMark(identity, 'branch'),
+      ...switchElementMark(identity, newRoute),
       geometry: { type: 'LineString', coordinates: seg.coords },
     })
   }))
@@ -149,20 +160,24 @@ export function buildSwitchOnTrack({
     owner: fields.owner,
     ...buildTypeFields(fields),
     epsg: track.epsg,
-    coordinates: g.arcCoords,
+    coordinates: swapped ? swapped.straightCoords : g.arcCoords,
     elements: branchEls,
   }
 
   // The record keeps only the ports: both routes are read back from the
   // tracks' marked elements (switchRoutesFromTracks).
+  const newPort  = { trackId: branchId, endpoint: 'BEGIN' }
+  const linePort = { trackId: split.ahead.id, endpoint: split.aheadEndpoint }
+  const [b1, b2] = swapped ? [linePort, newPort] : [newPort, linePort]
   const switchRecord = {
     ...identity,
     number: switchNumber, trailing: false, speed,
+    ...(swapped ? { swapped: true } : {}),
     portA_trackId:  split.behind.id, portA_endpoint:  split.behindEndpoint,
-    portB1_trackId: branchId,        portB1_endpoint: 'BEGIN',
-    portB2_trackId: split.ahead.id,  portB2_endpoint: split.aheadEndpoint,
-    fillCoords: g.fillCoords, lcsCoords: g.lcsCoords,
-    labelCoords: g.labelCoords, bauform: g.bauform,
+    portB1_trackId: b1.trackId,      portB1_endpoint: b1.endpoint,
+    portB2_trackId: b2.trackId,      portB2_endpoint: b2.endpoint,
+    fillCoords: shown.fillCoords, lcsCoords: shown.lcsCoords,
+    labelCoords: shown.labelCoords, bauform: shown.bauform,
   }
 
   return {
@@ -199,6 +214,12 @@ export function buildSwitchAtTrackEnd({
   cant, cantReason, speed, switchName, switchNumber, name, fields, mainName, mainFields,
 }) {
   const geom = computeSwitchGeometryUtm(start, bearing, sw, side, trailing, startWgs, stemSigned)
+  if (geom.swapped) {
+    return buildSwappedAtTrackEnd({
+      start, startWgs, stemSigned, geom: geom.swapped, sourceTrackId, sw, trailing,
+      cant, cantReason, speed, switchName, switchNumber, name, fields, mainName, mainFields,
+    })
+  }
   const { straightCoords, arcCoords, fillCoords, labelCoords, lcsCoords, signedR, mainSignedR,
     startUtm, straightUtm, arcOriginUtm, curvedUtm } = geom
   // One turnout, one cant. The through route of a trailing switch is built
@@ -252,6 +273,70 @@ export function buildSwitchAtTrackEnd({
       labelCoords,
       bauform: geom.bauform,
       lcsCoords,
+    }],
+  }
+}
+
+/**
+ * A turnout at a track's end that bending leaves with a straight branch — the
+ * plain form with its routes swapped (computeSwitchGeometryUtm), built as one.
+ * `geom` is that plain turnout, facing from its toe.
+ *
+ * Its branch is the arc the picked track runs on in, its through route the
+ * straight. Facing, both are new tracks from the toe, and each keeps the name
+ * and fields the dialog gave the route it is in the terrain: the arc continues
+ * the picked line (`mainName`), the straight leaves it (`name`). Trailing, the
+ * toe lies the branch's length along the arc and faces back: the arc is
+ * appended to the picked track, which so ends at the toe on the branch (port
+ * B1), and the straight leaves from there as the new track. One turnout, one
+ * cant — stored by the raised rail, so the appended arc, which runs towards
+ * the toe, carries it turned.
+ */
+function buildSwappedAtTrackEnd({
+  start, startWgs, stemSigned, geom, sourceTrackId, sw, trailing,
+  cant, cantReason, speed, switchName, switchNumber, name, fields, mainName, mainFields,
+}) {
+  const identity = { ...newSwitchFields(), name: switchName, label: sw.label }
+  const canted = (u) => ({ cant: u, ...cantExceptionFields(u, cantReason) })
+  const throughEl = routeElement(geom.startUtm, geom.straightUtm, null, geom.straightCoords, {
+    ...switchElementMark(identity, 'main'), ...canted(cant),
+  })
+  const throughTrack = { id: generateId(), name, owner: fields.owner, ...buildTypeFields(fields),
+    epsg: start.zone, coordinates: geom.straightCoords, elements: [throughEl] }
+
+  // Trailing, the arc runs from the picked track's end to the toe: the
+  // branch backwards, ending on the picked node exactly.
+  const branchEl = trailing
+    ? routeElement(start, geom.startUtm, stemSigned,
+      [startWgs ?? geom.curvedEnd, ...[...geom.arcCoords].reverse().slice(1)], {
+        ...switchElementMark(identity, 'branch'), ...canted(-cant),
+      })
+    : routeElement(geom.arcOriginUtm, geom.curvedUtm, geom.signedR, geom.arcCoords, {
+      ...switchElementMark(identity, 'branch'), ...canted(cant),
+    })
+  const branchTrack = trailing ? null : { id: generateId(), name: mainName, owner: mainFields.owner,
+    ...buildTypeFields(mainFields), epsg: start.zone, coordinates: geom.arcCoords, elements: [branchEl] }
+
+  return {
+    removeTrackIds: [],
+    append: trailing ? [{ trackId: sourceTrackId, elements: [branchEl] }] : [],
+    addTracks: [...(branchTrack ? [branchTrack] : []), throughTrack],
+    addSwitches: [{
+      ...identity,
+      number: switchNumber,
+      trailing,
+      speed,
+      swapped: true,
+      portA_trackId: trailing ? null : sourceTrackId,
+      portA_endpoint: trailing ? null : 'END',
+      portB1_trackId: trailing ? sourceTrackId : branchTrack.id,
+      portB1_endpoint: trailing ? 'END' : 'BEGIN',
+      portB2_trackId: throughTrack.id,
+      portB2_endpoint: 'BEGIN',
+      fillCoords: geom.fillCoords,
+      labelCoords: geom.labelCoords,
+      bauform: geom.bauform,
+      lcsCoords: geom.lcsCoords,
     }],
   }
 }

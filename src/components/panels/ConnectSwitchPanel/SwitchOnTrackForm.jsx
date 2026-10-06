@@ -132,11 +132,15 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   const plain      = placement.plain ?? true
   const g          = placement.geom ?? null
   const branchR    = g?.signedR ?? null
+  // Bent so that its branch comes out straight, it is the plain form with its
+  // routes swapped — the host track its branch, the new track its through route.
+  const swapped    = g?.swapped ?? null
 
-  // The branch as it will be saved: the line it lies on names it. A branch of
-  // several pieces, or a clothoid, is looked up along its chord.
+  // The new track as it will be saved: the line it lies on names it. A branch
+  // of several pieces, or a clothoid, is looked up along its chord.
   const singleArc = !!g && g.branchSegments.length === 1 && !switchRouteVaries(g.branchSegments[0])
-  const branchGeometry = g ? elementPath(g.arcOriginUtm, g.curvedUtm, singleArc ? branchR : null) : null
+  const branchGeometry = swapped ? elementPath(swapped.startUtm, swapped.straightUtm, null)
+    : g ? elementPath(g.arcOriginUtm, g.curvedUtm, singleArc ? branchR : null) : null
   const { name, setName, reset: resetName } = useTrackName(project.id, fields, { geometry: branchGeometry, setField })
 
   // Cant. Unbent it follows speed and switch form unless the user overrode it
@@ -161,8 +165,10 @@ export default function SwitchOnTrackForm({ onCommitted }) {
     computeCantDefSigned(speed, seg.r1, place.cantAt(seg.s0, i)),
     computeCantDefSigned(speed, seg.r2, place.cantAt(seg.s0 + seg.length, i)),
   ]))
-  const cantDef = plain ? computeCantDef(speed, sw.R, cant) : g ? worstDef(g.branchSegments) : 0
-  const stemDef = plain || !g ? null : worstDef(g.stemSegments)
+  // Swapped, the host track is the branch and the straight the through route.
+  const [stemRoute, branchRoute] = swapped ? [g.branchSegments, g.stemSegments] : [g?.stemSegments, g?.branchSegments]
+  const cantDef = plain ? computeCantDef(speed, sw.R, cant) : g ? worstDef(branchRoute) : 0
+  const stemDef = plain || !g ? null : worstDef(stemRoute)
 
   // What the turnout covers, element by element.
   const elementsText = place && track
@@ -177,7 +183,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   useEffect(() => {
     const m = map?.current
     if (!m) return
-    const geom = placement.geom
+    const geom = placement.geom?.swapped ?? placement.geom
     preview.set(SWITCH_LINES_SOURCE, geom ? buildLinesGeoJSON(geom) : null)
     preview.set(SWITCH_FILL_SOURCE, geom ? buildFillGeoJSON(geom) : null)
   }, [placement, map, preview])
@@ -258,15 +264,15 @@ export default function SwitchOnTrackForm({ onCommitted }) {
           reason={cantReason} onReason={setCantReason} />
         {!plain && g && (
           <>
-            <ReadOnlyField label={t('switch_stem_radius')} value={radiusText(g.stemSegments, '–')} />
-            <ReadOnlyField label={t('switch_bauform')} value={t(`switch_bauform_${g.bauform}`)} />
+            <ReadOnlyField label={t('switch_stem_radius')} value={radiusText(stemRoute, '–')} />
+            <ReadOnlyField label={t('switch_bauform')} value={t(swapped ? 'switch_bauform_swapped' : `switch_bauform_${g.bauform}`)} />
             <ReadOnlyField type="number" label={t('switch_stem_cant_def')} value={stemDef ?? 0} />
           </>
         )}
         <ReadOnlyField type="number" label={plain ? t('cant_def') : t('switch_branch_cant_def')} value={cantDef} />
         <ReadOnlyField label={t('arc_length')} value={`~${arcLen.toFixed(1)} m`} />
         {!plain && g && (
-          <ReadOnlyField label={t('switch_branch_radius')} value={radiusText(g.branchSegments, t('switch_branch_straight'))} />
+          <ReadOnlyField label={t('switch_branch_radius')} value={radiusText(branchRoute, t('switch_branch_straight'))} />
         )}
         <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
       </FormSection>

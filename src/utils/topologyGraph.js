@@ -1,5 +1,5 @@
 import { classifyTrackEnds } from './topology'
-import { portsOf, isLinkSwitch, DEFAULT_SWITCH_KIND } from './switchModel'
+import { portsOf, isLinkSwitch, DEFAULT_SWITCH_KIND, turnoutLinePort } from './switchModel'
 import { endKey } from './trackEndMarks'
 
 /**
@@ -15,7 +15,8 @@ import { endKey } from './trackEndMarks'
 /**
  * Nodes and edges.
  *
- *   node  { id, kind: 'switch'|'link'|'joint'|'end', switchId?, switchKind?, name?, state?, lngLat }
+ *   node  { id, kind: 'switch'|'link'|'joint'|'end', switchId?, switchKind?, linePort?, name?, state?, lngLat }
+ *         linePort: the port a swapped turnout's line runs on through (switchModel.turnoutLinePort)
  *   edge  { trackId, name, from, to, fromPort, toPort, length, coords }
  *
  * `from` is the node at BEGIN, `to` the one at END; `fromPort` and `toPort`
@@ -55,6 +56,7 @@ export function buildTopologyGraph(tracks, switches, endMarks = []) {
     nodes.set(id, {
       id, kind: isLinkSwitch(sw) ? 'link' : 'switch', switchId: sw.switchId,
       switchKind: sw.kind ?? DEFAULT_SWITCH_KIND, name: sw.name ?? null,
+      ...(sw.swapped ? { linePort: turnoutLinePort(sw) } : {}),
       lngLat: [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length],
     })
   }

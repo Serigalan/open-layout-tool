@@ -19,7 +19,7 @@ import { splitHeights, trackLength } from './heightUtils'
  * its ports is already claimed by a route before it. That single condition is
  * what tells the kinds apart: a turnout's two routes share the toe, so at most
  * one of them can stay, and the through route — first in the table — is the one
- * that does. A crossing's two routes share no port, so both stay where both are
+ * that does (the branch, on a swapped turnout, whose line runs over it). A crossing's two routes share no port, so both stay where both are
  * lines; a slip's connecting curve shares its ports with both through routes
  * and therefore only stays where neither of them does, which is right — it is
  * the switch's own geometry, not a line.
@@ -27,7 +27,11 @@ import { splitHeights, trackLength } from './heightUtils'
 export function keptRoutes(sw, byPort) {
   const claimed = new Set()
   const kept = []
-  for (const [route, ports] of Object.entries(switchRoutePorts(sw?.kind))) {
+  // A swapped turnout's line runs over its branch (turnoutLinePort), so that is
+  // the route that claims the toe first.
+  const routes = Object.entries(switchRoutePorts(sw?.kind))
+  if (sw?.swapped) routes.reverse()
+  for (const [route, ports] of routes) {
     if (ports.some(port => claimed.has(port))) continue
     if (!ports.every(port => byPort[port]?.occupied)) continue
     ports.forEach(port => claimed.add(port))

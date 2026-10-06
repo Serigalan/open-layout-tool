@@ -282,7 +282,9 @@ export function layoutClusterLanes(cluster) {
     const node = nodes[v]
     const pairs = []
     if (node.kind === 'switch' || node.kind === 'link') {
-      for (const [p, q] of THROUGH[node.switchKind] ?? []) {
+      // A swapped turnout's line runs on over its branch (switchModel.turnoutLinePort).
+      const through = node.linePort ? [['A', node.linePort]] : THROUGH[node.switchKind] ?? []
+      for (const [p, q] of through) {
         const a = ends[v].find(at => at.port === p), b = ends[v].find(at => at.port === q)
         if (a && b) pairs.push([a, b])
       }

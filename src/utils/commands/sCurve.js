@@ -3,7 +3,7 @@ import { nextTrackName, rebuildCoords, recalcAbsLengths } from '../trackModel'
 import { computeSwitchGeometryUtm } from '../switch/symbol'
 import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../coordinateUtils'
 import { newSwitchFields, switchElementMark } from '../switchModel'
-import { splitElementAt, carveSwitchRoute } from '../trackSplitUtils'
+import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
 import { solveSwitchConnection, buildConnectionElements, orientStemToward } from '../switchConnectionUtils'
 
 // The S-curve between two line tracks (SCurveForm): solving the connection
@@ -16,31 +16,44 @@ import { solveSwitchConnection, buildConnectionElements, orientStemToward } from
 // laid the form to — not read off where the branch ends: an outer-bent turnout
 // whose stem radius is the form's own has a straight branch, which ends on the
 // tangent and so on neither side of it.
-// `throughEnd` comes back with it: the switch end on the running track, where
-// that track has to be parted so the turnout's through route is its own element.
+//
+// That turnout is built as what it is, the plain form with its routes swapped
+// (switchModel.turnoutLinePort): the running track is its branch, the
+// connection its through route. `branchStraight` says the construction's
+// branch came out straight all along — the symbol, laid on the stem radius at
+// the toe alone, cannot tell a straight branch from one that bends on later.
+//
+// What comes back says which route each track carries and where the one in
+// the running track ends, where that track has to be parted so the route is
+// its own element. `behind`, `ahead` and `conn` are the ports as
+// { trackId, endpoint }: the running track behind and ahead of the toe, and
+// the connection's end.
 function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, side, sw, speed, switchNumber,
-                               identity, stemR = null,
-                               behindTrackId, behindEndpoint, aheadTrackId, aheadEndpoint,
-                               branchTrackId, branchEndpoint }) {
+                               identity, stemR = null, branchStraight = false, behind, ahead, conn }) {
   const jUtm = { easting: jNode[0], northing: jNode[1], zone }
   // `stemR` bends the turnout into the track it is laid in: both of its routes
   // take that curvature on top of their own, so in a curve the symbol follows
   // the track instead of standing beside it.
   const geom = computeSwitchGeometryUtm(jUtm, tangentBearing, sw, side, false, jWgs, stemR)
+  const swapped = branchStraight ? geom.swapped : null
+  const shown = swapped ?? geom
+  const [b1, b2] = swapped ? [ahead, conn] : [conn, ahead]
   return {
-    throughEnd: geom.straightUtm,
-    throughLength: geom.straightLen,
+    lineRoute:  swapped ? 'branch' : 'main',
+    connRoute:  swapped ? 'main' : 'branch',
+    lineEnd:    swapped ? swapped.curvedUtm : geom.straightUtm,
+    lineLength: swapped ? swapped.arcLen : geom.straightLen,
     record: {
       ...identity,
       number: switchNumber, trailing: false, speed,
       // The stem radius at the toe, so a reload can rebuild a bent symbol even
       // where the marked elements cannot be read back.
-      ...(geom.stemAtToe ? { mainRadius: geom.stemAtToe } : {}),
-      portA_trackId:  behindTrackId,  portA_endpoint:  behindEndpoint,
-      portB1_trackId: branchTrackId,  portB1_endpoint: branchEndpoint,
-      portB2_trackId: aheadTrackId,   portB2_endpoint: aheadEndpoint,
-      fillCoords: geom.fillCoords, lcsCoords: geom.lcsCoords,
-      labelCoords: geom.labelCoords, bauform: geom.bauform,
+      ...(swapped ? { swapped: true } : geom.stemAtToe ? { mainRadius: geom.stemAtToe } : {}),
+      portA_trackId:  behind.trackId, portA_endpoint:  behind.endpoint,
+      portB1_trackId: b1.trackId,     portB1_endpoint: b1.endpoint,
+      portB2_trackId: b2.trackId,     portB2_endpoint: b2.endpoint,
+      fillCoords: shown.fillCoords, lcsCoords: shown.lcsCoords,
+      labelCoords: shown.labelCoords, bauform: shown.bauform,
     },
   }
 }
@@ -67,6 +80,21 @@ export const isUsableStem = (el) => el.elementType !== 2
 function carveThrough(split, cutUtm, mark, length) {
   const carved = carveSwitchRoute(split.ahead, split.aheadEndpoint, cutUtm, mark, length, { accepts: isUsableStem })
   return carved ? split.tracks.map(tr => (tr.id === carved.id ? carved : tr)) : null
+}
+
+/** Below this a toe sits on its element's end node [m] — switchPlacement's JOINT_TOL. */
+const JOINT_TOL = 1e-3
+
+// Part a track at a toe `station` along its element `elIdx`. On one of the
+// element's nodes that is the joint itself — cut there, the element would
+// leave a piece of no length behind.
+function splitAtToe(track, elIdx, station, junction, bearing, existingNames) {
+  const n = track.elements.length
+  const j = station <= JOINT_TOL ? elIdx
+    : station >= track.elements[elIdx].length - JOINT_TOL ? elIdx + 1 : null
+  return j != null && j > 0 && j < n
+    ? splitTrackAtJoint(track, j, bearing, existingNames)
+    : splitElementAt(track, elIdx, junction, bearing, existingNames)
 }
 
 // A plane point expressed in another CRS plane (as it is when already there).
@@ -230,8 +258,10 @@ export function buildSCurve({ result, picks, tracks, switches, speed }) {
 
   // Four split half-tracks (S1 on line 1, S2 on line 2). The junctions go in
   // as plane points in each track's own CRS.
-  const s1 = splitElementAt(t1, g1.elIdx, toPlane(res.TP1, t1.epsg), b1, existingNames)
-  const s2 = splitElementAt(t2, g2.elIdx, toPlane(res.TP2, t2.epsg), b2Track, existingNames)
+  const station1 = g1.along + (stems(picks).g1.dir ?? 1) * res.s1
+  const station2 = g2.along + (res.flipped2 ? -1 : 1) * res.s2
+  const s1 = splitAtToe(t1, g1.elIdx, station1, toPlane(res.TP1, t1.epsg), b1, existingNames)
+  const s2 = splitAtToe(t2, g2.elIdx, station2, toPlane(res.TP2, t2.epsg), b2Track, existingNames)
 
   // Two junction switches at S1 and S2.
   const existing = switches
@@ -243,50 +273,53 @@ export function buildSCurve({ result, picks, tracks, switches, speed }) {
   const id1 = { ...newSwitchFields(), name: switchDesignation(no1), label: swType.label }
   const id2 = { ...newSwitchFields(), name: switchDesignation(no2), label: swType.label }
 
-  // Connection track (S1 → S2): branch + middle element + branch. The two
-  // branches are the turnouts' own — fixed length, marked as such — while the
-  // element between them is ordinary track. A branch is more than one element
-  // where the form ends in a straight piece or the turnout lies across
-  // several elements of its host track.
-  const { branch1, midEl, branch2 } = buildConnectionElements(res, speed)
-  const connElements = recalcAbsLengths([
-    ...branch1.map(el => ({ ...el, ...switchElementMark(id1, 'branch') })),
-    midEl,
-    ...branch2.map(el => ({ ...el, ...switchElementMark(id2, 'branch') })),
-  ])
-  const connTrack = {
-    id:          generateId(),
-    name:        nextTrackName('connection', existingNames),
-    epsg:     zone,
-    coordinates: rebuildCoords(connElements),
-    elements:    connElements,
-  }
-
   // The connection track runs S1 → S2, so it begins at switch 1 and ends at switch 2.
+  const connId = generateId()
+  const straight = (chain) => chain.every(p => p.r1 == null && p.r2 == null)
   const j1 = buildJunctionSwitch({
     jWgs: res.tp1Wgs, jNode: [res.TP1.easting, res.TP1.northing], zone,
     tangentBearing: b1, side, sw: swType, speed, switchNumber: no1, identity: id1,
-    stemR: res.stemR1,
-    behindTrackId: s1.behind.id, behindEndpoint: s1.behindEndpoint,
-    aheadTrackId:  s1.ahead.id,  aheadEndpoint:  s1.aheadEndpoint,
-    branchTrackId: connTrack.id, branchEndpoint: 'BEGIN',
+    stemR: res.stemR1, branchStraight: straight(res.chain1),
+    behind: { trackId: s1.behind.id, endpoint: s1.behindEndpoint },
+    ahead:  { trackId: s1.ahead.id,  endpoint: s1.aheadEndpoint },
+    conn:   { trackId: connId, endpoint: 'BEGIN' },
   })
   const j2 = buildJunctionSwitch({
     jWgs: res.tp2Wgs, jNode: [res.TP2.easting, res.TP2.northing], zone,
     tangentBearing: res.bearing2, side, sw: swType, speed, switchNumber: no2, identity: id2,
     // Turnout 2 opens against the direction the connection runs, so its stem
     // turns the other way under it.
-    stemR: res.stemR2 == null ? null : -res.stemR2,
-    behindTrackId: s2.behind.id, behindEndpoint: s2.behindEndpoint,
-    aheadTrackId:  s2.ahead.id,  aheadEndpoint:  s2.aheadEndpoint,
-    branchTrackId: connTrack.id, branchEndpoint: 'END',
+    stemR: res.stemR2 == null ? null : -res.stemR2, branchStraight: straight(res.chain2),
+    behind: { trackId: s2.behind.id, endpoint: s2.behindEndpoint },
+    ahead:  { trackId: s2.ahead.id,  endpoint: s2.aheadEndpoint },
+    conn:   { trackId: connId, endpoint: 'END' },
   })
 
-  // Each running track gets the turnout's through route as its own element —
+  // Connection track (S1 → S2): branch + middle element + branch. The two
+  // branches are the turnouts' own — fixed length, marked as such — while the
+  // element between them is ordinary track. A branch is more than one element
+  // where the form ends in a straight piece or the turnout lies across
+  // several elements of its host track. A swapped turnout's piece here is its
+  // through route.
+  const { branch1, midEl, branch2 } = buildConnectionElements(res, speed)
+  const connElements = recalcAbsLengths([
+    ...branch1.map(el => ({ ...el, ...switchElementMark(id1, j1.connRoute) })),
+    midEl,
+    ...branch2.map(el => ({ ...el, ...switchElementMark(id2, j2.connRoute) })),
+  ])
+  const connTrack = {
+    id:          connId,
+    name:        nextTrackName('connection', existingNames),
+    epsg:     zone,
+    coordinates: rebuildCoords(connElements),
+    elements:    connElements,
+  }
+
+  // Each running track gets the turnout's route on it as its own elements —
   // the element boundary at the switch end both turnouts are built on.
-  const s1Tracks = carveThrough(s1, toPlane(j1.throughEnd, t1.epsg), switchElementMark(id1, 'main'), j1.throughLength)
-  const s2Tracks = carveThrough(s2, toPlane(j2.throughEnd, t2.epsg), switchElementMark(id2, 'main'), j2.throughLength)
-  if (!s1Tracks || !s2Tracks) return { carveError: Math.max(j1.throughLength, j2.throughLength) }
+  const s1Tracks = carveThrough(s1, toPlane(j1.lineEnd, t1.epsg), switchElementMark(id1, j1.lineRoute), j1.lineLength)
+  const s2Tracks = carveThrough(s2, toPlane(j2.lineEnd, t2.epsg), switchElementMark(id2, j2.lineRoute), j2.lineLength)
+  if (!s1Tracks || !s2Tracks) return { carveError: Math.max(j1.lineLength, j2.lineLength) }
 
   return {
     removeTrackIds: [t1.id, t2.id],

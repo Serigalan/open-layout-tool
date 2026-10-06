@@ -2,7 +2,7 @@ import { trackPointAt } from './planGeometry'
 import { trackLength } from './heightUtils'
 import { kmForTrackPoint } from './kmLineUtils'
 import { utmToWgs84, wgs84ToUTM } from './coordinateUtils'
-import { isLinkSwitch, portsOf } from './switchModel'
+import { isLinkSwitch, portsOf, turnoutLinePort } from './switchModel'
 import { trackStatus } from './planStatus'
 
 /**
@@ -163,7 +163,7 @@ export function schematicNetwork(tracks, switches) {
     if (!ports.length) continue
     const kind = sw.kind ?? 'turnout'
     const through = isLinkSwitch(sw) ? ['A', 'B']
-      : kind === 'turnout' ? ['A', 'B2'] : ['A', 'C']
+      : kind === 'turnout' ? ['A', turnoutLinePort(sw)] : ['A', 'C']
     const node = { sw, ports, through: [], attach: [], link: isLinkSwitch(sw) }
     for (const pt of ports) {
       const key = endKey(pt.trackId, pt.end)

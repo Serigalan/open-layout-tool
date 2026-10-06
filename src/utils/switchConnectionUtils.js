@@ -538,7 +538,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
   return {
     TP1, B1E, B2A, TP2,
     tp1Wgs, b1eWgs, b2aWgs, tp2Wgs,
-    delta: c.delta, s2: c.s2, flipped2: frame.flipped2, side: c.side,
+    delta: c.delta, s1: frame.s1, s2: c.s2, flipped2: frame.flipped2, side: c.side,
     R: c.R, w: c.w, L1: c.L1, L2: c.L2, Lg: c.Lg,
     signedR1, signedR2, signedRg,
     chain1: c.chain1, chain2: c.chain2, branch1, branch2, bearing2A: c.bearing2A,

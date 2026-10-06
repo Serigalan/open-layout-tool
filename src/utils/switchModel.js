@@ -76,6 +76,23 @@ export const switchRoutes = (kind) => Object.keys(switchRoutePorts(kind))
 export const SWITCH_ROUTES = switchRoutes(DEFAULT_SWITCH_KIND)
 
 /**
+ * The port of a turnout the line it lies on runs on through: B2, the through
+ * route — unless the turnout is `swapped`. An outer-bent turnout whose stem
+ * radius is its form's own has a straight branch; that is no bent turnout but
+ * the plain form with its routes swapped, and it is built as one: the curved
+ * line it was laid into is its branch (B1), the straight leaving it its
+ * through route (B2). The line then runs on over B1, and only the record can
+ * say so — at a joint the tracks give no sign which of the two it is.
+ */
+export const turnoutLinePort = (sw) => (sw?.swapped ? 'B1' : 'B2')
+
+/** …and the port the turnout leads off that line at. */
+export const turnoutDivergingPort = (sw) => (sw?.swapped ? 'B2' : 'B1')
+
+/** The route of a turnout that its line runs over, as its elements are marked. */
+export const turnoutLineRoute = (sw) => (sw?.swapped ? 'branch' : 'main')
+
+/**
  * What a kind and its routes are called, as locale keys — a turnout is a
  * Weiche, a crossing a Kreuzung, both slips a Kreuzungsweiche, and each route
  * carries the name the dialogs give it. The element table reads them so a

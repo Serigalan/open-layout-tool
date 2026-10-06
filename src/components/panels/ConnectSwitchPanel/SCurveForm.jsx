@@ -244,8 +244,11 @@ export default function SCurveForm({ onCommitted }) {
             <ReadOnlyField label={t('scurve_mid_radius')} value={result.signedRg
                 ? `${Math.abs(result.signedRg).toFixed(0)} m`
                 : t('scurve_mid_straight')} />
+            {/* A branch bent straight is built as the plain form with its
+                routes swapped: the running track is then its branch, on the form's radius. */}
             <ReadOnlyField label={t('scurve_branch_radius')} value={[result.signedR1, result.signedR2]
-                .map(r => (r ? `${Math.abs(r).toFixed(0)} m` : t('scurve_mid_straight')))
+                .map(r => (r ? `${Math.abs(r).toFixed(0)} m`
+                  : fill('scurve_branch_swapped', { r: String(result.switchType.R) })))
                 .join('  /  ')} />
             {result.cantMid !== 0 && (
               <ReadOnlyField label={t('scurve_cant')} value={`${Math.abs(result.cantMid)} mm`} />

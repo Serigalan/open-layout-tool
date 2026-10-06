@@ -102,10 +102,16 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
   const switchGeom = phase === 'editing' && anchor
     ? computeSwitchGeometryUtm(anchor.startUtm, anchor.bearing, currentSw, side, trailing, anchor.startWgs, stemSigned)
     : null
-  const branchGeometry = switchGeom
-    ? elementPath(switchGeom.arcOriginUtm, switchGeom.curvedUtm, switchGeom.signedR) : null
-  const mainGeometry = switchGeom && !trailing
-    ? elementPath(switchGeom.startUtm, switchGeom.straightUtm, switchGeom.mainSignedR) : null
+  // Bent so that its branch comes out straight, it is the plain form with its
+  // routes swapped (computeSwitchGeometryUtm): the arc the picked track runs on
+  // in is its branch, the straight its through route. Each track keeps the
+  // name of what it is in the terrain — the arc continues the picked line.
+  const swapped = switchGeom?.swapped ?? null
+  const branchGeometry = swapped ? elementPath(swapped.startUtm, swapped.straightUtm, null)
+    : switchGeom ? elementPath(switchGeom.arcOriginUtm, switchGeom.curvedUtm, switchGeom.signedR) : null
+  const mainGeometry = !switchGeom || trailing ? null
+    : swapped ? elementPath(swapped.arcOriginUtm, swapped.curvedUtm, swapped.signedR)
+      : elementPath(switchGeom.startUtm, switchGeom.straightUtm, switchGeom.mainSignedR)
   const { name, setName, reset: resetName } = useTrackName(project.id, fields, { geometry: branchGeometry, setField })
   // Both lie at the same kilometrage, so the through route steps past the branch's name.
   const { name: mainName, setName: setMainName, reset: resetMainName } = useTrackName(
@@ -156,7 +162,8 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
       // Before a pick there is no entered stem radius yet, so the hover shows
       // the switch bent into the element it would sit on.
       const stem   = curved ? endRadiusOf(el) : null
-      const geom   = computeSwitchGeometryUtm(endUtm, brg, SWITCH_PICK_TYPES[switchTypeIdxRef.current], sideRef.current, trailingRef.current, endWgs, stem)
+      const bent   = computeSwitchGeometryUtm(endUtm, brg, SWITCH_PICK_TYPES[switchTypeIdxRef.current], sideRef.current, trailingRef.current, endWgs, stem)
+      const geom   = bent.swapped ?? bent
       preview.set(SWITCH_LINES_SOURCE, buildLinesGeoJSON(geom))
       preview.set(SWITCH_FILL_SOURCE, buildFillGeoJSON(geom))
     },
@@ -216,7 +223,8 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
   // ── Update preview when options change (editing phase) ───────────────────
   useEffect(() => {
     if (phase !== 'editing' || !startWgsRef.current) return
-    const geom = computeSwitchGeometryUtm(startUtmRef.current, bearingRef.current, SWITCH_PICK_TYPES[switchTypeIdx], side, trailing, startWgsRef.current, stemSigned)
+    const bent = computeSwitchGeometryUtm(startUtmRef.current, bearingRef.current, SWITCH_PICK_TYPES[switchTypeIdx], side, trailing, startWgsRef.current, stemSigned)
+    const geom = bent.swapped ?? bent
     preview.set(SWITCH_LINES_SOURCE, buildLinesGeoJSON(geom))
     preview.set(SWITCH_FILL_SOURCE, buildFillGeoJSON(geom))
   }, [phase, switchTypeIdx, side, trailing, stemSigned, map, preview])
@@ -282,6 +290,8 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
   const stemDef = curved ? computeCantDefSigned(speed, stemAtToe, cant) : null
   const cantErr = switchCantError(cant, cantReason)
   const defErr  = cantDef > MAX_SWITCH_CANT_DEF || (stemDef ?? 0) > MAX_SWITCH_CANT_DEF
+  // Swapped, the arc is the branch and the straight the through route.
+  const [stemDefShown, branchDefShown] = swapped ? [cantDef, stemDef] : [stemDef, cantDef]
 
   return (
     <>
@@ -303,7 +313,7 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
               <NumberInput step="any" value={stemInput}
                 onChange={e => setStemInput(e.target.value)} />
             </div>
-            <ReadOnlyField label={t('switch_bauform')} value={t(`switch_bauform_${bauform(stemAtToe, branchSignedR)}`)} />
+            <ReadOnlyField label={t('switch_bauform')} value={t(swapped ? 'switch_bauform_swapped' : `switch_bauform_${bauform(stemAtToe, branchSignedR)}`)} />
           </>
         )}
         <div className="form-field">
@@ -313,12 +323,12 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
         <SwitchCantField cant={cant} onCant={setCant}
           reason={cantReason} onReason={setCantReason} />
         {curved && (
-          <ReadOnlyField type="number" label={t('switch_stem_cant_def')} value={stemDef ?? 0} />
+          <ReadOnlyField type="number" label={t('switch_stem_cant_def')} value={stemDefShown ?? 0} />
         )}
-        <ReadOnlyField type="number" label={curved ? t('switch_branch_cant_def') : t('cant_def')} value={cantDef} />
+        <ReadOnlyField type="number" label={curved ? t('switch_branch_cant_def') : t('cant_def')} value={branchDefShown} />
         <ReadOnlyField label={t('arc_length')} value={`~${arcLen.toFixed(1)} m`} />
         <ReadOnlyField label={curved ? t('switch_branch_radius') : t('field_radius')} value={
-            !curved ? `${currentSw.R} m`
+            !curved || swapped ? `${currentSw.R} m`
               : branchSignedR == null ? t('switch_branch_straight')
                 : `${Math.round(branchSignedR)} m`
           } />
