@@ -115,7 +115,12 @@ export default function useMapInstance({ onStyleLoad }) {
     setActiveBasemap(basemapId)
     setElevationRange(null)   // the new style fits its own range
     try {
-      m.setStyle(basemap.style)
+      // Loaded whole, never diffed: a diff against the style on screen — which
+      // carries the project's own layers — removes those layers, adds only the
+      // basemap's and fires no 'style.load', so nothing would draw the project
+      // again until the next basemap. From a vector style to a state survey's
+      // single raster layer the diff succeeds, and the tracks were gone.
+      m.setStyle(basemap.style, { diff: false })
       m.once('style.load', () => {
         // The new style's colour scale starts on its default range.
         updateElevationRange(m, { force: true })

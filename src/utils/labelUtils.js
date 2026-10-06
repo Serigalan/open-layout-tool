@@ -29,10 +29,16 @@ let _generation = 0
 export const labelGeneration = () => _generation
 
 function ensureSvg(map) {
-  // Container may have been removed from the DOM (e.g. on a style change).
-  if (_container && !_container.parentNode) {
-    _container = null
-    _svg = null
+  // The container lives in the map's canvas container — of *this* map. A map
+  // made anew (a project opened again from the start page) has a canvas of its
+  // own while the old one hangs on, detached: still a parent, so asking for
+  // one was not enough, and every label went on being drawn into the old map,
+  // out of sight, until the topology view happened to clear them all. Moved
+  // over, the labels go with it.
+  const host = map.getCanvasContainer()
+  if (_container && _container.parentNode !== host) {
+    if (host) host.appendChild(_container)
+    else { _container = null; _svg = null }
   }
   if (_svg) return _svg
   _container = document.createElement('div')
@@ -85,6 +91,8 @@ export function updateLabels(map) {
 }
 
 function _updateLabelsNow(map) {
+  // Labels kept from a map that has since been replaced move to this one.
+  ensureSvg(map)
   const zoom = map.getZoom()
   const visible = zoom > MIN_ZOOM
   if (_svg) _svg.style.display = visible ? '' : 'none'
