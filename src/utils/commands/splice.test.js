@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSplice, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest } from './splice'
+import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest } from './splice'
 import { straightElement, arcElement, transitionElement } from '../elementFactory'
 import { recalcAbsLengths, rebuildCoords } from '../trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
@@ -135,5 +135,40 @@ describe('the track built from the answer', () => {
 
   it('has nothing to commit without a solution', () => {
     expect(buildSplice({ tracks: [a, b], dep, arr, splice: { error: 'x' }, speed: 0, cant: 0 })).toBe(null)
+  })
+})
+
+describe('the spacing to a neighbouring track', () => {
+  const dep = splicePick(a, 0), arr = splicePick(b, 0)
+
+  it('hands over the neighbour every metre, only near the two picked elements', () => {
+    // A neighbour 10 m north of track a, two kilometres long.
+    const far = track('n', [straightElement(P(-1000, 10), P(1000, 10))])
+    const axis = neighbourAxis(far, EPSG, dep, arr)
+    const es = axis.map(p => p[0] - 500000)
+    expect(Math.min(...es)).toBeCloseTo(-150, 6)
+    expect(Math.max(...es)).toBeCloseTo(550, 6)
+    expect(axis.length).toBe(701)
+    expect(axis.every(p => p[1] === 5700010 && p[2] === 0)).toBe(true)
+  })
+
+  it('carries the cant as it holds at each station, signed as stored', () => {
+    const curve = track('c', [arcElement(P(0, 10), P(100, 20), -500, { cant: -80 })])
+    const axis = neighbourAxis(curve, EPSG, dep, arr)
+    expect(axis.length).toBe(Math.ceil(curve.elements[0].length) + 1)
+    expect(axis.every(p => p[2] === -80)).toBe(true)
+  })
+
+  it('asks for the spacing with the cant figures and the shortest arc of the speed', () => {
+    const req = spliceRequest(dep, arr, settings, clearanceRequest({
+      axis: [[1, 2, 0]], dMin: '4.0', profile: [[0, 0], [2500, 0]], maximize: true, speed: 160, cant: -60,
+    }))
+    expect(req.clearance).toMatchObject({
+      ref: [[1, 2, 0]], dMin: 4, maximize: true, speed: 160, cant: 60,
+      cantModel: { coeff: 6.5, defMin: 60, step: 5 },
+    })
+    expect(req.clearance.lMin).toBeCloseTo(32)
+    expect(req.dep.cant).toBe(0)
+    expect(spliceRequest(dep, arr, settings).clearance).toBeUndefined()
   })
 })

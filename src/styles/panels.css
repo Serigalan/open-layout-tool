@@ -887,3 +887,17 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
   width: 100%;
   box-sizing: border-box;
 }
+
+/* The track a splice keeps its distance to, and the button that picks it. */
+.splice-clearance-pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.splice-clearance-pick .panel-btn {
+  flex: none;
+  width: auto;
+  padding: 4px 10px;
+}

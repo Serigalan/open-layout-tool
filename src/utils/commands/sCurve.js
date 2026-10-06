@@ -8,7 +8,7 @@ import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../coordinateUtils
 import { newSwitchFields, switchElementMark } from '../switchModel'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
 import { solveSwitchConnection, buildConnectionElements, orientStemToward } from '../switchConnectionUtils'
-import { catalogLimit } from '../regelkatalog'
+import { minElementLength } from '../rules/elementLength'
 
 // The S-curve between two line tracks (SCurveForm): solving the connection
 // for a shift, the range of shifts it stands over, and the commit.
@@ -209,19 +209,6 @@ function turnoutsOnElements([p1, p2], dir1, shift, res) {
 }
 
 // ── Minimum element length (LP.EL.01) ────────────────────────────────────────
-
-/**
- * l_min of LP.EL.01 for an element of design speed `v` [m] — or null where the
- * catalogue gives none (no speed, or one below its table).
- */
-export function minElementLength(v) {
-  if (!(v > 0)) return null
-  try {
-    return catalogLimit('LP.EL.01', 'l_min', { 'element.design_speed': v, 'element.length': 0 })
-  } catch {
-    return null
-  }
-}
 
 /** Shorter than this a piece is none: the turnout sits on the node [m] (switchPlacement's JOINT_TOL). */
 const NODE_TOL = 1e-3

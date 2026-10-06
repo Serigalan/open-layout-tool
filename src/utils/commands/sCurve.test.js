@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { SWITCH_TYPES } from '../switchConnectionUtils'
-import { stems, solveConnection, computeShiftBounds, settleConnection, connectionRemnants, minElementLength, connectionPick, buildSCurve } from './sCurve'
+import { stems, solveConnection, computeShiftBounds, settleConnection, connectionRemnants, connectionPick, buildSCurve } from './sCurve'
+import { minElementLength } from '../rules/elementLength'
 import { hasPekBestand, loadPekBestand } from '../../test/pekFixture'
 import { hydrateProjects } from '../persistenceUtils'
 import { expectNodesJoin, expectSwitchRoutesCarved } from '../../test/chainInvariants'

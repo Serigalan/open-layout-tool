@@ -77,13 +77,25 @@ export const cantSign = (radius) => (radius < 0 ? -1 : 1)
 /** Snap a cant to the design step; the magnitude decides, not the sign. */
 export const roundCant = (mm) => Math.sign(mm) * Math.round(Math.abs(mm) / CANT_STEP) * CANT_STEP
 
+/** Below this cant deficiency without any cant, computeAutoC proposes none [mm]. */
+const AUTO_CANT_MIN_DEF = 60
+
+/**
+ * computeAutoC's figures, for the optimizer service to propose the same cant
+ * for every radius it tries (the splice's search for the largest radius that
+ * keeps a track spacing, clearance.py `auto_cant`).
+ */
+export const AUTO_CANT_MODEL = {
+  coeff: CANT_COEFF, defCoeff: CANT_DEF_COEFF, defMin: AUTO_CANT_MIN_DEF, max: MAX_CANT, step: CANT_STEP,
+}
+
 /** Auto-compute cant from speed (km/h) and signed radius (m); result is signed.
  *  If cant deficiency without any cant < 60 mm, no cant is needed. */
 export function computeAutoC(speed, radius) {
   const R = Math.abs(radius)
   if (R <= 0) return 0
   const defWithoutCant = Math.round((CANT_DEF_COEFF * speed * speed) / R)
-  if (defWithoutCant < 60) return 0
+  if (defWithoutCant < AUTO_CANT_MIN_DEF) return 0
   return cantSign(radius) * Math.min(MAX_CANT, roundCant((CANT_COEFF * speed * speed) / R))
 }
 

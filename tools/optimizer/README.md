@@ -91,6 +91,15 @@ größten Radius, der passt (`params.rMax`). Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
 Antworten, gegen die die App testet, schreibt `tests/splice_fixture.py`.
 
+**Gleisabstand** (`clearance` in der Anfrage, `olt_optimizer/clearance.py`):
+die eingefügten Elemente halten zu einem gewählten Gleis einen Mindestabstand,
+vergrößert um das, was die Überhöhung beider Gleise dazugibt — die beiden
+Lichtraumumrisse um ihre Überhöhung gekippt, wie das Querprofil sie zeichnet.
+Geprüft wird beim eingegebenen Radius, oder mit `maximize` der größte Radius
+gesucht, der den Abstand hält (Gerade–Gerade und Bogen–Gerade; zwei Bögen haben
+keinen freien Radius und werden nur geprüft). Prüfung:
+`/var/lib/open-layout-tool/venv/bin/python tools/optimizer/tests/verify_clearance.py`.
+
 ## Trassieren aus Achspunkten (`POST /align`)
 
 Seit AP 12.5 rechnet der Dienst aus gemessenen Achspunkten (Punktdatei oder

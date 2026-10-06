@@ -67,8 +67,9 @@ MAX_MDB_BODY = int(os.environ.get("OLT_MDB_MAX_BODY", str(128 * 1024 * 1024)))
 # station's gradient for a few thousand.
 MAX_TERRAIN_POINTS = int(os.environ.get("OLT_TERRAIN_MAX_POINTS", "20000"))
 
-# A splice request is two elements and a few numbers.
-MAX_SPLICE_BODY = 64 * 1024
+# A splice request is two elements and a few numbers — and with a spacing to
+# keep, the neighbour's axis every metre near the splice (some 40 bytes a point).
+MAX_SPLICE_BODY = 2 * 1024 * 1024
 # An alignment fit: up to MAX_POINTS axis points of ~45 bytes each, with their heights.
 MAX_ALIGN_BODY = 3 * 1024 * 1024
 
@@ -360,7 +361,8 @@ class Handler(BaseHTTPRequestHandler):
         self._respond(200, {"heights": heights, "sources": sources})
 
     def _do_splice(self):
-        """A splice is a few milliseconds of geometry: answered in this thread, no
+        """A splice is a few milliseconds of geometry — a search for the largest
+        radius that keeps a spacing a second or two: answered in this thread, no
         child process and no slot. One that does not fit is an answer, not a
         failure — it comes back with 200 and its error key."""
         body = self._read_body(MAX_SPLICE_BODY)

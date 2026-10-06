@@ -24,6 +24,8 @@ north, signed radius > 0 for a right-hand curve.
 
 import math
 
+from . import clearance
+from .clearance import Neighbour, Spacing, auto_cant, check, largest_radius
 from .geometry import (
     DEG2RAD, RAD2DEG, arc_center, arc_sweep, dir_of, fit_curve_group, transition_end, transition_shift,
     _arc_forward,
@@ -499,18 +501,111 @@ def _pick(raw):
         "start": (float(start[0]), float(start[1])), "end": (float(end[0]), float(end[1])),
         "bearing": float(raw["bearing"]),
         "radius": float(radius) if radius not in (None, 0) else None,
+        # The cant the picked element carries, a magnitude [mm] — only read for the spacing.
+        "cant": abs(float(raw.get("cant") or 0)),
     }
+
+
+def _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join):
+    """The splice of the case the two picks make (raises SpliceError)."""
+    if dep["radius"] is None and arr["radius"] is None:
+        return splice_straights(dep, arr, radius, l_dep, l_arr, profile)
+    if dep["radius"] is not None and arr["radius"] is not None:
+        if arc_join == "transition":
+            return splice_arcs_transition(dep, arr, profile)
+        return splice_arcs_straight(dep, arr, l_dep, l_arr, profile)
+    return splice_arc_straight(dep, arr, radius, l_dep, l_arr, profile)
+
+
+def _with_clearance(dep, arr, radius, l_dep, l_arr, profile, arc_join, cl):
+    """The splice held to a spacing to a neighbouring track (see clearance.py):
+    checked at `radius`, or with `maximize` the largest radius that keeps it —
+    where the case has a radius of its own to choose (not two arcs)."""
+    d_min = float(cl["dMin"])
+    if not d_min > 0:
+        raise ValueError("dMin")
+    spacing = Spacing(cl["profile"])
+    es = [p[0] for p in (dep["start"], dep["end"], arr["start"], arr["end"])]
+    ns = [p[1] for p in (dep["start"], dep["end"], arr["start"], arr["end"])]
+    neighbour = Neighbour(cl.get("ref") or [], (min(es), min(ns), max(es), max(ns)))
+    speed = float(cl.get("speed") or 0)
+    model = cl.get("cantModel") or {}
+
+    def cant_of(u_new):
+        def of(el):
+            sign = 1.0 if el["radius"] > 0 else -1.0
+            role = el.get("role", "new")
+            return sign * (dep["cant"] if role == "dep" else arr["cant"] if role == "arr" else u_new)
+        return of
+
+    def described(res, u_new, extra):
+        worst = check(res["elements"], neighbour, spacing, d_min, cant_of(u_new))
+        info = {"dMin": d_min, "near": worst is not None, **extra}
+        if worst is not None:
+            info.update(worst)
+            info["kept"] = worst["margin"] >= -1e-6
+        else:
+            info["kept"] = True
+        return info
+
+    free = not (dep["radius"] is not None and arr["radius"] is not None)
+    if cl.get("maximize") and free:
+        r_max = clearance.R_MAX
+        try:
+            _construct(dep, arr, r_max, l_dep, l_arr, profile, arc_join)
+        except SpliceError as exc:
+            # Too large to fit on the elements at all: the search starts where it fits.
+            if exc.params.get("rMax"):
+                r_max = float(exc.params["rMax"])
+
+        # The arc inserted has to be an element of its own length: between an
+        # arc and a straight the old arc can otherwise be run on round to the
+        # straight, and the "largest radius" is a sliver of any radius at all.
+        l_min = float(cl.get("lMin") or 0)
+
+        def build(r):
+            try:
+                res = _construct(dep, arr, r, l_dep, l_arr, profile, arc_join)
+            except SpliceError:
+                return None
+            if res["info"].get("arcLength", 0) < l_min:
+                return None
+            u = auto_cant(speed, r, model)
+            res["clearance"] = described(res, u, {"cant": u})
+            return res
+
+        r, res = largest_radius(build, lambda res: res["clearance"]["kept"], r_max=r_max)
+        if r is None:
+            raise SpliceError("splice_error_clearance", dMin=d_min)
+        res["info"]["clearance"] = {**res.pop("clearance"), "radius": r, "maximized": True}
+        return res
+
+    res = _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join)
+    res["info"]["clearance"] = described(res, abs(float(cl.get("cant") or 0)), {})
+    return res
 
 
 def splice_payload(payload):
     """The answer to `POST /splice`.
 
     Body: {"dep": pick, "arr": pick, "radius": m, "lDep": m, "lArr": m,
-           "transition": "clothoid"|"bloss", "arcJoin": "straight"|"transition"}
+           "transition": "clothoid"|"bloss", "arcJoin": "straight"|"transition",
+           "clearance": optional, see below}
     with a pick {"start": [e, n], "end": [e, n], "bearing": deg at the end,
-    "radius": signed m or null}. Answers {"elements", "reverseArr", "info"} or
-    {"error": key, "params": {...}} for a splice that does not fit. A body
-    that is not one raises ValueError.
+    "radius": signed m or null, "cant": mm}. Answers {"elements", "reverseArr",
+    "info"} or {"error": key, "params": {...}} for a splice that does not fit.
+    A body that is not one raises ValueError.
+
+    `clearance` holds the splice to a spacing to another track (clearance.py):
+    {"ref": [[e, n, cant], …] its axis in this plane, "dMin": m, "profile":
+    [[y, z], …] the half clearance outline in mm, "cant": mm on the new arc,
+    "maximize": bool, "speed": km/h and "cantModel": {coeff, defCoeff, defMin,
+    max, step} for the cant at each radius tried, "lMin": m the shortest arc
+    the search may insert (LP.EL.01 at that speed)}. The answer's info then
+    carries `clearance`: dMin, kept, near and — where the neighbour lies near —
+    margin, distance, required, cantNew, cantRef, at, ref; with `maximize` also
+    radius and cant. No radius that keeps it is the error
+    `splice_error_clearance`.
     """
     if not isinstance(payload, dict):
         raise ValueError("payload")
@@ -521,13 +616,13 @@ def splice_payload(payload):
     profile = payload.get("transition", "clothoid")
     if profile not in ("clothoid", "bloss"):
         raise ValueError("transition")
+    arc_join = payload.get("arcJoin")
+    cl = payload.get("clearance")
+    if cl is not None and not isinstance(cl, dict):
+        raise ValueError("clearance")
     try:
-        if dep["radius"] is None and arr["radius"] is None:
-            return splice_straights(dep, arr, radius, l_dep, l_arr, profile)
-        if dep["radius"] is not None and arr["radius"] is not None:
-            if payload.get("arcJoin") == "transition":
-                return splice_arcs_transition(dep, arr, profile)
-            return splice_arcs_straight(dep, arr, l_dep, l_arr, profile)
-        return splice_arc_straight(dep, arr, radius, l_dep, l_arr, profile)
+        if cl:
+            return _with_clearance(dep, arr, radius, l_dep, l_arr, profile, arc_join, cl)
+        return _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join)
     except SpliceError as exc:
         return {"error": exc.code, "params": exc.params}

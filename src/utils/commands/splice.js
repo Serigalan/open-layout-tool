@@ -2,8 +2,12 @@ import { generateId } from '../identifierUtils'
 import { rebuildCoords, recalcAbsLengths, trackLabel } from '../trackModel'
 import { resolveEndBearing, reverseElement, nodeUtm } from '../elementUtils'
 import { reconstructElements } from '../elementReconstruct'
-import { cantSign } from '../rules/cant'
+import { cantSign, AUTO_CANT_MODEL } from '../rules/cant'
+import { minElementLength } from '../rules/elementLength'
 import { truncateHeights } from '../heightUtils'
+import { elementStations, pointOnElement } from '../platformUtils'
+import { sectionAtStation } from '../crossSectionUtils'
+import { transformPlanePoint } from '../coordinateUtils'
 
 // Splicing two tracks into one (R5.5, AP 12.4): what a picked element offers
 // the splice, the request the service builds the construction from, and the
@@ -30,6 +34,8 @@ export function splicePick(track, elIdx) {
     startUtm: nodeUtm(el.startNode, coords[0], epsg),
     bearing: resolveEndBearing(el, epsg),
     signedR: el.radius != null ? el.radius : null,
+    // Signed as stored; the spacing to a neighbour reads it on what the arc keeps.
+    cant: el.cant ?? 0,
   }
 }
 
@@ -57,12 +63,13 @@ export function secondPickRefusal(first, pick) {
  * transitions) or with `arcJoin` 'transition' one transition from arc to arc,
  * an arc and a straight a new arc of `radius`.
  */
-export function spliceRequest(dep, arr, { radius, clothoidEnabled, clothoidDep, clothoidArr, transitionType, arcJoin }) {
+export function spliceRequest(dep, arr, { radius, clothoidEnabled, clothoidDep, clothoidArr, transitionType, arcJoin }, clearance = null) {
   const ends = (p) => ({
     start: [p.startUtm.easting, p.startUtm.northing],
     end: [p.endUtm.easting, p.endUtm.northing],
     bearing: p.bearing,
     radius: p.signedR,
+    cant: Math.abs(p.cant ?? 0),
   })
   return {
     dep: ends(dep), arr: ends(arr),
@@ -71,6 +78,62 @@ export function spliceRequest(dep, arr, { radius, clothoidEnabled, clothoidDep, 
     lArr: clothoidEnabled ? Number(clothoidArr) || 0 : 0,
     transition: transitionType ?? 'clothoid',
     arcJoin: arcJoin ?? 'straight',
+    ...(clearance ? { clearance } : {}),
+  }
+}
+
+/** Step of the neighbour's axis handed to the service [m]. */
+const AXIS_STEP = 1
+/** How far around the two picked elements the neighbour's axis is handed over [m]. */
+const AXIS_MARGIN = 150
+
+/**
+ * The axis of the track a splice keeps its distance to, as the service reads
+ * it: [easting, northing, cant] every metre, in the plane of the splice
+ * (`epsg`), the cant signed as stored and as it holds at that station
+ * (ramping over a transition) — only where it lies near the two picked
+ * elements, so the request stays small however long the track is.
+ */
+export function neighbourAxis(track, epsg, dep, arr) {
+  const corners = [dep.startUtm, dep.endUtm, arr.startUtm, arr.endUtm]
+  const e0 = Math.min(...corners.map(p => p.easting)) - AXIS_MARGIN
+  const e1 = Math.max(...corners.map(p => p.easting)) + AXIS_MARGIN
+  const n0 = Math.min(...corners.map(p => p.northing)) - AXIS_MARGIN
+  const n1 = Math.max(...corners.map(p => p.northing)) + AXIS_MARGIN
+  const out = []
+  // Each element from its first step on — its start is the end of the one before.
+  elementStations(track).forEach((row, k) => {
+    const len = row.el.length ?? 0
+    const n = Math.max(1, Math.ceil(len / AXIS_STEP))
+    for (let i = k === 0 ? 0 : 1; i <= n; i++) {
+      const s = len * i / n
+      const { utm } = pointOnElement(row.el, track.epsg, s)
+      const [e, no] = Number(track.epsg) === Number(epsg)
+        ? [utm.easting, utm.northing]
+        : transformPlanePoint(utm.easting, utm.northing, track.epsg, epsg)
+      if (e < e0 || e > e1 || no < n0 || no > n1) continue
+      const cant = sectionAtStation(track, row.start + s)?.cant ?? 0
+      out.push([Math.round(e * 1000) / 1000, Math.round(no * 1000) / 1000, Math.round(cant * 10) / 10])
+    }
+  })
+  return out
+}
+
+/**
+ * The spacing a splice is held to (the `clearance` of its request): the
+ * neighbour's axis, the minimum spacing `dMin` [m], the half clearance outline
+ * of the project's profile, and either the cant of the new arc (checked at
+ * the dialog's radius) or, with `maximize`, the speed the service proposes the
+ * cant from for every radius it tries — and the shortest arc it may insert
+ * there (LP.EL.01).
+ */
+export function clearanceRequest({ axis, dMin, profile, maximize, speed, cant }) {
+  return {
+    ref: axis, dMin: Number(dMin), profile,
+    cant: Math.abs(Number(cant) || 0),
+    maximize: !!maximize, speed: Number(speed) || 0,
+    cantModel: AUTO_CANT_MODEL,
+    lMin: minElementLength(Number(speed)) ?? 0,
   }
 }
 
