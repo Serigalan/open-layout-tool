@@ -36,7 +36,7 @@ describe('the catalogue file', () => {
 
   it('is versioned as the machine-readable rendering it is, not as the Ril', () => {
     expect(KATALOG.catalog.title).toBe('DB Ril 800.0110 | Linienführung')
-    expect(KATALOG.catalog.katalog_version).toBe('0.5.0')
+    expect(KATALOG.catalog.katalog_version).toBe('0.5.1')
     expect(KATALOG.catalog.status).toBe('draft')
     // The Ril's own edition and validity date are stated nowhere: this file
     // renders the Ril, it does not speak for it.

@@ -2,7 +2,7 @@
   "katalog": {
     "id": "db-ril-800-0120",
     "title": "DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen",
-    "katalog_version": "0.3.0",
+    "katalog_version": "0.3.1",
     "status": "draft",
     "date": "2026-10-06",
     "language": "de",
@@ -21,6 +21,13 @@
     "label_note": "Die Labels sind Schlüssel: ein gespeichertes Projekt schlägt seine Form darüber nach (switchTypeByLabel, switchModel.SWITCH_FORM_VERSION). Ein Label wird deshalb nicht umbenannt, auch wenn die Ril die Form anders schreibt."
   },
   "changelog": [
+    {
+      "version": "0.3.1",
+      "date": "2026-10-06",
+      "changes": [
+        "190 – 1:6.3: lds 0 — WE ist die ldS, wie bei 215 – 1:4.8 (geliefert vom Auftraggeber); damit führen alle Weichenformen lds, OP.W.06 erledigt"
+      ]
+    },
     {
       "version": "0.3.0",
       "date": "2026-10-06",
@@ -338,6 +345,7 @@
     },
     {
       "label": "190 – 1:6.3",
+      "lds": 0,
       "art": "weiche",
       "klasse": "sonderbauform",
       "R": 190,
@@ -686,12 +694,6 @@
       ],
       "topic": "Regelteil der 0120",
       "assumption": "„Es sollen Regelformen verwendet werden\" ist eine Regel, ihre Stufe (Hinweis, Warnung, Zustimmung) steht aus. Ebenso die Regeln zu Mindestzwischengerade, gebogener Weiche und Krümmungssprung innerhalb der Weiche, den die 0110 ausdrücklich diesem Katalog überlässt."
-    },
-    {
-      "id": "OP.W.06",
-      "refs": ["felder.lds", "formen[*].lds"],
-      "topic": "Lage der letzten durchgehenden Schwelle",
-      "assumption": "Für 190 – 1:6.3 ist lds nicht geliefert. Dort wird das Zweiggleis nicht an sein Stammgleis gekoppelt, und der Weichenbereich im Höhenplan reicht von WA bis WE."
     }
   ]
 }

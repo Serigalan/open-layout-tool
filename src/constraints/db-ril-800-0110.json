@@ -2,7 +2,7 @@
   "catalog": {
     "id": "db-ril-800-0110",
     "title": "DB Ril 800.0110 | Linienführung",
-    "katalog_version": "0.5.0",
+    "katalog_version": "0.5.1",
     "status": "draft",
     "date": "2026-10-06",
     "language": "de",
@@ -25,6 +25,13 @@
   },
 
   "changelog": [
+    {
+      "version": "0.5.1",
+      "date": "2026-10-06",
+      "changes": [
+        "OP.14 erledigt: der Weichenkatalog führt die ldS jetzt für alle Weichenformen (db-ril-800-0120 0.3.1); ohne ldS reicht der Weichenbereich nur noch bei Kreuzungen und Kreuzungsweichen bis zu deren Enden"
+      ]
+    },
     {
       "version": "0.5.0",
       "date": "2026-10-06",
@@ -919,7 +926,6 @@
         "Bis zur ldS liegen Stamm- und Zweiggleis auf einer Ebene, die Gradiente des Zweiggleises folgt der des Stammgleises (db-ril-800-0120, lds)."
       ],
       "source": { "ref": "RIL_800_0110", "section": "Kap. 10; Festlegung des Auftraggebers vom 2026-10-06" },
-      "open_point": "OP.14",
       "status": "confirmed"
     }
   ],
@@ -948,12 +954,6 @@
       "refs": ["rules[HP.LN.03]", "contexts.tunnel"],
       "topic": "Tunnel",
       "assumption": "Tunnel werden im Modell noch nicht geführt; HP.LN.03 steht im Katalog und wird angewendet, sobald ein Tunnel angegeben werden kann."
-    },
-    {
-      "id": "OP.14",
-      "refs": ["rules[HP.AR.06]", "contexts.switch_body"],
-      "topic": "Letzte durchgehende Schwelle",
-      "assumption": "Die ldS je Weichenform steht noch nicht im Weichenkatalog (db-ril-800-0120, OP.W.06); bis dahin reicht der Weichenbereich im Höhenplan von WA bis WE."
     },
     {
       "id": "OP.13",

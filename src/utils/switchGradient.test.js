@@ -60,7 +60,7 @@ describe('the ldS of a form', () => {
     expect(switchLds(turnout({ label: '500 – 1:12' }))).toBe(6.334)
     expect(switchLds(turnout({ label: '215 – 1:4.8' }))).toBe(0)
     expect(switchLds(turnout({ label: '300 – 1:14' }))).toBe(5.125)
-    expect(switchLds(turnout({ label: '190 – 1:6.3' }))).toBeNull()
+    expect(switchLds(turnout({ label: '190 – 1:6.3' }))).toBe(0)
   })
 })
 
