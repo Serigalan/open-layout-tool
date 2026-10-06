@@ -18,7 +18,10 @@ import { useI18n } from '../locales/i18nContext'
 const TYPE_TITLE = Object.fromEntries(KATALOG.element_types.map(type => [type.id, type.title]))
 const FORM_TITLE = Object.fromEntries(
   KATALOG.element_types.flatMap(type => (type.forms ?? []).map(form => [form.id, form.title])))
-const SCOPE_TITLE = { element: 'Element', boundary: 'Elementgrenze', cant_ramp: 'Überhöhungsrampe' }
+const SCOPE_TITLE = {
+  element: 'Element', boundary: 'Elementgrenze', cant_ramp: 'Überhöhungsrampe',
+  gradient: 'Neigungsabschnitt', vertical_curve: 'Neigungswechsel',
+}
 
 const appliesTo = (rule) => {
   const applies = rule.applies_to

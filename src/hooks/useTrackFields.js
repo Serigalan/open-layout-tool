@@ -7,6 +7,9 @@ const initialState = {
   lineNumber: '',
   lineName: '',
   side: 'sorting',
+  // '' runs on the project's line category (gradientCheck); a track names one only to differ.
+  lineCategory: '',
+  trackUse: 'main',
   stationName: '',
   uicStation: '',
   trackNumber: '',

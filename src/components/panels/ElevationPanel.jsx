@@ -1,9 +1,14 @@
 import { useState } from 'react'
-import { loadTracks, currentProject, setHeightsForTracks } from '../../storage'
+import { loadTracks, currentProject, setHeightsForTracks, updateProject } from '../../storage'
+import { useProject } from '../../hooks/useStore'
+import { LINE_CATEGORIES } from '../../utils/identifierUtils'
+import { projectLineCategory } from '../../utils/gradientCheck'
 import { fillHeights } from '../../utils/elevationFill'
 import { chosenTerrainSource } from '../../utils/elevationSource'
 import TerrainSourceSelect from '../TerrainSourceSelect'
 import GroupedTrackList from './GroupedTrackList'
+import GradientFindings from './GradientFindings'
+import FormSection from '../form/FormSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
 
@@ -13,6 +18,10 @@ import useMapPick from '../../map/useMapPick'
  * a gradient once it is stated or asked for: in the profile of a track without
  * one, or with the buttons here — reading a whole track again (which
  * overwrites edited heights), or every track that still lacks heights.
+ *
+ * Above the list, what the Höhenplan rules say about the gradient on show,
+ * and the line category of the project they judge a line track by — above
+ * it, since the list of a large project runs far below the screen.
  */
 export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   const { t, fill } = useI18n()
@@ -20,6 +29,7 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   const [busy, setBusy]     = useState(false)
   const [result, setResult] = useState(null)   // { updated, missing } of the last run
   const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
+  const project = useProject()
 
   // A track is picked on the map as readily as from the list, and the one under
   // the cursor is drawn on the hover layer so it is clear which it would be.
@@ -51,6 +61,17 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
       <h2>{t('elevation_title')}</h2>
       <p>{t('elevation_hint')}</p>
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
+      <FormSection title={t('elevation_rules')}>
+        <p className="selecting-hint">{t('elevation_rules_hint')}</p>
+        <div className="form-field">
+          <label title={t('elevation_line_category_hint')}>{t('elevation_line_category')}</label>
+          <select value={projectLineCategory(project)} title={t('elevation_line_category_hint')}
+            onChange={(e) => updateProject({ lineCategory: e.target.value })}>
+            {LINE_CATEGORIES.map(key => <option key={key} value={key}>{t(`line_category_${key}`)}</option>)}
+          </select>
+        </div>
+        <GradientFindings trackId={profileTrackId} />
+      </FormSection>
       <GroupedTrackList tracks={tracks}
         isActive={(track) => track.id === profileTrackId}
         onPick={(track) => onShowProfile?.(track.id)} />

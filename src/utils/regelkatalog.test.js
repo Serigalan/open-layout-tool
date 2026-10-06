@@ -36,7 +36,7 @@ describe('the catalogue file', () => {
 
   it('is versioned as the machine-readable rendering it is, not as the Ril', () => {
     expect(KATALOG.catalog.title).toBe('DB Ril 800.0110 | Linienführung')
-    expect(KATALOG.catalog.katalog_version).toBe('0.3.0')
+    expect(KATALOG.catalog.katalog_version).toBe('0.4.0')
     expect(KATALOG.catalog.status).toBe('draft')
     // The Ril's own edition and validity date are stated nowhere: this file
     // renders the Ril, it does not speak for it.
@@ -65,7 +65,7 @@ describe('every rule the catalogue states', () => {
   it('carries an id of the documented shape, once', () => {
     const ids = rules.map(r => r.id)
     expect(new Set(ids).size).toBe(ids.length)
-    for (const id of ids) expect(id, id).toMatch(/^LP\.(ALL|EL|KB|UB|KS)\.\d{2}$/)
+    for (const id of ids) expect(id, id).toMatch(/^(LP\.(ALL|EL|KB|UB|KS)|HP\.(LN|AR))\.\d{2}$/)
   })
 
   it('ends its evaluation with an else, so no case is left unanswered', () => {
@@ -125,11 +125,29 @@ describe('every rule the catalogue states', () => {
     }
   })
 
-  it('is sorted into the three scopes the checker knows', () => {
+  it('is sorted into the scopes the two checkers know', () => {
     const scopes = new Set(rules.map(r => r.applies_to.scope))
-    expect([...scopes].sort()).toEqual(['boundary', 'cant_ramp', 'element'])
+    expect([...scopes].sort()).toEqual(['boundary', 'cant_ramp', 'element', 'gradient', 'vertical_curve'])
+    expect(rulesForScope('gradient').map(r => r.id)).toEqual(['HP.LN.01', 'HP.LN.02', 'HP.LN.03'])
+    expect(rulesForScope('vertical_curve').map(r => r.id))
+      .toEqual(['HP.AR.01', 'HP.AR.02', 'HP.AR.03', 'HP.AR.04', 'HP.AR.05'])
     expect(rulesForScope('boundary').map(r => r.id)).toEqual(['LP.UB.01', 'LP.KS.01', 'LP.KS.02'])
     expect(rulesForScope('cant_ramp').map(r => r.id)).toEqual(['LP.UB.02'])
+  })
+
+  // A context the catalogue does not declare would be one no checker ever
+  // sets: the rule asking for it would quietly never fire.
+  it('only asks for contexts it declares', () => {
+    const declared = new Set([...KATALOG.contexts.items.map(c => c.id), 'switch_internal'])
+    for (const [, id] of JSON.stringify(rules).matchAll(/in_context\('([a-z_]+)'\)/g)) {
+      expect(declared.has(id), id).toBe(true)
+    }
+  })
+
+  // HP.AR.05 holds a curve in a ramp or a switch to the Regelwert of Tabelle
+  // 12 — the very one HP.AR.03 grades by, not a second statement of it.
+  it('reads one Regelwert of Tabelle 12 for HP.AR.03 and HP.AR.05', () => {
+    expect(ruleById('HP.AR.05').thresholds.reg.expr).toBe(ruleById('HP.AR.03').thresholds.reg.expr)
   })
 })
 

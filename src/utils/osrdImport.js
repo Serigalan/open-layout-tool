@@ -6,7 +6,7 @@ import { newSwitchFields, switchElementMark, LINK_KIND } from './switchModel'
 import { kindForOsrdType, bufferStopsToEndMarks } from './alignmentCodec'
 import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT } from './geometryPrecision'
-import { TYPE_CODES, SIDE_CODES } from './identifierUtils'
+import { TYPE_CODES, SIDE_CODES, LINE_CATEGORIES } from './identifierUtils'
 import { STATUSES } from './planStatus'
 import { arcFrom, straightFrom, transitionElement } from './elementFactory'
 
@@ -473,6 +473,8 @@ export function parseOsrdRailJson(data) {
         rails:       olt.rails?.length ? olt.rails : undefined,
         sleepers:    olt.sleepers?.length ? olt.sleepers : undefined,
         status:      STATUSES.includes(olt.status) ? olt.status : undefined,
+        lineCategory: LINE_CATEGORIES.includes(olt.line_category) ? olt.line_category : undefined,
+        trackUse:    olt.track_use === 'siding' ? 'siding' : undefined,
         heightEpsg,
       }),
       epsg,

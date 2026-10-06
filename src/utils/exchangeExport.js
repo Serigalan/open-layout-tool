@@ -84,6 +84,10 @@ function oltExtension(track) {
     sleepers:     track.sleepers?.length ? track.sleepers : null,
     // Planning status; existing is what a track without one is.
     status:       track.status && track.status !== 'existing' ? track.status : null,
+    // What the Höhenplan rules ask of it; a track without a category of its
+    // own runs on the project's, and one without a use is a main track.
+    line_category: track.lineCategory ?? null,
+    track_use:    track.trackUse === 'siding' ? 'siding' : null,
   }
   const present = Object.entries(fields).filter(([, v]) => v != null && v !== '')
   return present.length ? Object.fromEntries(present) : null

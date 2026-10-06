@@ -11,16 +11,27 @@ export const SIDE_CODES    = { sorting: 1n, non_sorting: 2n }
 export const TYPE_NAMES    = { 1: 'line_track', 2: 'station_track' }
 export const SIDE_NAMES    = { 1: 'sorting', 2: 'non_sorting' }
 
+/** The line categories the rulebook tells apart (gradientCheck), in the order a form offers them. */
+export const LINE_CATEGORIES = ['main', 'secondary', 's_bahn']
+/** Main track or siding; a track is a main track unless it says otherwise. */
+export const TRACK_USES = ['main', 'siding']
+
 /**
  * Returns the type and the metadata fields relevant to it, plus the height
- * datum every track has. Fields of the other type are left as they are — a
- * station track keeps the line number its kilometrage is read off. Empty
- * strings are stored as null.
+ * datum and the use (main track or siding) every track has. Fields of the
+ * other type are left as they are — a station track keeps the line number its
+ * kilometrage is read off. Empty strings are stored as null.
+ *
+ * The line category and the use are only written where they say something: a
+ * line track without a category of its own runs on the project's, and a track
+ * is a main track unless it is a siding. Left undefined they clear what the
+ * track carried, and a store that never had them stays without.
  */
 export function buildTypeFields(fields) {
   const str = v => (v != null && String(v).trim() !== '' ? String(v).trim() : null)
   const num = v => (v != null && String(v).trim() !== '' ? Number(v) : null)
   const heightEpsg = num(fields.heightEpsg) || DEFAULT_HEIGHT_EPSG
+  const trackUse = fields.trackUse === 'siding' ? 'siding' : undefined
 
   if (fields.type === 'line_track') {
     return {
@@ -28,6 +39,8 @@ export function buildTypeFields(fields) {
       lineNumber: num(fields.lineNumber),
       lineName:   str(fields.lineName),
       side:       fields.side ? Number(SIDE_CODES[fields.side]) : null,
+      lineCategory: LINE_CATEGORIES.includes(fields.lineCategory) ? fields.lineCategory : undefined,
+      trackUse,
       heightEpsg,
     }
   }
@@ -36,6 +49,7 @@ export function buildTypeFields(fields) {
     stationName: str(fields.stationName),
     uicStation:  str(fields.uicStation),
     trackNumber: num(fields.trackNumber),
+    trackUse,
     heightEpsg,
   }
 }

@@ -2,27 +2,43 @@
   "catalog": {
     "id": "db-ril-800-0110",
     "title": "DB Ril 800.0110 | Linienführung",
-    "katalog_version": "0.3.0",
+    "katalog_version": "0.4.0",
     "status": "draft",
-    "date": "2026-09-22",
+    "date": "2026-10-06",
     "language": "de",
     "scope": {
       "included": [
         "Gerade",
         "Kreisbogen und Überhöhung",
         "Übergangsbogen (Klothoide, Blossbogen) mit Überhöhungsrampe",
-        "Krümmungssprünge"
+        "Krümmungssprünge",
+        "Längsneigung (Höhenplan, Kap. 10)",
+        "Ausrundung von Neigungswechseln (Höhenplan)"
       ],
       "excluded": [
         "Weichen einschließlich weicheninterner Krümmungssprünge (eigener Katalog)",
         "Physik und Geometrieberechnung (eigenes Dokument, Schnittstelle siehe derived_inputs)",
-        "Höhenplan (folgt, Präfix HP)"
+        "Weitere Regeln des Höhenplans (folgen)"
       ]
     },
-    "id_scheme": "LP.<Gruppe>.<Nr>. LP = Lageplan, HP = Höhenplan. Gruppen: ALL allgemein, EL Elementlänge, KB Kreisbogen, UB Übergangsbogen und Überhöhungsrampe, KS Krümmungssprung."
+    "id_scheme": "LP.<Gruppe>.<Nr>. LP = Lageplan, HP = Höhenplan. Gruppen: ALL allgemein, EL Elementlänge, KB Kreisbogen, UB Übergangsbogen und Überhöhungsrampe, KS Krümmungssprung; im Höhenplan LN Längsneigung, AR Ausrundung."
   },
 
   "changelog": [
+    {
+      "version": "0.4.0",
+      "date": "2026-10-06",
+      "changes": [
+        "Höhenplan begonnen: Längsneigung nach Kap. 10 (S. 23 ff.) als HP.LN.01–03 im neuen Geltungsbereich gradient, dem Neigungsabschnitt zwischen zwei Höhenpunkten",
+        "HP.LN.01: freie Strecke höchstens 12,5 ‰ auf Hauptbahnen, 40,0 ‰ auf Nebenbahnen und S-Bahnen",
+        "HP.LN.02: Bahnhofsgleise, in denen Züge halten oder Fahrzeuge abgestellt werden können, höchstens 2,5 ‰ bei Neubauten",
+        "HP.LN.03: Tunnel mindestens 2 ‰ bis 1000 m Länge, 4 ‰ darüber",
+        "Ausrundung als HP.AR.01–05 im Geltungsbereich vertical_curve, dem Neigungswechsel an einem inneren Höhenpunkt: Neigungswechsel ausgerundet, Länge l_a ≥ 20 m (in Gleisverbindungen 10 m), Halbmesser r_a nach Regelwert, Ermessensgrenze und Zustimmungswert für Kuppen und Wannen, Höchstwert 25000 m; Ausrundungen überschneiden sich nicht",
+        "HP.AR.01 ohne Ausrundung bis Δs ≤ 1 ‰, bei Nebengleisen und in Weichenverbindungen bis ≤ 4,5 ‰; HP.AR.05 Neigungswechsel in Überhöhungsrampen und Weichen vermeiden, sonst r_a mindestens Regelwert",
+        "Die „soll“-Werte der Längsneigung sind Regelwerte: eine Überschreitung ist eine Warnung",
+        "Kontexte für Gleisart (freie Strecke, Bahnhofsgleis), Streckenart (Hauptbahn, Nebenbahn, S-Bahn), Gleisnutzung (Haupt-, Nebengleis), Tunnel, Gleisverbindung und Überhöhungsrampe; OP.11 bis OP.13 neu"
+      ]
+    },
     {
       "version": "0.3.0",
       "date": "2026-09-22",
@@ -132,6 +148,8 @@
       { "key": "r_Z", "display": "rZ", "unit": "m", "title": "Radius des Zweiggleises einer Weiche", "en13803": null },
       { "key": "r_w", "display": "rw", "unit": "m", "title": "Vergleichsradius", "en13803": "R_id" },
       { "key": "s", "display": "s", "unit": "‰", "title": "Längsneigung", "en13803": null },
+      { "key": "delta_s", "display": "Δs", "unit": "‰", "title": "Neigungsdifferenz am Neigungswechsel", "en13803": null },
+      { "key": "l_a", "display": "la", "unit": "m", "title": "Länge des Ausrundungsbogens", "en13803": null },
       { "key": "u", "display": "u", "unit": "mm", "title": "Überhöhung", "en13803": "D" },
       { "key": "u_f", "display": "uf", "unit": "mm", "title": "Überhöhungsfehlbetrag", "en13803": "I" },
       { "key": "u_f_N", "display": "ufN", "unit": "mm", "title": "Überhöhungsfehlbetrag", "en13803": "I" },
@@ -163,15 +181,34 @@
     { "key": "curvature_jump", "provider": "physics", "unit": "bool", "definition": "Krümmung ist an der Elementgrenze unstetig" },
     { "key": "reverse_curve_straight", "provider": "model", "unit": "bool", "definition": "Gerade, deren beide Nachbarelemente gekrümmt sind und entgegengesetzte Krümmungsrichtung haben" },
     { "key": "ramp_on_transition", "provider": "model", "unit": "bool", "definition": "Die Überhöhungsrampe beginnt und endet genau mit einem Übergangsbogen" },
-    { "key": "ramp_form_matches", "provider": "model", "unit": "bool", "definition": "Rampenform passt zur Übergangsbogenform: gerade Rampe zu Klothoide, geschwungene Rampe zu Blossbogen" }
+    { "key": "ramp_form_matches", "provider": "model", "unit": "bool", "definition": "Rampenform passt zur Übergangsbogenform: gerade Rampe zu Klothoide, geschwungene Rampe zu Blossbogen" },
+    { "key": "gradient", "provider": "physics", "unit": "‰", "definition": "Betrag der Längsneigung eines Neigungsabschnitts: 1000 · |z_2 − z_1| / (s_2 − s_1) zwischen zwei aufeinanderfolgenden Höhenpunkten der Gradiente (Tangentenpolygon), auf 0,01 ‰ gerundet" },
+    { "key": "tunnel_length", "provider": "model", "unit": "m", "definition": "Länge des Tunnels, in dem der Neigungsabschnitt liegt" },
+    { "key": "gradient_change", "provider": "physics", "unit": "‰", "definition": "Neigungsdifferenz Δs = |s_2 − s_1| der beiden vorzeichenbehafteten Neigungen an einem Höhenpunkt, auf 0,01 ‰ gerundet" },
+    { "key": "vertical_curve_length", "provider": "physics", "unit": "m", "definition": "Länge des Ausrundungsbogens l_a = r_a · Δs / 1000 (zweimal die Tangentenlänge), auf 0,01 m gerundet; 0 ohne Ausrundung" },
+    { "key": "crest", "provider": "model", "unit": "bool", "definition": "Der Neigungswechsel ist eine Kuppe (die Neigung nimmt in Stationierungsrichtung ab); sonst eine Wanne" },
+    { "key": "vertical_curve_fits", "provider": "model", "unit": "bool", "definition": "Die Ausrundung liegt ganz zwischen den beiden Nachbarpunkten und überschneidet sich mit keiner anderen" }
   ],
 
   "contexts": {
     "items": [
-      { "id": "switch_area", "group": "area", "title": "Weichenbereich", "extent": "Weichenanfang (WA) bis Weichenende (WE)" }
+      { "id": "switch_area", "group": "area", "title": "Weichenbereich", "extent": "Weichenanfang (WA) bis Weichenende (WE)" },
+      { "id": "tunnel", "group": "area", "title": "Tunnel", "extent": "Tunnelanfang bis Tunnelende" },
+      { "id": "open_line", "group": "track_kind", "title": "Freie Strecke", "extent": "Streckengleis" },
+      { "id": "station_track", "group": "track_kind", "title": "Bahnhofsgleis, in dem Züge zum Halten kommen oder Schienenfahrzeuge abgestellt werden können", "extent": "das ganze Bahnhofsgleis" },
+      { "id": "main_line", "group": "line_category", "title": "Hauptbahn" },
+      { "id": "secondary_line", "group": "line_category", "title": "Nebenbahn" },
+      { "id": "s_bahn", "group": "line_category", "title": "S-Bahn" },
+      { "id": "track_connection", "group": "area", "title": "Gleis- bzw. Weichenverbindung", "extent": "Gleis, das an beiden Enden in eine Weiche läuft und zwischen den beiden Weichen nicht länger als 20 m ist" },
+      { "id": "cant_ramp", "group": "area", "title": "Überhöhungsrampe", "extent": "Übergangsbogen, über den sich die Überhöhung ändert" },
+      { "id": "main_track", "group": "track_use", "title": "Hauptgleis" },
+      { "id": "siding", "group": "track_use", "title": "Nebengleis" }
     ],
     "rules": {
-      "area": "Ein Objekt liegt in einem Bereich, sobald es sich mit ihm auf einer Länge > 0 überschneidet; eine Elementgrenze, sobald sie im Bereich liegt."
+      "area": "Ein Objekt liegt in einem Bereich, sobald es sich mit ihm auf einer Länge > 0 überschneidet; eine Elementgrenze, sobald sie im Bereich liegt.",
+      "track_kind": "Jedes Gleis ist genau eines von beiden; ein Neigungsabschnitt gehört zur Gleisart seines Gleises.",
+      "line_category": "Jedes Streckengleis gehört genau einer Streckenart an.",
+      "track_use": "Jedes Gleis ist Haupt- oder Nebengleis."
     }
   },
 
@@ -656,6 +693,205 @@
       "notes": ["Außerhalb von Weichenbereichen sollen Übergangsbögen verwendet werden. LP.KS.01 wird unabhängig davon geprüft."],
       "source": { "ref": "RIL_800_0110", "section": null },
       "status": "confirmed"
+    },
+    {
+      "id": "HP.LN.01",
+      "title": "Größte Längsneigung der freien Strecke",
+      "applies_to": { "scope": "gradient" },
+      "inputs": {
+        "s": { "from": "physics.gradient", "unit": "‰" }
+      },
+      "condition": "in_context('open_line')",
+      "thresholds": {
+        "max": { "expr": "if(in_context('main_line'), 12.5, 40)", "unit": "‰" }
+      },
+      "evaluation": [
+        { "if": "s <= max", "severity": "ok" },
+        { "else": "warning" }
+      ],
+      "notes": [
+        "Hauptbahnen 12,5 ‰, Nebenbahnen und S-Bahnen 40,0 ‰.",
+        "„soll nicht überschreiten“: der Wert ist ein Regelwert, eine Überschreitung ist zu begründen."
+      ],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10, S. 23" },
+      "status": "confirmed"
+    },
+    {
+      "id": "HP.LN.02",
+      "title": "Größte Längsneigung in Bahnhofsgleisen mit Halt oder Abstellung",
+      "applies_to": { "scope": "gradient" },
+      "inputs": {
+        "s": { "from": "physics.gradient", "unit": "‰" }
+      },
+      "condition": "in_context('station_track')",
+      "thresholds": {
+        "max": { "expr": "2.5", "unit": "‰" }
+      },
+      "evaluation": [
+        { "if": "s <= max", "severity": "ok" },
+        { "else": "warning" }
+      ],
+      "notes": [
+        "Gilt für Abschnitte von Bahnhofsgleisen, in denen Züge zum Halten kommen oder Schienenfahrzeuge abgestellt werden können, bei Neubauten. Siehe auch Ril 813.0201.",
+        "„soll nicht überschreiten“: der Wert ist ein Regelwert, eine Überschreitung ist zu begründen."
+      ],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10, S. 23" },
+      "open_point": "OP.11",
+      "status": "confirmed"
+    },
+    {
+      "id": "HP.LN.03",
+      "title": "Kleinste Längsneigung im Tunnel",
+      "applies_to": { "scope": "gradient" },
+      "inputs": {
+        "s": { "from": "physics.gradient", "unit": "‰" },
+        "l_t": { "from": "model.tunnel_length", "unit": "m" }
+      },
+      "condition": "in_context('tunnel')",
+      "thresholds": {
+        "min": { "expr": "if(l_t <= 1000, 2, 4)", "unit": "‰" }
+      },
+      "evaluation": [
+        { "if": "s >= min", "severity": "ok" },
+        { "else": "warning" }
+      ],
+      "notes": [
+        "Tunnellänge bis 1000 m mindestens 2 ‰, über 1000 m mindestens 4 ‰ (Fußnoten 38 und 39 der Ril).",
+        "„soll betragen“: der Wert ist ein Regelwert, eine Unterschreitung ist zu begründen."
+      ],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10, S. 23" },
+      "open_point": "OP.12",
+      "status": "confirmed"
+    },
+    {
+      "id": "HP.AR.01",
+      "title": "Ausrundung nach Neigungsdifferenz",
+      "applies_to": { "scope": "vertical_curve" },
+      "inputs": {
+        "ds": { "from": "physics.gradient_change", "unit": "‰" },
+        "ra": { "from": "point.vertical_radius", "unit": "m" },
+        "ds_free": { "expr": "if(in_context('siding') or in_context('track_connection'), 4.5, 1)", "unit": "‰" }
+      },
+      "condition": "ds > 0",
+      "evaluation": [
+        { "if": "ds > ds_free and ra > 0", "severity": "ok" },
+        { "if": "ds <= ds_free and ra == 0", "severity": "ok" },
+        { "if": "ds > ds_free", "severity": "error" },
+        { "else": "hint" }
+      ],
+      "notes": [
+        "Neigungswechsel sind auszurunden. Bei Neigungsdifferenzen ≤ 1 ‰ ist ohne Ausrundung auszubilden, bei Nebengleisen und in Weichenverbindungen bei ≤ 4,5 ‰.",
+        "Fehlt die nötige Ausrundung, hat die Gradiente einen Knick (Fehler); eine Ausrundung, wo keine sein soll, ist ein Hinweis."
+      ],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10" },
+      "status": "confirmed"
+    },
+    {
+      "id": "HP.AR.02",
+      "title": "Länge des Ausrundungsbogens",
+      "applies_to": { "scope": "vertical_curve" },
+      "inputs": {
+        "v": { "from": "point.design_speed", "unit": "km/h" },
+        "ds": { "from": "physics.gradient_change", "unit": "‰" },
+        "ra": { "from": "point.vertical_radius", "unit": "m" },
+        "la": { "from": "physics.vertical_curve_length", "unit": "m" }
+      },
+      "condition": "ds > 0 and ra > 0",
+      "thresholds": {
+        "reg": { "expr": "20", "unit": "m" },
+        "min_connection": { "expr": "10", "unit": "m" },
+        "v_connection": { "expr": "80", "unit": "km/h" },
+        "ds_connection": { "expr": "4.5", "unit": "‰" },
+        "ra_connection": { "expr": "2000", "unit": "m" }
+      },
+      "evaluation": [
+        { "if": "la >= reg", "severity": "ok" },
+        { "if": "in_context('track_connection') and v <= v_connection and ds <= ds_connection and la >= min_connection and ra >= ra_connection", "severity": "ok" },
+        { "else": "warning" }
+      ],
+      "notes": [
+        "l_a soll mindestens 20 m betragen.",
+        "Ist das in Gleisverbindungen nicht möglich, darf bis v ≤ 80 km/h und einer Neigungsdifferenz ≤ 4,5 ‰ mit l_a ≥ 10 m und r_a ≥ 2000 m trassiert werden."
+      ],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10" },
+      "open_point": "OP.13",
+      "status": "confirmed"
+    },
+    {
+      "id": "HP.AR.03",
+      "title": "Halbmesser des Ausrundungsbogens",
+      "applies_to": { "scope": "vertical_curve" },
+      "inputs": {
+        "v": { "from": "point.design_speed", "unit": "km/h" },
+        "ds": { "from": "physics.gradient_change", "unit": "‰" },
+        "ra": { "from": "point.vertical_radius", "unit": "m" },
+        "crest": { "from": "model.crest", "unit": "bool" }
+      },
+      "condition": "ds > 0 and ra > 0",
+      "thresholds": {
+        "max": { "expr": "25000", "unit": "m" },
+        "reg": { "expr": "if(v <= 230, max(0.4 * v^2, 2000), 22500)", "unit": "m" },
+        "discretion": { "expr": "if(v <= 230, max(0.25 * v^2, 2000), if(crest, 16000, 14000))", "unit": "m" },
+        "approval": { "expr": "if(crest, 0.16, 0.13) * v^2", "unit": "m" }
+      },
+      "evaluation": [
+        { "if": "ra > max", "severity": "error" },
+        { "if": "ra >= reg", "severity": "ok" },
+        { "if": "ra >= discretion", "severity": "warning" },
+        { "if": "ra >= approval", "severity": "approval" },
+        { "else": "error" }
+      ],
+      "notes": [
+        "v ≤ 230 km/h: Regelwert 0,4 · v², Ermessensgrenze 0,25 · v² und mindestens 2000 m, Zustimmungswert 0,16 · v² bei Kuppen und 0,13 · v² bei Wannen; unter 2000 m nur mit Zustimmung.",
+        "v > 230 km/h: Regelwert 22500 m, Ermessensgrenze 16000 m bei Kuppen und 14000 m bei Wannen, Zustimmungswert wie oben.",
+        "Höchstwert in beiden Bereichen 25000 m."
+      ],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10, Tabelle 12" },
+      "open_point": "OP.13",
+      "status": "confirmed"
+    },
+    {
+      "id": "HP.AR.04",
+      "title": "Ausrundungen überschneiden sich nicht",
+      "applies_to": { "scope": "vertical_curve" },
+      "inputs": {
+        "ds": { "from": "physics.gradient_change", "unit": "‰" },
+        "ra": { "from": "point.vertical_radius", "unit": "m" },
+        "fits": { "from": "model.vertical_curve_fits", "unit": "bool" }
+      },
+      "condition": "ds > 0 and ra > 0",
+      "evaluation": [
+        { "if": "fits", "severity": "ok" },
+        { "else": "error" }
+      ],
+      "notes": ["Eine Ausrundung, die über einen Nachbarpunkt hinausreicht oder in die nächste hineinläuft, lässt sich nicht bauen."],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10" },
+      "status": "confirmed"
+    },
+    {
+      "id": "HP.AR.05",
+      "title": "Neigungswechsel in Überhöhungsrampe oder Weiche",
+      "applies_to": { "scope": "vertical_curve" },
+      "inputs": {
+        "v": { "from": "point.design_speed", "unit": "km/h" },
+        "ds": { "from": "physics.gradient_change", "unit": "‰" },
+        "ra": { "from": "point.vertical_radius", "unit": "m" },
+        "ds_free": { "expr": "if(in_context('siding') or in_context('track_connection'), 4.5, 1)", "unit": "‰" }
+      },
+      "condition": "ds > 0 and (in_context('cant_ramp') or in_context('switch_area'))",
+      "thresholds": {
+        "reg": { "expr": "if(v <= 230, max(0.4 * v^2, 2000), 22500)", "unit": "m" }
+      },
+      "evaluation": [
+        { "if": "ra >= reg or (ra == 0 and ds <= ds_free)", "severity": "hint" },
+        { "else": "warning" }
+      ],
+      "notes": [
+        "Neigungswechsel, auch deren Ausrundungen, sollen in Überhöhungsrampen und in Weichen vermieden werden.",
+        "Ist dies nicht möglich, soll r_a nicht kleiner als der Regelwert nach Tabelle 12 sein (wie HP.AR.03)."
+      ],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10" },
+      "status": "confirmed"
     }
   ],
 
@@ -671,6 +907,24 @@
       "refs": ["contexts"],
       "topic": "Verkehrsart und Bahnsteigbereich",
       "assumption": "Entfallen, da die Ril 800.0110 dafür keine eigenen Werte vorsieht (bisher Personenverkehr u 180 / u_f 150 mm, Bahnsteig u 110 mm)."
+    },
+    {
+      "id": "OP.11",
+      "refs": ["rules[HP.LN.02]", "contexts.station_track"],
+      "topic": "Halte- und Abstellabschnitte, Neubau",
+      "assumption": "Ein Bahnhofsgleis gilt in seiner ganzen Länge als Abschnitt, in dem Züge halten oder Fahrzeuge abgestellt werden können, und jede Planung als Neubau."
+    },
+    {
+      "id": "OP.12",
+      "refs": ["rules[HP.LN.03]", "contexts.tunnel"],
+      "topic": "Tunnel",
+      "assumption": "Tunnel werden im Modell noch nicht geführt; HP.LN.03 steht im Katalog und wird angewendet, sobald ein Tunnel angegeben werden kann."
+    },
+    {
+      "id": "OP.13",
+      "refs": ["rules[HP.AR.02]", "rules[HP.AR.03]", "contexts.track_connection"],
+      "topic": "Lesart der Ausrundungstabelle",
+      "assumption": "Der Regelwert 0,4 · v² gilt wie die Ermessensgrenze mit mindestens 2000 m; unter dem Zustimmungswert 0,16 · v² bzw. 0,13 · v² ist r_a ein Fehler, zwischen ihm und der Ermessensgrenze (also auch unter 2000 m) zustimmungspflichtig. Maßgebend ist die größte design speed der Elemente unter der Ausrundung. Als Gleis- bzw. Weichenverbindung gilt ein Gleis, das an beiden Enden in eine Weiche läuft und dazwischen nicht länger als 20 m ist; eine Weiche in einem durchgehenden Gleis macht dieses nicht zur Verbindung. Eine Ausrundung, die in einer Weichenverbindung bei Δs ≤ 4,5 ‰ nach HP.AR.02 zulässig ist, meldet HP.AR.01 trotzdem als Hinweis, weil dort ohne Ausrundung auszubilden ist."
     }
   ]
 }

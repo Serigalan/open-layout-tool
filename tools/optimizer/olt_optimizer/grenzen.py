@@ -56,6 +56,11 @@ DEFAULT_STUFE = "reg"
 # table then shows each one as the Sonderfall it is.
 TOLERIERT = {"reg": (), "discretion": ("cant_ramp",)}
 
+# The scopes of the Höhenplan — the stretch between two height points and the
+# gradient change at one. They judge the gradient, which no optimizer run
+# touches.
+VERTICAL_SCOPES = ("gradient", "vertical_curve")
+
 _FLIP = {"<": ">", "<=": ">=", ">": "<", ">=": "<="}
 _LOWER = (">", ">=")
 
@@ -234,6 +239,10 @@ class Grenzen:
 
         self._ramp_rules = k.rules_for_scope("cant_ramp")
         for scope in {(r.get("applies_to") or {}).get("scope") for r in k.data["rules"]}:
+            # The vertical alignment (HP) is not something a run builds: it
+            # rearranges the plan view and leaves the heights to the profile.
+            if scope in VERTICAL_SCOPES:
+                continue
             if scope not in ("element", "boundary", "cant_ramp"):
                 raise GrenzenError(f"{k.id}: Regeln für '{scope}' kennt der Optimierer nicht")
 

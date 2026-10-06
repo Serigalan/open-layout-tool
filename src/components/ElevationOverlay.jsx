@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { setTrackHeights, setHeightsForTracks, currentProject } from '../storage'
-import { useSwitches, useTracks } from '../hooks/useStore'
+import { useProject, useSwitches, useTracks } from '../hooks/useStore'
+import { checkVertical, verticalFindings } from '../utils/gradientCheck'
+import { ruleById, severityLabelKey } from '../utils/regelkatalog'
 import {
   trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, elementAtStation,
   gradientAt, insertHeightPoint,
@@ -33,6 +35,9 @@ const gradeLabel = (perMille) => {
   return `${v > 0 ? '+' : ''}${v.toFixed(1)} ‰`
 }
 
+/** A finding worth drawing: something the rules said, short of "kept". */
+const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
+
 /**
  * Longitudinal profile of one track: stations at 1:1, heights exaggerated
  * (10× by default), zoomable and pannable.
@@ -55,6 +60,12 @@ const gradeLabel = (perMille) => {
  * is marked as on the map — the line across and the height the track is built
  * at there.
  *
+ * The gradient is checked against the Höhenplan rules of DB Ril 800.0110 as it
+ * is edited (gradientCheck): a stretch whose gradient a rule flags is drawn
+ * over in the colour of its step, a gradient change with a finding gets a
+ * ring in that colour, and the tooltip of either says what was found. The
+ * list of findings stands in the panel.
+ *
  * A track without a gradient shows none — the terrain is not read on its own.
  * The empty profile offers to compute one from the height data instead.
  */
@@ -65,6 +76,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const map = useMap()
   const tracks   = useTracks()
   const switches = useSwitches()
+  const project  = useProject()
   const track    = tracks.find(tr => tr.id === trackId)
 
   const [exaggeration, setExaggeration] = useState(10)
@@ -96,6 +108,11 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const allPoints = [...points, ...stubs.flatMap(s => s.points)]
   // The curves rounding the gradient changes.
   const curves = verticalCurves(points)
+  // What the Höhenplan rules say, by the point a stretch ends at and the
+  // point a gradient change sits at.
+  const check = track ? checkVertical(track, { project, switches }) : null
+  const stretchAt = new Map((check?.stretches ?? []).map(s => [s.index, s]))
+  const curveAt = new Map((check?.curves ?? []).map(c => [c.index, c]))
 
   // ── Fit the view to the data when the track or the exaggeration changes ───
   const plotW = size ? size.w - MARGIN.left - MARGIN.right : 0
@@ -257,6 +274,19 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
 
   if (!track) return null
 
+  /** The tooltip of a stretch or gradient change: its values, then each finding. */
+  const findingNote = (entry, values) => [
+    values,
+    ...entry.results.filter(r => r.severity !== 'ok')
+      .map(r => `${r.id} · ${t(severityLabelKey(r.severity))}: ${ruleById(r.id)?.title ?? ''}`),
+  ].join('\n')
+  const stretchNote = (s) => findingNote(s, `s = ${Math.abs(s.grade).toFixed(2)} ‰`)
+  const curveNote = (c) => findingNote(c, [
+    `Δs = ${Math.abs(c.gradeChange).toFixed(2)} ‰`,
+    c.radius ? `ra = ${Math.round(c.radius)} m, la = ${c.length.toFixed(2)} m` : 'ra –',
+    c.speed ? `v = ${c.speed} km/h` : null,
+  ].filter(Boolean).join(', '))
+
   // ── Geometry helpers ──────────────────────────────────────────────────────
   const X = (station) => MARGIN.left + (station - view.x0) * view.k
   const Y = (z) => size.h - MARGIN.bottom - (z - view.z0) * view.k * exaggeration
@@ -301,7 +331,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
       if (!(run > 0)) continue
       const x1 = X(a.station), x2 = X(b.station)
       if (x2 - x1 < GRADE_LABEL_MIN_PX) continue
-      grades.push({ x: (x1 + x2) / 2, y: (Y(a.z) + Y(b.z)) / 2, grade: (b.z - a.z) / run * 1000 })
+      grades.push({ x: (x1 + x2) / 2, y: (Y(a.z) + Y(b.z)) / 2, grade: (b.z - a.z) / run * 1000, stretch: stretchAt.get(i) })
     }
 
     let lastLabelX = -Infinity
@@ -364,10 +394,27 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
           {/* the track */}
           <polyline fill="none" stroke="var(--color-primary)" strokeWidth="2"
             points={points.map(p => `${X(p.station)},${Y(p.z)}`).join(' ')} />
+          {/* stretches a rule flags, in the colour of its step */}
+          {[...stretchAt.values()].filter(flagged).map(s => (
+            <line key={`sf${s.index}`} className={`rule-sev-${s.severity}`} stroke="currentColor" strokeWidth="4"
+              strokeOpacity="0.75" strokeLinecap="round"
+              x1={X(points[s.index - 1].station)} y1={Y(points[s.index - 1].z)}
+              x2={X(points[s.index].station)} y2={Y(points[s.index].z)}>
+              <title>{stretchNote(s)}</title>
+            </line>
+          ))}
           {grades.map((g, i) => (
-            <text key={`g${i}`} x={g.x} y={g.y + 14} fontSize="10" fill={PALETTE.muted} textAnchor="middle">
+            <text key={`g${i}`} x={g.x} y={g.y + 14} fontSize="10" textAnchor="middle"
+              className={flagged(g.stretch) ? `rule-sev-${g.stretch.severity}` : undefined}
+              fill={flagged(g.stretch) ? 'currentColor' : PALETTE.muted}>
+              {g.stretch && <title>{stretchNote(g.stretch)}</title>}
               {gradeLabel(g.grade)}
             </text>
+          ))}
+          {/* gradient changes a rule flags: a ring in the colour of its step */}
+          {[...curveAt.values()].filter(flagged).map(c => (
+            <circle key={`cf${c.index}`} className={`rule-sev-${c.severity}`} cx={X(c.station)} cy={Y(points[c.index].z)}
+              r="8.5" fill="none" stroke="currentColor" strokeWidth="2" pointerEvents="none" />
           ))}
           {labelled.map(p => (
             <text key={`l${p.index}`} x={X(p.station)} y={Y(p.z) - 9} fontSize="10" fill={PALETTE.textStrong} textAnchor="middle">
@@ -394,7 +441,9 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               <circle className="clickable" key={`p${p.index}`} cx={X(p.station)} cy={Y(p.z)} r={on ? 5.5 : 3.5}
                 fill={on ? PALETTE.mapSelected : PALETTE.white} stroke={on ? PALETTE.mapSelected : 'var(--color-primary)'} strokeWidth="2"
 
-                onPointerDown={e => e.stopPropagation()} onClick={e => pick(p, e)} />
+                onPointerDown={e => e.stopPropagation()} onClick={e => pick(p, e)}>
+                {curveAt.has(p.index) && <title>{curveNote(curveAt.get(p.index))}</title>}
+              </circle>
             )
           })}
         </g>
@@ -447,6 +496,20 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
           ) : (
             <span className="profile-hint">{t('elevation_hint_edit')}</span>
           )}
+          {check && points.length >= 2 && (() => {
+            // The rules in a word, beside the controls: the list itself is in
+            // the panel, which a long track list may have scrolled away.
+            const found = verticalFindings(check)
+            const n = found.reduce((sum, f) => sum + f.places, 0)
+            return (
+              <span className={`profile-rules rule-sev-${check.severity ?? 'none'}`}
+                title={found.length
+                  ? found.map(f => `${f.id} · ${t(severityLabelKey(f.severity))}: ${ruleById(f.id)?.title ?? ''}${f.places > 1 ? ` (${f.places}×)` : ''}`).join('\n')
+                  : t('elevation_rules_ok')}>
+                {found.length ? fill('elevation_rules_summary', { n }) : `✓ ${t('elevation_rules')}`}
+              </span>
+            )
+          })()}
           <label className="profile-edit">
             {t('elevation_exaggeration')}
             <select className="settings-select" value={exaggeration} onChange={e => setExaggeration(Number(e.target.value))}>

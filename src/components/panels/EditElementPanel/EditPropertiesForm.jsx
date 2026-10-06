@@ -42,6 +42,8 @@ export default function EditPropertiesForm({ onCommitted }) {
       setField('stationName', track.stationName ?? '')
       setField('uicStation',  track.uicStation  ?? '')
       setField('trackNumber', track.trackNumber ?? '')
+      setField('lineCategory', track.lineCategory ?? '')
+      setField('trackUse',    track.trackUse    ?? 'main')
       setField('heightEpsg',  String(track.heightEpsg ?? DEFAULT_HEIGHT_EPSG))
     },
   })
