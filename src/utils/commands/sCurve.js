@@ -97,12 +97,12 @@ function stemInPlane(g, crs) {
 }
 
 // The two picks as the solver takes them: both in line 1's plane, line 1 turned
-// towards line 2 (which turns its curvature and its cant with it).
+// towards the pick on line 2 (which turns its curvature and its cant with it).
 export function stems(picks) {
   const [g1, g2] = picks
   const zone = g1.zone
   const s2 = stemInPlane(g2, zone)
-  return { g1: orientStemToward(stemInPlane(g1, zone), s2.startUtm), g2: s2 }
+  return { g1: orientStemToward(stemInPlane(g1, zone), s2), g2: s2 }
 }
 
 // Solve the connection geometry for a given shift (pure — no React state).

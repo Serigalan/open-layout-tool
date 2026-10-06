@@ -157,13 +157,17 @@ function stemUnder(g, s, length) {
 }
 
 /**
- * The stem oriented towards `target` — the direction the connection leaves it
- * in. Reversing a track turns its curvature and its cant with it, so a caller
- * must not do this by adding 180° to a bearing.
+ * The stem oriented towards the pick on `other` — the direction the connection
+ * leaves it in. The pick, not the start of the element it was made on: that
+ * element may reach back past this pick, and the connection would then run
+ * away from where the second turnout was asked for. Reversing a track turns
+ * its curvature and its cant with it, so a caller must not do this by adding
+ * 180° to a bearing.
  */
-export function orientStemToward(g, target) {
+export function orientStemToward(g, other) {
   const rad = stemBearing(g, 0) * DEG2RAD
   const from = stemPoint(g, 0)
+  const target = stemPoint(other, 0)
   const toward = (target.easting - from.easting) * Math.sin(rad)
              + (target.northing - from.northing) * Math.cos(rad)
   return toward < 0 ? reverseStem(g) : g
