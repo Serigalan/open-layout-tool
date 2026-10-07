@@ -5,6 +5,7 @@ import { endKey } from './trackEndMarks'
 import { absLengthErrors, epsgMismatches, nodeGaps, untrueLengths } from './chainChecks'
 import { trackLabel } from './trackModel'
 import { surveyDefect } from './axisSurvey'
+import { referenceAxisDefect } from './referenceAxis'
 
 /**
  * Whether a project record holds together — the check every merge result and
@@ -131,6 +132,10 @@ export function validateProject(project) {
   for (const s of project?.axisSurveys ?? []) {
     const defect = surveyDefect(s)
     if (defect) add(errors, 'axis_survey_malformed', 'axisSurveys', s?.id ?? '?', s?.name ?? s?.id, { field: defect })
+  }
+  for (const a of project?.referenceAxes ?? []) {
+    const defect = referenceAxisDefect(a)
+    if (defect) add(errors, 'reference_axis_malformed', 'referenceAxes', a?.id ?? '?', a?.name ?? a?.id, { field: defect })
   }
 
   // ── tracks drawn twice ──

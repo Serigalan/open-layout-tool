@@ -82,8 +82,13 @@ export function reconnectPick(track, idx, joinAt, fixed) {
   }
 }
 
-/** Points along one element every `step` from its start, its end included — in the plane. */
-function elementPoints(el, epsg, step) {
+/**
+ * Points along one element in equal steps of at most `step` from its start
+ * — n = ⌈length / step⌉ of them, the k-th at k·length/n — its end included:
+ * [[e, n], …] in the plane. Also what a reference axis is sampled from
+ * (utils/referenceAxis).
+ */
+export function elementPoints(el, epsg, step) {
   const len = el.length ?? 0
   const coords = el.geometry?.coordinates ?? []
   const start = nodeUtm(el.startNode, coords[0], epsg)
@@ -93,7 +98,7 @@ function elementPoints(el, epsg, step) {
   }
   const out = []
   for (let i = 0; i <= n; i++) {
-    const s = Math.min(len, i * step)
+    const s = len * i / n
     const p = el.radius != null ? endPointCurvedUtm(start, el.bearing, s, el.radius) : endPointStraightUtm(start, el.bearing, s)
     out.push([p.easting, p.northing])
   }
@@ -101,8 +106,8 @@ function elementPoints(el, epsg, step) {
 }
 
 /**
- * The old axis of the elements `first`…`last` every AXIS_SPACING (the last
- * step of each element shorter), in travel order: { e0, n0, de, dn } — whole
+ * The old axis of the elements `first`…`last` every AXIS_SPACING (each
+ * element in equal steps of at most that, elementPoints), in travel order: { e0, n0, de, dn } — whole
  * millimetres from the first point, the way the service reads it — and
  * `coords` [[e, n], …] in the plane, for the map.
  */

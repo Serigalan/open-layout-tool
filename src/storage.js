@@ -977,6 +977,19 @@ export function deleteAxisSurvey(surveyId) {
   return mutate(p => ({ ...p, axisSurveys: (p.axisSurveys ?? []).filter(s => s.id !== surveyId) }))
 }
 
+// ── reference axes (Bestandsachsen, Paket V) ───────────────────────────────
+
+// (read through useReferenceAxes, hooks/useStore)
+
+/** Add a reference axis, or replace the one with its id. One undo step. */
+export function saveReferenceAxis(axis) {
+  return mutate(p => ({ ...p, referenceAxes: [...(p.referenceAxes ?? []).filter(a => a.id !== axis.id), axis] }))
+}
+
+export function deleteReferenceAxis(axisId) {
+  return mutate(p => ({ ...p, referenceAxes: (p.referenceAxes ?? []).filter(a => a.id !== axisId) }))
+}
+
 // ── switches ────────────────────────────────────────────────────────────────
 
 export function loadSwitches() {

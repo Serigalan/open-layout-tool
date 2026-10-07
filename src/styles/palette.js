@@ -45,6 +45,7 @@ export const PALETTE = Object.freeze({
   cloud: '#7a5a14',
   clear: '#1f7a3a',
   measuredAxis: '#b0136e',
+  referenceAxis: '#6d4c41',
   topOfRail: '#e4e4ec',
   sleeper: '#d9d4cc',
   sleeperEdge: '#8d867a',

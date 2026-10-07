@@ -77,6 +77,10 @@ export function describeStep(before, after) {
   for (const [list, key] of [[as.added, 'step_axis_survey_added'], [as.removed, 'step_axis_survey_removed'], [as.changed, 'step_axis_survey_changed']]) {
     if (list.length) return { key, params: { name: list[0].name ?? '' } }
   }
+  const ra = delta(before.referenceAxes, after.referenceAxes)
+  for (const [list, key] of [[ra.added, 'step_reference_axis_added'], [ra.removed, 'step_reference_axis_removed'], [ra.changed, 'step_reference_axis_changed']]) {
+    if (list.length) return { key, params: { name: list[0].name ?? '' } }
+  }
   const em = delta(before.endMarks, after.endMarks)
   if (em.added.length) return { key: 'step_end_mark_added', params: {} }
   if (em.removed.length) return { key: 'step_end_mark_removed', params: {} }

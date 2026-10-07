@@ -2,6 +2,7 @@ import maplibregl from 'maplibre-gl'
 import { hydrateProjects } from './persistenceUtils'
 import { endKey } from './trackEndMarks'
 import { surveyPoints } from './axisSurvey'
+import { axisOutline } from './referenceAxis'
 import { utmToWgs84 } from './coordinateUtils'
 
 /**
@@ -62,6 +63,10 @@ export function objectFeatures(record, collection, obj, status, props = {}) {
     if (!c?.length) return []
     return [feature({ type: 'Point', coordinates: obj.endpoint === 'BEGIN' ? c[0] : c[c.length - 1] })]
   }
+  if (collection === 'referenceAxes') {
+    const coords = axisOutline(obj, 2).map(([e, n]) => utmToWgs84(e, n, obj.epsg))
+    return coords.length > 1 ? [feature({ type: 'LineString', coordinates: coords })] : []
+  }
   if (collection === 'axisSurveys') {
     const coords = surveyPoints(obj).map(p => utmToWgs84(p.easting, p.northing, obj.epsg))
     return coords.length > 1 ? [feature({ type: 'LineString', coordinates: coords })] : []
@@ -102,7 +107,7 @@ export function comparisonFeatures(before, after, entries, { unchanged = false }
 /** Everything a hydrated record holds that has a place on the map, in one colour — a state looked at on its own. */
 export function recordFeatures(record) {
   const features = []
-  for (const name of ['platforms', 'tracks', 'switches', 'endMarks', 'axisSurveys']) {
+  for (const name of ['platforms', 'tracks', 'switches', 'endMarks', 'axisSurveys', 'referenceAxes']) {
     for (const obj of record[name] ?? []) features.push(...objectFeatures(record, name, obj, 'plain'))
   }
   return features

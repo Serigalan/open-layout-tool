@@ -25,6 +25,7 @@ const COLLECTIONS = [
   { name: 'kmLines',   key: 'lineNumber', whole: true },
   { name: 'endMarks',  key: 'id', whole: true },
   { name: 'axisSurveys', key: 'id', whole: true },
+  { name: 'referenceAxes', key: 'id', whole: true },
 ]
 
 export const COLLECTION_NAMES = COLLECTIONS.map(c => c.name)
@@ -111,7 +112,7 @@ export function objectLabel(collection, obj, tracksById = null) {
   if (collection === 'switches') return obj.name ?? obj.label ?? obj.switchId
   if (collection === 'platforms') return [obj.stationName, obj.code].filter(Boolean).join(' ') || obj.id
   if (collection === 'kmLines') return String(obj.lineNumber)
-  if (collection === 'axisSurveys') return obj.name ?? obj.id
+  if (collection === 'axisSurveys' || collection === 'referenceAxes') return obj.name ?? obj.id
   if (collection === 'endMarks' && tracksById) {
     const track = tracksById.get(obj.trackId)
     if (track) return `${objectLabel('tracks', track)} ${obj.endpoint}`
