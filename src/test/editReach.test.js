@@ -10,6 +10,7 @@ import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../utils/editGeometry'
 import { newSwitchFields, switchElementMark } from '../utils/switchModel'
 import { planElementChange, mergeElementEdits } from '../utils/editGeometry'
 import { expectValidTrack } from './chainInvariants'
+import { transitionElement } from '../utils/elementFactory'
 
 /**
  * AP 5.1 — how far one change in the track editor reaches.
@@ -246,5 +247,51 @@ describe('mergeElementEdits', () => {
     ]
     const merged = mergeElementEdits(now, edited, { changed: ['t1', 't2'], reshaped: ['t1', 't2'] })
     expect(merged.map(tr => tr.elements[0].length)).toEqual([120, 220])
+  })
+})
+
+// ── transitions follow the curve they run into ─────────────────────────────
+
+describe('a radius change and the transitions beside the curve', () => {
+  // Straight – clothoid – arc R 800 – clothoid – straight.
+  function curveWithTransitions() {
+    const s1 = straight(START, 30, 100)
+    const t1 = transitionElement(endOf(s1), s1.bearing, 60, null, 800, { speed: 100 })
+    const a  = arc(t1.endUtm, t1.endBearing, 150, 800)
+    const t2 = transitionElement(endOf(a), a.endBearing, 60, 800, null, { speed: 100 })
+    const s2 = straight(t2.endUtm, t2.endBearing, 100)
+    return [trackOf('t0', [s1, t1.element, a, t2.element, s2])]
+  }
+
+  it('carries the new radius into both transitions and keeps the chain tangent', () => {
+    const plan = planElementChange(curveWithTransitions(), [], 't0', 2, { radius: 600 })
+    const [s1, t1, a, t2] = plan.tracks[0].elements
+    expect(t1.r2).toBe(600)
+    expect(t2.r1).toBe(600)
+    expect(a.radius).toBe(600)
+    expect(t1.length).toBeCloseTo(60, 6)
+    // The first transition still starts where the straight ends, and the
+    // curve where the transition now ends, in its direction.
+    expect(t1.startNode).toEqual(s1.endNode)
+    expect(a.startNode[0]).toBeCloseTo(t1.endNode[0], 6)
+    expect(a.startNode[1]).toBeCloseTo(t1.endNode[1], 6)
+    expect(a.bearing).toBeCloseTo(t1.endBearing, 9)
+    expect(t2.startNode[0]).toBeCloseTo(a.endNode[0], 6)
+    plan.tracks.forEach(expectValidTrack)
+  })
+
+  it('turns them into a straight with the curve', () => {
+    const plan = planElementChange(curveWithTransitions(), [], 't0', 2, { radius: null })
+    const [, t1, , t2] = plan.tracks[0].elements
+    expect(t1.r2).toBeNull()
+    expect(t2.r1).toBeNull()
+  })
+
+  it('leaves a transition alone that does not run into the curve', () => {
+    const tracks = curveWithTransitions()
+    tracks[0].elements[1] = { ...tracks[0].elements[1], r2: 1200 }
+    const plan = planElementChange(tracks, [], 't0', 2, { radius: 600 })
+    expect(plan.tracks[0].elements[1].r2).toBe(1200)
+    expect(plan.tracks[0].elements[3].r1).toBe(600)
   })
 })

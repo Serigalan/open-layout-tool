@@ -25,30 +25,36 @@ import { useI18n } from '../../locales/i18nContext'
  * a parallel track of forty elements does not report the same rule forty
  * times.
  *
+ * `judge` narrows a chain to the elements that are being made (by index), so
+ * a chain can carry the element it starts from for its joint without
+ * reporting what that element already is; `fields: false` keeps the findings
+ * off the dialog's fields, where they are about another element than the
+ * one this list is about.
+ *
  * Rendered as the panel's other messages are — one line per finding, in the
  * colour of its step (`rule-sev-*`, the one ladder the element table and the
  * catalogue's legend read from too), with no bullets: a panel keeps those for
  * what it is about to do, not for what it has to say about it.
  */
-export default function RuleFindings({ element, elements }) {
+export default function RuleFindings({ element, elements, judge = null, fields: toFields = true }) {
   const { t } = useI18n()
   const chain = elements ?? (element ? [element] : [])
-  const check = checkTrack(chain)
+  const judged = checkTrack(chain).perElement.filter(entry => !judge || judge.includes(entry.index))
   // The same findings at the fields they are about (R10.4), while this is shown.
   const scope = useContext(RuleFieldsContext)
-  const fields = fieldFindings(check.perElement.flatMap(entry => entry.results))
+  const fields = fieldFindings(judged.flatMap(entry => entry.results))
   const fieldsKey = JSON.stringify(fields)
-  const setFields = scope?.setFields
+  const setFields = toFields ? scope?.setFields : null
   useEffect(() => {
     if (!setFields) return undefined
     setFields(JSON.parse(fieldsKey))
     return () => setFields(null)
   }, [setFields, fieldsKey])
   // Nothing was judged at all — every element had an unknown design speed.
-  if (!check.perElement.some(entry => !entry.unchecked)) return null
+  if (!judged.some(entry => !entry.unchecked)) return null
 
   const byRule = new Map()
-  for (const result of check.perElement.flatMap(entry => entry.results)) {
+  for (const result of judged.flatMap(entry => entry.results)) {
     if (result.severity === 'ok') continue
     const seen = byRule.get(result.id)
     byRule.set(result.id, {

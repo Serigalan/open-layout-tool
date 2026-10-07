@@ -58,6 +58,16 @@ function buildElement(el, startUtm, { bearing = el.bearing, length = el.length, 
   }
 }
 
+const sameRadius = (a, b) => (a == null || b == null ? a == null && b == null : Math.abs(a - b) < 1e-6)
+
+/**
+ * The transition `el` if its curvature end `key` (r1 or r2) is the curve's
+ * `radius` — tangent to it, so it belongs to it. A transition of a switch
+ * route is the switch's form and stays as it is built.
+ */
+const joinedTransition = (el, key, radius) => (el?.elementType === 2 && el.r1 !== undefined
+  && el.switchId == null && sameRadius(el[key] ?? null, radius ?? null) ? el : null)
+
 const endUtmOf = (el, epsg) => ({ easting: el.endNode[0], northing: el.endNode[1], zone: epsg })
 
 // Move every element that started at `oldNode` onto the new end (start point
@@ -117,9 +127,23 @@ export function planElementChange(tracks, switches, trackId, elIdx, { length, be
   if (!el) return { tracks: newTracks, touchedTrackIds: [], touchedSwitchIds: [], error: null }
 
   const epsg     = track.epsg
-  const startUtm = nodeUtm(el.startNode, el.geometry?.coordinates?.[0], epsg)
+  // A transition running into or out of the curve whose radius changes runs
+  // into or out of the new one: it keeps its length, its curvature end follows.
+  const follows = radius !== undefined && el.elementType !== 2 && !sameRadius(radius, el.radius)
+  const before = follows ? joinedTransition(track.elements[elIdx - 1], 'r2', el.radius) : null
+  const after  = follows ? joinedTransition(track.elements[elIdx + 1], 'r1', el.radius) : null
+  let startUtm = nodeUtm(el.startNode, el.geometry?.coordinates?.[0], epsg)
+  let startBearing = bearing !== undefined ? bearing : el.bearing
+  let reshapedBefore = null
+  if (before) {
+    const ownStart = nodeUtm(before.startNode, before.geometry?.coordinates?.[0], epsg)
+    reshapedBefore = buildElement({ ...before, r2: radius }, ownStart)
+    // The curve starts where the reshaped transition now ends, in its direction.
+    startUtm = endUtmOf(reshapedBefore, epsg)
+    startBearing = reshapedBefore.endBearing
+  }
   const newEl = buildElement(el, startUtm, {
-    bearing: bearing !== undefined ? bearing : el.bearing,
+    bearing: startBearing,
     length:  length  !== undefined ? length  : el.length,
     radius:  radius  !== undefined ? radius  : el.radius,
   })
@@ -132,9 +156,16 @@ export function planElementChange(tracks, switches, trackId, elIdx, { length, be
     if (kept) track.heights = kept; else delete track.heights
   }
   track.elements[elIdx] = newEl
+  if (after) track.elements[elIdx + 1] = { ...after, r1: radius }
   touched.trackIds.add(track.id)
   if (el.switchId) touched.switchIds.add(el.switchId)
 
+  if (reshapedBefore) {
+    track.elements[elIdx - 1] = reshapedBefore
+    // Whatever else starts at the joint the transition moved follows it; the
+    // curve itself already stands on the new joint.
+    propagate(newTracks, epsg, before.endNode, reshapedBefore, touched)
+  }
   propagate(newTracks, epsg, el.endNode, newEl, touched)
 
   // A switch also stands on the tracks its ports name, even where none of its

@@ -180,6 +180,13 @@
   color: var(--color-muted);
 }
 
+.transition-length-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0;
+}
+
 .transition-curve-row {
   display: flex;
   align-items: center;

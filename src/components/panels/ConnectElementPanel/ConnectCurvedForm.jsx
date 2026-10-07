@@ -13,6 +13,7 @@ import CantField from '../CantField'
 import useDerivedField from '../../../hooks/useDerivedField'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
+import { transitionChain, transitionHasError } from '../../../utils/rules/transitionLength'
 import { useI18n } from '../../../locales/i18nContext'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
@@ -39,6 +40,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
   const [endBearing, setEndBearing]         = useState('')
   const [speed, setSpeed]                   = useState(0)
   const [prevRadius, setPrevRadius]         = useState(null)
+  const [lastEl, setLastEl]                 = useState(null)   // the element the track ends with
   const [transitionEnabled, setTransitionEnabled] = useState(false)
   const [transitionType, setTransitionType]       = useState('clothoid')
   const [transitionLength, setTransitionLength]   = useState(20)
@@ -69,6 +71,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
       setSpeed(a.lastEl.speed ?? 80)
       setCant(a.lastEl.cant ?? 0)
       setPrevRadius(a.lastEl.radius ?? null)
+      setLastEl(a.lastEl)
       bearingRef.current = a.bearing
       startRef.current   = a.endUtm
       setPhase('draw')
@@ -155,10 +158,20 @@ export default function ConnectCurvedForm({ onCommitted }) {
     setEndBearing('')
     clearCant()
     setPrevRadius(null)
+    setLastEl(null)
     setTransitionEnabled(false)
     setTransitionType('clothoid')
     setTransitionLength(20)
   }
+
+  // The arc once it has a radius, and the transition in front of it — judged
+  // in the chain it is laid into.
+  const nextEl = Number(signedRadius)
+    ? { elementType: 1, radius: Number(signedRadius), cant, speed, length: Number(arcLength) }
+    : null
+  const transitionChainNow = transitionEnabled && nextEl
+    ? transitionChain({ prev: lastEl, next: nextEl, r1: prevRadius, length: transitionLength, type: transitionType, speed })
+    : null
 
   const handleCommit = () => {
     if (!startPoint || !endPoint || !selectedTrack) return
@@ -194,6 +207,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
           onTypeChange={setTransitionType}
           length={transitionLength}
           onLengthChange={setTransitionLength}
+          prev={lastEl} next={nextEl} r1={prevRadius} speed={speed}
         />
       )}
 
@@ -242,10 +256,10 @@ export default function ConnectCurvedForm({ onCommitted }) {
       {phase === 'done' && endPoint && (() => {
         // Judged once, shown and acted on: the findings say what the catalogue
         // found, and anything it calls an error stops the commit.
-        const element = {
+        const element = nextEl ?? {
           elementType: 1, radius: Number(signedRadius), cant, speed, length: Number(arcLength),
         }
-        const blocked = hasRuleError([element])
+        const blocked = hasRuleError([element]) || (!!transitionChainNow && transitionHasError(transitionChainNow))
         return (
           <>
             <RuleFindings element={element} />

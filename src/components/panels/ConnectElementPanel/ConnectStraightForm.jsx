@@ -6,6 +6,7 @@ import { computeClothoidUtm } from '../../../utils/clothoidUtils'
 import { SAGITTA_ELEMENT } from '../../../utils/geometryPrecision'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
+import { transitionChain, transitionHasError } from '../../../utils/rules/transitionLength'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 import { useI18n } from '../../../locales/i18nContext'
@@ -33,6 +34,7 @@ export default function ConnectStraightForm({ onCommitted }) {
   const [length, setLength]                 = useState('')
   const [speed, setSpeed]                   = useState(0)
   const [prevRadius, setPrevRadius]         = useState(null)
+  const [lastEl, setLastEl]                 = useState(null)   // the element the track ends with
   const [transitionEnabled, setTransitionEnabled] = useState(false)
   const [transitionType, setTransitionType]       = useState('clothoid')
   const [transitionLength, setTransitionLength]   = useState(20)
@@ -63,6 +65,7 @@ export default function ConnectStraightForm({ onCommitted }) {
       setBearing(a.bearing)
       setSpeed(a.lastEl.speed ?? 80)
       setPrevRadius(a.lastEl.radius ?? null)
+      setLastEl(a.lastEl)
       prevRadiusRef.current = a.lastEl.radius ?? null
       bearingRef.current    = a.bearing
       startRef.current      = a.endUtm
@@ -148,6 +151,13 @@ export default function ConnectStraightForm({ onCommitted }) {
     draw.markers([toWgs(startPoint), epWgs])
   }, [phase, startPoint, bearing, length, map, getEffectiveStartUtm, draw])
 
+  // What the line is, and the transition in front of it — judged in the chain
+  // it is laid into.
+  const nextEl = { elementType: 0, speed, length: Number(length), cant: 0 }
+  const transitionChainNow = transitionEnabled && prevRadius !== null
+    ? transitionChain({ prev: lastEl, next: nextEl, r1: prevRadius, length: transitionLength, type: transitionType, speed })
+    : null
+
   const handleCommit = () => {
     if (!startPoint || !endPoint || !selectedTrack) return
     addElementsToTrack(selectedTrack.id, buildConnectStraight({
@@ -162,6 +172,7 @@ export default function ConnectStraightForm({ onCommitted }) {
     setBearing(null)
     setLength('')
     setPrevRadius(null)
+    setLastEl(null)
     setTransitionEnabled(false)
     setTransitionType('clothoid')
     onCommitted?.()
@@ -184,6 +195,7 @@ export default function ConnectStraightForm({ onCommitted }) {
           onTypeChange={setTransitionType}
           length={transitionLength}
           onLengthChange={setTransitionLength}
+          prev={lastEl} next={nextEl} r1={prevRadius} speed={speed}
         />
       )}
 
@@ -218,11 +230,10 @@ export default function ConnectStraightForm({ onCommitted }) {
       )}
 
       {phase === 'done' && endPoint && (() => {
-        const element = { elementType: 0, speed, length: Number(length), cant: 0 }
-        const blocked = hasRuleError([element])
+        const blocked = hasRuleError([nextEl]) || (!!transitionChainNow && transitionHasError(transitionChainNow))
         return (
           <>
-            <RuleFindings element={element} />
+            <RuleFindings element={nextEl} />
             <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(blocked && t('commit_blocked_rules'))} className="" />
           </>
         )
