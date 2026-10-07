@@ -4,8 +4,8 @@ import { ruleById } from '../../utils/regelkatalog'
 /**
  * Setting a transition's length to the shortest the rules allow
  * (rules/transitionLength): at their Regelwert, or down to their
- * Ermessensgrenze — each with the rules that set it below it, their formula
- * and the bound it comes to. `lengths` is { regular, minimum, regularBy,
+ * Ermessensgrenze — each with every rule on the length below it, its formula
+ * and the bound it comes to, the one that sets it set off from the rest. `lengths` is { regular, minimum, regularBy,
  * minimumBy }, a length null where the rules give none; `onPick` takes the
  * one chosen.
  */
@@ -19,8 +19,8 @@ export default function TransitionLengthButtons({ lengths, onPick }) {
         {fill(key, { l: value != null ? num(value, { digits: 1 }) : '–' })}
       </button>
       {by?.map(b => (
-        <span key={b.id} className="transition-length-rule" title={ruleById(b.id)?.title}>
-          {b.id}: {b.formula ?? ruleById(b.id)?.title} = {num(b.length, { digits: 1, unit: 'm' })}
+        <span key={b.id} className={`transition-length-rule${b.binding ? ' binding' : ''}`} title={ruleById(b.id)?.title}>
+          {b.id}: {b.formula ?? ruleById(b.id)?.title} = {num(b.length, { digits: 2, unit: 'm' })}
         </span>
       ))}
     </div>

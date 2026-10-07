@@ -6,7 +6,7 @@ import {
   buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest,
   spliceTransitionLengths, splicedTransitions,
 } from '../../utils/commands/splice'
-import { errorAt } from '../../utils/rules/transitionLength'
+import { errorAt, transitionLengthsAt } from '../../utils/rules/transitionLength'
 import { gaugeProfile } from '../../utils/gaugeProfiles'
 import { utmToWgs84 } from '../../utils/coordinateUtils'
 import { trackLabel } from '../../utils/trackModel'
@@ -216,14 +216,23 @@ export default function SpliceElementPanel() {
   const spliced = configuring && splice?.result
     ? splicedTransitions({ tracks: loadTracks(), dep: picks[0], arr: picks[1], splice, speed: s.speed, cant })
     : null
-  // Departure and arrival, where the dialog asks for their lengths: found
-  // from the picks and the settings, so they are there before a solution is
-  // — and where a length too long is what keeps the service from finding one.
-  const transitionRules = useMemo(() => (configuring && s.clothoidEnabled
-    ? spliceTransitionLengths({
+  // Departure and arrival, where the dialog asks for their lengths: read from
+  // the solved track, which says whether an arc meets the new one as a
+  // compound or a reverse curve — and until there is one found from the picks
+  // and the settings, the worse of both taken, so they are there before a
+  // solution is: a length too long is one reason the service finds none.
+  const transitionRules = useMemo(() => {
+    if (!configuring || !s.clothoidEnabled) return null
+    if (spliced?.transitions.length === 2) {
+      const [d, a] = spliced.transitions
+      return { dep: transitionLengthsAt(spliced.elements, d, s.speed), arr: transitionLengthsAt(spliced.elements, a, s.speed) }
+    }
+    return spliceTransitionLengths({
       dep: picks[0], arr: picks[1], radius, arcJoin: s.arcJoin, cant, speed: s.speed, type: s.transitionType,
     })
-    : null), [configuring, picks, radius, s.arcJoin, s.clothoidEnabled, s.transitionType, s.speed, cant])
+    // the solved chain follows the answer, the speed and the cant
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configuring, splice, picks, radius, s.arcJoin, s.clothoidEnabled, s.transitionType, s.speed, cant])
 
   const reset = () => { preview.clear(); setPicks([]); setPickStatus(null); setRefTrackId(null); setPickingRef(false) }
 

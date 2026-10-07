@@ -71,9 +71,10 @@ const readsLength = (rule) => Object.values(rule?.inputs ?? {})
  * says so when the Regellänge runs past it. Null where nothing can be said:
  * no design speed.
  *
- * `regularBy` and `minimumBy` name the rules that set each length — those a
- * transition a hair shorter would break — as [{ id, formula, length }]: the
- * bound each sets (see basis).
+ * `regularBy` and `minimumBy` list every rule on the length with the bound
+ * it sets (see basis), the longest first, as [{ id, formula, length, binding }]
+ * — `binding` for those that set it, which a transition a hair shorter would
+ * break.
  */
 export function transitionLengths({ prev, next, r1 = null, type = 'clothoid', speed }) {
   if (!(speed > 0)) return { regular: null, minimum: null, regularBy: [], minimumBy: [] }
@@ -96,10 +97,14 @@ export function transitionLengths({ prev, next, r1 = null, type = 'clothoid', sp
     // than a step's thousandth — and a step more where the rounding fell short.
     const steps = Math.ceil(hi * STEPS_PER_M - 1e-3)
     const length = holds(steps / STEPS_PER_M) ? steps / STEPS_PER_M : (steps + 1) / STEPS_PER_M
-    // What sets it: the rules a hair shorter would break, each with the
-    // bound it sets — read at the length found, where all of them apply.
-    const at = new Map(resultsAt(length).map(r => [r.id, r]))
-    return { length, by: failing(lo).map(id => basis(ruleById(id), at.get(id), worst)) }
+    // Every rule on the length with the bound it sets, the longest first —
+    // read at the length found, where all of them apply — and those that set
+    // it marked: the rules a hair shorter would break.
+    const sets = new Set(failing(lo))
+    const by = resultsAt(length).filter(r => binding.has(r.id))
+      .map(r => ({ ...basis(ruleById(r.id), r, worst), binding: sets.has(r.id) }))
+      .sort((a, b) => (b.length ?? 0) - (a.length ?? 0))
+    return { length, by }
   }
   const regular = shortest('ok'), minimum = shortest('warning')
   return { regular: regular.length, minimum: minimum.length, regularBy: regular.by, minimumBy: minimum.by }
@@ -108,6 +113,15 @@ export function transitionLengths({ prev, next, r1 = null, type = 'clothoid', sp
 /** Does the catalogue call anything about the transition of such a chain an error? */
 export const transitionHasError = (chain) =>
   severityRank(transitionCheck(chain).severity) >= severityRank('error')
+
+/**
+ * The shortest lengths of the transition at index `i` of `elements`, as it
+ * stands between its neighbours there (transitionLengths).
+ */
+export const transitionLengthsAt = (elements, i, speed) => transitionLengths({
+  prev: elements[i - 1], next: elements[i + 1], r1: elements[i].r1 ?? null,
+  type: elements[i].transitionType ?? 'clothoid', speed,
+})
 
 /** Does the catalogue call anything about the elements at `indices` of a chain an error? */
 export const errorAt = (elements, indices) => checkTrack(elements).perElement

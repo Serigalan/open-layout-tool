@@ -39,25 +39,30 @@ describe('the length of a transition by the rules', () => {
     expect(check.severity).toBe('ok')
   })
 
-  it('names the rules that set each length, with the bound each sets', () => {
-    const by = (found) => [found.regularBy, found.minimumBy]
+  it('lists every rule on the length with its bound, the longest first, those that set it marked', () => {
+    const setBy = (list) => list.filter(b => b.binding).map(({ binding: _b, ...b }) => b)
     // The ramp at 10·v·Δu sets the Regellänge, at 8·v·Δu the Mindestlänge.
-    expect(by(transitionLengths({ prev: straight, next: arc(1000, 100), speed: 120 }))).toEqual([
-      [{ id: 'LP.UB.03', formula: '10·v·Δu/1000', length: 120 }],
-      [{ id: 'LP.UB.03', formula: '8·v·Δu/1000', length: 96 }],
-    ])
+    const ramp = transitionLengths({ prev: straight, next: arc(1000, 100), speed: 120 })
+    expect(setBy(ramp.regularBy)).toEqual([{ id: 'LP.UB.03', formula: '10·v·Δu/1000', length: 120 }])
+    expect(setBy(ramp.minimumBy)).toEqual([{ id: 'LP.UB.03', formula: '8·v·Δu/1000', length: 96 }])
     // Without cant to ramp, the change of the deficiency, which has no Ermessensgrenze.
     const flat = transitionLengths({ prev: straight, next: arc(1000, 0), speed: 120 })
-    expect(flat.minimumBy).toEqual([{ id: 'LP.UB.05', formula: '4·v·Δu_f/1000', length: expect.closeTo(81.6, 6) }])
+    expect(setBy(flat.minimumBy)).toEqual([{ id: 'LP.UB.05', formula: '4·v·Δu_f/1000', length: expect.closeTo(81.6, 6) }])
     // At 60 km/h and 20 mm the ramp's 10·v·Δu and its slope 1:600 both come
     // to 12 m; the slope is a bound on the length through Δu.
-    expect(transitionLengths({ prev: { ...straight, speed: 60 }, next: arc(3000, 20, 60), speed: 60 }).regularBy).toEqual([
+    expect(setBy(transitionLengths({ prev: { ...straight, speed: 60 }, next: arc(3000, 20, 60), speed: 60 }).regularBy)).toEqual([
       { id: 'LP.UB.03', formula: '10·v·Δu/1000', length: 12 },
       { id: 'LP.UB.07', formula: '600·Δu/1000', length: 12 },
     ])
     // A table has no formula: the minimum element length at 60 km/h, 6 m.
-    expect(transitionLengths({ prev: { ...straight, speed: 60 }, next: arc(5000, 0, 60), speed: 60 }).regularBy)
+    expect(setBy(transitionLengths({ prev: { ...straight, speed: 60 }, next: arc(5000, 0, 60), speed: 60 }).regularBy))
       .toEqual([{ id: 'LP.EL.01', formula: null, length: 6 }])
+    // A compound curve R 410 / 80 mm into R 750 / 45 mm at 80 km/h: the ramp
+    // sets 28 m; the deficiency, 104 − 56 = 48 mm, asks for 15.36 m and is listed.
+    const compound = transitionLengths({ prev: arc(410, 80, 80), next: arc(750, 45, 80), r1: 410, speed: 80 })
+    expect(compound.regularBy.map(b => [b.id, b.length, b.binding])).toEqual([
+      ['LP.UB.03', 28, true], ['LP.UB.07', 21, false], ['LP.UB.05', expect.closeTo(15.36, 6), false], ['LP.EL.01', 12, false],
+    ])
   })
 
   it('says nothing without a design speed', () => {

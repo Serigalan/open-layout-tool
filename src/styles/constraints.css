@@ -200,6 +200,11 @@
   color: var(--color-muted);
 }
 
+.transition-length-rule.binding {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
 .transition-curve-row {
   display: flex;
   align-items: center;
