@@ -67,7 +67,8 @@ export function secondPickRefusal(first, pick) {
 /**
  * The request for the service's `POST /splice`: the two picks in the order
  * they were clicked — their ends in the shared plane, the bearing at the end,
- * the signed radius, their length and what of their track lies either side —
+ * the signed radius, cant and speed, their length and what of their track
+ * lies either side —
  * and the settings. Which ends meet and which pick departs is the service's
  * to find (olt_optimizer/splice.py, AP S.2). The transition beside each pick,
  * in the same order, has a mode (AP S.3): 'regular' or 'minimum' — the
@@ -87,6 +88,7 @@ export function spliceRequest(first, second, {
     bearing: p.bearing,
     radius: p.signedR,
     cant: Math.abs(p.cant ?? 0),
+    speed: p.speed ?? 0,
     length: p.length ?? 0,
     before: p.before ?? 0,
     after: p.after ?? 0,
@@ -174,7 +176,9 @@ const withFormulas = (l) => ({
  * `arr` the two picks in the order the solution runs, `result` the chain with
  * its display geometry rebuilt in the track's plane, the preview line, how it
  * runs (depPick, reverseDep, reverseArr, ends, rebuilt), the transition beside each
- * pick ({ mode, length } and the rules on it, `lengths`) and what the service
+ * pick ({ mode, length } and the rules on it, `lengths`), what the rule
+ * catalogue finds on the whole stretch (`findings` as { at, index, id,
+ * severity } by element of `elements`, `worst`, `judged`) and what the service
  * says about it (arcLength, straightLength, transitionLength, …) — or { error,
  * params } for a splice that does not fit.
  */
@@ -195,7 +199,7 @@ export function spliceFromAnswer(answer, picks) {
         result: {
           ...sol.info, elements, previewCoords,
           depPick: sol.depPick, reverseDep: !!sol.reverseDep, reverseArr: !!sol.reverseArr, ends: sol.ends,
-          rebuilt: sol.rebuilt,
+          rebuilt: sol.rebuilt, findings: sol.findings ?? [], worst: sol.worst ?? 'ok', judged: !!sol.judged,
           lengths: (sol.lengths ?? []).map(withFormulas),
         },
       }
@@ -306,24 +310,6 @@ function mergedChain({ dep, arr, result }, depTrack, arrTrack, { speed, cant }) 
       ? arrTrack.elements.slice(0, arr.elIdx).reverse().map(reverseElement)
       : arrTrack.elements.slice(arr.elIdx + 1).map(el => ({ ...el }))),
   ]
-}
-
-/**
- * The merged chain a solution would write, and where in it the transitions
- * stand that the splice inserts — departure side first. What the dialog
- * checks them in, and finds their Regellänge from (rules/transitionLength).
- * Null without a solution.
- */
-export function splicedTransitions({ tracks, solution, speed, cant }) {
-  const depTrack = tracks.find(t => t.id === solution?.dep?.trackId)
-  const arrTrack = tracks.find(t => t.id === solution?.arr?.trackId)
-  if (!solution?.result?.elements || !depTrack || !arrTrack) return null
-  const elements = mergedChain(solution, depTrack, arrTrack, { speed, cant })
-  const before = solution.result.reverseDep ? depTrack.elements.length - solution.dep.elIdx - 1 : solution.dep.elIdx
-  const transitions = solution.result.elements
-    .map((el, i) => (el.role !== 'dep' && el.role !== 'arr' && el.elementType === 2 ? before + i : null))
-    .filter(i => i != null)
-  return { elements, transitions }
 }
 
 /**

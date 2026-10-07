@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest, splicedTransitions } from './splice'
-import { transitionLengths } from '../rules/transitionLength'
+import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest } from './splice'
 import { straightElement, arcElement, transitionElement } from '../elementFactory'
 import { recalcAbsLengths, rebuildCoords } from '../trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
@@ -148,19 +147,12 @@ describe('the track built from the answer', () => {
     expectValidTrack(commit.addTracks[0])
   })
 
-  it('says where the transitions it inserts stand, to check them and find their length', () => {
-    const splice = best(answers.cornerTransitions.answer, [dep, arr])
-    const { elements, transitions } = splicedTransitions({ tracks: [a, b], solution: splice, speed: 60, cant: 40 })
-    expect(transitions).toEqual([1, 3])
-    expect(transitions.map(i => elements[i].elementType)).toEqual([2, 2])
-    // Into R 300 with 40 mm at 60 km/h: 10 · 60 · 40 / 1000 = 24 m against
-    // the deficiency 11.8 · 60² / 300 − 40 = 102 mm: 4 · 60 · 102 / 1000 = 24.5 m.
-    const [t1] = transitions
-    const lengths = transitionLengths({
-      prev: elements[t1 - 1], next: elements[t1 + 1], r1: elements[t1].r1, speed: 60,
-    })
-    expect(lengths.regular).toBe(24.5)
-    expect(splicedTransitions({ tracks: [a, b], solution: null, speed: 0, cant: 0 })).toBeNull()
+  it('reads what the catalogue finds on the stretch, by element', () => {
+    // Project SBSS at 80 km/h: R 750 with 45 mm, the Regelüberhöhung being 55 mm.
+    const sol = best(answers.sbssRegular.answer, [dep, arr])
+    expect(sol.result.judged).toBe(true)
+    expect(sol.result.findings).toContainEqual({ at: '#2', index: [2], id: 'LP.KB.04', severity: 'hint' })
+    expect(sol.result.worst).toBe('hint')
   })
 
   it('reads the lengths the service set for each pick, every rule with its formula', () => {
@@ -184,6 +176,8 @@ describe('the track built from the answer', () => {
   it('asks for the Regellänge, the Mindestlänge or a length as given, beside each pick', () => {
     const req = spliceRequest(dep, arr, { ...settings, clothoidEnabled: true, speed: 80, cant: -45, modes: ['regular', 'fixed'] })
     expect(req).toMatchObject({ speed: 80, cant: 45, modeDep: 'regular', modeArr: 'fixed', lDep: 60, lArr: 60 })
+    // Each pick with its own speed and cant: what is left of it is judged with them.
+    expect(req.dep).toMatchObject({ speed: 80, cant: 0, length: 200, before: 0, after: 0 })
     expect(spliceRequest(dep, arr, { ...settings, modes: ['regular', 'minimum'] })).toMatchObject({ modeDep: 'fixed', modeArr: 'fixed' })
   })
 

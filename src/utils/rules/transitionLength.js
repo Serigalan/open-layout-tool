@@ -131,16 +131,3 @@ export function transitionLengths({ prev, next, r1 = null, type = 'clothoid', sp
 /** Does the catalogue call anything about the transition of such a chain an error? */
 export const transitionHasError = (chain) =>
   severityRank(transitionCheck(chain).severity) >= severityRank('error')
-
-/**
- * The shortest lengths of the transition at index `i` of `elements`, as it
- * stands between its neighbours there (transitionLengths).
- */
-export const transitionLengthsAt = (elements, i, speed) => transitionLengths({
-  prev: elements[i - 1], next: elements[i + 1], r1: elements[i].r1 ?? null,
-  type: elements[i].transitionType ?? 'clothoid', speed,
-})
-
-/** Does the catalogue call anything about the elements at `indices` of a chain an error? */
-export const errorAt = (elements, indices) => checkTrack(elements).perElement
-  .some(entry => indices.includes(entry.index) && severityRank(entry.severity) >= severityRank('error'))

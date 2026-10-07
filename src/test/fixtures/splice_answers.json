@@ -107,7 +107,10 @@
        "length": 0.0
       }
      ],
-     "rebuilt": 771.238898038469
+     "rebuilt": 771.238898038469,
+     "findings": [],
+     "worst": "ok",
+     "judged": false
     }
    ]
   }
@@ -220,7 +223,10 @@
        "length": 0.0
       }
      ],
-     "rebuilt": 771.238898038469
+     "rebuilt": 771.238898038469,
+     "findings": [],
+     "worst": "ok",
+     "judged": false
     }
    ]
   }
@@ -333,7 +339,10 @@
        "length": 0.0
       }
      ],
-     "rebuilt": 771.238898038469
+     "rebuilt": 771.238898038469,
+     "findings": [],
+     "worst": "ok",
+     "judged": false
     }
    ]
   }
@@ -492,7 +501,10 @@
        "minimumBy": []
       }
      ],
-     "rebuilt": 892.2185465260281
+     "rebuilt": 892.2185465260281,
+     "findings": [],
+     "worst": "ok",
+     "judged": false
     }
    ]
   }
@@ -652,7 +664,10 @@
        "minimumBy": []
       }
      ],
-     "rebuilt": 180.00000000370335
+     "rebuilt": 180.00000000370335,
+     "findings": [],
+     "worst": "ok",
+     "judged": false
     }
    ]
   }
@@ -767,7 +782,10 @@
        "length": 0.0
       }
      ],
-     "rebuilt": 160.00000000016064
+     "rebuilt": 160.00000000016064,
+     "findings": [],
+     "worst": "ok",
+     "judged": false
     }
    ]
   }
@@ -1019,7 +1037,27 @@
        ]
       }
      ],
-     "rebuilt": 239.0000000003888
+     "rebuilt": 239.0000000003888,
+     "findings": [
+      {
+       "at": "#0",
+       "index": [
+        0
+       ],
+       "id": "LP.KB.04",
+       "severity": "hint"
+      },
+      {
+       "at": "#2",
+       "index": [
+        2
+       ],
+       "id": "LP.KB.04",
+       "severity": "hint"
+      }
+     ],
+     "worst": "hint",
+     "judged": true
     }
    ]
   }

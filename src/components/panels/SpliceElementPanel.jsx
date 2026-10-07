@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadTracks, commitSwitchConnection, currentProject } from '../../storage'
 import { computeAutoC } from '../../utils/rules/cant'
-import { hasRuleError } from '../../utils/trassierungCheck'
 import {
   buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest,
-  splicedTransitions,
 } from '../../utils/commands/splice'
-import { errorAt } from '../../utils/rules/transitionLength'
 import { gaugeProfile } from '../../utils/gaugeProfiles'
 import { utmToWgs84 } from '../../utils/coordinateUtils'
 import { trackLabel } from '../../utils/trackModel'
@@ -19,7 +16,8 @@ import useDerivedField from '../../hooks/useDerivedField'
 import { useI18n } from '../../locales/i18nContext'
 import { PALETTE } from '../../styles/palette'
 import CommitBar from '../form/CommitBar'
-import RuleFindings from './RuleFindings'
+import SpliceFindings from './splice/SpliceFindings'
+import { severityRank } from '../../utils/regelkatalog'
 import SpliceSettings from './splice/SpliceSettings'
 import CancelButton from '../form/CancelButton'
 
@@ -257,10 +255,6 @@ export default function SpliceElementPanel() {
     } : null)
   }, [solution, spacing, picks, preview])
 
-  // The transitions the splice inserts, checked in the track it would write.
-  const spliced = configuring && solution
-    ? splicedTransitions({ tracks: loadTracks(), solution, speed: s.speed, cant })
-    : null
   // The transition beside each pick, by pick, as the service set it in the
   // chain it solved: its mode, its length and the rules on it (AP S.3).
   const transitionRules = s.clothoidEnabled ? solution?.result?.lengths ?? null : null
@@ -278,13 +272,9 @@ export default function SpliceElementPanel() {
 
   if (configuring) {
     const departure = solution?.dep ?? picks[0]
-    // Only the inserted arc takes a cant; an arc+arc splice re-shapes the two
-    // existing arcs, which keep theirs — and inserts no element of its own, so
-    // there is nothing for the catalogue to judge in that case. The length
-    // judged is the one the construction solved, not one that was typed.
-    const inserted = !bothArcs && solution?.result?.arcLength != null
-      ? { elementType: 1, radius: Number(radius), cant, speed: s.speed, length: solution.result.arcLength }
-      : null
+    // What the service found on the stretch the solution writes: any error
+    // there holds the commit back (Entscheidung 52, 177).
+    const ruleError = (solution?.result?.findings ?? []).some(f => severityRank(f.severity) >= severityRank('error'))
     const status = splice ? spliceMessage(t, fill, splice, solution) : { msg: t('splice_solving'), error: false }
     const refName = refTrackId ? trackName(loadTracks().find(tr => tr.id === refTrackId)) : null
     const spacingMsg = keeping && solution ? spacingMessage(t, fill, spacing, refName) : null
@@ -302,13 +292,9 @@ export default function SpliceElementPanel() {
         )}
         {status && <p className={status.error ? 'msg-error' : 'msg-info'}>{status.msg}</p>}
         {spacingMsg && <p className={spacingMsg.error ? 'msg-error' : 'msg-info'}>{spacingMsg.msg}</p>}
-        {inserted && <RuleFindings element={inserted} />}
-        {spliced?.transitions.length > 0 && (
-          <RuleFindings elements={spliced.elements} judge={spliced.transitions} fields={false} />
-        )}
-        <CommitBar onCommit={handleCommit} onCancel={reset}
-          disabled={!solution || !spacingHolds || (inserted ? hasRuleError([inserted]) : false)
-            || (spliced?.transitions.length > 0 && errorAt(spliced.elements, spliced.transitions))} />
+        {solution && <SpliceFindings result={solution.result} />}
+        <CommitBar onCommit={handleCommit} onCancel={reset} disabled={!solution || !spacingHolds || ruleError}
+          reason={solution && ruleError ? t('splice_rule_error') : null} />
       </>
     )
   }

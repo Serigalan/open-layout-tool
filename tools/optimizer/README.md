@@ -99,7 +99,12 @@ die Klickreihenfolge entscheidet nichts. Die Übergangsbögen haben je Seite ein
 Modus (AP S.3): fest, Regellänge oder Mindestlänge; die beiden letzten setzt der
 Dienst aus dem gelösten Gleis selbst (`grenzen.transition_lengths`) und baut neu,
 bis die Längen stehen — ob ein Bogen als Korb- oder Gegenbogen anschließt, weiß
-erst die Lösung. Passt ein Bogen nicht auf die
+erst die Lösung. Jede Lösung prüft der Dienst als Ganzes mit dem Regelkatalog
+(`olt_optimizer/pruefung.py`, AP S.4): die Reststücke der gewählten Elemente,
+das Eingefügte und die Stöße dazwischen, mit Geschwindigkeit und Überhöhung, die
+sie tragen werden; ein Fehler sperrt im Panel das Übernehmen, und die Rangfolge
+setzt Lösungen mit geringeren Befunden nach vorn. Lage, Richtung und Krümmung an
+den Übergangsbögen müssen stetig sein, sonst ist es keine Lösung. Passt ein Bogen nicht auf die
 gewählten Elemente, nennt die Antwort den größten Radius, der passt (`params.rMax`). Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
 Antworten, gegen die die App testet, schreibt `tests/splice_fixture.py`.

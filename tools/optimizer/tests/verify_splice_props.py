@@ -45,7 +45,7 @@ from olt_optimizer.splice import splice_payload                          # noqa:
 from chain_check import chain_holds, near                                # noqa: E402
 
 # Which invariants are enforced, and the AP that turns on those that are not.
-ENFORCED = {"holds": None, "order": None, "regular": None, "checked": "S.4"}
+ENFORCED = {"holds": None, "order": None, "regular": None, "checked": None}
 
 P0 = (600000.0, 5700000.0)
 

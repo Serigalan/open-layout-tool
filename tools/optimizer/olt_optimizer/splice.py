@@ -14,7 +14,9 @@ constructed. Each construction runs the departure into the splice and meets
 the arrival at its end, traversing it backwards; a pick joined at its other
 end is handed over flipped (`_flipped`). What comes back is every pair that
 fits, the best first (`_rank`); the panel proposes that one and lets the
-others be chosen (Entscheidung 180).
+others be chosen (Entscheidung 180). Each is judged as a whole by the rule
+catalogue (`_judge`, AP S.4) — what is left of the two picks, what is
+inserted and the joints — and an error there holds the panel's commit back.
 
 A solution is the chain from the departure's far end to the arrival's far
 end, in travel order, every element in the app's plane form (startNode,
@@ -31,6 +33,7 @@ Conventions are the geometry kernel's: bearings in degrees clockwise from grid
 north, signed radius > 0 for a right-hand curve.
 """
 
+import functools
 import math
 
 import numpy as np
@@ -38,6 +41,8 @@ import numpy as np
 from . import clearance
 from .clearance import Neighbour, Spacing, auto_cant, check, largest_radius
 from .grenzen import transition_lengths
+from .pruefung import check_track
+from .regelwerk import load_katalog
 from .geometry import (
     DEG2RAD, RAD2DEG, arc_center, arc_sweep, dir_of, fit_curve_group, transition_end, transition_shift,
     _arc_forward,
@@ -751,6 +756,7 @@ def _solve(picks, ends, spec):
         cur = want
     else:
         raise SpliceError("splice_error_lengths_unstable")
+    _continuous(sol["elements"])
     sol["lengths"] = [
         {"mode": modes[k] if k in rules else "fixed", "length": cur[k] if k in rules else 0.0, **rules.get(k, {})}
         for k in (0, 1)
@@ -794,9 +800,61 @@ def _loops(sol, picks):
     return abs(sum(_element_turn(el) for el in sol["elements"]) - own) > math.pi + 1e-6
 
 
+@functools.lru_cache(maxsize=None)
+def _katalog():
+    return load_katalog()
+
+
+def _judge(sol):
+    """What the catalogue finds on the whole stretch a solution writes — the
+    rest of the departure, what is inserted, the rest of the arrival and the
+    joints between them (Paket S, AP S.4) — with the speed and cant each
+    element will carry. `findings`: every result worse than ok, as {at, index,
+    id, severity} — `at` '#i' for an element, '#i|#j' for a joint, `index` the
+    elements it is about; `worst` the worst severity among them, 'ok' where
+    nothing is found. An element without a design speed is not judged."""
+    k = _katalog()
+    findings = []
+    for where, rid, severity in check_track(k, sol["elements"]):
+        if k.rank(severity) <= k.rank("ok"):
+            continue
+        findings.append({"at": where, "index": [int(x[1:]) for x in where.split("|")],
+                         "id": rid, "severity": severity})
+    sol["findings"] = findings
+    sol["worst"] = max((f["severity"] for f in findings), key=k.rank, default="ok")
+    sol["judged"] = any(el.get("speed") for el in sol["elements"])
+
+
 def _rank(sol):
-    """Best first: little rebuilt and a short new stretch."""
-    return (round(sol["rebuilt"], 6),)
+    """Best first: what the catalogue finds — nothing before a hint before a
+    warning, and so on up to an error — then little rebuilt and a short new
+    stretch."""
+    return (_katalog().rank(sol["worst"]), round(sol["rebuilt"], 6))
+
+
+# How far two elements may part or kink at a junction and still be one chain
+# [m, degrees] — the rounding of the constructions, nothing a track could show.
+JOIN_GAP = 1e-4
+JOIN_KINK = 1e-4
+
+
+def _continuous(els):
+    """Is the chain one line — no gap, no kink, and every transition meeting
+    the curvature of its neighbours? A hard condition, not a rule: a chain
+    that breaks it is not a solution (raises SpliceError)."""
+    def k(r):
+        return 1.0 / r if r else 0.0
+
+    def k_end(el):
+        return k(el.get("r2")) if el["elementType"] == 2 else k(el.get("radius"))
+
+    def k_start(el):
+        return k(el.get("r1")) if el["elementType"] == 2 else k(el.get("radius"))
+    for a, b in zip(els, els[1:]):
+        if math.dist(a["endNode"], b["startNode"]) > JOIN_GAP \
+                or abs(_turn(a.get("endBearing", a["bearing"]), b["bearing"])) > JOIN_KINK \
+                or (2 in (a["elementType"], b["elementType"]) and abs(k_end(a) - k_start(b)) > 1e-9):
+            raise SpliceError("splice_error_discontinuous")
 
 
 def _gap(picks, ends):
@@ -818,6 +876,7 @@ def _solutions(picks, spec, build=None):
         if sol is None or _loops(sol, picks):
             continue
         sol["rebuilt"] = _cost(sol, picks)
+        _judge(sol)
         found.append(sol)
     if not found:
         if errors:
@@ -921,8 +980,9 @@ def splice_payload(payload):
     "info", "depPick": 0|1 (which pick departs), "ends": [the first pick's
     end that meets, the second's], "reverseDep", "reverseArr", "rebuilt": m,
     "lengths": [the transition beside each pick: {mode, length, regular,
-    minimum, regularBy, minimumBy}]} — every element with the speed and
-    cant it was judged with
+    minimum, regularBy, minimumBy}], "findings": [{at, index, id, severity}],
+    "worst": severity, "judged": bool} — every element with the speed and
+    cant it was judged with (`_judge`)
     — or {"error": key, "params": {...}} for a splice that does not fit
     where any two ends meet. A body that is not one raises ValueError.
 
