@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest, spliceTransitionLengths, splicedTransitions } from './splice'
+import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest, splicedTransitions } from './splice'
 import { transitionLengths } from '../rules/transitionLength'
 import { straightElement, arcElement, transitionElement } from '../elementFactory'
 import { recalcAbsLengths, rebuildCoords } from '../trackModel'
@@ -163,18 +163,28 @@ describe('the track built from the answer', () => {
     expect(splicedTransitions({ tracks: [a, b], solution: null, speed: 0, cant: 0 })).toBeNull()
   })
 
-  it('finds the transitions\' shortest lengths from the picks alone, as the solution has them', () => {
-    // The same as read from the solved chain above, before there is one.
-    const found = spliceTransitionLengths({ dep, arr, radius: 300, arcJoin: 'straight', cant: 40, speed: 60 })
-    expect(found.dep.regular).toBe(24.5)
-    expect(found.arr).toEqual(found.dep)
-    // An arc and a straight: the arc's side reckons with a reverse curve, the
-    // longer — R 500 / 50 mm against R 300 / 40 mm at 60 km/h: Δu 90 mm, 54 m.
-    const arcPick = { ...dep, signedR: 500, cant: 50 }
-    const mixed = spliceTransitionLengths({ dep: arcPick, arr, radius: 300, arcJoin: 'straight', cant: 40, speed: 60 })
-    expect(mixed.dep.regular).toBe(54)
-    expect(mixed.arr.regular).toBe(24.5)
-    expect(spliceTransitionLengths({ dep: arcPick, arr: { ...arr, signedR: 400 }, arcJoin: 'transition', speed: 60 })).toBeNull()
+  it('reads the lengths the service set for each pick, every rule with its formula', () => {
+    // Project SBSS: R 410 / 80 mm into R 750 / 45 mm at 80 km/h (AP S.3).
+    const { request, answer } = answers.sbssRegular
+    const g = track('g', [arcElement(at(request.dep.start), at(request.dep.end), request.dep.radius, { speed: 80, cant: 80 })])
+    const h = track('h', [straightElement(at(request.arr.start), at(request.arr.end), { speed: 80 })])
+    const sol = best(answer, [splicePick(g, 0), splicePick(h, 0)])
+    const [lg, lh] = sol.result.lengths
+    expect(lg).toMatchObject({ mode: 'regular', length: 28, regular: 28, minimum: 22.4 })
+    expect(lg.regularBy.find(b => b.binding)).toMatchObject({ id: 'LP.UB.03', formula: '10·v·Δu/1000', length: 28 })
+    expect(lg.minimumBy.find(b => b.binding)).toMatchObject({ id: 'LP.UB.03', formula: '8·v·Δu/1000' })
+    expect(lh).toMatchObject({ mode: 'regular', length: 36 })
+    // And they are what the chain written carries.
+    const commit = buildSplice({ tracks: [g, h], solution: sol, speed: 80, cant: 45, newId })
+    const [merged] = commit.addTracks
+    expectValidTrack(merged)
+    expect(merged.elements.filter(e => e.elementType === 2).map(e => e.length)).toEqual([28, 36])
+  })
+
+  it('asks for the Regellänge, the Mindestlänge or a length as given, beside each pick', () => {
+    const req = spliceRequest(dep, arr, { ...settings, clothoidEnabled: true, speed: 80, cant: -45, modes: ['regular', 'fixed'] })
+    expect(req).toMatchObject({ speed: 80, cant: 45, modeDep: 'regular', modeArr: 'fixed', lDep: 60, lArr: 60 })
+    expect(spliceRequest(dep, arr, { ...settings, modes: ['regular', 'minimum'] })).toMatchObject({ modeDep: 'fixed', modeArr: 'fixed' })
   })
 
   it('folds an arrival arc in backwards, both arcs keeping their cant', () => {

@@ -4,9 +4,9 @@ import { computeAutoC } from '../../utils/rules/cant'
 import { hasRuleError } from '../../utils/trassierungCheck'
 import {
   buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest,
-  spliceTransitionLengths, splicedTransitions,
+  splicedTransitions,
 } from '../../utils/commands/splice'
-import { errorAt, transitionLengthsAt } from '../../utils/rules/transitionLength'
+import { errorAt } from '../../utils/rules/transitionLength'
 import { gaugeProfile } from '../../utils/gaugeProfiles'
 import { utmToWgs84 } from '../../utils/coordinateUtils'
 import { trackLabel } from '../../utils/trackModel'
@@ -50,20 +50,23 @@ const line = (coordinates) => ({
 })
 
 const DEFAULTS = {
-  radius: 500, speed: 0,
+  // The speed is the faster pick's once both are picked (Entscheidung 181).
+  radius: 500, speed: '',
   clothoidEnabled: false, transitionType: 'clothoid',   // 'clothoid' | 'bloss'
   // Two arcs can be joined either by a straight between them or by a single
   // transition curve straight from one to the other (AP 4.1).
   arcJoin: 'straight',                                  // 'straight' | 'transition'
-  // The transition beside each pick, in the order they were clicked.
-  transitions: [60, 60],
+  // The transition beside each pick, in the order they were clicked: the
+  // Regellänge unless switched (Entscheidung 179), the service solving it
+  // from the length here on — or with 'fixed' this length as it is.
+  transitions: [60, 60], modes: ['regular', 'regular'],
   // Keeping a spacing to another track (Entscheidung 167): checked at the
   // radius given, or the largest radius that keeps it searched.
   clearanceOn: false, clearanceDMin: 4.0, clearanceMax: false,
 }
 
 /** What the dialog says about a splice: its error, or the solution shown. */
-function spliceMessage(t, fill, splice, solution, transitions) {
+function spliceMessage(t, fill, splice, solution) {
   if (splice.error) {
     const rMax = splice.params?.rMax
     // The keys are the service's (splice.py); one this bundle does not know yet reads as no fit.
@@ -74,8 +77,10 @@ function spliceMessage(t, fill, splice, solution, transitions) {
     return { msg: text + hint, error: true }
   }
   const { result, dep, arr } = solution
-  const Ld = transitions[0], La = transitions[1]
-  const tr = (Ld > 0 || La > 0) ? ` | ${t('transition_curve')}: ${Ld}+${La} m` : ''
+  // Departure first, as the solution runs.
+  const side = (k) => result.lengths[k]?.length ?? 0
+  const [Ld, La] = [side(result.depPick), side(1 - result.depPick)]
+  const tr = (Ld > 0 || La > 0) ? ` | ${t('transition_curve')}: ${Ld.toFixed(1)}+${La.toFixed(1)} m` : ''
   // Two arcs, or an arc and a straight: re-shaped elements and a solved
   // construction rather than an arc rounding a corner.
   const arcMode = dep.signedR != null || arr.signedR != null
@@ -189,6 +194,8 @@ export default function SpliceElementPanel() {
       }
       // Which one departs is the service's to find, not the order of the clicks.
       setPicks(picks.length === 1 ? [picks[0], pick] : [pick])
+      // The faster of the two, the rules judging the stricter case (Entscheidung 181).
+      if (picks.length === 1) set('speed', Math.max(picks[0].speed ?? 0, pick.speed ?? 0) || '')
       setChosen(null)
       setPickStatus(null)
     },
@@ -212,7 +219,7 @@ export default function SpliceElementPanel() {
   }) : null
   const requestKey = configuring
     ? JSON.stringify({
-      ...spliceRequest(picks[0], picks[1], maximize ? { ...s, radius: 0 } : s, clearance),
+      ...spliceRequest(picks[0], picks[1], maximize ? { ...s, radius: 0, cant: 0 } : { ...s, cant }, clearance),
       neighbour: clearance ? refTrackId : undefined,
     })
     : null
@@ -254,25 +261,9 @@ export default function SpliceElementPanel() {
   const spliced = configuring && solution
     ? splicedTransitions({ tracks: loadTracks(), solution, speed: s.speed, cant })
     : null
-  // Departure and arrival, where the dialog asks for their lengths: read from
-  // the solved track, which says whether an arc meets the new one as a
-  // compound or a reverse curve — and until there is one found from the picks
-  // and the settings, the worse of both taken, so they are there before a
-  // solution is: a length too long is one reason the service finds none.
-  const transitionRules = useMemo(() => {
-    if (!configuring || !s.clothoidEnabled) return null
-    // By pick, in the order they were clicked, as the settings hold the lengths.
-    if (spliced?.transitions.length === 2) {
-      const [d, a] = spliced.transitions.map(i => transitionLengthsAt(spliced.elements, i, s.speed))
-      return solution.dep === picks[0] ? [d, a] : [a, d]
-    }
-    const est = spliceTransitionLengths({
-      dep: picks[0], arr: picks[1], radius, arcJoin: s.arcJoin, cant, speed: s.speed, type: s.transitionType,
-    })
-    return est && [est.dep, est.arr]
-    // the solved chain follows the answer, the speed and the cant
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configuring, solution, picks, radius, s.arcJoin, s.clothoidEnabled, s.transitionType, s.speed, cant])
+  // The transition beside each pick, by pick, as the service set it in the
+  // chain it solved: its mode, its length and the rules on it (AP S.3).
+  const transitionRules = s.clothoidEnabled ? solution?.result?.lengths ?? null : null
 
   const reset = () => {
     preview.clear(); setPicks([]); setChosen(null); setPickStatus(null); setRefTrackId(null); setPickingRef(false)
@@ -294,8 +285,7 @@ export default function SpliceElementPanel() {
     const inserted = !bothArcs && solution?.result?.arcLength != null
       ? { elementType: 1, radius: Number(radius), cant, speed: s.speed, length: solution.result.arcLength }
       : null
-    const transitions = s.clothoidEnabled ? s.transitions : [0, 0]
-    const status = splice ? spliceMessage(t, fill, splice, solution, transitions) : { msg: t('splice_solving'), error: false }
+    const status = splice ? spliceMessage(t, fill, splice, solution) : { msg: t('splice_solving'), error: false }
     const refName = refTrackId ? trackName(loadTracks().find(tr => tr.id === refTrackId)) : null
     const spacingMsg = keeping && solution ? spacingMessage(t, fill, spacing, refName) : null
     // Asked for, a spacing not kept — or not yet known — holds the commit back.

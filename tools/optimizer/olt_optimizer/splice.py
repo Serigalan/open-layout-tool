@@ -22,7 +22,10 @@ endNode, bearing, endBearing, length, radius / r1 r2) and with a `role`:
 'dep' and 'arr' for what is left of the two picked elements, re-shaped, 'new'
 for what the splice inserts. Which pick departs and whether either is run
 against its own direction it says itself (`depPick`, `reverseDep`,
-`reverseArr`). Speed and cant are the app's to set.
+`reverseArr`). Each element carries the design speed and cant it will have
+(`_annotate`), and the transitions it inserts are as long as their mode asks
+(`_solve`, AP S.3): as given, or the Regellänge or Mindestlänge between their
+neighbours in the very chain solved.
 
 Conventions are the geometry kernel's: bearings in degrees clockwise from grid
 north, signed radius > 0 for a right-hand curve.
@@ -34,6 +37,7 @@ import numpy as np
 
 from . import clearance
 from .clearance import Neighbour, Spacing, auto_cant, check, largest_radius
+from .grenzen import transition_lengths
 from .geometry import (
     DEG2RAD, RAD2DEG, arc_center, arc_sweep, dir_of, fit_curve_group, transition_end, transition_shift,
     _arc_forward,
@@ -532,8 +536,9 @@ def _pick(raw):
         "start": _point(raw, "start"), "end": _point(raw, "end"),
         "bearing": float(raw["bearing"]),
         "radius": float(radius) if radius not in (None, 0) else None,
-        # The cant the picked element carries, a magnitude [mm].
+        # The cant the picked element carries, a magnitude [mm], and its design speed.
         "cant": abs(float(raw.get("cant") or 0)),
+        "speed": max(0.0, float(raw.get("speed") or 0)),
         # How much of its track lies before and after the element [m]: what
         # joining it at the one or the other end gives up (`_cost`).
         "before": max(0.0, float(raw.get("before") or 0)),
@@ -603,6 +608,10 @@ def _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join):
     return splice_arc_straight(dep, arr, radius, l_dep, l_arr, profile)
 
 
+# How a transition beside a pick gets its length: as given, or the shortest the
+# rules allow at their Regelwert or down to their Ermessensgrenze (Entscheidung 176).
+LENGTH_MODES = ("fixed", "regular", "minimum")
+
 # The four pairs of ends two picks can meet at: (the first pick's, the second's).
 PAIRS = (("end", "start"), ("start", "end"), ("end", "end"), ("start", "start"))
 
@@ -640,8 +649,9 @@ def _reversed(res):
     return {**res, "elements": els, "info": info}
 
 
-def _pair(picks, ends, radius, lengths, profile, arc_join):
-    """The splice where `ends` meet, as a solution (raises SpliceError).
+def _pair(picks, ends, spec, lengths):
+    """The splice where `ends` meet with the transitions `lengths` beside the
+    two picks, as a solution (raises SpliceError).
 
     Constructed from the pick `_key` puts first, so that the clicks cannot
     change what is found, and read the way `_departure` says."""
@@ -651,7 +661,7 @@ def _pair(picks, ends, radius, lengths, profile, arc_join):
     d = _departure(picks, ends)
     try:
         res = _construct(_toward(picks[c], ends[c]), _toward(picks[1 - c], ends[1 - c]),
-                         radius, lengths[c], lengths[1 - c], profile, arc_join)
+                         spec["radius"], lengths[c], lengths[1 - c], spec["profile"], spec["arcJoin"])
     except SpliceError as exc:
         if c != d:
             exc.code = _swap_side(exc.code)
@@ -660,7 +670,92 @@ def _pair(picks, ends, radius, lengths, profile, arc_join):
         res = _reversed(res)
     res.update({"depPick": d, "ends": list(ends),
                 "reverseDep": ends[d] == "start", "reverseArr": ends[1 - d] == "end"})
+    _annotate(res, picks, spec)
     return res
+
+
+def _annotate(sol, picks, spec):
+    """Each element's design speed and cant, as the app will write them: what
+    is left of a picked element keeps its own, what the splice inserts takes
+    the dialog's speed, and an inserted arc the dialog's cant — each signed
+    with its curve. A transition's cant is its neighbours' (pruefung)."""
+    d = sol["depPick"]
+    for el in sol["elements"]:
+        role = el["role"]
+        own = picks[d] if role == "dep" else picks[1 - d] if role == "arr" else None
+        el["speed"] = own["speed"] if own else spec["speed"]
+        if el["elementType"] == 1:
+            el["cant"] = math.copysign(own["cant"] if own else spec["cant"], el["radius"])
+        elif el["elementType"] == 0:
+            el["cant"] = 0.0
+
+
+def _sides(sol):
+    """The transitions a solution inserts, by the pick they stand beside:
+    {pick index: element index}. Those before the inserted arc or straight
+    stand beside the departure, those after it beside the arrival; a single
+    transition from arc to arc stands beside neither — its length is the
+    construction's."""
+    els = sol["elements"]
+    body = [i for i, el in enumerate(els) if el["role"] == "new" and el["elementType"] != 2]
+    if not body:
+        return {}
+    d = sol["depPick"]
+    out = {}
+    for i, el in enumerate(els):
+        if el["role"] == "new" and el["elementType"] == 2:
+            out[d if i < body[0] else 1 - d] = i
+    return out
+
+
+def _side_rules(sol, spec):
+    """The shortest lengths the rules allow for each transition the solution
+    inserts, between its neighbours there (grenzen.transition_lengths):
+    {pick index: {regular, minimum, regularBy, minimumBy}}."""
+    els = sol["elements"]
+    out = {}
+    for k, i in _sides(sol).items():
+        out[k] = transition_lengths(els[i - 1] if i else None, els[i + 1] if i + 1 < len(els) else None,
+                                    els[i].get("r1"), spec["profile"], spec["speed"])
+    return out
+
+
+# How often the lengths are set from the chain they stand in and the chain
+# built again with them: a compound or reverse curve, and with it Δu and Δu_f,
+# is the construction's answer, so the two are solved together (Paket S, AP S.3).
+MAX_ROUNDS = 8
+
+
+def _solve(picks, ends, spec):
+    """The splice where `ends` meet, the transitions each as long as its mode
+    asks (Entscheidung 179): 'fixed' as given, 'regular' or 'minimum' the
+    Regellänge or Mindestlänge between its neighbours in the very chain it
+    stands in. Built, the lengths read off, built again with them, until they
+    stand (raises SpliceError). Without a design speed the rules say nothing,
+    and a side keeps the length given.
+
+    The solution says for each pick what its transition is: {mode, length}
+    and the rules on it (regular, minimum, regularBy, minimumBy)."""
+    modes = spec["modes"]
+    cur = list(spec["lengths"])
+    for _ in range(MAX_ROUNDS):
+        sol = _pair(picks, ends, spec, cur)
+        rules = _side_rules(sol, spec)
+        want = list(cur)
+        for k in (0, 1):
+            ask = modes[k]
+            if ask in ("regular", "minimum") and rules.get(k, {}).get(ask) is not None and cur[k] > 0:
+                want[k] = rules[k][ask]
+        if all(abs(a - b) < 1e-9 for a, b in zip(want, cur)):
+            break
+        cur = want
+    else:
+        raise SpliceError("splice_error_lengths_unstable")
+    sol["lengths"] = [
+        {"mode": modes[k] if k in rules else "fixed", "length": cur[k] if k in rules else 0.0, **rules.get(k, {})}
+        for k in (0, 1)
+    ]
+    return sol
 
 
 def _cost(sol, picks):
@@ -708,11 +803,11 @@ def _gap(picks, ends):
     return math.dist(picks[0][ends[0]], picks[1][ends[1]])
 
 
-def _solutions(picks, radius, lengths, profile, arc_join, build=None):
+def _solutions(picks, spec, build=None):
     """Every pair of ends that can be joined, as solutions, the best first —
     or SpliceError for the pair whose ends lie closest, where none can.
     `build(picks, ends)` replaces the plain construction (the spacing)."""
-    build = build or (lambda pk, ends: _pair(pk, ends, radius, lengths, profile, arc_join))
+    build = build or (lambda pk, ends: _solve(pk, ends, spec))
     found, errors = [], []
     for ends in PAIRS:
         try:
@@ -731,7 +826,7 @@ def _solutions(picks, radius, lengths, profile, arc_join, build=None):
     return sorted(found, key=_rank)
 
 
-def _with_clearance(picks, radius, lengths, profile, arc_join, cl):
+def _with_clearance(picks, spec, cl):
     """The splice held to a spacing to a neighbouring track (see clearance.py):
     checked at `radius`, or with `maximize` the largest radius that keeps it —
     where the case has a radius of its own to choose (not two arcs), for every
@@ -775,7 +870,7 @@ def _with_clearance(picks, radius, lengths, profile, arc_join, cl):
         def search(pk, ends):
             r_max = clearance.R_MAX
             try:
-                _pair(pk, ends, r_max, lengths, profile, arc_join)
+                _solve(pk, ends, {**spec, "radius": r_max})
             except SpliceError as exc:
                 # Too large to fit on the elements at all: the search starts where it fits.
                 if exc.params.get("rMax"):
@@ -783,7 +878,7 @@ def _with_clearance(picks, radius, lengths, profile, arc_join, cl):
 
             def build(r):
                 try:
-                    sol = _pair(pk, ends, r, lengths, profile, arc_join)
+                    sol = _solve(pk, ends, {**spec, "radius": r})
                 except SpliceError:
                     return None
                 if sol["info"].get("arcLength", 0) < l_min:
@@ -797,31 +892,37 @@ def _with_clearance(picks, radius, lengths, profile, arc_join, cl):
                 raise SpliceError("splice_error_clearance", dMin=d_min)
             sol["info"]["clearance"] = {**sol.pop("clearance"), "radius": r, "maximized": True}
             return sol
-        return _solutions(picks, radius, lengths, profile, arc_join, build=search)
+        return _solutions(picks, spec, build=search)
 
     def checked(pk, ends):
-        sol = _pair(pk, ends, radius, lengths, profile, arc_join)
+        sol = _solve(pk, ends, spec)
         sol["info"]["clearance"] = described(sol, abs(float(cl.get("cant") or 0)), {})
         return sol
-    return _solutions(picks, radius, lengths, profile, arc_join, build=checked)
+    return _solutions(picks, spec, build=checked)
 
 
 def splice_payload(payload):
     """The answer to `POST /splice`.
 
-    Body: {"dep": pick, "arr": pick, "radius": m, "lDep": m, "lArr": m,
+    Body: {"dep": pick, "arr": pick, "radius": m, "speed": km/h, "cant": mm,
+           "lDep": m, "lArr": m, "modeDep": mode, "modeArr": mode,
            "transition": "clothoid"|"bloss", "arcJoin": "straight"|"transition",
            "clearance": optional, see below}
     with a pick {"start": [e, n], "end": [e, n], "bearing": deg at the end,
-    "radius": signed m or null, "cant": mm, "length": m, "before": m,
-    "after": m} — `before` and `after` how much of its track lies before and
-    after it. `dep` and `arr` are the two picks in the order they were
-    clicked, `lDep` and `lArr` the transitions beside each; which one departs
-    the service finds (`_solutions`).
+    "radius": signed m or null, "cant": mm, "speed": km/h, "length": m,
+    "before": m, "after": m} — `before` and `after` how much of its track
+    lies before and after it. `dep` and `arr` are the two picks in the order
+    they were clicked, `lDep` and `lArr` the transitions beside each (0: none)
+    with their mode — 'fixed' (the default), 'regular' or 'minimum' (`_solve`);
+    which one departs the service finds (`_solutions`). `speed` and `cant`
+    are those of what the splice inserts (the cant on a new arc).
 
     Answers {"solutions": [solution, …]}, the best first, each {"elements",
     "info", "depPick": 0|1 (which pick departs), "ends": [the first pick's
-    end that meets, the second's], "reverseDep", "reverseArr", "rebuilt": m}
+    end that meets, the second's], "reverseDep", "reverseArr", "rebuilt": m,
+    "lengths": [the transition beside each pick: {mode, length, regular,
+    minimum, regularBy, minimumBy}]} — every element with the speed and
+    cant it was judged with
     — or {"error": key, "params": {...}} for a splice that does not fit
     where any two ends meet. A body that is not one raises ValueError.
 
@@ -839,18 +940,26 @@ def splice_payload(payload):
     if not isinstance(payload, dict):
         raise ValueError("payload")
     picks = [_pick(payload.get("dep")), _pick(payload.get("arr"))]
-    radius = float(payload.get("radius") or 0)
-    lengths = [max(0.0, float(payload.get("lDep") or 0)), max(0.0, float(payload.get("lArr") or 0))]
-    profile = payload.get("transition", "clothoid")
-    if profile not in ("clothoid", "bloss"):
+    modes = [payload.get("modeDep") or "fixed", payload.get("modeArr") or "fixed"]
+    if any(m not in LENGTH_MODES for m in modes):
+        raise ValueError("mode")
+    spec = {
+        "radius": float(payload.get("radius") or 0),
+        "lengths": [max(0.0, float(payload.get("lDep") or 0)), max(0.0, float(payload.get("lArr") or 0))],
+        "modes": modes,
+        "profile": payload.get("transition", "clothoid"),
+        "arcJoin": payload.get("arcJoin"),
+        "speed": max(0.0, float(payload.get("speed") or 0)),
+        "cant": abs(float(payload.get("cant") or 0)),
+    }
+    if spec["profile"] not in ("clothoid", "bloss"):
         raise ValueError("transition")
-    arc_join = payload.get("arcJoin")
     cl = payload.get("clearance")
     if cl is not None and not isinstance(cl, dict):
         raise ValueError("clearance")
     try:
         if cl:
-            return {"solutions": _with_clearance(picks, radius, lengths, profile, arc_join, cl)}
-        return {"solutions": _solutions(picks, radius, lengths, profile, arc_join)}
+            return {"solutions": _with_clearance(picks, spec, cl)}
+        return {"solutions": _solutions(picks, spec)}
     except SpliceError as exc:
         return {"error": exc.code, "params": exc.params}

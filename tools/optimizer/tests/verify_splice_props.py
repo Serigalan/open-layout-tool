@@ -18,8 +18,10 @@ direction. The invariants:
               decide nothing (AP S.2)
   regular     asked with the Regellänge, every transition the splice inserts
               is as long as the rules ask for its neighbours in the chain
-              that came back, and the catalogue finds nothing on the stretch
-              it inserts worse than its Regelwert lets pass (AP S.3, S.4)
+              that came back (AP S.3)
+  checked     what the catalogue finds on the stretch the splice inserts
+              worse than its Regelwert, the answer reports — an error as an
+              error (AP S.4)
 
 An invariant that belongs to a work package not built yet is reported, not
 enforced: the bench was written first (AP S.1) and each AP turns its own on.
@@ -43,7 +45,7 @@ from olt_optimizer.splice import splice_payload                          # noqa:
 from chain_check import chain_holds, near                                # noqa: E402
 
 # Which invariants are enforced, and the AP that turns on those that are not.
-ENFORCED = {"holds": None, "order": None, "regular": "S.3"}
+ENFORCED = {"holds": None, "order": None, "regular": None, "checked": "S.4"}
 
 P0 = (600000.0, 5700000.0)
 
@@ -275,11 +277,12 @@ KATALOG = load_katalog()
 
 
 def regular_holds(sol):
-    """Is every inserted transition as long as the rules ask for between its
-    neighbours, and nothing on the stretch worse than its Regelwert lets pass?"""
+    """Is every inserted transition as long as the rules ask for between its neighbours?"""
     els = sol["elements"]
     if any(el.get("speed") is None for el in els):
         return "the chain carries no speed"
+    if not any(el.get("role") == "new" and el["elementType"] != 2 for el in els):
+        return None          # one transition from arc to arc: its length is the construction's
     for i, el in enumerate(els):
         if el.get("role") != "new" or el["elementType"] != 2:
             continue
@@ -287,14 +290,18 @@ def regular_holds(sol):
                                   el.get("r1"), el.get("transitionType", "clothoid"), el["speed"])["regular"]
         if want is None or abs(el["length"] - want) > 1e-6:
             return f"transition {i}: {el['length']:.2f} m, the Regellänge {want}"
+    return None
+
+
+def checked_holds(sol):
+    """Does the answer report what the catalogue finds on the stretch inserted?"""
+    els = sol["elements"]
     new = [i for i, el in enumerate(els) if el.get("role") == "new"]
     bad = [f for f in check_track(KATALOG, els, new) if KATALOG.rank(f[2]) > KATALOG.rank("ok")]
-    flagged = any(KATALOG.rank(f.get("severity")) >= KATALOG.rank("error") for f in sol.get("findings", []))
-    errors = [f for f in bad if KATALOG.rank(f[2]) >= KATALOG.rank("error")]
-    if errors and not flagged:
-        return f"{errors[0][1]} {errors[0][2]} at {errors[0][0]}, not reported"
-    if not errors and bad and not sol.get("findings"):
-        return f"{bad[0][1]} {bad[0][2]} at {bad[0][0]}, not reported"
+    reported = {(f["at"], f["id"], f["severity"]) for f in sol.get("findings", [])}
+    for where, rid, sev in bad:
+        if (where, rid, sev) not in reported:
+            return f"{rid} {sev} at {where}, not reported"
     return None
 
 
@@ -378,6 +385,10 @@ def run(n, seed, verbose):
                 why = chain_holds(sol["elements"]) or regular_holds(sol)
                 if why:
                     report("regular", f"{label} at {reg['req']['speed']} km/h", why)
+                stats["checked"][0] += 1
+                why = checked_holds(sol)
+                if why:
+                    report("checked", f"{label} at {reg['req']['speed']} km/h", why)
     return stats, examples
 
 

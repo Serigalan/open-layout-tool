@@ -51,6 +51,18 @@ f = {"start": list(f_start), "end": list(f_end), "bearing": b3, "radius": None}
 # start meets b's start, and the shorter of the two (a2) departs backwards.
 a2 = pick((200, 0), (0, 0), 270.0)
 
+# Project SBSS: an arc R 410 / 80 mm and a straight, joined by R 750 / 45 mm at
+# 80 km/h with the Regellänge on both sides (AP S.3) — 28.0 and 36.0 m.
+g_end, g_b = _arc_forward(E0, N0, 90.0, 410.0, 115.0 / 410.0)
+j, jb = _arc_forward(E0, N0, 90.0, 410.0, 120.0 / 410.0)
+x, y, b4 = transition_end(j[0], j[1], jb, 28.0, 410.0, 750.0, "clothoid")
+k, kb = _arc_forward(x, y, b4, 750.0, 150.0 / 750.0)
+x, y, b5 = transition_end(k[0], k[1], kb, 36.0, 750.0, None, "clothoid")
+h0 = (x + 20.0 * math.sin(math.radians(b5)), y + 20.0 * math.cos(math.radians(b5)))
+h1 = (x + 220.0 * math.sin(math.radians(b5)), y + 220.0 * math.cos(math.radians(b5)))
+g = {"start": [E0, N0], "end": list(g_end), "bearing": g_b, "radius": 410.0, "cant": 80, "speed": 80}
+h = {"start": list(h0), "end": list(h1), "bearing": b5, "radius": None, "speed": 80}
+
 base = {"radius": 300, "lDep": 0, "lArr": 0, "transition": "clothoid", "arcJoin": "straight"}
 cases = {
     "corner": {**base, "dep": a, "arr": b},
@@ -59,6 +71,8 @@ cases = {
     "cornerTransitions": {**base, "dep": a, "arr": b, "lDep": 60, "lArr": 60},
     "arcsStraight": {**base, "dep": c, "arr": d, "lDep": 40, "lArr": 40},
     "arcOnToStraight": {**base, "dep": e, "arr": f, "radius": 400},
+    "sbssRegular": {**base, "dep": g, "arr": h, "radius": 750, "cant": 45, "speed": 80, "lDep": 60, "lArr": 60,
+                    "modeDep": "regular", "modeArr": "regular"},
 }
 out = {name: {"request": req, "answer": splice_payload(req)} for name, req in cases.items()}
 for name, case in out.items():

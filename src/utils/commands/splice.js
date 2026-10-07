@@ -3,7 +3,7 @@ import { rebuildCoords, recalcAbsLengths, trackLabel } from '../trackModel'
 import { resolveEndBearing, reverseElement, nodeUtm } from '../elementUtils'
 import { reconstructElements } from '../elementReconstruct'
 import { cantSign, AUTO_CANT_MODEL } from '../rules/cant'
-import { transitionLengths } from '../rules/transitionLength'
+import { lengthRuleFormula } from '../rules/transitionLength'
 import { minElementLength } from '../rules/elementLength'
 import { reverseHeights, splitHeights, trackLength } from '../heightUtils'
 import { elementStations, pointOnElement } from '../platformUtils'
@@ -69,13 +69,18 @@ export function secondPickRefusal(first, pick) {
  * they were clicked — their ends in the shared plane, the bearing at the end,
  * the signed radius, their length and what of their track lies either side —
  * and the settings. Which ends meet and which pick departs is the service's
- * to find (olt_optimizer/splice.py, AP S.2); `transitions` [m] are the lengths
- * beside each pick, in the same order. The service decides the case from the
+ * to find (olt_optimizer/splice.py, AP S.2). The transition beside each pick,
+ * in the same order, has a mode (AP S.3): 'regular' or 'minimum' — the
+ * service sets the Regellänge or Mindestlänge in the chain it solves, from
+ * `transitions` [m] on — or 'fixed', `transitions` as they are. `speed` is
+ * the design speed of what the splice inserts, `cant` that of a new arc. The service decides the case from the
  * radii: two straights take `radius` and the transitions, two arcs a straight
  * between them (with the transitions) or with `arcJoin` 'transition' one
  * transition from arc to arc, an arc and a straight a new arc of `radius`.
  */
-export function spliceRequest(first, second, { radius, clothoidEnabled, transitions = [0, 0], transitionType, arcJoin }, clearance = null) {
+export function spliceRequest(first, second, {
+  radius, speed, cant, clothoidEnabled, transitions = [0, 0], modes = ['fixed', 'fixed'], transitionType, arcJoin,
+}, clearance = null) {
   const ends = (p) => ({
     start: [p.startUtm.easting, p.startUtm.northing],
     end: [p.endUtm.easting, p.endUtm.northing],
@@ -89,8 +94,12 @@ export function spliceRequest(first, second, { radius, clothoidEnabled, transiti
   return {
     dep: ends(first), arr: ends(second),
     radius: Math.abs(Number(radius)) || 0,
+    speed: Number(speed) || 0,
+    cant: Math.abs(Number(cant) || 0),
     lDep: clothoidEnabled ? Number(transitions[0]) || 0 : 0,
     lArr: clothoidEnabled ? Number(transitions[1]) || 0 : 0,
+    modeDep: clothoidEnabled ? modes[0] : 'fixed',
+    modeArr: clothoidEnabled ? modes[1] : 'fixed',
     transition: transitionType ?? 'clothoid',
     arcJoin: arcJoin ?? 'straight',
     ...(clearance ? { clearance } : {}),
@@ -152,13 +161,21 @@ export function clearanceRequest({ axis, dMin, profile, maximize, speed, cant })
   }
 }
 
+/** A transition's lengths as the service gives them, each rule on them with its formula (rules/transitionLength). */
+const withFormulas = (l) => ({
+  ...l,
+  regularBy: (l.regularBy ?? []).map(b => ({ ...b, formula: lengthRuleFormula(b.id, 'ok') })),
+  minimumBy: (l.minimumBy ?? []).map(b => ({ ...b, formula: lengthRuleFormula(b.id, 'warning') })),
+})
+
 /**
  * The service's answer as the dialog and the commit read it: { solutions },
  * the best first (Entscheidung 180), each { dep, arr, result } — `dep` and
  * `arr` the two picks in the order the solution runs, `result` the chain with
  * its display geometry rebuilt in the track's plane, the preview line, how it
- * runs (reverseDep, reverseArr, ends, rebuilt) and what the service says
- * about it (arcLength, straightLength, transitionLength, …) — or { error,
+ * runs (depPick, reverseDep, reverseArr, ends, rebuilt), the transition beside each
+ * pick ({ mode, length } and the rules on it, `lengths`) and what the service
+ * says about it (arcLength, straightLength, transitionLength, …) — or { error,
  * params } for a splice that does not fit.
  */
 export function spliceFromAnswer(answer, picks) {
@@ -177,7 +194,9 @@ export function spliceFromAnswer(answer, picks) {
         dep: picks[sol.depPick], arr: picks[1 - sol.depPick],
         result: {
           ...sol.info, elements, previewCoords,
-          reverseDep: !!sol.reverseDep, reverseArr: !!sol.reverseArr, ends: sol.ends, rebuilt: sol.rebuilt,
+          depPick: sol.depPick, reverseDep: !!sol.reverseDep, reverseArr: !!sol.reverseArr, ends: sol.ends,
+          rebuilt: sol.rebuilt,
+          lengths: (sol.lengths ?? []).map(withFormulas),
         },
       }
     }),
@@ -266,7 +285,10 @@ function mergedChain({ dep, arr, result }, depTrack, arrTrack, { speed, cant }) 
   const arrOrig = arrTrack.elements[arr.elIdx]
   const depBase = reverseDep ? reverseElement(depOrig) : depOrig
   const arrBase = reverseArr ? reverseElement(arrOrig) : arrOrig
-  const plane = ({ role: _role, ...el }) => el
+  // The plane geometry of the answer; the service's speed and cant on it are
+  // what it judged the chain with, and the same as these, but the app's own
+  // elements are what they come from.
+  const plane = ({ role: _role, speed: _speed, cant: _cant, ...el }) => el
   const keepCant = (el, orig) => (orig?.cant != null && el.radius != null
     ? { cant: cantSign(el.radius) * Math.abs(orig.cant) } : {})
   const mid = chain.map(el => {
@@ -302,46 +324,6 @@ export function splicedTransitions({ tracks, solution, speed, cant }) {
     .map((el, i) => (el.role !== 'dep' && el.role !== 'arr' && el.elementType === 2 ? before + i : null))
     .filter(i => i != null)
   return { elements, transitions }
-}
-
-/**
- * The shortest lengths the rules allow for the two transitions a splice puts
- * in (rules/transitionLength), { dep, arr } — found from the picks and the
- * settings, before and whether or not the service finds a solution: a
- * transition too long to fit is one of the reasons it does not.
- *
- * What the transitions run between is the case's (olt_optimizer/splice.py):
- * two straights get a new arc of `radius` with `cant`, the departure
- * transition into it and the arrival one out of it; two arcs a straight
- * between them, the transitions out of the one and into the other; an arc and
- * a straight a new arc again, the transition on the arc's side running from
- * that arc into the new one. Whether that is a compound or a reverse curve is
- * the solution's, so both are reckoned with and the longer taken. Null for
- * two arcs joined by one transition, whose length the construction solves.
- */
-export function spliceTransitionLengths({ dep, arr, radius, arcJoin, cant, speed, type = 'clothoid' }) {
-  const bothArcs = dep.signedR != null && arr.signedR != null
-  if (bothArcs && arcJoin === 'transition') return null
-  const plain = { elementType: 0, cant: 0, speed }
-  const curve = (r, u) => ({ elementType: 1, radius: r, cant: u, speed })
-  // A picked element in the curve's sense (`sense` 1) or against it (−1).
-  const picked = (p, sense = 1) => (p.signedR != null
-    ? curve(sense * Math.abs(p.signedR), sense * Math.abs(p.cant ?? 0))
-    : plain)
-  const between = (prev, next) => transitionLengths({ prev, next, r1: prev.radius ?? null, type, speed })
-  // The longer of two, with the rules that set it.
-  const longer = (a, b, key) => {
-    if (a[key] == null || b[key] == null) return { [key]: null, [`${key}By`]: [] }
-    const w = b[key] > a[key] ? b : a
-    return { [key]: w[key], [`${key}By`]: w[`${key}By`] }
-  }
-  const worse = (a, b) => ({ ...longer(a, b, 'regular'), ...longer(a, b, 'minimum') })
-  if (bothArcs) return { dep: between(picked(dep), plain), arr: between(plain, picked(arr)) }
-  const inserted = curve(Math.abs(Number(radius)) || null, Math.abs(Number(cant) || 0))
-  return {
-    dep: worse(between(picked(dep), inserted), between(picked(dep, -1), inserted)),
-    arr: worse(between(inserted, picked(arr)), between(inserted, picked(arr, -1))),
-  }
 }
 
 /**

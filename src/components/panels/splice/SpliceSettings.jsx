@@ -15,11 +15,14 @@ const REGEL_ABSTAENDE = [...new Set(QUERSCHNITT_KATALOG.streckenquerschnitte.row
 /**
  * The settings of a splice: how two arcs are joined, the radius of an arc put
  * between straights with its speed and cant, and the transitions either side
- * — their kind, and their lengths unless the construction solves them, which
- * `transitionRules` [first, second] can set to the shortest the rules allow.
- * The lengths belong to the two `picks` in the order they were clicked
- * (`s.transitions`); they are listed departure first, as the solution shown
- * runs (`departure`). `s` holds the settings, `set(key, value)` changes one.
+ * — their kind, and how long each is unless the construction solves it: the
+ * Regellänge or the Mindestlänge the service sets in the chain it solves
+ * (`s.modes`, the two buttons, Entscheidung 179), or a length typed
+ * (`s.transitions`, mode 'fixed'). `transitionRules` [first, second] is what
+ * the service answered for each: its length and every rule on it. Both belong
+ * to the two `picks` in the order they were clicked; they are listed
+ * departure first, as the solution shown runs (`departure`). `s` holds the
+ * settings, `set(key, value)` changes one.
  *
  * Below them the spacing to another track (Entscheidung 167): the track,
  * picked on the map (`clearance.onPickRef`), the minimum spacing and — where
@@ -35,7 +38,12 @@ export default function SpliceSettings({
   // Departure first: the pick that departs, then the other.
   const order = departure === picks[1] ? [1, 0] : [0, 1]
   const role = (k) => t(k === order[0] ? 'splice_departure' : 'splice_arrival')
-  const setLength = (k, v) => set('transitions', s.transitions.map((l, j) => (j === k ? v : l)))
+  const byPick = (key, k, v) => s[key].map((x, j) => (j === k ? v : x))
+  // A length typed is a fixed one; a button switches the side to its mode.
+  const setLength = (k, v) => { set('transitions', byPick('transitions', k, v)); set('modes', byPick('modes', k, 'fixed')) }
+  const setMode = (k, mode) => set('modes', byPick('modes', k, mode))
+  // What a side shows: the length the service set, or the one typed.
+  const shown = (k) => (s.modes[k] !== 'fixed' && transitionRules?.[k]?.length ? transitionRules[k].length : s.transitions[k])
   // Joined straight from one arc to the other, the transition's length is the
   // answer rather than an input — there is nothing to type and nothing to switch on.
   const directTransition = bothArcs && s.arcJoin === 'transition'
@@ -62,6 +70,7 @@ export default function SpliceSettings({
       )}
       <div className="form-field"><label>{t('field_speed')}</label>{number('speed', { min: 0 })}  <FieldRule name="speed" />
 </div>
+      {!(Number(s.speed) > 0) && <p className="selecting-hint">{t('splice_no_speed')}</p>}
       {/* The radius field here is a magnitude, so the cant is one too — it is
           signed by the fitted arc when the element is written. */}
       {!bothArcs && (clearance.maximize ? (
@@ -100,13 +109,14 @@ export default function SpliceSettings({
                 <div key={k}>
                   <div className="form-field">
                     <label>{role(k)} – {t('field_length')}</label>
-                    <NumberInput min={1} step={10} value={s.transitions[k]}
+                    <NumberInput min={1} step={10} value={shown(k)}
                       onChange={e => setLength(k, Math.max(1, Number(e.target.value) || 1))} />
+                    {s.modes[k] === 'fixed' && <span className="range-use">{t('transition_fixed')}</span>}
                   </div>
-                  <TransitionLengthButtons lengths={transitionRules?.[k]} onPick={v => setLength(k, v)} />
+                  <TransitionLengthButtons lengths={transitionRules?.[k]} active={s.modes[k]}
+                    onPick={(_v, mode) => setMode(k, mode)} />
                 </div>
               ))}
-              {!(s.speed > 0) && <p className="selecting-hint">{t('transition_no_speed')}</p>}
             </>
           )}
         </>

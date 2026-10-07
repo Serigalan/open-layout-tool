@@ -28,6 +28,33 @@ export const transitionCheck = (chain) => checkTrack(chain).perElement[1]
 const SYMBOLS = [[/\s*\*\s*/g, '·'], [/\s*\/\s*/g, '/'], [/delta_u_f/g, 'Δu_f'], [/delta_u/g, 'Δu']]
 const pretty = (expr) => SYMBOLS.reduce((text, [re, to]) => text.replace(re, to), String(expr))
 
+/** The threshold a rule's length bound is held to at `worst` — the one its evaluation compares at that step. */
+function boundName(rule, worst) {
+  const entry = (rule?.evaluation ?? [])
+    .filter(e => 'if' in e && severityRank(e.severity) <= severityRank(worst))
+    .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))[0]
+  return Object.keys(rule?.thresholds ?? {}).find(n => new RegExp(`\\b${n}\\b`).test(entry?.if ?? ''))
+}
+
+const isSlope = (rule) => Object.values(rule?.inputs ?? {}).some(input => input.from === 'physics.ramp_slope')
+
+/**
+ * How a rule on a transition's length writes the bound it sets at `worst`
+ * ('ok' — the Regelwert, 'warning' — down to the Ermessensgrenze), in the
+ * Ril's symbols: its threshold's formula, a slope 1:m as m·Δu/1000, null for
+ * a table looked up — which has no formula to show, only its value. Also for
+ * lengths found elsewhere (the splice service), which name the rule and the
+ * bound but not the formula.
+ */
+export function lengthRuleFormula(id, worst) {
+  const rule = ruleById(id)
+  const name = boundName(rule, worst)
+  if (!name) return null
+  const expr = rule.thresholds[name].expr
+  if (isSlope(rule)) return `${pretty(expr)}·Δu/1000`
+  return /lookup\(/.test(expr) ? null : pretty(expr)
+}
+
 /**
  * The bound a rule sets on the length for `worst`: the threshold its
  * evaluation holds against at the step no worse than that — the Regelwert for
@@ -35,19 +62,10 @@ const pretty = (expr) => SYMBOLS.reduce((text, [re, to]) => text.replace(re, to)
  * length } [m]. A rule on the ramp's slope 1:m bounds the length at m·Δu/1000.
  */
 function basis(rule, result, worst) {
-  const thresholds = Object.keys(rule?.thresholds ?? {})
-  const entry = (rule?.evaluation ?? [])
-    .filter(e => 'if' in e && severityRank(e.severity) <= severityRank(worst))
-    .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))[0]
-  const name = thresholds.find(n => new RegExp(`\\b${n}\\b`).test(entry?.if ?? ''))
-  const value = result?.values?.[name]
-  if (!name || !Number.isFinite(value)) return { id: rule?.id, formula: null, length: null }
-  const expr = rule.thresholds[name].expr
-  if (Object.values(rule.inputs ?? {}).some(input => input.from === 'physics.ramp_slope')) {
-    return { id: rule.id, formula: `${pretty(expr)}·Δu/1000`, length: value * (result.values['physics.delta_u'] ?? 0) / 1000 }
-  }
-  // A table the catalogue looks up has no formula to show, only its value.
-  return { id: rule.id, formula: /lookup\(/.test(expr) ? null : pretty(expr), length: value }
+  const value = result?.values?.[boundName(rule, worst)]
+  if (!Number.isFinite(value)) return { id: rule?.id, formula: null, length: null }
+  const length = isSlope(rule) ? value * (result.values['physics.delta_u'] ?? 0) / 1000 : value
+  return { id: rule.id, formula: lengthRuleFormula(rule.id, worst), length }
 }
 
 // A rule a longer transition can satisfy: it reads the length or the ramp it

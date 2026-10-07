@@ -47,7 +47,9 @@
         5700000.0
        ],
        "bearing": 90.0,
-       "length": 100.0
+       "length": 100.0,
+       "speed": 0.0,
+       "cant": 0.0
       },
       {
        "elementType": 1,
@@ -63,7 +65,9 @@
        ],
        "bearing": 90.0,
        "endBearing": 0.0,
-       "length": 471.23889803846896
+       "length": 471.23889803846896,
+       "speed": 0.0,
+       "cant": -0.0
       },
       {
        "elementType": 0,
@@ -77,7 +81,9 @@
         5700700.0
        ],
        "bearing": 0.0,
-       "length": 400.0
+       "length": 400.0,
+       "speed": 0.0,
+       "cant": 0.0
       }
      ],
      "info": {
@@ -91,6 +97,16 @@
      ],
      "reverseDep": false,
      "reverseArr": false,
+     "lengths": [
+      {
+       "mode": "fixed",
+       "length": 0.0
+      },
+      {
+       "mode": "fixed",
+       "length": 0.0
+      }
+     ],
      "rebuilt": 771.238898038469
     }
    ]
@@ -144,7 +160,9 @@
         5700000.0
        ],
        "bearing": 90.0,
-       "length": 100.0
+       "length": 100.0,
+       "speed": 0.0,
+       "cant": 0.0
       },
       {
        "elementType": 1,
@@ -160,7 +178,9 @@
        ],
        "bearing": 90.0,
        "endBearing": 0.0,
-       "length": 471.23889803846896
+       "length": 471.23889803846896,
+       "speed": 0.0,
+       "cant": -0.0
       },
       {
        "elementType": 0,
@@ -174,7 +194,9 @@
         5700700.0
        ],
        "bearing": 0.0,
-       "length": 400.0
+       "length": 400.0,
+       "speed": 0.0,
+       "cant": 0.0
       }
      ],
      "info": {
@@ -188,6 +210,16 @@
      ],
      "reverseDep": false,
      "reverseArr": false,
+     "lengths": [
+      {
+       "mode": "fixed",
+       "length": 0.0
+      },
+      {
+       "mode": "fixed",
+       "length": 0.0
+      }
+     ],
      "rebuilt": 771.238898038469
     }
    ]
@@ -241,7 +273,9 @@
         5700000.0
        ],
        "bearing": 90.0,
-       "length": 100.0
+       "length": 100.0,
+       "speed": 0.0,
+       "cant": 0.0
       },
       {
        "elementType": 1,
@@ -257,7 +291,9 @@
        ],
        "bearing": 90.0,
        "endBearing": 0.0,
-       "length": 471.23889803846896
+       "length": 471.23889803846896,
+       "speed": 0.0,
+       "cant": -0.0
       },
       {
        "elementType": 0,
@@ -271,7 +307,9 @@
         5700700.0
        ],
        "bearing": 0.0,
-       "length": 400.0
+       "length": 400.0,
+       "speed": 0.0,
+       "cant": 0.0
       }
      ],
      "info": {
@@ -285,6 +323,16 @@
      ],
      "reverseDep": true,
      "reverseArr": false,
+     "lengths": [
+      {
+       "mode": "fixed",
+       "length": 0.0
+      },
+      {
+       "mode": "fixed",
+       "length": 0.0
+      }
+     ],
      "rebuilt": 771.238898038469
     }
    ]
@@ -338,7 +386,9 @@
         5700000.0
        ],
        "bearing": 90.0,
-       "length": 69.510175756237
+       "length": 69.510175756237,
+       "speed": 0.0,
+       "cant": 0.0
       },
       {
        "elementType": 2,
@@ -356,7 +406,8 @@
        ],
        "bearing": 90.0,
        "endBearing": 84.27042204869178,
-       "length": 60.0
+       "length": 60.0,
+       "speed": 0.0
       },
       {
        "elementType": 1,
@@ -372,7 +423,9 @@
        ],
        "bearing": 84.27042204868937,
        "endBearing": 5.729577951310631,
-       "length": 411.2388980384439
+       "length": 411.2388980384439,
+       "speed": 0.0,
+       "cant": -0.0
       },
       {
        "elementType": 2,
@@ -390,7 +443,8 @@
        ],
        "bearing": 5.729577951308215,
        "endBearing": 0.0,
-       "length": 60.0
+       "length": 60.0,
+       "speed": 0.0
       },
       {
        "elementType": 0,
@@ -404,7 +458,9 @@
         5700700.0
        ],
        "bearing": 0.0,
-       "length": 369.5101757561788
+       "length": 369.5101757561788,
+       "speed": 0.0,
+       "cant": 0.0
       }
      ],
      "info": {
@@ -418,6 +474,24 @@
      ],
      "reverseDep": false,
      "reverseArr": false,
+     "lengths": [
+      {
+       "mode": "fixed",
+       "length": 60.0,
+       "regular": null,
+       "minimum": null,
+       "regularBy": [],
+       "minimumBy": []
+      },
+      {
+       "mode": "fixed",
+       "length": 60.0,
+       "regular": null,
+       "minimum": null,
+       "regularBy": [],
+       "minimumBy": []
+      }
+     ],
      "rebuilt": 892.2185465260281
     }
    ]
@@ -473,7 +547,9 @@
        ],
        "bearing": 9.43778388773353e-12,
        "endBearing": 14.323944878201344,
-       "length": 149.9999999991761
+       "length": 149.9999999991761,
+       "speed": 0.0,
+       "cant": 0.0
       },
       {
        "elementType": 2,
@@ -491,7 +567,8 @@
        ],
        "bearing": 14.323944878197238,
        "endBearing": 16.23380419529999,
-       "length": 40.0
+       "length": 40.0,
+       "speed": 0.0
       },
       {
        "elementType": 0,
@@ -505,7 +582,9 @@
         5700282.980394653
        ],
        "bearing": 16.233804195414614,
-       "length": 100.00000000185817
+       "length": 100.00000000185817,
+       "speed": 0.0,
+       "cant": 0.0
       },
       {
        "elementType": 2,
@@ -523,7 +602,8 @@
        ],
        "bearing": 16.23380419529999,
        "endBearing": 14.960564650564827,
-       "length": 40.0
+       "length": 40.0,
+       "speed": 0.0
       },
       {
        "elementType": 1,
@@ -539,7 +619,9 @@
        ],
        "bearing": 14.960564650534215,
        "endBearing": 7.3211273821840255,
-       "length": 119.99999999904514
+       "length": 119.99999999904514,
+       "speed": 0.0,
+       "cant": -0.0
       }
      ],
      "info": {
@@ -552,6 +634,24 @@
      ],
      "reverseDep": false,
      "reverseArr": true,
+     "lengths": [
+      {
+       "mode": "fixed",
+       "length": 40.0,
+       "regular": null,
+       "minimum": null,
+       "regularBy": [],
+       "minimumBy": []
+      },
+      {
+       "mode": "fixed",
+       "length": 40.0,
+       "regular": null,
+       "minimum": null,
+       "regularBy": [],
+       "minimumBy": []
+      }
+     ],
      "rebuilt": 180.00000000370335
     }
    ]
@@ -607,7 +707,9 @@
        ],
        "bearing": 19.999999999973284,
        "endBearing": 39.098593171015416,
-       "length": 300.0000000002307
+       "length": 300.0000000002307,
+       "speed": 0.0,
+       "cant": 0.0
       },
       {
        "elementType": 1,
@@ -623,7 +725,9 @@
        ],
        "bearing": 39.09859317107283,
        "endBearing": 16.180281365821656,
-       "length": 160.00000000012733
+       "length": 160.00000000012733,
+       "speed": 0.0,
+       "cant": -0.0
       },
       {
        "elementType": 0,
@@ -637,7 +741,9 @@
         5700592.649338246
        ],
        "bearing": 16.18028136577566,
-       "length": 200.00000000023488
+       "length": 200.00000000023488,
+       "speed": 0.0,
+       "cant": 0.0
       }
      ],
      "info": {
@@ -651,7 +757,269 @@
      ],
      "reverseDep": false,
      "reverseArr": false,
+     "lengths": [
+      {
+       "mode": "fixed",
+       "length": 0.0
+      },
+      {
+       "mode": "fixed",
+       "length": 0.0
+      }
+     ],
      "rebuilt": 160.00000000016064
+    }
+   ]
+  }
+ },
+ "sbssRegular": {
+  "request": {
+   "radius": 750,
+   "lDep": 60,
+   "lArr": 60,
+   "transition": "clothoid",
+   "arcJoin": "straight",
+   "dep": {
+    "start": [
+     500000.0,
+     5700000.0
+    ],
+    "end": [
+     500113.49801351054,
+     5699983.9774116995
+    ],
+    "bearing": 106.07076742440114,
+    "radius": 410.0,
+    "cant": 80,
+    "speed": 80
+   },
+   "arr": {
+    "start": [
+     500327.304097639,
+     5699879.232719113
+    ],
+    "end": [
+     500495.7386732081,
+     5699771.391197644
+    ],
+    "bearing": 122.62971352302756,
+    "radius": null,
+    "speed": 80
+   },
+   "cant": 45,
+   "speed": 80,
+   "modeDep": "regular",
+   "modeArr": "regular"
+  },
+  "answer": {
+   "solutions": [
+    {
+     "elements": [
+      {
+       "elementType": 1,
+       "role": "dep",
+       "radius": 410.0,
+       "startNode": [
+        500000.0,
+        5700000.0
+       ],
+       "endNode": [
+        500118.29405734333,
+        5699982.564027896
+       ],
+       "bearing": 89.99999999952922,
+       "endBearing": 106.76949644316014,
+       "length": 120.000000005564,
+       "speed": 80.0,
+       "cant": 80.0
+      },
+      {
+       "elementType": 2,
+       "role": "new",
+       "transitionType": "clothoid",
+       "r1": 410.0,
+       "r2": 750.0,
+       "startNode": [
+        500118.29405734333,
+        5699982.564027896
+       ],
+       "endNode": [
+        500144.85480256815,
+        5699973.712838257
+       ],
+       "bearing": 106.76949644365804,
+       "endBearing": 109.79545891290181,
+       "length": 28.0,
+       "speed": 80.0
+      },
+      {
+       "elementType": 1,
+       "role": "new",
+       "radius": 750.0,
+       "startNode": [
+        500144.85480256815,
+        5699973.712838257
+       ],
+       "endNode": [
+        500279.9888773562,
+        5699909.184691247
+       ],
+       "bearing": 109.79545891281904,
+       "endBearing": 121.25461481460846,
+       "length": 149.9999999891741,
+       "speed": 80.0,
+       "cant": 45.0
+      },
+      {
+       "elementType": 2,
+       "role": "new",
+       "transitionType": "clothoid",
+       "r1": 750.0,
+       "r2": null,
+       "startNode": [
+        500279.9888773562,
+        5699909.184691247
+       ],
+       "endNode": [
+        500310.4606400774,
+        5699890.016871263
+       ],
+       "bearing": 121.25461481471352,
+       "endBearing": 122.62971352302749,
+       "length": 36.0,
+       "speed": 80.0
+      },
+      {
+       "elementType": 0,
+       "role": "arr",
+       "startNode": [
+        500310.4606400774,
+        5699890.016871263
+       ],
+       "endNode": [
+        500495.7386732081,
+        5699771.391197644
+       ],
+       "bearing": 122.62971352295934,
+       "length": 220.00000000536477,
+       "speed": 80.0,
+       "cant": 0.0
+      }
+     ],
+     "info": {
+      "arcLength": 149.99999998946637,
+      "signedR": 750.0
+     },
+     "depPick": 0,
+     "ends": [
+      "end",
+      "start"
+     ],
+     "reverseDep": false,
+     "reverseArr": false,
+     "lengths": [
+      {
+       "mode": "regular",
+       "length": 28.0,
+       "regular": 28.0,
+       "regularBy": [
+        {
+         "id": "LP.UB.03",
+         "length": 28.0,
+         "binding": true
+        },
+        {
+         "id": "LP.UB.07",
+         "length": 21.0,
+         "binding": false
+        },
+        {
+         "id": "LP.UB.05",
+         "length": 15.36,
+         "binding": false
+        },
+        {
+         "id": "LP.EL.01",
+         "length": 12.0,
+         "binding": false
+        }
+       ],
+       "minimum": 22.4,
+       "minimumBy": [
+        {
+         "id": "LP.UB.03",
+         "length": 22.4,
+         "binding": true
+        },
+        {
+         "id": "LP.UB.05",
+         "length": 15.36,
+         "binding": false
+        },
+        {
+         "id": "LP.UB.07",
+         "length": 14.0,
+         "binding": false
+        },
+        {
+         "id": "LP.EL.01",
+         "length": 12.0,
+         "binding": false
+        }
+       ]
+      },
+      {
+       "mode": "regular",
+       "length": 36.0,
+       "regular": 36.0,
+       "regularBy": [
+        {
+         "id": "LP.UB.03",
+         "length": 36.0,
+         "binding": true
+        },
+        {
+         "id": "LP.UB.07",
+         "length": 27.0,
+         "binding": false
+        },
+        {
+         "id": "LP.UB.05",
+         "length": 17.92,
+         "binding": false
+        },
+        {
+         "id": "LP.EL.01",
+         "length": 12.0,
+         "binding": false
+        }
+       ],
+       "minimum": 28.8,
+       "minimumBy": [
+        {
+         "id": "LP.UB.03",
+         "length": 28.8,
+         "binding": true
+        },
+        {
+         "id": "LP.UB.07",
+         "length": 18.0,
+         "binding": false
+        },
+        {
+         "id": "LP.UB.05",
+         "length": 17.92,
+         "binding": false
+        },
+        {
+         "id": "LP.EL.01",
+         "length": 12.0,
+         "binding": false
+        }
+       ]
+      }
+     ],
+     "rebuilt": 239.0000000003888
     }
    ]
   }

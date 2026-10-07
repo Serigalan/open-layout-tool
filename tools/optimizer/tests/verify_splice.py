@@ -302,6 +302,51 @@ ok("line 5550: R 500 does not fit",
    splice_payload({"dep": dep_5550, "arr": arr_5550, "radius": 500}).get("error") == "splice_error_no_fit")
 
 
+# ── the Regellänge, solved with the chain (AP S.3) ───────────────────────────
+# Project SBSS, 2026-10-07: an arc R 410 / 80 mm and a straight joined by a new
+# arc R 750 / 45 mm at 80 km/h. Into the new arc the transition runs from a
+# compound curve (Δu 35 mm: 10·80·35/1000 = 28.0 m), out of it into the
+# straight (Δu 45 mm: 36.0 m) — known only once the hand of the new arc is.
+A, bA = arc_step(P0, 90.0, 120.0, 410.0)
+B, bB = trans_step(A, bA, 28.0, 410.0, 750.0)
+C, bC = arc_step(B, bB, 150.0, 750.0)
+D, bD = trans_step(C, bC, 36.0, 750.0, None)
+E, F = along(D, bD, 20.0), along(D, bD, 220.0)
+sbss_arc = {**pick(P0, arc_step(P0, 90.0, 115.0, 410.0)[0], arc_step(P0, 90.0, 115.0, 410.0)[1], 410.0),
+            "cant": 80, "speed": 80}
+sbss_straight = {**pick(F, E, (bD + 180.0) % 360.0), "speed": 80}
+sbss = {"radius": 750, "cant": 45, "speed": 80, "lDep": 60, "lArr": 60, "modeDep": "regular", "modeArr": "regular"}
+for label, req in (("SBSS", {**sbss, "dep": sbss_arc, "arr": sbss_straight}),
+                   ("SBSS clicked the other way", {**sbss, "dep": sbss_straight, "arr": sbss_arc})):
+    res = splice_payload(req)
+    ok(f"{label}: no error", "error" not in res)
+    if "error" in res:
+        continue
+    k_arc = 0 if req["dep"] is sbss_arc else 1
+    lengths = res["lengths"]
+    ok(f"{label}: the Regellänge into the new arc is 28.0 m ({lengths[k_arc]['length']})",
+       lengths[k_arc]["mode"] == "regular" and lengths[k_arc]["length"] == 28.0)
+    ok(f"{label}: …set by LP.UB.03", [b["id"] for b in lengths[k_arc]["regularBy"] if b["binding"]] == ["LP.UB.03"])
+    ok(f"{label}: out of it into the straight 36.0 m ({lengths[1 - k_arc]['length']})",
+       lengths[1 - k_arc]["length"] == 36.0)
+    ok(f"{label}: finds the arc that was built (R 750, 150 m)",
+       abs(res["info"]["arcLength"] - 150.0) < 1e-3 and abs(res["info"]["signedR"]) == 750)
+    trs = [e for e in res["elements"] if e["elementType"] == 2]
+    ok(f"{label}: the chain carries those lengths", sorted(e["length"] for e in trs) == [28.0, 36.0])
+    ok(f"{label}: chain holds ({chain_holds(res['elements'])})", chain_holds(res["elements"]) is None)
+res = splice_payload({**sbss, "modeDep": "minimum", "modeArr": "minimum", "dep": sbss_arc, "arr": sbss_straight})
+ok("SBSS at the Mindestlänge: 22.4 and 28.8 m",
+   "error" not in res and [x["length"] for x in res["lengths"]] == [22.4, 28.8])
+res = splice_payload({**sbss, "modeArr": "fixed", "lArr": 50, "dep": sbss_arc, "arr": sbss_straight})
+ok("SBSS, the arrival fixed at 50 m: kept, the departure still 28.0 m",
+   "error" not in res and [x["length"] for x in res["lengths"]] == [28.0, 50.0]
+   and res["lengths"][1]["mode"] == "fixed")
+res = splice_payload({**sbss, "speed": 0, "dep": sbss_arc, "arr": sbss_straight})
+ok("SBSS without a speed: the lengths as given, no rule to say otherwise",
+   "error" not in res and [x["length"] for x in res["lengths"]] == [60.0, 60.0]
+   and res["lengths"][0]["regular"] is None)
+
+
 # ── what a malformed request does ────────────────────────────────────────────
 try:
     splice_payload({"dep": {"start": [0, 0]}, "arr": b, "radius": 300})

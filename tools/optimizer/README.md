@@ -95,7 +95,11 @@ konstruiert, eine feste Rangfolge (wenig Umbau, kurze neue Strecke) schlägt die
 beste Lösung vor, die übrigen kommen als Alternativen mit (`solutions`); eine,
 die mehr als einen Halbkreis über die gewählten Elemente hinaus dreht, entfällt.
 Treffen sich zwei Enden oder zwei Anfänge, wird das kürzere Gleis umgedreht —
-die Klickreihenfolge entscheidet nichts. Passt ein Bogen nicht auf die
+die Klickreihenfolge entscheidet nichts. Die Übergangsbögen haben je Seite einen
+Modus (AP S.3): fest, Regellänge oder Mindestlänge; die beiden letzten setzt der
+Dienst aus dem gelösten Gleis selbst (`grenzen.transition_lengths`) und baut neu,
+bis die Längen stehen — ob ein Bogen als Korb- oder Gegenbogen anschließt, weiß
+erst die Lösung. Passt ein Bogen nicht auf die
 gewählten Elemente, nennt die Antwort den größten Radius, der passt (`params.rMax`). Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
 Antworten, gegen die die App testet, schreibt `tests/splice_fixture.py`.
