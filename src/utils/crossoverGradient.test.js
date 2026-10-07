@@ -36,18 +36,20 @@ function connection(a, b) {
   return { elementType: 0, startNode: a, endNode: b, bearing: brg, length, speed: 100 }
 }
 
-const level = (length, z) => [{ station: 0, z }, { station: length, z }]
+/** Heights from station 0 to `length`, starting at z and rising by `grade`. */
+const sloped = (length, z, grade = 0) => [{ station: 0, z }, { station: length, z: z + grade * length }]
 
-function layout({ z1 = 100, z2 = 100, cant = 60 } = {}) {
+function layout({ z1 = 100, z2 = 100, cant = 60, grade = 0 } = {}) {
+  const level = (length, z, from = 0) => sloped(length, z + grade * from, grade)
   const m1 = { switchId: 'w1', switchRoute: 'main' }
   const m2 = { switchId: 'w2', switchRoute: 'main' }
   const s2 = 130 * 1004 / 1000   // turnout 2's toe on track 2, across from 130 m on track 1
   const tracks = [
-    { id: 't1a', name: 'T1 a', epsg: 5684, trackType: 1, elements: arcs(1000, -300, [[300]], cant), heights: level(300, z1) },
+    { id: 't1a', name: 'T1 a', epsg: 5684, trackType: 1, elements: arcs(1000, -300, [[300]], cant), heights: level(300, z1, -300) },
     { id: 't1b', name: 'T1 b', epsg: 5684, trackType: 1, elements: arcs(1000, 0, [[30, m1], [470]], cant), heights: level(500, z1) },
     { id: 't2a', name: 'T2 a', epsg: 5684, trackType: 1,
-      elements: arcs(1004, -300, [[300 + s2 - 30], [30, m2]], cant), heights: level(300 + s2, z2) },
-    { id: 't2b', name: 'T2 b', epsg: 5684, trackType: 1, elements: arcs(1004, s2, [[400]], cant), heights: level(400, z2) },
+      elements: arcs(1004, -300, [[300 + s2 - 30], [30, m2]], cant), heights: level(300 + s2, z2, -300) },
+    { id: 't2b', name: 'T2 b', epsg: 5684, trackType: 1, elements: arcs(1004, s2, [[400]], cant), heights: level(400, z2, s2) },
     { id: 'c', name: 'conn', epsg: 5684, trackType: 1, elements: [connection(pointOn(1000, 0), pointOn(1004, s2))] },
   ]
   const switches = [
@@ -161,6 +163,29 @@ describe('heights from the cant', () => {
       const bad = check.curves.flatMap(c => c.results).filter(r => ['HP.AR.01', 'HP.AR.06'].includes(r.id) && r.severity !== 'ok')
       expect(bad, id).toEqual([])
     }
+  })
+
+  it('runs one gradient over a turnout and the track in front of its toe', () => {
+    const p = layout({ grade: -0.0073 })
+    const [x] = findCrossovers(p.tracks, p.switches)
+    const short = { ...LIMITS, before: 40, after: 40 }
+    const plan = planCrossoverGradient(p.tracks, p.switches, x, { mode: 'heights', cant: 60, limits: [short, short] })
+    expect(plan.ok).toBe(true)
+    const grade = (a, b) => (b.z - a.z) / (b.station - a.station)
+    // The joint at either toe lies on the straight exactly: the gradient up
+    // to it and on from it are one, not two that the millimetre parts.
+    for (const [a, b] of [['t1a', 't1b'], ['t2a', 't2b']]) {
+      const ha = plan.heights.get(a), hb = plan.heights.get(b)
+      expect(ha.at(-1).z).toBe(hb[0].z)
+      expect(grade(ha.at(-2), ha.at(-1)) - grade(hb[0], hb[1]), a).toBeCloseTo(0, 6)
+    }
+    // Both tracks run straight from one curve to the next: no point between.
+    expect(plan.heights.get('t1b')[1].rv).toBeGreaterThan(0)
+    expect(plan.heights.get('t2b')[1].rv).toBeGreaterThan(0)
+    // And the connecting track starts and ends on the joints.
+    const conn = plan.heights.get('c')
+    expect(conn[0].z).toBe(plan.heights.get('t1b')[0].z)
+    expect(conn.at(-1).z).toBe(plan.heights.get('t2b')[0].z)
   })
 
   it('refuses where the limits do not reach, and moves nothing', () => {

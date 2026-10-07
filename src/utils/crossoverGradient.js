@@ -25,8 +25,9 @@
  *
  * The shape: over the crossover — from the first toe to the last ldS, and the
  * points the other track's ones lie across from — each track runs straight,
- * offset as needed; from the ends of the marked stretch it is ramped up to
- * that offset. The gradient changes this makes are rounded with the
+ * offset as needed, in one gradient through its turnout and the track in
+ * front of the toe (decision 173); from the ends of the marked stretch it is
+ * ramped up to that offset. The gradient changes this makes are rounded with the
  * Regelwert of Tabelle 12 (HP.AR.03) where they need rounding at all
  * (HP.AR.01), and the straight is drawn out so far that the curves stay
  * outside the turnouts (HP.AR.06).
@@ -43,6 +44,7 @@ const EPS = 1e-6
 const STATION_TOL = 0.01
 const MAX_CHAIN = 5000        // m either way — far beyond any ramp
 const roundMm = (x) => Math.round(x * 1000) / 1000
+const roundUm = (x) => Math.round(x * 1e6) / 1e6
 
 // ── Which pairs of turnouts are crossovers ──────────────────────────────────
 
@@ -267,20 +269,23 @@ const speedAt = (chain, d) => {
 /**
  * The new profile of one line: offset `da` at the start of the zone and `db`
  * at its end, straight in between, ramped from `r0` and to `r1`. The straight
- * reaches beyond the zone by the tangent of the curve at its ends, so the
- * curves stay outside the turnouts. Returns the line's vertices
- * [{ d, z, rv? }] and the warnings it ran into.
+ * is the one through the zone's ends, and it reaches on beyond them by the
+ * tangent of the curve there, so the curves stay outside the turnouts — one
+ * gradient over the turnouts and the stretch in front of their toes. Returns
+ * the line's vertices [{ d, z, rv? }] and the warnings it ran into.
  */
 function reshape(chain, zone, r0, r1, da, db, siding) {
   const z = (d) => chainZ(chain, d)
+  const za = z(zone[0]), zb = z(zone[1]), z0 = z(r0), z1 = z(r1)
+  if ([za, zb, z0, z1].some(v => v == null)) return { error: 'no_gradient' }
+  const grade = (zb + db - za - da) / (zone[1] - zone[0])
+  const straight = (d) => za + da + grade * (d - zone[0])
   let pa = zone[0], pb = zone[1]
   let verts = null
   const warnings = []
   for (let k = 0; k < 4; k++) {
-    const za = z(pa), zb = z(pb), z0 = z(r0), z1 = z(r1)
-    if ([za, zb, z0, z1].some(v => v == null)) return { error: 'no_gradient' }
     verts = [
-      { d: r0, z: z0 }, { d: pa, z: za + da }, { d: pb, z: zb + db }, { d: r1, z: z1 },
+      { d: r0, z: z0 }, { d: pa, z: straight(pa) }, { d: pb, z: straight(pb) }, { d: r1, z: z1 },
     ]
     // The gradient change at each vertex, with the original profile beyond the ends.
     const g = (a, b) => (b.z - a.z) / (b.d - a.d)
@@ -307,20 +312,23 @@ function reshape(chain, zone, r0, r1, da, db, siding) {
 
 /**
  * The heights every track of a line gets from its new profile: the vertices
- * where they fall on it, every point between them moved with them — onto the
- * straight over the crossover, by the share of the ramp beside it — and the
- * rest left alone.
+ * where they fall on it, every point between them moved with them — by the
+ * share of the ramp beside it — and the rest left alone. On the straight over
+ * the crossover only the points a track needs stay, its first and last — the
+ * joints there — and they lie on it exactly, not to the millimetre, so the
+ * straight shows one gradient on either side of them.
  */
 function lineWrites(chain, verts) {
   const [v0, va, vb, v1] = verts
   const z0 = (d) => chainZ(chain, d)
+  const [za, zb] = [roundMm(va.z), roundMm(vb.z)]
   const offset = (d) => {
     if (d <= v0.d || d >= v1.d) return 0
-    if (d < va.d) return (va.z - z0(va.d)) * (d - v0.d) / (va.d - v0.d)
-    if (d > vb.d) return (vb.z - z0(vb.d)) * (v1.d - d) / (v1.d - vb.d)
+    if (d < va.d) return (za - z0(va.d)) * (d - v0.d) / (va.d - v0.d)
+    if (d > vb.d) return (zb - z0(vb.d)) * (v1.d - d) / (v1.d - vb.d)
     return null   // on the straight
   }
-  const straight = (d) => va.z + (vb.z - va.z) * (d - va.d) / (vb.d - va.d)
+  const straight = (d) => roundUm(za + (zb - za) * (d - va.d) / (vb.d - va.d))
   const writes = new Map()
   for (const seg of chain) {
     const lo = seg.from, hi = seg.from + seg.length
@@ -333,21 +341,23 @@ function lineWrites(chain, verts) {
       const hit = pts.find(p => Math.abs(p.d - v.d) <= STATION_TOL)
       if (hit) { hit.vertex = v } else pts.push({ station: stationOf(seg, v.d), d: v.d, z: z0(v.d), vertex: v })
     }
-    const out = pts.map(p => {
+    const first = Math.min(...pts.map(p => p.station)), last = Math.max(...pts.map(p => p.station))
+    const out = pts.flatMap(p => {
       const { d, vertex, ...rest } = p
       if (vertex) {
         const q = { ...rest, z: roundMm(vertex.z) }
         if (vertex.rv) q.rv = vertex.rv; else delete q.rv
         // The ends of the ramps keep the curve they had where none is needed.
         if (!vertex.rv && (vertex === v0 || vertex === v1) && p.rv) q.rv = p.rv
-        return q
+        return [q]
       }
       const off = offset(d)
       if (off === null) {
+        if (p.station !== first && p.station !== last) return []
         const { rv: _rv, ...flat } = rest
-        return { ...flat, z: roundMm(straight(d)) }
+        return [{ ...flat, z: straight(d) }]
       }
-      return off ? { ...rest, z: roundMm(rest.z + off) } : rest
+      return [off ? { ...rest, z: roundMm(rest.z + off) } : rest]
     }).sort((a, b) => a.station - b.station)
     writes.set(seg.track.id, out)
   }
@@ -485,7 +495,7 @@ export function planCrossoverGradient(tracks, switches, crossover, { mode, cant,
     }
     const z0 = toeZ(crossover.w1), z1 = toeZ(crossover.w2)
     if (z0 != null && z1 != null) {
-      heights.set(conn.id, [{ station: 0, z: roundMm(z0) }, { station: roundMm(trackLength(conn)), z: roundMm(z1) }])
+      heights.set(conn.id, [{ station: 0, z: roundUm(z0) }, { station: roundMm(trackLength(conn)), z: roundUm(z1) }])
     }
   }
 
