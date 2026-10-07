@@ -347,15 +347,16 @@ def chain_points(pieces):
     return np.concatenate(pts), np.concatenate(owner)
 
 
-def project(points, poly):
+def project(points, poly, tree=None):
     """Distance of every point to the polyline, signed (> 0 right of its
     direction), the segment it is nearest and where along it (0…1).
 
     Only the segments at the vertices nearest to a point are tried: the points
-    lie millimetres from a polyline that does not fold back on itself.
+    lie millimetres from a polyline that does not fold back on itself. `tree`
+    is the polyline's cKDTree where the caller measures against it often.
     """
     m = len(poly) - 1
-    _, near = cKDTree(poly).query(points, k=min(NEAR_VERTICES, len(poly)))
+    _, near = (tree or cKDTree(poly)).query(points, k=min(NEAR_VERTICES, len(poly)))
     near = near.reshape(len(points), -1)
     cand = np.clip(np.concatenate([near - 1, near], axis=1), 0, m - 1)       # (n, c)
     a = poly[cand]

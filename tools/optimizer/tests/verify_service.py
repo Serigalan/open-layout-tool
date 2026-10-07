@@ -150,6 +150,26 @@ try:
     status, body, _ = call(BASE, "/splice", {"dep": {"start": [0, 0]}, "arr": north, "radius": 300})
     ok("POST /splice: unvollständige Wahl → 400 invalid_payload", status == 400 and body == {"error": "invalid_payload"})
 
+    # ── 1c') Neu verbinden (Paket N) ─────────────────────────────────────────
+    # Die Ecke von oben als alte Achse: zwei Geraden und ein Viertelkreis R 300, alle 1 cm.
+    pts = [(200.0 * i / 20000, 0.0) for i in range(20000)]
+    pts += [(200.0 + 300 * math.sin(a / 30000), 300 * (1 - math.cos(a / 30000)))
+            for a in range(0, int(150 * math.pi * 100))]
+    pts += [(500.0, 300.0 + i / 100) for i in range(0, 40001)]
+    corner_e = {**east, "joinAt": "end"}
+    corner_n = {"start": [500500.0, 5600300.0], "end": [500500.0, 5600700.0], "bearing": 0.0, "radius": None,
+                "joinAt": "start"}
+    points = {"e0": 500000.0, "n0": 5600000.0, "de": [round(p[0] * 1000) for p in pts],
+              "dn": [round(p[1] * 1000) for p in pts]}
+    status, body, _ = call(BASE, "/reconnect", {
+        "dep": corner_e, "arr": corner_n, "points": points, "tolerance": 0.05, "speed": 60,
+        "cantModel": {"coeff": 6.5, "defCoeff": 11.8, "defMin": 60, "max": 160, "step": 5}, "lMin": 24})
+    best = (body.get("solutions") or [{}])[0].get("reconnect", {})
+    ok("POST /reconnect: Viertelkreis R 300 wiedergefunden, in der Toleranz",
+       status == 200 and best.get("within") is True and abs((best.get("radius") or 0) - 300) <= 15)
+    status, body, _ = call(BASE, "/reconnect", {"dep": corner_e, "arr": corner_n, "points": points})
+    ok("POST /reconnect: ohne Toleranz → 400 invalid_payload", status == 400 and body == {"error": "invalid_payload"})
+
     # ── 1d) Trassieren aus Achspunkten (AP 12.5) ──────────────────────────────
     # 100 m nach Osten, ein Viertelkreis R 300 nach links, 100 m nach Norden — alle 0,5 m ein Punkt.
     axis = [[500000.0 + 0.5 * i, 5600000.0] for i in range(200)]

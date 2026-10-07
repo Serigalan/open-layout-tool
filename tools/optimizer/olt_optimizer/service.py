@@ -7,6 +7,10 @@
     POST /align           body: measured axis points and the settings of the
                           fit, answer: align_payload's alignment from them —
                           "Aus Messachse trassieren", AP 12.5
+    POST /reconnect       body: the elements either side of a stretch, its old
+                          axis every centimetre and the settings, answer:
+                          reconnect_payload's best splices within the
+                          tolerance — "Bestehende Elemente neu verbinden", Paket N
     POST /mdb             body: an Access file, answer: its Satzarten as JSON
     POST /terrain         body: {"lnglat": [[lng, lat], ...]} (or, as first
                           built, {"points": [[e, n], ...]} in EPSG:25832),
@@ -42,6 +46,7 @@ from .api import optimize_payload, variants_for
 from .grenzen import DEFAULT_STUFE, STUFEN, grenzen_for
 from .mdb import MdbError, convert as mdb_convert
 from .regelwerk import DEFAULT_REGELWERK_ID, catalog_hash, list_regelwerke
+from .reconnect import reconnect_payload
 from .splice import splice_payload
 from .terrain import sample as terrain_sample, to_lnglat
 
@@ -72,6 +77,9 @@ MAX_TERRAIN_POINTS = int(os.environ.get("OLT_TERRAIN_MAX_POINTS", "20000"))
 MAX_SPLICE_BODY = 2 * 1024 * 1024
 # An alignment fit: up to MAX_POINTS axis points of ~45 bytes each, with their heights.
 MAX_ALIGN_BODY = 3 * 1024 * 1024
+# Reconnecting: the old axis every centimetre as whole millimetres, some 14
+# bytes a point — 5 km of it.
+MAX_RECONNECT_BODY = 8 * 1024 * 1024
 
 MAX_ITER = 150
 MAX_ELEMENTS = 2000
@@ -100,9 +108,9 @@ def _child(pipe, payload):
         pipe.close()
 
 
-def _align_child(pipe, payload):
+def _payload_child(pipe, fn, payload):
     try:
-        pipe.send((True, align_payload(payload)))
+        pipe.send((True, fn(payload)))
     except (ValueError, KeyError, TypeError) as exc:
         pipe.send((False, f"__invalid__{exc}"))
     except Exception as exc:                                   # noqa: BLE001
@@ -111,13 +119,14 @@ def _align_child(pipe, payload):
         pipe.close()
 
 
-def run_align(payload, timeout=TIMEOUT):
-    """An alignment fit under the deadline, in a process of its own: a few
-    seconds a kilometre, but a long axis with many curves runs for a while,
-    and pure-Python Nelder-Mead cannot be stopped from another thread."""
+def run_child(fn, payload, timeout=TIMEOUT):
+    """`fn(payload)` under the deadline, in a process of its own: an alignment
+    fit is a few seconds a kilometre, a reconnect a search over hundreds of
+    splices, and pure-Python Nelder-Mead or the like cannot be stopped from
+    another thread."""
     ctx = multiprocessing.get_context("fork")
     rx, tx = ctx.Pipe(duplex=False)
-    proc = ctx.Process(target=_align_child, args=(tx, payload), daemon=True)
+    proc = ctx.Process(target=_payload_child, args=(tx, fn, payload), daemon=True)
     proc.start()
     tx.close()
     try:
@@ -137,6 +146,10 @@ def run_align(payload, timeout=TIMEOUT):
             raise ServiceError(400, "invalid_payload")
         raise ServiceError(500, "internal", value[len("__internal__"):])
     return value
+
+
+def run_align(payload, timeout=TIMEOUT):
+    return run_child(align_payload, payload, timeout)
 
 
 def _spawn(ctx, load):
@@ -393,14 +406,35 @@ class Handler(BaseHTTPRequestHandler):
                          len(result.get("elements") or []), time.monotonic() - started)
         self._respond(200, result)
 
+    def _do_reconnect(self):
+        """Reconnecting a stretch: a search over hundreds of splices, each
+        measured against the old axis — held to the slots and the deadline
+        like an alignment fit. One that does not fit is an answer (200 with
+        its error key)."""
+        try:
+            payload = json.loads(self._read_body(MAX_RECONNECT_BODY).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            raise ServiceError(400, "invalid_payload") from None
+        if not _slots.acquire(timeout=TIMEOUT):
+            raise ServiceError(503, "busy")
+        try:
+            started = time.monotonic()
+            result = run_child(reconnect_payload, payload)
+        finally:
+            _slots.release()
+        self.log_message("reconnect %d points → %d solutions in %.1fs",
+                         len((payload.get("points") or {}).get("de") or []),
+                         len(result.get("solutions") or []), time.monotonic() - started)
+        self._respond(200, result)
+
     def do_POST(self):                                         # noqa: N802
         route = self.path.rstrip("/")
-        if route == "/align":
+        if route in ("/align", "/reconnect"):
             try:
-                self._do_align()
+                self._do_align() if route == "/align" else self._do_reconnect()
             except ServiceError as exc:
                 if exc.code == "internal":
-                    self.log_message("align failure: %s", exc.message or "?")
+                    self.log_message("%s failure: %s", route[1:], exc.message or "?")
                 self._respond(exc.status, {"error": exc.code})
             except Exception:                                  # noqa: BLE001
                 self._respond(500, {"error": "internal"})

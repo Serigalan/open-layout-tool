@@ -43,6 +43,8 @@ jobs:
         working-directory: tools/optimizer
       - run: python tests/verify_align.py
         working-directory: tools/optimizer
+      - run: python tests/verify_reconnect.py
+        working-directory: tools/optimizer
       - run: python tests/verify.py
         working-directory: tools/optimizer
 
