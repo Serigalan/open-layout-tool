@@ -3,6 +3,7 @@ import { rebuildCoords, recalcAbsLengths, trackLabel } from '../trackModel'
 import { resolveEndBearing, reverseElement, nodeUtm } from '../elementUtils'
 import { reconstructElements } from '../elementReconstruct'
 import { cantSign, AUTO_CANT_MODEL } from '../rules/cant'
+import { transitionLengths } from '../rules/transitionLength'
 import { minElementLength } from '../rules/elementLength'
 import { reverseHeights, splitHeights, trackLength } from '../heightUtils'
 import { elementStations, pointOnElement } from '../platformUtils'
@@ -256,6 +257,61 @@ function mergedChain(chain, reverseArr, dep, arr, depTrack, arrTrack, { speed, c
       ? arrTrack.elements.slice(0, arr.elIdx).reverse().map(reverseElement)
       : arrTrack.elements.slice(arr.elIdx + 1).map(el => ({ ...el }))),
   ]
+}
+
+/**
+ * The merged chain a solved splice would write, and where in it the
+ * transitions stand that the splice inserts — departure side first. What the
+ * dialog checks them in, and finds their Regellänge from (rules/transitionLength).
+ * Null without a solution.
+ */
+export function splicedTransitions({ tracks, dep, arr, splice, speed, cant }) {
+  const result = splice?.result
+  const depTrack = tracks.find(t => t.id === dep.trackId)
+  const arrTrack = tracks.find(t => t.id === arr.trackId)
+  if (!result?.elements || !depTrack || !arrTrack) return null
+  const elements = mergedChain(result.elements, result.reverseArr, dep, arr, depTrack, arrTrack, { speed, cant })
+  const transitions = result.elements
+    .map((el, i) => (el.role !== 'dep' && el.role !== 'arr' && el.elementType === 2 ? dep.elIdx + i : null))
+    .filter(i => i != null)
+  return { elements, transitions }
+}
+
+/**
+ * The shortest lengths the rules allow for the two transitions a splice puts
+ * in (rules/transitionLength), { dep, arr } — found from the picks and the
+ * settings, before and whether or not the service finds a solution: a
+ * transition too long to fit is one of the reasons it does not.
+ *
+ * What the transitions run between is the case's (olt_optimizer/splice.py):
+ * two straights get a new arc of `radius` with `cant`, the departure
+ * transition into it and the arrival one out of it; two arcs a straight
+ * between them, the transitions out of the one and into the other; an arc and
+ * a straight a new arc again, the transition on the arc's side running from
+ * that arc into the new one. Whether that is a compound or a reverse curve is
+ * the solution's, so both are reckoned with and the longer taken. Null for
+ * two arcs joined by one transition, whose length the construction solves.
+ */
+export function spliceTransitionLengths({ dep, arr, radius, arcJoin, cant, speed, type = 'clothoid' }) {
+  const bothArcs = dep.signedR != null && arr.signedR != null
+  if (bothArcs && arcJoin === 'transition') return null
+  const plain = { elementType: 0, cant: 0, speed }
+  const curve = (r, u) => ({ elementType: 1, radius: r, cant: u, speed })
+  // A picked element in the curve's sense (`sense` 1) or against it (−1).
+  const picked = (p, sense = 1) => (p.signedR != null
+    ? curve(sense * Math.abs(p.signedR), sense * Math.abs(p.cant ?? 0))
+    : plain)
+  const between = (prev, next) => transitionLengths({ prev, next, r1: prev.radius ?? null, type, speed })
+  const worse = (a, b) => ({
+    regular: a.regular == null || b.regular == null ? null : Math.max(a.regular, b.regular),
+    minimum: a.minimum == null || b.minimum == null ? null : Math.max(a.minimum, b.minimum),
+  })
+  if (bothArcs) return { dep: between(picked(dep), plain), arr: between(plain, picked(arr)) }
+  const inserted = curve(Math.abs(Number(radius)) || null, Math.abs(Number(cant) || 0))
+  return {
+    dep: worse(between(picked(dep), inserted), between(picked(dep, -1), inserted)),
+    arr: worse(between(inserted, picked(arr)), between(inserted, picked(arr, -1))),
+  }
 }
 
 /**

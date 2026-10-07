@@ -4,7 +4,9 @@ import { computeAutoC } from '../../utils/rules/cant'
 import { hasRuleError } from '../../utils/trassierungCheck'
 import {
   buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest,
+  spliceTransitionLengths, splicedTransitions,
 } from '../../utils/commands/splice'
+import { errorAt } from '../../utils/rules/transitionLength'
 import { gaugeProfile } from '../../utils/gaugeProfiles'
 import { utmToWgs84 } from '../../utils/coordinateUtils'
 import { trackLabel } from '../../utils/trackModel'
@@ -210,6 +212,19 @@ export default function SpliceElementPanel() {
     } : null)
   }, [splice, spacing, picks, preview])
 
+  // The transitions the splice inserts, checked in the track it would write.
+  const spliced = configuring && splice?.result
+    ? splicedTransitions({ tracks: loadTracks(), dep: picks[0], arr: picks[1], splice, speed: s.speed, cant })
+    : null
+  // Departure and arrival, where the dialog asks for their lengths: found
+  // from the picks and the settings, so they are there before a solution is
+  // — and where a length too long is what keeps the service from finding one.
+  const transitionRules = useMemo(() => (configuring && s.clothoidEnabled
+    ? spliceTransitionLengths({
+      dep: picks[0], arr: picks[1], radius, arcJoin: s.arcJoin, cant, speed: s.speed, type: s.transitionType,
+    })
+    : null), [configuring, picks, radius, s.arcJoin, s.clothoidEnabled, s.transitionType, s.speed, cant])
+
   const reset = () => { preview.clear(); setPicks([]); setPickStatus(null); setRefTrackId(null); setPickingRef(false) }
 
   const handleCommit = () => {
@@ -239,13 +254,17 @@ export default function SpliceElementPanel() {
       <>
         <h2>{t('splice_element')}</h2>
         <SpliceSettings departure={departure} arrival={arrival} s={s} set={set} cant={cant} setCant={setCant}
-          transitionLength={splice?.result?.transitionLength}
+          transitionLength={splice?.result?.transitionLength} transitionRules={transitionRules}
           clearance={{ refName, pickingRef, onPickRef: () => setPickingRef(p => !p), maximize, found }} />
         {status && <p className={status.error ? 'msg-error' : 'msg-info'}>{status.msg}</p>}
         {spacingMsg && <p className={spacingMsg.error ? 'msg-error' : 'msg-info'}>{spacingMsg.msg}</p>}
         {inserted && <RuleFindings element={inserted} />}
+        {spliced?.transitions.length > 0 && (
+          <RuleFindings elements={spliced.elements} judge={spliced.transitions} fields={false} />
+        )}
         <CommitBar onCommit={handleCommit} onCancel={reset}
-          disabled={!splice?.result || !spacingHolds || (inserted ? hasRuleError([inserted]) : false)} />
+          disabled={!splice?.result || !spacingHolds || (inserted ? hasRuleError([inserted]) : false)
+            || (spliced?.transitions.length > 0 && errorAt(spliced.elements, spliced.transitions))} />
       </>
     )
   }

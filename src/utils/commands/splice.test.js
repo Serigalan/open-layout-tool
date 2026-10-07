@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest } from './splice'
+import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest, spliceTransitionLengths, splicedTransitions } from './splice'
+import { transitionLengths } from '../rules/transitionLength'
 import { straightElement, arcElement, transitionElement } from '../elementFactory'
 import { recalcAbsLengths, rebuildCoords } from '../trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
@@ -111,6 +112,36 @@ describe('the track built from the answer', () => {
     const commit = buildSplice({ tracks: [a, b], dep, arr, splice, speed: 60, cant: 40, newId })
     expect(commit.addTracks[0].elements.map(e => e.elementType)).toEqual([0, 2, 1, 2, 0])
     expectValidTrack(commit.addTracks[0])
+  })
+
+  it('says where the transitions it inserts stand, to check them and find their length', () => {
+    const s = { ...settings, clothoidEnabled: true }
+    const splice = spliceFromAnswer(answers.cornerTransitions.answer, dep, arr, s)
+    const { elements, transitions } = splicedTransitions({ tracks: [a, b], dep, arr, splice, speed: 60, cant: 40 })
+    expect(transitions).toEqual([1, 3])
+    expect(transitions.map(i => elements[i].elementType)).toEqual([2, 2])
+    // Into R 300 with 40 mm at 60 km/h: 10 · 60 · 40 / 1000 = 24 m against
+    // the deficiency 11.8 · 60² / 300 − 40 = 102 mm: 4 · 60 · 102 / 1000 = 24.5 m.
+    const [t1] = transitions
+    const lengths = transitionLengths({
+      prev: elements[t1 - 1], next: elements[t1 + 1], r1: elements[t1].r1, speed: 60,
+    })
+    expect(lengths.regular).toBe(24.5)
+    expect(splicedTransitions({ tracks: [a, b], dep, arr, splice: { error: 'x' }, speed: 0, cant: 0 })).toBeNull()
+  })
+
+  it('finds the transitions\' shortest lengths from the picks alone, as the solution has them', () => {
+    // The same as read from the solved chain above, before there is one.
+    const found = spliceTransitionLengths({ dep, arr, radius: 300, arcJoin: 'straight', cant: 40, speed: 60 })
+    expect(found.dep.regular).toBe(24.5)
+    expect(found.arr).toEqual(found.dep)
+    // An arc and a straight: the arc's side reckons with a reverse curve, the
+    // longer — R 500 / 50 mm against R 300 / 40 mm at 60 km/h: Δu 90 mm, 54 m.
+    const arcPick = { ...dep, signedR: 500, cant: 50 }
+    const mixed = spliceTransitionLengths({ dep: arcPick, arr, radius: 300, arcJoin: 'straight', cant: 40, speed: 60 })
+    expect(mixed.dep.regular).toBe(54)
+    expect(mixed.arr.regular).toBe(24.5)
+    expect(spliceTransitionLengths({ dep: arcPick, arr: { ...arr, signedR: 400 }, arcJoin: 'transition', speed: 60 })).toBeNull()
   })
 
   it('folds an arrival arc in backwards, both arcs keeping their cant', () => {

@@ -5,6 +5,7 @@ import ReadOnlyField from '../../form/ReadOnlyField'
 import FieldRule from '../../form/FieldRule'
 import NumberInput from '../../form/NumberInput'
 import FormSection from '../../form/FormSection'
+import TransitionLengthButtons from '../TransitionLengthButtons'
 import { QUERSCHNITT_KATALOG } from '../../../utils/gaugeProfiles'
 
 // The Regelgleisabstände of Ril 800.0130, as a hint beside the minimum spacing.
@@ -14,7 +15,8 @@ const REGEL_ABSTAENDE = [...new Set(QUERSCHNITT_KATALOG.streckenquerschnitte.row
 /**
  * The settings of a splice: how two arcs are joined, the radius of an arc put
  * between straights with its speed and cant, and the transitions either side
- * — their kind, and their lengths unless the construction solves them.
+ * — their kind, and their lengths unless the construction solves them, which
+ * `transitionRules` { dep, arr } can set to the shortest the rules allow.
  * `s` holds the settings, `set(key, value)` changes one.
  *
  * Below them the spacing to another track (Entscheidung 167): the track,
@@ -23,7 +25,9 @@ const REGEL_ABSTAENDE = [...new Set(QUERSCHNITT_KATALOG.streckenquerschnitte.row
  * is searched. Searched, the radius and its cant are the service's answer
  * (`clearance.found`), shown rather than typed.
  */
-export default function SpliceSettings({ departure, arrival, s, set, cant, setCant, transitionLength, clearance = {} }) {
+export default function SpliceSettings({
+  departure, arrival, s, set, cant, setCant, transitionLength, transitionRules = null, clearance = {},
+}) {
   const { t } = useI18n()
   const bothArcs = departure?.signedR != null && arrival?.signedR != null
   // Joined straight from one arc to the other, the transition's length is the
@@ -91,10 +95,13 @@ export default function SpliceSettings({ departure, arrival, s, set, cant, setCa
                 <label>{t('splice_departure')} – {t('field_length')}</label>
                 {number('clothoidDep', { min: 1, step: 10, clampMin: 1 })}
               </div>
+              <TransitionLengthButtons lengths={transitionRules?.dep} onPick={v => set('clothoidDep', v)} />
               <div className="form-field">
                 <label>{t('splice_arrival')} – {t('field_length')}</label>
                 {number('clothoidArr', { min: 1, step: 10, clampMin: 1 })}
               </div>
+              <TransitionLengthButtons lengths={transitionRules?.arr} onPick={v => set('clothoidArr', v)} />
+              {!(s.speed > 0) && <p className="selecting-hint">{t('transition_no_speed')}</p>}
             </>
           )}
         </>
