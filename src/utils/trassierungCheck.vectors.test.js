@@ -3,7 +3,7 @@ import { checkTrack } from './trassierungCheck'
 import vectors from '../constraints/tests/checks.json'
 
 // The same chains tools/optimizer/tests/vectors.py runs through its port of
-// this check (tests/katalog_check.py).
+// this check (olt_optimizer/pruefung.py).
 const key = (f) => JSON.stringify(f)
 function findings(elements) {
   const r = checkTrack(elements)

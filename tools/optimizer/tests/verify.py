@@ -10,7 +10,7 @@
 5. The rule catalogue a run is held to (src/constraints/db-ril-800-0110.json):
    its expression language, the limits it gives at Regelwert and
    Ermessensgrenze, and every proposal judged afterwards by a port of the
-   app's own check (katalog_check.py) — independent of the bounds the run
+   app's own check (olt_optimizer/pruefung.py) — independent of the bounds the run
    built to.
 """
 
@@ -43,7 +43,7 @@ from olt_optimizer.regelwerk import (                                         # 
 from olt_optimizer.ruleexpr import ExprError, comparison, eval_expr           # noqa: E402
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from katalog_check import check_track, new_indices                            # noqa: E402
+from olt_optimizer.pruefung import check_track, new_indices                            # noqa: E402
 
 # The constraint files live in the repo's own src/constraints/, not in the
 # package: physics.json is the readable derivation this harness checks the

@@ -74,10 +74,13 @@ python3 -m venv .venv
 .venv/bin/python tests/vectors.py          # gemeinsame Testvektoren mit der App
 ```
 
-`tests/vectors.py` liest `src/constraints/tests/` — Ausdrücke der Regelsprache und
-Elementketten mit den erwarteten Befunden des Regelkatalogs. Die App liest dieselben
-Dateien (`ruleExpr.vectors.test.js`, `trassierungCheck.vectors.test.js`); weichen
-JavaScript und Python voneinander ab, schlägt eine der beiden Seiten fehl.
+`tests/vectors.py` liest `src/constraints/tests/` — Ausdrücke der Regelsprache,
+Elementketten mit den erwarteten Befunden des Regelkatalogs (`olt_optimizer/pruefung.py`)
+und die kürzesten Übergangsbogenlängen (Regel- und Mindestlänge,
+`grenzen.transition_lengths`). Die App liest dieselben Dateien
+(`ruleExpr.vectors.test.js`, `trassierungCheck.vectors.test.js`,
+`rules/transitionLength.vectors.test.js`); weichen JavaScript und Python
+voneinander ab, schlägt eine der beiden Seiten fehl.
 
 ## Elemente verbinden (`POST /splice`)
 
@@ -93,6 +96,10 @@ Ankunftselements, das näher an der Abfahrt liegt. Passt ein Bogen nicht auf die
 gewählten Elemente, nennt die Antwort den größten Radius, der passt (`params.rMax`). Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
 Antworten, gegen die die App testet, schreibt `tests/splice_fixture.py`.
+Dazu der Prüfstand `tests/verify_splice_props.py` (Paket S): zufällige
+Geometrien in allen Fällen, jede in beiden Klickreihenfolgen und beiden
+Gleisrichtungen gefragt, mit Invarianten für Stetigkeit, Unabhängigkeit von der
+Reihenfolge und Regelkonformität im Modus Regellänge.
 
 **Gleisabstand** (`clearance` in der Anfrage, `olt_optimizer/clearance.py`):
 die eingefügten Elemente halten zu einem gewählten Gleis einen Mindestabstand,

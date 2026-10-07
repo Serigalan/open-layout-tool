@@ -1,7 +1,11 @@
 """The rule catalogue applied to an element chain — the app's
-src/utils/trassierungCheck.js, ported for the acceptance tests.
+src/utils/trassierungCheck.js, ported. The shared vectors
+(src/constraints/tests/checks.json, tests/vectors.py) hold the two alike.
 
-This is the independent half of the check. grenzen.py derives the bounds a
+The splice (splice.py, Paket S) judges the chain it proposes with it, and
+finds the lengths of the transitions it inserts from the scope it fills
+(grenzen.transition_lengths). For the optimizer's acceptance it is the
+independent half of the check. grenzen.py derives the bounds a
 run builds to; this judges what the run built, the way the app's element
 table does — every rule, full scopes, severities — without asking grenzen.py
 anything. A run that obeys its own bounds but lands on a finding the table

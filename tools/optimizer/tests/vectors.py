@@ -1,10 +1,12 @@
 """The shared test vectors (src/constraints/tests/) against the Python side.
 
-The app (ruleExpr.js, trassierungCheck.js) and this package (ruleexpr.py,
-tests/katalog_check.py) implement the same expression language and the same
-catalogue check twice. The vectors are one set of cases both have to answer
-alike; the app's half is src/utils/ruleExpr.vectors.test.js and
-src/utils/trassierungCheck.vectors.test.js.
+The app (ruleExpr.js, trassierungCheck.js, rules/transitionLength.js) and this
+package (ruleexpr.py, olt_optimizer/pruefung.py, grenzen.transition_lengths)
+implement the same expression language, the same catalogue check and the same
+shortest transition lengths twice. The vectors are one set of cases both have
+to answer alike; the app's half is src/utils/ruleExpr.vectors.test.js,
+src/utils/trassierungCheck.vectors.test.js and
+src/utils/rules/transitionLength.vectors.test.js.
 
     python tests/vectors.py        (exit code 1 on the first difference)
 """
@@ -18,9 +20,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
+from olt_optimizer.grenzen import transition_lengths              # noqa: E402
 from olt_optimizer.regelwerk import CONSTRAINTS_DIR, load_katalog  # noqa: E402
 from olt_optimizer.ruleexpr import ExprError, eval_expr            # noqa: E402
-from katalog_check import check_track                              # noqa: E402
+from olt_optimizer.pruefung import check_track                              # noqa: E402
 
 VECTORS = CONSTRAINTS_DIR / "tests"
 
@@ -66,10 +69,29 @@ def checks():
     return len(data["chains"])
 
 
+def lengths():
+    data = json.loads((VECTORS / "transition_lengths.json").read_text(encoding="utf-8"))
+    for case in data["cases"]:
+        got = transition_lengths(case["prev"], case["next"], case["r1"], case["type"], case["speed"],
+                                 data["catalogue"])
+        for key in ("regular", "minimum"):
+            if got[key] != case[key] and not (got[key] is not None and case[key] is not None
+                                              and abs(got[key] - case[key]) < 1e-9):
+                failures.append(f"transition {case['name']!r}: {key} want {case[key]}, got {got[key]}")
+            rows = [[b["id"], b["length"], b["binding"]] for b in got[f"{key}By"]]
+            want = case[f"{key}By"]
+            if len(rows) != len(want) or any(a[0] != b[0] or abs(a[1] - b[1]) > 1e-6 or a[2] != b[2]
+                                             for a, b in zip(rows, want)):
+                failures.append(f"transition {case['name']!r}: {key}By want {want}, got {rows}")
+    return len(data["cases"])
+
+
 if __name__ == "__main__":
     n_expr = expressions()
     n_chain = checks()
+    n_len = lengths()
     for f in failures:
         print("FAIL", f)
-    print(f"{n_expr} expressions, {n_chain} chains: {'ok' if not failures else f'{len(failures)} failing'}")
+    print(f"{n_expr} expressions, {n_chain} chains, {n_len} transition lengths: "
+          f"{'ok' if not failures else f'{len(failures)} failing'}")
     sys.exit(1 if failures else 0)

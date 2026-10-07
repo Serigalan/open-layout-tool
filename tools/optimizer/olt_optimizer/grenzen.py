@@ -378,15 +378,16 @@ class Grenzen:
             self._min_len[key] = need
         return self._min_len[key]
 
-    def ramp_bounds(self, form, V, delta_u, delta_uf):
-        """(shortest, longest) a transition of this form may be at design
-        speed V, carrying a cant step delta_u and a deficiency step delta_uf
-        [mm] — every length and gradient rule of the form at once (LP.EL.01,
-        LP.UB.03…08), together with the rule that asked for the shortest.
+    def ramp_rules(self, form, V, delta_u, delta_uf):
+        """Every length and gradient rule of a transition of this form at
+        design speed V, carrying a cant step delta_u and a deficiency step
+        delta_uf [mm], with the bound it sets on the length at this level:
+        [(rule id, length, lower)] in the catalogue's order — `lower` for a
+        shortest length (LP.EL.01, LP.UB.03…07), else a longest (LP.UB.08).
         None where a rule admits no length at all."""
         base = self._base(V, **{"element.transition_form": form,
                                 "physics.delta_u": delta_u, "physics.delta_u_f": delta_uf})
-        lo, hi, by = 0.0, math.inf, None
+        out = []
         for rule, op, thr, kind in self._element_bounds[("transition_curve", form)]:
             try:
                 value = self.katalog.threshold(rule, thr, base)
@@ -395,9 +396,21 @@ class Grenzen:
             if value is None:
                 continue
             length = value if kind == "length" else value * delta_u / 1000.0
-            if op in _LOWER:
+            out.append((rule["id"], length, op in _LOWER))
+        return out
+
+    def ramp_bounds(self, form, V, delta_u, delta_uf):
+        """(shortest, longest) a transition of this form may be at design
+        speed V (see ramp_rules), together with the rule that asked for the
+        shortest. None where a rule admits no length at all."""
+        rules = self.ramp_rules(form, V, delta_u, delta_uf)
+        if rules is None:
+            return None
+        lo, hi, by = 0.0, math.inf, None
+        for rid, length, lower in rules:
+            if lower:
                 if length > lo:
-                    lo, by = length, rule["id"]
+                    lo, by = length, rid
             else:
                 hi = min(hi, length)
         return lo, hi, by
@@ -414,6 +427,61 @@ class Grenzen:
             "ufMaxWeiche": sorted({self._uf[(V, True)] for V in self.speeds}),
             "uebergangsbogen": [form for form, ok in self.forms.items() if ok],
         }
+
+
+# A length set by the rules is rounded up to a full decimetre (Entscheidung 176).
+STEPS_PER_M = 10
+
+
+def _shortest(grenzen, form, V, delta_u, delta_uf):
+    """The shortest length at one level, rounded up, and every rule on it."""
+    rules = grenzen.ramp_rules(form, V, delta_u, delta_uf)
+    if rules is None:
+        return None, []
+    lower = [(rid, length) for rid, length, is_lower in rules if is_lower]
+    need = max((length for _, length in lower), default=0.0)
+    steps = math.ceil(need * STEPS_PER_M - 1e-3)
+    length = steps / STEPS_PER_M if steps / STEPS_PER_M >= need - 1e-9 else (steps + 1) / STEPS_PER_M
+    by = sorted(({"id": rid, "length": value, "binding": value >= need - 1e-9 and need > 0}
+                 for rid, value in lower), key=lambda b: -b["length"])
+    return length, by
+
+
+def transition_lengths(prev, nxt, r1=None, form="clothoid", speed=0.0, regelwerk_id=None):
+    """The shortest transition the rules allow between `prev` and `nxt` (two
+    elements in the app's form, with radius, cant and speed): the Regellänge
+    — every rule on the length at its Regelwert — and the Mindestlänge, down
+    to the Ermessensgrenze where a rule has one (Entscheidung 176). The
+    transition runs from curvature `r1` to the radius `nxt` starts with, its
+    cant from `prev`'s to `nxt`'s, at `speed` — Δu and Δu_f read as the app's
+    check reads them (pruefung.element_scope).
+
+    {regular, minimum, regularBy, minimumBy}: the lengths rounded up to a full
+    decimetre, and every rule on the length with the bound it sets, the
+    longest first, as {id, length, binding} — `binding` for those that set it.
+    The same answer as the app's rules/transitionLength.js, which the shared
+    vectors (src/constraints/tests/transition_lengths.json) hold it to; a rule
+    that only a shorter transition keeps (LP.UB.08) is left to the check.
+    """
+    if not (speed and speed > 0):
+        return {"regular": None, "minimum": None, "regularBy": [], "minimumBy": []}
+    from .pruefung import element_scope
+    r2 = nxt.get("r1") if nxt and nxt.get("elementType") == 2 else (nxt or {}).get("radius")
+    chain = [prev or {"elementType": 0, "cant": 0, "speed": speed},
+             {"elementType": 2, "transitionType": form, "r1": r1, "r2": r2, "length": 0.0, "speed": speed},
+             nxt or {"elementType": 0, "cant": 0, "speed": speed}]
+    scope = element_scope(chain, 1)
+    du, duf = scope["physics.delta_u"], scope["physics.delta_u_f"]
+    out = {}
+    for key, stufe in (("regular", "reg"), ("minimum", "discretion")):
+        length, by = _shortest(grenzen_for(regelwerk_id or _default_regelwerk(), stufe), form, speed, du, duf)
+        out[key], out[f"{key}By"] = length, by
+    return out
+
+
+def _default_regelwerk():
+    from .regelwerk import DEFAULT_REGELWERK_ID
+    return DEFAULT_REGELWERK_ID
 
 
 @functools.lru_cache(maxsize=None)
