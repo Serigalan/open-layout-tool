@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { addElementsToTrack, loadTracks } from '../../../storage'
 import {
   computeCurvedValuesUtm, arcCoordsFromRadiusUtm, projectOnBearingUtm, endPointCurvedUtm,
@@ -20,6 +20,7 @@ import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { trackEndAnchor } from '../../../utils/trackModel'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildConnectCurved } from '../../../utils/commands/tracks'
+import NewStretchShiftValues from '../shift/NewStretchShiftValues'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import { firstReason } from '../../form/firstReason'
@@ -173,6 +174,12 @@ export default function ConnectCurvedForm({ onCommitted }) {
     ? transitionChain({ prev: lastEl, next: nextEl, r1: prevRadius, length: transitionLength, type: transitionType, speed })
     : null
 
+  // What would be appended, for its shift values against a reference axis (Paket V).
+  const appended = useMemo(() => (startPoint && endPoint && Number(signedRadius) && Number(arcLength) > 0 ? buildConnectCurved({
+    start: startPoint, bearing, arcLength: Number(arcLength), signedR: Number(signedRadius), speed, cant,
+    transition: transitionEnabled ? { length: transitionLength, type: transitionType, fromRadius: prevRadius } : null,
+  }) : null), [startPoint, endPoint, bearing, arcLength, signedRadius, speed, cant, transitionEnabled, transitionLength, transitionType, prevRadius])
+
   const handleCommit = () => {
     if (!startPoint || !endPoint || !selectedTrack) return
     const r = Number(signedRadius)
@@ -252,6 +259,8 @@ export default function ConnectCurvedForm({ onCommitted }) {
           )}
         </div>
       )}
+
+      {selectedTrack && appended && <NewStretchShiftValues id="shift-connect-curved" track={selectedTrack} elements={appended} />}
 
       {phase === 'done' && endPoint && (() => {
         // Judged once, shown and acted on: the findings say what the catalogue

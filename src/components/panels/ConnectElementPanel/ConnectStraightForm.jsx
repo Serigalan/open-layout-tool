@@ -17,6 +17,7 @@ import { trackEndAnchor } from '../../../utils/trackModel'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildConnectStraight } from '../../../utils/commands/tracks'
 import CommitBar from '../../form/CommitBar'
+import NewStretchShiftValues from '../shift/NewStretchShiftValues'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import { firstReason } from '../../form/firstReason'
 import FieldRule from '../../form/FieldRule'
@@ -158,6 +159,12 @@ export default function ConnectStraightForm({ onCommitted }) {
     ? transitionChain({ prev: lastEl, next: nextEl, r1: prevRadius, length: transitionLength, type: transitionType, speed })
     : null
 
+  // What would be appended, for its shift values against a reference axis (Paket V).
+  const appended = useMemo(() => (startPoint && endPoint ? buildConnectStraight({
+    start: startPoint, bearing, length: Number(length), speed,
+    transition: transitionEnabled ? { length: transitionLength, type: transitionType, fromRadius: prevRadius } : null,
+  }) : null), [startPoint, endPoint, bearing, length, speed, transitionEnabled, transitionLength, transitionType, prevRadius])
+
   const handleCommit = () => {
     if (!startPoint || !endPoint || !selectedTrack) return
     addElementsToTrack(selectedTrack.id, buildConnectStraight({
@@ -228,6 +235,8 @@ export default function ConnectStraightForm({ onCommitted }) {
           )}
         </div>
       )}
+
+      {selectedTrack && appended && <NewStretchShiftValues id="shift-connect-straight" track={selectedTrack} elements={appended} />}
 
       {phase === 'done' && endPoint && (() => {
         const blocked = hasRuleError([nextEl]) || (!!transitionChainNow && transitionHasError(transitionChainNow))
