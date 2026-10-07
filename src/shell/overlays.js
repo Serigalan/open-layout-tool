@@ -4,7 +4,8 @@
  *
  *   overlay   the one map overlay that belongs to the open panel:
  *             trackTable (edit), profile (elevation), crossSection (platform),
- *             planPreview (plan), topologyGraph (topology) — { kind, ...data }
+ *             planPreview (plan), topologyGraph (topology), bands (check)
+ *             — { kind, ...data }
  *   popup     a read-only reference popup over the map pane, reachable from
  *             more than one panel: physics | regelwerk ({ regelwerkId })
  *   detached  an overlay taken out into a browser window of its own (the

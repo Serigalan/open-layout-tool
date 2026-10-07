@@ -249,3 +249,15 @@
   align-items: center;
   font-size: var(--fs-s);
 }
+
+/* ── The bands of a track (Prüfen) ────────────────────────────────────────── */
+.bands-overlay {
+  height: 60%;
+}
+
+.bands-readout {
+  font-size: var(--fs-s);
+  color: var(--color-text-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

@@ -278,6 +278,16 @@ export const AxisFitModeIcon = () => (
   </MenuIcon>
 )
 
+// The bands of a track under each other: the curvature's trapezoid over a
+// level line, and the speed's steps below.
+export const BandsIcon = () => (
+  <MenuIcon>
+    <path d="M1 5 H4 L6 2 H10 L12 5 H15" />
+    <path d="M1 9 H15" />
+    <path d="M1 12 H6 V14 H11 V12 H15" />
+  </MenuIcon>
+)
+
 // The two crossing kinds AP 3.2/3.3 will place — drawn ahead of the geometry,
 // so the panels that place them reach for an icon instead of a placeholder.
 // A crossing is two routes that cross, one node per port. A crossing switch is

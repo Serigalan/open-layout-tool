@@ -34,6 +34,7 @@ const PhysicsOverlay = lazy(() => import('../components/PhysicsOverlay'))
 const RegelwerkOverlay = lazy(() => import('../components/RegelwerkOverlay'))
 const PlanPreviewOverlay = lazy(() => import('../components/PlanPreviewOverlay'))
 const ElevationOverlay = lazy(() => import('../components/ElevationOverlay'))
+const BandsOverlay = lazy(() => import('../components/BandsOverlay'))
 const CrossSectionOverlay = lazy(() => import('../components/CrossSectionOverlay'))
 const TopologyGraphOverlay = lazy(() => import('../components/TopologyGraphOverlay'))
 const CompareOverlay = lazy(() => import('../components/collab/CompareOverlay'))
@@ -351,6 +352,7 @@ export default function MapWorkspace({ wc, onHome }) {
             onDirtyChange={setTableDirty} onClose={() => closeOverlay('trackTable')} />}
           {overlay?.kind === 'profile' && <ElevationOverlay trackId={overlay.trackId}
             section={detached?.kind === 'crossSection' ? detached.at : null} onClose={() => closeOverlay('profile')} />}
+          {overlay?.kind === 'bands' && <BandsOverlay trackId={overlay.trackId} onClose={() => closeOverlay('bands')} />}
           {overlay?.kind === 'crossSection' && <CrossSectionOverlay at={overlay.at}
             onAtChange={(at) => openOverlay({ kind: 'crossSection', at })} onClose={() => closeOverlay('crossSection')}
             onDetach={() => detachOverlay('crossSection')} />}
