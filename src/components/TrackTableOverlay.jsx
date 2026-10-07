@@ -4,7 +4,7 @@ import { useTracks, useProject } from '../hooks/useStore'
 import { planElementChange, mergeElementEdits } from '../utils/editGeometry'
 import { elementStations } from '../utils/platformUtils'
 import { checkTrack } from '../utils/trassierungCheck'
-import { cantSign, cantLimit, roundCant } from '../utils/rules/cant'
+import { clampCant } from '../utils/rules/cant'
 import { maxSpeeds } from '../utils/rules/speed'
 import { filterForElement, FILTER_NONE, mapIsLive } from '../map/pick'
 import { useMap } from '../map/MapContext'
@@ -248,10 +248,7 @@ export default function TrackTableOverlay({
   function clampMeta(key, value, el) {
     if (!Number.isFinite(value)) return value
     if (key === 'speed') return Math.min(Math.max(0, value), capValue ?? Infinity)
-    if (key === 'cant') {
-      const magnitude = Math.min(cantLimit(el), roundCant(Math.abs(value)))
-      return el?.radius ? cantSign(el.radius) * magnitude : Math.sign(value) * magnitude
-    }
+    if (key === 'cant') return clampCant(value, el)
     return value
   }
 

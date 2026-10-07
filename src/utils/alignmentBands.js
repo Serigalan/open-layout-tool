@@ -1,4 +1,6 @@
 import { transitionCantEnds } from './clothoidUtils'
+import { worstSeverity } from './regelkatalog'
+import { clampCant } from './rules/cant'
 
 // The bands of a track drawn under each other over its station: curvature,
 // cant and speed, each a polyline of { s, v } — a value of null breaks it.
@@ -120,4 +122,76 @@ export function bandRuns(band, eps = 1e-9) {
 export function bandRange(band) {
   const vs = band.map(p => p.v).filter(v => v != null)
   return vs.length ? [Math.min(...vs), Math.max(...vs)] : null
+}
+
+// ── What the rules say, by band ──────────────────────────────────────────────
+
+// The band a finding of the alignment catalogue is shown in: the quantity the
+// rule is about. The cant deficiency is a matter of cant and speed alike, so
+// it stands in both.
+const RULE_BANDS = [
+  [/^LP\.ALL\./, ['speed']],
+  [/^LP\.KB\.0[26]$/, ['cant', 'speed']],
+  [/^LP\.KB\./, ['cant']],
+  [/^LP\.UB\.0[1278]$/, ['cant']],
+  [/^LP\.UB\./, ['curvature']],
+  [/^LP\.EL\./, ['curvature']],
+  [/^LP\.KS\./, ['curvature']],
+]
+
+/** The bands a rule's findings are shown in (none for an unknown one). */
+function bandsOfRule(id) {
+  return RULE_BANDS.find(([re]) => re.test(id))?.[1] ?? []
+}
+
+const flagged = (r) => r.severity && r.severity !== 'ok'
+
+/**
+ * The findings of checkTrack, sorted onto the bands: per band `spans` — the
+ * element's own and its ramp's, over the element — and `joints` — a boundary
+ * rule's, at the joint after element `index`. Each with its results and the
+ * worst severity among them; only what a rule flagged.
+ */
+export function bandFindings(check) {
+  const out = Object.fromEntries(['curvature', 'cant', 'speed'].map(b => [b, { spans: [], joints: [] }]))
+  const add = (kind, index, results) => {
+    for (const band of Object.keys(out)) {
+      const own = results.filter(r => flagged(r) && bandsOfRule(r.id).includes(band))
+      if (own.length) out[band][kind].push({ index, results: own, severity: worstSeverity(own.map(r => r.severity)) })
+    }
+  }
+  const rampAt = new Map((check.ramps ?? []).map(r => [r.index, r]))
+  for (const e of check.elements ?? []) add('spans', e.index, [...(e.results ?? []), ...(rampAt.get(e.index)?.results ?? [])])
+  for (const b of check.boundaries ?? []) add('joints', b.index, b.results ?? [])
+  return out
+}
+
+// ── Values set in a band ─────────────────────────────────────────────────────
+
+/**
+ * Can `el` take a value typed in this band? Any element a speed; a cant only
+ * a straight or an arc — a transition carries none of its own, it ramps
+ * between the cant of the elements it joins.
+ */
+export const bandEditable = (band, el) =>
+  (band === 'speed' || (band === 'cant' && el?.elementType !== 2))
+
+/**
+ * The elements with `value` set in `band` on those at `indices` that can take
+ * it (bandEditable) — under the rules the element table writes by: the speed
+ * not below 0, the cant on its design step, within its element's limit and
+ * signed by the curve (clampCant). The cant is typed as a magnitude; a
+ * straight keeps the side it had. An empty value (null) clears the field: an
+ * unknown speed, no cant. Elements left as they were are returned as they are.
+ */
+export function withBandValue(elements, indices, band, value) {
+  const at = new Set(indices)
+  return elements.map((el, i) => {
+    if (!at.has(i) || !bandEditable(band, el)) return el
+    const { [band]: _old, ...rest } = el
+    if (value == null) return rest
+    if (band === 'speed') return { ...el, speed: Math.max(0, value) }
+    const typed = (el.radius ? 1 : (Math.sign(el.cant ?? 0) || 1)) * Math.abs(value)
+    return { ...el, cant: clampCant(typed, el) }
+  })
 }

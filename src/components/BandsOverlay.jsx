@@ -1,7 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSwitches, useTracks } from '../hooks/useStore'
+import { updateTrack } from '../storage'
+import { useProject, useSwitches, useTracks } from '../hooks/useStore'
 import { trackProfile, verticalCurves, gradientAt } from '../utils/heightUtils'
-import { curvatureBand, cantBand, speedBand, bandValueAt, bandRuns, bandRange, elementSpans } from '../utils/alignmentBands'
+import {
+  curvatureBand, cantBand, speedBand, bandValueAt, bandRuns, bandRange, elementSpans,
+  bandFindings, bandEditable, withBandValue,
+} from '../utils/alignmentBands'
+import { checkTrack } from '../utils/trassierungCheck'
+import { checkVertical } from '../utils/gradientCheck'
+import { ruleById, severityLabelKey, worstSeverity } from '../utils/regelkatalog'
+import { maxSpeeds } from '../utils/rules/speed'
+import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
+import { useMap } from '../map/MapContext'
+import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { trackHeightAt } from '../utils/switchGradient'
 import { useI18n } from '../locales/i18nContext'
 import usePreview from '../map/usePreview'
@@ -12,6 +23,7 @@ import { clamp } from '../utils/format'
 import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
+import NumberInput from './form/NumberInput'
 
 const MARGIN = { left: 60, right: 20, bottom: 34 }
 const MIN_OVERLAY_PX = 260
@@ -59,6 +71,11 @@ function bandPath(points, X, Y) {
   return d
 }
 
+const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
+
+// The bands a value can be typed in, with the unit it is typed in.
+const EDIT_UNIT = { cant: 'mm', speed: 'km/h' }
+
 const gradeLabel = (perMille) => {
   const v = Number(perMille.toFixed(1)) || 0
   return `${v > 0 ? '+' : ''}${v.toFixed(1)} ‰`
@@ -76,11 +93,25 @@ const gradeLabel = (perMille) => {
  * whole track again. Where the cursor stands a line runs across all four
  * bands, their values are read out in the header, and the station is marked
  * on the map.
+ *
+ * The cant and the speed are set here too: a click on an element in either
+ * band picks it (Ctrl/Shift-click more of them, in the same band), and the
+ * header takes the value — by the element table's rules (withBandValue), one
+ * undo step per change. A transition takes no cant of its own. The picked
+ * elements are marked on the map.
+ *
+ * What the rules say can be shown over the bands: the alignment catalogue's
+ * findings in the band of the quantity each rule is about (bandFindings) —
+ * tinted over the element, or a line at the joint for a rule on a boundary —
+ * and the Höhenplan's on the gradient, as the profile draws them. Each
+ * says in its tooltip what was found.
  */
 export default function BandsOverlay({ trackId, onClose }) {
-  const { t } = useI18n()
+  const { t, fill } = useI18n()
+  const map = useMap()
   const tracks = useTracks()
   const switches = useSwitches()
+  const project = useProject()
   const track = tracks.find(tr => tr.id === trackId)
 
   const bodyRef = useRef(null)
@@ -89,6 +120,10 @@ export default function BandsOverlay({ trackId, onClose }) {
   const overlay = useOverlayHeight(bodyRef, { min: MIN_OVERLAY_PX, fallback: 400 })
   const [view, setView] = useState(null)       // { key, x0, k }: station at the left edge, px per m
   const [cursor, setCursor] = useState(null)   // station [m] under the cursor
+  const [picked, setPicked] = useState(null)   // { trackId, band, indices } being edited
+  const [draft, setDraft] = useState('')
+  const [note, setNote] = useState(null)       // why a click picked nothing
+  const [showFindings, setShowFindings] = useState(true)
 
   // Recomputed on every render, like the profile: a few points per element.
   const elements = track?.elements
@@ -101,6 +136,69 @@ export default function BandsOverlay({ trackId, onClose }) {
   const length = bands.spans.length ? bands.spans[bands.spans.length - 1].to : 0
   const profile = track ? trackProfile(track) : null
   const points = profile?.points ?? []
+
+  // What the rules say: the alignment catalogue by band, the Höhenplan's on
+  // the gradient.
+  const found = bandFindings(checkTrack(elements ?? []))
+  const vertical = track ? checkVertical(track, { project, switches }) : null
+  const vStretches = (vertical?.stretches ?? []).filter(flagged)
+  const vCurves = (vertical?.curves ?? []).filter(flagged)
+  const allFound = [
+    ...Object.values(found).flatMap(f => [...f.spans, ...f.joints]), ...vStretches, ...vCurves,
+  ]
+  const findingNote = (results) => results.filter(r => r.severity && r.severity !== 'ok')
+    .map(r => `${r.id} · ${t(severityLabelKey(r.severity))}: ${ruleById(r.id)?.title ?? ''}`).join('\n')
+
+  // ── Picking elements and setting their value ──────────────────────────────
+  const sel = picked?.trackId === trackId ? picked : null
+  const selected = new Set(sel?.indices ?? [])
+  const shownValue = (band, el) => (band === 'cant' ? Math.abs(el.cant ?? 0) : el.speed ?? null)
+  // The value the picked elements share, or empty where they differ.
+  const common = (band, indices, els = elements) => {
+    const vs = indices.map(i => shownValue(band, els[i]))
+    return vs.length && vs.every(x => x === vs[0]) && vs[0] != null ? String(vs[0]) : ''
+  }
+  const pick = (band, i, add) => {
+    if (!bandEditable(band, elements[i])) { setNote(t('bands_cant_transition')); return }
+    setNote(null)
+    const base = add && sel?.band === band ? sel.indices : []
+    const indices = base.includes(i) ? base.filter(j => j !== i) : [...base, i]
+    if (!indices.length) return unpick()
+    setPicked({ trackId, band, indices })
+    setDraft(common(band, indices))
+  }
+  const unpick = () => { setPicked(null); setDraft(''); setNote(null) }
+  const write = (next) => {
+    if (next.some((el, i) => el !== elements[i])) updateTrack({ ...track, elements: next })
+  }
+  const apply = () => {
+    if (!sel) return
+    const raw = draft.trim()
+    const value = raw === '' ? null : Number(raw)
+    if (value != null && !Number.isFinite(value)) return
+    const next = withBandValue(elements, sel.indices, sel.band, value)
+    write(next)
+    setDraft(common(sel.band, sel.indices, next))
+  }
+  // The picked elements at the speed their radius and cant allow
+  // (maxSpeeds, without a line speed): those the geometry does not bound keep theirs.
+  const applyMaxSpeed = () => {
+    if (sel?.band !== 'speed') return
+    const most = maxSpeeds(elements, null)
+    const next = elements.map((el, i) => (selected.has(i) && most[i].speed !== el.speed ? { ...el, speed: most[i].speed } : el))
+    write(next)
+    setDraft(common('speed', sel.indices, next))
+  }
+
+  // The picked elements, on the map.
+  const selectedKey = [...selected].sort((a, b) => a - b).join(',')
+  useEffect(() => {
+    const m = map?.current
+    if (!m?.getLayer(TRACKS_SELECTED_LAYER)) return
+    const idx = selectedKey ? selectedKey.split(',').map(Number) : []
+    m.setFilter(TRACKS_SELECTED_LAYER, idx.length ? filterForElements(trackId, idx) : FILTER_NONE)
+    return () => { if (mapIsLive(map, m) && m.getLayer(TRACKS_SELECTED_LAYER)) m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE) }
+  }, [map, trackId, selectedKey])
 
   // ── The view along the track: the whole of it, until zoomed ──────────────
   const plotW = size ? size.w - MARGIN.left - MARGIN.right : 0
@@ -116,9 +214,19 @@ export default function BandsOverlay({ trackId, onClose }) {
     const s = sAt(px)
     setView({ key: fitKey, k, x0: s - (px - MARGIN.left) / k })
   }, !!size)
+  // A drag pans; a click on an element picks it, a click beside one drops
+  // the pick.
   const drag = useDrag({
-    onStart: () => ({ view: v }),
+    onStart: (e) => {
+      const d = e.target.dataset ?? {}
+      return { view: v, hit: d.band ? { band: d.band, i: Number(d.i) } : null, add: e.shiftKey || e.ctrlKey || e.metaKey }
+    },
     onMove: (e, start, { dx }) => setView({ key: fitKey, k: start.view.k, x0: start.view.x0 - dx / start.view.k }),
+    onEnd: (start, moved) => {
+      if (moved) return
+      if (start.hit) pick(start.hit.band, start.hit.i, start.add)
+      else unpick()
+    },
   })
 
   // ── The cursor's station on the map ───────────────────────────────────────
@@ -235,6 +343,19 @@ export default function BandsOverlay({ trackId, onClose }) {
       speed: bandRuns(bands.speed).flatMap(r => label(r.from, r.to, `${r.v}`, () => r.v)),
     }
 
+    // What the rules found, per band: over an element or a stretch of the
+    // gradient, at a joint, at a gradient change.
+    const spanOf = (i) => bands.spans[i]
+    const tints = (b) => {
+      if (!showFindings) return []
+      if (b === 'height') {
+        return vStretches.filter(st => points[st.index - 1] && points[st.index])
+          .map(st => ({ key: `hs${st.index}`, from: points[st.index - 1].station, to: points[st.index].station, entry: st }))
+      }
+      return found[b].spans.map(f => ({ key: `s${f.index}`, from: spanOf(f.index).from, to: spanOf(f.index).to, entry: f }))
+    }
+    const findingsAt = (b) => new Map((showFindings && found[b] ? found[b].spans : []).map(f => [f.index, f]))
+
     const empty = {
       height: !heightBand.length && t('bands_no_heights'),
       speed: !speedRange && t('bands_no_speed'),
@@ -273,6 +394,18 @@ export default function BandsOverlay({ trackId, onClose }) {
                     stroke={PALETTE.elementBoundary} strokeDasharray="3 3" />
                 ))}
                 {lo < 0 && hi > 0 && <line x1={MARGIN.left} x2={right} y1={Y(0)} y2={Y(0)} stroke={PALETTE.axis} />}
+                {tints(b).map(({ key, from, to, entry }) => (
+                  <g key={key} className={`rule-sev-${entry.severity}`} pointerEvents="none">
+                    <rect x={X(from)} y={top} width={Math.max(2, X(to) - X(from))} height={bot - top}
+                      fill="currentColor" fillOpacity="0.13" />
+                    <rect x={X(from)} y={top} width={Math.max(2, X(to) - X(from))} height={3} fill="currentColor" />
+                  </g>
+                ))}
+                {sel?.band === b && sel.indices.map(i => (
+                  <rect key={`p${i}`} x={X(spanOf(i).from)} y={top} width={Math.max(2, X(spanOf(i).to) - X(spanOf(i).from))}
+                    height={bot - top} fill={PALETTE.mapSelected} fillOpacity="0.12" stroke={PALETTE.mapSelected}
+                    pointerEvents="none" />
+                ))}
                 {b === 'height' && points.length >= 2 && (
                   <polyline fill="none" stroke={PALETTE.verticalCurve} strokeWidth="1"
                     points={points.map(p => `${X(p.station)},${Y(p.z)}`).join(' ')} />
@@ -287,6 +420,35 @@ export default function BandsOverlay({ trackId, onClose }) {
                   <line x1={X(cursor)} x2={X(cursor)} y1={top} y2={bot} stroke={PALETTE.mapHover} strokeDasharray="2 2"
                     pointerEvents="none" />
                 )}
+                {/* every element, to be picked where a value can be set, and
+                    saying what the rules found on it */}
+                {b !== 'height' && (() => {
+                  const at = findingsAt(b)
+                  return bands.spans.map(sp => (
+                    <rect key={`h${sp.elIdx}`} x={X(sp.from)} y={top} width={Math.max(1, X(sp.to) - X(sp.from))} height={bot - top}
+                      fill="transparent" className={EDIT_UNIT[b] ? 'clickable' : undefined}
+                      data-band={EDIT_UNIT[b] ? b : undefined} data-i={sp.elIdx}>
+                      {at.has(sp.elIdx) && <title>{findingNote(at.get(sp.elIdx).results)}</title>}
+                    </rect>
+                  ))
+                })()}
+                {b === 'height' && tints(b).map(({ key, from, to, entry }) => (
+                  <rect key={`t${key}`} x={X(from)} y={top} width={Math.max(2, X(to) - X(from))} height={bot - top} fill="transparent">
+                    <title>{`s = ${Math.abs(entry.grade).toFixed(2)} ‰\n${findingNote(entry.results)}`}</title>
+                  </rect>
+                ))}
+                {showFindings && b === 'height' && vCurves.filter(c => points[c.index]).map(c => (
+                  <circle key={`vc${c.index}`} className={`rule-sev-${c.severity}`} cx={X(c.station)} cy={Y(points[c.index].z)}
+                    r="6.5" fill="transparent" stroke="currentColor" strokeWidth="2">
+                    <title>{findingNote(c.results)}</title>
+                  </circle>
+                ))}
+                {showFindings && found[b]?.joints.map(j => (
+                  <line key={`j${j.index}`} className={`rule-sev-${j.severity}`} x1={X(spanOf(j.index).to)} x2={X(spanOf(j.index).to)}
+                    y1={top} y2={bot} stroke="currentColor" strokeWidth="3">
+                    <title>{findingNote(j.results)}</title>
+                  </line>
+                ))}
               </g>
               {empty[b] && (
                 <text x={MARGIN.left + plotW / 2} y={(top + bot) / 2 + 4} fontSize="11" fill={PALETTE.muted} textAnchor="middle">
@@ -312,7 +474,38 @@ export default function BandsOverlay({ trackId, onClose }) {
       <div className="track-table-header">
         <span className="track-table-title">{track.name || track.id.slice(0, 8)}</span>
         <div className="profile-controls">
-          {readout()}
+          {sel ? (
+            <div className="profile-edit">
+              <span>
+                {t(sel.band === 'cant' ? 'bands_cant' : 'bands_speed')}
+                {' · '}
+                {sel.indices.length === 1
+                  ? `${bands.spans[sel.indices[0]].from.toFixed(1)}–${bands.spans[sel.indices[0]].to.toFixed(1)} m`
+                  : fill('bands_selected', { n: sel.indices.length })}
+              </span>
+              <NumberInput className="track-table-input" step="5" min="0" value={draft} autoFocus
+                placeholder={t('elevation_mixed')}
+                onChange={e => setDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') apply(); if (e.key === 'Escape') { e.preventDefault(); unpick() } }} />
+              <span>{EDIT_UNIT[sel.band]}</span>
+              {sel.band === 'speed' && (
+                <button className="track-table-save-btn" title={t('bands_speed_max_hint')} onClick={applyMaxSpeed}>
+                  {t('bands_speed_max')}
+                </button>
+              )}
+              <button className="track-table-save-btn" onClick={apply}>{t('elevation_apply')}</button>
+              <CloseButton onClick={unpick} />
+            </div>
+          ) : note ? (
+            <span className="profile-hint">{note}</span>
+          ) : readout()}
+          <label className="profile-edit bands-findings-toggle">
+            <input type="checkbox" checked={showFindings} onChange={e => setShowFindings(e.target.checked)} />
+            <span className={`profile-rules rule-sev-${allFound.length ? worstSeverity(allFound.map(f => f.severity)) : 'ok'}`}
+              title={t('bands_findings_hint')}>
+              {t('bands_findings')} {allFound.length ? `(${allFound.length})` : '✓'}
+            </span>
+          </label>
           <CloseButton onClick={onClose} />
         </div>
       </div>

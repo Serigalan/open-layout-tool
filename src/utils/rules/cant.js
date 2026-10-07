@@ -148,6 +148,17 @@ export const cantLimit = (el) =>
   (el?.switchBranch ? switchCantLimit(cantExceptionOf(el)) : MAX_CANT)
 
 /**
+ * A cant typed for `el` as it may be stored [mm]: on the 5 mm design step,
+ * within what the element may carry (cantLimit), and signed by the curve it
+ * sits in — on a straight, by the sign it was typed with.
+ */
+export function clampCant(value, el) {
+  if (!Number.isFinite(value)) return value
+  const magnitude = Math.min(cantLimit(el), roundCant(Math.abs(value)))
+  return el?.radius ? cantSign(el.radius) * magnitude : Math.sign(value) * magnitude
+}
+
+/**
  * The cant magnitudes an element carries. An arc has the one; a transition ramps
  * between two, and a turnout laid into one is built on that ramp — so both ends
  * are read, or a switch element on a ramp would answer for a cant it is not on.

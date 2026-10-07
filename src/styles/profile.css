@@ -261,3 +261,11 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+.bands-findings-toggle {
+  cursor: pointer;
+}
+
+.bands-findings-toggle .profile-rules {
+  cursor: pointer;
+}
