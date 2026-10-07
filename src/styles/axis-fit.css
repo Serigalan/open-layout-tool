@@ -55,3 +55,12 @@
   background: var(--color-primary);
   color: var(--color-surface);
 }
+
+/* Reconnecting existing elements (Paket N): the deviation over the station. */
+.deviation-band { width: 100%; margin: 6px 0; }
+.deviation-band svg { display: block; }
+.deviation-band .chart-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  fill: var(--color-muted);
+}

@@ -7,7 +7,7 @@ import {
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
   openWorkingCopy, currentWorkingCopy, markCheckedIn, adoptWorkingCopy, closeWorkingCopy, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
-  setTrackHeights, setHeightsForTracks,
+  setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 import { endPointCurvedUtm, endPointStraightUtm } from './utils/elementUtils'
@@ -275,6 +275,24 @@ describe('deleting several elements at once', () => {
     undo()
     const plat = currentProject().platforms
     expect(plat).toEqual([{ id: 'pl', trackId: loadTracks().find(t => t.elements[0].startNode[0] === 200).id, startStation: 20, endStation: 80 }])
+  })
+})
+
+describe('reconnecting a stretch (Paket N)', () => {
+  it('writes the track back and re-stations the platforms along it, in one undo step', () => {
+    const el = (i) => ({ elementType: 0, length: 100, bearing: 90, startNode: [i * 100, 0], endNode: [i * 100 + 100, 0] })
+    openProject({
+      id: 'rc1', tracks: [{ id: 't', name: 't', elements: [0, 1, 2].map(el) }, { id: 'u', name: 'u', elements: [el(5)] }],
+      switches: [],
+      platforms: [{ id: 'p', trackId: 't', startStation: 220, endStation: 280 }, { id: 'q', trackId: 'u', startStation: 10, endStation: 20 }],
+    })
+    const map = (s) => (s > 200 ? s + 0.5 : s)
+    commitReconnect({ id: 't', name: 't', elements: [el(0), el(1), { ...el(2), length: 100.5 }] }, map)
+    expect(loadTracks().find(t => t.id === 't').elements[2].length).toBe(100.5)
+    expect(loadPlatforms().map(p => [p.startStation, p.endStation])).toEqual([[220.5, 280.5], [10, 20]])
+    undo()
+    expect(loadTracks().find(t => t.id === 't').elements[2].length).toBe(100)
+    expect(loadPlatforms()[0].startStation).toBe(220)
   })
 })
 

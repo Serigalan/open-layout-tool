@@ -110,6 +110,16 @@ export async function spliceOnServer(payload, { signal } = {}) {
 }
 
 /**
+ * "Bestehende Elemente neu verbinden" (Paket N): the best splices between the
+ * two neighbours of a stretch within a tolerance of its old axis — see
+ * commands/reconnect.reconnectRequest for the payload. Nothing that fits is an
+ * answer with `error`; throws an OptimizerError where the service cannot be asked.
+ */
+export async function reconnectOnServer(payload, { signal } = {}) {
+  return postJson('/reconnect', payload, { signal })
+}
+
+/**
  * "Aus Messachse trassieren" (AP 12.5): an alignment from axis points, fitted
  * by the service — curvature, straights, curves, the chain and every point's
  * offset from it. See alignmentFit.alignRequest for the payload. A fit that

@@ -347,6 +347,19 @@ export const SpliceJoinIcon = () => (
   </MenuIcon>
 )
 
+// A stretch reconnected: the two ends that stay, the old axis between them
+// dashed and the new connection drawn through — the reconnect tool's menu button.
+export const ReconnectIcon = () => (
+  <MenuIcon>
+    <path d="M1.5 12 H4" />
+    <path d="M12 4 H14.5" />
+    <path d="M4 12 L12 4" strokeDasharray="1.5 2" />
+    <path d="M4 12 C9 12 7 4 12 4" />
+    <IconNode cx={4} cy={12} />
+    <IconNode cx={12} cy={4} />
+  </MenuIcon>
+)
+
 // An island platform from above: the two tracks along it, the platform
 // between them with its ends ramped to a point.
 export const NewPlatformIcon = () => (

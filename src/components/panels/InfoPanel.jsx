@@ -29,7 +29,7 @@ const PANELS = [
   { Icon: LayerIcon,          title: 'tooltip_layers', desc: 'info_layers' },
   { Icon: TopologyIcon,       title: 'topology_title', desc: 'info_topology' },
   { Icon: PlaceIcon,          title: 'create_element', desc: ['info_places', 'info_platform'] },
-  { Icon: SpliceElementIcon,  title: 'splice_element', desc: ['info_splice', 'info_connect'] },
+  { Icon: SpliceElementIcon,  title: 'splice_element', desc: ['info_splice', 'info_reconnect', 'info_connect'] },
   { Icon: ConnectSwitchIcon,  title: 'connect_switch', desc: 'info_connect_switch' },
   { Icon: EditElementIcon,    title: 'edit', desc: 'info_edit' },
   { Icon: ElevationIcon,      title: 'tooltip_elevation', desc: 'info_elevation' },

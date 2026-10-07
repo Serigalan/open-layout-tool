@@ -111,84 +111,89 @@ def describe(sol):
             f"rms={r['rms'] * 100:.1f} cm within={r['within']} worst={sol['worst']}")
 
 
-# ── a curve between two straights ────────────────────────────────────────────
-curve = build([("s", 200), ("t", 60, None, 800.0), ("a", 300, 800.0), ("t", 60, 800.0, None), ("s", 200)])
-ans, dt = ask(curve, 0, 4, 0.10, 100)
-ok("curve: answers solutions", "solutions" in ans)
-best = ans["solutions"][0]
-print("   ", describe(best), f"{dt:.1f}s")
-ok("curve: best lies within 10 cm", best["reconnect"]["within"])
-ok("curve: best radius near 800", abs(best["reconnect"]["radius"] - 800) < 40)
-ok("curve: best chain holds together", holds(best))
-ok("curve: no error on the best", best["worst"] != "error")
-ok("curve: every variant answered", len(ans["solutions"]) == 3)
-ok("curve: band covers the stretch", ans["solutions"][0]["reconnect"]["band"][-1][0] > 600)
-ok("curve: the dep and arr ends stay where they were",
-   math.dist(best["elements"][0]["startNode"], curve[0]["startNode"]) < 1e-6
-   and math.dist(best["elements"][-1]["endNode"], curve[4]["endNode"]) < 1e-6)
-ok("curve: answered within 10 s", dt < 10)
-
-# A tolerance nothing meets: the best is still named, flagged.
-ans, _ = ask(curve, 0, 4, 0.0005, 160)
-ok("tight: flagged beyond the tolerance", "solutions" in ans and not ans["solutions"][0]["reconnect"]["within"])
-
-# A radius given is kept.
-ans, _ = ask(curve, 0, 4, 0.50, 100, radius=900)
-ok("fixed radius: every solution at R 900", all(s["reconnect"]["radius"] == 900 for s in ans["solutions"]))
-
-# ── an arc without transitions, slow: no transition fits best ────────────────
-plain = build([("s", 150), ("a", 200, -1900.0), ("s", 150)])
-ans, _ = ask(plain, 0, 2, 0.05, 60)
-best = ans["solutions"][0]
-print("   ", describe(best))
-ok("plain arc: within 5 cm", best["reconnect"]["within"])
-ok("plain arc: radius near 1900", abs(abs(best["reconnect"]["radius"]) - 1900) < 60)
-
-# ── neighbours that may not be re-shaped (a switch's) stay, the splice
-# builds on from their ends ───────────────────────────────────────────────────
-ans, dt = ask(curve, 0, 4, 0.15, 100, virtual=(True, True))
-ok("fixed neighbours: answered", "solutions" in ans)
-if "solutions" in ans:
+def main():
+    # ── a curve between two straights ────────────────────────────────────────────
+    curve = build([("s", 200), ("t", 60, None, 800.0), ("a", 300, 800.0), ("t", 60, 800.0, None), ("s", 200)])
+    ans, dt = ask(curve, 0, 4, 0.10, 100)
+    ok("curve: answers solutions", "solutions" in ans)
     best = ans["solutions"][0]
     print("   ", describe(best), f"{dt:.1f}s")
-    ok("fixed neighbours: within", best["reconnect"]["within"])
-    ok("fixed neighbours: holds", holds(best))
-    ok("fixed neighbours: starts and ends where they end",
-       math.dist(best["elements"][0]["startNode"], curve[0]["endNode"]) < 1e-6
-       and math.dist(best["elements"][-1]["endNode"], curve[4]["startNode"]) < 1e-6)
+    ok("curve: best lies within 10 cm", best["reconnect"]["within"])
+    ok("curve: best radius near 800", abs(best["reconnect"]["radius"] - 800) < 40)
+    ok("curve: best chain holds together", holds(best))
+    ok("curve: no error on the best", best["worst"] != "error")
+    ok("curve: every variant answered", len(ans["solutions"]) == 3)
+    ok("curve: band covers the stretch", ans["solutions"][0]["reconnect"]["band"][-1][0] > 600)
+    ok("curve: the dep and arr ends stay where they were",
+       math.dist(best["elements"][0]["startNode"], curve[0]["startNode"]) < 1e-6
+       and math.dist(best["elements"][-1]["endNode"], curve[4]["endNode"]) < 1e-6)
+    ok("curve: answered within 10 s", dt < 10)
 
-# Two ends on one circle — an arc between two transitions, kept: nothing to
-# choose, and said so.
-ans, _ = ask(curve, 1, 3, 0.10, 100, virtual=(True, True))
-ok("one circle: said so", ans.get("error") == "reconnect_error_same_circle")
+    # A tolerance nothing meets: the best is still named, flagged.
+    ans, _ = ask(curve, 0, 4, 0.0005, 160)
+    ok("tight: flagged beyond the tolerance", "solutions" in ans and not ans["solutions"][0]["reconnect"]["within"])
 
-# ── an arc and a straight ────────────────────────────────────────────────────
-arcs = build([("a", 150, 600.0), ("t", 40, 600.0, None), ("s", 100), ("t", 40, None, 900.0), ("a", 150, 900.0)])
-ans, dt = ask(arcs, 0, 2, 0.10, 80)
-ok("arc and straight: answered", "solutions" in ans)
-if "solutions" in ans:
+    # A radius given is kept.
+    ans, _ = ask(curve, 0, 4, 0.50, 100, radius=900)
+    ok("fixed radius: every solution at R 900", all(s["reconnect"]["radius"] == 900 for s in ans["solutions"]))
+
+    # ── an arc without transitions, slow: no transition fits best ────────────────
+    plain = build([("s", 150), ("a", 200, -1900.0), ("s", 150)])
+    ans, _ = ask(plain, 0, 2, 0.05, 60)
     best = ans["solutions"][0]
-    print("   ", describe(best), f"{dt:.1f}s")
-    ok("arc and straight: holds", holds(best))
+    print("   ", describe(best))
+    ok("plain arc: within 5 cm", best["reconnect"]["within"])
+    ok("plain arc: radius near 1900", abs(abs(best["reconnect"]["radius"]) - 1900) < 60)
 
-# ── two arcs ─────────────────────────────────────────────────────────────────
-ans, dt = ask(arcs, 0, 4, 0.10, 80)
-ok("two arcs: answered", "solutions" in ans)
-if "solutions" in ans:
-    best = ans["solutions"][0]
-    print("   ", describe(best), f"{dt:.1f}s")
-    ok("two arcs: within", best["reconnect"]["within"])
-    ok("two arcs: holds", holds(best))
-    ok("two arcs: at least the three over a straight", len(ans["solutions"]) >= 3)
+    # ── neighbours that may not be re-shaped (a switch's) stay, the splice
+    # builds on from their ends ───────────────────────────────────────────────────
+    ans, dt = ask(curve, 0, 4, 0.15, 100, virtual=(True, True))
+    ok("fixed neighbours: answered", "solutions" in ans)
+    if "solutions" in ans:
+        best = ans["solutions"][0]
+        print("   ", describe(best), f"{dt:.1f}s")
+        ok("fixed neighbours: within", best["reconnect"]["within"])
+        ok("fixed neighbours: holds", holds(best))
+        ok("fixed neighbours: starts and ends where they end",
+           math.dist(best["elements"][0]["startNode"], curve[0]["endNode"]) < 1e-6
+           and math.dist(best["elements"][-1]["endNode"], curve[4]["startNode"]) < 1e-6)
 
-# ── a reverse curve does not fit one arc ─────────────────────────────────────
-s_curve = build([("s", 100), ("a", 120, 500.0), ("a", 120, -500.0), ("s", 100)])
-ans, _ = ask(s_curve, 0, 3, 0.05, 60)
-ok("reverse curve: beyond 5 cm, the best still named",
-   "solutions" in ans and not ans["solutions"][0]["reconnect"]["within"]
-   or ans.get("error") == "reconnect_error_no_fit")
+    # Two ends on one circle — an arc between two transitions, kept: nothing to
+    # choose, and said so.
+    ans, _ = ask(curve, 1, 3, 0.10, 100, virtual=(True, True))
+    ok("one circle: said so", ans.get("error") == "reconnect_error_same_circle")
 
-if FAILED:
-    print(f"\n{len(FAILED)} FAILED")
-    sys.exit(1)
-print("\nall passed")
+    # ── an arc and a straight ────────────────────────────────────────────────────
+    arcs = build([("a", 150, 600.0), ("t", 40, 600.0, None), ("s", 100), ("t", 40, None, 900.0), ("a", 150, 900.0)])
+    ans, dt = ask(arcs, 0, 2, 0.10, 80)
+    ok("arc and straight: answered", "solutions" in ans)
+    if "solutions" in ans:
+        best = ans["solutions"][0]
+        print("   ", describe(best), f"{dt:.1f}s")
+        ok("arc and straight: holds", holds(best))
+
+    # ── two arcs ─────────────────────────────────────────────────────────────────
+    ans, dt = ask(arcs, 0, 4, 0.10, 80)
+    ok("two arcs: answered", "solutions" in ans)
+    if "solutions" in ans:
+        best = ans["solutions"][0]
+        print("   ", describe(best), f"{dt:.1f}s")
+        ok("two arcs: within", best["reconnect"]["within"])
+        ok("two arcs: holds", holds(best))
+        ok("two arcs: at least the three over a straight", len(ans["solutions"]) >= 3)
+
+    # ── a reverse curve does not fit one arc ─────────────────────────────────────
+    s_curve = build([("s", 100), ("a", 120, 500.0), ("a", 120, -500.0), ("s", 100)])
+    ans, _ = ask(s_curve, 0, 3, 0.05, 60)
+    ok("reverse curve: beyond 5 cm, the best still named",
+       "solutions" in ans and not ans["solutions"][0]["reconnect"]["within"]
+       or ans.get("error") == "reconnect_error_no_fit")
+
+    if FAILED:
+        print(f"\n{len(FAILED)} FAILED")
+        sys.exit(1)
+    print("\nall passed")
+
+
+if __name__ == "__main__":
+    main()

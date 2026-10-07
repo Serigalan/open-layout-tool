@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import SpliceElementPanel from './SpliceElementPanel'
+import ReconnectPanel from './splice/ReconnectPanel'
 import ConnectStraightForm from './ConnectElementPanel/ConnectStraightForm'
 import ConnectCurvedForm from './ConnectElementPanel/ConnectCurvedForm'
-import { BackIcon, SpliceJoinIcon, ConnectStraightIcon, ConnectCurvedIcon } from '../icons'
+import { BackIcon, SpliceJoinIcon, ReconnectIcon, ConnectStraightIcon, ConnectCurvedIcon } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 
 // The gray line between the two tool groups, the same separator the layers
@@ -35,6 +36,13 @@ export default function SpliceConnectPanel() {
     </>
   )
 
+  if (page === 'reconnect') return (
+    <>
+      <BackButton onBack={back} />
+      <ReconnectPanel />
+    </>
+  )
+
   if (page === 'connect_straight') return (
     <>
       <BackButton onBack={back} />
@@ -58,6 +66,10 @@ export default function SpliceConnectPanel() {
         <button className="create-element-btn" onClick={() => setPage('splice')}>
           <SpliceJoinIcon />
           {t('splice_start')}
+        </button>
+        <button className="create-element-btn" onClick={() => setPage('reconnect')}>
+          <ReconnectIcon />
+          {t('reconnect_title')}
         </button>
       </div>
       <hr className="divider divider-wide" />

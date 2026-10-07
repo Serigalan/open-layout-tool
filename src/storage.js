@@ -866,6 +866,24 @@ export function setHeightsForTracks(byTrack, { undo = true } = {}) {
   return written
 }
 
+/**
+ * Write back a track whose stretch was reconnected (Paket N), as one undo
+ * step: the track as commands/reconnect built it, and the platforms along it
+ * re-stationed by `map` (old station → new station). Its id and ends stay, so
+ * switches and end marks on it stay as they are.
+ */
+export function commitReconnect(track, map) {
+  return mutate(p => ({
+    ...p,
+    tracks: (p.tracks ?? []).map(t => (t.id === track.id ? track : t)),
+    ...(p.platforms ? {
+      platforms: p.platforms.map(pl => (pl.trackId !== track.id ? pl : {
+        ...pl, startStation: map(pl.startStation ?? 0), endStation: map(pl.endStation ?? 0),
+      })),
+    } : {}),
+  }))
+}
+
 export function replaceAllTracks(tracks) {
   return mutate(p => ({ ...p, tracks }))
 }

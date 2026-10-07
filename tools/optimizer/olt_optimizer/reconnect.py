@@ -41,15 +41,17 @@ from .splice import (
 # The radius search: a geometric grid between these [m] …
 R_MIN = 50.0
 R_MAX = 50000.0
-GRID = 48
+GRID = 36
 # … then this many radii between the two grid neighbours of the best, so many times.
-ZOOM = 10
+ZOOM = 8
 ZOOM_ROUNDS = 4
 # Where a transition is asked for at its Regellänge or Mindestlänge, the
 # fixed point of `_solve` starts from this length [m].
 LENGTH_START = 60.0
-# Points between two the search measures with — the final measure takes all.
-SEARCH_SPACING = 0.25
+# Points between two the search measures with [m]: the grid with the coarse
+# set, the narrowing with the fine one — the final measure takes every point.
+COARSE_SPACING = 1.0
+SEARCH_SPACING = 0.5
 # The deviation band the panel draws: one value per this much station [m],
 # the largest in it, so no peak is lost.
 BAND_STEP = 0.5
@@ -78,18 +80,21 @@ def _points(raw):
 
 class Reference:
     """The old axis: its points, their stations, a tree to find the nearest,
-    and the thinned set the search measures with."""
+    and the thinned sets the search measures with ('coarse', 'fine'; 'all'
+    every point)."""
 
     def __init__(self, pts):
         self.pts = pts
         steps = np.hypot(*np.diff(pts, axis=0).T)
         self.station = np.concatenate([[0.0], np.cumsum(steps)])
-        spacing = float(np.median(steps)) if len(steps) else 0.01
-        stride = max(1, int(round(SEARCH_SPACING / max(spacing, 1e-6))))
-        idx = np.arange(0, len(pts), stride)
-        if idx[-1] != len(pts) - 1:
-            idx = np.append(idx, len(pts) - 1)
-        self.thin = pts[idx]
+        spacing = max(float(np.median(steps)) if len(steps) else 0.01, 1e-6)
+
+        def thinned(every):
+            idx = np.arange(0, len(pts), max(1, int(round(every / spacing))))
+            if idx[-1] != len(pts) - 1:
+                idx = np.append(idx, len(pts) - 1)
+            return pts[idx]
+        self.sets = {"coarse": thinned(COARSE_SPACING), "fine": thinned(SEARCH_SPACING), "all": pts}
         self.tree = cKDTree(pts)
 
 
@@ -117,18 +122,21 @@ def chain_polyline(els):
     return np.concatenate(out) if out else np.zeros((0, 2))
 
 
-def _measure(ref, poly, full):
-    """How far the new axis `poly` lies from the old one: {max, rms} — and
-    with `full` the offset of every point (new axis against old, > 0 to the
-    right in travel), measured with every point instead of the thinned ones."""
-    pts = ref.pts if full else ref.thin
-    off, _, _ = project(pts, poly)
+def _measure(ref, poly, level):
+    """How far the new axis `poly` lies from the old one, measured with the
+    points of `level` (Reference.sets): {max, rms} — and with every point
+    ('all') the offset of each (new axis against old, > 0 to the right in
+    travel)."""
+    full = level == "all"
+    off, _, _ = project(ref.sets[level], poly)
     worst = float(np.abs(off).max())
-    # The other way round: no stretch of the new axis may run away from the
-    # old one where no point would notice (the old axis has a point every centimetre).
-    back, _, _ = project(poly, ref.pts, ref.tree)
-    worst_back = float(np.abs(back).max())
-    out = {"max": max(worst, worst_back), "rms": float(math.sqrt(float((off * off).mean())))}
+    if full:
+        # The other way round: no stretch of the new axis may run away from
+        # the old one where no point would notice — a detour the search does
+        # not need to look for, but the answer rules out.
+        back, _, _ = project(poly, ref.pts, ref.tree)
+        worst = max(worst, float(np.abs(back).max()))
+    out = {"max": worst, "rms": float(math.sqrt(float((off * off).mean())))}
     if full:
         out["offsets"] = -off
     return out
@@ -139,15 +147,10 @@ def _band(ref, offsets):
     BAND_STEP — the largest in it, signed — as [[station, offset], …] [m]."""
     st = ref.station
     bins = np.floor(st / BAND_STEP).astype(int)
-    out = []
-    start = 0
-    for k in range(1, len(st) + 1):
-        if k == len(st) or bins[k] != bins[start]:
-            seg = offsets[start:k]
-            j = start + int(np.abs(seg).argmax())
-            out.append([round(float(st[j]), 2), round(float(offsets[j]), 4)])
-            start = k
-    return out
+    # Within each bin the largest first, the bins in order: the first of each is its peak.
+    order = np.lexsort((-np.abs(offsets), bins))
+    first = np.concatenate([[True], bins[order][1:] != bins[order][:-1]])
+    return [[round(float(st[j]), 2), round(float(offsets[j]), 4)] for j in order[first]]
 
 
 # ── candidates ───────────────────────────────────────────────────────────────
@@ -178,9 +181,9 @@ class Search:
         self.l_min = l_min
         self.k = _katalog()
 
-    def build(self, variant, radius):
+    def build(self, variant, radius, level="fine"):
         """The splice of one variant at `radius` (None for two arcs), measured
-        with the thinned points — or None where it does not fit."""
+        with the points of `level` — or None where it does not fit."""
         spec = _spec(self.base, variant, radius)
         try:
             sol = _solve(self.picks, ("end", "start"), spec)
@@ -195,7 +198,7 @@ class Search:
         poly = chain_polyline(sol["elements"])
         if len(poly) < 2:
             return None
-        dev = _measure(self.ref, poly, full=False)
+        dev = _measure(self.ref, poly, level)
         cand = {"sol": sol, "spec": spec, "variant": variant, "radius": radius, "dev": dev, "poly": poly}
         cand["within"] = dev["max"] <= self.tol
         if cand["within"]:
@@ -220,13 +223,14 @@ class Search:
         grid = [R_MIN * (r_hi / R_MIN) ** (i / (GRID - 1)) for i in range(GRID)]
         tried = {}
 
-        def at(r):
-            r = float(r)
-            if r not in tried:
-                tried[r] = self.build(variant, r)
-            return tried[r]
+        def at(r, level="fine"):
+            key = (float(r), level)
+            if key not in tried:
+                tried[key] = self.build(variant, float(r), level)
+            return tried[key]
 
-        cands = [at(r) for r in grid]
+        # The grid with the coarse points, from there on the fine ones.
+        cands = [at(r, "coarse") for r in grid]
         if all(c is None for c in cands):
             return None
         i = min(range(len(grid)), key=lambda j: self.key(cands[j]))
@@ -246,7 +250,7 @@ class Search:
     def finish(self, cand):
         """A candidate measured with every point, judged and as the answer has it."""
         sol = cand["sol"]
-        dev = _measure(self.ref, cand["poly"], full=True)
+        dev = _measure(self.ref, cand["poly"], "all")
         within = dev["max"] <= self.tol
         if "worst" not in sol:
             _judge(sol)
