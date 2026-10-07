@@ -448,3 +448,34 @@ export function verticalCurves(points, steps = 24) {
   return points.map((_, i) => verticalCurve(points, i, steps)).filter(Boolean)
 }
 
+/**
+ * Where two vertical curves of `points` run into each other (HP.AR.04), as
+ * [{ a, b, from, to, zMin, zMax }]: the indices of the two points, the
+ * stretch both curves claim, and the heights both curves span over it. Curves
+ * that only touch at a tangent point do not overlap.
+ */
+export function verticalCurveOverlaps(points) {
+  const spans = points.map((p, i) => {
+    const t = tangentLength(points, i)
+    return t ? { i, from: p.station - t, to: p.station + t } : null
+  }).filter(Boolean)
+  const overlaps = []
+  for (let j = 0; j < spans.length; j++) {
+    for (let k = j + 1; k < spans.length; k++) {
+      const from = Math.max(spans[j].from, spans[k].from), to = Math.min(spans[j].to, spans[k].to)
+      if (to - from <= 1e-6) continue
+      // Both parabolas over the shared stretch, sampled — enough for a frame.
+      const zs = [spans[j].i, spans[k].i].flatMap(i => {
+        const { before, after } = gradients(points, i)
+        const p = points[i], t = tangentLength(points, i)
+        return Array.from({ length: 9 }, (_, n) => {
+          const x = from + (to - from) * n / 8 - p.station
+          return p.z + before * x + (x + t) ** 2 * (after - before) / (4 * t)
+        })
+      })
+      overlaps.push({ a: spans[j].i, b: spans[k].i, from, to, zMin: Math.min(...zs), zMax: Math.max(...zs) })
+    }
+  }
+  return overlaps
+}
+

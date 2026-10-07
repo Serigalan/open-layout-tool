@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { heightAt, gradientAt, verticalCurve, splitHeights, joinHeights, endOfIndex, insertHeightPoint } from './heightUtils'
+import { heightAt, gradientAt, verticalCurve, verticalCurveOverlaps, splitHeights, joinHeights, endOfIndex, insertHeightPoint } from './heightUtils'
 
 describe('gradientAt — the height a track is built at', () => {
   // +10 ‰ up to a crest at 100 m, −10 ‰ down from it, rounded with R 2000:
@@ -33,6 +33,30 @@ describe('gradientAt — the height a track is built at', () => {
     expect(gradientAt(plain, 100)).toBeCloseTo(101, 9)
     expect(gradientAt(undefined, 10)).toBe(null)
     expect(gradientAt([], 10)).toBe(null)
+  })
+})
+
+describe('verticalCurveOverlaps — curves running into each other (HP.AR.04)', () => {
+  // Crest at 100 m (+10 ‰ → −10 ‰) and sag at 140 m (−10 ‰ → +10 ‰).
+  const heights = (rv) => [
+    { station: 0, z: 100 }, { station: 100, z: 101, rv }, { station: 140, z: 100.6, rv }, { station: 240, z: 101.6 },
+  ]
+
+  it('finds the stretch two curves both claim', () => {
+    // R 3000: T = 30 m each, 70–130 and 110–170 share 110–130.
+    const [o, ...rest] = verticalCurveOverlaps(heights(3000))
+    expect(rest).toEqual([])
+    expect(o.a).toBe(1)
+    expect(o.b).toBe(2)
+    expect(o.from).toBeCloseTo(110, 9)
+    expect(o.to).toBeCloseTo(130, 9)
+    expect(o.zMin).toBeLessThan(o.zMax)
+  })
+
+  it('leaves curves alone that only touch or keep apart', () => {
+    expect(verticalCurveOverlaps(heights(2000))).toEqual([])   // T = 20 m: 80–120 and 120–160
+    expect(verticalCurveOverlaps(heights(1000))).toEqual([])
+    expect(verticalCurveOverlaps(heights(undefined))).toEqual([])
   })
 })
 

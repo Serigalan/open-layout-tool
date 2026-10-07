@@ -5,7 +5,7 @@ import { checkVertical, regularVerticalRadius, verticalFindings } from '../utils
 import { coupledPoints, trackHeightAt } from '../utils/switchGradient'
 import { ruleById, severityLabelKey } from '../utils/regelkatalog'
 import {
-  trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, elementAtStation,
+  trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps, elementAtStation,
   insertHeightPoint,
 } from '../utils/heightUtils'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
@@ -73,7 +73,9 @@ const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
  * Clicking a point opens its height for editing, Ctrl/Shift-click and
  * Shift-drag pick more of them. A point may carry the radius of the vertical
  * curve rounding the gradient change there — drawn in light grey between its
- * tangent points. Every stretch is labelled with its gradient in ‰. Any point
+ * tangent points, each marked with a small yellow dot. Where two curves run
+ * into each other (HP.AR.04), the stretch they share is framed in the colour
+ * of an error. Every stretch is labelled with its gradient in ‰. Any point
  * but the two ends of the track can be deleted. A double click on the
  * gradient splits it there with a new point at its height.
  *
@@ -138,6 +140,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const allPoints = [...points, ...stubs.flatMap(s => s.points)]
   // The curves rounding the gradient changes.
   const curves = verticalCurves(points)
+  const overlaps = verticalCurveOverlaps(points)
   // What the Höhenplan rules say, by the point a stretch ends at and the
   // point a gradient change sits at.
   const check = track ? checkVertical(track, { project, switches }) : null
@@ -363,6 +366,14 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     c.speed ? `v = ${c.speed} km/h` : null,
   ].filter(Boolean).join(', '))
 
+  const overlapNote = (o) => [
+    fill('elevation_vcurve_overlap', {
+      a: points[o.a].station.toFixed(2), b: points[o.b].station.toFixed(2),
+      length: (o.to - o.from).toFixed(2), from: o.from.toFixed(2), to: o.to.toFixed(2),
+    }),
+    `HP.AR.04 · ${t(severityLabelKey('error'))}: ${ruleById('HP.AR.04')?.title ?? ''}`,
+  ].join('\n')
+
   // ── Geometry helpers ──────────────────────────────────────────────────────
   const X = (station) => MARGIN.left + (station - view.x0) * view.k
   const Y = (z) => size.h - MARGIN.bottom - (z - view.z0) * view.k * exaggeration
@@ -468,9 +479,28 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
             <polyline key={`vc${i}`} fill="none" stroke={PALETTE.verticalCurve} strokeWidth="2"
               points={c.map(p => `${X(p.station)},${Y(p.z)}`).join(' ')} />
           ))}
+          {/* where two of them run into each other: the shared stretch, framed */}
+          {overlaps.map(o => {
+            const x1 = X(o.from), x2 = X(o.to), y1 = Y(o.zMax), y2 = Y(o.zMin)
+            const w = Math.max(x2 - x1, 4), h = Math.max(y2 - y1, 4)
+            return (
+              <rect key={`vo${o.a}-${o.b}`} className="rule-sev-error" x={(x1 + x2 - w) / 2 - 4} y={(y1 + y2 - h) / 2 - 6}
+                width={w + 8} height={h + 12} rx="3" fill="currentColor" fillOpacity="0.15"
+                stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 2">
+                <title>{overlapNote(o)}</title>
+              </rect>
+            )
+          })}
           {/* the track */}
           <polyline fill="none" stroke="var(--color-primary)" strokeWidth="2"
             points={points.map(p => `${X(p.station)},${Y(p.z)}`).join(' ')} />
+          {/* the tangent points, where each vertical curve begins and ends */}
+          {curves.flatMap((c, i) => [c[0], c[c.length - 1]].map((p, k) => (
+            <circle key={`ve${i}-${k}`} cx={X(p.station)} cy={Y(p.z)} r="3" fill={PALETTE.verticalCurveEnd}
+              stroke={PALETTE.verticalCurveEndEdge} strokeWidth="0.75">
+              <title>{fill(k ? 'elevation_vcurve_end' : 'elevation_vcurve_start', { station: p.station.toFixed(2) })}</title>
+            </circle>
+          )))}
           {/* stretches a rule flags, in the colour of its step */}
           {[...stretchAt.values()].filter(flagged).map(s => (
             <line key={`sf${s.index}`} className={`rule-sev-${s.severity}`} stroke="currentColor" strokeWidth="4"

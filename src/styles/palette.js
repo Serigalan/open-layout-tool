@@ -36,6 +36,8 @@ export const PALETTE = Object.freeze({
   // The longitudinal profile
   elementBoundary: '#c8c8d8',
   verticalCurve: '#c9c9c9',
+  verticalCurveEnd: '#f5c400',
+  verticalCurveEndEdge: '#a68500',
 
   // The cross section
   terrain: '#2e8b3a',
