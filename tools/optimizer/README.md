@@ -123,7 +123,9 @@ vergrößert um das, was die Überhöhung beider Gleise dazugibt — die beiden
 Lichtraumumrisse um ihre Überhöhung gekippt, wie das Querprofil sie zeichnet.
 Geprüft wird beim eingegebenen Radius, oder mit `maximize` der größte Radius
 gesucht, der den Abstand hält (Gerade–Gerade und Bogen–Gerade; zwei Bögen haben
-keinen freien Radius und werden nur geprüft). Prüfung:
+keinen freien Radius und werden nur geprüft) — jeder versuchte Radius mit der
+Überhöhung, die die App für ihn vorschlägt, und den Übergangsbögen in ihrem
+Modus bei diesem Radius und dieser Überhöhung (AP S.6). Prüfung:
 `/var/lib/open-layout-tool/venv/bin/python tools/optimizer/tests/verify_clearance.py`.
 
 ## Trassieren aus Achspunkten (`POST /align`)

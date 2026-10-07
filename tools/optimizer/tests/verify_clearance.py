@@ -18,11 +18,13 @@ import json
 import math
 import os
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
 from olt_optimizer.clearance import Spacing, auto_cant          # noqa: E402
+from olt_optimizer.grenzen import transition_lengths            # noqa: E402
 from olt_optimizer.splice import splice_payload as _payload      # noqa: E402
 
 FAILED = []
@@ -125,6 +127,25 @@ c = res["info"]["clearance"]
 ok(f"with transitions: a radius that keeps the spacing ({c.get('radius')})",
    "error" not in res and c["kept"] and c["margin"] >= 0)
 
+# The transitions at the Regellänge (AP S.6): each radius tried with its own
+# cant and the ramps that cant needs — the answer's transitions are those of
+# the radius found, not of the first one tried.
+t0 = time.monotonic()
+res = ask(lDep=40, lArr=40, speed=80, modeDep="regular", modeArr="regular",
+          clearance={"maximize": True, "speed": 80})
+took = time.monotonic() - t0
+c = res["info"]["clearance"]
+want = transition_lengths({"elementType": 0, "cant": 0, "speed": 80},
+                          {"elementType": 1, "radius": c.get("radius"), "cant": c.get("cant"), "speed": 80},
+                          None, "clothoid", 80)["regular"] if c.get("radius") else None
+ok(f"with the Regellänge: a radius that keeps the spacing ({c.get('radius')}, u = {c.get('cant')}, {took:.1f} s)",
+   "error" not in res and c["kept"] and c["cant"] == auto_cant(80, c["radius"], MODEL))
+ok(f"…its transitions the Regellänge at that radius and cant ({[x['length'] for x in res['lengths']]}, {want})",
+   want is not None and [x["length"] for x in res["lengths"]] == [want, want])
+arc_el = next(el for el in res["elements"] if el["role"] == "new" and el["elementType"] == 1)
+ok("…and the new arc judged with that cant", abs(arc_el["cant"]) == c["cant"])
+ok("…answered within a few seconds", took < 5)
+
 # A neighbour on the corner itself: every arc leaves it at its tangent point.
 res = ask(ref=[[E0, N0 - 4.5, 0], [E0 + 404.5, N0 - 4.5, 0], [E0 + 404.5, N0 + 700, 0]],
           clearance={"maximize": True, "speed": 0})
@@ -135,7 +156,6 @@ ok("a neighbour every arc touches: no radius keeps it", res.get("error") == "spl
 # The new outer track comes in on a flat arc (R 1500, left, from (100, −4.5)
 # heading east); the new arc between it and the northbound straight is the
 # radius to choose, kept 4.0 m off the inner track.
-import time                                                       # noqa: E402
 from olt_optimizer.geometry import _arc_forward, transition_end    # noqa: E402
 
 end, b_end = _arc_forward(E0 + 100, N0 - 4.5, 90.0, -1500.0, 60.0 / 1500.0)

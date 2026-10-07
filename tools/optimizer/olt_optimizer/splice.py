@@ -988,7 +988,8 @@ def _with_clearance(picks, spec, cl):
     """The splice held to a spacing to a neighbouring track (see clearance.py):
     checked at `radius`, or with `maximize` the largest radius that keeps it —
     where the case has a radius of its own to choose (not two arcs), for every
-    pair of ends on its own."""
+    pair of ends on its own, each radius with the cant the app proposes for it
+    and the transitions as long as their mode asks at that radius and cant."""
     d_min = float(cl["dMin"])
     if not d_min > 0:
         raise ValueError("dMin")
@@ -996,7 +997,7 @@ def _with_clearance(picks, spec, cl):
     corners = [p[k] for p in picks for k in ("start", "end")]
     es, ns = [c[0] for c in corners], [c[1] for c in corners]
     neighbour = Neighbour(cl.get("ref") or [], (min(es), min(ns), max(es), max(ns)))
-    speed = float(cl.get("speed") or 0)
+    speed = float(cl.get("speed") or 0) or spec["speed"]
     model = cl.get("cantModel") or {}
 
     def cant_of(sol, u_new):
@@ -1035,13 +1036,16 @@ def _with_clearance(picks, spec, cl):
                     r_max = float(exc.params["rMax"])
 
             def build(r):
+                # The cant follows the radius as the app proposes it, and the
+                # transitions in their mode follow both (AP S.6): each radius
+                # tried is solved as it would be written.
+                u = auto_cant(speed, r, model)
                 try:
-                    sol = _solve(pk, ends, {**sp, "radius": r})
+                    sol = _solve(pk, ends, {**sp, "radius": r, "cant": u})
                 except SpliceError:
                     return None
                 if sol["info"].get("arcLength", 0) < l_min:
                     return None
-                u = auto_cant(speed, r, model)
                 sol["clearance"] = described(sol, u, {"cant": u})
                 return sol
 

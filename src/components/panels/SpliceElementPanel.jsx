@@ -194,7 +194,11 @@ export default function SpliceElementPanel() {
   const shown = answered?.find(sol => solutionKey(sol) === chosen) ?? answered?.[0] ?? null
   const found = maximize ? shown?.result?.clearance?.radius ?? null : null
   const radius = found ?? s.radius
-  const [cant, setCant] = useDerivedField(`${s.speed}|${radius}`, Math.abs(computeAutoC(s.speed, Math.abs(Number(radius)))))
+  const [typedCant, setCant] = useDerivedField(`${s.speed}|${radius}`, Math.abs(computeAutoC(s.speed, Math.abs(Number(radius)))))
+  // With the search, the cant is the one the service solved the radius found
+  // with — its transitions and findings are that cant's (AP S.6).
+  const searchedCant = maximize ? shown?.result?.clearance?.cant ?? null : null
+  const cant = searchedCant ?? typedCant
 
   const preview = usePreview(SPLICE_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
