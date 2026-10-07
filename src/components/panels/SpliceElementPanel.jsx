@@ -4,7 +4,7 @@ import { computeAutoC } from '../../utils/rules/cant'
 import { hasRuleError } from '../../utils/trassierungCheck'
 import {
   buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest,
-  spliceTransitionLengths, splicedTransitions,
+  orderPicks, spliceTransitionLengths, splicedTransitions,
 } from '../../utils/commands/splice'
 import { errorAt, transitionLengthsAt } from '../../utils/rules/transitionLength'
 import { gaugeProfile } from '../../utils/gaugeProfiles'
@@ -153,7 +153,8 @@ export default function SpliceElementPanel() {
         if (why === 'same') return
         if (why) { setPickStatus({ msg: t(why), error: true }); return }
       }
-      setPicks([...picks, pick])
+      // Departure and arrival by where the gap lies, not by the order of the clicks.
+      setPicks(picks.length === 1 ? orderPicks(picks[0], pick) : [pick])
       setPickStatus(null)
     },
   })

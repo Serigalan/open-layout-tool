@@ -56,6 +56,23 @@ export function secondPickRefusal(first, pick) {
   return null
 }
 
+const gap = (a, b) => Math.hypot(a.easting - b.easting, a.northing - b.northing)
+
+/**
+ * The two picks in the order the splice runs: the departure runs into it at
+ * its end. Picked the other way round — the second element's end facing the
+ * first one's start, the gap between them lying there — they are swapped, so
+ * the order of the clicks does not decide which is which. Where neither order
+ * puts an end against a start, they stay as picked.
+ */
+export function orderPicks(first, second) {
+  const forward = Math.min(gap(first.endUtm, second.startUtm), gap(first.endUtm, second.endUtm))
+  const backward = gap(second.endUtm, first.startUtm)
+  return backward < forward && backward <= gap(second.startUtm, first.startUtm)
+    ? [second, first]
+    : [first, second]
+}
+
 /**
  * The request for the service's `POST /splice`: the two picks — their ends in
  * the shared plane, the bearing at the picked end, the signed radius — and the

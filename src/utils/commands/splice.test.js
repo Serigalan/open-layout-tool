@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest, spliceTransitionLengths, splicedTransitions } from './splice'
+import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest, spliceTransitionLengths, splicedTransitions, orderPicks } from './splice'
 import { transitionLengths } from '../rules/transitionLength'
 import { straightElement, arcElement, transitionElement } from '../elementFactory'
 import { recalcAbsLengths, rebuildCoords } from '../trackModel'
@@ -45,6 +45,22 @@ describe('picking the two elements', () => {
     const other = { id: 'c', epsg: 25833, elements: [straightElement(P(0, 0, 25833), P(0, 100, 25833))] }
     expect(secondPickRefusal(first, splicePick(other, 0))).toBe('splice_error_crs')
     expect(secondPickRefusal(first, splicePick(b, 0))).toBe(null)
+  })
+})
+
+describe('which pick departs', () => {
+  // Track g ends at x = 300; track h starts 50 m on and runs on east.
+  const g = track('g', [straightElement(P(0, 0), P(300, 0), { speed: 80 })])
+  const h = track('h', [straightElement(P(350, 0), P(600, 0), { speed: 80 })])
+
+  it('is the one whose end faces the gap, whichever was picked first', () => {
+    const pg = splicePick(g, 0), ph = splicePick(h, 0)
+    expect(orderPicks(pg, ph).map(p => p.trackId)).toEqual(['g', 'h'])
+    expect(orderPicks(ph, pg).map(p => p.trackId)).toEqual(['g', 'h'])
+  })
+
+  it('keeps a corner as picked, both ends facing it', () => {
+    expect(orderPicks(splicePick(a, 0), splicePick(b, 0)).map(p => p.trackId)).toEqual(['a', 'b'])
   })
 })
 
