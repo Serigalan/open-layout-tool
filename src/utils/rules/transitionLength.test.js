@@ -2,27 +2,27 @@ import { describe, it, expect } from 'vitest'
 import { transitionChain, transitionCheck, transitionLengths } from './transitionLength'
 
 const straight = { elementType: 0, cant: 0, speed: 120 }
-const arc = (radius, cant) => ({ elementType: 1, radius, cant, speed: 120 })
+const arc = (radius, cant, speed = 120) => ({ elementType: 1, radius, cant, speed })
 
 describe('the length of a transition by the rules', () => {
   it('runs a clothoid into a canted curve at 10·v·Δu, down to 8·v·Δu', () => {
     // 10 · 120 · 100 / 1000 = 120 m; the Ermessensgrenze 96 m.
     expect(transitionLengths({ prev: straight, next: arc(1000, 100), speed: 120 }))
-      .toEqual({ regular: 120, minimum: 96 })
+      .toMatchObject({ regular: 120, minimum: 96 })
     // Out of the curve the same.
     expect(transitionLengths({ prev: arc(1000, 100), next: straight, r1: 1000, speed: 120 }))
-      .toEqual({ regular: 120, minimum: 96 })
+      .toMatchObject({ regular: 120, minimum: 96 })
   })
 
   it('takes the deficiency where there is no cant to ramp, which has no Ermessensgrenze', () => {
     // u_f = 11.8 · 120² / 1000 = 170 mm: 4 · 120 · 170 / 1000 = 81.6 m.
     expect(transitionLengths({ prev: straight, next: arc(1000, 0), speed: 120 }))
-      .toEqual({ regular: 81.6, minimum: 81.6 })
+      .toMatchObject({ regular: 81.6, minimum: 81.6 })
   })
 
   it('holds a Bloss curve to 8·v·Δu, down to 6·v·Δu', () => {
     expect(transitionLengths({ prev: straight, next: arc(1000, 100), type: 'bloss', speed: 120 }))
-      .toEqual({ regular: 96, minimum: 72 })
+      .toMatchObject({ regular: 96, minimum: 72 })
   })
 
   it('rounds up to a full decimetre, and the result holds', () => {
@@ -39,9 +39,30 @@ describe('the length of a transition by the rules', () => {
     expect(check.severity).toBe('ok')
   })
 
+  it('names the rules that set each length, with the bound each sets', () => {
+    const by = (found) => [found.regularBy, found.minimumBy]
+    // The ramp at 10·v·Δu sets the Regellänge, at 8·v·Δu the Mindestlänge.
+    expect(by(transitionLengths({ prev: straight, next: arc(1000, 100), speed: 120 }))).toEqual([
+      [{ id: 'LP.UB.03', formula: '10·v·Δu/1000', length: 120 }],
+      [{ id: 'LP.UB.03', formula: '8·v·Δu/1000', length: 96 }],
+    ])
+    // Without cant to ramp, the change of the deficiency, which has no Ermessensgrenze.
+    const flat = transitionLengths({ prev: straight, next: arc(1000, 0), speed: 120 })
+    expect(flat.minimumBy).toEqual([{ id: 'LP.UB.05', formula: '4·v·Δu_f/1000', length: expect.closeTo(81.6, 6) }])
+    // At 60 km/h and 20 mm the ramp's 10·v·Δu and its slope 1:600 both come
+    // to 12 m; the slope is a bound on the length through Δu.
+    expect(transitionLengths({ prev: { ...straight, speed: 60 }, next: arc(3000, 20, 60), speed: 60 }).regularBy).toEqual([
+      { id: 'LP.UB.03', formula: '10·v·Δu/1000', length: 12 },
+      { id: 'LP.UB.07', formula: '600·Δu/1000', length: 12 },
+    ])
+    // A table has no formula: the minimum element length at 60 km/h, 6 m.
+    expect(transitionLengths({ prev: { ...straight, speed: 60 }, next: arc(5000, 0, 60), speed: 60 }).regularBy)
+      .toEqual([{ id: 'LP.EL.01', formula: null, length: 6 }])
+  })
+
   it('says nothing without a design speed', () => {
     expect(transitionLengths({ prev: straight, next: arc(1000, 100), speed: 0 }))
-      .toEqual({ regular: null, minimum: null })
+      .toMatchObject({ regular: null, minimum: null })
   })
 
   it('finds a transition too short for its ramp', () => {

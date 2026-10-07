@@ -302,10 +302,13 @@ export function spliceTransitionLengths({ dep, arr, radius, arcJoin, cant, speed
     ? curve(sense * Math.abs(p.signedR), sense * Math.abs(p.cant ?? 0))
     : plain)
   const between = (prev, next) => transitionLengths({ prev, next, r1: prev.radius ?? null, type, speed })
-  const worse = (a, b) => ({
-    regular: a.regular == null || b.regular == null ? null : Math.max(a.regular, b.regular),
-    minimum: a.minimum == null || b.minimum == null ? null : Math.max(a.minimum, b.minimum),
-  })
+  // The longer of two, with the rules that set it.
+  const longer = (a, b, key) => {
+    if (a[key] == null || b[key] == null) return { [key]: null, [`${key}By`]: [] }
+    const w = b[key] > a[key] ? b : a
+    return { [key]: w[key], [`${key}By`]: w[`${key}By`] }
+  }
+  const worse = (a, b) => ({ ...longer(a, b, 'regular'), ...longer(a, b, 'minimum') })
   if (bothArcs) return { dep: between(picked(dep), plain), arr: between(plain, picked(arr)) }
   const inserted = curve(Math.abs(Number(radius)) || null, Math.abs(Number(cant) || 0))
   return {
