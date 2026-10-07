@@ -18,9 +18,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from olt_optimizer.geometry import _arc_forward, transition_end          # noqa: E402
 from chain_check import chain_holds, near, turn                          # noqa: E402
-from olt_optimizer.splice import splice_payload                          # noqa: E402
+from olt_optimizer.splice import splice_payload as _payload              # noqa: E402
 
 FAILED = []
+
+
+def splice_payload(req):
+    """The best solution of an answer, its flags beside it, or the error."""
+    answer = _payload(req)
+    return answer["solutions"][0] if "solutions" in answer else answer
 
 
 def ok(label, cond):
@@ -84,8 +90,25 @@ ok("corner, arrival folded in: reverseArr", res.get("reverseArr") is True)
 c2 = pick((P0[0] + 420, P0[1] + 700), (P0[0] + 400, P0[1] + 100), (math.degrees(math.atan2(-20, -600))) % 360)
 res2 = splice_payload({"dep": a, "arr": c2, "radius": 300})
 ok("corner, arrival a little past square: folded in too", res2.get("reverseArr") is True and chain_holds(res2["elements"]) is None)
-ok("corner, arrival folded in: ends at the arrival's start",
-   near(res["elements"][-1]["endNode"], c["start"], 1e-9) and chain_holds(res["elements"]) is None)
+# Two ends meet: the shorter track (a, 200 m against 600 m) is the one turned
+# round, whichever was clicked first (Entscheidung 182).
+ok("corner, two ends: the longer departs", res.get("depPick") == 1 and res.get("reverseDep") is False)
+ok("corner, two ends: runs from the longer one's start to the shorter one's start",
+   near(res["elements"][0]["startNode"], c["start"], 1e-9) and near(res["elements"][-1]["endNode"], a["start"], 1e-9)
+   and chain_holds(res["elements"]) is None)
+swapped = splice_payload({"dep": c, "arr": a, "radius": 300})
+ok("corner, two ends, clicked the other way: the same", swapped.get("depPick") == 0
+   and near(swapped["elements"][-1]["endNode"], a["start"], 1e-9))
+a_long = {**a, "before": 500.0}
+res = splice_payload({"dep": a_long, "arr": c, "radius": 300})
+ok("corner, two ends, track a the longer with what lies before it: a departs",
+   res.get("depPick") == 0 and near(res["elements"][-1]["endNode"], c["start"], 1e-9))
+# Two starts meet: the shorter departs, run backwards.
+a_back = pick(a["end"], a["start"], 270.0)
+c_back = pick(c["end"], c["start"], 0.0)
+res = splice_payload({"dep": c_back, "arr": a_back, "radius": 300})
+ok("corner, two starts: the shorter departs backwards", res.get("depPick") == 1 and res.get("reverseDep") is True
+   and res.get("reverseArr") is False and chain_holds(res["elements"]) is None)
 
 
 # ── an ideal chain helper ────────────────────────────────────────────────────
@@ -178,10 +201,13 @@ res = splice_payload({"dep": straight_pick, "arr": arc_pick, "radius": 400, "lDe
 ok("straight to arc: no error", "error" not in res)
 if "error" not in res:
     els = res["elements"]
-    ok("straight to arc: starts on the straight, ends on the arc run backwards",
-       els[0]["elementType"] == 0 and els[-1]["radius"] == -900.0)
-    ok("straight to arc: from the straight's start to the arc's start",
-       near(els[0]["startNode"], E, 1e-6) and near(els[-1]["endNode"], P0, 1e-6))
+    # Two ends meet: the straight, the shorter, is the one turned round.
+    ok("straight to arc, picked the other way: the arc departs, the straight is folded in",
+       res["depPick"] == 1 and res["reverseArr"] is True and els[0]["radius"] == 900.0 and els[-1]["elementType"] == 0)
+    ok("straight to arc: from the arc's start to the straight's start",
+       near(els[0]["startNode"], P0, 1e-6) and near(els[-1]["endNode"], E, 1e-6))
+    ok(f"straight to arc: finds the arc of R -400 and 160 m all the same ({res['info']['arcLength']:.6f})",
+       res["info"]["signedR"] == -400 and abs(res["info"]["arcLength"] - 160.0) < 1e-3)
     ok(f"straight to arc: chain holds ({chain_holds(els)})", chain_holds(els) is None)
 
 A, bA, D, bD, E = mixed_chain(ld=0.0, la=0.0)

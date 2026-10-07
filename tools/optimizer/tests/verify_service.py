@@ -143,7 +143,7 @@ try:
     north = {"start": [500400.0, 5600100.0], "end": [500400.0, 5600700.0], "bearing": 0.0, "radius": None}
     status, body, _ = call(BASE, "/splice", {"dep": east, "arr": north, "radius": 300, "lDep": 60, "lArr": 60})
     ok("POST /splice: Bogen zwischen zwei Geraden mit Übergangsbögen",
-       status == 200 and [e["elementType"] for e in body.get("elements", [])] == [0, 2, 1, 2, 0])
+       status == 200 and [e["elementType"] for e in body.get("solutions", [{}])[0].get("elements", [])] == [0, 2, 1, 2, 0])
     status, body, _ = call(BASE, "/splice", {"dep": east, "arr": north, "radius": 2000})
     ok("POST /splice: passt nicht → 200 mit Fehlerschlüssel und größtem Radius",
        status == 200 and body.get("error") == "splice_error_dep_too_large" and body["params"].get("rMax") == 400)

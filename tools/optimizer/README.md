@@ -89,10 +89,13 @@ Seit AP 12.4 rechnet der Dienst auch die Konstruktion von „Elemente verbinden"
 Fälle: Bogen zwischen zwei Geraden (mit Übergangsbögen, auch ungleich lang),
 zwei Bögen über eine Zwischengerade, zwei Bögen über einen einzigen
 Übergangsbogen (Korb- oder S-Bogen) und ein neuer Bogen zwischen Bogen und
-Gerade. Das Ankunftsgleis wird als Ecke angeschlossen (an seinem Ende, rückwärts
-eingefaltet) oder als Fortsetzung (an seinem Anfang, in eigener Richtung): zwei
-Geraden so, dass der Bogen weniger dreht, alle Fälle mit Bogen am Ende des
-Ankunftselements, das näher an der Abfahrt liegt. Passt ein Bogen nicht auf die
+Gerade. Welche Enden sich treffen, findet der Dienst (Paket S, AP S.2): jedes
+gewählte Element lässt sich an beiden Enden anschließen, alle vier Paare werden
+konstruiert, eine feste Rangfolge (wenig Umbau, kurze neue Strecke) schlägt die
+beste Lösung vor, die übrigen kommen als Alternativen mit (`solutions`); eine,
+die mehr als einen Halbkreis über die gewählten Elemente hinaus dreht, entfällt.
+Treffen sich zwei Enden oder zwei Anfänge, wird das kürzere Gleis umgedreht —
+die Klickreihenfolge entscheidet nichts. Passt ein Bogen nicht auf die
 gewählten Elemente, nennt die Antwort den größten Radius, der passt (`params.rMax`). Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
 Antworten, gegen die die App testet, schreibt `tests/splice_fixture.py`.

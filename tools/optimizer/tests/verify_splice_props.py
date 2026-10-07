@@ -43,7 +43,7 @@ from olt_optimizer.splice import splice_payload                          # noqa:
 from chain_check import chain_holds, near                                # noqa: E402
 
 # Which invariants are enforced, and the AP that turns on those that are not.
-ENFORCED = {"holds": None, "order": "S.2", "regular": "S.3"}
+ENFORCED = {"holds": None, "order": None, "regular": "S.3"}
 
 P0 = (600000.0, 5700000.0)
 
@@ -309,8 +309,18 @@ def variants(case):
             pp = flipped(p) if fp else p
             qq = flipped(q) if fq else q
             tag = ("P~" if fp else "P") + ("Q~" if fq else "Q")
-            out.append((tag, pp, qq))
-            out.append((tag + " swapped", qq, pp))
+            out.append((tag, pp, qq, False))
+            out.append((tag + " swapped", qq, pp, True))
+    return out
+
+
+def asked(req, first, second, swapped):
+    """The request with the picks in this order — each keeps its own transition."""
+    out = {**req, "dep": service_pick(first), "arr": service_pick(second)}
+    if swapped:
+        out["lDep"], out["lArr"] = req.get("lArr", 0), req.get("lDep", 0)
+        if "modeDep" in req:
+            out["modeDep"], out["modeArr"] = req["modeArr"], req["modeDep"]
     return out
 
 
@@ -349,9 +359,9 @@ def run(n, seed, verbose):
             if why:
                 report("holds", label, why)
                 continue
-            for tag, first, second in variants(case):
+            for tag, first, second, swapped in variants(case):
                 stats["order"][0] += 1
-                other = best(splice_payload({**case["req"], "dep": service_pick(first), "arr": service_pick(second)}))
+                other = best(splice_payload(asked(case["req"], first, second, swapped)))
                 if other is None:
                     report("order", f"{label} {tag}", "no solution")
                 elif not same_chain(sol, other):

@@ -901,3 +901,22 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
   width: auto;
   padding: 4px 10px;
 }
+
+/* Stepping through the solutions of a splice (Entscheidung 180). */
+.splice-solutions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.splice-solutions span {
+  flex: 1;
+  font-size: 12px;
+}
+
+.splice-solutions .panel-btn {
+  flex: none;
+  width: auto;
+  padding: 4px 10px;
+}

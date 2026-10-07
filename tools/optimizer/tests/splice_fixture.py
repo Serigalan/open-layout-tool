@@ -47,9 +47,15 @@ f_end = (f_start[0] + 200.0 * math.sin(math.radians(b3)), f_start[1] + 200.0 * m
 e = {"start": [E0, N0], "end": list(e_end), "bearing": e_b, "radius": 900.0}
 f = {"start": list(f_start), "end": list(f_end), "bearing": b3, "radius": None}
 
+# Track a2 is track a stored the other way, running west from the corner: its
+# start meets b's start, and the shorter of the two (a2) departs backwards.
+a2 = pick((200, 0), (0, 0), 270.0)
+
 base = {"radius": 300, "lDep": 0, "lArr": 0, "transition": "clothoid", "arcJoin": "straight"}
 cases = {
     "corner": {**base, "dep": a, "arr": b},
+    "cornerPickedTheOtherWay": {**base, "dep": b, "arr": a},
+    "startToStart": {**base, "dep": b, "arr": a2},
     "cornerTransitions": {**base, "dep": a, "arr": b, "lDep": 60, "lArr": 60},
     "arcsStraight": {**base, "dep": c, "arr": d, "lDep": 40, "lArr": 40},
     "arcOnToStraight": {**base, "dep": e, "arr": f, "radius": 400},
@@ -59,4 +65,4 @@ for name, case in out.items():
     assert "error" not in case["answer"], (name, case["answer"])
 path = pathlib.Path(__file__).resolve().parents[3] / "src" / "test" / "fixtures" / "splice_answers.json"
 path.write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
-print("wrote", path, {n: [e["elementType"] for e in c["answer"]["elements"]] for n, c in out.items()})
+print("wrote", path, {n: [e["elementType"] for e in c["answer"]["solutions"][0]["elements"]] for n, c in out.items()})

@@ -16,8 +16,10 @@ const REGEL_ABSTAENDE = [...new Set(QUERSCHNITT_KATALOG.streckenquerschnitte.row
  * The settings of a splice: how two arcs are joined, the radius of an arc put
  * between straights with its speed and cant, and the transitions either side
  * — their kind, and their lengths unless the construction solves them, which
- * `transitionRules` { dep, arr } can set to the shortest the rules allow.
- * `s` holds the settings, `set(key, value)` changes one.
+ * `transitionRules` [first, second] can set to the shortest the rules allow.
+ * The lengths belong to the two `picks` in the order they were clicked
+ * (`s.transitions`); they are listed departure first, as the solution shown
+ * runs (`departure`). `s` holds the settings, `set(key, value)` changes one.
  *
  * Below them the spacing to another track (Entscheidung 167): the track,
  * picked on the map (`clearance.onPickRef`), the minimum spacing and — where
@@ -26,10 +28,14 @@ const REGEL_ABSTAENDE = [...new Set(QUERSCHNITT_KATALOG.streckenquerschnitte.row
  * (`clearance.found`), shown rather than typed.
  */
 export default function SpliceSettings({
-  departure, arrival, s, set, cant, setCant, transitionLength, transitionRules = null, clearance = {},
+  picks, departure, s, set, cant, setCant, transitionLength, transitionRules = null, clearance = {},
 }) {
   const { t } = useI18n()
-  const bothArcs = departure?.signedR != null && arrival?.signedR != null
+  const bothArcs = picks[0]?.signedR != null && picks[1]?.signedR != null
+  // Departure first: the pick that departs, then the other.
+  const order = departure === picks[1] ? [1, 0] : [0, 1]
+  const role = (k) => t(k === order[0] ? 'splice_departure' : 'splice_arrival')
+  const setLength = (k, v) => set('transitions', s.transitions.map((l, j) => (j === k ? v : l)))
   // Joined straight from one arc to the other, the transition's length is the
   // answer rather than an input — there is nothing to type and nothing to switch on.
   const directTransition = bothArcs && s.arcJoin === 'transition'
@@ -39,8 +45,7 @@ export default function SpliceSettings({
   )
   return (
     <div className="element-form">
-      <ReadOnlyField label={t('splice_departure')} value={departure?.label ?? ''} />
-      <ReadOnlyField label={t('splice_arrival')} value={arrival?.label ?? ''} />
+      {order.map(k => <ReadOnlyField key={k} label={role(k)} value={picks[k]?.label ?? ''} />)}
       {bothArcs ? (
         <div className="form-field">
           <label>{t('splice_arc_join')}</label>
@@ -91,16 +96,16 @@ export default function SpliceSettings({
             <ReadOnlyField label={t('field_length')} value={transitionLength != null ? `${transitionLength.toFixed(1)} m` : ''} />
           ) : (
             <>
-              <div className="form-field">
-                <label>{t('splice_departure')} – {t('field_length')}</label>
-                {number('clothoidDep', { min: 1, step: 10, clampMin: 1 })}
-              </div>
-              <TransitionLengthButtons lengths={transitionRules?.dep} onPick={v => set('clothoidDep', v)} />
-              <div className="form-field">
-                <label>{t('splice_arrival')} – {t('field_length')}</label>
-                {number('clothoidArr', { min: 1, step: 10, clampMin: 1 })}
-              </div>
-              <TransitionLengthButtons lengths={transitionRules?.arr} onPick={v => set('clothoidArr', v)} />
+              {order.map(k => (
+                <div key={k}>
+                  <div className="form-field">
+                    <label>{role(k)} – {t('field_length')}</label>
+                    <NumberInput min={1} step={10} value={s.transitions[k]}
+                      onChange={e => setLength(k, Math.max(1, Number(e.target.value) || 1))} />
+                  </div>
+                  <TransitionLengthButtons lengths={transitionRules?.[k]} onPick={v => setLength(k, v)} />
+                </div>
+              ))}
               {!(s.speed > 0) && <p className="selecting-hint">{t('transition_no_speed')}</p>}
             </>
           )}

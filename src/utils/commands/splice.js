@@ -17,11 +17,15 @@ import { transformPlanePoint } from '../coordinateUtils'
 // and nowhere else; what is here is pure, so the dialog only collects the
 // settings and the tests call the same functions.
 
+const lengthOf = (els) => els.reduce((sum, el) => sum + (el.length ?? 0), 0)
+
 /**
  * What the splice needs of a picked element: its ends in the track's plane,
- * the bearing it leaves in and its signed radius (null = straight). A
- * transition cannot be spliced — its curvature is not one to continue.
- * Returns the pick, or { error } with a locale key.
+ * the bearing it leaves in, its signed radius (null = straight), its length
+ * and how much of its track lies before and after it — what joining it at the
+ * one or the other end gives up. A transition cannot be spliced — its
+ * curvature is not one to continue. Returns the pick, or { error } with a
+ * locale key.
  */
 export function splicePick(track, elIdx) {
   const el = track?.elements?.[elIdx]
@@ -37,6 +41,10 @@ export function splicePick(track, elIdx) {
     signedR: el.radius != null ? el.radius : null,
     // Signed as stored; the spacing to a neighbour reads it on what the arc keeps.
     cant: el.cant ?? 0,
+    speed: el.speed ?? 0,
+    length: el.length ?? 0,
+    before: lengthOf(track.elements.slice(0, elIdx)),
+    after: lengthOf(track.elements.slice(elIdx + 1)),
   }
 }
 
@@ -56,44 +64,33 @@ export function secondPickRefusal(first, pick) {
   return null
 }
 
-const gap = (a, b) => Math.hypot(a.easting - b.easting, a.northing - b.northing)
-
 /**
- * The two picks in the order the splice runs: the departure runs into it at
- * its end. Picked the other way round — the second element's end facing the
- * first one's start, the gap between them lying there — they are swapped, so
- * the order of the clicks does not decide which is which. Where neither order
- * puts an end against a start, they stay as picked.
+ * The request for the service's `POST /splice`: the two picks in the order
+ * they were clicked — their ends in the shared plane, the bearing at the end,
+ * the signed radius, their length and what of their track lies either side —
+ * and the settings. Which ends meet and which pick departs is the service's
+ * to find (olt_optimizer/splice.py, AP S.2); `transitions` [m] are the lengths
+ * beside each pick, in the same order. The service decides the case from the
+ * radii: two straights take `radius` and the transitions, two arcs a straight
+ * between them (with the transitions) or with `arcJoin` 'transition' one
+ * transition from arc to arc, an arc and a straight a new arc of `radius`.
  */
-export function orderPicks(first, second) {
-  const forward = Math.min(gap(first.endUtm, second.startUtm), gap(first.endUtm, second.endUtm))
-  const backward = gap(second.endUtm, first.startUtm)
-  return backward < forward && backward <= gap(second.startUtm, first.startUtm)
-    ? [second, first]
-    : [first, second]
-}
-
-/**
- * The request for the service's `POST /splice`: the two picks — their ends in
- * the shared plane, the bearing at the picked end, the signed radius — and the
- * settings. The service decides the case from the radii: two straights take
- * `radius` and the transitions, two arcs a straight between them (with the
- * transitions) or with `arcJoin` 'transition' one transition from arc to arc,
- * an arc and a straight a new arc of `radius`.
- */
-export function spliceRequest(dep, arr, { radius, clothoidEnabled, clothoidDep, clothoidArr, transitionType, arcJoin }, clearance = null) {
+export function spliceRequest(first, second, { radius, clothoidEnabled, transitions = [0, 0], transitionType, arcJoin }, clearance = null) {
   const ends = (p) => ({
     start: [p.startUtm.easting, p.startUtm.northing],
     end: [p.endUtm.easting, p.endUtm.northing],
     bearing: p.bearing,
     radius: p.signedR,
     cant: Math.abs(p.cant ?? 0),
+    length: p.length ?? 0,
+    before: p.before ?? 0,
+    after: p.after ?? 0,
   })
   return {
-    dep: ends(dep), arr: ends(arr),
+    dep: ends(first), arr: ends(second),
     radius: Math.abs(Number(radius)) || 0,
-    lDep: clothoidEnabled ? Number(clothoidDep) || 0 : 0,
-    lArr: clothoidEnabled ? Number(clothoidArr) || 0 : 0,
+    lDep: clothoidEnabled ? Number(transitions[0]) || 0 : 0,
+    lArr: clothoidEnabled ? Number(transitions[1]) || 0 : 0,
     transition: transitionType ?? 'clothoid',
     arcJoin: arcJoin ?? 'straight',
     ...(clearance ? { clearance } : {}),
@@ -156,31 +153,37 @@ export function clearanceRequest({ axis, dMin, profile, maximize, speed, cant })
 }
 
 /**
- * The service's answer as the dialog and the commit read it: { result, arcMode,
- * Ld, La } — `result` holding the chain with its display geometry rebuilt in
- * the track's plane (`epsg`), the preview line and what the service says about
- * it (arcLength, straightLength, transitionLength, …) — or { error, params }
- * for a splice that does not fit.
+ * The service's answer as the dialog and the commit read it: { solutions },
+ * the best first (Entscheidung 180), each { dep, arr, result } — `dep` and
+ * `arr` the two picks in the order the solution runs, `result` the chain with
+ * its display geometry rebuilt in the track's plane, the preview line, how it
+ * runs (reverseDep, reverseArr, ends, rebuilt) and what the service says
+ * about it (arcLength, straightLength, transitionLength, …) — or { error,
+ * params } for a splice that does not fit.
  */
-export function spliceFromAnswer(answer, dep, arr, { clothoidEnabled, clothoidDep, clothoidArr }) {
-  if (!answer || answer.error) return { error: answer?.error ?? 'splice_error_parallel', params: answer?.params ?? {} }
-  const epsg = dep.epsg
-  const elements = reconstructElements(answer.elements.map(el => ({ ...el, epsg })), epsg)
-  const previewCoords = elements.reduce((acc, el, i) => {
-    const c = el.renderCoords ?? el.geometry?.coordinates ?? []
-    return i === 0 ? [...c] : [...acc, ...c.slice(1)]
-  }, [])
+export function spliceFromAnswer(answer, picks) {
+  if (!answer || answer.error || !answer.solutions?.length) {
+    return { error: answer?.error ?? 'splice_error_parallel', params: answer?.params ?? {} }
+  }
+  const epsg = picks[0].epsg
   return {
-    result: { ...answer.info, elements, reverseArr: answer.reverseArr, previewCoords },
-    // Two arcs, or an arc and a straight: re-shaped elements and a solved
-    // construction rather than an arc rounding a corner.
-    arcMode: dep.signedR != null || arr.signedR != null,
-    Ld: clothoidEnabled ? Number(clothoidDep) || 0 : 0,
-    La: clothoidEnabled ? Number(clothoidArr) || 0 : 0,
+    solutions: answer.solutions.map(sol => {
+      const elements = reconstructElements(sol.elements.map(el => ({ ...el, epsg })), epsg)
+      const previewCoords = elements.reduce((acc, el, i) => {
+        const c = el.renderCoords ?? el.geometry?.coordinates ?? []
+        return i === 0 ? [...c] : [...acc, ...c.slice(1)]
+      }, [])
+      return {
+        dep: picks[sol.depPick], arr: picks[1 - sol.depPick],
+        result: {
+          ...sol.info, elements, previewCoords,
+          reverseDep: !!sol.reverseDep, reverseArr: !!sol.reverseArr, ends: sol.ends, rebuilt: sol.rebuilt,
+        },
+      }
+    }),
   }
 }
 
-const lengthOf = (els) => els.reduce((sum, el) => sum + (el.length ?? 0), 0)
 const NODE_TOL = 1e-3   // m — two nodes this close are the same
 
 const sameNode = (a, b) => Array.isArray(a) && Array.isArray(b)
@@ -213,14 +216,16 @@ const plain = ({ rv: _rv, ...p }) => p
  * gradient runs from its last point to the other's first. Where only one of
  * the tracks has a gradient at all, the merged track keeps that one alone.
  */
-function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseArr, mergedLength }) {
+function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseDep, reverseArr, mergedLength }) {
   const depOrig = depTrack.elements[dep.elIdx]
   const arrOrig = arrTrack.elements[arr.elIdx]
   const depPiece = chain.find(el => el.role === 'dep')
   const arrPiece = [...chain].reverse().find(el => el.role === 'arr')
-  // The departure's gradient up to where the merged track leaves its element.
-  const depKeep = lengthOf(depTrack.elements.slice(0, dep.elIdx))
-    + overlapOf(depPiece, depOrig, depOrig.startNode, 'startNode')
+  // The departure's gradient up to where the merged track leaves its element:
+  // from its far end in travel, which is its end where it departs backwards.
+  const depRest = reverseDep ? depTrack.elements.slice(dep.elIdx + 1) : depTrack.elements.slice(0, dep.elIdx)
+  const depKeep = lengthOf(depRest)
+    + overlapOf(depPiece, depOrig, reverseDep ? depOrig.endNode : depOrig.startNode, 'startNode')
   // The arrival's from where the merged track runs on it again: its far end in
   // travel, which is its start where it is folded in reversed.
   const arrRest = reverseArr ? arrTrack.elements.slice(0, arr.elIdx) : arrTrack.elements.slice(arr.elIdx + 1)
@@ -228,7 +233,8 @@ function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseArr, merged
     + overlapOf(arrPiece, arrOrig, reverseArr ? arrOrig.startNode : arrOrig.endNode, 'endNode')
   const offset = mergedLength - arrKeep
 
-  const depH = splitHeights(depTrack.heights, depKeep)[0]
+  const depHeights = reverseDep ? reverseHeights(depTrack.heights, trackLength(depTrack)) : depTrack.heights
+  const depH = splitHeights(depHeights, depKeep)[0]
   let arrH
   if (reverseArr) {
     const [part] = splitHeights(arrTrack.heights, arrKeep)
@@ -248,27 +254,31 @@ function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseArr, merged
 
 /**
  * The merged chain: what stays of the departure track, the service's chain,
- * what stays of the arrival track. The chain's re-shaped ends keep what their
+ * what stays of the arrival track. A track run against its own direction —
+ * the departure where it departs from its start, the arrival where it is met
+ * at its end — comes in reversed. The chain's re-shaped ends keep what their
  * elements carried — speed, a re-signed cant — while what the splice inserts
  * takes the dialog's speed, and an inserted arc its cant.
  */
-function mergedChain(chain, reverseArr, dep, arr, depTrack, arrTrack, { speed, cant }) {
+function mergedChain({ dep, arr, result }, depTrack, arrTrack, { speed, cant }) {
+  const { elements: chain, reverseDep, reverseArr } = result
   const depOrig = depTrack.elements[dep.elIdx]
   const arrOrig = arrTrack.elements[arr.elIdx]
-  // The arrival is folded in reversed (a corner) or run on in its own
-  // direction (a continuation) — the service says which.
+  const depBase = reverseDep ? reverseElement(depOrig) : depOrig
   const arrBase = reverseArr ? reverseElement(arrOrig) : arrOrig
   const plane = ({ role: _role, ...el }) => el
   const keepCant = (el, orig) => (orig?.cant != null && el.radius != null
     ? { cant: cantSign(el.radius) * Math.abs(orig.cant) } : {})
   const mid = chain.map(el => {
-    if (el.role === 'dep') return { ...depOrig, ...plane(el), ...keepCant(el, depOrig) }
+    if (el.role === 'dep') return { ...depBase, ...plane(el), ...keepCant(el, depOrig) }
     if (el.role === 'arr') return { ...arrBase, ...plane(el), ...keepCant(el, arrOrig) }
     const inserted = { ...plane(el), speed }
     return el.elementType === 1 ? { ...inserted, cant: cantSign(el.radius) * Math.abs(cant) } : inserted
   })
   return [
-    ...depTrack.elements.slice(0, dep.elIdx).map(el => ({ ...el })),
+    ...(reverseDep
+      ? depTrack.elements.slice(dep.elIdx + 1).reverse().map(reverseElement)
+      : depTrack.elements.slice(0, dep.elIdx).map(el => ({ ...el }))),
     ...mid,
     ...(reverseArr
       ? arrTrack.elements.slice(0, arr.elIdx).reverse().map(reverseElement)
@@ -277,19 +287,19 @@ function mergedChain(chain, reverseArr, dep, arr, depTrack, arrTrack, { speed, c
 }
 
 /**
- * The merged chain a solved splice would write, and where in it the
- * transitions stand that the splice inserts — departure side first. What the
- * dialog checks them in, and finds their Regellänge from (rules/transitionLength).
+ * The merged chain a solution would write, and where in it the transitions
+ * stand that the splice inserts — departure side first. What the dialog
+ * checks them in, and finds their Regellänge from (rules/transitionLength).
  * Null without a solution.
  */
-export function splicedTransitions({ tracks, dep, arr, splice, speed, cant }) {
-  const result = splice?.result
-  const depTrack = tracks.find(t => t.id === dep.trackId)
-  const arrTrack = tracks.find(t => t.id === arr.trackId)
-  if (!result?.elements || !depTrack || !arrTrack) return null
-  const elements = mergedChain(result.elements, result.reverseArr, dep, arr, depTrack, arrTrack, { speed, cant })
-  const transitions = result.elements
-    .map((el, i) => (el.role !== 'dep' && el.role !== 'arr' && el.elementType === 2 ? dep.elIdx + i : null))
+export function splicedTransitions({ tracks, solution, speed, cant }) {
+  const depTrack = tracks.find(t => t.id === solution?.dep?.trackId)
+  const arrTrack = tracks.find(t => t.id === solution?.arr?.trackId)
+  if (!solution?.result?.elements || !depTrack || !arrTrack) return null
+  const elements = mergedChain(solution, depTrack, arrTrack, { speed, cant })
+  const before = solution.result.reverseDep ? depTrack.elements.length - solution.dep.elIdx - 1 : solution.dep.elIdx
+  const transitions = solution.result.elements
+    .map((el, i) => (el.role !== 'dep' && el.role !== 'arr' && el.elementType === 2 ? before + i : null))
     .filter(i => i != null)
   return { elements, transitions }
 }
@@ -335,33 +345,33 @@ export function spliceTransitionLengths({ dep, arr, radius, arcJoin, cant, speed
 }
 
 /**
- * The splice as one commit: both tracks go, the merged one — the departure
- * track's metadata, a new id — comes, and the switches and end marks on them
- * follow it. The departure track is cut behind its picked element and the
- * arrival track likewise, so the two ends beyond the cuts are gone — whatever
- * stood on them (a buffer stop) goes with them.
+ * The splice as one commit: both tracks go, the merged one — a new id, the
+ * metadata of the track that keeps its direction (of the departure where both
+ * do) — comes, and the switches and end marks on them follow it. Each track
+ * is cut behind its picked element, on the side away from the splice, so the
+ * two ends beyond the cuts are gone — whatever stood on them (a buffer stop)
+ * goes with them.
  *
  * Returns the argument for commitSwitchConnection, or null without a solution.
  */
-export function buildSplice({ tracks, dep, arr, splice, speed, cant, newId = generateId }) {
-  const result = splice?.result
-  const depTrack = tracks.find(t => t.id === dep.trackId)
-  const arrTrack = tracks.find(t => t.id === arr.trackId)
-  if (!result?.elements || !depTrack || !arrTrack) return null
-  const { reverseArr } = result
-  const elements = mergedChain(result.elements, reverseArr, dep, arr, depTrack, arrTrack, { speed, cant })
+export function buildSplice({ tracks, solution, speed, cant, newId = generateId }) {
+  const depTrack = tracks.find(t => t.id === solution?.dep?.trackId)
+  const arrTrack = tracks.find(t => t.id === solution?.arr?.trackId)
+  if (!solution?.result?.elements || !depTrack || !arrTrack) return null
+  const { dep, arr, result: { elements: chain, reverseDep, reverseArr } } = solution
+  const elements = mergedChain(solution, depTrack, arrTrack, { speed, cant })
   const id = newId()
   const merged = recalcAbsLengths(elements)
   const heights = spliceHeights({
-    depTrack, arrTrack, dep, arr, chain: result.elements, reverseArr, mergedLength: lengthOf(merged),
+    depTrack, arrTrack, dep, arr, chain, reverseDep, reverseArr, mergedLength: lengthOf(merged),
   })
-  const { heights: _h, ...meta } = depTrack
+  const { heights: _h, ...meta } = reverseDep ? arrTrack : depTrack
   return {
     removeTrackIds: [dep.trackId, arr.trackId],
     addTracks: [{ ...meta, id, elements: merged, coordinates: rebuildCoords(merged), ...(heights ? { heights } : {}) }],
-    remap: [{ oldId: dep.trackId, newId: id }, { oldId: arr.trackId, newId: id, flip: reverseArr }],
+    remap: [{ oldId: dep.trackId, newId: id, flip: reverseDep }, { oldId: arr.trackId, newId: id, flip: reverseArr }],
     consumed: [
-      { trackId: dep.trackId, endpoint: 'END' },
+      { trackId: dep.trackId, endpoint: reverseDep ? 'BEGIN' : 'END' },
       { trackId: arr.trackId, endpoint: reverseArr ? 'END' : 'BEGIN' },
     ],
   }

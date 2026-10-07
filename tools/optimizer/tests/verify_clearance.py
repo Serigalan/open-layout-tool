@@ -23,9 +23,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
 from olt_optimizer.clearance import Spacing, auto_cant          # noqa: E402
-from olt_optimizer.splice import splice_payload                  # noqa: E402
+from olt_optimizer.splice import splice_payload as _payload      # noqa: E402
 
 FAILED = []
+
+
+def splice_payload(req):
+    """The best solution of an answer, or the error."""
+    answer = _payload(req)
+    return answer["solutions"][0] if "solutions" in answer else answer
 
 
 def ok(label, cond):

@@ -6,27 +6,31 @@ builds its arcs with the same functions. It replaces the app's former
 src/utils/spliceUtils.js.
 
 The two picked elements come in the plane of their track (one CRS for both):
-each with its two ends, the bearing at its picked end in the element's own
-direction and its signed radius (None for a straight). The departure element
-runs into the splice at its end. The arrival element is met either at its end
-and traversed against its direction (a corner, `reverseArr`) or at its start
-and run on in its own direction (a continuation). Two straights are met the
-way that turns less, or the other where only that one fits; an arc case is
-met at the arrival's end nearer the departure — its own geometry, unlike two
-straights, leaves no way that merely turns less, and a fallback would let the
-search for the largest radius slip into a loop the other way round.
+each with its two ends, the bearing at its end in the element's own direction
+and its signed radius (None for a straight). Which ends meet is the service's
+to find, not the order of the clicks (Paket S, AP S.2): each pick can be
+joined at either end, which makes four pairs of ends, and every one is
+constructed. Each construction runs the departure into the splice and meets
+the arrival at its end, traversing it backwards; a pick joined at its other
+end is handed over flipped (`_flipped`). What comes back is every pair that
+fits, the best first (`_rank`); the panel proposes that one and lets the
+others be chosen (Entscheidung 180).
 
-What comes back is the chain from the departure element's start to the far end
-of the arrival element, in travel order, every element in the app's plane form
-(startNode, endNode, bearing, endBearing, length, radius / r1 r2) and with a
-`role`: 'dep' and 'arr' for what is left of the two picked elements, re-shaped,
-'new' for what the splice inserts. Speed and cant are the app's to set.
+A solution is the chain from the departure's far end to the arrival's far
+end, in travel order, every element in the app's plane form (startNode,
+endNode, bearing, endBearing, length, radius / r1 r2) and with a `role`:
+'dep' and 'arr' for what is left of the two picked elements, re-shaped, 'new'
+for what the splice inserts. Which pick departs and whether either is run
+against its own direction it says itself (`depPick`, `reverseDep`,
+`reverseArr`). Speed and cant are the app's to set.
 
 Conventions are the geometry kernel's: bearings in degrees clockwise from grid
 north, signed radius > 0 for a right-hand curve.
 """
 
 import math
+
+import numpy as np
 
 from . import clearance
 from .clearance import Neighbour, Spacing, auto_cant, check, largest_radius
@@ -139,6 +143,22 @@ def _transition_turn(length, r1, r2, profile):
     return _turn(0.0, transition_end(0.0, 0.0, 0.0, length, r1, r2, profile)[2])
 
 
+def _transition_shape(length, r1, r2, profile):
+    """A transition laid from the origin heading east: (Δe, Δn, turn in degrees)
+    — where it ends, turned with any other start bearing (`_placed`)."""
+    if not length > 0:
+        return (0.0, 0.0, 0.0)
+    e, n, b = transition_end(0.0, 0.0, 90.0, length, r1, r2, profile)
+    return (e, n, _turn(90.0, b))
+
+
+def _placed(p, bearing, shape):
+    """Where a transition of `shape` ends that starts at `p` heading `bearing`."""
+    phi = (90.0 - bearing) * DEG2RAD
+    c, s = math.cos(phi), math.sin(phi)
+    return (p[0] + shape[0] * c - shape[1] * s, p[1] + shape[0] * s + shape[1] * c)
+
+
 def _point_on_arc(p, bearing, s, signed_r):
     """Point and bearing `s` metres along an arc from `p` (negative: backwards)."""
     return _arc_forward(p[0], p[1], bearing, signed_r, s / abs(signed_r))
@@ -152,13 +172,13 @@ def _centre_of(p, bearing, signed_r):
 
 # ── two straights: an arc in the corner ──────────────────────────────────────
 
-def _corner(dep, arr, radius, l_dep, l_arr, profile, reverse):
-    """The arc in the corner, the arrival met against its direction or with it."""
+def _corner(dep, arr, radius, l_dep, l_arr, profile):
+    """The arc in the corner, the arrival met at its end and run back from there."""
     d1 = dir_of(dep["bearing"])
     a = dir_of(arr["bearing"])
-    d2 = (-a[0], -a[1]) if reverse else a
+    d2 = (-a[0], -a[1])
     p1 = dep["start"]
-    p2 = arr["start"] if reverse else arr["end"]
+    p2 = arr["start"]
     if abs(d1[0] * d2[1] - d1[1] * d2[0]) < 1e-9:
         raise SpliceError("splice_error_parallel")
     fit = fit_curve_group(p1, d1, p2, d2, radius, l_dep, l_arr, profile, profile)
@@ -167,23 +187,15 @@ def _corner(dep, arr, radius, l_dep, l_arr, profile, reverse):
     return fit, p1, p2, d2
 
 
-def _orientations(dep, arr):
-    """Both ways to meet the arrival, the smaller turn first: against its direction
-    where the two oppose (a corner), with it where they agree (a continuation)."""
-    d1, a = dir_of(dep["bearing"]), dir_of(arr["bearing"])
-    first = d1[0] * a[0] + d1[1] * a[1] < 0
-    return (first, not first)
-
-
 def _fits(fit):
     return fit["entry_len"] >= -TOL and fit["exit_len"] >= -TOL
 
 
-def _largest_radius(dep, arr, l_dep, l_arr, profile, upto, reverse):
+def _largest_radius(dep, arr, l_dep, l_arr, profile, upto):
     """The largest radius up to `upto` whose arc still fits on both elements, or None."""
     def fits(r):
         try:
-            return _fits(_corner(dep, arr, r, l_dep, l_arr, profile, reverse)[0])
+            return _fits(_corner(dep, arr, r, l_dep, l_arr, profile)[0])
         except SpliceError:
             return False
     lo, hi = 1.0, upto
@@ -199,30 +211,16 @@ def _largest_radius(dep, arr, l_dep, l_arr, profile, upto, reverse):
 
 
 def splice_straights(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoid"):
-    """An arc of `radius` in the corner of two straights, transitions optional.
-
-    The arrival is met the way that turns less; where the arc does not fit that
-    way but the other — two tracks square to each other, where "less" is a
-    coin toss — the other is taken. Where it fits neither way, the answer
-    names the largest radius that would, on the way that turns less.
-    """
+    """An arc of `radius` in the corner of two straights, transitions optional,
+    the arrival met at its end. Where the arc does not fit on the two, the
+    answer names the largest radius that would."""
     if not radius or radius <= 0:
         raise SpliceError("splice_error_parallel")
-    first_error = None
-    for reverse in _orientations(dep, arr):
-        try:
-            fit, p1, p2, d2 = _corner(dep, arr, radius, l_dep, l_arr, profile, reverse)
-        except SpliceError as exc:
-            first_error = first_error or exc
-            continue
-        if _fits(fit):
-            break
-        if first_error is None:
-            side = "dep" if fit["entry_len"] < -TOL else "arr"
-            first_error = SpliceError(f"splice_error_{side}_too_large",
-                                      rMax=_largest_radius(dep, arr, l_dep, l_arr, profile, radius, reverse))
-    else:
-        raise first_error
+    fit, p1, p2, d2 = _corner(dep, arr, radius, l_dep, l_arr, profile)
+    if not _fits(fit):
+        side = "dep" if fit["entry_len"] < -TOL else "arr"
+        raise SpliceError(f"splice_error_{side}_too_large",
+                          rMax=_largest_radius(dep, arr, l_dep, l_arr, profile, radius))
     sr = fit["signed_r"]
     exit_bearing = (math.atan2(d2[0], d2[1]) * RAD2DEG) % 360.0
     els = []
@@ -237,10 +235,7 @@ def splice_straights(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoid")
                               end=fit["cl_end"], end_bearing=exit_bearing))
     if fit["exit_len"] > 1e-6:
         els.append(straight(fit["cl_end"], p2, "arr"))
-    return {
-        "elements": els, "reverseArr": reverse,
-        "info": {"arcLength": fit["arc_len"], "signedR": sr, "curveSide": fit["curve_side"]},
-    }
+    return {"elements": els, "info": {"arcLength": fit["arc_len"], "signedR": sr}}
 
 
 # ── two arcs joined by a straight ────────────────────────────────────────────
@@ -309,7 +304,7 @@ def splice_arcs_straight(dep, arr, l_dep=0.0, l_arr=0.0, profile="clothoid"):
         els.append(transition(s2, b, l_arr, None, -r2s, profile, end=j2))
         bearing_j2 = els[-1]["endBearing"]
     els.append(reshaped_arc(j2, arr["start"], -r2s, "arr", bearing_j2, at_end=False))
-    return {"elements": els, "reverseArr": True, "info": {"straightLength": straight_len}}
+    return {"elements": els, "info": {"straightLength": straight_len}}
 
 
 # ── two arcs joined directly by one transition ───────────────────────────────
@@ -378,7 +373,7 @@ def splice_arcs_transition(dep, arr, profile="clothoid"):
     tr = transition(j1, turned(0.0), length, r1, r2, profile, end=j2, end_bearing=turned(b_end))
     arr_arc = reshaped_arc(j2, arr["start"], r2, "arr", turned(b_end), at_end=False)
     return {
-        "elements": [dep_arc, tr, arr_arc], "reverseArr": True,
+        "elements": [dep_arc, tr, arr_arc],
         "info": {"transitionLength": length, "compound": (r1 > 0) == (r2 > 0)},
     }
 
@@ -409,26 +404,23 @@ def splice_arc_straight(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoi
     exit_dir = dir_of(exit_bearing)
     normal = (-exit_dir[1], exit_dir[0])
 
+    # The two transitions do not change with where they start, only turn with
+    # it: worked out once per hand of the new arc (the search asks thousands of times).
+    shapes = {rn: (_transition_shape(la, ra, rn, profile), _transition_shape(lb, rn, None, profile))
+              for rn in (radius, -radius)}
+
     def build(s, rn):
         j1, b1 = _point_on_arc(a["end"], a["bearing"], s, ra)
-        t_in = _transition_turn(la, ra, rn, profile)
-        t_out = _transition_turn(lb, rn, None, profile)
+        shape_in, shape_out = shapes[rn]
+        t_in, t_out = shape_in[2], shape_out[2]
         arc_turn = _turn(b1 + t_in + t_out, exit_bearing)
         if arc_turn == 0 or math.copysign(1.0, arc_turn) != math.copysign(1.0, rn):
             return None
         arc_len = abs(arc_turn) * DEG2RAD * radius
-        if la > 0:
-            e, n, _ = transition_end(j1[0], j1[1], b1, la, ra, rn, profile)
-            a1 = (e, n)
-        else:
-            a1 = j1
+        a1 = _placed(j1, b1, shape_in)
         ba1 = b1 + t_in
         a2, ba2 = _arc_forward(a1[0], a1[1], ba1, rn, arc_len / radius)
-        if lb > 0:
-            e, n, _ = transition_end(a2[0], a2[1], ba2, lb, rn, None, profile)
-            end = (e, n)
-        else:
-            end = a2
+        end = _placed(a2, ba2, shape_out)
         residual = (end[0] - b["end"][0]) * normal[0] + (end[1] - b["end"][1]) * normal[1]
         return {"j1": j1, "b1": b1, "a1": a1, "ba1": ba1, "a2": a2, "ba2": ba2, "end": end,
                 "arc_len": arc_len, "residual": residual}
@@ -444,11 +436,40 @@ def splice_arc_straight(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoi
         built = build(s, rn)
         return built["residual"] if built else float("nan")
 
+    def sampled(xs, rn):
+        """f at every station of `xs` at once — build() in numpy, for the scan."""
+        side_a, side_n = (1.0 if ra >= 0 else -1.0), (1.0 if rn >= 0 else -1.0)
+        shape_in, shape_out = shapes[rn]
+        b0 = a["bearing"] * DEG2RAD
+        cx = a["end"][0] + side_a * abs(ra) * math.cos(b0)
+        cy = a["end"][1] - side_a * abs(ra) * math.sin(b0)
+        rx, ry = a["end"][0] - cx, a["end"][1] - cy
+        ang = -side_a * xs / abs(ra)
+        j1 = (cx + rx * np.cos(ang) - ry * np.sin(ang), cy + rx * np.sin(ang) + ry * np.cos(ang))
+        b1 = np.mod(a["bearing"] - ang * RAD2DEG, 360.0)
+        arc_turn = np.mod(np.mod(exit_bearing - (b1 + shape_in[2] + shape_out[2]) + 180.0, 360.0) + 360.0, 360.0) - 180.0
+        valid = (arc_turn != 0) & (np.sign(arc_turn) == side_n)
+        sweep = np.abs(arc_turn) * DEG2RAD
+
+        def placed(p, bearing, shape):
+            phi = (90.0 - bearing) * DEG2RAD
+            return (p[0] + shape[0] * np.cos(phi) - shape[1] * np.sin(phi),
+                    p[1] + shape[0] * np.sin(phi) + shape[1] * np.cos(phi))
+        a1 = placed(j1, b1, shape_in)
+        ba1 = (b1 + shape_in[2]) * DEG2RAD
+        ccx, ccy = a1[0] + side_n * radius * np.cos(ba1), a1[1] - side_n * radius * np.sin(ba1)
+        qx, qy = a1[0] - ccx, a1[1] - ccy
+        turn = -side_n * sweep
+        a2 = (ccx + qx * np.cos(turn) - qy * np.sin(turn), ccy + qx * np.sin(turn) + qy * np.cos(turn))
+        end = placed(a2, b1 + shape_in[2] + side_n * sweep * RAD2DEG, shape_out)
+        res = (end[0] - b["end"][0]) * normal[0] + (end[1] - b["end"][1]) * normal[1]
+        return np.where(valid, res, np.nan)
+
     chosen = None
     for rn in (radius, -radius):
         n = ARC_STRAIGHT_SAMPLES
         xs = [s_min + (s_max - s_min) * i / n for i in range(n + 1)]
-        ys = [f(x, rn) for x in xs]
+        ys = sampled(np.array(xs), rn).tolist()
         for i in range(n):
             y0, y1 = ys[i], ys[i + 1]
             if not (math.isfinite(y0) and math.isfinite(y1)) or y0 * y1 > 0:
@@ -491,25 +512,35 @@ def splice_arc_straight(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoi
         # Solved read backwards: the chain, and the hand of the new arc, turned round.
         els = [reversed_element(el) for el in reversed(els)]
         rn = -rn
-    return {"elements": els, "reverseArr": True, "info": {"arcLength": c["arc_len"], "signedR": rn}}
+    return {"elements": els, "info": {"arcLength": c["arc_len"], "signedR": rn}}
 
 
-# ── the request ──────────────────────────────────────────────────────────────
+# ── the picks ────────────────────────────────────────────────────────────────
+
+def _point(raw, key):
+    v = raw.get(key)
+    if not (isinstance(v, (list, tuple)) and len(v) == 2):
+        raise ValueError(f"pick {key}")
+    return (float(v[0]), float(v[1]))
+
 
 def _pick(raw):
     if not isinstance(raw, dict):
         raise ValueError("pick")
-    start, end = raw.get("start"), raw.get("end")
-    if not (isinstance(start, (list, tuple)) and isinstance(end, (list, tuple)) and len(start) == 2 and len(end) == 2):
-        raise ValueError("pick ends")
     radius = raw.get("radius")
-    return {
-        "start": (float(start[0]), float(start[1])), "end": (float(end[0]), float(end[1])),
+    p = {
+        "start": _point(raw, "start"), "end": _point(raw, "end"),
         "bearing": float(raw["bearing"]),
         "radius": float(radius) if radius not in (None, 0) else None,
-        # The cant the picked element carries, a magnitude [mm] — only read for the spacing.
+        # The cant the picked element carries, a magnitude [mm].
         "cant": abs(float(raw.get("cant") or 0)),
+        # How much of its track lies before and after the element [m]: what
+        # joining it at the one or the other end gives up (`_cost`).
+        "before": max(0.0, float(raw.get("before") or 0)),
+        "after": max(0.0, float(raw.get("after") or 0)),
     }
+    p["length"] = float(raw["length"]) if raw.get("length") else _length_of(p)
+    return p
 
 
 def _start_bearing(p):
@@ -523,62 +554,209 @@ def _start_bearing(p):
     return (math.atan2(-v[1] / r, v[0] / r) * RAD2DEG) % 360.0
 
 
+def _length_of(p):
+    """A pick's length where the request does not give it: its chord, or its arc."""
+    if p["radius"] is None:
+        return math.dist(p["start"], p["end"])
+    sweep = ((p["bearing"] - _start_bearing(p)) * math.copysign(1.0, p["radius"])) % 360.0
+    return sweep * DEG2RAD * abs(p["radius"])
+
+
 def _flipped(p):
-    """The pick run the other way. The arc constructions meet the arrival at its
-    end and traverse it backwards; handed the arrival flipped, they meet it at
-    its start and run it on in its own direction — a continuation."""
+    """The pick run the other way. The constructions run the departure into the
+    splice at its end and meet the arrival at its end, traversing it backwards;
+    a pick joined at its start is handed over flipped."""
     return {
         **p, "start": p["end"], "end": p["start"],
         "bearing": (_start_bearing(p) + 180.0) % 360.0,
         "radius": -p["radius"] if p["radius"] is not None else None,
+        "before": p["after"], "after": p["before"],
     }
 
 
+def _toward(p, end):
+    """The pick as a construction takes it, joined at its `end` ('start' | 'end')."""
+    return p if end == "end" else _flipped(p)
+
+
+def _track_length(p):
+    return p["before"] + p["length"] + p["after"]
+
+
+def _key(p):
+    """An order of two picks that neither the clicks nor the direction a track
+    is stored in can change: by the lower of their two ends."""
+    return min(tuple(round(c, 3) for c in p["start"]), tuple(round(c, 3) for c in p["end"]))
+
+
+# ── the constructions, and which ends meet ───────────────────────────────────
+
 def _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join):
-    """The splice of the case the two picks make (raises SpliceError)."""
+    """The splice of the case the two picks make, the departure run into it at
+    its end and the arrival met at its end (raises SpliceError)."""
     if dep["radius"] is None and arr["radius"] is None:
         return splice_straights(dep, arr, radius, l_dep, l_arr, profile)
     if dep["radius"] is not None and arr["radius"] is not None:
         if arc_join == "transition":
-            def build(d, a):
-                return splice_arcs_transition(d, a, profile)
-        else:
-            def build(d, a):
-                return splice_arcs_straight(d, a, l_dep, l_arr, profile)
-    else:
-        def build(d, a):
-            return splice_arc_straight(d, a, radius, l_dep, l_arr, profile)
-    # The arrival is joined at its end nearer the departure: its end — a corner,
-    # traversed backwards — or its start, a continuation run on as it is.
-    reverse = math.dist(dep["end"], arr["end"]) < math.dist(dep["end"], arr["start"])
-    res = build(dep, arr if reverse else _flipped(arr))
-    res["reverseArr"] = reverse
+            return splice_arcs_transition(dep, arr, profile)
+        return splice_arcs_straight(dep, arr, l_dep, l_arr, profile)
+    return splice_arc_straight(dep, arr, radius, l_dep, l_arr, profile)
+
+
+# The four pairs of ends two picks can meet at: (the first pick's, the second's).
+PAIRS = (("end", "start"), ("start", "end"), ("end", "end"), ("start", "start"))
+
+
+def _departure(picks, ends):
+    """Which pick departs where `ends` meet. An end meeting a start leaves the
+    tracks as they run. Two ends or two starts turn one track round, and that
+    is the shorter of the two (Entscheidung 182): two ends meet with the longer
+    departing, two starts with the shorter departing backwards. Equally long,
+    the second pick is the one turned."""
+    if ends[0] != ends[1]:
+        return 0 if ends[0] == "end" else 1
+    l0, l1 = _track_length(picks[0]), _track_length(picks[1])
+    if abs(l0 - l1) < 1e-6:
+        return 0 if ends[0] == "end" else 1
+    longer = 0 if l0 > l1 else 1
+    return longer if ends[0] == "end" else 1 - longer
+
+
+def _swap_side(code):
+    return code.replace("_dep_", "_tmp_").replace("_arr_", "_dep_").replace("_tmp_", "_arr_")
+
+
+def _reversed(res):
+    """A construction read the other way: the chain turned round, departure and arrival swapped."""
+    swap = {"dep": "arr", "arr": "dep"}
+    els = []
+    for el in reversed(res["elements"]):
+        out = reversed_element(el)
+        out["role"] = swap.get(el["role"], el["role"])
+        els.append(out)
+    info = dict(res["info"])
+    if info.get("signedR") is not None:
+        info["signedR"] = -info["signedR"]
+    return {**res, "elements": els, "info": info}
+
+
+def _pair(picks, ends, radius, lengths, profile, arc_join):
+    """The splice where `ends` meet, as a solution (raises SpliceError).
+
+    Constructed from the pick `_key` puts first, so that the clicks cannot
+    change what is found, and read the way `_departure` says."""
+    c = 0 if _key(picks[0]) <= _key(picks[1]) else 1
+    if ends[c] != ends[1 - c] and ends[c] == "start":
+        c = 1 - c                      # an end meeting a start departs from the end
+    d = _departure(picks, ends)
+    try:
+        res = _construct(_toward(picks[c], ends[c]), _toward(picks[1 - c], ends[1 - c]),
+                         radius, lengths[c], lengths[1 - c], profile, arc_join)
+    except SpliceError as exc:
+        if c != d:
+            exc.code = _swap_side(exc.code)
+        raise
+    if c != d:
+        res = _reversed(res)
+    res.update({"depPick": d, "ends": list(ends),
+                "reverseDep": ends[d] == "start", "reverseArr": ends[1 - d] == "end"})
     return res
 
 
-def _with_clearance(dep, arr, radius, l_dep, l_arr, profile, arc_join, cl):
+def _cost(sol, picks):
+    """How much a solution rebuilds [m]: the track it gives up beyond the ends
+    that meet, how far it re-shapes the two picked elements, and the new
+    stretch it inserts."""
+    d = sol["depPick"]
+    cost = 0.0
+    for i, role in ((d, "dep"), (1 - d, "arr")):
+        p = picks[i]
+        cost += p["after"] if sol["ends"][i] == "end" else p["before"]
+        kept = sum(el["length"] for el in sol["elements"] if el["role"] == role)
+        cost += abs(kept - p["length"])
+    return cost + sum(el["length"] for el in sol["elements"] if el["role"] == "new")
+
+
+def _element_turn(el):
+    """How far an element turns [rad], signed (right > 0)."""
+    if el["elementType"] == 1:
+        return el["length"] / el["radius"]
+    if el["elementType"] == 2:
+        return _turn(el["bearing"], el["endBearing"]) * DEG2RAD
+    return 0.0
+
+
+def _loops(sol, picks):
+    """Does a solution turn by more than half a circle beyond what the two
+    picked elements turned already — run round in a loop to reach an end
+    that faces away? No track is joined that way; such a pair is dropped."""
+    d = sol["depPick"]
+    own = 0.0
+    for i, flip in ((d, sol["reverseDep"]), (1 - d, sol["reverseArr"])):
+        r = picks[i]["radius"]
+        if r is not None:
+            own += picks[i]["length"] / (-r if flip else r)
+    return abs(sum(_element_turn(el) for el in sol["elements"]) - own) > math.pi + 1e-6
+
+
+def _rank(sol):
+    """Best first: little rebuilt and a short new stretch."""
+    return (round(sol["rebuilt"], 6),)
+
+
+def _gap(picks, ends):
+    return math.dist(picks[0][ends[0]], picks[1][ends[1]])
+
+
+def _solutions(picks, radius, lengths, profile, arc_join, build=None):
+    """Every pair of ends that can be joined, as solutions, the best first —
+    or SpliceError for the pair whose ends lie closest, where none can.
+    `build(picks, ends)` replaces the plain construction (the spacing)."""
+    build = build or (lambda pk, ends: _pair(pk, ends, radius, lengths, profile, arc_join))
+    found, errors = [], []
+    for ends in PAIRS:
+        try:
+            sol = build(picks, ends)
+        except SpliceError as exc:
+            errors.append((_gap(picks, ends), exc))
+            continue
+        if sol is None or _loops(sol, picks):
+            continue
+        sol["rebuilt"] = _cost(sol, picks)
+        found.append(sol)
+    if not found:
+        if errors:
+            raise min(errors, key=lambda e: e[0])[1]
+        raise SpliceError("splice_error_no_fit")
+    return sorted(found, key=_rank)
+
+
+def _with_clearance(picks, radius, lengths, profile, arc_join, cl):
     """The splice held to a spacing to a neighbouring track (see clearance.py):
     checked at `radius`, or with `maximize` the largest radius that keeps it —
-    where the case has a radius of its own to choose (not two arcs)."""
+    where the case has a radius of its own to choose (not two arcs), for every
+    pair of ends on its own."""
     d_min = float(cl["dMin"])
     if not d_min > 0:
         raise ValueError("dMin")
     spacing = Spacing(cl["profile"])
-    es = [p[0] for p in (dep["start"], dep["end"], arr["start"], arr["end"])]
-    ns = [p[1] for p in (dep["start"], dep["end"], arr["start"], arr["end"])]
+    corners = [p[k] for p in picks for k in ("start", "end")]
+    es, ns = [c[0] for c in corners], [c[1] for c in corners]
     neighbour = Neighbour(cl.get("ref") or [], (min(es), min(ns), max(es), max(ns)))
     speed = float(cl.get("speed") or 0)
     model = cl.get("cantModel") or {}
 
-    def cant_of(u_new):
+    def cant_of(sol, u_new):
+        d = sol["depPick"]
+
         def of(el):
             sign = 1.0 if el["radius"] > 0 else -1.0
             role = el.get("role", "new")
-            return sign * (dep["cant"] if role == "dep" else arr["cant"] if role == "arr" else u_new)
+            return sign * (picks[d]["cant"] if role == "dep" else picks[1 - d]["cant"] if role == "arr" else u_new)
         return of
 
-    def described(res, u_new, extra):
-        worst = check(res["elements"], neighbour, spacing, d_min, cant_of(u_new))
+    def described(sol, u_new, extra):
+        worst = check(sol["elements"], neighbour, spacing, d_min, cant_of(sol, u_new))
         info = {"dMin": d_min, "near": worst is not None, **extra}
         if worst is not None:
             info.update(worst)
@@ -587,41 +765,45 @@ def _with_clearance(dep, arr, radius, l_dep, l_arr, profile, arc_join, cl):
             info["kept"] = True
         return info
 
-    free = not (dep["radius"] is not None and arr["radius"] is not None)
+    free = not (picks[0]["radius"] is not None and picks[1]["radius"] is not None)
     if cl.get("maximize") and free:
-        r_max = clearance.R_MAX
-        try:
-            _construct(dep, arr, r_max, l_dep, l_arr, profile, arc_join)
-        except SpliceError as exc:
-            # Too large to fit on the elements at all: the search starts where it fits.
-            if exc.params.get("rMax"):
-                r_max = float(exc.params["rMax"])
-
         # The arc inserted has to be an element of its own length: between an
         # arc and a straight the old arc can otherwise be run on round to the
         # straight, and the "largest radius" is a sliver of any radius at all.
         l_min = float(cl.get("lMin") or 0)
 
-        def build(r):
+        def search(pk, ends):
+            r_max = clearance.R_MAX
             try:
-                res = _construct(dep, arr, r, l_dep, l_arr, profile, arc_join)
-            except SpliceError:
-                return None
-            if res["info"].get("arcLength", 0) < l_min:
-                return None
-            u = auto_cant(speed, r, model)
-            res["clearance"] = described(res, u, {"cant": u})
-            return res
+                _pair(pk, ends, r_max, lengths, profile, arc_join)
+            except SpliceError as exc:
+                # Too large to fit on the elements at all: the search starts where it fits.
+                if exc.params.get("rMax"):
+                    r_max = float(exc.params["rMax"])
 
-        r, res = largest_radius(build, lambda res: res["clearance"]["kept"], r_max=r_max)
-        if r is None:
-            raise SpliceError("splice_error_clearance", dMin=d_min)
-        res["info"]["clearance"] = {**res.pop("clearance"), "radius": r, "maximized": True}
-        return res
+            def build(r):
+                try:
+                    sol = _pair(pk, ends, r, lengths, profile, arc_join)
+                except SpliceError:
+                    return None
+                if sol["info"].get("arcLength", 0) < l_min:
+                    return None
+                u = auto_cant(speed, r, model)
+                sol["clearance"] = described(sol, u, {"cant": u})
+                return sol
 
-    res = _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join)
-    res["info"]["clearance"] = described(res, abs(float(cl.get("cant") or 0)), {})
-    return res
+            r, sol = largest_radius(build, lambda sol: sol["clearance"]["kept"], r_max=r_max)
+            if r is None:
+                raise SpliceError("splice_error_clearance", dMin=d_min)
+            sol["info"]["clearance"] = {**sol.pop("clearance"), "radius": r, "maximized": True}
+            return sol
+        return _solutions(picks, radius, lengths, profile, arc_join, build=search)
+
+    def checked(pk, ends):
+        sol = _pair(pk, ends, radius, lengths, profile, arc_join)
+        sol["info"]["clearance"] = described(sol, abs(float(cl.get("cant") or 0)), {})
+        return sol
+    return _solutions(picks, radius, lengths, profile, arc_join, build=checked)
 
 
 def splice_payload(payload):
@@ -631,16 +813,24 @@ def splice_payload(payload):
            "transition": "clothoid"|"bloss", "arcJoin": "straight"|"transition",
            "clearance": optional, see below}
     with a pick {"start": [e, n], "end": [e, n], "bearing": deg at the end,
-    "radius": signed m or null, "cant": mm}. Answers {"elements", "reverseArr",
-    "info"} or {"error": key, "params": {...}} for a splice that does not fit.
-    A body that is not one raises ValueError.
+    "radius": signed m or null, "cant": mm, "length": m, "before": m,
+    "after": m} — `before` and `after` how much of its track lies before and
+    after it. `dep` and `arr` are the two picks in the order they were
+    clicked, `lDep` and `lArr` the transitions beside each; which one departs
+    the service finds (`_solutions`).
+
+    Answers {"solutions": [solution, …]}, the best first, each {"elements",
+    "info", "depPick": 0|1 (which pick departs), "ends": [the first pick's
+    end that meets, the second's], "reverseDep", "reverseArr", "rebuilt": m}
+    — or {"error": key, "params": {...}} for a splice that does not fit
+    where any two ends meet. A body that is not one raises ValueError.
 
     `clearance` holds the splice to a spacing to another track (clearance.py):
     {"ref": [[e, n, cant], …] its axis in this plane, "dMin": m, "profile":
     [[y, z], …] the half clearance outline in mm, "cant": mm on the new arc,
     "maximize": bool, "speed": km/h and "cantModel": {coeff, defCoeff, defMin,
     max, step} for the cant at each radius tried, "lMin": m the shortest arc
-    the search may insert (LP.EL.01 at that speed)}. The answer's info then
+    the search may insert (LP.EL.01 at that speed)}. Each solution's info then
     carries `clearance`: dMin, kept, near and — where the neighbour lies near —
     margin, distance, required, cantNew, cantRef, at, ref; with `maximize` also
     radius and cant. No radius that keeps it is the error
@@ -648,10 +838,9 @@ def splice_payload(payload):
     """
     if not isinstance(payload, dict):
         raise ValueError("payload")
-    dep, arr = _pick(payload.get("dep")), _pick(payload.get("arr"))
+    picks = [_pick(payload.get("dep")), _pick(payload.get("arr"))]
     radius = float(payload.get("radius") or 0)
-    l_dep = max(0.0, float(payload.get("lDep") or 0))
-    l_arr = max(0.0, float(payload.get("lArr") or 0))
+    lengths = [max(0.0, float(payload.get("lDep") or 0)), max(0.0, float(payload.get("lArr") or 0))]
     profile = payload.get("transition", "clothoid")
     if profile not in ("clothoid", "bloss"):
         raise ValueError("transition")
@@ -661,7 +850,7 @@ def splice_payload(payload):
         raise ValueError("clearance")
     try:
         if cl:
-            return _with_clearance(dep, arr, radius, l_dep, l_arr, profile, arc_join, cl)
-        return _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join)
+            return {"solutions": _with_clearance(picks, radius, lengths, profile, arc_join, cl)}
+        return {"solutions": _solutions(picks, radius, lengths, profile, arc_join)}
     except SpliceError as exc:
         return {"error": exc.code, "params": exc.params}
