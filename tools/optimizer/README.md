@@ -104,8 +104,12 @@ erst die Lösung. Jede Lösung prüft der Dienst als Ganzes mit dem Regelkatalog
 das Eingefügte und die Stöße dazwischen, mit Geschwindigkeit und Überhöhung, die
 sie tragen werden; ein Fehler sperrt im Panel das Übernehmen, und die Rangfolge
 setzt Lösungen mit geringeren Befunden nach vorn. Lage, Richtung und Krümmung an
-den Übergangsbögen müssen stetig sein, sonst ist es keine Lösung. Passt ein Bogen nicht auf die
-gewählten Elemente, nennt die Antwort den größten Radius, der passt (`params.rMax`). Prüfung:
+den Übergangsbögen müssen stetig sein, sonst ist es keine Lösung. Passt nichts, nennt die Antwort,
+was passen würde (AP S.5): den größten Radius darunter (`params.rMax`), zwischen
+Bogen und Gerade auch den kleinsten darüber (`rMin`), die längsten Übergangsbögen
+(`lMax`). Zwei Bögen werden immer auch auf die andere Art verbunden (direkt über
+einen Übergangsbogen bzw. über eine Zwischengerade); passt nur diese, sagt
+`requested`, warum die gewünschte nicht passt. Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
 Antworten, gegen die die App testet, schreibt `tests/splice_fixture.py`.
 Dazu der Prüfstand `tests/verify_splice_props.py` (Paket S): zufällige

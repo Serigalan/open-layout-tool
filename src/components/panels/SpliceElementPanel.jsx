@@ -63,17 +63,27 @@ const DEFAULTS = {
   clearanceOn: false, clearanceDMin: 4.0, clearanceMax: false,
 }
 
+/**
+ * A splice that does not fit, as a sentence: the error, and what would fit
+ * (AP S.5) — the largest radius below the one asked for, the smallest above
+ * it, the longest transitions.
+ */
+function errorText(t, fill, error, params = {}) {
+  // The keys are the service's (splice.py); one this bundle does not know yet reads as no fit.
+  const known = error.startsWith('splice_error_') || error === 'splice_service_unavailable'
+  const text = t(known ? error : 'splice_error_no_fit')
+  const hints = [
+    params.rMax != null && fill('splice_r_max', { r: String(params.rMax) }),
+    params.rMin != null && fill('splice_r_min', { r: String(params.rMin) }),
+    params.lMax != null && fill('splice_l_max', { l: String(params.lMax).replace('.', ',') }),
+  ].filter(Boolean)
+  // The error texts end with or without a full stop; each hint is a sentence of its own.
+  return hints.length ? `${text}${/[.!?]$/.test(text) ? '' : '.'} ${hints.join(' ')}` : text
+}
+
 /** What the dialog says about a splice: its error, or the solution shown. */
 function spliceMessage(t, fill, splice, solution) {
-  if (splice.error) {
-    const rMax = splice.params?.rMax
-    // The keys are the service's (splice.py); one this bundle does not know yet reads as no fit.
-    const known = splice.error.startsWith('splice_error_') || splice.error === 'splice_service_unavailable'
-    const text = t(known ? splice.error : 'splice_error_no_fit')
-    // The error texts end with or without a full stop; the hint is a sentence of its own.
-    const hint = rMax != null ? `${/[.!?]$/.test(text) ? '' : '.'} ${fill('splice_r_max', { r: String(rMax) })}` : ''
-    return { msg: text + hint, error: true }
-  }
+  if (splice.error) return { msg: errorText(t, fill, splice.error, splice.params), error: true }
   const { result, dep, arr } = solution
   // Departure first, as the solution runs.
   const side = (k) => result.lengths[k]?.length ?? 0
@@ -112,25 +122,39 @@ function spacingMessage(t, fill, c, refName) {
   return { msg: found + text, error: !c.kept }
 }
 
+/** Which solution is chosen: by the ends it joins and, for two arcs, how. */
+const solutionKey = (sol) => `${sol.result.ends.join()}|${sol.result.arcJoin ?? ''}`
+
 /**
  * Choosing among several solutions (Entscheidung 180): the one shown, which
- * ends it joins, how much it rebuilds — and stepping to the next.
+ * ends it joins, how two arcs are joined, how much it rebuilds — stepping to
+ * the next, and where the one shown joins two arcs the other way than asked
+ * for, taking that way over (`onAdopt`).
  */
-function SolutionSwitch({ solutions, solution, picks, onChoose }) {
+function SolutionSwitch({ solutions, solution, picks, onChoose, onAdopt }) {
   const { t, fill, num } = useI18n()
   const i = Math.max(0, solutions.indexOf(solution))
-  const { ends, rebuilt } = solution.result
+  const { ends, rebuilt, arcJoin, alternative } = solution.result
   const end = (k) => fill(ends[k] === 'end' ? 'splice_at_end' : 'splice_at_start', { track: picks[k].label })
+  const several = solutions.length > 1
   return (
     <div className="splice-solutions">
-      <button type="button" className="panel-btn" aria-label={t('splice_solution_prev')}
-        onClick={() => onChoose(solutions[(i + solutions.length - 1) % solutions.length])}>◀</button>
+      {several && (
+        <button type="button" className="panel-btn" aria-label={t('splice_solution_prev')}
+          onClick={() => onChoose(solutions[(i + solutions.length - 1) % solutions.length])}>◀</button>
+      )}
       <span>
         {fill('splice_solution', { i: String(i + 1), n: String(solutions.length) })}: {end(0)} ↔ {end(1)}
+        {arcJoin && ` · ${t(`splice_arc_join_${arcJoin}`)}`}
         {' · '}{fill('splice_rebuilt', { l: num(rebuilt, { digits: 0, unit: 'm' }) })}
       </span>
-      <button type="button" className="panel-btn" aria-label={t('splice_solution_next')}
-        onClick={() => onChoose(solutions[(i + 1) % solutions.length])}>▶</button>
+      {several && (
+        <button type="button" className="panel-btn" aria-label={t('splice_solution_next')}
+          onClick={() => onChoose(solutions[(i + 1) % solutions.length])}>▶</button>
+      )}
+      {alternative && arcJoin && (
+        <button type="button" className="panel-btn secondary" onClick={() => onAdopt(solution)}>{t('splice_adopt')}</button>
+      )}
     </div>
   )
 }
@@ -167,7 +191,7 @@ export default function SpliceElementPanel() {
   // stands in for the one typed, and the cant follows it.
   const [answer, setAnswer] = useState(null)   // { key, splice }
   const answered = answer?.splice?.solutions ?? null
-  const shown = answered?.find(sol => sol.result.ends.join() === chosen) ?? answered?.[0] ?? null
+  const shown = answered?.find(sol => solutionKey(sol) === chosen) ?? answered?.[0] ?? null
   const found = maximize ? shown?.result?.clearance?.radius ?? null : null
   const radius = found ?? s.radius
   const [cant, setCant] = useDerivedField(`${s.speed}|${radius}`, Math.abs(computeAutoC(s.speed, Math.abs(Number(radius)))))
@@ -263,6 +287,22 @@ export default function SpliceElementPanel() {
     preview.clear(); setPicks([]); setChosen(null); setPickStatus(null); setRefTrackId(null); setPickingRef(false)
   }
 
+  // Two arcs joined the other way than asked for: that way taken over as the
+  // setting — over a straight with the transitions the solution has.
+  const adopt = (sol) => {
+    const { arcJoin, lengths } = sol.result
+    setChosen(`${sol.result.ends.join()}|${arcJoin}`)
+    set('arcJoin', arcJoin)
+    if (arcJoin === 'straight') {
+      const on = lengths.some(l => l.length > 0)
+      set('clothoidEnabled', on)
+      if (on) {
+        set('modes', lengths.map(l => l.mode))
+        set('transitions', lengths.map(l => l.length || DEFAULTS.transitions[0]))
+      }
+    }
+  }
+
   const handleCommit = () => {
     const commit = buildSplice({ tracks: loadTracks(), solution, speed: s.speed, cant })
     if (!commit) return
@@ -286,9 +326,15 @@ export default function SpliceElementPanel() {
         <SpliceSettings picks={picks} departure={departure} s={s} set={set} cant={cant} setCant={setCant}
           transitionLength={solution?.result?.transitionLength} transitionRules={transitionRules}
           clearance={{ refName, pickingRef, onPickRef: () => setPickingRef(p => !p), maximize, found }} />
-        {solutions?.length > 1 && (
+        {solution && (solutions.length > 1 || solution.result.alternative) && (
           <SolutionSwitch solutions={solutions} solution={solution} picks={picks}
-            onChoose={sol => setChosen(sol.result.ends.join())} />
+            onChoose={sol => setChosen(solutionKey(sol))} onAdopt={adopt} />
+        )}
+        {splice?.requested && (
+          <p className="msg-hint">
+            {fill('splice_requested_failed', { join: t(`splice_arc_join_${s.arcJoin}`) })}{' '}
+            {errorText(t, fill, splice.requested.error, splice.requested.params)}
+          </p>
         )}
         {status && <p className={status.error ? 'msg-error' : 'msg-info'}>{status.msg}</p>}
         {spacingMsg && <p className={spacingMsg.error ? 'msg-error' : 'msg-info'}>{spacingMsg.msg}</p>}

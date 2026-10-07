@@ -108,6 +108,7 @@
       }
      ],
      "rebuilt": 771.238898038469,
+     "alternative": false,
      "findings": [],
      "worst": "ok",
      "judged": false
@@ -224,6 +225,7 @@
       }
      ],
      "rebuilt": 771.238898038469,
+     "alternative": false,
      "findings": [],
      "worst": "ok",
      "judged": false
@@ -340,6 +342,7 @@
       }
      ],
      "rebuilt": 771.238898038469,
+     "alternative": false,
      "findings": [],
      "worst": "ok",
      "judged": false
@@ -502,6 +505,7 @@
       }
      ],
      "rebuilt": 892.2185465260281,
+     "alternative": false,
      "findings": [],
      "worst": "ok",
      "judged": false
@@ -665,6 +669,94 @@
       }
      ],
      "rebuilt": 180.00000000370335,
+     "alternative": false,
+     "arcJoin": "straight",
+     "findings": [],
+     "worst": "ok",
+     "judged": false
+    },
+    {
+     "elements": [
+      {
+       "elementType": 1,
+       "role": "dep",
+       "radius": 600.0,
+       "startNode": [
+        500000.0,
+        5700000.0
+       ],
+       "endNode": [
+        500009.25482269435,
+        5700104.976833112
+       ],
+       "bearing": 359.99999999998613,
+       "endBearing": 10.076411166782485,
+       "length": 105.51993098719183,
+       "speed": 0.0,
+       "cant": 0.0
+      },
+      {
+       "elementType": 2,
+       "role": "new",
+       "transitionType": "clothoid",
+       "r1": 600.0,
+       "r2": -900.0,
+       "startNode": [
+        500009.25482269435,
+        5700104.976833112
+       ],
+       "endNode": [
+        500072.3671651752,
+        5700337.421190776
+       ],
+       "bearing": 10.076411166777847,
+       "endBearing": 13.911726335054642,
+       "length": 240.9799591371975,
+       "speed": 0.0
+      },
+      {
+       "elementType": 1,
+       "role": "arr",
+       "radius": -900.0,
+       "startNode": [
+        500072.3671651752,
+        5700337.421190776
+       ],
+       "endNode": [
+        500091.4293682432,
+        5700439.117909258
+       ],
+       "bearing": 13.911726335005003,
+       "endBearing": 7.321127382171613,
+       "length": 103.52488626488983,
+       "speed": 0.0,
+       "cant": -0.0
+      }
+     ],
+     "info": {
+      "transitionLength": 240.9799591371975,
+      "compound": false
+     },
+     "depPick": 0,
+     "ends": [
+      "end",
+      "end"
+     ],
+     "reverseDep": false,
+     "reverseArr": true,
+     "lengths": [
+      {
+       "mode": "fixed",
+       "length": 0.0
+      },
+      {
+       "mode": "fixed",
+       "length": 0.0
+      }
+     ],
+     "rebuilt": 301.9351418851823,
+     "alternative": true,
+     "arcJoin": "transition",
      "findings": [],
      "worst": "ok",
      "judged": false
@@ -783,9 +875,408 @@
       }
      ],
      "rebuilt": 160.00000000016064,
+     "alternative": false,
      "findings": [],
      "worst": "ok",
      "judged": false
+    }
+   ]
+  }
+ },
+ "arcsAskedDirect": {
+  "request": {
+   "radius": 300,
+   "lDep": 0,
+   "lArr": 0,
+   "transition": "clothoid",
+   "arcJoin": "transition",
+   "dep": {
+    "start": [
+     500000.0,
+     5700000.0
+    ],
+    "end": [
+     500018.6525469736,
+     5700148.442375553
+    ],
+    "bearing": 14.32394487827058,
+    "radius": 600.0,
+    "speed": 100,
+    "cant": 50
+   },
+   "arr": {
+    "start": [
+     500091.4293682432,
+     5700439.117909258
+    ],
+    "end": [
+     500068.25996223686,
+     5700321.466483725
+    ],
+    "bearing": 194.96056465063816,
+    "radius": 900.0,
+    "speed": 100,
+    "cant": 30
+   },
+   "speed": 100
+  },
+  "answer": {
+   "solutions": [
+    {
+     "elements": [
+      {
+       "elementType": 1,
+       "role": "dep",
+       "radius": 600.0,
+       "startNode": [
+        500000.0,
+        5700000.0
+       ],
+       "endNode": [
+        500009.25482269435,
+        5700104.976833112
+       ],
+       "bearing": 359.99999999998613,
+       "endBearing": 10.076411166782485,
+       "length": 105.51993098719183,
+       "speed": 100.0,
+       "cant": 50.0
+      },
+      {
+       "elementType": 2,
+       "role": "new",
+       "transitionType": "clothoid",
+       "r1": 600.0,
+       "r2": -900.0,
+       "startNode": [
+        500009.25482269435,
+        5700104.976833112
+       ],
+       "endNode": [
+        500072.3671651752,
+        5700337.421190776
+       ],
+       "bearing": 10.076411166777847,
+       "endBearing": 13.911726335054642,
+       "length": 240.9799591371975,
+       "speed": 100.0
+      },
+      {
+       "elementType": 1,
+       "role": "arr",
+       "radius": -900.0,
+       "startNode": [
+        500072.3671651752,
+        5700337.421190776
+       ],
+       "endNode": [
+        500091.4293682432,
+        5700439.117909258
+       ],
+       "bearing": 13.911726335005003,
+       "endBearing": 7.321127382171613,
+       "length": 103.52488626488983,
+       "speed": 100.0,
+       "cant": -30.0
+      }
+     ],
+     "info": {
+      "transitionLength": 240.9799591371975,
+      "compound": false
+     },
+     "depPick": 0,
+     "ends": [
+      "end",
+      "end"
+     ],
+     "reverseDep": false,
+     "reverseArr": true,
+     "lengths": [
+      {
+       "mode": "fixed",
+       "length": 0.0
+      },
+      {
+       "mode": "fixed",
+       "length": 0.0
+      }
+     ],
+     "rebuilt": 301.9351418851823,
+     "alternative": false,
+     "arcJoin": "transition",
+     "findings": [
+      {
+       "at": "#0",
+       "index": [
+        0
+       ],
+       "id": "LP.KB.02",
+       "severity": "error"
+      },
+      {
+       "at": "#0",
+       "index": [
+        0
+       ],
+       "id": "LP.KB.04",
+       "severity": "hint"
+      },
+      {
+       "at": "#1",
+       "index": [
+        1
+       ],
+       "id": "LP.UB.08",
+       "severity": "error"
+      },
+      {
+       "at": "#2",
+       "index": [
+        2
+       ],
+       "id": "LP.KB.04",
+       "severity": "hint"
+      }
+     ],
+     "worst": "error",
+     "judged": true
+    },
+    {
+     "elements": [
+      {
+       "elementType": 1,
+       "role": "dep",
+       "radius": 600.0,
+       "startNode": [
+        500000.0,
+        5700000.0
+       ],
+       "endNode": [
+        500016.52912424,
+        5700139.86328017
+       ],
+       "bearing": 7.061018436615996e-12,
+       "endBearing": 13.479972805518683,
+       "length": 141.16194512128502,
+       "speed": 100.0,
+       "cant": 50.0
+      },
+      {
+       "elementType": 2,
+       "role": "new",
+       "transitionType": "clothoid",
+       "r1": 600.0,
+       "r2": null,
+       "startNode": [
+        500016.52912424,
+        5700139.86328017
+       ],
+       "endNode": [
+        500032.09432342014,
+        5700196.559194903
+       ],
+       "bearing": 13.479972805526302,
+       "endBearing": 16.287466001667333,
+       "length": 58.8,
+       "speed": 100.0
+      },
+      {
+       "elementType": 0,
+       "role": "new",
+       "startNode": [
+        500032.09432342014,
+        5700196.559194903
+       ],
+       "endNode": [
+        500057.0539982061,
+        5700281.983992438
+       ],
+       "bearing": 16.287466001518133,
+       "length": 88.99652464735293,
+       "speed": 100.0,
+       "cant": 0.0
+      },
+      {
+       "elementType": 2,
+       "role": "new",
+       "transitionType": "clothoid",
+       "r1": null,
+       "r2": -900.0,
+       "startNode": [
+        500057.0539982061,
+        5700281.983992438
+       ],
+       "endNode": [
+        500068.0937685257,
+        5700320.845417884
+       ],
+       "bearing": 16.287466001667333,
+       "endBearing": 15.001494061484818,
+       "length": 40.4,
+       "speed": 100.0
+      },
+      {
+       "elementType": 1,
+       "role": "arr",
+       "radius": -900.0,
+       "startNode": [
+        500068.0937685257,
+        5700320.845417884
+       ],
+       "endNode": [
+        500091.4293682432,
+        5700439.117909258
+       ],
+       "bearing": 15.001494061474643,
+       "endBearing": 7.321127382211211,
+       "length": 120.64291768224918,
+       "speed": 100.0,
+       "cant": -30.0
+      }
+     ],
+     "info": {
+      "straightLength": 88.99652464735291
+     },
+     "depPick": 0,
+     "ends": [
+      "end",
+      "end"
+     ],
+     "reverseDep": false,
+     "reverseArr": true,
+     "lengths": [
+      {
+       "mode": "regular",
+       "length": 58.8,
+       "regular": 58.8,
+       "regularBy": [
+        {
+         "id": "LP.UB.05",
+         "length": 58.8,
+         "binding": true
+        },
+        {
+         "id": "LP.UB.03",
+         "length": 50.0,
+         "binding": false
+        },
+        {
+         "id": "LP.UB.07",
+         "length": 30.0,
+         "binding": false
+        },
+        {
+         "id": "LP.EL.01",
+         "length": 15.0,
+         "binding": false
+        }
+       ],
+       "minimum": 58.8,
+       "minimumBy": [
+        {
+         "id": "LP.UB.05",
+         "length": 58.8,
+         "binding": true
+        },
+        {
+         "id": "LP.UB.03",
+         "length": 40.0,
+         "binding": false
+        },
+        {
+         "id": "LP.UB.07",
+         "length": 20.0,
+         "binding": false
+        },
+        {
+         "id": "LP.EL.01",
+         "length": 15.0,
+         "binding": false
+        }
+       ]
+      },
+      {
+       "mode": "regular",
+       "length": 40.4,
+       "regular": 40.4,
+       "regularBy": [
+        {
+         "id": "LP.UB.05",
+         "length": 40.4,
+         "binding": true
+        },
+        {
+         "id": "LP.UB.03",
+         "length": 30.0,
+         "binding": false
+        },
+        {
+         "id": "LP.UB.07",
+         "length": 18.0,
+         "binding": false
+        },
+        {
+         "id": "LP.EL.01",
+         "length": 15.0,
+         "binding": false
+        }
+       ],
+       "minimum": 40.4,
+       "minimumBy": [
+        {
+         "id": "LP.UB.05",
+         "length": 40.4,
+         "binding": true
+        },
+        {
+         "id": "LP.UB.03",
+         "length": 24.0,
+         "binding": false
+        },
+        {
+         "id": "LP.EL.01",
+         "length": 15.0,
+         "binding": false
+        },
+        {
+         "id": "LP.UB.07",
+         "length": 12.0,
+         "binding": false
+        }
+       ]
+      }
+     ],
+     "rebuilt": 197.67749720825063,
+     "alternative": true,
+     "arcJoin": "straight",
+     "findings": [
+      {
+       "at": "#0",
+       "index": [
+        0
+       ],
+       "id": "LP.KB.02",
+       "severity": "error"
+      },
+      {
+       "at": "#0",
+       "index": [
+        0
+       ],
+       "id": "LP.KB.04",
+       "severity": "hint"
+      },
+      {
+       "at": "#4",
+       "index": [
+        4
+       ],
+       "id": "LP.KB.04",
+       "severity": "hint"
+      }
+     ],
+     "worst": "error",
+     "judged": true
     }
    ]
   }
@@ -1038,6 +1529,7 @@
       }
      ],
      "rebuilt": 239.0000000003888,
+     "alternative": false,
      "findings": [
       {
        "at": "#0",

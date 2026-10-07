@@ -173,6 +173,19 @@ describe('the track built from the answer', () => {
     expect(merged.elements.filter(e => e.elementType === 2).map(e => e.length)).toEqual([28, 36])
   })
 
+  it('offers two arcs joined the other way too, and says why the way asked for does not fit', () => {
+    const { request, answer } = answers.arcsAskedDirect
+    const c = track('c', [arcElement(at(request.dep.start), at(request.dep.end), request.dep.radius, { speed: 100, cant: 50 })])
+    const d = track('d', [arcElement(at(request.arr.start), at(request.arr.end), request.arr.radius, { speed: 100, cant: 30 })])
+    const read = spliceFromAnswer(answer, [splicePick(c, 0), splicePick(d, 0)])
+    expect(read.solutions.map(x => [x.result.arcJoin, x.result.alternative])).toEqual([['transition', false], ['straight', true]])
+    // Asked for none, the straight comes with transitions at the Regellänge.
+    expect(read.solutions[1].result.lengths.map(l => l.mode)).toEqual(['regular', 'regular'])
+    expect(read.requested).toBeNull()
+    const failed = spliceFromAnswer({ ...answer, requested: { error: 'splice_error_arcs_no_fit', params: {} } }, [splicePick(c, 0), splicePick(d, 0)])
+    expect(failed.requested).toEqual({ error: 'splice_error_arcs_no_fit', params: {} })
+  })
+
   it('asks for the Regellänge, the Mindestlänge or a length as given, beside each pick', () => {
     const req = spliceRequest(dep, arr, { ...settings, clothoidEnabled: true, speed: 80, cant: -45, modes: ['regular', 'fixed'] })
     expect(req).toMatchObject({ speed: 80, cant: 45, modeDep: 'regular', modeArr: 'fixed', lDep: 60, lArr: 60 })

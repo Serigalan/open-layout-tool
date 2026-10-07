@@ -827,9 +827,9 @@ def _judge(sol):
 
 def _rank(sol):
     """Best first: what the catalogue finds — nothing before a hint before a
-    warning, and so on up to an error — then little rebuilt and a short new
-    stretch."""
-    return (_katalog().rank(sol["worst"]), round(sol["rebuilt"], 6))
+    warning, and so on up to an error — then the way of joining asked for
+    before the other, then little rebuilt and a short new stretch."""
+    return (_katalog().rank(sol["worst"]), sol.get("alternative", False), round(sol["rebuilt"], 6))
 
 
 # How far two elements may part or kink at a junction and still be one chain
@@ -861,28 +861,127 @@ def _gap(picks, ends):
     return math.dist(picks[0][ends[0]], picks[1][ends[1]])
 
 
+# Where the request has no transitions to offer an alternative with, two arcs
+# joined over a straight get them at the Regellänge, the search starting here [m].
+ALTERNATIVE_START = 60.0
+
+
+def _joins(picks, spec):
+    """The ways to try, the one asked for first: for two arcs also the other
+    way to join them — over a straight where one transition was asked for and
+    the reverse (Entscheidung 180, AP S.5). The straight comes with the
+    transitions asked for, and where none were, with transitions at the
+    Regellänge — two canted arcs need their ramps; without a design speed
+    there is no Regellänge, and none (Entscheidung 183)."""
+    if picks[0]["radius"] is None or picks[1]["radius"] is None:
+        return [spec]
+    other = {**spec, "arcJoin": "straight" if spec["arcJoin"] == "transition" else "transition"}
+    if other["arcJoin"] == "straight" and not any(spec["lengths"]) and spec["speed"] > 0:
+        other.update(lengths=[ALTERNATIVE_START, ALTERNATIVE_START], modes=["regular", "regular"])
+    return [spec, other]
+
+
 def _solutions(picks, spec, build=None):
-    """Every pair of ends that can be joined, as solutions, the best first —
-    or SpliceError for the pair whose ends lie closest, where none can.
-    `build(picks, ends)` replaces the plain construction (the spacing)."""
-    build = build or (lambda pk, ends: _solve(pk, ends, spec))
+    """Every pair of ends that can be joined, as {"solutions": [...]}, the best
+    first — for two arcs both ways to join them (`_joins`) — or SpliceError
+    for the pair whose ends lie closest, where none can, with what would fit
+    (`_explain`). Where only the other way of joining two arcs fits, the
+    answer says why the way asked for does not (`requested`: {error,
+    params}). `build(picks, ends, spec)` replaces the plain construction (the
+    spacing)."""
+    build = build or _solve
+    two_arcs = picks[0]["radius"] is not None and picks[1]["radius"] is not None
     found, errors = [], []
-    for ends in PAIRS:
-        try:
-            sol = build(picks, ends)
-        except SpliceError as exc:
-            errors.append((_gap(picks, ends), exc))
-            continue
-        if sol is None or _loops(sol, picks):
-            continue
-        sol["rebuilt"] = _cost(sol, picks)
-        _judge(sol)
-        found.append(sol)
-    if not found:
-        if errors:
-            raise min(errors, key=lambda e: e[0])[1]
+    for k, sp in enumerate(_joins(picks, spec)):
+        for ends in PAIRS:
+            try:
+                sol = build(picks, ends, sp)
+            except SpliceError as exc:
+                if k == 0:
+                    errors.append((_gap(picks, ends), ends, exc))
+                continue
+            if sol is None or _loops(sol, picks):
+                continue
+            sol["rebuilt"] = _cost(sol, picks)
+            sol["alternative"] = k > 0
+            if two_arcs:
+                sol["arcJoin"] = sp["arcJoin"]
+            _judge(sol)
+            found.append(sol)
+    if not found and not errors:
         raise SpliceError("splice_error_no_fit")
-    return sorted(found, key=_rank)
+    out = {"solutions": sorted(found, key=_rank)}
+    if not any(not sol["alternative"] for sol in found):
+        # Nothing the way asked for: why, and what would fit — the error
+        # itself, or beside the other way of joining that does.
+        _, ends, exc = min(errors, key=lambda e: e[0])
+        _explain(picks, ends, spec, exc)
+        if not found:
+            raise exc
+        out["requested"] = {"error": exc.code, "params": exc.params}
+    return out
+
+
+# The radius search of `_explain`: down from the radius asked for in steps of
+# this ratio, no further than this, then halved to the metre.
+EXPLAIN_RATIO = 0.9
+EXPLAIN_R_MIN = 50.0
+
+
+def _explain(picks, ends, spec, exc):
+    """What would fit where `ends` do not (AP S.5), into the error's params:
+    `rMax` the largest radius up to the one asked for that does and, between
+    an arc and a straight, `rMin` the smallest above it — where the case has a
+    radius to choose — and `lMax` the longest transitions, as long on both
+    sides, that do at the radius asked for — where shorter ones fit at all.
+    Two straights name `rMax` themselves (splice_straights)."""
+    if exc.code in ("splice_error_clearance", "splice_error_discontinuous"):
+        return
+
+    def fits(sp, lengths=None):
+        try:
+            if lengths is None:
+                _solve(picks, ends, sp)
+            else:
+                _pair(picks, ends, sp, lengths)
+            return True
+        except SpliceError:
+            return False
+
+    def bounded(r, failed):
+        """Halved to the metre between a radius that fits and one that does not."""
+        lo, hi = r, failed
+        while abs(hi - lo) > 0.5:
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if fits({**spec, "radius": mid}) else (lo, mid)
+        return math.floor(lo) if lo < hi else math.ceil(lo)
+
+    free = picks[0]["radius"] is None or picks[1]["radius"] is None
+    if free and spec["radius"] > 0 and exc.params.get("rMax") is None:
+        # Between an arc and a straight a radius can be too small as much as
+        # too large: the nearest that fits either way.
+        failed, r = spec["radius"], spec["radius"] * EXPLAIN_RATIO
+        while r >= EXPLAIN_R_MIN and not fits({**spec, "radius": r}):
+            failed, r = r, r * EXPLAIN_RATIO
+        if r >= EXPLAIN_R_MIN:
+            exc.params["rMax"] = bounded(r, failed)
+        if picks[0]["radius"] is not None or picks[1]["radius"] is not None:
+            failed, r = spec["radius"], spec["radius"] / EXPLAIN_RATIO
+            while r <= clearance.R_MAX and not fits({**spec, "radius": r}):
+                failed, r = r, r / EXPLAIN_RATIO
+            if r <= clearance.R_MAX:
+                exc.params["rMin"] = bounded(r, failed)
+    sides = [k for k in (0, 1) if spec["lengths"][k] > 0]
+    direct = not free and spec["arcJoin"] == "transition"
+    if sides and not direct:
+        def at(length):
+            return [length if k in sides else 0.0 for k in (0, 1)]
+        if fits(spec, at(0.0)) and not fits(spec, at(max(spec["lengths"]))):
+            lo, hi = 0.0, max(spec["lengths"])
+            while hi - lo > 0.05:
+                mid = (lo + hi) / 2
+                lo, hi = (mid, hi) if fits(spec, at(mid)) else (lo, mid)
+            exc.params["lMax"] = math.floor(lo * 10) / 10
 
 
 def _with_clearance(picks, spec, cl):
@@ -926,10 +1025,10 @@ def _with_clearance(picks, spec, cl):
         # straight, and the "largest radius" is a sliver of any radius at all.
         l_min = float(cl.get("lMin") or 0)
 
-        def search(pk, ends):
+        def search(pk, ends, sp):
             r_max = clearance.R_MAX
             try:
-                _solve(pk, ends, {**spec, "radius": r_max})
+                _solve(pk, ends, {**sp, "radius": r_max})
             except SpliceError as exc:
                 # Too large to fit on the elements at all: the search starts where it fits.
                 if exc.params.get("rMax"):
@@ -937,7 +1036,7 @@ def _with_clearance(picks, spec, cl):
 
             def build(r):
                 try:
-                    sol = _solve(pk, ends, {**spec, "radius": r})
+                    sol = _solve(pk, ends, {**sp, "radius": r})
                 except SpliceError:
                     return None
                 if sol["info"].get("arcLength", 0) < l_min:
@@ -953,8 +1052,8 @@ def _with_clearance(picks, spec, cl):
             return sol
         return _solutions(picks, spec, build=search)
 
-    def checked(pk, ends):
-        sol = _solve(pk, ends, spec)
+    def checked(pk, ends, sp):
+        sol = _solve(pk, ends, sp)
         sol["info"]["clearance"] = described(sol, abs(float(cl.get("cant") or 0)), {})
         return sol
     return _solutions(picks, spec, build=checked)
@@ -984,7 +1083,9 @@ def splice_payload(payload):
     "worst": severity, "judged": bool} — every element with the speed and
     cant it was judged with (`_judge`)
     — or {"error": key, "params": {...}} for a splice that does not fit
-    where any two ends meet. A body that is not one raises ValueError.
+    where any two ends meet, `params` saying what would (`_explain`: rMax,
+    rMin, lMax). Where only the other way of joining two arcs fits, beside the
+    solutions `requested`: {"error", "params"} for the way asked for. A body that is not one raises ValueError.
 
     `clearance` holds the splice to a spacing to another track (clearance.py):
     {"ref": [[e, n, cant], …] its axis in this plane, "dMin": m, "profile":
@@ -1008,7 +1109,7 @@ def splice_payload(payload):
         "lengths": [max(0.0, float(payload.get("lDep") or 0)), max(0.0, float(payload.get("lArr") or 0))],
         "modes": modes,
         "profile": payload.get("transition", "clothoid"),
-        "arcJoin": payload.get("arcJoin"),
+        "arcJoin": payload.get("arcJoin") or "straight",
         "speed": max(0.0, float(payload.get("speed") or 0)),
         "cant": abs(float(payload.get("cant") or 0)),
     }
@@ -1019,7 +1120,7 @@ def splice_payload(payload):
         raise ValueError("clearance")
     try:
         if cl:
-            return {"solutions": _with_clearance(picks, spec, cl)}
-        return {"solutions": _solutions(picks, spec)}
+            return _with_clearance(picks, spec, cl)
+        return _solutions(picks, spec)
     except SpliceError as exc:
         return {"error": exc.code, "params": exc.params}

@@ -71,6 +71,10 @@ cases = {
     "cornerTransitions": {**base, "dep": a, "arr": b, "lDep": 60, "lArr": 60},
     "arcsStraight": {**base, "dep": c, "arr": d, "lDep": 40, "lArr": 40},
     "arcOnToStraight": {**base, "dep": e, "arr": f, "radius": 400},
+    # The arcs of arcsStraight asked to be joined by one transition: only the
+    # straight fits, and comes with transitions at the Regellänge (AP S.5).
+    "arcsAskedDirect": {**base, "dep": {**c, "speed": 100, "cant": 50}, "arr": {**d, "speed": 100, "cant": 30},
+                        "arcJoin": "transition", "speed": 100},
     "sbssRegular": {**base, "dep": g, "arr": h, "radius": 750, "cant": 45, "speed": 80, "lDep": 60, "lArr": 60,
                     "modeDep": "regular", "modeArr": "regular"},
 }

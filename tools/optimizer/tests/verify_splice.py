@@ -347,6 +347,69 @@ ok("SBSS without a speed: the lengths as given, no rule to say otherwise",
    and res["lengths"][0]["regular"] is None)
 
 
+# ── what would fit, where nothing does (AP S.5) ──────────────────────────────
+res = splice_payload({"dep": dep_5550, "arr": arr_5550, "radius": 500})
+r_min = res.get("params", {}).get("rMin")
+ok(f"line 5550 at R 500: names the smallest radius that fits ({r_min})", r_min is not None and 500 < r_min < 700)
+ok("line 5550: …which fits", "error" not in splice_payload({"dep": dep_5550, "arr": arr_5550, "radius": r_min}))
+ok("line 5550: …and a metre less does not",
+   "error" in splice_payload({"dep": dep_5550, "arr": arr_5550, "radius": r_min - 1}))
+
+res = splice_payload({"dep": a, "arr": b, "radius": 300, "lDep": 400, "lArr": 400})
+l_max = res.get("params", {}).get("lMax")
+ok(f"corner with 400 m transitions: names the longest that fit ({l_max})", l_max is not None and 100 < l_max < 300)
+ok("corner: …transitions that long fit",
+   "error" not in splice_payload({"dep": a, "arr": b, "radius": 300, "lDep": l_max, "lArr": l_max}))
+ok("corner: …a decimetre longer do not",
+   "error" in splice_payload({"dep": a, "arr": b, "radius": 300, "lDep": l_max + 0.2, "lArr": l_max + 0.2}))
+
+r1, r2 = 900.0, -700.0
+A, bA = arc_step(P0, 20.0, 250.0, r1)
+S1, bS1 = trans_step(A, bA, 70.0, r1, None)
+S2 = along(S1, bS1, 120.0)
+B, bB = trans_step(S2, bS1, 70.0, None, r2)
+C, _ = arc_step(B, bB, 200.0, r2)
+arcs_req = {"dep": pick(P0, A, bA, r1), "arr": pick(C, B, (bB + 180.0) % 360.0, -r2)}
+answer = _payload({**arcs_req, "lDep": 200, "lArr": 200})
+l_max = answer.get("requested", {}).get("params", {}).get("lMax")
+ok(f"arcs by a straight, transitions of 200 m: says they do not fit, and the longest that do ({l_max})",
+   answer.get("requested", {}).get("error") == "splice_error_clothoid_too_long" and l_max is not None and 70 <= l_max < 200)
+ok("…and offers the one transition from arc to arc instead",
+   [x["arcJoin"] for x in answer.get("solutions", [])] == ["transition"])
+ok("arcs by a straight: …which fit",
+   "error" not in splice_payload({**arcs_req, "lDep": l_max, "lArr": l_max}))
+
+# Two arcs joined over a straight, asked for one transition from arc to arc:
+# the geometry has a straight between them, so no transition fits — the
+# straight comes as the other way to join them, with transitions at the
+# Regellänge where none were asked for (Entscheidung 183).
+answer = _payload({**arcs_req, "arcJoin": "transition", "speed": 100,
+                   "dep": {**arcs_req["dep"], "speed": 100, "cant": 40},
+                   "arr": {**arcs_req["arr"], "speed": 100, "cant": 40}})
+sols = answer.get("solutions", [])
+ok("arcs asked for one transition where only a straight fits: the straight is offered",
+   len(sols) >= 1 and sols[0]["arcJoin"] == "straight" and sols[0]["alternative"] is True)
+if sols:
+    ok("…with transitions at the Regellänge", [x["mode"] for x in sols[0]["lengths"]] == ["regular", "regular"]
+       and all(x["length"] > 0 for x in sols[0]["lengths"]))
+    ok(f"…chain holds ({chain_holds(sols[0]['elements'])})", chain_holds(sols[0]["elements"]) is None)
+
+# A compound curve joined directly, the transition far too short for 120 km/h:
+# the straight between the two arcs is the other way, judged on its own.
+A, bA = arc_step(P0, 20.0, 300.0, 1000.0)
+B, bB = trans_step(A, bA, 30.0, 1000.0, 600.0)
+C, _ = arc_step(B, bB, 250.0, 600.0)
+answer = _payload({"dep": {**pick(P0, A, bA, 1000.0), "speed": 120, "cant": 60},
+                   "arr": {**pick(C, B, (bB + 180.0) % 360.0, -600.0), "speed": 120, "cant": 100},
+                   "arcJoin": "transition", "speed": 120})
+sols = answer.get("solutions", [])
+direct = [x for x in sols if x.get("arcJoin") == "transition"]
+ok("compound curve, a transition too short: found, and judged an error",
+   len(direct) == 1 and direct[0]["worst"] == "error" and abs(direct[0]["info"]["transitionLength"] - 30.0) < 1e-3)
+ok("…every solution ranked by what is found first",
+   [x["worst"] for x in sols] == sorted([x["worst"] for x in sols], key=lambda w: ["ok", "hint", "warning", "approval", "special_case", "error"].index(w)))
+
+
 # ── what a malformed request does ────────────────────────────────────────────
 try:
     splice_payload({"dep": {"start": [0, 0]}, "arr": b, "radius": 300})

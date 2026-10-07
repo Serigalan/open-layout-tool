@@ -175,7 +175,8 @@ const withFormulas = (l) => ({
  * the best first (Entscheidung 180), each { dep, arr, result } — `dep` and
  * `arr` the two picks in the order the solution runs, `result` the chain with
  * its display geometry rebuilt in the track's plane, the preview line, how it
- * runs (depPick, reverseDep, reverseArr, ends, rebuilt), the transition beside each
+ * runs (depPick, reverseDep, reverseArr, ends, rebuilt; for two arcs arcJoin and
+ * whether that is the `alternative` to the way asked for), the transition beside each
  * pick ({ mode, length } and the rules on it, `lengths`), what the rule
  * catalogue finds on the whole stretch (`findings` as { at, index, id,
  * severity } by element of `elements`, `worst`, `judged`) and what the service
@@ -188,6 +189,8 @@ export function spliceFromAnswer(answer, picks) {
   }
   const epsg = picks[0].epsg
   return {
+    // Where only the other way of joining two arcs fits: why the way asked for does not.
+    requested: answer.requested ?? null,
     solutions: answer.solutions.map(sol => {
       const elements = reconstructElements(sol.elements.map(el => ({ ...el, epsg })), epsg)
       const previewCoords = elements.reduce((acc, el, i) => {
@@ -200,6 +203,7 @@ export function spliceFromAnswer(answer, picks) {
           ...sol.info, elements, previewCoords,
           depPick: sol.depPick, reverseDep: !!sol.reverseDep, reverseArr: !!sol.reverseArr, ends: sol.ends,
           rebuilt: sol.rebuilt, findings: sol.findings ?? [], worst: sol.worst ?? 'ok', judged: !!sol.judged,
+          arcJoin: sol.arcJoin ?? null, alternative: !!sol.alternative,
           lengths: (sol.lengths ?? []).map(withFormulas),
         },
       }
