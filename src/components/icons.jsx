@@ -360,6 +360,17 @@ export const ReconnectIcon = () => (
   </MenuIcon>
 )
 
+// Shift values: the reference axis dashed, the track beside it, and the
+// offset between them marked across — the check panel's menu button.
+export const ShiftValuesIcon = () => (
+  <MenuIcon>
+    <path d="M1.5 11 H14.5" strokeDasharray="1.5 2" />
+    <path d="M1.5 6 C6 6 10 4 14.5 4" />
+    <path d="M5 6 V11" />
+    <path d="M11 4.5 V11" />
+  </MenuIcon>
+)
+
 // An island platform from above: the two tracks along it, the platform
 // between them with its ends ramped to a point.
 export const NewPlatformIcon = () => (

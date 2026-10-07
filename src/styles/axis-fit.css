@@ -64,3 +64,10 @@
   font-size: var(--fs-xs);
   fill: var(--color-muted);
 }
+
+/* Shift values against a reference axis (Paket V). */
+.shift-values { margin: 10px 0; }
+.shift-values > summary { cursor: pointer; font-weight: 600; font-size: var(--fs-s); }
+.shift-table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.shift-table th, .shift-table td { text-align: right; padding: 1px 6px; border-bottom: 1px solid var(--color-border-soft); }
+.shift-table th { color: var(--color-muted); font-weight: 600; }

@@ -23,7 +23,7 @@ const MENU_ICONS = [
   'ChangeDirectionIcon', 'AssignTracksIcon', 'DeleteTrackIcon', 'DeleteSwitchIcon', 'TrackVisibilityIcon',
   'OptimizeTrackModeIcon', 'OptimizeElementModeIcon', 'AxisFitModeIcon', 'BandsIcon',
   'CrossingIcon', 'CrossingSwitchIcon', 'CrossingOnTrackIcon', 'SwitchLinkIcon',
-  'SpliceJoinIcon', 'ReconnectIcon', 'NewPlatformIcon', 'BufferStopIcon', 'PointCloudIcon',
+  'SpliceJoinIcon', 'ReconnectIcon', 'ShiftValuesIcon', 'NewPlatformIcon', 'BufferStopIcon', 'PointCloudIcon',
 ]
 
 // Walk a path the way a renderer does and state every absolute position it

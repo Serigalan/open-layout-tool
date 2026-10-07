@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import OptimizeTrackPanel from './OptimizeTrackPanel'
+import ShiftValuesPage from './shift/ShiftValuesPage'
 import GroupedTrackList from './GroupedTrackList'
-import { PhysicsIcon, RegelwerkIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon, BandsIcon, BackIcon } from '../icons'
+import {
+  PhysicsIcon, RegelwerkIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon, BandsIcon, BackIcon, ShiftValuesIcon,
+} from '../icons'
 import { useTracks } from '../../hooks/useStore'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
@@ -36,17 +39,30 @@ function BandsPage({ trackId, onShow, onExit }) {
  * each a popup over the map, as wide as their tables — and the optimizer that
  * holds a track or an element to them, the one place it is offered; beside it
  * the alignment fit from a measured axis (AP 12.5). Last the bands of a track,
- * to read its alignment along it at one glance.
+ * to read its alignment along it at one glance, and the shift values of a
+ * track against a reference axis (Paket V).
  */
 export default function CheckPanel({ onShowPhysics, onShowRegelwerk, bandsTrackId, onShowBands }) {
   const { t } = useI18n()
   const [page, setPage] = useState('menu')
+  const [shiftTrackId, setShiftTrackId] = useState(null)
 
   if (page === 'bands') {
     // Leaving the page takes the bands with it: they belong to it.
     return (
       <BandsPage trackId={bandsTrackId} onShow={onShowBands}
         onExit={() => { onShowBands?.(null); setPage('menu') }} />
+    )
+  }
+  if (page === 'shift') {
+    return (
+      <>
+        <button className="back-btn" onClick={() => setPage('menu')}>
+          <BackIcon />
+          {t('btn_back')}
+        </button>
+        <ShiftValuesPage trackId={shiftTrackId} onPick={setShiftTrackId} />
+      </>
     )
   }
   if (page !== 'menu') {
@@ -84,6 +100,11 @@ export default function CheckPanel({ onShowPhysics, onShowRegelwerk, bandsTrackI
         <button className="create-element-btn" onClick={() => setPage('bands')}>
           <BandsIcon />
           {t('check_bands_show')}
+        </button>
+        <span className="create-element-section">{t('shift_title')}</span>
+        <button className="create-element-btn" onClick={() => setPage('shift')}>
+          <ShiftValuesIcon />
+          {t('shift_check')}
         </button>
       </div>
     </>
