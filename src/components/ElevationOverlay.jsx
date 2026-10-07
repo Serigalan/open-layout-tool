@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { setTrackHeights, setHeightsForTracks, currentProject } from '../storage'
 import { useProject, useSwitches, useTracks } from '../hooks/useStore'
-import { checkVertical, verticalFindings } from '../utils/gradientCheck'
+import { checkVertical, regularVerticalRadius, verticalFindings } from '../utils/gradientCheck'
 import { coupledPoints, trackHeightAt } from '../utils/switchGradient'
 import { ruleById, severityLabelKey } from '../utils/regelkatalog'
 import {
@@ -112,6 +112,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const [selection, setSelection] = useState([])   // indices of the height points being edited
   const [draft, setDraft]       = useState('')
   const [rvDraft, setRvDraft]   = useState('')     // vertical curve radius of the selection
+  const [rvNote, setRvNote]     = useState(null)     // what setting the Regelwert left undone
   const [band, setBand]         = useState(null)     // rubber band { x0, y0, x1, y1 } while Shift-dragging
   const [hover, setHover]       = useState(null)     // { station, z } a double click would add a point at
   const [cursor, setCursor]     = useState(null)     // station [m] the cursor stands over, shown on the map
@@ -257,6 +258,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     const picked = points.filter(p => indices.includes(p.index))
     setDraft(common(picked.map(p => p.z)))
     setRvDraft(common(picked.map(p => p.rv)))
+    setRvNote(null)
   }
   const rvMixed = selectedPoints.some(p => p.rv !== selectedPoints[0]?.rv)
   /** Click picks one point, Ctrl/Shift-click adds it to or drops it from the selection. */
@@ -279,6 +281,26 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
       .map(p => ({ trackId: track.id, index: p.index, ...patch }))
     if (!entries.length) return
     setHeightsForTracks(jointHeightUpdates(tracks, switches, entries))
+  }
+
+  /**
+   * Every selected gradient change rounded as the rules ask at its design
+   * speed (regularVerticalRadius) — or not at all where they want none. A
+   * point without a known speed keeps its curve, and the panel says so.
+   */
+  const setRegularRadius = () => {
+    if (!track || !selectedPoints.length) return
+    const found = selectedPoints.filter(p => !locked.has(p.index))
+      .map(p => ({ p, r: regularVerticalRadius(track, p.index, { switches }) }))
+      .filter(({ r }) => r)
+    const set = found.filter(({ r }) => !r.noSpeed)
+    const noSpeed = found.length - set.length
+    setRvNote(noSpeed ? fill('elevation_vcurve_no_speed', { n: noSpeed }) : null)
+    if (!set.length) return
+    setHeightsForTracks(jointHeightUpdates(tracks, switches,
+      set.map(({ p, r }) => ({ trackId: track.id, index: p.index, rv: r.rv }))))
+    const rvOf = new Map(set.map(({ p, r }) => [p.index, r.rv]))
+    setRvDraft(common(selectedPoints.map(p => (rvOf.has(p.index) ? rvOf.get(p.index) : p.rv))))
   }
 
   // Only the two ends of the track have to stay: they are where its height
@@ -566,6 +588,10 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
                 onChange={e => setRvDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
               <span>m</span>
+              <button className="track-table-save-btn" title={t('elevation_vcurve_regular_hint')} onClick={setRegularRadius}>
+                {t('elevation_vcurve_regular')}
+              </button>
+              {rvNote && <span className="form-error">{rvNote}</span>}
               <button className="track-table-save-btn" onClick={commit}>{t('elevation_apply')}</button>
               <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
                 title={t('elevation_delete_hint')} onClick={remove}>

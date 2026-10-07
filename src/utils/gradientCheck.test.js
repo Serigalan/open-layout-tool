@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkVertical, lineCategoryOf, verticalFindings } from './gradientCheck'
+import { checkVertical, lineCategoryOf, regularVerticalRadius, verticalFindings } from './gradientCheck'
 import { ruleById, evaluateRule } from './regelkatalog'
 
 // A straight line track of `length` metres at `speed`, with the given height points.
@@ -218,5 +218,51 @@ describe('HP.AR · rounding of a gradient change', () => {
     ])
     const found = verticalFindings(checkVertical(many))
     expect(found).toEqual([expect.objectContaining({ id: 'HP.AR.01', severity: 'error', places: 2 })])
+  })
+})
+
+describe('the rounding the rules ask for', () => {
+  // Up `up` ‰ to station 1000 (or `at`), down `down` ‰ after it.
+  const change = (up, down, { at = 1000, ...rest } = {}) => line([
+    { station: 0, z: 100 }, { station: at, z: 100 + up * at / 1000 },
+    { station: 2000, z: 100 + up * at / 1000 - down * (2000 - at) / 1000 },
+  ], rest)
+
+  it('is the Regelwert of Tabelle 12, rounded up to 100 m, and passes the check', () => {
+    expect(regularVerticalRadius(change(10, 10), 1)).toEqual({ rv: 4000, speed: 100 })
+    expect(regularVerticalRadius(change(10, 10, { speed: 160 }), 1).rv).toBe(10300)
+    expect(regularVerticalRadius(change(10, 10, { speed: 250 }), 1).rv).toBe(22500)
+    const track = change(10, 10, { speed: 160 })
+    track.heights[1].rv = 10300
+    const curve = checkVertical(track).curves[0]
+    expect(curve.severity).toBe('ok')
+  })
+
+  it('makes the curve 20 m long where the Regelwert would leave it shorter', () => {
+    // Δs 2 ‰: 4000 m would be 8 m long, 10000 m are 20 m.
+    expect(regularVerticalRadius(change(1, 1), 1).rv).toBe(10000)
+    const track = change(1, 1)
+    track.heights[1].rv = 10000
+    expect(sev(checkVertical(track).curves[0], 'HP.AR.02')).toBe('ok')
+  })
+
+  it('wants none where the Ril wants none', () => {
+    expect(regularVerticalRadius(change(0.5, 0.5), 1)).toEqual({ rv: null })
+    expect(regularVerticalRadius(change(2, 2, { trackUse: 'siding' }), 1)).toEqual({ rv: null })
+    expect(regularVerticalRadius(change(2, 2.5), 1).rv).toBeGreaterThan(0)
+  })
+
+  it('takes the fastest element the curve reaches onto', () => {
+    // At 980 m the track runs at 100 km/h; the 4000 m curve reaches 40 m on
+    // either side, onto the 200 km/h element from 990 m.
+    const track = change(10, 10, { at: 980 })
+    track.elements = [{ elementType: 0, length: 990, speed: 100 }, { elementType: 0, length: 1010, speed: 200 }]
+    expect(regularVerticalRadius(track, 1)).toEqual({ rv: 16000, speed: 200 })
+  })
+
+  it('says so where the design speed is unknown, and nothing at the ends', () => {
+    expect(regularVerticalRadius(change(10, 10, { speed: 0 }), 1)).toEqual({ noSpeed: true })
+    expect(regularVerticalRadius(change(10, 10), 0)).toBeNull()
+    expect(regularVerticalRadius(change(10, 10), 2)).toBeNull()
   })
 })

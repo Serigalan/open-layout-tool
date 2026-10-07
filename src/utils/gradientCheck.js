@@ -18,7 +18,7 @@
  * connection or a cant ramp.
  */
 
-import { evaluateRules, rulesForScope, severityRank, worstSeverity } from './regelkatalog'
+import { catalogLimit, evaluateRules, rulesForScope, severityRank, worstSeverity } from './regelkatalog'
 import { tangentLength } from './heightUtils'
 import { trackKind } from './trackGroups'
 import { portsOf } from './switchModel'
@@ -218,6 +218,69 @@ export function checkVertical(track, { project = null, switches = [], tracks = p
     curves,
     severity: worstSeverity([...stretches, ...curves].map(entry => entry.severity)),
   }
+}
+
+// A radius set by the rules is rounded up to a full 100 m.
+const RADIUS_STEP = 100
+
+/**
+ * The vertical curve the rules ask for at the inner height point `index`, by
+ * the design speed there: the Regelwert of Tabelle 12 (HP.AR.03), longer
+ * where the curve would otherwise stay short of 20 m (HP.AR.02), up to the
+ * Höchstwert, and rounded up to a full 100 m. A change the Ril wants without
+ * a curve (HP.AR.01: ≤ 1 ‰, ≤ 4.5 ‰ on a siding or a track connection) gets
+ * none.
+ *
+ * The speed is the fastest element's under the curve, as the check takes it —
+ * found again for the length the new curve has, since a longer one may reach
+ * onto a faster element.
+ *
+ * Returns { rv, speed } with rv in m, { rv: null } where no curve is wanted,
+ * { noSpeed: true } where one is but no design speed is known, and null for a
+ * point without a gradient change on this track (an end, or a stretch of no
+ * length).
+ */
+export function regularVerticalRadius(track, index, { switches = [] } = {}) {
+  const heights = track?.heights ?? []
+  if (!(index > 0 && index < heights.length - 1)) return null
+  const grades = stretchGrades(heights)
+  const before = grades[index], after = grades[index + 1]
+  if (before == null || after == null) return null
+  // Judged to 0.01 ‰ as the check does; the curve's length is the exact one's.
+  const exact = Math.abs(after - before)
+  const ds = round2(exact)
+  const contexts = new Set([
+    ...(trackUseOf(track) === 'siding' ? ['siding'] : []),
+    ...(isConnectionTrack(track, switches) ? ['track_connection'] : []),
+  ])
+  const free = catalogLimit('HP.AR.01', 'ds_free', { 'physics.gradient_change': ds, 'point.vertical_radius': 0 },
+    { inContext: (id) => contexts.has(id) })
+  if (ds <= free) return { rv: null }
+
+  const spans = elementSpans(track.elements)
+  const station = heights[index].station
+  const radiusFor = (v) => {
+    const scope = {
+      'physics.gradient_change': ds, 'point.vertical_radius': 1, 'point.design_speed': v,
+      'physics.vertical_curve_length': 0, 'model.crest': after < before,
+    }
+    const reg = catalogLimit('HP.AR.03', 'reg', scope)
+    const length = catalogLimit('HP.AR.02', 'reg', scope)
+    const rv = Math.ceil(Math.max(reg, 1000 * length / exact) / RADIUS_STEP) * RADIUS_STEP
+    return Math.min(rv, catalogLimit('HP.AR.03', 'max', scope))
+  }
+  let speed = 0, rv = null
+  // The speed only grows with the curve, and the curve with the speed: a few
+  // rounds settle it.
+  for (let k = 0; k < 5; k++) {
+    const t = rv ? rv * exact / 2000 : 0
+    const v = Math.max(0, ...overlapping(spans, station - t, station + t).map(s => s.speed))
+    if (!(v > 0)) return { noSpeed: true }
+    if (v === speed) break
+    speed = v
+    rv = radiusFor(v)
+  }
+  return { rv, speed }
 }
 
 /**
