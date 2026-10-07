@@ -15,11 +15,12 @@ const REGEL_ABSTAENDE = [...new Set(QUERSCHNITT_KATALOG.streckenquerschnitte.row
 /**
  * The settings of a splice: how two arcs are joined, the radius of an arc put
  * between straights with its speed and cant, and the transitions either side
- * — their kind, and how long each is unless the construction solves it: the
- * Regellänge or the Mindestlänge the service sets in the chain it solves
- * (`s.modes`, the two buttons, Entscheidung 179), or a length typed
- * (`s.transitions`, mode 'fixed'). `transitionRules` [first, second] is what
- * the service answered for each: its length and every rule on it. Both belong
+ * — their kind, and how long each is unless the construction solves it.
+ * Switched on, each side gets the Regellänge the service names once (mode
+ * 'regular', Entscheidung 185); from then on its length is as typed or as a
+ * button sets it — the Regel- or Mindestlänge where it stands now (mode
+ * 'fixed'). `transitionRules` [first, second] is what the service answered
+ * for each: its length and the rules on it, also where nothing fits. Both belong
  * to the two `picks` in the order they were clicked; they are listed
  * departure first, as the solution shown runs (`departure`). `s` holds the
  * settings, `set(key, value)` changes one.
@@ -39,10 +40,11 @@ export default function SpliceSettings({
   const order = departure === picks[1] ? [1, 0] : [0, 1]
   const role = (k) => t(k === order[0] ? 'splice_departure' : 'splice_arrival')
   const byPick = (key, k, v) => s[key].map((x, j) => (j === k ? v : x))
-  // A length typed is a fixed one; a button switches the side to its mode.
+  // A length typed or set by a button is a fixed one.
   const setLength = (k, v) => { set('transitions', byPick('transitions', k, v)); set('modes', byPick('modes', k, 'fixed')) }
-  const setMode = (k, mode) => set('modes', byPick('modes', k, mode))
-  // What a side shows: the length the service set, or the one typed.
+  // Switched on, both sides ask for the Regellänge, once (Entscheidung 185).
+  const enableTransitions = (on) => { set('clothoidEnabled', on); if (on) set('modes', ['regular', 'regular']) }
+  // What a side shows: the Regellänge the service set, until it is taken over, or the length.
   const shown = (k) => (s.modes[k] !== 'fixed' && transitionRules?.[k]?.length ? transitionRules[k].length : s.transitions[k])
   // Joined straight from one arc to the other, the transition's length is the
   // answer rather than an input — there is nothing to type and nothing to switch on.
@@ -88,7 +90,7 @@ export default function SpliceSettings({
       ))}
       {!directTransition && (
         <label className="transition-curve-row">
-          <input type="checkbox" checked={s.clothoidEnabled} onChange={e => set('clothoidEnabled', e.target.checked)} />
+          <input type="checkbox" checked={s.clothoidEnabled} onChange={e => enableTransitions(e.target.checked)} />
           <span>{t('transition_curve')}</span>
         </label>
       )}
@@ -111,10 +113,8 @@ export default function SpliceSettings({
                     <label>{role(k)} – {t('field_length')}</label>
                     <NumberInput min={1} step={10} value={shown(k)}
                       onChange={e => setLength(k, Math.max(1, Number(e.target.value) || 1))} />
-                    {s.modes[k] === 'fixed' && <span className="range-use">{t('transition_fixed')}</span>}
                   </div>
-                  <TransitionLengthButtons lengths={transitionRules?.[k]} active={s.modes[k]}
-                    onPick={(_v, mode) => setMode(k, mode)} />
+                  <TransitionLengthButtons lengths={transitionRules?.[k]} onPick={v => setLength(k, v)} />
                 </div>
               ))}
             </>

@@ -767,6 +767,59 @@ def _solve(picks, ends, spec):
     return sol
 
 
+def _same_hand(picks, spec):
+    """Between an arc and a straight: does the new arc curve the same way as
+    the picked arc — as the splice lays it without transitions, where the ends
+    lie closest? Where that does not fit either, no: the reverse curve, the
+    stricter of the two."""
+    k = 0 if picks[0]["radius"] is not None else 1
+    pairs = sorted((ends for ends in PAIRS if all(p["joinAt"] in (None, e) for p, e in zip(picks, ends))),
+                   key=lambda ends: _gap(picks, ends))
+    for ends in pairs:
+        try:
+            sol = _pair(picks, ends, spec, [0.0, 0.0])
+        except SpliceError:
+            continue
+        role = "dep" if sol["depPick"] == k else "arr"
+        own = [el for el in sol["elements"] if el["role"] == role and el["elementType"] == 1]
+        r = sol["info"].get("signedR")
+        if own and r:
+            return (own[-1]["radius"] > 0) == (r > 0)
+    return False
+
+
+def _unsolved_lengths(picks, spec):
+    """The transition beside each pick where no splice fits, as `_solve` gives
+    it ({mode, length} and the rules on it): the lengths the rules ask for
+    between the picked element and what the splice would put beside it — the
+    new arc of the radius asked for, or between two arcs the straight — so
+    that the dialog can still offer them. Beside a picked arc the new arc
+    curves as `_same_hand` finds; a side without a transition, or one whose
+    neighbour is not known (no radius asked for), has no rules."""
+    two_arcs = all(p["radius"] is not None for p in picks)
+    direct = two_arcs and spec["arcJoin"] == "transition"
+    same = not two_arcs and spec["radius"] > 0 and any(p["radius"] for p in picks) and _same_hand(picks, spec)
+    out = []
+    for k, p in enumerate(picks):
+        if direct or not spec["lengths"][k] > 0:
+            out.append({"mode": "fixed", "length": 0.0})
+            continue
+        side = {"mode": spec["modes"][k], "length": spec["lengths"][k]}
+        if not two_arcs and not spec["radius"] > 0:
+            out.append(side)
+            continue
+        own = ({"elementType": 1, "radius": abs(p["radius"]), "cant": p["cant"], "speed": p["speed"]}
+               if p["radius"] else {"elementType": 0, "cant": 0.0, "speed": p["speed"]})
+        if two_arcs:
+            body = {"elementType": 0, "cant": 0.0, "speed": spec["speed"]}
+        else:
+            hand = 1.0 if p["radius"] is None or same else -1.0
+            body = {"elementType": 1, "radius": hand * spec["radius"], "cant": hand * spec["cant"],
+                    "speed": spec["speed"]}
+        out.append({**side, **transition_lengths(own, body, own.get("radius"), spec["profile"], spec["speed"])})
+    return out
+
+
 def _cost(sol, picks):
     """How much a solution rebuilds [m]: the track it gives up beyond the ends
     that meet, how far it re-shapes the two picked elements, and the new
@@ -1094,9 +1147,10 @@ def splice_payload(payload):
     minimum, regularBy, minimumBy}], "findings": [{at, index, id, severity}],
     "worst": severity, "judged": bool} — every element with the speed and
     cant it was judged with (`_judge`)
-    — or {"error": key, "params": {...}} for a splice that does not fit
-    where any two ends meet, `params` saying what would (`_explain`: rMax,
-    rMin, lMax). Where only the other way of joining two arcs fits, beside the
+    — or {"error": key, "params": {...}, "lengths": [...]} for a splice that
+    does not fit where any two ends meet, `params` saying what would
+    (`_explain`: rMax, rMin, lMax) and `lengths` the transitions as the rules
+    would have them all the same (`_unsolved_lengths`). Where only the other way of joining two arcs fits, beside the
     solutions `requested`: {"error", "params"} for the way asked for. A body that is not one raises ValueError.
 
     `clearance` holds the splice to a spacing to another track (clearance.py):
@@ -1135,4 +1189,4 @@ def splice_payload(payload):
             return _with_clearance(picks, spec, cl)
         return _solutions(picks, spec)
     except SpliceError as exc:
-        return {"error": exc.code, "params": exc.params}
+        return {"error": exc.code, "params": exc.params, "lengths": _unsolved_lengths(picks, spec)}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { loadTracks, commitSwitchConnection, currentProject } from '../../storage'
 import { computeAutoC } from '../../utils/rules/cant'
 import {
-  buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest,
+  buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer, splicePick, spliceRequest,
 } from '../../utils/commands/splice'
 import { gaugeProfile } from '../../utils/gaugeProfiles'
 import { utmToWgs84 } from '../../utils/coordinateUtils'
@@ -54,9 +54,9 @@ const DEFAULTS = {
   // Two arcs can be joined either by a straight between them or by a single
   // transition curve straight from one to the other (AP 4.1).
   arcJoin: 'straight',                                  // 'straight' | 'transition'
-  // The transition beside each pick, in the order they were clicked: the
-  // Regellänge unless switched (Entscheidung 179), the service solving it
-  // from the length here on — or with 'fixed' this length as it is.
+  // The transition beside each pick, in the order they were clicked: switched
+  // on, the Regellänge the service names is set once ('regular', Entscheidung
+  // 185), from then on the length here as it is ('fixed').
   transitions: [60, 60], modes: ['regular', 'regular'],
   // Keeping a spacing to another track (Entscheidung 167): checked at the
   // radius given, or the largest radius that keeps it searched.
@@ -257,7 +257,11 @@ export default function SpliceElementPanel() {
         const { neighbour: _n, ...req } = JSON.parse(requestKey)
         if (req.clearance) req.clearance.ref = axis
         const a = await spliceOnServer(req, { signal: ctl.signal })
-        setAnswer({ key: requestKey, splice: spliceFromAnswer(a, picks) })
+        const read = spliceFromAnswer(a, picks)
+        setAnswer({ key: requestKey, splice: read })
+        // Transitions just switched on take the Regellänge named, once.
+        const sol = read.solutions?.find(x => solutionKey(x) === chosen) ?? read.solutions?.[0]
+        setS(prev => settleLengths(prev, sol?.result?.lengths ?? read.lengths))
       } catch (err) {
         if (err?.name !== 'AbortError') setAnswer({ key: requestKey, splice: { error: 'splice_service_unavailable' } })
       }
@@ -284,8 +288,9 @@ export default function SpliceElementPanel() {
   }, [solution, spacing, picks, preview])
 
   // The transition beside each pick, by pick, as the service set it in the
-  // chain it solved: its mode, its length and the rules on it (AP S.3).
-  const transitionRules = s.clothoidEnabled ? solution?.result?.lengths ?? null : null
+  // chain it solved: its mode, its length and the rules on it (AP S.3) — and
+  // where nothing fits, the rules' lengths all the same.
+  const transitionRules = s.clothoidEnabled ? solution?.result?.lengths ?? splice?.lengths ?? null : null
 
   const reset = () => {
     preview.clear(); setPicks([]); setChosen(null); setPickStatus(null); setRefTrackId(null); setPickingRef(false)
@@ -301,7 +306,7 @@ export default function SpliceElementPanel() {
       const on = lengths.some(l => l.length > 0)
       set('clothoidEnabled', on)
       if (on) {
-        set('modes', lengths.map(l => l.mode))
+        set('modes', ['fixed', 'fixed'])
         set('transitions', lengths.map(l => l.length || DEFAULTS.transitions[0]))
       }
     }

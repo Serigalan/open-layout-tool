@@ -212,11 +212,16 @@ const withFormulas = (l) => ({
  * catalogue finds on the whole stretch (`findings` as { at, index, id,
  * severity } by element of `elements`, `worst`, `judged`) and what the service
  * says about it (arcLength, straightLength, transitionLength, …) — or { error,
- * params } for a splice that does not fit.
+ * params, lengths } for a splice that does not fit, `lengths` the transitions
+ * beside each pick as the rules would have them all the same.
  */
 export function spliceFromAnswer(answer, picks) {
   if (!answer || answer.error || !answer.solutions?.length) {
-    return { error: answer?.error ?? 'splice_error_parallel', params: answer?.params ?? {} }
+    return {
+      error: answer?.error ?? 'splice_error_parallel', params: answer?.params ?? {},
+      // The transitions as the rules would have them, though nothing fits.
+      lengths: answer?.lengths ? answer.lengths.map(withFormulas) : null,
+    }
   }
   const epsg = picks[0].epsg
   return {
@@ -239,6 +244,25 @@ export function spliceFromAnswer(answer, picks) {
         },
       }
     }),
+  }
+}
+
+/**
+ * The Regellänge set once (Entscheidung 185): a side whose transitions were
+ * just switched on asks the service for it (mode 'regular'); as soon as an
+ * answer names it — a solution's, or the rules' where nothing fits — it
+ * becomes that side's length as if typed (mode 'fixed'), and from then on the
+ * buttons set another. `s` the dialog's settings, `lengths` the transition
+ * beside each pick as answered. The same `s` where there is nothing to set.
+ */
+export function settleLengths(s, lengths) {
+  if (!s.clothoidEnabled || !lengths) return s
+  const due = [0, 1].filter(k => s.modes[k] === 'regular' && lengths[k]?.regular != null)
+  if (!due.length) return s
+  return {
+    ...s,
+    transitions: s.transitions.map((v, k) => (due.includes(k) ? lengths[k].regular : v)),
+    modes: s.modes.map((m, k) => (due.includes(k) ? 'fixed' : m)),
   }
 }
 

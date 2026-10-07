@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, spliceFromAnswer, splicePick, spliceRequest } from './splice'
+import {
+  buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer, splicePick, spliceRequest,
+} from './splice'
 import { straightElement, arcElement, transitionElement } from '../elementFactory'
 import { recalcAbsLengths, rebuildCoords } from '../trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
@@ -141,7 +143,7 @@ describe('the request to the service', () => {
 
   it('reads a splice that does not fit as an error with its numbers', () => {
     expect(spliceFromAnswer({ error: 'splice_error_dep_too_large', params: { rMax: 400 } }, [dep, arr]))
-      .toEqual({ error: 'splice_error_dep_too_large', params: { rMax: 400 } })
+      .toEqual({ error: 'splice_error_dep_too_large', params: { rMax: 400 }, lengths: null })
   })
 })
 
@@ -226,6 +228,26 @@ describe('the track built from the answer', () => {
     // Each pick with its own speed and cant: what is left of it is judged with them.
     expect(req.dep).toMatchObject({ speed: 80, cant: 0, length: 200, before: 0, after: 0 })
     expect(spliceRequest(dep, arr, { ...settings, modes: ['regular', 'minimum'] })).toMatchObject({ modeDep: 'fixed', modeArr: 'fixed' })
+  })
+
+  it('reads the lengths the rules ask for where nothing fits', () => {
+    const lengths = [{ mode: 'regular', length: 400, regular: 28, minimum: 22.4, regularBy: [{ id: 'LP.UB.03', length: 28, binding: true }], minimumBy: [] },
+      { mode: 'fixed', length: 0 }]
+    const read = spliceFromAnswer({ error: 'splice_error_no_fit', params: { lMax: 157.8 }, lengths }, [dep, arr])
+    expect(read).toMatchObject({ error: 'splice_error_no_fit', params: { lMax: 157.8 } })
+    expect(read.lengths[0]).toMatchObject({ regular: 28, minimum: 22.4 })
+    expect(read.lengths[0].regularBy[0].formula).toBe('10·v·Δu/1000')
+    expect(spliceFromAnswer({ error: 'splice_error_no_fit', params: {} }, [dep, arr]).lengths).toBeNull()
+  })
+
+  it('sets the Regellänge once, as soon as the service names it (Entscheidung 185)', () => {
+    const s = { clothoidEnabled: true, transitions: [60, 60], modes: ['regular', 'regular'] }
+    const settled = settleLengths(s, [{ regular: 28 }, { regular: null }])
+    expect(settled).toMatchObject({ transitions: [28, 60], modes: ['fixed', 'regular'] })
+    // Set, it stays: a later answer changes nothing, nor one without transitions.
+    expect(settleLengths(settled, [{ regular: 30 }, { regular: null }])).toBe(settled)
+    expect(settleLengths({ ...s, clothoidEnabled: false }, [{ regular: 28 }, { regular: 36 }]).modes).toEqual(['regular', 'regular'])
+    expect(settleLengths(s, null)).toBe(s)
   })
 
   it('folds an arrival arc in backwards, both arcs keeping their cant', () => {

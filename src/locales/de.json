@@ -187,7 +187,6 @@
   "transition_regular_hint": "Kürzeste Länge, bei der jede Längenregel ihren Regelwert einhält: Mindestelementlänge (LP.EL.01), Rampe 10·v·Δu bzw. Bloss 8·v·Δu (LP.UB.03/04), Änderung des Fehlbetrags (LP.UB.05/06), Rampenneigung 1:600 (LP.UB.07). Auf volle 0,1 m aufgerundet.",
   "transition_minimum": "Mindestlänge {l} m",
   "transition_minimum_hint": "Kürzeste Länge ohne Zustimmung: Ermessensgrenze, wo die Regel eine hat (8·v·Δu bzw. Bloss 6·v·Δu, Rampenneigung 1:400), sonst Regelwert. Auf volle 0,1 m aufgerundet.",
-  "transition_fixed": "fest eingegeben – ein Knopf darunter setzt die Länge wieder nach Regel",
   "transition_no_speed": "Ohne Entwurfsgeschwindigkeit lässt sich der Übergangsbogen nicht prüfen.",
   "settings": "Einstellungen",
   "settings_language_label": "Sprache",

@@ -109,7 +109,10 @@ den Übergangsbögen müssen stetig sein, sonst ist es keine Lösung. Ein
 S.7); er bleibt, gebaut wird von dort weiter. Passt nichts, nennt die Antwort,
 was passen würde (AP S.5): den größten Radius darunter (`params.rMax`), zwischen
 Bogen und Gerade auch den kleinsten darüber (`rMin`), die längsten Übergangsbögen
-(`lMax`). Zwei Bögen werden immer auch auf die andere Art verbunden (direkt über
+(`lMax`) — und unter `lengths` die Regel- und Mindestlänge je Seite, wie die
+Regeln sie zwischen gewähltem Element und eingefügtem Bogen bzw. Zwischengerade
+verlangen (Entscheidung 185; beim Bogen neben einem Bogen in der Hand, die er
+ohne Übergangsbögen hätte, sonst als Gegenbogen). Zwei Bögen werden immer auch auf die andere Art verbunden (direkt über
 einen Übergangsbogen bzw. über eine Zwischengerade); passt nur diese, sagt
 `requested`, warum die gewünschte nicht passt. Prüfung:
 `WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die

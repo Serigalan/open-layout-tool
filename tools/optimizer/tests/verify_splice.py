@@ -345,6 +345,16 @@ res = splice_payload({**sbss, "speed": 0, "dep": sbss_arc, "arr": sbss_straight}
 ok("SBSS without a speed: the lengths as given, no rule to say otherwise",
    "error" not in res and [x["length"] for x in res["lengths"]] == [60.0, 60.0]
    and res["lengths"][0]["regular"] is None)
+res = splice_payload({**sbss, "modeDep": "fixed", "modeArr": "fixed", "lDep": 400, "lArr": 400,
+                      "dep": sbss_arc, "arr": sbss_straight})
+ok("SBSS with 400 m transitions: no fit, the rules' lengths all the same (28.0 and 36.0 m)",
+   "error" in res and [x.get("regular") for x in res.get("lengths", [])] == [28.0, 36.0]
+   and [x.get("minimum") for x in res["lengths"]] == [22.4, 28.8])
+res = splice_payload({**sbss, "radius": 20000, "dep": sbss_straight, "arr": sbss_arc})
+ok("SBSS at R 20000: no fit even without transitions, the reverse curve the stricter (100.0 m)",
+   "error" in res and [x.get("regular") for x in res.get("lengths", [])] == [36.0, 100.0])
+res = splice_payload({**sbss, "lDep": 0, "lArr": 0, "radius": 20000, "dep": sbss_arc, "arr": sbss_straight})
+ok("…without transitions: none offered", "error" in res and all(x.get("regular") is None for x in res["lengths"]))
 
 
 # ── what would fit, where nothing does (AP S.5) ──────────────────────────────

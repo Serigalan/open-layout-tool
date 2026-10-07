@@ -187,7 +187,6 @@
   "transition_regular_hint": "Shortest length at which every length rule keeps its standard value: minimum element length (LP.EL.01), ramp 10·v·Δu or Bloss 8·v·Δu (LP.UB.03/04), change of cant deficiency (LP.UB.05/06), ramp gradient 1:600 (LP.UB.07). Rounded up to 0.1 m.",
   "transition_minimum": "Minimum length {l} m",
   "transition_minimum_hint": "Shortest length without approval: the discretionary limit where the rule has one (8·v·Δu or Bloss 6·v·Δu, ramp gradient 1:400), else the standard value. Rounded up to 0.1 m.",
-  "transition_fixed": "typed in – a button below sets the length by the rules again",
   "transition_no_speed": "Without a design speed the transition curve cannot be checked.",
   "settings": "Settings",
   "settings_language_label": "Language",
