@@ -104,7 +104,9 @@ erst die Lösung. Jede Lösung prüft der Dienst als Ganzes mit dem Regelkatalog
 das Eingefügte und die Stöße dazwischen, mit Geschwindigkeit und Überhöhung, die
 sie tragen werden; ein Fehler sperrt im Panel das Übernehmen, und die Rangfolge
 setzt Lösungen mit geringeren Befunden nach vorn. Lage, Richtung und Krümmung an
-den Übergangsbögen müssen stetig sein, sonst ist es keine Lösung. Passt nichts, nennt die Antwort,
+den Übergangsbögen müssen stetig sein, sonst ist es keine Lösung. Ein
+Übergangsbogen am Gleisende kommt als der Punkt, in dem er endet (`joinAt`, AP
+S.7); er bleibt, gebaut wird von dort weiter. Passt nichts, nennt die Antwort,
 was passen würde (AP S.5): den größten Radius darunter (`params.rMax`), zwischen
 Bogen und Gerade auch den kleinsten darüber (`rMin`), die längsten Übergangsbögen
 (`lMax`). Zwei Bögen werden immer auch auf die andere Art verbunden (direkt über

@@ -548,6 +548,9 @@ def _pick(raw):
         # joining it at the one or the other end gives up (`_cost`).
         "before": max(0.0, float(raw.get("before") or 0)),
         "after": max(0.0, float(raw.get("after") or 0)),
+        # The one end it may be joined at, where it is not the element itself
+        # but a point at the end of its track (a transition, AP S.7).
+        "joinAt": raw.get("joinAt") if raw.get("joinAt") in ("start", "end") else None,
     }
     p["length"] = float(raw["length"]) if raw.get("length") else _length_of(p)
     return p
@@ -566,7 +569,7 @@ def _start_bearing(p):
 
 def _length_of(p):
     """A pick's length where the request does not give it: its chord, or its arc."""
-    if p["radius"] is None:
+    if p["radius"] is None or math.dist(p["start"], p["end"]) < 1e-9:
         return math.dist(p["start"], p["end"])
     sweep = ((p["bearing"] - _start_bearing(p)) * math.copysign(1.0, p["radius"])) % 360.0
     return sweep * DEG2RAD * abs(p["radius"])
@@ -892,8 +895,10 @@ def _solutions(picks, spec, build=None):
     build = build or _solve
     two_arcs = picks[0]["radius"] is not None and picks[1]["radius"] is not None
     found, errors = [], []
+    pairs = [ends for ends in PAIRS
+             if all(p["joinAt"] in (None, e) for p, e in zip(picks, ends))]
     for k, sp in enumerate(_joins(picks, spec)):
-        for ends in PAIRS:
+        for ends in pairs:
             try:
                 sol = build(picks, ends, sp)
             except SpliceError as exc:
@@ -1072,8 +1077,11 @@ def splice_payload(payload):
            "clearance": optional, see below}
     with a pick {"start": [e, n], "end": [e, n], "bearing": deg at the end,
     "radius": signed m or null, "cant": mm, "speed": km/h, "length": m,
-    "before": m, "after": m} — `before` and `after` how much of its track
-    lies before and after it. `dep` and `arr` are the two picks in the order
+    "before": m, "after": m, "joinAt": optional} — `before` and `after` how
+    much of its track lies before and after it. A transition at the end of
+    its track (AP S.7) comes as the point it ends in — no length, its bearing
+    and curvature there — and `joinAt` the one end it may be joined at: what
+    the splice builds from it is new, the transition itself stays. `dep` and `arr` are the two picks in the order
     they were clicked, `lDep` and `lArr` the transitions beside each (0: none)
     with their mode — 'fixed' (the default), 'regular' or 'minimum' (`_solve`);
     which one departs the service finds (`_solutions`). `speed` and `cant`

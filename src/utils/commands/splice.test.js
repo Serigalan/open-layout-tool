@@ -39,7 +39,8 @@ describe('picking the two elements', () => {
 
   it('refuses a transition, the same track and another plane', () => {
     const tr = transitionElement(P(0, 0), 90, 50, null, 300).element
-    expect(splicePick({ ...a, elements: [tr] }, 0)).toEqual({ error: 'splice_hint_straight_only' })
+    const inside = track('t', [straightElement(P(-50, 0), P(0, 0)), tr, straightElement(P(50, 3), P(100, 3))])
+    expect(splicePick(inside, 1)).toEqual({ error: 'splice_hint_transition_end' })
     const first = splicePick(a, 0)
     expect(secondPickRefusal(first, first)).toBe('same')
     expect(secondPickRefusal(first, { ...first, elIdx: 1 })).toBe('splice_error_same_track')
@@ -79,6 +80,39 @@ describe('which pick departs', () => {
     expect(commit.consumed).toEqual([{ trackId: 'a2', endpoint: 'BEGIN' }, { trackId: 'b', endpoint: 'BEGIN' }])
     // Its gradient turned round with it, up to the tangent point 100 m along.
     expect(merged.heights).toEqual([{ station: 0, z: 100 }, { station: 100, z: 101 }])
+  })
+})
+
+describe('a transition at the end of its track (AP S.7)', () => {
+  // Track k: 100 m east, then 60 m of transition into R 500 — where it ends.
+  const k = track('k', [
+    straightElement(P(0, 0), P(100, 0), { speed: 80 }),
+    transitionElement(P(100, 0), 90, 60, null, 500, { speed: 80 }).element,
+  ])
+
+  it('is picked as the point it ends in, joined there only', () => {
+    const pick = splicePick(k, 1)
+    expect(pick).toMatchObject({ virtual: 'end', joinAt: 'end', signedR: 500, length: 0, after: 0 })
+    expect(pick.before).toBeCloseTo(160, 6)
+    expect(pick.startUtm).toEqual(pick.endUtm)
+    expect(spliceRequest(splicePick(b, 0), pick, settings).arr.joinAt).toBe('end')
+  })
+
+  it('stays as it is, what is built from it new', () => {
+    const { request, answer } = answers.transitionEnd
+    const off = track('off', [straightElement(at(request.dep.start), at(request.dep.end), { speed: 80 })])
+    const sol = best(answer, [splicePick(off, 0), splicePick(k, 1)])
+    expect([sol.dep.trackId, sol.arr.trackId]).toEqual(['k', 'off'])
+    const commit = buildSplice({ tracks: [off, k], solution: sol, speed: 80, cant: 0, newId })
+    const [merged] = commit.addTracks
+    expectValidTrack(merged)
+    expect(merged.name).toBe('k')
+    // The straight and the transition of k, then 50 m more of R 500, the new R 800 the other way, the straight.
+    expect(merged.elements.map(e => e.elementType)).toEqual([0, 2, 1, 1, 0])
+    expect(merged.elements[1]).toMatchObject({ elementType: 2, length: 60, r2: 500 })
+    expect(merged.elements[2]).toMatchObject({ radius: 500, speed: 80 })
+    expect(merged.elements[2].length).toBeCloseTo(50, 3)
+    expect(merged.elements[3].radius).toBe(-800)
   })
 })
 

@@ -23,30 +23,60 @@ const lengthOf = (els) => els.reduce((sum, el) => sum + (el.length ?? 0), 0)
  * What the splice needs of a picked element: its ends in the track's plane,
  * the bearing it leaves in, its signed radius (null = straight), its length
  * and how much of its track lies before and after it — what joining it at the
- * one or the other end gives up. A transition cannot be spliced — its
- * curvature is not one to continue. Returns the pick, or { error } with a
+ * one or the other end gives up. Returns the pick, or { error } with a
  * locale key.
+ *
+ * A transition is picked only at the end of its track (AP S.7), as the point
+ * it ends in there: no length, its bearing and curvature at that end, and
+ * `joinAt` that end — the splice builds on from it and leaves it as it is
+ * (`virtual`). Inside a track its curvature is not one to continue.
  */
 export function splicePick(track, elIdx) {
   const el = track?.elements?.[elIdx]
   if (!el) return null
-  if (el.elementType === 2) return { error: 'splice_hint_straight_only' }
+  const last = elIdx === track.elements.length - 1
+  if (el.elementType === 2 && !last && elIdx !== 0) return { error: 'splice_hint_transition_end' }
   const coords = el.geometry.coordinates
   const epsg = track.epsg
-  return {
+  const base = {
     trackId: track.id, elIdx, epsg, label: trackLabel(track),
+    // Signed as stored; the spacing to a neighbour reads it on what the arc keeps.
+    cant: el.cant ?? 0,
+    speed: el.speed ?? 0,
+  }
+  if (el.elementType === 2) {
+    const side = last ? 'end' : 'start'
+    const at = side === 'end'
+      ? nodeUtm(el.endNode, coords[coords.length - 1], epsg)
+      : nodeUtm(el.startNode, coords[0], epsg)
+    const total = lengthOf(track.elements)
+    return {
+      ...base, virtual: side, joinAt: side, startUtm: at, endUtm: at,
+      bearing: side === 'end' ? resolveEndBearing(el, epsg) : el.bearing,
+      signedR: (side === 'end' ? el.r2 : el.r1) ?? null,
+      length: 0, before: side === 'end' ? total : 0, after: side === 'end' ? 0 : total,
+    }
+  }
+  return {
+    ...base,
     endUtm: nodeUtm(el.endNode, coords[coords.length - 1], epsg),
     startUtm: nodeUtm(el.startNode, coords[0], epsg),
     bearing: resolveEndBearing(el, epsg),
     signedR: el.radius != null ? el.radius : null,
-    // Signed as stored; the spacing to a neighbour reads it on what the arc keeps.
-    cant: el.cant ?? 0,
-    speed: el.speed ?? 0,
     length: el.length ?? 0,
     before: lengthOf(track.elements.slice(0, elIdx)),
     after: lengthOf(track.elements.slice(elIdx + 1)),
   }
 }
+
+/**
+ * What stays of a pick's track toward its start, and toward its end, beside
+ * the stretch the splice writes — as stored. A transition picked at the end
+ * of its track stays with it (AP S.7); a picked straight or arc is re-shaped
+ * by the splice and comes back in its chain.
+ */
+const towardStart = (track, pick) => track.elements.slice(0, pick.elIdx + (pick.virtual ? 1 : 0))
+const towardEnd = (track, pick) => track.elements.slice(pick.elIdx + (pick.virtual ? 0 : 1))
 
 /**
  * Whether `pick` may be the second of a splice that started with `first` —
@@ -92,6 +122,7 @@ export function spliceRequest(first, second, {
     length: p.length ?? 0,
     before: p.before ?? 0,
     after: p.after ?? 0,
+    ...(p.joinAt ? { joinAt: p.joinAt } : {}),
   })
   return {
     dep: ends(first), arr: ends(second),
@@ -250,14 +281,14 @@ function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseDep, revers
   const arrPiece = [...chain].reverse().find(el => el.role === 'arr')
   // The departure's gradient up to where the merged track leaves its element:
   // from its far end in travel, which is its end where it departs backwards.
-  const depRest = reverseDep ? depTrack.elements.slice(dep.elIdx + 1) : depTrack.elements.slice(0, dep.elIdx)
+  const depRest = reverseDep ? towardEnd(depTrack, dep) : towardStart(depTrack, dep)
   const depKeep = lengthOf(depRest)
-    + overlapOf(depPiece, depOrig, reverseDep ? depOrig.endNode : depOrig.startNode, 'startNode')
+    + (dep.virtual ? 0 : overlapOf(depPiece, depOrig, reverseDep ? depOrig.endNode : depOrig.startNode, 'startNode'))
   // The arrival's from where the merged track runs on it again: its far end in
   // travel, which is its start where it is folded in reversed.
-  const arrRest = reverseArr ? arrTrack.elements.slice(0, arr.elIdx) : arrTrack.elements.slice(arr.elIdx + 1)
+  const arrRest = reverseArr ? towardStart(arrTrack, arr) : towardEnd(arrTrack, arr)
   const arrKeep = lengthOf(arrRest)
-    + overlapOf(arrPiece, arrOrig, reverseArr ? arrOrig.startNode : arrOrig.endNode, 'endNode')
+    + (arr.virtual ? 0 : overlapOf(arrPiece, arrOrig, reverseArr ? arrOrig.startNode : arrOrig.endNode, 'endNode'))
   const offset = mergedLength - arrKeep
 
   const depHeights = reverseDep ? reverseHeights(depTrack.heights, trackLength(depTrack)) : depTrack.heights
@@ -299,20 +330,26 @@ function mergedChain({ dep, arr, result }, depTrack, arrTrack, { speed, cant }) 
   const plane = ({ role: _role, speed: _speed, cant: _cant, ...el }) => el
   const keepCant = (el, orig) => (orig?.cant != null && el.radius != null
     ? { cant: cantSign(el.radius) * Math.abs(orig.cant) } : {})
+  // What is built on from a transition picked at its track's end is new, with
+  // that transition's speed and the cant of its curvature (AP S.7).
+  const builtOn = (el, pick) => ({
+    ...plane(el), speed: pick.speed,
+    ...(el.elementType === 1 ? { cant: cantSign(el.radius) * Math.abs(pick.cant ?? 0) } : {}),
+  })
   const mid = chain.map(el => {
-    if (el.role === 'dep') return { ...depBase, ...plane(el), ...keepCant(el, depOrig) }
-    if (el.role === 'arr') return { ...arrBase, ...plane(el), ...keepCant(el, arrOrig) }
+    if (el.role === 'dep') return dep.virtual ? builtOn(el, dep) : { ...depBase, ...plane(el), ...keepCant(el, depOrig) }
+    if (el.role === 'arr') return arr.virtual ? builtOn(el, arr) : { ...arrBase, ...plane(el), ...keepCant(el, arrOrig) }
     const inserted = { ...plane(el), speed }
     return el.elementType === 1 ? { ...inserted, cant: cantSign(el.radius) * Math.abs(cant) } : inserted
   })
   return [
     ...(reverseDep
-      ? depTrack.elements.slice(dep.elIdx + 1).reverse().map(reverseElement)
-      : depTrack.elements.slice(0, dep.elIdx).map(el => ({ ...el }))),
+      ? towardEnd(depTrack, dep).reverse().map(reverseElement)
+      : towardStart(depTrack, dep).map(el => ({ ...el }))),
     ...mid,
     ...(reverseArr
-      ? arrTrack.elements.slice(0, arr.elIdx).reverse().map(reverseElement)
-      : arrTrack.elements.slice(arr.elIdx + 1).map(el => ({ ...el }))),
+      ? towardStart(arrTrack, arr).reverse().map(reverseElement)
+      : towardEnd(arrTrack, arr).map(el => ({ ...el }))),
   ]
 }
 

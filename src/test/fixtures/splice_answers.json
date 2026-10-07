@@ -1281,6 +1281,190 @@
    ]
   }
  },
+ "transitionEnd": {
+  "request": {
+   "radius": 800,
+   "lDep": 0,
+   "lArr": 0,
+   "transition": "clothoid",
+   "arcJoin": "straight",
+   "dep": {
+    "start": [
+     500389.0959531114,
+     5699984.222883913
+    ],
+    "end": [
+     500589.0203328773,
+     5699989.72219071
+    ],
+    "bearing": 88.42436606339024,
+    "radius": null,
+    "speed": 80
+   },
+   "arr": {
+    "start": [
+     500159.9784035997,
+     5699998.800308536
+    ],
+    "end": [
+     500159.9784035997,
+     5699998.800308536
+    ],
+    "bearing": 93.43774677078494,
+    "radius": 500.0,
+    "joinAt": "end",
+    "speed": 80
+   },
+   "speed": 80
+  },
+  "answer": {
+   "solutions": [
+    {
+     "elements": [
+      {
+       "elementType": 1,
+       "role": "dep",
+       "radius": 500.0,
+       "startNode": [
+        500159.9784035997,
+        5699998.800308536
+       ],
+       "endNode": [
+        500209.6555036669,
+        5699993.313680256
+       ],
+       "bearing": 93.43774677108635,
+       "endBearing": 99.16732472237206,
+       "length": 49.999999999803535,
+       "speed": 80.0,
+       "cant": 0.0
+      },
+      {
+       "elementType": 1,
+       "role": "new",
+       "radius": -800.0,
+       "startNode": [
+        500209.6555036669,
+        5699993.313680256
+       ],
+       "endNode": [
+        500359.10729614616,
+        5699983.397987893
+       ],
+       "bearing": 99.16732472213594,
+       "endBearing": 88.42436606345096,
+       "length": 149.99999999974918,
+       "speed": 80.0,
+       "cant": -0.0
+      },
+      {
+       "elementType": 0,
+       "role": "arr",
+       "startNode": [
+        500359.10729614616,
+        5699983.397987893
+       ],
+       "endNode": [
+        500589.0203328773,
+        5699989.72219071
+       ],
+       "bearing": 88.42436606331073,
+       "length": 230.00000000043397,
+       "speed": 80.0,
+       "cant": 0.0
+      }
+     ],
+     "info": {
+      "arcLength": 149.9999999997462,
+      "signedR": -800.0
+     },
+     "depPick": 1,
+     "ends": [
+      "start",
+      "end"
+     ],
+     "reverseDep": false,
+     "reverseArr": false,
+     "lengths": [
+      {
+       "mode": "fixed",
+       "length": 0.0
+      },
+      {
+       "mode": "fixed",
+       "length": 0.0
+      }
+     ],
+     "rebuilt": 229.999999999946,
+     "alternative": false,
+     "findings": [
+      {
+       "at": "#0",
+       "index": [
+        0
+       ],
+       "id": "LP.KB.02",
+       "severity": "error"
+      },
+      {
+       "at": "#0",
+       "index": [
+        0
+       ],
+       "id": "LP.KB.04",
+       "severity": "hint"
+      },
+      {
+       "at": "#1",
+       "index": [
+        1
+       ],
+       "id": "LP.KB.04",
+       "severity": "hint"
+      },
+      {
+       "at": "#0|#1",
+       "index": [
+        0,
+        1
+       ],
+       "id": "LP.KS.01",
+       "severity": "error"
+      },
+      {
+       "at": "#0|#1",
+       "index": [
+        0,
+        1
+       ],
+       "id": "LP.KS.02",
+       "severity": "hint"
+      },
+      {
+       "at": "#1|#2",
+       "index": [
+        1,
+        2
+       ],
+       "id": "LP.KS.01",
+       "severity": "warning"
+      },
+      {
+       "at": "#1|#2",
+       "index": [
+        1,
+        2
+       ],
+       "id": "LP.KS.02",
+       "severity": "hint"
+      }
+     ],
+     "worst": "error",
+     "judged": true
+    }
+   ]
+  }
+ },
  "sbssRegular": {
   "request": {
    "radius": 750,

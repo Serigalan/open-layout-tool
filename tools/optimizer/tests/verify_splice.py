@@ -410,6 +410,43 @@ ok("…every solution ranked by what is found first",
    [x["worst"] for x in sols] == sorted([x["worst"] for x in sols], key=lambda w: ["ok", "hint", "warning", "approval", "special_case", "error"].index(w)))
 
 
+# ── a transition at the end of its track (AP S.7) ───────────────────────────
+# The pick is the point the transition ends in: no length, the bearing and the
+# curvature there, joined at that end only. Whatever is built from it is new;
+# the transition stays.
+T0, bT0 = trans_step(P0, 90.0, 60.0, None, 500.0)          # a track ending in R 500
+end_in_arc = {"start": list(T0), "end": list(T0), "bearing": bT0, "radius": 500.0, "joinAt": "end"}
+# Built on from there: 50 m more of R 500, then 150 m of R 800 the other way, then a straight.
+on_arc, b_on = arc_step(T0, bT0, 50.0, 500.0)
+arc_end, b_arc = arc_step(on_arc, b_on, 150.0, -800.0)
+far = along(arc_end, b_arc, 30.0)
+off = {"start": list(far), "end": list(along(far, b_arc, 200.0)), "bearing": b_arc, "radius": None}
+answer = _payload({"dep": off, "arr": end_in_arc, "radius": 800})
+sol = answer.get("solutions", [{}])[0]
+ok("a track ending in a transition into R 500: joined at that end only, whichever was clicked first",
+   "error" not in answer and sol.get("depPick") == 1 and sol.get("reverseDep") is False)
+if "error" not in answer:
+    els = sol["elements"]
+    ok("…the chain starts where the transition ends, on its curvature, and finds what was built",
+       near(els[0]["startNode"], T0, 1e-6) and abs(turn(els[0]["bearing"], bT0)) < 1e-6
+       and els[0]["elementType"] == 1 and els[0]["radius"] == 500.0 and abs(els[0]["length"] - 50.0) < 1e-3
+       and abs(sol["info"]["arcLength"] - 150.0) < 1e-3)
+    ok(f"…and holds ({chain_holds(els)})", chain_holds(els) is None)
+T1, bT1 = trans_step(P0, 90.0, 60.0, 400.0, None)          # a track ending out of a curve
+end_straight = {"start": list(T1), "end": list(T1), "bearing": bT1, "radius": None, "joinAt": "end"}
+corner_arr = {"start": list(along(along(T1, bT1, 300.0), bT1 - 90.0, -150.0)),
+              "end": list(along(along(T1, bT1, 300.0), bT1 - 90.0, -400.0)), "bearing": (bT1 + 90.0) % 360.0,
+              "radius": None}
+answer = _payload({"dep": end_straight, "arr": corner_arr, "radius": 200})
+sol = answer.get("solutions", [{}])[0]
+ok("a track ending in a transition out of a curve: a corner from its end",
+   "error" not in answer and sol.get("depPick") == 0 and near(sol["elements"][0]["startNode"], T1, 1e-6)
+   and chain_holds(sol["elements"]) is None)
+answer = _payload({"dep": {**end_straight, "joinAt": "start"}, "arr": corner_arr, "radius": 200})
+ok("…never joined backwards into the transition", "error" in answer
+   or all(x["ends"][0] == "start" for x in answer["solutions"]))
+
+
 # ── what a malformed request does ────────────────────────────────────────────
 try:
     splice_payload({"dep": {"start": [0, 0]}, "arr": b, "radius": 300})

@@ -63,6 +63,17 @@ h1 = (x + 220.0 * math.sin(math.radians(b5)), y + 220.0 * math.cos(math.radians(
 g = {"start": [E0, N0], "end": list(g_end), "bearing": g_b, "radius": 410.0, "cant": 80, "speed": 80}
 h = {"start": list(h0), "end": list(h1), "bearing": b5, "radius": None, "speed": 80}
 
+# A track ending in a transition into R 500 (AP S.7): straight 100 m east,
+# then 60 m of transition. Picked as the point it ends in, it is built on with
+# 50 m more of R 500 and a new R 800 the other way into the straight `off`.
+x, y, b6 = transition_end(E0 + 100.0, N0, 90.0, 60.0, None, 500.0, "clothoid")
+t_end = {"start": [x, y], "end": [x, y], "bearing": b6, "radius": 500.0, "joinAt": "end", "speed": 80}
+on, b7 = _arc_forward(x, y, b6, 500.0, 50.0 / 500.0)
+o, b8 = _arc_forward(on[0], on[1], b7, -800.0, 150.0 / 800.0)
+o0 = (o[0] + 30.0 * math.sin(math.radians(b8)), o[1] + 30.0 * math.cos(math.radians(b8)))
+o1 = (o[0] + 230.0 * math.sin(math.radians(b8)), o[1] + 230.0 * math.cos(math.radians(b8)))
+off = {"start": list(o0), "end": list(o1), "bearing": b8, "radius": None, "speed": 80}
+
 base = {"radius": 300, "lDep": 0, "lArr": 0, "transition": "clothoid", "arcJoin": "straight"}
 cases = {
     "corner": {**base, "dep": a, "arr": b},
@@ -75,6 +86,7 @@ cases = {
     # straight fits, and comes with transitions at the Regellänge (AP S.5).
     "arcsAskedDirect": {**base, "dep": {**c, "speed": 100, "cant": 50}, "arr": {**d, "speed": 100, "cant": 30},
                         "arcJoin": "transition", "speed": 100},
+    "transitionEnd": {**base, "dep": off, "arr": t_end, "radius": 800, "speed": 80},
     "sbssRegular": {**base, "dep": g, "arr": h, "radius": 750, "cant": 45, "speed": 80, "lDep": 60, "lArr": 60,
                     "modeDep": "regular", "modeArr": "regular"},
 }
