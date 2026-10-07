@@ -13,7 +13,7 @@ import { referencePoints, axisRange } from './referenceAxis'
 // every move of the mouse.
 
 /** How far from the reference axis the compared one is looked for [m]. */
-export const REACH = 2
+const REACH = 2
 /** The compared axis as a line: a vertex every this much [m]. */
 const LINE_STEP = 0.25
 const CELL = REACH

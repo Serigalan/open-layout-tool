@@ -77,7 +77,7 @@ export default function ShiftValuesSection({ id, line, epsg, heightEpsg = null, 
   }, [preview, id, rows, axis, limitQ, limitZ])
 
   if (!axes.length) return null
-  const mm = (v) => (v == null ? '–' : `${v > 0 ? '+' : ''}${num(v * 1000, { digits: 0 })}`)
+  const mm = (v) => (v == null ? '–' : Math.round(v * 1000) === 0 ? '0' : `${v > 0 ? '+' : ''}${num(v * 1000, { digits: 0 })}`)
   const st = (r) => num(r.station, { digits: 1 })
   const beyond = sum.beyondQ + sum.beyondZ > 0
   const head = !axis ? t('shift_no_axis')

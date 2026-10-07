@@ -18,7 +18,7 @@ import { generateId } from './identifierUtils'
 // gradient may cover less than the stretch read.
 
 /** Spacing of the points [m]. */
-export const REFERENCE_STEP = 0.01
+const REFERENCE_STEP = 0.01
 /** The longest stretch read into a project [m] (Entscheidung 195). */
 export const REFERENCE_MAX_LENGTH = 2000
 

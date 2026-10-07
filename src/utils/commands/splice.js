@@ -385,7 +385,10 @@ function mergedChain({ dep, arr, result }, depTrack, arrTrack, { speed, cant }) 
  * two ends beyond the cuts are gone — whatever stood on them (a buffer stop)
  * goes with them.
  *
- * Returns the argument for commitSwitchConnection, or null without a solution.
+ * Returns the argument for commitSwitchConnection, or null without a solution
+ * — with `stretch` beside it: which elements of the merged track the splice
+ * wrote ({ first, last } indices, `from` the station the first begins at),
+ * what the shift values against a reference axis are read over (Paket V).
  */
 export function buildSplice({ tracks, solution, speed, cant, newId = generateId }) {
   const depTrack = tracks.find(t => t.id === solution?.dep?.trackId)
@@ -393,6 +396,7 @@ export function buildSplice({ tracks, solution, speed, cant, newId = generateId 
   if (!solution?.result?.elements || !depTrack || !arrTrack) return null
   const { dep, arr, result: { elements: chain, reverseDep, reverseArr } } = solution
   const elements = mergedChain(solution, depTrack, arrTrack, { speed, cant })
+  const before = (reverseDep ? towardEnd(depTrack, dep) : towardStart(depTrack, dep)).length
   const id = newId()
   const merged = recalcAbsLengths(elements)
   const heights = spliceHeights({
@@ -407,5 +411,6 @@ export function buildSplice({ tracks, solution, speed, cant, newId = generateId 
       { trackId: dep.trackId, endpoint: reverseDep ? 'BEGIN' : 'END' },
       { trackId: arr.trackId, endpoint: reverseArr ? 'END' : 'BEGIN' },
     ],
+    stretch: { first: before, last: before + chain.length - 1, from: lengthOf(merged.slice(0, before)) },
   }
 }

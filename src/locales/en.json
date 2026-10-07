@@ -473,7 +473,7 @@
   "shift_head_z": ", height up to {z} mm",
   "shift_axis": "Reference axis",
   "shift_axis_auto": "automatic ({name})",
-  "shift_every": "Raster",
+  "shift_every": "Spacing",
   "shift_limit_q": "Limit across [mm]",
   "shift_limit_z": "Limit height [mm]",
   "shift_other_plane": "Reference axes in another plane are not compared.",

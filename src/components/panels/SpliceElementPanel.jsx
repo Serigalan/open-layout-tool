@@ -20,6 +20,8 @@ import SpliceFindings from './splice/SpliceFindings'
 import { severityRank } from '../../utils/regelkatalog'
 import SpliceSettings from './splice/SpliceSettings'
 import CancelButton from '../form/CancelButton'
+import ShiftValuesSection from './shift/ShiftValuesSection'
+import { comparedLine } from '../../utils/shiftValues'
 
 const SPLICE_PREVIEW_SOURCE = 'splice-preview-source'
 // The tightest place to the track the splice keeps its distance to: a line
@@ -287,6 +289,21 @@ export default function SpliceElementPanel() {
     } : null)
   }, [solution, spacing, picks, preview])
 
+  // The track the splice would write, and the stretch of it that is new or
+  // re-shaped — what its shift values against a reference axis are read over
+  // (Paket V), its gradient with it.
+  const merged = useMemo(() => {
+    if (!solution) return null
+    const built = buildSplice({ tracks: loadTracks(), solution, speed: s.speed, cant, newId: () => 'preview' })
+    if (!built) return null
+    const track = built.addTracks[0]
+    const { first, last, from } = built.stretch
+    return {
+      track,
+      line: comparedLine(track.elements.slice(first, last + 1), track.epsg, { heights: track.heights, station0: from }),
+    }
+  }, [solution, s.speed, cant])
+
   // The transition beside each pick, by pick, as the service set it in the
   // chain it solved: its mode, its length and the rules on it (AP S.3) — and
   // where nothing fits, the rules' lengths all the same.
@@ -348,6 +365,10 @@ export default function SpliceElementPanel() {
         {status && <p className={status.error ? 'msg-error' : 'msg-info'}>{status.msg}</p>}
         {spacingMsg && <p className={spacingMsg.error ? 'msg-error' : 'msg-info'}>{spacingMsg.msg}</p>}
         {solution && <SpliceFindings result={solution.result} />}
+        {merged && (
+          <ShiftValuesSection id="shift-splice" line={merged.line} epsg={merged.track.epsg} heightEpsg={merged.track.heightEpsg}
+            heightNote={!merged.track.heights?.length ? t('shift_no_heights_track') : null} name={merged.track.name ?? ''} />
+        )}
         <CommitBar onCommit={handleCommit} onCancel={reset} disabled={!solution || !spacingHolds || ruleError}
           reason={solution && ruleError ? t('splice_rule_error') : null} />
       </>

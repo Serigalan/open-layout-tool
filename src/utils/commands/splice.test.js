@@ -82,6 +82,7 @@ describe('which pick departs', () => {
     expect(commit.consumed).toEqual([{ trackId: 'a2', endpoint: 'BEGIN' }, { trackId: 'b', endpoint: 'BEGIN' }])
     // Its gradient turned round with it, up to the tangent point 100 m along.
     expect(merged.heights).toEqual([{ station: 0, z: 100 }, { station: 100, z: 101 }])
+    expect(commit.stretch).toEqual({ first: 0, last: 2, from: 0 })
   })
 })
 
@@ -115,6 +116,9 @@ describe('a transition at the end of its track (AP S.7)', () => {
     expect(merged.elements[2]).toMatchObject({ radius: 500, speed: 80 })
     expect(merged.elements[2].length).toBeCloseTo(50, 3)
     expect(merged.elements[3].radius).toBe(-800)
+    // What the splice wrote: from where the transition of k ends on (Paket V reads its shift values there).
+    expect(commit.stretch).toMatchObject({ first: 2, last: 4 })
+    expect(commit.stretch.from).toBeCloseTo(merged.elements[0].length + 60, 6)
   })
 })
 

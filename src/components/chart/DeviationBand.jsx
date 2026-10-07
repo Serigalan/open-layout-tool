@@ -25,6 +25,7 @@ export default function DeviationBand({ band, tolerance, label = null }) {
   const peak = Math.max(tolCm, 0.1, ...band.map(([, d]) => Math.abs(d) * 100)) * 1.15
   const x = (s) => PAD.left + (s - s0) / (s1 - s0) * (W - PAD.left - PAD.right)
   const y = (cm) => PAD.top + (peak - cm) / (2 * peak) * (H - PAD.top - PAD.bottom)
+  const labelled = Math.abs(y(tolCm) - y(0)) >= 14 ? tolCm : peak / 1.15
   const d = band.map(([s, off], i) => `${i ? 'L' : 'M'}${x(s).toFixed(1)},${y(off * 100).toFixed(1)}`).join('')
   const beyond = band.filter(([, off]) => Math.abs(off) > tolerance)
   const xStep = niceStep(50, (W - PAD.left - PAD.right) / (s1 - s0))
@@ -36,9 +37,13 @@ export default function DeviationBand({ band, tolerance, label = null }) {
           <line key={v} x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)}
             stroke={PALETTE.invalid} strokeWidth={1} strokeDasharray="4 3" />
         ))}
-        <text className="chart-label" x={PAD.left - 4} y={y(tolCm) + 3} textAnchor="end">{`+${num(tolCm, { digits: 1, unit: 'cm' })}`}</text>
+        {/* The tolerance labelled where it stands clear of the zero line, else the extent drawn. */}
+        {[labelled, -labelled].map(v => (
+          <text key={v} className="chart-label" x={PAD.left - 4} y={y(v) + 3} textAnchor="end">
+            {`${v > 0 ? '+' : '−'}${num(Math.abs(v), { digits: 1, unit: 'cm' })}`}
+          </text>
+        ))}
         <text className="chart-label" x={PAD.left - 4} y={y(0) + 3} textAnchor="end">0</text>
-        <text className="chart-label" x={PAD.left - 4} y={y(-tolCm) + 3} textAnchor="end">{`−${num(tolCm, { digits: 1, unit: 'cm' })}`}</text>
         <path d={d} fill="none" stroke={PALETTE.previewLine} strokeWidth={1.5} />
         {beyond.map(([s, off]) => (
           <circle key={s} cx={x(s)} cy={y(off * 100)} r={2} fill={PALETTE.invalid} />
