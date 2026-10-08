@@ -256,15 +256,29 @@ export class Viewer {
     this.needSelect = true
   }
 
-  /** Look straight down on the point the camera looks at. */
+  /**
+   * Look straight down on the point the camera looks at, and stay there: the
+   * mouse turns the picture about the vertical, moves and zooms it, but does
+   * not tilt it.
+   */
   topView() {
     this.stopWalk()
     const t = this.controls.target
     const d = Math.max(30, this.camera.position.distanceTo(t))
     this.camera.position.set(t.x, t.y - d * 0.001, t.z + d)
+    this.controls.minPolarAngle = 0
+    this.controls.maxPolarAngle = 0
     this.controls.update()
     this.dirty = true
     this.needSelect = true
+  }
+
+  /** Orbit freely again — the camera where it is, tilting allowed. */
+  orbit() {
+    this.stopWalk()
+    this.controls.minPolarAngle = 0
+    this.controls.maxPolarAngle = Math.PI
+    this.controls.update()
   }
 
   // ── walking along a track ─────────────────────────────────────────────────
@@ -281,6 +295,13 @@ export class Viewer {
     this.controls.enabled = false
     this.placeWalker()
     return true
+  }
+
+  /** Put the walk at another station of its track, looking along it as before. */
+  setWalkStation(station) {
+    if (!this.walk) return
+    this.walk.s = station
+    this.placeWalker()
   }
 
   stopWalk() {
@@ -415,12 +436,14 @@ export class Viewer {
 
   /**
    * A polyline of `[e, n, z]` drawn `width` pixels wide on screen, whatever
-   * the distance — WebGL draws a plain line one pixel wide only.
+   * the distance — WebGL draws a plain line one pixel wide only. `dash`
+   * [dash, gap] in metres along the line draws it dashed.
    */
-  fatLine(points, color, width = 3) {
+  fatLine(points, color, width = 3, { dash = null } = {}) {
     const [oe, on, oz] = this.origin
     const g = new LineGeometry().setPositions(points.flatMap(([e, n, z]) => [e - oe, n - on, z - oz]))
     const m = new LineMaterial({ color, linewidth: width, worldUnits: false })
+    if (dash) Object.assign(m, { dashed: true, dashSize: dash[0], gapSize: dash[1] })
     m.resolution.copy(this.renderer.getSize(new THREE.Vector2()))
     const line = new Line2(g, m)
     line.computeLineDistances()

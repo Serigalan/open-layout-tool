@@ -119,3 +119,13 @@ html, body, #root { height: 100%; margin: 0; }
 .cloud3d-color input[type=color] {
   width: 26px; height: 20px; padding: 0; border: 1px solid #454959; border-radius: 4px; background: none; cursor: pointer;
 }
+
+/* The camera's three views as one row of buttons, the chosen one marked; its details under it. */
+.cloud3d-segmented { display: flex; margin: 6px 0; border: 1px solid #454959; border-radius: 6px; overflow: hidden; }
+.cloud3d-segmented button {
+  flex: 1; padding: 5px 6px; background: #343745; color: inherit; border: none; font: inherit; cursor: pointer;
+}
+.cloud3d-segmented button + button { border-left: 1px solid #454959; }
+.cloud3d-segmented button.active { background: #4f8cff; color: #fff; }
+.cloud3d-view-details { padding: 4px 8px; margin: 0 0 6px; border-left: 2px solid #4f8cff; }
+.cloud3d-range-ends { display: flex; justify-content: space-between; color: #a8acbb; font-size: 11px; }

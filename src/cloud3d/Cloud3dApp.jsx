@@ -37,10 +37,13 @@ const LOOK = {
 
 /**
  * How the tracks are drawn — the colours of axis and rails and the width of
- * the lines [px]: the viewer's own choice, kept in this browser.
+ * the lines [px]: the viewer's own choice, kept in this browser (v2: the
+ * defaults changed, a light yellow axis and red rails).
  */
-const TRACK_LOOK_KEY = 'olt.cloud3d.trackLook'
-const TRACK_LOOK = { axis: PALETTE.view3dAxis, left: PALETTE.view3dRailLeft, right: PALETTE.view3dRailRight, width: 3 }
+const TRACK_LOOK_KEY = 'olt.cloud3d.trackLook.v2'
+const TRACK_LOOK = { axis: PALETTE.view3dAxis, left: PALETTE.view3dRail, right: PALETTE.view3dRail, width: 3 }
+/** The axis is drawn dashed, as on a plan: dash and gap along it [m]. */
+const AXIS_DASH = [1.5, 1]
 
 function loadTrackLook() {
   try {
@@ -77,6 +80,7 @@ function Cloud3dPage() {
   const [user, setUser] = useState(null)
   const [options, setOptions] = useState({ coloring: null, budget: 6, sizeFactor: 1, edl: true, edlStrength: 0.6 })
   const [status, setStatus] = useState(null)
+  const [cameraMode, setCameraMode] = useState('orbit')   // orbit | top | track
   const [walkTrack, setWalkTrack] = useState('')
   const [walking, setWalking] = useState(null)    // { station, across } while walking
   const [trackLook, setTrackLook] = useState(loadTrackLook)
@@ -307,7 +311,7 @@ function Cloud3dPage() {
     const objects = []
     for (const tr of tracksSampled) {
       const lines = trackLines(tr.samples)
-      for (const run of lines.axis) objects.push(viewer.fatLine(run, trackLook.axis, trackLook.width))
+      for (const run of lines.axis) objects.push(viewer.fatLine(run, trackLook.axis, trackLook.width, { dash: AXIS_DASH }))
       for (const run of lines.left) objects.push(viewer.fatLine(run, trackLook.left, trackLook.width))
       for (const run of lines.right) objects.push(viewer.fatLine(run, trackLook.right, trackLook.width))
     }
@@ -449,19 +453,54 @@ function Cloud3dPage() {
   }, [measured])
 
   // ── the walk ───────────────────────────────────────────────────────────────
-  const startWalk = () => {
-    const tr = geometryRef.current?.tracks.find(x => x.id === walkTrack)
-    if (!tr) return
-    const at = section?.trackId === tr.id ? section.station : tr.samples[0]?.s ?? 0
-    if (viewerRef.current?.startWalk(tr.samples, at)) {
-      setWalking(viewerRef.current.walkState())
+  /**
+   * Where the track view of a track begins: at the cross section of the main
+   * window where it is on this track, else where the track passes the
+   * clouds, else at its start.
+   */
+  const firstStation = (tr) => {
+    if (section?.trackId === tr.id) return section.station
+    const v = viewerRef.current
+    const box = new THREE.Box3()
+    for (const r of v?.clouds[0]?.roots ?? []) box.union(r.view)
+    if (!box.isEmpty()) {
+      const c = box.getCenter(new THREE.Vector3())
+      const hit = nearestOnTracks([tr], c.x + v.origin[0], c.y + v.origin[1], Infinity)
+      if (hit) return hit.station
+    }
+    return tr.samples.find(p => p.z != null)?.s ?? 0
+  }
+
+  /** Stand on a track in the track view, at `station` or where it begins. */
+  const walkOn = (id, station = null) => {
+    const viewer = viewerRef.current
+    const tr = geometryRef.current?.tracks.find(x => x.id === id)
+    if (!viewer || !tr) { viewer?.stopWalk(); setWalking(null); return }
+    if (viewer.startWalk(tr.samples, station ?? firstStation(tr))) {
+      setWalking(viewer.walkState())
       setNote(null)
       canvasRef.current?.focus()
     } else {
+      viewer.stopWalk()
+      setWalking(null)
       setNote(t('cloud3d_walk_no_gradient'))
     }
   }
-  const stopWalk = () => { viewerRef.current?.stopWalk(); setWalking(null) }
+
+  const chooseCamera = (mode) => {
+    const viewer = viewerRef.current
+    setCameraMode(mode)
+    if (mode === 'track') { if (walkTrack) walkOn(walkTrack); return }
+    setWalking(null)
+    if (mode === 'top') viewer?.topView()
+    else viewer?.orbit()
+  }
+
+  // The stretch of the chosen track the slider spans: where it has a gradient.
+  const walkRange = useMemo(() => {
+    const usable = tracksSampled.find(x => x.id === walkTrack)?.samples.filter(p => p.z != null) ?? []
+    return usable.length > 1 ? [usable[0].s, usable[usable.length - 1].s] : null
+  }, [tracksSampled, walkTrack])
 
   // ── the page ───────────────────────────────────────────────────────────────
   if (state.phase === 'anon') return <div className="cloud3d-message">{t('cloud3d_sign_in')}</div>
@@ -553,30 +592,48 @@ function Cloud3dPage() {
         )}
 
         <h2>{t('cloud3d_camera')}</h2>
-        <div className="cloud3d-buttons">
-          <button type="button" onClick={() => { stopWalk(); viewerRef.current?.controls.update() }} disabled={!walking}>{t('cloud3d_orbit')}</button>
-          <button type="button" onClick={() => { stopWalk(); viewerRef.current?.topView() }}>{t('cloud3d_top')}</button>
+        <div className="cloud3d-segmented" role="group" aria-label={t('cloud3d_camera')}>
+          {['orbit', 'top', 'track'].map(m => (
+            <button key={m} type="button" className={cameraMode === m ? 'active' : undefined} aria-pressed={cameraMode === m}
+              onClick={() => chooseCamera(m)}>{t(`cloud3d_view_${m}`)}</button>
+          ))}
         </div>
-        <label className="cloud3d-field">
-          <span>{t('cloud3d_walk_track')}</span>
-          <select value={walkTrack} onChange={e => setWalkTrack(e.target.value)}>
-            <option value="">{t('cloud3d_choose')}</option>
-            {tracks.map(tr => <option key={tr.id} value={tr.id}>{tr.label}</option>)}
-          </select>
-        </label>
-        <div className="cloud3d-buttons">
-          <button type="button" disabled={!walkTrack} onClick={startWalk}>{t('cloud3d_walk')}</button>
+        <div className="cloud3d-view-details">
+          {cameraMode === 'orbit' && <p className="cloud3d-hint">{t('cloud3d_view_orbit_hint')}</p>}
+          {cameraMode === 'top' && <p className="cloud3d-hint">{t('cloud3d_view_top_hint')}</p>}
+          {cameraMode === 'track' && (
+            <>
+              <p className="cloud3d-hint">{t('cloud3d_view_track_hint')}</p>
+              <label className="cloud3d-field">
+                <span>{t('cloud3d_walk_track')}</span>
+                <select value={walkTrack} onChange={e => { setWalkTrack(e.target.value); walkOn(e.target.value) }}>
+                  <option value="">{t('cloud3d_choose')}</option>
+                  {tracks.map(tr => <option key={tr.id} value={tr.id}>{tr.label}</option>)}
+                </select>
+              </label>
+              {walking && walkRange && (
+                <label className="cloud3d-field">
+                  <span>{fill('cloud3d_walk_station', { s: walking.station.toFixed(1) })}</span>
+                  <input type="range" min={walkRange[0]} max={walkRange[1]} step={0.5} value={walking.station}
+                    onChange={e => { viewerRef.current?.setWalkStation(Number(e.target.value)); setWalking(viewerRef.current?.walkState() ?? null) }} />
+                  <span className="cloud3d-range-ends">
+                    <span>{`${walkRange[0].toFixed(0)} m`}</span><span>{`${walkRange[1].toFixed(0)} m`}</span>
+                  </span>
+                </label>
+              )}
+              <label className="cloud3d-check">
+                <input type="checkbox" checked={clearanceOn} onChange={e => setClearanceOn(e.target.checked)} />
+                <span>{fill('cloud3d_clearance', { m: CLEARANCE_LENGTH })}</span>
+              </label>
+              {clearanceOn && (
+                <p className="cloud3d-hint">{fill('cloud3d_clearance_hint', {
+                  profile: t(gaugeProfileLabelKey(project?.data?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)), m: CLEARANCE_LENGTH, ahead: CLEARANCE_AHEAD,
+                })}</p>
+              )}
+              {walking && <p className="cloud3d-hint">{t('cloud3d_walk_keys')}</p>}
+            </>
+          )}
         </div>
-        <label className="cloud3d-check">
-          <input type="checkbox" checked={clearanceOn} onChange={e => setClearanceOn(e.target.checked)} />
-          <span>{fill('cloud3d_clearance', { m: CLEARANCE_LENGTH })}</span>
-        </label>
-        {clearanceOn && (
-          <p className="cloud3d-hint">{fill('cloud3d_clearance_hint', {
-            profile: t(gaugeProfileLabelKey(project?.data?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)), m: CLEARANCE_LENGTH, ahead: CLEARANCE_AHEAD,
-          })}</p>
-        )}
-        <p className="cloud3d-hint">{t(walking ? 'cloud3d_walk_keys' : 'cloud3d_orbit_keys')}</p>
 
         <h2>{t('cloud3d_measure')}</h2>
         <label className="cloud3d-check">
