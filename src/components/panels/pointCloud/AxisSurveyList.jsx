@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import maplibregl from 'maplibre-gl'
-import { deleteAxisSurvey } from '../../../storage'
+import { deleteAxisSurvey, saveAxisSurvey } from '../../../storage'
+import { surveyChanges, shiftSurvey } from '../../../utils/pointCloud/surveyShift'
 import { surveyPoints, surveyStats } from '../../../utils/axisSurvey'
 import { RAILS } from '../../../utils/crossSectionUtils'
 import { crsName, utmToWgs84 } from '../../../utils/coordinateUtils'
@@ -34,8 +35,12 @@ const SURVEY_LAYERS = [{
  * every device, whether or not the clouds they came from are there — shown on
  * the map, exported as a point file, deleted, or cleared of single wrong
  * points on the map (`erasingId` the survey that is, `onErasing` to change it).
+ *
+ * One traced in a cloud whose re-referencing changed since is marked "taken
+ * before the re-referencing" (AP 13.15) and can be carried along with it or
+ * traced anew (`onRetrace(survey)`). `cloudRows` the project's server clouds.
  */
-export default function AxisSurveyList({ erasingId = null, onErasing }) {
+export default function AxisSurveyList({ erasingId = null, onErasing, onRetrace, cloudRows = [] }) {
   const { t, fill, language } = useI18n()
   const map = useMap()
   const surveys = useAxisSurveys()
@@ -76,6 +81,9 @@ export default function AxisSurveyList({ erasingId = null, onErasing }) {
       </div>
       {surveys.map(s => {
         const st = surveyStats(s)
+        const changes = surveyChanges(s, cloudRows)
+        // Carried along only where it came from one cloud alone.
+        const shiftable = changes.length === 1 && (s.cloudRefs ?? []).length === 1
         return (
           <div key={s.id} className="pointcloud-item">
             <strong>{s.name}</strong>
@@ -103,6 +111,23 @@ export default function AxisSurveyList({ erasingId = null, onErasing }) {
               )}
             </div>
             {erasingId === s.id && <span className="selecting-hint">{t('axis_survey_erase_hint')}</span>}
+            {changes.length > 0 && (
+              <>
+                <span className="form-error">{fill('axis_survey_outdated', { clouds: changes.map(c => c.name).join(', ') })}</span>
+                {mayEdit && (
+                  <div className="pointcloud-actions">
+                    {shiftable && (
+                      <button className="modal-btn modal-btn-cancel" onClick={() => saveAxisSurvey(shiftSurvey(s, changes[0]))}>
+                        {t('axis_survey_shift')}
+                      </button>
+                    )}
+                    {onRetrace && (
+                      <button className="modal-btn modal-btn-cancel" onClick={() => onRetrace(s)}>{t('axis_survey_retrace')}</button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )
       })}

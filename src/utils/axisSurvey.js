@@ -7,8 +7,11 @@
  * leaves it as it is.
  *
  *   { id, name, epsg, rail, guide: { kind: 'track'|'line', trackId? },
- *     cloudNames, createdAt, step, gaps: [{ from, to }],
+ *     cloudNames, cloudRefs?, createdAt, step, gaps: [{ from, to }],
  *     points: { e0, n0, z0, st, de, dn, zl, zr, ga, q } }
+ *
+ * `cloudRefs` (AP 13.15) names the server clouds read, each with the
+ * re-referencing in force then (pointCloud/surveyShift.js).
  *
  * The points are packed as whole millimetres in parallel arrays: station along
  * the guide (`st`), easting and northing from (e0, n0) (`de`, `dn`), the two
@@ -19,13 +22,13 @@
 const mm = (v) => Math.round(v * 1000)
 
 /** A survey record from the result of a trace (railTrace.traceTrack). */
-export function surveyFromTrace({ id, name, rail, guide, cloudNames = [], createdAt, step }, { points, gaps, epsg }) {
+export function surveyFromTrace({ id, name, rail, guide, cloudNames = [], cloudRefs = [], createdAt, step }, { points, gaps, epsg }) {
   const first = points[0]
   const e0 = first ? Math.round(first.easting) : 0
   const n0 = first ? Math.round(first.northing) : 0
   const z0 = first ? Math.round(Math.min(first.zLeft, first.zRight)) : 0
   return {
-    id, name, epsg, rail, guide, cloudNames, createdAt, step,
+    id, name, epsg, rail, guide, cloudNames, cloudRefs, createdAt, step,
     gaps: gaps.map(g => ({ from: g.from, to: g.to })),
     points: {
       e0, n0, z0,

@@ -4,7 +4,8 @@ import { trackLabel } from '../../../utils/trackModel'
 import { RAILS, DEFAULT_RAIL, superstructureAt } from '../../../utils/crossSectionUtils'
 import { wgs84ToUTM, utmToWgs84 } from '../../../utils/coordinateUtils'
 import { traceTrack, trackGuide, lineGuide, TRACE_STEP } from '../../../utils/pointCloud/railTrace'
-import { surveyFromTrace } from '../../../utils/axisSurvey'
+import { surveyFromTrace, surveyPoints } from '../../../utils/axisSurvey'
+import { cloudRefsOf } from '../../../utils/pointCloud/surveyShift'
 import { generateId } from '../../../utils/identifierUtils'
 import { saveAxisSurvey } from '../../../storage'
 import { useMayEditClouds } from '../../../hooks/useCurrentUser'
@@ -56,8 +57,11 @@ const TRACE_LAYERS = [
  * Where every cloud lies on the server and the user may start jobs there, the
  * trace runs on the server (AP 13.7, decision 237); its result waits there
  * until it is kept as a measured axis, also after the window was closed.
+ *
+ * `retrace` a measured axis to trace anew after a re-referencing (AP 13.15):
+ * its guide, rail and name are taken over, and kept it replaces the old one.
  */
-export default function RailTraceSection({ clouds, paused = false }) {
+export default function RailTraceSection({ clouds, paused = false, retrace = null, onRetraced }) {
   const mayEdit = useMayEditClouds()
   const { t, fill, language } = useI18n()
   const project = useProject()
@@ -74,6 +78,26 @@ export default function RailTraceSection({ clouds, paused = false }) {
   const [saved, setSaved] = useState(null)       // the name of the measured axis just kept
   const abortRef = useRef(null)
   useEffect(() => () => abortRef.current?.abort(), [])
+
+  // A measured axis to trace anew: along its track, or along its own points.
+  const [replacing, setReplacing] = useState(null)
+  if (retrace && retrace !== replacing) {
+    setReplacing(retrace)
+    setResult(null)
+    setSaved(null)
+    setRail(retrace.rail ?? DEFAULT_RAIL)
+    setSurveyName(retrace.name)
+    if (retrace.guide?.kind === 'track' && tracks.some(tr => tr.id === retrace.guide.trackId)) {
+      setMode('track')
+      setTrackId(retrace.guide.trackId)
+    } else {
+      const pts = surveyPoints(retrace)
+      const every = Math.max(1, Math.floor(pts.length / 200))
+      setMode('line')
+      setDrawing(false)
+      setLine(pts.filter((_, i) => i % every === 0 || i === pts.length - 1).map(p => utmToWgs84(p.easting, p.northing, retrace.epsg)))
+    }
+  }
   const onServer = runsOnServer(clouds, mayEdit)
   const server = useServerRun(project.id, 'trace', null, clouds.some(c => c.server))
   const serverBusy = runIsActive(server.run)
@@ -181,12 +205,13 @@ export default function RailTraceSection({ clouds, paused = false }) {
       ? { rail: about.rail, guide: about.guide === 'track' ? { kind: 'track', trackId: about.trackId } : { kind: 'line' } }
       : { rail, guide: mode === 'track' ? { kind: 'track', trackId } : { kind: 'line' } }
     saveAxisSurvey(surveyFromTrace({
-      id: generateId(), name, ...by,
-      cloudNames: clouds.map(c => c.name), createdAt: new Date().toISOString(), step: TRACE_STEP,
+      id: replacing?.id ?? generateId(), name, ...by,
+      cloudNames: clouds.map(c => c.name), cloudRefs: cloudRefsOf(clouds), createdAt: new Date().toISOString(), step: TRACE_STEP,
     }, shown))
     if (shown.run) server.forget()
     setResult(null)
     setSaved(name)
+    if (replacing) { setReplacing(null); onRetraced?.() }
   }
 
   const good = shown?.points?.filter(p => p.quality === 'good').length ?? 0
@@ -194,6 +219,7 @@ export default function RailTraceSection({ clouds, paused = false }) {
   return (
     <FormSection title={t('railtrace_title')}>
       <p className="selecting-hint">{t('railtrace_hint')}</p>
+      {replacing && <p className="selecting-hint">{fill('railtrace_retrace', { name: replacing.name })}</p>}
       <div className="form-field">
         <label>{t('railtrace_guide')}</label>
         <select value={mode} disabled={!!run}

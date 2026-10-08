@@ -12,6 +12,7 @@ import { useI18n } from '../../locales/i18nContext'
 import { tOr } from '../../locales/i18n'
 import { useProject } from '../../hooks/useStore'
 import { useMayEditClouds } from '../../hooks/useCurrentUser'
+import useRegistrationSession from '../../hooks/useRegistrationSession'
 import usePreview from '../../map/usePreview'
 import { PALETTE } from '../../styles/palette'
 import CloudImportForm from './pointCloud/CloudImportForm'
@@ -58,6 +59,8 @@ export default function PointCloudPanel() {
   // The measured axis whose points are being taken out on the map — the
   // trace's own clicks on the map wait meanwhile.
   const [erasingId, setErasingId] = useState(null)
+  // A measured axis to trace anew after a re-referencing (AP 13.15).
+  const [retrace, setRetrace] = useState(null)
 
   const say = (err, key) => setMessage({ kind: 'error', text: `${t(key)}: ${tOr(t, `pointcloud_err_${err.code}`, err.message)}` })
 
@@ -76,6 +79,10 @@ export default function PointCloudPanel() {
   const refresh = () => Promise.all([refreshLocal(), refreshServer()])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { refresh() }, [project.id])
+  // A re-referencing kept or put back in the 3D window: the clouds anew (AP 13.15).
+  const { cloudsVersion } = useRegistrationSession(project.id)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (cloudsVersion) refreshServer() }, [cloudsVersion])
 
   // While a cloud is uploaded or prepared, its state is asked for again.
   const pending = (server ?? []).some(c => c.status === 'queued' || c.status === 'processing'
@@ -88,7 +95,7 @@ export default function PointCloudPanel() {
   }, [pending, project.id])
 
   // The clouds the trace reads, and the outlines of the server's.
-  const readyKey = (server ?? []).filter(readableOnServer).map(c => c.id).join(',')
+  const readyKey = (server ?? []).filter(readableOnServer).map(c => `${c.id}:${c.transform?.id ?? ''}`).join(',')
   useEffect(() => {
     let live = true
     const ready = (server ?? []).filter(readableOnServer)
@@ -179,8 +186,11 @@ export default function PointCloudPanel() {
       <CloudList local={local} server={server} uploads={uploads} mayEdit={mayEdit} busy={running}
         onDeleteLocal={removeLocal} onDeleteServer={removeServer} onResume={resume} onRetry={retry}
         onOpen3d={(c) => openCloud3d({ projectId: project.id, variantId: currentVariantId(), cloudId: c.id })} />
-      {readable.length > 0 && !running && <RailTraceSection clouds={readable} paused={!!erasingId} />}
-      <AxisSurveyList erasingId={erasingId} onErasing={setErasingId} />
+      {readable.length > 0 && !running && (
+        <RailTraceSection clouds={readable} paused={!!erasingId} retrace={retrace} onRetraced={() => setRetrace(null)} />
+      )}
+      <AxisSurveyList erasingId={erasingId} onErasing={setErasingId} cloudRows={server ?? []}
+        onRetrace={readable.length ? setRetrace : null} />
       {storage && (
         <p className="pointcloud-meta pointcloud-storage">
           {fill('pointcloud_storage', { used: sizeText(storage.usage), free: sizeText(storage.free) })}
