@@ -642,3 +642,9 @@ a.collab-btn { display: inline-block; text-decoration: none; }
 }
 .local-store-confirm-all p { margin: 0; }
 .local-store-all { margin-right: auto; }
+
+/* The disk of the point clouds, under the users (AP 13.16). */
+.admin-disk { margin-top: 28px; }
+.admin-disk h2 { font-size: 16px; margin: 0 0 6px; }
+.admin-disk-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.admin-disk-list li { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; }

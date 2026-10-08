@@ -13,7 +13,7 @@ import {
   sectionNeighbours, sectionLinePoints, sectionLevels, sectionOrigin, PLANUM_EDGE, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/heightDatums'
-import { listClouds } from '../utils/pointCloud/cloudStore'
+import { readableClouds } from '../utils/pointCloud/projectClouds'
 import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
 import { paintCloudCanvas, coloringsFor, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
 import { checkClearance, BOTTOM_BAND } from '../utils/pointCloud/clearanceCheck'
@@ -122,7 +122,8 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   const [reach, setReach] = useState(DEFAULT_REACH)
   const [terrain, setTerrain] = useState(null)   // { key, points: [{ y, z }], sources }
   const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
-  const [clouds, setClouds] = useState([])          // the project's point clouds on this device
+  const [clouds, setClouds] = useState([])          // the project's point clouds, on the server and on this device
+  const [cloudLevel, setCloudLevel] = useState(1)   // the server clouds' level: 1 the 2-cm voxel, 0 the original
   const [cloudOn, setCloudOn] = useState(true)
   const [thickness, setThickness] = useState(DEFAULT_THICKNESS)
   // null: the first on offer — RGB where a cloud has colour (AP 13.4).
@@ -237,12 +238,13 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   // ── The point clouds of the project, sliced at the section plane ─────────
   useEffect(() => {
     let live = true
-    listClouds(project.id).then(c => { if (live) setClouds(c) }).catch(() => {})
+    readableClouds(project.id, { level: cloudLevel }).then(c => { if (live) setClouds(c) }).catch(() => {})
     return () => { live = false }
-  }, [project.id])
+  }, [project.id, cloudLevel])
+  const onServer = clouds.some(c => c.server)
 
   const cloudKey = track && cloudOn && clouds.length
-    ? `${track.id}|${station.toFixed(2)}|${reach}|${thickness}|${clouds.map(c => c.id).join(',')}`
+    ? `${track.id}|${station.toFixed(2)}|${reach}|${thickness}|${clouds.map(c => (c.server ? `${c.id}@${c.server.level}` : c.id)).join(',')}`
     : null
 
   useEffect(() => {
@@ -675,6 +677,13 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
                     title={t('cross_section_cloud_coloring')}>
                     {colorings.map(c => <option key={c} value={c}>{t(`cross_section_cloud_by_${c}`)}</option>)}
                   </select>
+                  {onServer && (
+                    <select className="cross-section-coloring" value={cloudLevel} onChange={e => setCloudLevel(Number(e.target.value))}
+                      title={t('cross_section_cloud_level_hint')}>
+                      <option value={1}>{t('cross_section_cloud_level_1')}</option>
+                      <option value={0}>{t('cross_section_cloud_level_0')}</option>
+                    </select>
+                  )}
                 </>
               )}
             </>

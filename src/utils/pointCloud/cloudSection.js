@@ -1,15 +1,16 @@
-import { cloudTilesFile } from './cloudStore'
+import { sourceOf, forgetSource, forgetSources } from './cloudSource'
 import { decodeCloudSegment, segmentPlacement } from './tiles'
 import { sliceFrame, tilesInSlice, sliceSegment, SlicePoints } from './cloudSlice'
 import { planeMapper } from './cloudCrs'
 import { transformPlanePoint, transformGridBearing } from '../coordinateUtils'
 
 /**
- * The points of the project's clouds in a cross section, read from the local
- * tile store. Walking the slider moves the plane a little at a time, so the
- * tiles it needs are mostly the ones it just had: decoded segments are kept
- * in a small cache, and a station change costs only the filtering and the
- * few tiles that come new into reach.
+ * The points of the project's clouds in a cross section, read through each
+ * cloud's source — the local tile store or the server (cloudSource). Walking
+ * the slider moves the plane a little at a time, so the tiles it needs are
+ * mostly the ones it just had: decoded segments are kept in a small cache,
+ * and a station change costs only the filtering and the few tiles that come
+ * new into reach.
  */
 
 /**
@@ -18,12 +19,8 @@ import { transformPlanePoint, transformGridBearing } from '../coordinateUtils'
  * counts bytes, not segments.
  */
 const CACHE_BYTES = 64 * 1024 * 1024
-const cache = new Map()   // "cloudId|offset" → decoded segment (insertion order = age)
+const cache = new Map()   // "cloud key|offset" → decoded segment (insertion order = age)
 let cachedBytes = 0
-const files = new Map()   // "projectId|cloudId" → Promise<File>
-
-/** Segments closer together than this in the tile file are read in one go [bytes]. */
-const MERGE_GAP = 256 * 1024
 
 const segmentBytes = (seg) => seg.x.byteLength + seg.y.byteLength + seg.z.byteLength + seg.i.byteLength
   + (seg.intensity?.byteLength ?? 0) + (seg.r ? 3 * seg.r.byteLength : 0)
@@ -42,19 +39,21 @@ const remember = (key, seg) => {
 
 /**
  * The decoded segments `wanted` (`[offset, length, count, z0]` entries) of a
- * cloud, by offset. What the cache lacks is read in as few reads as there are
- * clusters in the file — a `File.slice` costs some milliseconds of its own,
- * and a section needs a few dozen segments.
+ * cloud, by offset. What the cache lacks is read through the cloud's source
+ * in one call — the source batches the reads.
  */
 let decodeMs = 0
 
+/** A cloud's key in the cache: a server cloud's levels are clouds of their own. */
+const keyOf = (cloud) => (cloud.server ? `${cloud.id}@L${cloud.server.level}` : cloud.id)
+
 async function segments(projectId, cloud, wanted) {
-  const cloudId = cloud.id
+  const cloudKey = keyOf(cloud)
   decodeMs = 0
   const got = new Map()
   const missing = []
   for (const s of wanted) {
-    const key = `${cloudId}|${s[0]}`
+    const key = `${cloudKey}|${s[0]}`
     const hit = cache.get(key)
     if (hit) {
       cache.delete(key)
@@ -65,39 +64,27 @@ async function segments(projectId, cloud, wanted) {
     }
   }
   if (!missing.length) return got
-  const fileKey = `${projectId}|${cloudId}`
-  if (!files.has(fileKey)) files.set(fileKey, cloudTilesFile(projectId, cloudId))
-  const file = await files.get(fileKey)
-  missing.sort((a, b) => a[0] - b[0])
-  const ranges = []
-  for (const s of missing) {
-    const last = ranges[ranges.length - 1]
-    if (last && s[0] - last.end <= MERGE_GAP) { last.segs.push(s); last.end = Math.max(last.end, s[0] + s[1]) }
-    else ranges.push({ start: s[0], end: s[0] + s[1], segs: [s] })
-  }
-  await Promise.all(ranges.map(async ({ start, end, segs }) => {
-    const bytes = new Uint8Array(await file.slice(start, end).arrayBuffer())
-    const t0 = performance.now()
-    for (const [offset, length, count] of segs) {
-      const seg = decodeCloudSegment(cloud, bytes.subarray(offset - start, offset - start + length), count)
-      remember(`${cloudId}|${offset}`, seg)
-      got.set(offset, seg)
-    }
-    decodeMs += performance.now() - t0
-  }))
+  const bytes = await sourceOf(projectId, cloud).readMany(missing.map(s => [s[0], s[1]]))
+  const t0 = performance.now()
+  missing.forEach(([offset, , count], k) => {
+    const seg = decodeCloudSegment(cloud, bytes[k], count)
+    remember(`${cloudKey}|${offset}`, seg)
+    got.set(offset, seg)
+  })
+  decodeMs += performance.now() - t0
   return got
 }
 
 /** Forget what was read of a cloud — after it was deleted. */
 export function forgetCloud(cloudId) {
-  for (const key of [...cache.keys()]) if (key.startsWith(`${cloudId}|`)) forget(key)
-  for (const key of [...files.keys()]) if (key.endsWith(`|${cloudId}`)) files.delete(key)
+  for (const key of [...cache.keys()]) if (key.startsWith(`${cloudId}|`) || key.startsWith(`${cloudId}@`)) forget(key)
+  forgetSource(cloudId)
 }
 
 /** Forget what was read of every cloud — after all of them were deleted. */
 export function forgetAllClouds() {
   for (const key of [...cache.keys()]) forget(key)
-  files.clear()
+  forgetSources()
 }
 
 /**

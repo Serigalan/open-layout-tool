@@ -5,6 +5,7 @@ import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 import { errorText } from './errorText'
 import Modal from '../Modal'
+import { sizeText } from '../../utils/pointCloud/cloudFormat'
 
 /** A start password: 16 characters a person can read out (no 0/O, 1/l/I). */
 function startPassword() {
@@ -114,6 +115,7 @@ export default function AdminPage({ user: me, onBack }) {
             </li>
           ))}
         </ul>
+        <CloudDisk />
       </main>
 
       {dialog?.kind === 'create' && (
@@ -134,6 +136,44 @@ export default function AdminPage({ user: me, onBack }) {
           }} />
       )}
     </div>
+  )
+}
+
+/**
+ * The disk the point clouds lie on (AP 13.16): how much is free — with a
+ * warning under 20 GB — and what each project's clouds take of their quota.
+ */
+function CloudDisk() {
+  const { t, fill } = useI18n()
+  const [info, setInfo] = useState(null)
+  useEffect(() => {
+    let alive = true
+    api.cloudAdmin().then(r => { if (alive) setInfo(r) }, () => { if (alive) setInfo(false) })
+    return () => { alive = false }
+  }, [])
+  if (!info) return null
+  return (
+    <section className="admin-disk">
+      <h2>{t('admin_disk_title')}</h2>
+      <p className={info.disk.warn ? 'collab-error' : 'collab-muted'}>
+        {fill('admin_disk_free', { free: sizeText(info.disk.free), total: sizeText(info.disk.total) })}
+        {info.disk.warn && ` ${fill('admin_disk_warn', { limit: sizeText(info.disk.warnBelow) })}`}
+      </p>
+      {info.projects.length === 0
+        ? <p className="collab-muted">{t('admin_disk_none')}</p>
+        : (
+          <ul className="admin-disk-list">
+            {info.projects.map(p => (
+              <li key={p.project_id}>
+                <strong>{p.title}</strong>
+                <span className="collab-muted">
+                  {fill('admin_disk_project', { n: p.clouds, size: sizeText(p.bytes + p.raw), quota: sizeText(info.quota) })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+    </section>
   )
 }
 

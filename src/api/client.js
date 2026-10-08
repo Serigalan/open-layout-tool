@@ -86,6 +86,56 @@ export const api = {
 
   uploadImage:    (mime, data) => request('PUT', '/blobs', { mime, data }),
 
+  // Point clouds on the server (phase 13).
+  clouds:         (projectId) => request('GET', `/projects/${enc(projectId)}/clouds`),
+  createCloud:    (projectId, body) => request('POST', `/projects/${enc(projectId)}/clouds`, body),
+  completeCloud:  (projectId, cloudId) => request('POST', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/complete`),
+  retryCloud:     (projectId, cloudId) => request('POST', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/retry`),
+  deleteCloud:    (projectId, cloudId) => request('DELETE', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}`),
+  cloudIndex:     (projectId, cloudId, level) => request('GET', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/L${level}/index`),
+  cloudAdmin:     () => request('GET', '/admin/clouds'),
+
+  /**
+   * One piece of a cloud upload at `offset`, with its SHA-256 (hex): resolves
+   * `{ received }` — the server's mark, also when it already had the piece or
+   * wants another offset (409).
+   */
+  async uploadCloudPiece(projectId, cloudId, offset, bytes, sha256) {
+    let res
+    try {
+      res = await fetch(`${BASE}/projects/${enc(projectId)}/clouds/${enc(cloudId)}/raw?offset=${offset}`, {
+        method: 'PUT', credentials: 'same-origin', body: bytes,
+        headers: { 'content-type': 'application/octet-stream', 'x-olt-upload': '1', 'x-olt-sha256': sha256, accept: 'application/json' },
+      })
+    } catch {
+      throw new ApiError(0, 'offline')
+    }
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) return data
+    if (res.status === 409 && Number.isInteger(data.received)) return { received: data.received }
+    if (res.status === 401) onUnauthorized?.()
+    throw new ApiError(res.status, data.error, data)
+  },
+
+  /** The bytes of `ranges` (`[[offset, length], …]`, at most 64) of a level's tile file, back to back. */
+  async cloudRanges(projectId, cloudId, level, ranges) {
+    let res
+    try {
+      res = await fetch(`${BASE}/projects/${enc(projectId)}/clouds/${enc(cloudId)}/L${level}/ranges`, {
+        method: 'POST', credentials: 'same-origin', body: JSON.stringify({ ranges }),
+        headers: { 'content-type': 'application/json', accept: 'application/octet-stream' },
+      })
+    } catch {
+      throw new ApiError(0, 'offline')
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 401) onUnauthorized?.()
+      throw new ApiError(res.status, data.error, data)
+    }
+    return new Uint8Array(await res.arrayBuffer())
+  },
+
   users:          () => request('GET', '/admin/users'),
   createUser:     (body) => request('POST', '/admin/users', body),
   patchUser:      (id, body) => request('PATCH', `/admin/users/${enc(id)}`, body),

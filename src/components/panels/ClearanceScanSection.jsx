@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { listClouds } from '../../utils/pointCloud/cloudStore'
+import { readableClouds } from '../../utils/pointCloud/projectClouds'
 import { scanClearance } from '../../utils/pointCloud/clearanceScan'
 import { gaugeProfile, gaugeProfileRing, gaugeProfileAreas, DEFAULT_GAUGE_PROFILE } from '../../utils/gaugeProfiles'
 import { currentProject } from '../../storage'
@@ -10,7 +10,7 @@ import FormSection from '../form/FormSection'
 
 /**
  * The clearance check along the whole track against the project's point
- * clouds on this device (AP 11.5): a list of the stretches where measured
+ * clouds — on the server and on this device (AP 11.5, 13.6): a list of the stretches where measured
  * points reach into the outline, each a click away in the cross section.
  * Absent where the project has no cloud here.
  */
@@ -24,7 +24,7 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
 
   useEffect(() => {
     let live = true
-    listClouds(project.id).then(c => { if (live) setClouds(c) }).catch(() => {})
+    readableClouds(project.id).then(c => { if (live) setClouds(c) }).catch(() => {})
     return () => { live = false; abortRef.current?.abort() }
   }, [project.id])
 
@@ -57,6 +57,7 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
       {run ? (
         <>
           <progress className="full-width" max={1} value={run.share} />
+          <span className="range-use">{t('pointcloud_runs_in_browser')}</span>
           <button className="panel-btn panel-btn-danger panel-btn-full" onClick={() => abortRef.current?.abort()}>
             {t('btn_cancel')}
           </button>

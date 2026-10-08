@@ -4,6 +4,7 @@ import { REPORT_KEY_PREFIX, HIDDEN_KEY_PREFIX, discardWorkingCopy, forgetHiddenT
 import { SETTINGS_KEY } from './utils/settings'
 import { INDEX_FILE, opfsAvailable, storageEstimate, storagePersisted } from './utils/pointCloud/cloudStore'
 import { forgetAllClouds, forgetCloud } from './utils/pointCloud/cloudSection'
+import { forgetCache } from './utils/pointCloud/cloudCache'
 import { formatNum } from './locales/i18n'
 
 /**
@@ -171,7 +172,11 @@ export async function deleteLocalCloud(cloud) {
   } catch { /* gone already */ }
 }
 
-export const deleteLocalFile = (entry) => removePath(entry.path)
+export async function deleteLocalFile(entry) {
+  await removePath(entry.path)
+  // The cache of the server's clouds (AP 13.6) starts again from nothing.
+  if (entry.path[0] === 'cloudcache') forgetCache()
+}
 
 export const deleteLocalWorkingCopy = (variantId) => discardWorkingCopy(variantId)
 
@@ -204,5 +209,6 @@ export async function deleteAllLocal() {
   await attempt(() => idb.clearLegacyStores())
   await attempt(() => { localStorage.clear(); forgetHiddenTracks() })
   forgetAllClouds()
+  forgetCache()
   if (failures.length) throw failures[0]
 }

@@ -29,14 +29,18 @@ export function outlineSegments(index, cell = CELL) {
   return segs
 }
 
-/** The outline as a GeoJSON feature in WGS84, tagged with the cloud's id. */
+/**
+ * The outline as a GeoJSON feature in WGS84, tagged with the cloud's id. A
+ * level of coarse tiles (a server cloud's L2) is outlined in cells of two
+ * tiles.
+ */
 export function outlineFeature(index) {
   return {
     type: 'Feature',
     properties: { cloudId: index.id, name: index.name },
     geometry: {
       type: 'MultiLineString',
-      coordinates: outlineSegments(index).map(seg => planeCoordsToWgs84(seg, index.crs)),
+      coordinates: outlineSegments(index, Math.max(CELL, 2 * index.tileSize)).map(seg => planeCoordsToWgs84(seg, index.crs)),
     },
   }
 }

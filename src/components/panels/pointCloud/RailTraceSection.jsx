@@ -111,7 +111,7 @@ export default function RailTraceSection({ clouds, paused = false }) {
   }, [preview, result])
 
   // A drawn guide lies in the plane of the clouds' tiles.
-  const lineEpsg = clouds[0]?.crs
+  const lineEpsg = clouds.find(c => c.crs != null)?.crs
   const guide = mode === 'track'
     ? (track ? trackGuide(track) : null)
     : (line.length >= 2 && !drawing && lineEpsg
@@ -205,6 +205,7 @@ export default function RailTraceSection({ clouds, paused = false }) {
       {run ? (
         <>
           <progress className="full-width" max={1} value={run.share} />
+          <span className="range-use">{t('pointcloud_runs_in_browser')}</span>
           <button className="panel-btn panel-btn-danger panel-btn-full" onClick={() => abortRef.current?.abort()}>
             {t('btn_cancel')}
           </button>
