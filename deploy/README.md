@@ -2,6 +2,7 @@
 
 Alles, was ein Server für das Open Layout Tool braucht, liegt hier: eine
 Konfigurationsdatei, zwei Skripte und die Vorlagen für systemd und Caddy.
+Dienste: `olt-server`, `olt-optimizer`, `olt-cloudjobs` und die tägliche Sicherung.
 
 | Datei | |
 |---|---|
@@ -15,9 +16,12 @@ Konfigurationsdatei, zwei Skripte und die Vorlagen für systemd und Caddy.
 ```
 Internet ─▶ Caddy (TLS, Let's Encrypt)
              ├─ /            dist/ (die gebaute App, statisch)
-             ├─ /api/*       olt-server     Node, Nutzer/Projekte/Revisionen, SQLite
+             ├─ /api/*       olt-server     Node, Nutzer/Projekte/Revisionen, SQLite,
+             │                              Punktwolken hochladen und ausliefern
              ├─ /optimizer/* olt-optimizer  Python, Optimierung, MDB, Gelände   ┐ nur mit
              └─ /data/km*    Km-Linien aus dist/                                  ┘ Sitzung
+
+olt-cloudjobs (ohne Port): bereitet hochgeladene Punktwolken auf, Warteschlange in derselben SQLite
 ```
 
 Beide Dienste hören nur auf `OLT_BIND` (Standard `127.0.0.1`), nie öffentlich.
@@ -55,7 +59,7 @@ cd /opt/open-layout-tool && deploy/deploy.sh --pull
 
 Installiert npm- und pip-Abhängigkeiten nur, wenn sich ihre Lock-/Projektdatei
 geändert hat, baut die App neben `dist/` und gleicht sie dann hinein ab (die Seite
-ist während des Builds nie leer), startet beide Dienste neu und prüft
+ist während des Builds nie leer), startet die Dienste neu und prüft
 `/api/health` und `/health`. Nur prüfen: `deploy/deploy.sh --check-only`.
 
 Nach einer Änderung an der Konfiguration oder an `templates/`: `setup.sh` erneut
@@ -69,9 +73,49 @@ ausführen.
 | tägliche Kopie 03:30 | `/var/lib/open-layout-tool/backups/olt-JJJJ-MM-TT.sqlite`, 30 Tage |
 | Gelände-Kacheln (Cache) | `/var/lib/open-layout-tool/terrain-cache` (bis ≈ 1,6 GB) |
 | NTv2-Gitter für PROJ | `/var/lib/open-layout-tool/share/proj/` |
+| Punktwolken | `/var/lib/open-layout-tool/clouds/<Projekt>/<Wolke>/` (`OLT_CLOUDS`), **nicht** in der täglichen Kopie |
 
 Wiederherstellen: `systemctl stop olt-server`, Sicherung über `olt.sqlite` kopieren
 (die `-wal`/`-shm`-Dateien daneben löschen), `systemctl start olt-server`.
+
+## Punktwolken (Phase 13)
+
+Eine hochgeladene Wolke liegt in `clouds/<Projekt>/<Wolke>/`:
+
+| Datei | |
+|---|---|
+| `raw.part` | die hochgeladene Datei, bis sie aufbereitet ist (nur mit „Rohdatei aufbewahren“ danach noch) |
+| `tiles-L0.bin` … `tiles-L4.bin` | die Kacheln der fünf Detailstufen: Original, 2-cm-Voxel, 8 cm, 32 cm, 1,28 m |
+| `index-L0.json` … `index-L4.json` | wo welche Kachel in der Kacheldatei liegt |
+
+Hochgeladen wird in Stücken von 8 MB über `olt-server` (fortsetzbar); danach
+bereitet `olt-cloudjobs` die Wolke auf — höchstens zwei Aufträge zugleich, je in
+einem eigenen Prozess, mit `CPUQuota=300%`, `Nice=10` und `MemoryMax=2G`. Ein
+Neustart des Dienstes (etwa durch `deploy.sh`) unterbricht einen laufenden
+Auftrag; er beginnt beim nächsten Start von vorn. Ausgeliefert werden die
+Kacheln von `olt-server` selbst, mit Prüfung der Projekt-Mitgliedschaft, nicht
+von Caddy.
+
+**Größenrechnung** (gemessen an einer Lieferung von 571 MB LAZ, 224 Mio. Punkte,
+489 m Gleis; für 5 km hochgerechnet):
+
+| | ohne Farbe | mit Farbe |
+|---|---|---|
+| Original (L0) | 8,1 GB | ≈ 12–14 GB |
+| 2-cm-Voxel (L1) | 1,5 GB | ≈ 2,2 GB |
+| L2–L4 | ≈ 0,15 GB | ≈ 0,2 GB |
+| **je Projekt** | **≈ 10 GB** | **≈ 15 GB** |
+| Rohdateien, falls aufbewahrt | 5,9 GB | ≈ 7 GB |
+
+Je Projekt sind höchstens 25 GB erlaubt; vor jedem Hochladen prüft der Server
+diese Quote und den freien Platz (es müssen danach noch 5 GB frei bleiben). Die
+Nutzerverwaltung zeigt den freien Platz und je Projekt die Belegung, und warnt
+unter 20 GB frei.
+
+**Sicherung.** Die tägliche Kopie enthält nur die Datenbank (mit den Einträgen
+der Wolken), nicht die Kacheln — sie lassen sich aus der Rohdatei neu erzeugen.
+Wer Wolken sichern will, kopiert `clouds/` (oder nur die aufbewahrten
+`raw.part`) gesondert, z. B. `rsync -a /var/lib/open-layout-tool/clouds/ <Ziel>/`.
 
 Admin von Hand anlegen:
 `cd tools/server && OLT_SERVER_DB=/var/lib/open-layout-tool/olt.sqlite runuser -u olt -- node bin/olt-server.mjs create-admin <login> [Name]`

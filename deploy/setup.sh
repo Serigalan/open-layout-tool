@@ -6,8 +6,9 @@
 #   sudo deploy/setup.sh            needs /etc/open-layout-tool/olt.env (see olt.env.example)
 #
 # What it does: system packages (Node 22, Python venv, mdbtools, Caddy),
-# the service user and data directory, the NTv2 grids for PROJ, the systemd
-# units and the Caddy site, then deploy.sh for the first build, and finally the
+# the service user and data directory (with the point clouds' directory), the
+# NTv2 grids for PROJ, the systemd units (olt-server, olt-optimizer,
+# olt-cloudjobs, the backup) and the Caddy site, then deploy.sh for the first build, and finally the
 # first admin when the database has no user yet.
 set -euo pipefail
 # shellcheck source=deploy/lib.sh
@@ -52,7 +53,7 @@ if ! id "$OLT_USER" >/dev/null 2>&1; then
   useradd --system --home-dir "$OLT_DATA" --shell /usr/sbin/nologin "$OLT_USER"
 fi
 install -d -m 0750 -o "$OLT_USER" -g "$(id -gn "$OLT_USER")" "$OLT_DATA"
-for d in "$OLT_BACKUPS" "$OLT_TERRAIN_CACHE" "$OLT_DATA/share/proj" "$(dirname "$OLT_DB")"; do
+for d in "$OLT_BACKUPS" "$OLT_TERRAIN_CACHE" "$OLT_CLOUDS" "$OLT_DATA/share/proj" "$(dirname "$OLT_DB")"; do
   install -d -m 0750 -o "$OLT_USER" -g "$(id -gn "$OLT_USER")" "$d"
 done
 # The service user only reads the checkout; the build is done as root.
@@ -74,14 +75,14 @@ step "First build and install"
 "$OLT_REPO/deploy/deploy.sh" --no-restart
 
 step "systemd units"
-for unit in olt-server.service olt-optimizer.service olt-server-backup.service olt-server-backup.timer; do
+for unit in olt-server.service olt-optimizer.service olt-cloudjobs.service olt-server-backup.service olt-server-backup.timer; do
   # A unit linked in from elsewhere (an older hand-made setup) is replaced.
   [ -L "/etc/systemd/system/$unit" ] && rm "/etc/systemd/system/$unit"
   render "deploy/templates/$unit" "/etc/systemd/system/$unit"
 done
 systemctl daemon-reload
-systemctl enable --now olt-server.service olt-optimizer.service olt-server-backup.timer
-systemctl restart olt-server.service olt-optimizer.service
+systemctl enable --now olt-server.service olt-optimizer.service olt-cloudjobs.service olt-server-backup.timer
+systemctl restart olt-server.service olt-optimizer.service olt-cloudjobs.service
 
 step "Caddy site"
 if [ "$OLT_CADDY" = system ]; then

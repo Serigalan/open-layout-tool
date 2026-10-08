@@ -8,6 +8,8 @@ User=@OLT_USER@
 WorkingDirectory=@OLT_REPO@/tools/server
 ExecStart=@OLT_NODE@ @OLT_REPO@/tools/server/bin/olt-server.mjs serve
 Environment=OLT_SERVER_DB=@OLT_DB@
+# Point clouds (phase 13): tiles and uploads, outside the daily backup.
+Environment=OLT_SERVER_CLOUDS=@OLT_CLOUDS@
 # Only Caddy reaches it, never the public interface.
 Environment=OLT_SERVER_HOST=@OLT_BIND@
 Environment=OLT_SERVER_PORT=@OLT_SERVER_PORT@

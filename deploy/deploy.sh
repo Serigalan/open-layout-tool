@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Open Layout Tool — bring a set-up server to the state of the checkout:
 # dependencies where they changed, the app build, the optimizer package, a
-# restart of both services and a health check.
+# restart of the services and a health check.
 #
 #   sudo deploy/deploy.sh                 after git pull (or with --pull)
 #   sudo deploy/deploy.sh --pull          git pull --ff-only first
@@ -75,6 +75,12 @@ fi
 if [ "$restart" = 1 ]; then
   step "Restart"
   systemctl restart olt-server.service olt-optimizer.service
+  # Installed by setup.sh from phase 13 on; a job it was running is queued again.
+  if [ -f /etc/systemd/system/olt-cloudjobs.service ]; then
+    systemctl restart olt-cloudjobs.service
+  else
+    echo "olt-cloudjobs is not installed — run deploy/setup.sh once"
+  fi
 fi
 
 if [ "$build" = 0 ] || [ "$restart" = 1 ]; then

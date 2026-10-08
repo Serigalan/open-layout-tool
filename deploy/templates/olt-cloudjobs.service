@@ -1,0 +1,24 @@
+# Rendered by deploy/setup.sh from deploy/templates/olt-cloudjobs.service — edit the template, not this file.
+[Unit]
+Description=Open Layout Tool — point cloud jobs (levels of detail from an upload)
+After=network.target
+
+[Service]
+User=@OLT_USER@
+WorkingDirectory=@OLT_REPO@/tools/server
+ExecStart=@OLT_NODE@ @OLT_REPO@/tools/server/bin/olt-cloudjobs.mjs serve
+Environment=OLT_SERVER_DB=@OLT_DB@
+Environment=OLT_SERVER_CLOUDS=@OLT_CLOUDS@
+# The server is shared (with OSRD on the live one): at most three cores, behind
+# everything else, and two jobs of up to 768 MB heap each fit under 2 GB.
+CPUQuota=300%
+Nice=10
+MemoryMax=2G
+# A job stopped by a restart is queued again when the service comes back.
+TimeoutStopSec=20
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
