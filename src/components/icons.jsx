@@ -38,6 +38,21 @@ export const BackIcon = () => (
   </MenuIcon>
 )
 
+// Commit and Cancel at a dialog's foot, when the bar is too narrow for their
+// words (CommitBar): a tick and a cross.
+export const ConfirmIcon = () => (
+  <MenuIcon>
+    <path d="M3 8.5 L6.5 12 L13 4.5" />
+  </MenuIcon>
+)
+
+export const CancelIcon = () => (
+  <MenuIcon>
+    <path d="M4 4 L12 12" />
+    <path d="M12 4 L4 12" />
+  </MenuIcon>
+)
+
 // Create element panel
 export const CreateLineIcon = () => (
   <MenuIcon>

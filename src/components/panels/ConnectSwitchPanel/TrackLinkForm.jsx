@@ -3,6 +3,7 @@ import { commitSwitchConnection, loadSwitches, loadTracks } from '../../../stora
 import { existingLinks, findTrackJoints, linksForJoints } from '../../../utils/trackLinkUtils'
 import { utmToWgs84, crsName } from '../../../utils/coordinateUtils'
 import { useI18n } from '../../../locales/i18nContext'
+import CommitBar from '../../form/CommitBar'
 import { useMap } from '../../../map/MapContext'
 import CancelButton from '../../form/CancelButton'
 
@@ -125,9 +126,6 @@ export default function TrackLinkForm({ onCommitted }) {
               <Row key={`${joint.a.trackId}|${joint.a.endpoint}|${i}`} entry={joint} />
             ))}
           </ul>
-          <button className="panel-btn panel-btn-full" disabled={open.length === 0} onClick={handleCreate}>
-            {fill('switch_link_create', { n: open.length })}
-          </button>
         </>
       )}
 
@@ -136,7 +134,10 @@ export default function TrackLinkForm({ onCommitted }) {
           case where there are no joints to list. */}
       {fanned > 0 && <p className="selecting-hint">{fill('switch_link_fanned', { n: fanned })}</p>}
 
-      <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
+      {joints.length > 0
+        ? <CommitBar onCommit={handleCreate} onCancel={onCommitted} disabled={open.length === 0}
+          commitLabel={fill('switch_link_create', { n: open.length })} className="" />
+        : <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />}
     </>
   )
 }

@@ -4,6 +4,7 @@ import { trackLabel } from '../../../utils/trackModel'
 import { useI18n } from '../../../locales/i18nContext'
 import FormSection from '../../form/FormSection'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import UtmCoordFields from '../../UtmCoordFields'
 import NumberInput from '../../form/NumberInput'
 import { splitUnit } from '../../../locales/i18n'
@@ -35,10 +36,8 @@ export default function PlatformGeometryFields({ f, set, onStation, track, draft
   )
   return (
     <FormSection title={t('section_geometry')}>
-      <ReadOnlyField label={t('platform_track')} value={trackLabel(track)} />
       {station('start', 'platform_start')}
       {station('end', 'platform_end')}
-      <ReadOnlyField label={t('field_length')} value={valid ? `${platformLength(draft).toFixed(3)} m` : '–'} />
       <div className="form-field">
         <label>{t('platform_side')}</label>
         <select value={f.side} onChange={e => set('side', e.target.value)}>
@@ -74,12 +73,16 @@ export default function PlatformGeometryFields({ f, set, onStation, track, draft
           </button>
         )}
       </div>
-      <ReadOnlyField label={t('platform_back_edge')} value={valid ? `${draft.backOffset.toFixed(2)} m` : '–'} />
-      {edgeStart != null && (
-        <ReadOnlyField label={t('platform_edge_elevation')} value={`${edgeStart.toFixed(3)} m … ${edgeEnd.toFixed(3)} m`} />
-      )}
-      {point('platform_point_start', startPoint)}
-      {point('platform_point_end', endPoint)}
+      <AdvancedInfo>
+        <ReadOnlyField label={t('platform_track')} value={trackLabel(track)} />
+        <ReadOnlyField label={t('field_length')} value={valid ? `${platformLength(draft).toFixed(3)} m` : '–'} />
+        <ReadOnlyField label={t('platform_back_edge')} value={valid ? `${draft.backOffset.toFixed(2)} m` : '–'} />
+        {edgeStart != null && (
+          <ReadOnlyField label={t('platform_edge_elevation')} value={`${edgeStart.toFixed(3)} m … ${edgeEnd.toFixed(3)} m`} />
+        )}
+        {point('platform_point_start', startPoint)}
+        {point('platform_point_end', endPoint)}
+      </AdvancedInfo>
     </FormSection>
   )
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { deleteTrack, loadTracks, switchesOnTrack } from '../../../storage'
 import { useI18n } from '../../../locales/i18nContext'
+import CommitBar from '../../form/CommitBar'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import CancelButton from '../../form/CancelButton'
 
@@ -43,12 +44,10 @@ export default function DeleteTrackForm({ onCommitted }) {
           {selected.switchNames.length > 0 && (
             <p className="form-error">{fill('edit_track_delete_switches', { names: selected.switchNames.join(', ') })}</p>
           )}
-          <button className="panel-btn panel-btn-full panel-btn-danger" onClick={handleDelete}>
-            {t('edit_track_delete')}
-          </button>
+          <CommitBar onCommit={handleDelete} onCancel={onCommitted} commitLabel={t('edit_track_delete')} danger className="" />
         </>
       )}
-      <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
+      {!selected && <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />}
     </>
   )
 }

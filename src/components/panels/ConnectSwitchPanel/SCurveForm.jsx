@@ -11,6 +11,8 @@ import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import { PALETTE } from '../../../styles/palette'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
+import CommitBar from '../../form/CommitBar'
 import CancelButton from '../../form/CancelButton'
 
 // ── Preview layers (managed by usePreview) ────────────────────────────
@@ -229,9 +231,6 @@ export default function SCurveForm({ onCommitted }) {
     return (
       <>
         <div className="element-form">
-          <ReadOnlyField label={t('scurve_line1')} value={picks[0]?.name ?? ''} />
-          <ReadOnlyField label={t('scurve_line2')} value={picks[1]?.name ?? ''} />
-
           <div className="form-field">
             <label>{t('field_speed')}</label>
             <select value={speedIdx} onChange={e => { setCarveError(null); handleSpeedChange(Number(e.target.value)) }}>
@@ -243,18 +242,18 @@ export default function SCurveForm({ onCommitted }) {
             </select>
           </div>
 
-          <ReadOnlyField label={t('scurve_gap')} value={result ? `${result.gap.toFixed(2)} m` : ''} />
-
           <div className="form-field">
             <label>{t('scurve_shift')}: {settled && settled.shift !== shift
               ? `${wa(shift)} → ${wa(settled.shift)}` : wa(shift)} m</label>
             <input type="range" min={0} max={(slider?.stops.length ?? 1) - 1} step="1" value={stopIdx}
               onChange={e => { setCarveError(null); setShift(slider?.stops[Number(e.target.value)] ?? null) }} />
           </div>
-        </div>
 
-        {result?.valid && (
-          <div className="element-form mt-8">
+          <AdvancedInfo>
+            <ReadOnlyField label={t('scurve_line1')} value={picks[0]?.name ?? ''} />
+            <ReadOnlyField label={t('scurve_line2')} value={picks[1]?.name ?? ''} />
+            <ReadOnlyField label={t('scurve_gap')} value={result ? `${result.gap.toFixed(2)} m` : ''} />
+            {result?.valid && (<>
             <ReadOnlyField label={t('scurve_switch_type')} value={result.switchType.label} />
             <ReadOnlyField label={t('scurve_angle')} value={`1:${result.switchType.ratio}  (${deg(result.w)}°)`} />
             <ReadOnlyField label={t('scurve_delta')} value={`${deg(result.delta)}°`} />
@@ -272,8 +271,9 @@ export default function SCurveForm({ onCommitted }) {
               <ReadOnlyField label={t('scurve_cant')} value={`${Math.abs(result.cantMid)} mm`} />
             )}
             <ReadOnlyField label={t('scurve_total')} value={`${result.laenge.toFixed(2)} m`} />
-          </div>
-        )}
+            </>)}
+          </AdvancedInfo>
+        </div>
 
         <p className={result?.valid ? 'msg-info' : 'msg-error'}>
           {result?.valid ? t('scurve_valid')
@@ -309,19 +309,7 @@ export default function SCurveForm({ onCommitted }) {
           </p>
         )}
 
-        <button
-          className="panel-btn panel-btn-full mt-8"
-          onClick={handleCommit}
-          disabled={!result?.valid}
-        >
-          {t('btn_commit')}
-        </button>
-        <button
-          className="panel-btn panel-btn-full mt-2 secondary"
-          onClick={handleCancel}
-        >
-          {t('btn_cancel')}
-        </button>
+        <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!result?.valid} />
       </>
     )
   }

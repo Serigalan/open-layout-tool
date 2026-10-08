@@ -28,6 +28,7 @@ import {
 import CommitBar from '../../form/CommitBar'
 import DirectionToggle from '../../form/DirectionToggle'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import FormSection from '../../form/FormSection'
 import useFormPhase from '../../form/useFormPhase'
 import CancelButton from '../../form/CancelButton'
@@ -296,7 +297,6 @@ export default function SwitchOnTrackForm({ onCommitted }) {
             disabled={slider.stops.length === 0}
             onChange={e => setStation(String(slider.stops[Number(e.target.value)] ?? station))} />
         </div>
-        <ReadOnlyField label={t('switch_on_track_elements')} value={elementsText} />
         <SwitchFormField value={switchTypeIdx} onChange={i => {
           settle({ sw: SWITCH_PICK_TYPES[i], speed: SWITCH_PICK_TYPES[i].speed }); setTypeIdx(i); setSpeed(SWITCH_PICK_TYPES[i].speed)
         }} />
@@ -314,23 +314,29 @@ export default function SwitchOnTrackForm({ onCommitted }) {
         <SwitchCantField
           label={cantVaries ? t('switch_cant_ramp') : t('cant')}
           cant={cant} onCant={value => setCantEdit({ key: cantKey, value })}
-          readOnlyText={plain ? undefined
-            : cantVaries ? `${fmtCant(cant)} → ${fmtCant(cantEnd)}` : fmtCant(cant)}
+          inherited={!plain}
           magnitude={worstCant}
           reason={cantReason} onReason={setCantReason} />
-        {!plain && g && (
-          <>
-            <ReadOnlyField label={t('switch_stem_radius')} value={radiusText(stemRoute, '–')} />
-            <ReadOnlyField label={t('switch_bauform')} value={t(swapped ? 'switch_bauform_swapped' : `switch_bauform_${g.bauform}`)} />
-            <ReadOnlyField type="number" label={t('switch_stem_cant_def')} value={stemDef ?? 0} />
-          </>
-        )}
-        <ReadOnlyField type="number" label={plain ? t('cant_def') : t('switch_branch_cant_def')} value={cantDef} />
-        <ReadOnlyField label={t('arc_length')} value={`~${arcLen.toFixed(1)} m`} />
-        {!plain && g && (
-          <ReadOnlyField label={t('switch_branch_radius')} value={radiusText(branchRoute, t('switch_branch_straight'))} />
-        )}
         <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
+        <AdvancedInfo>
+          <ReadOnlyField label={t('switch_on_track_elements')} value={elementsText} />
+          {!plain && (
+            <ReadOnlyField label={cantVaries ? t('switch_cant_ramp') : t('cant')}
+              value={cantVaries ? `${fmtCant(cant)} → ${fmtCant(cantEnd)}` : fmtCant(cant)} />
+          )}
+          {!plain && g && (
+            <>
+              <ReadOnlyField label={t('switch_stem_radius')} value={radiusText(stemRoute, '–')} />
+              <ReadOnlyField label={t('switch_bauform')} value={t(swapped ? 'switch_bauform_swapped' : `switch_bauform_${g.bauform}`)} />
+              <ReadOnlyField type="number" label={t('switch_stem_cant_def')} value={stemDef ?? 0} />
+            </>
+          )}
+          <ReadOnlyField type="number" label={plain ? t('cant_def') : t('switch_branch_cant_def')} value={cantDef} />
+          <ReadOnlyField label={t('arc_length')} value={`~${arcLen.toFixed(1)} m`} />
+          {!plain && g && (
+            <ReadOnlyField label={t('switch_branch_radius')} value={radiusText(branchRoute, t('switch_branch_straight'))} />
+          )}
+        </AdvancedInfo>
       </FormSection>
 
       <FormSection title={t('switch_meta_data')}>

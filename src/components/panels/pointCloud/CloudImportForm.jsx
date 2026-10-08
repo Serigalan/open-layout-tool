@@ -14,6 +14,8 @@ import { useI18n } from '../../../locales/i18nContext'
 import { useProject, useTracks } from '../../../hooks/useStore'
 import FilePickButton from '../../form/FilePickButton'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import CommitBar from '../../form/CommitBar'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import Modal from '../../Modal'
 
 /** A file's name without its point cloud extension. */
@@ -184,7 +186,9 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
   const needed = upload ? 0 : estimateCloudBytes(pick.header.pointCount, { original, step: grid.scale[0] })
   return (
     <div className="pointcloud-import">
-      <ReadOnlyField label={t(upload ? 'pointcloud_file_upload' : 'pointcloud_file')} value={`${pick.file.name} · ${mb(pick.file.size)}`} />
+      <AdvancedInfo>
+        <ReadOnlyField label={t(upload ? 'pointcloud_file_upload' : 'pointcloud_file')} value={`${pick.file.name} · ${mb(pick.file.size)}`} />
+      </AdvancedInfo>
       <span className="pointcloud-meta">
         {`${formatName(pick.header)} · `
           + (pick.header.format === 'e57' ? `${fill('pointcloud_scans', { n: count(pick.header.scans.length) })} · ` : '')
@@ -252,12 +256,8 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
         </p>
       )}
       {run ? <ImportProgress run={run} /> : (
-        <div className="pointcloud-actions">
-          <button className="panel-btn" disabled={!crs || !heightEpsg} onClick={begin}>
-            {t(upload ? 'pointcloud_upload_start' : 'pointcloud_start')}
-          </button>
-          <button className="modal-btn modal-btn-cancel" onClick={() => setPick(null)}>{t('btn_cancel')}</button>
-        </div>
+        <CommitBar onCommit={begin} onCancel={() => setPick(null)} disabled={!crs || !heightEpsg}
+          commitLabel={t(upload ? 'pointcloud_upload_start' : 'pointcloud_start')} className="" />
       )}
       {preview?.text && <PointsTextModal preview={preview} onClose={() => setPreview(null)} />}
     </div>

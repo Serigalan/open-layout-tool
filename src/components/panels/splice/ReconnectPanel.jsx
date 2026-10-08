@@ -19,6 +19,7 @@ import CommitBar from '../../form/CommitBar'
 import CancelButton from '../../form/CancelButton'
 import NumberInput from '../../form/NumberInput'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import SpliceFindings from './SpliceFindings'
 import DeviationBand from '../../chart/DeviationBand'
 import ClearanceFields from './ClearanceFields'
@@ -244,15 +245,9 @@ export default function ReconnectPanel() {
     <>
       <h2>{t('reconnect_title')}</h2>
       <div className="element-form">
-        <ReadOnlyField label={t('reconnect_stretch')} value={fill('reconnect_stretch_value', {
-          track: track ? trackLabel(track) : '', from: String(range.from + 1), to: String(range.to + 1),
-          l: num(stretchLength, { digits: 1, unit: 'm' }),
-        })} />
         {range.widened.length > 0 && (
           <p className="msg-hint msg-small">{fill('reconnect_widened', { list: range.widened.map(i => i + 1).join(', ') })}</p>
         )}
-        <ReadOnlyField label={t('splice_departure')} value={neighbour('dep')} />
-        <ReadOnlyField label={t('splice_arrival')} value={neighbour('arr')} />
         <div className="form-field">
           <label>{t('field_speed')}</label>
           <NumberInput min={0} step={10} value={s.speed} onChange={e => set('speed', e.target.value)} />
@@ -280,6 +275,14 @@ export default function ReconnectPanel() {
             )}
           </div>
         )}
+        <AdvancedInfo>
+          <ReadOnlyField label={t('reconnect_stretch')} value={fill('reconnect_stretch_value', {
+            track: track ? trackLabel(track) : '', from: String(range.from + 1), to: String(range.to + 1),
+            l: num(stretchLength, { digits: 1, unit: 'm' }),
+          })} />
+          <ReadOnlyField label={t('splice_departure')} value={neighbour('dep')} />
+          <ReadOnlyField label={t('splice_arrival')} value={neighbour('arr')} />
+        </AdvancedInfo>
       </div>
       <ClearanceFields on={s.clearanceOn} onToggle={v => set('clearanceOn', v)} refName={refName}
         picking={pickingRef} onPick={() => setPickingRef(p => !p)} dMin={s.clearanceDMin} onDMin={v => set('clearanceDMin', v)} />
@@ -297,7 +300,7 @@ export default function ReconnectPanel() {
             </div>
           )}
           {solutions.length === 1 && <p className="msg-small">{variantText(t, info.variant)}</p>}
-          <div className="element-form">
+          <AdvancedInfo>
             {info.radius != null && <ReadOnlyField label={t('field_radius')} value={num(info.radius, { digits: 0, unit: 'm' })} />}
             {info.radius != null && <ReadOnlyField label={t('cant')} value={num(info.cant, { digits: 0, unit: 'mm' })} />}
             {lengths.length > 0 && (
@@ -307,7 +310,7 @@ export default function ReconnectPanel() {
             {solution.result.transitionLength != null && (
               <ReadOnlyField label={t('transition_curve')} value={num(solution.result.transitionLength, { digits: 1, unit: 'm' })} />
             )}
-          </div>
+          </AdvancedInfo>
           <p className={info.within ? 'msg-info' : 'msg-error'}>
             {fill('reconnect_deviation', {
               max: num(info.max * 100, { digits: 1, unit: 'cm' }),

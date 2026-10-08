@@ -2,6 +2,7 @@ import { MAX_CANT, computeCantDef } from '../../../utils/rules/cant'
 import { useI18n } from '../../../locales/i18nContext'
 import CantField from '../CantField'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import FieldRule from '../../form/FieldRule'
 import NumberInput from '../../form/NumberInput'
 import FormSection from '../../form/FormSection'
@@ -52,7 +53,6 @@ export default function SpliceSettings({
   )
   return (
     <div className="element-form">
-      {order.map(k => <ReadOnlyField key={k} label={role(k)} value={picks[k]?.label ?? ''} />)}
       {bothArcs ? (
         <div className="form-field">
           <label>{t('splice_arc_join')}</label>
@@ -61,9 +61,7 @@ export default function SpliceSettings({
             <option value="transition">{t('splice_arc_join_transition')}</option>
           </select>
         </div>
-      ) : clearance.maximize ? (
-        <ReadOnlyField label={t('field_radius')} value={clearance.found != null ? `${clearance.found} m` : '…'} />
-      ) : (
+      ) : clearance.maximize ? null : (
         <div className="form-field"><label>{t('field_radius')}</label>{number('radius', { min: 1 })}  <FieldRule name="radius" />
 </div>
       )}
@@ -72,19 +70,9 @@ export default function SpliceSettings({
       {!(Number(s.speed) > 0) && <p className="selecting-hint">{t('splice_no_speed')}</p>}
       {/* The radius field here is a magnitude, so the cant is one too — it is
           signed by the fitted arc when the element is written. */}
-      {!bothArcs && (clearance.maximize ? (
-        <>
-          <ReadOnlyField label={t('cant')} value={clearance.found != null ? `${cant} mm` : '…'} />
-          {clearance.found != null && (
-            <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(s.speed, clearance.found, cant)} />
-          )}
-        </>
-      ) : (
-        <>
-          <CantField value={cant} onChange={setCant} min={0} max={MAX_CANT} speed={s.speed} radius={Math.abs(Number(s.radius))} />
-          <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(s.speed, s.radius, cant)} />
-        </>
-      ))}
+      {!bothArcs && !clearance.maximize && (
+        <CantField value={cant} onChange={setCant} min={0} max={MAX_CANT} speed={s.speed} radius={Math.abs(Number(s.radius))} />
+      )}
       {!directTransition && (
         <label className="transition-curve-row">
           <input type="checkbox" checked={s.clothoidEnabled} onChange={e => enableTransitions(e.target.checked)} />
@@ -100,9 +88,7 @@ export default function SpliceSettings({
               <option value="bloss">{t('transition_type_bloss')}</option>
             </select>
           </div>
-          {directTransition ? (
-            <ReadOnlyField label={t('field_length')} value={transitionLength != null ? `${transitionLength.toFixed(1)} m` : ''} />
-          ) : (
+          {!directTransition && (
             <>
               {order.map(k => (
                 <div key={k}>
@@ -129,6 +115,23 @@ export default function SpliceSettings({
           <p className="msg-hint">{t('splice_clearance_arcs')}</p>
         )}
       </ClearanceFields>
+      <AdvancedInfo>
+        {order.map(k => <ReadOnlyField key={k} label={role(k)} value={picks[k]?.label ?? ''} />)}
+        {!bothArcs && clearance.maximize && (
+          <>
+            <ReadOnlyField label={t('field_radius')} value={clearance.found != null ? `${clearance.found} m` : '…'} />
+            <ReadOnlyField label={t('cant')} value={clearance.found != null ? `${cant} mm` : '…'} />
+          </>
+        )}
+        {!bothArcs && (!clearance.maximize || clearance.found != null) && (
+          <ReadOnlyField type="number" label={t('cant_def')}
+            value={computeCantDef(s.speed, clearance.maximize ? clearance.found : s.radius, cant)} />
+        )}
+        {directTransition && (
+          <ReadOnlyField label={`${t('transition_curve')} – ${t('field_length')}`}
+            value={transitionLength != null ? `${transitionLength.toFixed(1)} m` : ''} />
+        )}
+      </AdvancedInfo>
     </div>
   )
 }

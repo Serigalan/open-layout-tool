@@ -1,5 +1,6 @@
 import { useI18n } from '../../../locales/i18nContext'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import NumberInput from '../../form/NumberInput'
 import { splitUnit } from '../../../locales/i18n'
 
@@ -14,7 +15,6 @@ export default function OptimizeSettings({ label, what, s, set, regelwerke, onSh
   const regelwerkId = s.regelwerkId || regelwerke[0]?.id
   return (
     <div className="element-form">
-      <ReadOnlyField label={what} value={label} />
       <div className="form-field">
         <label>{t('optimize_corridor')}: {s.corridorCm} cm</label>
         <input type="range" min="0" max="50" step="1" value={s.corridorCm}
@@ -37,23 +37,25 @@ export default function OptimizeSettings({ label, what, s, set, regelwerke, onSh
           <span className="msg-warn msg-small">{t('optimize_grenzwert_discretion_hint')}</span>
         )}
       </div>
-      {regelwerke.length > 0 && (
+      {regelwerke.length > 1 && (
         <div className="form-field">
           <label>{t('optimize_regelwerk')}</label>
-          {regelwerke.length > 1 ? (
-            <select value={regelwerkId} onChange={e => set('regelwerkId', e.target.value)}>
-              {regelwerke.map(rw => <option key={rw.id} value={rw.id}>{rw.name}</option>)}
-            </select>
-          ) : (
-            <input type="text" readOnly value={regelwerke[0].name} />
-          )}
-          {/* The same popup the edit panel opens, on the regelwerk this run
-              would use — one viewer, not a second copy of the table. */}
-          <button className="link-btn msg-info msg-small" type="button" onClick={() => onShowRegelwerk?.(regelwerkId)}>
-            {t('optimize_regelwerk_show')}
-          </button>
+          <select value={regelwerkId} onChange={e => set('regelwerkId', e.target.value)}>
+            {regelwerke.map(rw => <option key={rw.id} value={rw.id}>{rw.name}</option>)}
+          </select>
         </div>
       )}
+      {/* The same popup the edit panel opens, on the regelwerk this run
+          would use — one viewer, not a second copy of the table. */}
+      {regelwerke.length > 0 && (
+        <button className="link-btn msg-info msg-small" type="button" onClick={() => onShowRegelwerk?.(regelwerkId)}>
+          {t('optimize_regelwerk_show')}
+        </button>
+      )}
+      <AdvancedInfo>
+        <ReadOnlyField label={what} value={label} />
+        {regelwerke.length === 1 && <ReadOnlyField label={t('optimize_regelwerk')} value={regelwerke[0].name} />}
+      </AdvancedInfo>
     </div>
   )
 }

@@ -10,6 +10,7 @@ import { FILTER_NONE, mapIsLive } from '../../../map/pick'
 import GroupedTrackList from '../GroupedTrackList'
 import StationNameInput from '../StationNameInput'
 import { useI18n } from '../../../locales/i18nContext'
+import CommitBar from '../../form/CommitBar'
 import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
 import { TRACKS_SELECTED_LAYER } from '../../../map/layerIds'
@@ -299,13 +300,8 @@ export default function AssignTracksForm({ onCommitted }) {
       {error && <p className="form-error">{t(error)}</p>}
       {done && !error && <p className="selecting-hint">{doneText(done)}</p>}
 
-      <button className="panel-btn panel-btn-full mt-8"
-        disabled={selected.size === 0 || kmPending} onClick={handleCommit}>
-        {t('assign_commit')}
-      </button>
-      <button className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted}>
-        {t('btn_back')}
-      </button>
+      <CommitBar onCommit={handleCommit} onCancel={onCommitted} disabled={selected.size === 0 || kmPending}
+        commitLabel={t('assign_commit')} cancelLabel={t('btn_back')} />
     </>
   )
 }

@@ -4,6 +4,8 @@ import { switchStatus } from '../../../utils/planStatus'
 import StatusField from '../StatusField'
 import { SWITCH_PICK_LAYERS, hasSwitch } from '../../../map/pick'
 import { useI18n } from '../../../locales/i18nContext'
+import CommitBar from '../../form/CommitBar'
+import CancelButton from '../../form/CancelButton'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 
 /**
@@ -48,14 +50,9 @@ export default function SwitchStatusForm({ onCommitted }) {
           <StatusField value={status} onChange={setStatus} auto={derived} />
         </div>
       )}
-      {selected && (
-        <button className="panel-btn panel-btn-full mt-8" onClick={handleCommit}>
-          {t('btn_commit')}
-        </button>
-      )}
-      <button className={`panel-btn panel-btn-full secondary ${selected ? 'mt-2' : 'mt-8'}`} onClick={onCommitted}>
-        {t('btn_cancel')}
-      </button>
+      {selected
+        ? <CommitBar onCommit={handleCommit} onCancel={onCommitted} />
+        : <CancelButton onClick={onCommitted} />}
     </>
   )
 }

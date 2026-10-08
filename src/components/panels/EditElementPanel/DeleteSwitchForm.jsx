@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { commitSwitchDeletion, loadSwitches, loadTracks } from '../../../storage'
 import { planSwitchDeletion } from '../../../utils/switchDelete'
 import { useI18n } from '../../../locales/i18nContext'
+import CommitBar from '../../form/CommitBar'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { SWITCH_PICK_LAYERS, hasSwitch } from '../../../map/pick'
 import CancelButton from '../../form/CancelButton'
@@ -54,12 +55,10 @@ export default function DeleteSwitchForm({ onCommitted }) {
               <li>{fill('switch_delete_merged', { n: plan.mergedElements, m: plan.mergedInto })}</li>
             )}
           </ul>
-          <button className="panel-btn panel-btn-full panel-btn-danger" onClick={handleDelete}>
-            {t('switch_delete')}
-          </button>
+          <CommitBar onCommit={handleDelete} onCancel={onCommitted} commitLabel={t('switch_delete')} danger className="" />
         </>
       )}
-      <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
+      {!selected && <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />}
     </>
   )
 }

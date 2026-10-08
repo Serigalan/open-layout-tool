@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { deleteElements } from '../../../storage'
 import { useI18n } from '../../../locales/i18nContext'
+import CommitBar from '../../form/CommitBar'
 import { useTracks } from '../../../hooks/useStore'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { useMap } from '../../../map/MapContext'
@@ -79,12 +80,8 @@ export default function DeleteForm({ onCommitted }) {
               {fill('delete_elements_row', { track: r.name, elements: [...r.idx].sort((a, b) => a - b).map(i => i + 1).join(', ') })}
             </p>
           ))}
-          <button className="panel-btn panel-btn-full panel-btn-danger" onClick={handleDelete}>
-            {fill('delete_elements_btn', { n: String(picks.length) })}
-          </button>
-          <button className="panel-btn panel-btn-full mt-2 secondary" onClick={() => setPicks([])}>
-            {t('delete_elements_clear')}
-          </button>
+          <CommitBar onCommit={handleDelete} onCancel={() => setPicks([])} danger className=""
+            commitLabel={fill('delete_elements_btn', { n: String(picks.length) })} cancelLabel={t('delete_elements_clear')} />
         </>
       )}
     </>

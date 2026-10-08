@@ -8,6 +8,7 @@ import {
 import { bufferStopFeatures } from '../../../utils/bufferStopGeometry'
 import { trackLength } from '../../../utils/heightUtils'
 import { useI18n } from '../../../locales/i18nContext'
+import CommitBar from '../../form/CommitBar'
 import { useProject } from '../../../hooks/useStore'
 import usePreview from '../../../map/usePreview'
 import useMapEvents from '../../../map/useMapEvents'
@@ -223,17 +224,14 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
         })}</p>
       )}
 
-      {picked && (
-        <button className="panel-btn panel-btn-full" disabled={brakeInvalid || tooShort} onClick={handleCommit}>
-          {t('btn_commit')}
-        </button>
-      )}
       {picked && mark && (
-        <button className="panel-btn panel-btn-full mt-2 danger" onClick={handleDelete}>
+        <button className="panel-btn panel-btn-full danger" onClick={handleDelete}>
           {t('buffer_stop_delete')}
         </button>
       )}
-      <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />
+      {picked
+        ? <CommitBar onCommit={handleCommit} onCancel={onCommitted} disabled={brakeInvalid || tooShort} className={mark ? 'mt-2' : ''} />
+        : <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={onCommitted} />}
     </>
   )
 }

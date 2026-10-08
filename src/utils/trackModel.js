@@ -157,6 +157,20 @@ export function trackEndAnchor(track) {
   }
 }
 
+/**
+ * The speed a stretch appended at a track's end takes by default: the last
+ * element's — or, where that one states none (0 or missing, as an imported
+ * turnout branch often does), the nearest one before it that does. Null when
+ * no element of the track states one.
+ */
+export function inheritedSpeed(track) {
+  const els = track?.elements ?? []
+  for (let i = els.length - 1; i >= 0; i--) {
+    if (els[i].speed > 0) return els[i].speed
+  }
+  return null
+}
+
 /** How a dialog names a track: line / track number, else its name, else the start of its id. */
 export function trackLabel(track) {
   if (!track) return '–'

@@ -1,7 +1,6 @@
 import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION } from '../../../utils/rules/cant'
 import CantField from '../CantField'
 import { useI18n } from '../../../locales/i18nContext'
-import ReadOnlyField from '../../form/ReadOnlyField'
 
 /**
  * The cant of a turnout and, above 100 mm, the reason it is allowed to be there.
@@ -15,27 +14,25 @@ import ReadOnlyField from '../../form/ReadOnlyField'
  * The number input never accepts more than the 120 mm ceiling: past that there
  * is no justification that would do, so there is nothing to type either.
  *
- * `readOnlyText` is for the cant a turnout does not set but inherits — laid into
+ * `inherited` is for the cant a turnout does not set but inherits — laid into
  * a canted track it runs on that track's cant, possibly a ramp between two
- * values. It is shown as it reads there, and `magnitude` says what the limit has
- * to answer for: the worst of the ramp, not its value at the toe.
+ * values. There is nothing to type then: the dialog states the value among its
+ * advanced info, and only the reason is asked for here when it needs one.
+ * `magnitude` says what the limit has to answer for: the worst of the ramp,
+ * not its value at the toe.
  */
-export default function SwitchCantField({ cant, onCant, reason, onReason, label, readOnlyText, magnitude}) {
+export default function SwitchCantField({ cant, onCant, reason, onReason, label, inherited = false, magnitude}) {
   const { t } = useI18n()
   const needsReason = (magnitude ?? Math.abs(cant ?? 0)) > MAX_SWITCH_CANT
   return (
     <>
-      {readOnlyText != null
-        ? (
-          <ReadOnlyField label={label ?? t('cant')} value={readOnlyText} />
-        )
-        : (
-          /* No u_0 offer here: a turnout is not canted to balance one speed —
-             what it gets is just enough to bring the deficiency back under the
-             limit (computeSwitchCant), and the clamp is the switch's own. */
-          <CantField label={label ?? t('cant')} value={cant} onChange={onCant}
-            min={-MAX_SWITCH_CANT_EXCEPTION} max={MAX_SWITCH_CANT_EXCEPTION} />
-        )}
+      {!inherited && (
+        /* No u_0 offer here: a turnout is not canted to balance one speed —
+           what it gets is just enough to bring the deficiency back under the
+           limit (computeSwitchCant), and the clamp is the switch's own. */
+        <CantField label={label ?? t('cant')} value={cant} onChange={onCant}
+          min={-MAX_SWITCH_CANT_EXCEPTION} max={MAX_SWITCH_CANT_EXCEPTION} />
+      )}
       {needsReason && (
         <div className="form-field">
           <label>{t('switch_cant_exception')}</label>

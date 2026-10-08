@@ -22,6 +22,7 @@ import useMapPick from '../../../map/useMapPick'
 import { buildCrossingOnTrack, crossingOnTrackPlacement } from '../../../utils/commands/switches'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import FormSection from '../../form/FormSection'
 import useFormPhase from '../../form/useFormPhase'
 import CancelButton from '../../form/CancelButton'
@@ -192,7 +193,6 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
           <NumberInput step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
             onChange={e => setStation(e.target.value)} />
         </div>
-        <ReadOnlyField label={t('crossing_on_track_elements')} value={elementsText} />
         <div className="form-field">
           <label>{t('crossing_form')}</label>
           <select value={formIdx} onChange={e => setFormIdx(Number(e.target.value))}>
@@ -207,21 +207,24 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
             <option value="left">{t('switch_side_left')}</option>
           </select>
         </div>
-        {ahead && (
-          <ReadOnlyField label={t('bearing')} value={ahead.bearing.toFixed(3)} />
-        )}
-        <ReadOnlyField label={t('crossing_angle')} value={`1:${form.ratio} (${alpha.toFixed(2)}°)`} />
-        <ReadOnlyField label={t('crossing_end_distance')} value={`${endDist.toFixed(2)} m`} />
-        {form.R != null && (
-          <ReadOnlyField label={t('field_radius')} value={`${form.R} m`} />
-        )}
-        {crossingLegRadius(form) != null && (
-          <ReadOnlyField label={t('crossing_leg_radius')} value={`${crossingLegRadius(form)} m`} />
-        )}
-        {form.Ri != null && (
-          <ReadOnlyField label={t('crossing_inner_radius')} value={`${form.Ri} m`} />
-        )}
         <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
+        <AdvancedInfo>
+          <ReadOnlyField label={t('crossing_on_track_elements')} value={elementsText} />
+          {ahead && (
+            <ReadOnlyField label={t('bearing')} value={ahead.bearing.toFixed(3)} />
+          )}
+          <ReadOnlyField label={t('crossing_angle')} value={`1:${form.ratio} (${alpha.toFixed(2)}°)`} />
+          <ReadOnlyField label={t('crossing_end_distance')} value={`${endDist.toFixed(2)} m`} />
+          {form.R != null && (
+            <ReadOnlyField label={t('field_radius')} value={`${form.R} m`} />
+          )}
+          {crossingLegRadius(form) != null && (
+            <ReadOnlyField label={t('crossing_leg_radius')} value={`${crossingLegRadius(form)} m`} />
+          )}
+          {form.Ri != null && (
+            <ReadOnlyField label={t('crossing_inner_radius')} value={`${form.Ri} m`} />
+          )}
+        </AdvancedInfo>
       </FormSection>
 
       <FormSection title={t('switch_meta_data')}>

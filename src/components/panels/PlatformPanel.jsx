@@ -6,6 +6,7 @@ import { PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY } from '../../utils/mapRende
 import { PLATFORM_CODE_MAX, platformRing, stationFromClick, platformLength } from '../../utils/platformUtils'
 import { EMPTY_PLATFORM_FORM, pickedStation, platformDraft, platformForm, platformFormValid } from '../../utils/platformForm'
 import { useI18n } from '../../locales/i18nContext'
+import CommitBar from '../form/CommitBar'
 import { usePlatforms, useTracks } from '../../hooks/useStore'
 import usePreview from '../../map/usePreview'
 import useMapPick, { useSelectedOnMap } from '../../map/useMapPick'
@@ -150,8 +151,7 @@ export default function PlatformPanel() {
         </div>
       </FormSection>
       {!valid && <p className="form-error">{t('platform_error_range')}</p>}
-      <button className="panel-btn panel-btn-full mt-8" onClick={handleCommit} disabled={!valid}>{t('btn_commit')}</button>
-      <button className="panel-btn panel-btn-full mt-2" onClick={() => { set('start', ''); set('end', ''); setPicking('start') }}>
+      <button className="panel-btn panel-btn-full mt-8" onClick={() => { set('start', ''); set('end', ''); setPicking('start') }}>
         {t('platform_repick')}
       </button>
       {editing.id && (
@@ -159,7 +159,7 @@ export default function PlatformPanel() {
           {t('platform_delete')}
         </button>
       )}
-      <CancelButton className="panel-btn panel-btn-full mt-2 secondary" onClick={reset} />
+      <CommitBar onCommit={handleCommit} onCancel={reset} disabled={!valid} />
     </>
   )
 }

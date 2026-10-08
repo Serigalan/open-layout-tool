@@ -822,6 +822,28 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 
 /* Commit and Cancel at a dialog's foot (components/form/CommitBar). */
 .commit-bar { display: flex; flex-direction: column; gap: var(--space-1); }
+/* Side by side in equal parts; a label on one line, so CommitBar can tell
+   whether it fits — if not, the bar turns to icons (.commit-bar-compact). */
+.commit-bar-row { display: flex; gap: 8px; }
+.commit-bar-btn {
+  flex: 1 1 0; min-width: 0; align-self: stretch;
+  display: flex; align-items: center; justify-content: center;
+}
+.commit-bar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.commit-bar-icon { display: none; line-height: 0; }
+.commit-bar-compact .commit-bar-icon { display: inline-flex; }
+.commit-bar-compact .commit-bar-label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);
+}
+.commit-bar-compact .commit-bar-btn { position: relative; }
+
+/* The read-only values of a dialog, folded away (components/form/AdvancedInfo). */
+.advanced-info { margin: var(--space-2) 0; }
+.advanced-info > summary {
+  cursor: pointer; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--color-muted);
+}
+.advanced-info-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .form-error-list { margin: var(--space-4) 0; }
 .form-error-list p { margin: 0 0 var(--space-2); }
 .commit-reason { margin: 0; }

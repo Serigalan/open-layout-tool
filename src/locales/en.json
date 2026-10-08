@@ -144,6 +144,7 @@
   "field_offset": "Offset (m)",
   "btn_commit": "Commit",
   "btn_cancel": "Cancel",
+  "advanced_info": "Advanced info",
   "btn_remove": "Remove",
   "btn_close": "Close",
   "btn_back": "Back",

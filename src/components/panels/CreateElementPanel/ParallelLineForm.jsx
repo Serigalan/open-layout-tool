@@ -21,6 +21,7 @@ import { buildParallelLineTrack, trackMeta } from '../../../utils/commands/track
 import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import { firstReason } from '../../form/firstReason'
 import MessageList from '../../form/MessageList'
 import FieldRule from '../../form/FieldRule'
@@ -248,14 +249,7 @@ export default function ParallelLineForm({ onDone }) {
             <label>{splitUnit(t('field_offset')).text}</label>
             <NumberInput step="0.01" value={offset} onChange={e => handleOffsetChange(e.target.value)} unit="m" />
           </div>
-          {isArc ? (
-            <>
-              <ReadOnlyField type="number" label={t('field_radius')} value={Math.abs(signedR).toFixed(2)} />
-              <ReadOnlyField type="number" label={t('arc_length')} value={length} />
-              <ReadOnlyField type="number" label={t('bearing')} value={bearing} />
-              <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
-            </>
-          ) : (
+          {!isArc && (
             <>
               <div className="form-field">
                 <label>{splitUnit(t('field_length')).text}</label>
@@ -274,10 +268,24 @@ export default function ParallelLineForm({ onDone }) {
             <FieldRule name="speed" />
           </div>
           <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
-          <UtmCoordFields label="Start" zone={epsg} easting={startE} northing={startN} readOnly={isArc}
-            onChange={isArc ? undefined : (axis, val) => handleCoordChange('start', axis, val)} />
-          <UtmCoordFields label="End" zone={epsg} easting={endE} northing={endN} readOnly={isArc}
-            onChange={isArc ? undefined : (axis, val) => handleCoordChange('end', axis, val)} />
+          {isArc ? (
+            // An arc beside an arc follows from the offset alone: all it is, is stated.
+            <AdvancedInfo>
+              <ReadOnlyField type="number" label={t('field_radius')} value={Math.abs(signedR).toFixed(2)} />
+              <ReadOnlyField type="number" label={t('arc_length')} value={length} />
+              <ReadOnlyField type="number" label={t('bearing')} value={bearing} />
+              <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
+              <UtmCoordFields label="Start" zone={epsg} easting={startE} northing={startN} readOnly />
+              <UtmCoordFields label="End" zone={epsg} easting={endE} northing={endN} readOnly />
+            </AdvancedInfo>
+          ) : (
+            <>
+              <UtmCoordFields label="Start" zone={epsg} easting={startE} northing={startN}
+                onChange={(axis, val) => handleCoordChange('start', axis, val)} />
+              <UtmCoordFields label="End" zone={epsg} easting={endE} northing={endN}
+                onChange={(axis, val) => handleCoordChange('end', axis, val)} />
+            </>
+          )}
         </FormSection>
       )}
 

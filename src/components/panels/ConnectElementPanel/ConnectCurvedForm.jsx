@@ -17,12 +17,13 @@ import { transitionChain, transitionHasError } from '../../../utils/rules/transi
 import { useI18n } from '../../../locales/i18nContext'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
-import { trackEndAnchor } from '../../../utils/trackModel'
+import { trackEndAnchor, inheritedSpeed } from '../../../utils/trackModel'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildConnectCurved } from '../../../utils/commands/tracks'
 import NewStretchShiftValues from '../shift/NewStretchShiftValues'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import { firstReason } from '../../form/firstReason'
 import FieldRule from '../../form/FieldRule'
 import NumberInput from '../../form/NumberInput'
@@ -69,7 +70,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
       setSelectedTrack(track)
       setStartPoint(a.endUtm)
       setBearing(a.bearing)
-      setSpeed(a.lastEl.speed ?? 80)
+      setSpeed(inheritedSpeed(track) ?? a.lastEl.speed ?? 80)
       setCant(a.lastEl.cant ?? 0)
       setPrevRadius(a.lastEl.radius ?? null)
       setLastEl(a.lastEl)
@@ -220,14 +221,6 @@ export default function ConnectCurvedForm({ onCommitted }) {
 
       {selectedTrack && (
         <div className="element-form">
-          {startPoint && (
-            <UtmCoordFields label={t('utm_start')} zone={startPoint.zone}
-              easting={startPoint.easting.toFixed(2)} northing={startPoint.northing.toFixed(2)} readOnly />
-          )}
-          {bearing !== null && (
-            <ReadOnlyField type="number" label={t('bearing')} value={Math.round(bearing * 1000) / 1000} />
-          )}
-
           {hasArc && (
             <>
               <div className="form-field">
@@ -239,9 +232,6 @@ export default function ConnectCurvedForm({ onCommitted }) {
                 <NumberInput step="0.001" value={signedRadius} onChange={e => handleRadiusChange(e.target.value)} unit="m" />
                 <FieldRule name="radius" />
               </div>
-              {endBearing && (
-                <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
-              )}
               <div className="form-field">
                 <label>{splitUnit(t('field_speed')).text}</label>
                 <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
@@ -250,13 +240,27 @@ export default function ConnectCurvedForm({ onCommitted }) {
               <CantField value={cant} onChange={setCant}
                 min={-MAX_CANT} max={MAX_CANT}
                 speed={speed} radius={Math.abs(Number(signedRadius))} />
-              <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />
-              {endPoint && (
-                <UtmCoordFields label={t('utm_end')} zone={endPoint.zone}
-                  easting={endPoint.easting.toFixed(2)} northing={endPoint.northing.toFixed(2)} readOnly />
-              )}
             </>
           )}
+          <AdvancedInfo>
+            {startPoint && (
+              <UtmCoordFields label={t('utm_start')} zone={startPoint.zone}
+                easting={startPoint.easting.toFixed(2)} northing={startPoint.northing.toFixed(2)} readOnly />
+            )}
+            {bearing !== null && (
+              <ReadOnlyField type="number" label={t('bearing')} value={Math.round(bearing * 1000) / 1000} />
+            )}
+            {hasArc && endBearing && (
+              <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
+            )}
+            {hasArc && (
+              <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />
+            )}
+            {hasArc && endPoint && (
+              <UtmCoordFields label={t('utm_end')} zone={endPoint.zone}
+                easting={endPoint.easting.toFixed(2)} northing={endPoint.northing.toFixed(2)} readOnly />
+            )}
+          </AdvancedInfo>
         </div>
       )}
 

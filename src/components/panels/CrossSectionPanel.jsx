@@ -14,6 +14,7 @@ import ClearanceScanSection from './ClearanceScanSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
 import ReadOnlyField from '../form/ReadOnlyField'
+import AdvancedInfo from '../form/AdvancedInfo'
 import FormSection from '../form/FormSection'
 import CancelButton from '../form/CancelButton'
 import NumberInput from '../form/NumberInput'
@@ -87,7 +88,9 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
     const total  = Math.round(trackLength(track) * 1000) / 1000
     return (
       <>
-        <ReadOnlyField label={t(field === 'rails' ? 'cross_section_rail_default' : 'cross_section_sleeper_default')} value={`${table[defaultType].label} · 0 – ${total} m`} />
+        <AdvancedInfo>
+          <ReadOnlyField label={t(field === 'rails' ? 'cross_section_rail_default' : 'cross_section_sleeper_default')} value={`${table[defaultType].label} · 0 – ${total} m`} />
+        </AdvancedInfo>
         {ranges.map((r, i) => (
           <div className="form-field" key={`${field}${i}`}>
             <label>{t('cross_section_range')}</label>

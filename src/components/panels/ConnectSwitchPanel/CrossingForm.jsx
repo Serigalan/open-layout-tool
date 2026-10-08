@@ -24,6 +24,7 @@ import useMapEvents from '../../../map/useMapEvents'
 import { buildCrossingAtTrackEnd } from '../../../utils/commands/switches'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import FormSection from '../../form/FormSection'
 import CancelButton from '../../form/CancelButton'
 import { firstReason } from '../../form/firstReason'
@@ -226,19 +227,21 @@ export default function CrossingForm({ onCommitted, initialKind = 'crossing' }) 
             <option value="left">{t('switch_side_left')}</option>
           </select>
         </div>
-        <ReadOnlyField label={t('bearing')} value={anchor.bearing.toFixed(3)} />
-        <ReadOnlyField label={t('crossing_angle')} value={`1:${form.ratio} (${alpha.toFixed(2)}°)`} />
-        <ReadOnlyField label={t('crossing_end_distance')} value={`${endDistance.toFixed(2)} m`} />
-        {form.R != null && (
-          <ReadOnlyField label={t('field_radius')} value={`${form.R} m`} />
-        )}
-        {crossingLegRadius(form) != null && (
-          <ReadOnlyField label={t('crossing_leg_radius')} value={`${crossingLegRadius(form)} m`} />
-        )}
-        {form.Ri != null && (
-          <ReadOnlyField label={t('crossing_inner_radius')} value={`${form.Ri} m`} />
-        )}
         <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
+        <AdvancedInfo>
+          <ReadOnlyField label={t('bearing')} value={anchor.bearing.toFixed(3)} />
+          <ReadOnlyField label={t('crossing_angle')} value={`1:${form.ratio} (${alpha.toFixed(2)}°)`} />
+          <ReadOnlyField label={t('crossing_end_distance')} value={`${endDistance.toFixed(2)} m`} />
+          {form.R != null && (
+            <ReadOnlyField label={t('field_radius')} value={`${form.R} m`} />
+          )}
+          {crossingLegRadius(form) != null && (
+            <ReadOnlyField label={t('crossing_leg_radius')} value={`${crossingLegRadius(form)} m`} />
+          )}
+          {form.Ri != null && (
+            <ReadOnlyField label={t('crossing_inner_radius')} value={`${form.Ri} m`} />
+          )}
+        </AdvancedInfo>
       </FormSection>
 
       <FormSection title={t('switch_meta_data')}>

@@ -32,6 +32,7 @@ import { buildSwitchAtTrackEnd } from '../../../utils/commands/switches'
 import CommitBar from '../../form/CommitBar'
 import DirectionToggle from '../../form/DirectionToggle'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import FormSection from '../../form/FormSection'
 import { firstReason } from '../../form/firstReason'
 import NumberInput from '../../form/NumberInput'
@@ -313,7 +314,6 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
               <NumberInput step="any" value={stemInput}
                 onChange={e => setStemInput(e.target.value)} />
             </div>
-            <ReadOnlyField label={t('switch_bauform')} value={t(swapped ? 'switch_bauform_swapped' : `switch_bauform_${bauform(stemAtToe, branchSignedR)}`)} />
           </>
         )}
         <div className="form-field">
@@ -322,19 +322,24 @@ export default function ConnectStraightSwitchForm({ onCommitted, curved = false 
         </div>
         <SwitchCantField cant={cant} onCant={setCant}
           reason={cantReason} onReason={setCantReason} />
-        {curved && (
-          <ReadOnlyField type="number" label={t('switch_stem_cant_def')} value={stemDefShown ?? 0} />
-        )}
-        <ReadOnlyField type="number" label={curved ? t('switch_branch_cant_def') : t('cant_def')} value={branchDefShown} />
-        <ReadOnlyField label={t('arc_length')} value={`~${arcLen.toFixed(1)} m`} />
-        <ReadOnlyField label={curved ? t('switch_branch_radius') : t('field_radius')} value={
-            !curved || swapped ? `${currentSw.R} m`
-              : branchSignedR == null ? t('switch_branch_straight')
-                : `${Math.round(branchSignedR)} m`
-          } />
         {/* Both tracks describe the same spot, so they share one height datum. */}
         <HeightDatumField value={fields.heightEpsg}
           onChange={v => { setField('heightEpsg', v); setMainField('heightEpsg', v) }} />
+        <AdvancedInfo>
+          {curved && (
+            <ReadOnlyField label={t('switch_bauform')} value={t(swapped ? 'switch_bauform_swapped' : `switch_bauform_${bauform(stemAtToe, branchSignedR)}`)} />
+          )}
+          {curved && (
+            <ReadOnlyField type="number" label={t('switch_stem_cant_def')} value={stemDefShown ?? 0} />
+          )}
+          <ReadOnlyField type="number" label={curved ? t('switch_branch_cant_def') : t('cant_def')} value={branchDefShown} />
+          <ReadOnlyField label={t('arc_length')} value={`~${arcLen.toFixed(1)} m`} />
+          <ReadOnlyField label={curved ? t('switch_branch_radius') : t('field_radius')} value={
+              !curved || swapped ? `${currentSw.R} m`
+                : branchSignedR == null ? t('switch_branch_straight')
+                  : `${Math.round(branchSignedR)} m`
+            } />
+        </AdvancedInfo>
       </FormSection>
 
       <FormSection title={t('switch_meta_data')}>

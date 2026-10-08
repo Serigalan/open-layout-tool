@@ -13,12 +13,13 @@ import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
-import { trackEndAnchor } from '../../../utils/trackModel'
+import { trackEndAnchor, inheritedSpeed } from '../../../utils/trackModel'
 import useMapEvents from '../../../map/useMapEvents'
 import { buildConnectStraight } from '../../../utils/commands/tracks'
 import CommitBar from '../../form/CommitBar'
 import NewStretchShiftValues from '../shift/NewStretchShiftValues'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import { firstReason } from '../../form/firstReason'
 import FieldRule from '../../form/FieldRule'
 import NumberInput from '../../form/NumberInput'
@@ -64,7 +65,7 @@ export default function ConnectStraightForm({ onCommitted }) {
       setSelectedTrack(track)
       setStartPoint(a.endUtm)
       setBearing(a.bearing)
-      setSpeed(a.lastEl.speed ?? 80)
+      setSpeed(inheritedSpeed(track) ?? a.lastEl.speed ?? 80)
       setPrevRadius(a.lastEl.radius ?? null)
       setLastEl(a.lastEl)
       prevRadiusRef.current = a.lastEl.radius ?? null
@@ -208,13 +209,6 @@ export default function ConnectStraightForm({ onCommitted }) {
 
       {selectedTrack && (
         <div className="element-form">
-          {startPoint && (
-            <UtmCoordFields label={t('utm_start')} zone={startPoint.zone}
-              easting={startPoint.easting.toFixed(2)} northing={startPoint.northing.toFixed(2)} readOnly />
-          )}
-          {bearing !== null && (
-            <ReadOnlyField type="number" label={t('bearing')} value={Math.round(bearing * 1000) / 1000} />
-          )}
           {(phase === 'done' || endPoint) && (
             <>
               <div className="form-field">
@@ -227,12 +221,21 @@ export default function ConnectStraightForm({ onCommitted }) {
                 <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
                 <FieldRule name="speed" />
               </div>
-              {endPoint && (
-                <UtmCoordFields label={t('utm_end')} zone={endPoint.zone}
-                  easting={endPoint.easting.toFixed(2)} northing={endPoint.northing.toFixed(2)} readOnly />
-              )}
             </>
           )}
+          <AdvancedInfo>
+            {startPoint && (
+              <UtmCoordFields label={t('utm_start')} zone={startPoint.zone}
+                easting={startPoint.easting.toFixed(2)} northing={startPoint.northing.toFixed(2)} readOnly />
+            )}
+            {bearing !== null && (
+              <ReadOnlyField type="number" label={t('bearing')} value={Math.round(bearing * 1000) / 1000} />
+            )}
+            {endPoint && (
+              <UtmCoordFields label={t('utm_end')} zone={endPoint.zone}
+                easting={endPoint.easting.toFixed(2)} northing={endPoint.northing.toFixed(2)} readOnly />
+            )}
+          </AdvancedInfo>
         </div>
       )}
 

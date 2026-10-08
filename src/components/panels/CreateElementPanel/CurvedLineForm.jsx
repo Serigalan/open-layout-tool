@@ -26,6 +26,7 @@ import { buildCurvedLineTrack, trackMeta } from '../../../utils/commands/tracks'
 import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
 import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
 import { firstReason } from '../../form/firstReason'
 import FieldRule from '../../form/FieldRule'
 import NumberInput from '../../form/NumberInput'
@@ -217,17 +218,12 @@ export default function CurvedLineForm({ onDone }) {
                 <NumberInput step="0.001" min="0" max="360" value={bearing} onChange={e => handleBearingChange(e.target.value)} unit="°" />
               </div>
               <div className="form-field">
-                <label>{splitUnit(t('end_bearing')).text}</label>
-                <NumberInput step="0.001" readOnly value={endBearing} unit="°" />
-              </div>
-              <div className="form-field">
                 <label>{splitUnit(t('field_speed')).text}</label>
                 <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
                 <FieldRule name="speed" />
               </div>
               <CantField value={cant} onChange={setCant}
                 min={-MAX_CANT} max={MAX_CANT} speed={speed} radius={absR} />
-              <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />
               <div className="form-field">
                 <label>{t('create_crs')}</label>
                 <select className="settings-select" value={startPoint.zone} onChange={e => handleEpsgChange(e.target.value)}>
@@ -237,10 +233,14 @@ export default function CurvedLineForm({ onDone }) {
                 </select>
               </div>
               <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
-              <UtmCoordFields label="Start" zone={startPoint.zone}
-                easting={startPoint.easting.toFixed(2)} northing={startPoint.northing.toFixed(2)} readOnly />
-              <UtmCoordFields label="End" zone={endPoint.zone}
-                easting={endPoint.easting.toFixed(2)} northing={endPoint.northing.toFixed(2)} readOnly />
+              <AdvancedInfo>
+                <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
+                <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDef(speed, Math.abs(Number(signedRadius)), cant)} />
+                <UtmCoordFields label="Start" zone={startPoint.zone}
+                  easting={startPoint.easting.toFixed(2)} northing={startPoint.northing.toFixed(2)} readOnly />
+                <UtmCoordFields label="End" zone={endPoint.zone}
+                  easting={endPoint.easting.toFixed(2)} northing={endPoint.northing.toFixed(2)} readOnly />
+              </AdvancedInfo>
             </>
           )}
         </FormSection>
