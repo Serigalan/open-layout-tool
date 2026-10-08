@@ -210,3 +210,12 @@ describe('merging variants', () => {
     expect(carried).toEqual([{ collection: 'routes', id: 'r', from: 'B', to: 'B1,B2' }])
   })
 })
+
+describe('closeGaps', () => {
+  it('fills a gap over the tracks between, and counts what it could not', async () => {
+    const { closeGaps } = await import('./routes')
+    expect(closeGaps(['A', 'C'], tracks, [])).toEqual({ trackIds: ['A', 'B', 'C'], closed: 1, open: 0 })
+    expect(closeGaps(['A', 'D'], tracks, [])).toEqual({ trackIds: ['A', 'D'], closed: 0, open: 1 })
+    expect(closeGaps(['C', 'A'], tracks, [])).toEqual({ trackIds: ['C', 'B', 'A'], closed: 1, open: 0 })
+  })
+})

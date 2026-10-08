@@ -10,11 +10,12 @@ import DeleteSwitchForm from './DeleteSwitchForm'
 import SwitchStatusForm from './SwitchStatusForm'
 import AssignTracksForm from './AssignTracksForm'
 import TrackVisibilityForm from './TrackVisibilityForm'
+import RoutesForm from './RoutesForm'
 import BufferStopForm from '../CreateElementPanel/BufferStopForm'
 import {
   BackIcon, EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
   ChangeDirectionIcon, AssignTracksIcon, DeleteTrackIcon, DeleteSwitchIcon,
-  BufferStopIcon, TrackVisibilityIcon,
+  BufferStopIcon, TrackVisibilityIcon, RouteIcon,
 } from '../../../components/icons'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick from '../../../map/useMapPick'
@@ -101,6 +102,14 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
     </>
   )
 
+  if (page === 'routes') return (
+    <>
+      {backButton()}
+      <h2>{t('routes')}</h2>
+      <RoutesForm />
+    </>
+  )
+
   if (page === 'delete_track') return (
     <>
       {backButton()}
@@ -182,6 +191,11 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
         <button className="create-element-btn" onClick={() => goto('delete_track')}>
           <DeleteTrackIcon />
           {t('edit_track_delete')}
+        </button>
+        <span className="create-element-section">{t('edit_route')}</span>
+        <button className="create-element-btn" onClick={() => goto('routes')}>
+          <RouteIcon />
+          {t('routes')}
         </button>
         <span className="create-element-section">{t('edit_switch')}</span>
         <button className="create-element-btn" onClick={() => goto('switch_status')}>

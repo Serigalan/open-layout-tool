@@ -212,6 +212,15 @@ export const AssignTracksIcon = () => (
   </MenuIcon>
 )
 
+// A route: from its start over a turn to where it is heading.
+export const RouteIcon = () => (
+  <MenuIcon>
+    <path d="M2 12 H6 L10 4 H14" />
+    <path d="M11.5 1.5 L14 4 L11.5 6.5" />
+    <circle cx="2" cy="12" r="1.5" fill="currentColor" />
+  </MenuIcon>
+)
+
 // Which tracks the map shows: an eye.
 export const TrackVisibilityIcon = () => (
   <MenuIcon>

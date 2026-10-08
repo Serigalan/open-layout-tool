@@ -7,7 +7,7 @@
  * from whole chains to its 100 m pieces.
  */
 const LINE_WIDTH_STOPS = [5, 0.6, 11, 1.4, 12, 1.4, 17, 2.4]
-const lineWidthTimes = (factor) =>
+export const lineWidthTimes = (factor) =>
   ['interpolate', ['linear'], ['zoom'], ...LINE_WIDTH_STOPS.map((v, i) => (i % 2 ? v * factor : v))]
 
 /** The line width (px) at `zoom`, as ZOOM_LINE_WIDTH draws it. */

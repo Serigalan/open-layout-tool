@@ -165,6 +165,30 @@ export function extendRoute(trackIds, trackId, tracks, switches) {
   return { trackIds: [...trackIds, ...path], added: path }
 }
 
+/**
+ * The route with every gap between two tracks that do not meet closed over
+ * the shortest connected run between them, where there is one. Returns
+ * { trackIds, closed, open } — how many gaps were closed and how many are left.
+ */
+export function closeGaps(trackIds, tracks, switches) {
+  const resolved = resolveRoute({ trackIds }, tracks, switches)
+  const ids = resolved.parts.map(p => p.trackId)
+  const out = []
+  let closed = 0, open = 0
+  ids.forEach((id, i) => {
+    out.push(id)
+    if (!resolved.gaps.some(g => g.after === i && g.kind === 'disconnected')) return
+    // Left by the end it was not entered by — either end where it was not entered from a track before.
+    const entered = i > 0 && !resolved.gaps.some(g => g.after === i - 1)
+    const exits = entered ? [resolved.parts[i].reversed ? 'BEGIN' : 'END'] : ['END', 'BEGIN']
+    const path = routePath(tracks, switches, id, exits, ids[i + 1])
+    if (!path) { open++; return }
+    out.push(...path.slice(0, -1))
+    closed++
+  })
+  return { trackIds: out, closed, open }
+}
+
 // ── Tracks that went away ───────────────────────────────────────────────────
 
 /** A point lies on a track below this [m]. */

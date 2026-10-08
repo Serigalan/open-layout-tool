@@ -942,3 +942,22 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
   width: auto;
   padding: 4px 10px;
 }
+
+/* Bearbeiten › Routen (Paket RT): a route in the list, name over its summary; its tracks in order. */
+.route-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+}
+.route-item-name { font-weight: 600; }
+.route-parts {
+  margin: 0;
+  padding-left: 22px;
+  font-size: var(--fs-s);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.route-dir { color: var(--color-primary); margin-right: 6px; font-size: var(--fs-xs); }
+.route-gap { color: var(--color-warn); list-style: none; margin-left: -22px; font-size: var(--fs-xs); }
