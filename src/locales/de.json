@@ -662,6 +662,7 @@
   "splice_hint_second": "Zweites Element klicken",
   "splice_hint_transition_end": "Ein Übergangsbogen lässt sich nur am Ende seines Gleises anschließen",
   "splice_error_mixed": "Diese beiden Elemente lassen sich so nicht verbinden",
+  "splice_transition_shape": "Form",
   "splice_arc_join": "Zwei Bögen verbinden",
   "splice_arc_join_straight": "Über eine Zwischengerade",
   "splice_arc_join_transition": "Direkt über einen Übergangsbogen",

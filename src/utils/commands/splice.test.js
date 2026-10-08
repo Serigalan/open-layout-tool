@@ -19,7 +19,7 @@ const track = (id, elements, extra = {}) => {
   const els = recalcAbsLengths(elements)
   return { id, name: id, epsg: EPSG, elements: els, coordinates: rebuildCoords(els), ...extra }
 }
-const settings = { radius: 300, clothoidEnabled: false, transitions: [60, 60], transitionType: 'clothoid', arcJoin: 'straight' }
+const settings = { radius: 300, transitionOn: [false, false], transitions: [60, 60], transitionType: 'clothoid', arcJoin: 'straight' }
 // The solution the service proposes, as the dialog reads it.
 const best = (answer, picks) => spliceFromAnswer(answer, picks).solutions[0]
 
@@ -141,7 +141,11 @@ describe('the request to the service', () => {
   })
 
   it('asks for transitions only where they are switched on, each beside its pick', () => {
-    expect(spliceRequest(dep, arr, { ...settings, clothoidEnabled: true, transitions: [60, 40] })).toMatchObject({ lDep: 60, lArr: 40 })
+    expect(spliceRequest(dep, arr, { ...settings, transitionOn: [true, true], transitions: [60, 40] })).toMatchObject({ lDep: 60, lArr: 40 })
+    // One side alone, each with its own shape.
+    expect(spliceRequest(dep, arr, {
+      ...settings, transitionOn: [false, true], transitions: [60, 40], modes: ['regular', 'regular'], transitionTypes: ['clothoid', 'bloss'],
+    })).toMatchObject({ lDep: 0, lArr: 40, modeDep: 'fixed', modeArr: 'regular', transitionDep: 'clothoid', transitionArr: 'bloss' })
     expect(spliceRequest(dep, arr, { ...settings, transitions: [60, 40] })).toMatchObject({ lDep: 0, lArr: 0 })
   })
 
@@ -227,7 +231,7 @@ describe('the track built from the answer', () => {
   })
 
   it('asks for the Regellänge, the Mindestlänge or a length as given, beside each pick', () => {
-    const req = spliceRequest(dep, arr, { ...settings, clothoidEnabled: true, speed: 80, cant: -45, modes: ['regular', 'fixed'] })
+    const req = spliceRequest(dep, arr, { ...settings, transitionOn: [true, true], speed: 80, cant: -45, modes: ['regular', 'fixed'] })
     expect(req).toMatchObject({ speed: 80, cant: 45, modeDep: 'regular', modeArr: 'fixed', lDep: 60, lArr: 60 })
     // Each pick with its own speed and cant: what is left of it is judged with them.
     expect(req.dep).toMatchObject({ speed: 80, cant: 0, length: 200, before: 0, after: 0 })
@@ -245,12 +249,15 @@ describe('the track built from the answer', () => {
   })
 
   it('sets the Regellänge once, as soon as the service names it (Entscheidung 185)', () => {
-    const s = { clothoidEnabled: true, transitions: [60, 60], modes: ['regular', 'regular'] }
+    const s = { transitionOn: [true, true], transitions: [60, 60], modes: ['regular', 'regular'] }
     const settled = settleLengths(s, [{ regular: 28 }, { regular: null }])
     expect(settled).toMatchObject({ transitions: [28, 60], modes: ['fixed', 'regular'] })
     // Set, it stays: a later answer changes nothing, nor one without transitions.
     expect(settleLengths(settled, [{ regular: 30 }, { regular: null }])).toBe(settled)
-    expect(settleLengths({ ...s, clothoidEnabled: false }, [{ regular: 28 }, { regular: 36 }]).modes).toEqual(['regular', 'regular'])
+    expect(settleLengths({ ...s, transitionOn: [false, false] }, [{ regular: 28 }, { regular: 36 }]).modes).toEqual(['regular', 'regular'])
+    // Only the side switched on takes it.
+    expect(settleLengths({ ...s, transitionOn: [false, true] }, [{ regular: 28 }, { regular: 36 }]))
+      .toMatchObject({ transitions: [60, 36], modes: ['regular', 'fixed'] })
     expect(settleLengths(s, null)).toBe(s)
   })
 

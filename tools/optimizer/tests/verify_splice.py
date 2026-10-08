@@ -457,6 +457,71 @@ ok("…never joined backwards into the transition", "error" in answer
    or all(x["ends"][0] == "start" for x in answer["solutions"]))
 
 
+# ── a transition on one side only, and each side its own shape ───────────────
+res = splice_payload({"dep": a, "arr": b, "radius": 300, "lDep": 60, "lArr": 0})
+ok("corner, transition on the departure only: 0 2 1 0",
+   "error" not in res and [e["elementType"] for e in res["elements"]] == [0, 2, 1, 0]
+   and chain_holds(res["elements"]) is None)
+res = splice_payload({"dep": a, "arr": b, "radius": 300, "lDep": 60, "lArr": 40,
+                      "transitionDep": "bloss", "transitionArr": "clothoid"})
+ok("corner, Bloss beside the departure, clothoid beside the arrival",
+   "error" not in res and [e.get("transitionType") for e in res["elements"] if e["elementType"] == 2] == ["bloss", "clothoid"]
+   and chain_holds(res["elements"]) is None)
+# The shapes belong to the picks, not to which one the solution departs from.
+res = splice_payload({"dep": c, "arr": a, "radius": 300, "lDep": 40, "lArr": 60,
+                      "transitionDep": "clothoid", "transitionArr": "bloss"})
+if "error" not in res:
+    a_role = "dep" if res["depPick"] == 1 else "arr"
+    els = res["elements"]
+    k = next(i for i, e in enumerate(els) if e["role"] == a_role)
+    beside_a = els[k + 1] if a_role == "dep" else els[k - 1]
+    ok("corner, clicked the other way: the Bloss stays beside its pick",
+       beside_a["elementType"] == 2 and beside_a["transitionType"] == "bloss" and beside_a["length"] == 60
+       and chain_holds(els) is None)
+else:
+    ok("corner, clicked the other way: the Bloss stays beside its pick", False)
+
+# Two arcs over a straight, a Bloss curve of 70 m out of the first and a
+# clothoid of 50 m into the second: the straight between is found back.
+L1, L2 = 70.0, 50.0
+A, bA = arc_step(P0, 20.0, 250.0, r1)
+S1, bS1 = trans_step(A, bA, L1, r1, None, "bloss")
+S2 = along(S1, bS1, 120.0)
+B, bB = trans_step(S2, bS1, L2, None, r2)
+C, _ = arc_step(B, bB, 200.0, r2)
+arcs_mixed = {"dep": pick(P0, A, bA, r1), "arr": pick(C, B, (bB + 180.0) % 360.0, -r2),
+              "lDep": L1, "lArr": L2, "transitionDep": "bloss", "transitionArr": "clothoid"}
+res = splice_payload(arcs_mixed)
+ok("arcs by a straight, Bloss and clothoid: the straight found back",
+   "error" not in res and abs(res["info"]["straightLength"] - 120.0) < 1e-4
+   and [e.get("transitionType") for e in res["elements"] if e["elementType"] == 2] == ["bloss", "clothoid"]
+   and chain_holds(res["elements"]) is None)
+# The same with the second transition left out.
+B0 = S2
+C0, _ = arc_step(B0, bS1, 200.0, r2)
+res = splice_payload({**arcs_mixed, "arr": pick(C0, B0, (bS1 + 180.0) % 360.0, -r2), "lArr": 0})
+ok("arcs by a straight, a Bloss curve on the first side only: 1 2 0 1, the straight found back",
+   "error" not in res and [e["elementType"] for e in res["elements"]] == [1, 2, 0, 1]
+   and abs(res["info"]["straightLength"] - 120.0) < 1e-4 and chain_holds(res["elements"]) is None)
+
+# An arc and a straight: a Bloss curve out of the old arc, none onto the straight.
+A, bA = arc_step(P0, 20.0, 300.0, 900.0)
+B, bB = trans_step(A, bA, 80.0, 900.0, -400.0, "bloss")
+D, bD = arc_step(B, bB, 160.0, -400.0)
+E = along(D, bD, 200.0)
+res = splice_payload({"dep": pick(P0, A, bA, 900.0), "arr": pick(E, D, (bD + 180.0) % 360.0), "radius": 400,
+                      "lDep": 80, "lArr": 0, "transitionDep": "bloss"})
+ok("arc to straight, a Bloss curve on the arc's side only: the arc of 160 m found back",
+   "error" not in res and res["info"]["signedR"] == -400 and abs(res["info"]["arcLength"] - 160.0) < 1e-3
+   and [e["elementType"] for e in res["elements"]] == [1, 2, 1, 0] and res["elements"][1]["transitionType"] == "bloss"
+   and chain_holds(res["elements"]) is None)
+try:
+    splice_payload({"dep": a, "arr": b, "radius": 300, "lDep": 60, "transitionDep": "spiral"})
+    ok("an unknown shape: refused", False)
+except ValueError:
+    ok("an unknown shape: refused", True)
+
+
 # ── what a malformed request does ────────────────────────────────────────────
 try:
     splice_payload({"dep": {"start": [0, 0]}, "arr": b, "radius": 300})

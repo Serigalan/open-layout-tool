@@ -440,7 +440,7 @@ def reconnect_payload(payload):
     model = payload.get("cantModel") or {}
     if speed > 0 and not all(k in model for k in ("coeff", "defCoeff", "max")):
         raise ValueError("cantModel")
-    base = {"speed": speed, "profile": profile, "cantModel": model}
+    base = {"speed": speed, "profile": profile, "profiles": [profile, profile], "cantModel": model}
     fixed = float(payload.get("radius") or 0)
     cl = payload.get("clearance")
     if cl is not None and not isinstance(cl, dict):

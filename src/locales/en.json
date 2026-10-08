@@ -662,6 +662,7 @@
   "splice_hint_second": "Click the second element",
   "splice_hint_transition_end": "A transition curve can only be joined at the end of its track",
   "splice_error_mixed": "These two elements cannot be joined this way",
+  "splice_transition_shape": "Shape",
   "splice_arc_join": "Join two arcs",
   "splice_arc_join_straight": "With a straight between them",
   "splice_arc_join_transition": "Directly, with a transition curve",

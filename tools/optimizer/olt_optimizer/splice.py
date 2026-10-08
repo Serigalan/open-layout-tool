@@ -141,6 +141,12 @@ def reversed_element(el):
     return out
 
 
+def _pp(profile):
+    """The transition shapes of a construction, (departure's, arrival's): one
+    name for both, or a pair — each side may be a clothoid or a Bloss curve."""
+    return (profile, profile) if isinstance(profile, str) else tuple(profile)
+
+
 def _turn(frm, to):
     """Signed bearing change from `frm` to `to`, in (-180, 180] degrees."""
     return ((to - frm + 180.0) % 360.0 + 360.0) % 360.0 - 180.0
@@ -183,6 +189,7 @@ def _centre_of(p, bearing, signed_r):
 
 def _corner(dep, arr, radius, l_dep, l_arr, profile):
     """The arc in the corner, the arrival met at its end and run back from there."""
+    pd, pa = _pp(profile)
     d1 = dir_of(dep["bearing"])
     a = dir_of(arr["bearing"])
     d2 = (-a[0], -a[1])
@@ -190,7 +197,7 @@ def _corner(dep, arr, radius, l_dep, l_arr, profile):
     p2 = arr["start"]
     if abs(d1[0] * d2[1] - d1[1] * d2[0]) < 1e-9:
         raise SpliceError("splice_error_parallel")
-    fit = fit_curve_group(p1, d1, p2, d2, radius, l_dep, l_arr, profile, profile)
+    fit = fit_curve_group(p1, d1, p2, d2, radius, l_dep, l_arr, pd, pa)
     if fit is None:
         raise SpliceError("splice_error_clothoid_too_long")
     return fit, p1, p2, d2
@@ -231,16 +238,17 @@ def splice_straights(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoid")
         raise SpliceError(f"splice_error_{side}_too_large",
                           rMax=_largest_radius(dep, arr, l_dep, l_arr, profile, radius))
     sr = fit["signed_r"]
+    pd, pa = _pp(profile)
     exit_bearing = (math.atan2(d2[0], d2[1]) * RAD2DEG) % 360.0
     els = []
     if fit["entry_len"] > 1e-6:
         els.append(straight(p1, fit["cl_start"], "dep"))
     if l_dep > 0:
-        els.append(transition(fit["cl_start"], dep["bearing"], l_dep, None, sr, profile,
+        els.append(transition(fit["cl_start"], dep["bearing"], l_dep, None, sr, pd,
                               end=fit["arc_start"], end_bearing=fit["arc_start_bearing"]))
     els.append(arc(fit["arc_start"], fit["arc_end"], sr, "new"))
     if l_arr > 0:
-        els.append(transition(fit["arc_end"], fit["arc_end_bearing"], l_arr, sr, None, profile,
+        els.append(transition(fit["arc_end"], fit["arc_end_bearing"], l_arr, sr, None, pa,
                               end=fit["cl_end"], end_bearing=exit_bearing))
     if fit["exit_len"] > 1e-6:
         els.append(straight(fit["cl_end"], p2, "arr"))
@@ -266,8 +274,9 @@ def splice_arcs_straight(dep, arr, l_dep=0.0, l_arr=0.0, profile="clothoid"):
     # departure arc runs forward, the arrival arc backwards.
     sig1 = 1.0 if r1s < 0 else -1.0
     sig2 = -1.0 if r2s < 0 else 1.0
-    p1, t1, phi1 = transition_shift(l_dep, r1, profile)
-    p2, t2, phi2 = transition_shift(l_arr, r2, profile)
+    pd, pa = _pp(profile)
+    p1, t1, phi1 = transition_shift(l_dep, r1, pd)
+    p2, t2, phi2 = transition_shift(l_arr, r2, pa)
     dd1, dd2 = r1 + p1, r2 + p2
 
     de, dn = o2[0] - o1[0], o2[1] - o1[1]
@@ -306,11 +315,11 @@ def splice_arcs_straight(dep, arr, l_dep=0.0, l_arr=0.0, profile="clothoid"):
 
     els = [reshaped_arc(dep["start"], j1, r1s, "dep", bearing_j1, at_end=True)]
     if l_dep > 0:
-        els.append(transition(j1, bearing_j1, l_dep, r1s, None, profile, end=s1, end_bearing=b))
+        els.append(transition(j1, bearing_j1, l_dep, r1s, None, pd, end=s1, end_bearing=b))
     els.append(straight(s1, s2, "new"))
     bearing_j2 = b
     if l_arr > 0:
-        els.append(transition(s2, b, l_arr, None, -r2s, profile, end=j2))
+        els.append(transition(s2, b, l_arr, None, -r2s, pa, end=j2))
         bearing_j2 = els[-1]["endBearing"]
     els.append(reshaped_arc(j2, arr["start"], -r2s, "arr", bearing_j2, at_end=False))
     return {"elements": els, "info": {"straightLength": straight_len}}
@@ -407,6 +416,8 @@ def splice_arc_straight(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoi
     # Always solved with the arc leading: read backwards, the other case is this one.
     a, b = (dep, arr) if arc_is_dep else (arr, dep)
     la, lb = (l_dep, l_arr) if arc_is_dep else (l_arr, l_dep)
+    pd, pa = _pp(profile)
+    fa, fb = (pd, pa) if arc_is_dep else (pa, pd)
     ra = a["radius"]
 
     exit_bearing = (b["bearing"] + 180.0) % 360.0
@@ -415,7 +426,7 @@ def splice_arc_straight(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoi
 
     # The two transitions do not change with where they start, only turn with
     # it: worked out once per hand of the new arc (the search asks thousands of times).
-    shapes = {rn: (_transition_shape(la, ra, rn, profile), _transition_shape(lb, rn, None, profile))
+    shapes = {rn: (_transition_shape(la, ra, rn, fa), _transition_shape(lb, rn, None, fb))
               for rn in (radius, -radius)}
 
     def build(s, rn):
@@ -511,10 +522,10 @@ def splice_arc_straight(dep, arr, radius, l_dep=0.0, l_arr=0.0, profile="clothoi
     if math.hypot(c["j1"][0] - a["start"][0], c["j1"][1] - a["start"][1]) > 1e-6:
         els.append(reshaped_arc(a["start"], c["j1"], ra, role_a, c["b1"], at_end=True))
     if la > 0:
-        els.append(transition(c["j1"], c["b1"], la, ra, rn, profile, end=c["a1"]))
+        els.append(transition(c["j1"], c["b1"], la, ra, rn, fa, end=c["a1"]))
     els.append(arc(c["a1"], c["a2"], rn, "new"))
     if lb > 0:
-        els.append(transition(c["a2"], c["ba2"], lb, rn, None, profile, end=c["end"]))
+        els.append(transition(c["a2"], c["ba2"], lb, rn, None, fb, end=c["end"]))
     if math.hypot(b["start"][0] - c["end"][0], b["start"][1] - c["end"][1]) > 1e-6:
         els.append(straight(c["end"], b["start"], role_b))
     if not arc_is_dep:
@@ -604,14 +615,16 @@ def _key(p):
 
 # ── the constructions, and which ends meet ───────────────────────────────────
 
-def _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join):
+def _construct(dep, arr, radius, l_dep, l_arr, profile, arc_join, direct="clothoid"):
     """The splice of the case the two picks make, the departure run into it at
-    its end and the arrival met at its end (raises SpliceError)."""
+    its end and the arrival met at its end (raises SpliceError). `profile` the
+    shapes of the transitions beside the departure and the arrival (`_pp`),
+    `direct` that of a single transition from arc to arc."""
     if dep["radius"] is None and arr["radius"] is None:
         return splice_straights(dep, arr, radius, l_dep, l_arr, profile)
     if dep["radius"] is not None and arr["radius"] is not None:
         if arc_join == "transition":
-            return splice_arcs_transition(dep, arr, profile)
+            return splice_arcs_transition(dep, arr, direct)
         return splice_arcs_straight(dep, arr, l_dep, l_arr, profile)
     return splice_arc_straight(dep, arr, radius, l_dep, l_arr, profile)
 
@@ -669,7 +682,8 @@ def _pair(picks, ends, spec, lengths):
     d = _departure(picks, ends)
     try:
         res = _construct(_toward(picks[c], ends[c]), _toward(picks[1 - c], ends[1 - c]),
-                         spec["radius"], lengths[c], lengths[1 - c], spec["profile"], spec["arcJoin"])
+                         spec["radius"], lengths[c], lengths[1 - c],
+                         (spec["profiles"][c], spec["profiles"][1 - c]), spec["arcJoin"], spec["profile"])
     except SpliceError as exc:
         if c != d:
             exc.code = _swap_side(exc.code)
@@ -724,7 +738,7 @@ def _side_rules(sol, spec):
     out = {}
     for k, i in _sides(sol).items():
         out[k] = transition_lengths(els[i - 1] if i else None, els[i + 1] if i + 1 < len(els) else None,
-                                    els[i].get("r1"), spec["profile"], spec["speed"])
+                                    els[i].get("r1"), spec["profiles"][k], spec["speed"])
     return out
 
 
@@ -816,7 +830,7 @@ def _unsolved_lengths(picks, spec):
             hand = 1.0 if p["radius"] is None or same else -1.0
             body = {"elementType": 1, "radius": hand * spec["radius"], "cant": hand * spec["cant"],
                     "speed": spec["speed"]}
-        out.append({**side, **transition_lengths(own, body, own.get("radius"), spec["profile"], spec["speed"])})
+        out.append({**side, **transition_lengths(own, body, own.get("radius"), spec["profiles"][k], spec["speed"])})
     return out
 
 
@@ -1126,7 +1140,8 @@ def splice_payload(payload):
 
     Body: {"dep": pick, "arr": pick, "radius": m, "speed": km/h, "cant": mm,
            "lDep": m, "lArr": m, "modeDep": mode, "modeArr": mode,
-           "transition": "clothoid"|"bloss", "arcJoin": "straight"|"transition",
+           "transition": "clothoid"|"bloss", "transitionDep": …, "transitionArr": …,
+           "arcJoin": "straight"|"transition",
            "clearance": optional, see below}
     with a pick {"start": [e, n], "end": [e, n], "bearing": deg at the end,
     "radius": signed m or null, "cant": mm, "speed": km/h, "length": m,
@@ -1136,7 +1151,10 @@ def splice_payload(payload):
     and curvature there — and `joinAt` the one end it may be joined at: what
     the splice builds from it is new, the transition itself stays. `dep` and `arr` are the two picks in the order
     they were clicked, `lDep` and `lArr` the transitions beside each (0: none)
-    with their mode — 'fixed' (the default), 'regular' or 'minimum' (`_solve`);
+    with their mode — 'fixed' (the default), 'regular' or 'minimum' (`_solve`)
+    — and their shape, `transitionDep` and `transitionArr`, each 'clothoid' or
+    'bloss' (`transition` where one is missing; `transition` alone is that of
+    a single transition from arc to arc);
     which one departs the service finds (`_solutions`). `speed` and `cant`
     are those of what the splice inserts (the cant on a new arc).
 
@@ -1175,11 +1193,14 @@ def splice_payload(payload):
         "lengths": [max(0.0, float(payload.get("lDep") or 0)), max(0.0, float(payload.get("lArr") or 0))],
         "modes": modes,
         "profile": payload.get("transition", "clothoid"),
+        # The shape of the transition beside each pick, in the order they were clicked.
+        "profiles": [payload.get("transitionDep") or payload.get("transition", "clothoid"),
+                     payload.get("transitionArr") or payload.get("transition", "clothoid")],
         "arcJoin": payload.get("arcJoin") or "straight",
         "speed": max(0.0, float(payload.get("speed") or 0)),
         "cant": abs(float(payload.get("cant") or 0)),
     }
-    if spec["profile"] not in ("clothoid", "bloss"):
+    if any(p not in ("clothoid", "bloss") for p in (spec["profile"], *spec["profiles"])):
         raise ValueError("transition")
     cl = payload.get("clearance")
     if cl is not None and not isinstance(cl, dict):

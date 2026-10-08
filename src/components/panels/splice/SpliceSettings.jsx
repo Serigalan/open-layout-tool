@@ -13,8 +13,9 @@ import ClearanceFields from './ClearanceFields'
 /**
  * The settings of a splice: how two arcs are joined, the radius of an arc put
  * between straights with its speed and cant, and the transitions either side
- * — their kind, and how long each is unless the construction solves it.
- * Switched on, each side gets the Regellänge the service names once (mode
+ * — each switched on on its own (one side alone is fine), with its own shape,
+ * clothoid or Bloss, and how long it is unless the construction solves it.
+ * Switched on, a side gets the Regellänge the service names once (mode
  * 'regular', Entscheidung 185); from then on its length is as typed or as a
  * button sets it — the Regel- or Mindestlänge where it stands now (mode
  * 'fixed'). `transitionRules` [first, second] is what the service answered
@@ -40,8 +41,14 @@ export default function SpliceSettings({
   const byPick = (key, k, v) => s[key].map((x, j) => (j === k ? v : x))
   // A length typed or set by a button is a fixed one.
   const setLength = (k, v) => { set('transitions', byPick('transitions', k, v)); set('modes', byPick('modes', k, 'fixed')) }
-  // Switched on, both sides ask for the Regellänge, once (Entscheidung 185).
-  const enableTransitions = (on) => { set('clothoidEnabled', on); if (on) set('modes', ['regular', 'regular']) }
+  // Switched on, a side asks for the Regellänge, once (Entscheidung 185).
+  const enableTransition = (k, on) => { set('transitionOn', byPick('transitionOn', k, on)); if (on) set('modes', byPick('modes', k, 'regular')) }
+  const typeSelect = (value, onChange) => (
+    <select value={value} onChange={e => onChange(e.target.value)}>
+      <option value="clothoid">{t('transition_type_clothoid')}</option>
+      <option value="bloss">{t('transition_type_bloss')}</option>
+    </select>
+  )
   // What a side shows: the Regellänge the service set, until it is taken over, or the length.
   const shown = (k) => (s.modes[k] !== 'fixed' && transitionRules?.[k]?.length ? transitionRules[k].length : s.transitions[k])
   // Joined straight from one arc to the other, the transition's length is the
@@ -73,37 +80,35 @@ export default function SpliceSettings({
       {!bothArcs && !clearance.maximize && (
         <CantField value={cant} onChange={setCant} min={0} max={MAX_CANT} speed={s.speed} radius={Math.abs(Number(s.radius))} />
       )}
-      {!directTransition && (
-        <label className="transition-curve-row">
-          <input type="checkbox" checked={s.clothoidEnabled} onChange={e => enableTransitions(e.target.checked)} />
-          <span>{t('transition_curve')}</span>
-        </label>
-      )}
-      {(s.clothoidEnabled || directTransition) && (
-        <>
-          <div className="form-field">
-            <label>{t('type')}</label>
-            <select value={s.transitionType} onChange={e => set('transitionType', e.target.value)}>
-              <option value="clothoid">{t('transition_type_clothoid')}</option>
-              <option value="bloss">{t('transition_type_bloss')}</option>
-            </select>
-          </div>
-          {!directTransition && (
+      {directTransition ? (
+        <div className="form-field">
+          <label>{t('transition_curve')} – {t('type')}</label>
+          {typeSelect(s.transitionType, v => set('transitionType', v))}
+        </div>
+      ) : order.map(k => (
+        <div key={k} className="splice-transition-side">
+          <label className="transition-curve-row">
+            <input type="checkbox" checked={!!s.transitionOn[k]} onChange={e => enableTransition(k, e.target.checked)} />
+            <span>{t('transition_curve')} – {role(k)}</span>
+          </label>
+          {s.transitionOn[k] && (
             <>
-              {order.map(k => (
-                <div key={k}>
-                  <div className="form-field">
-                    <label>{role(k)} – {t('field_length')}</label>
-                    <NumberInput min={1} step={10} value={shown(k)}
-                      onChange={e => setLength(k, Math.max(1, Number(e.target.value) || 1))} />
-                  </div>
-                  <TransitionLengthButtons lengths={transitionRules?.[k]} onPick={v => setLength(k, v)} />
+              <div className="row">
+                <div className="form-field grow">
+                  <label>{t('splice_transition_shape')}</label>
+                  {typeSelect(s.transitionTypes[k], v => set('transitionTypes', byPick('transitionTypes', k, v)))}
                 </div>
-              ))}
+                <div className="form-field grow">
+                  <label>{t('field_length')}</label>
+                  <NumberInput min={1} step={10} value={shown(k)}
+                    onChange={e => setLength(k, Math.max(1, Number(e.target.value) || 1))} />
+                </div>
+              </div>
+              <TransitionLengthButtons lengths={transitionRules?.[k]} onPick={v => setLength(k, v)} />
             </>
           )}
-        </>
-      )}
+        </div>
+      ))}
       <ClearanceFields on={s.clearanceOn} onToggle={v => set('clearanceOn', v)} refName={clearance.refName}
         picking={clearance.pickingRef} onPick={clearance.onPickRef} dMin={s.clearanceDMin} onDMin={v => set('clearanceDMin', v)}>
         {!bothArcs ? (

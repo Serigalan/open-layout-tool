@@ -53,7 +53,11 @@ const line = (coordinates) => ({
 const DEFAULTS = {
   // The speed is the faster pick's once both are picked (Entscheidung 181).
   radius: 500, speed: '',
-  clothoidEnabled: false, transitionType: 'clothoid',   // 'clothoid' | 'bloss'
+  // The transition beside each pick, in the order they were clicked: switched
+  // on or not — one side alone is fine — and its shape ('clothoid' | 'bloss').
+  transitionOn: [false, false], transitionTypes: ['clothoid', 'clothoid'],
+  // The shape of a single transition from arc to arc.
+  transitionType: 'clothoid',
   // Two arcs can be joined either by a straight between them or by a single
   // transition curve straight from one to the other (AP 4.1).
   arcJoin: 'straight',                                  // 'straight' | 'transition'
@@ -291,7 +295,7 @@ export default function SpliceElementPanel() {
   // The transition beside each pick, by pick, as the service set it in the
   // chain it solved: its mode, its length and the rules on it (AP S.3) — and
   // where nothing fits, the rules' lengths all the same.
-  const transitionRules = s.clothoidEnabled ? solution?.result?.lengths ?? splice?.lengths ?? null : null
+  const transitionRules = s.transitionOn.some(Boolean) ? solution?.result?.lengths ?? splice?.lengths ?? null : null
 
   const reset = () => {
     preview.clear(); setPicks([]); setChosen(null); setPickStatus(null); setRefTrackId(null); setPickingRef(false)
@@ -304,9 +308,9 @@ export default function SpliceElementPanel() {
     setChosen(`${sol.result.ends.join()}|${arcJoin}`)
     set('arcJoin', arcJoin)
     if (arcJoin === 'straight') {
-      const on = lengths.some(l => l.length > 0)
-      set('clothoidEnabled', on)
-      if (on) {
+      const on = lengths.map(l => l.length > 0)
+      set('transitionOn', on)
+      if (on.some(Boolean)) {
         set('modes', ['fixed', 'fixed'])
         set('transitions', lengths.map(l => l.length || DEFAULTS.transitions[0]))
       }

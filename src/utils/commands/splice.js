@@ -104,13 +104,18 @@ export function secondPickRefusal(first, pick) {
  * in the same order, has a mode (AP S.3): 'regular' or 'minimum' — the
  * service sets the Regellänge or Mindestlänge in the chain it solves, from
  * `transitions` [m] on — or 'fixed', `transitions` as they are. `speed` is
- * the design speed of what the splice inserts, `cant` that of a new arc. The service decides the case from the
+ * the design speed of what the splice inserts, `cant` that of a new arc.
+ * `transitionOn` [first, second] switches the transition beside each pick on
+ * — one side alone is fine — and `transitionTypes` gives each its shape,
+ * 'clothoid' or 'bloss'; `transitionType` is that of a single transition from
+ * arc to arc (`arcJoin` 'transition'). The service decides the case from the
  * radii: two straights take `radius` and the transitions, two arcs a straight
  * between them (with the transitions) or with `arcJoin` 'transition' one
  * transition from arc to arc, an arc and a straight a new arc of `radius`.
  */
 export function spliceRequest(first, second, {
-  radius, speed, cant, clothoidEnabled, transitions = [0, 0], modes = ['fixed', 'fixed'], transitionType, arcJoin,
+  radius, speed, cant, transitionOn = [false, false], transitions = [0, 0], modes = ['fixed', 'fixed'],
+  transitionTypes = ['clothoid', 'clothoid'], transitionType, arcJoin,
 }, clearance = null) {
   const ends = (p) => ({
     start: [p.startUtm.easting, p.startUtm.northing],
@@ -129,11 +134,13 @@ export function spliceRequest(first, second, {
     radius: Math.abs(Number(radius)) || 0,
     speed: Number(speed) || 0,
     cant: Math.abs(Number(cant) || 0),
-    lDep: clothoidEnabled ? Number(transitions[0]) || 0 : 0,
-    lArr: clothoidEnabled ? Number(transitions[1]) || 0 : 0,
-    modeDep: clothoidEnabled ? modes[0] : 'fixed',
-    modeArr: clothoidEnabled ? modes[1] : 'fixed',
+    lDep: transitionOn[0] ? Number(transitions[0]) || 0 : 0,
+    lArr: transitionOn[1] ? Number(transitions[1]) || 0 : 0,
+    modeDep: transitionOn[0] ? modes[0] : 'fixed',
+    modeArr: transitionOn[1] ? modes[1] : 'fixed',
     transition: transitionType ?? 'clothoid',
+    transitionDep: transitionTypes[0] ?? 'clothoid',
+    transitionArr: transitionTypes[1] ?? 'clothoid',
     arcJoin: arcJoin ?? 'straight',
     ...(clearance ? { clearance } : {}),
   }
@@ -255,7 +262,7 @@ export function spliceFromAnswer(answer, picks) {
 }
 
 /**
- * The Regellänge set once (Entscheidung 185): a side whose transitions were
+ * The Regellänge set once (Entscheidung 185): a side whose transition was
  * just switched on asks the service for it (mode 'regular'); as soon as an
  * answer names it — a solution's, or the rules' where nothing fits — it
  * becomes that side's length as if typed (mode 'fixed'), and from then on the
@@ -263,8 +270,8 @@ export function spliceFromAnswer(answer, picks) {
  * beside each pick as answered. The same `s` where there is nothing to set.
  */
 export function settleLengths(s, lengths) {
-  if (!s.clothoidEnabled || !lengths) return s
-  const due = [0, 1].filter(k => s.modes[k] === 'regular' && lengths[k]?.regular != null)
+  if (!lengths) return s
+  const due = [0, 1].filter(k => s.transitionOn?.[k] && s.modes[k] === 'regular' && lengths[k]?.regular != null)
   if (!due.length) return s
   return {
     ...s,
