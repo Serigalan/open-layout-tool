@@ -60,6 +60,9 @@ body {
 /* ── Buttons: the panel button and its variants ─────────────────────────── */
 .panel-btn.secondary { background: var(--color-muted); }
 .panel-btn.secondary:hover { background: var(--color-text-soft); }
+/* Cancel: a lighter grey than the other secondary buttons, so Commit stands out. */
+.panel-btn.panel-btn-cancel { background: var(--color-border); color: var(--color-text); }
+.panel-btn.panel-btn-cancel:hover { background: #cfcfcf; }
 .panel-btn.danger { background: var(--color-danger); }
 .panel-btn:disabled { opacity: 0.5; cursor: default; }
 

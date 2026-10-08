@@ -5,5 +5,5 @@ import useEscape from '../../shell/useEscape'
 export default function CancelButton({ onClick, className = 'panel-btn panel-btn-full mt-8 secondary', children }) {
   const { t } = useI18n()
   useEscape(onClick, !!onClick)
-  return <button type="button" className={className} onClick={onClick}>{children ?? t('btn_cancel')}</button>
+  return <button type="button" className={`${className} panel-btn-cancel`} onClick={onClick}>{children ?? t('btn_cancel')}</button>
 }

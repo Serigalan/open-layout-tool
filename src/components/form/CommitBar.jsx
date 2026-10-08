@@ -43,10 +43,10 @@ function useCompact(labels) {
 }
 
 /**
- * Commit and Cancel at the foot of a dialog (R4.3), side by side: with their
- * words while the bar has room for them, as a tick and a cross when it has
- * not — the words then stay on the button as its title and for screen
- * readers. `disabled` locks Commit; `reason` says why, on the button itself
+ * Cancel and Commit at the foot of a dialog (R4.3), side by side — Cancel on
+ * the left, Commit on the right: with their words while the bar has room for
+ * them, as a cross and a tick when it has not — the words then stay on the
+ * button as its title and for screen readers. `disabled` locks Commit; `reason` says why, on the button itself
  * (its title) — a locked button that does not say why is a dead end. Labels
  * default to Commit/Cancel. A `reason` alone locks it too, and is said under
  * the bar as well (R10.4).
@@ -64,19 +64,19 @@ export default function CommitBar({
   return (
     <div className={`commit-bar${compact ? ' commit-bar-compact' : ''} ${className}`.trim()}>
       <div className="commit-bar-row" ref={ref}>
+        {onCancel && (
+          <button type="button" className="panel-btn commit-bar-btn panel-btn-cancel" onClick={onCancel}
+            title={compact ? cancelText : undefined}>
+            <span className="commit-bar-icon"><CancelIcon /></span>
+            <span className="commit-bar-label">{cancelText}</span>
+          </button>
+        )}
         <button type="button" className={`panel-btn commit-bar-btn${danger ? ' danger' : ''}`}
           onClick={onCommit} disabled={disabled}
           title={disabled && reason ? reason : compact ? commitText : undefined}>
           <span className="commit-bar-icon"><ConfirmIcon /></span>
           <span className="commit-bar-label">{commitText}</span>
         </button>
-        {onCancel && (
-          <button type="button" className="panel-btn commit-bar-btn secondary" onClick={onCancel}
-            title={compact ? cancelText : undefined}>
-            <span className="commit-bar-icon"><CancelIcon /></span>
-            <span className="commit-bar-label">{cancelText}</span>
-          </button>
-        )}
       </div>
       {disabled && reason && <p className="msg-hint msg-small commit-reason">{reason}</p>}
     </div>
