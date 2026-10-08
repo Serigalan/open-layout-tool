@@ -159,6 +159,9 @@ export function openProject(project) {
   return _project
 }
 
+/** The variant whose working copy is open, or null — cheaper than currentWorkingCopy where only that is wanted. */
+export const currentVariantId = () => _wc?.variantId ?? null
+
 /** The open working copy: { variantId, projectId, base, basePayload, project (dehydrated), idLog }, or null. */
 export function currentWorkingCopy() {
   if (!_wc || !_project) return null

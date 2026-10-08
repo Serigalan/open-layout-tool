@@ -19,10 +19,21 @@ import { loadNtv2Grid } from './utils/ntv2Grid'
 // The grid needs nothing from the store, so it simply goes first. Both were
 // already awaited before the first render; this only makes them serial, and a
 // 24 kB file is not what startup waits for.
-loadNtv2Grid().then(initStorage).then(() => {
-  createRoot(document.getElementById('root')).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  )
-})
+//
+// The 3D view of the point clouds (phase 13) is a window of its own,
+// `#/cloud3d?…`: it opens no working copy and loads three.js as a chunk of its
+// own, which the app itself never fetches.
+if (location.hash.startsWith('#/cloud3d')) {
+  loadNtv2Grid().then(() => import('./cloud3d/Cloud3dApp.jsx')).then((mod) => {
+    const Cloud3dApp = mod.default
+    createRoot(document.getElementById('root')).render(<StrictMode><Cloud3dApp /></StrictMode>)
+  })
+} else {
+  loadNtv2Grid().then(initStorage).then(() => {
+    createRoot(document.getElementById('root')).render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    )
+  })
+}

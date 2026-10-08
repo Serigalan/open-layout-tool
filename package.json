@@ -23,7 +23,8 @@
     "pmtiles": "^4.5.0",
     "proj4": "^2.20.4",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

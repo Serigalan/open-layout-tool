@@ -6,6 +6,8 @@ import { forgetCloud } from '../../utils/pointCloud/cloudSection'
 import { readableOnServer, serverLevel } from '../../utils/pointCloud/projectClouds'
 import { createServerCloud, runUpload, runningUploads, sameFile, subscribeUploads } from '../../utils/pointCloud/cloudUpload'
 import { sizeText } from '../../utils/pointCloud/cloudFormat'
+import { openCloud3d } from '../../cloud3d/channel'
+import { currentVariantId } from '../../storage'
 import { useI18n } from '../../locales/i18nContext'
 import { tOr } from '../../locales/i18n'
 import { useProject } from '../../hooks/useStore'
@@ -175,7 +177,8 @@ export default function PointCloudPanel() {
         : <p className="selecting-hint">{t('pointcloud_view_only')}</p>}
       {message && <p className={message.kind === 'error' ? 'form-error' : 'selecting-hint'}>{message.text}</p>}
       <CloudList local={local} server={server} uploads={uploads} mayEdit={mayEdit} busy={running}
-        onDeleteLocal={removeLocal} onDeleteServer={removeServer} onResume={resume} onRetry={retry} />
+        onDeleteLocal={removeLocal} onDeleteServer={removeServer} onResume={resume} onRetry={retry}
+        onOpen3d={(c) => openCloud3d({ projectId: project.id, variantId: currentVariantId(), cloudId: c.id })} />
       {readable.length > 0 && !running && <RailTraceSection clouds={readable} paused={!!erasingId} />}
       <AxisSurveyList erasingId={erasingId} onErasing={setErasingId} />
       {storage && (

@@ -22,6 +22,7 @@ import StepNotice from './StepNotice'
 import MapLegend from './MapLegend'
 import { START_REGION } from '../map/style'
 import usePanelWidth from './usePanelWidth'
+import useCloud3dChannel from './useCloud3dChannel'
 import RuleFieldsScope from '../components/form/RuleFieldsScope'
 import ConfirmModal from '../components/ConfirmModal'
 import ElevationLegend from '../components/ElevationLegend'
@@ -113,6 +114,11 @@ export default function MapWorkspace({ wc, onHome }) {
 
   const openOverlay = useCallback((o) => act({ type: 'open', overlay: o }), [act])
   const closeOverlay = useCallback((kind) => act({ type: 'close', kind }), [act])
+
+  // The 3D window of the point clouds (AP 13.10) follows the cross section
+  // shown, and a double click there shows the cross section here.
+  const crossSectionAt = [overlay, detached].find(o => o?.kind === 'crossSection')?.at ?? null
+  useCloud3dChannel({ project, at: crossSectionAt, onShowCrossSection: (at) => openOverlay({ kind: 'crossSection', at }) })
 
   // The cross section in a window of its own: opened here, in the click, so
   // the browser lets it through. A blocked window leaves it over the map.

@@ -78,7 +78,7 @@ function fitPlaneBox(map, bounds, crs) {
  * only. Where each lies, how big, and, for whoever may, delete, resume an
  * upload or start a failed preparation again.
  */
-export default function CloudList({ local, server, uploads, mayEdit, busy, onDeleteLocal, onDeleteServer, onResume, onRetry }) {
+export default function CloudList({ local, server, uploads, mayEdit, busy, onDeleteLocal, onDeleteServer, onResume, onRetry, onOpen3d }) {
   const { t, fill, language } = useI18n()
   const map = useMap()
   const [asking, setAsking] = useState(null)    // { cloud, server } a delete waits on
@@ -117,6 +117,11 @@ export default function CloudList({ local, server, uploads, mayEdit, busy, onDel
             {c.status === 'ready' && c.crs != null && c.bounds && (
               <button className="modal-btn modal-btn-cancel" onClick={() => map?.current && fitPlaneBox(map.current, c.bounds, c.crs)}>
                 {t('pointcloud_show')}
+              </button>
+            )}
+            {c.status === 'ready' && c.crs != null && onOpen3d && (
+              <button className="modal-btn modal-btn-cancel" title={t('pointcloud_open_3d_hint')} onClick={() => onOpen3d(c)}>
+                {t('pointcloud_open_3d')}
               </button>
             )}
             {mayEdit && !uploads.some(u => u.cloudId === c.id) && (

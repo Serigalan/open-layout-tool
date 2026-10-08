@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { loadTracks, loadPlatforms, loadSwitches, currentProject } from '../storage'
+import { loadTracks, loadPlatforms, loadSwitches, currentProject, currentVariantId } from '../storage'
+import { openCloud3d } from '../cloud3d/channel'
 import { trackLength } from '../utils/heightUtils'
 import { tracksOnFrom } from '../utils/topology'
 import { trackHeightAt } from '../utils/switchGradient'
@@ -678,11 +679,17 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
                     {colorings.map(c => <option key={c} value={c}>{t(`cross_section_cloud_by_${c}`)}</option>)}
                   </select>
                   {onServer && (
-                    <select className="cross-section-coloring" value={cloudLevel} onChange={e => setCloudLevel(Number(e.target.value))}
-                      title={t('cross_section_cloud_level_hint')}>
-                      <option value={1}>{t('cross_section_cloud_level_1')}</option>
-                      <option value={0}>{t('cross_section_cloud_level_0')}</option>
-                    </select>
+                    <>
+                      <select className="cross-section-coloring" value={cloudLevel} onChange={e => setCloudLevel(Number(e.target.value))}
+                        title={t('cross_section_cloud_level_hint')}>
+                        <option value={1}>{t('cross_section_cloud_level_1')}</option>
+                        <option value={0}>{t('cross_section_cloud_level_0')}</option>
+                      </select>
+                      <button className="track-table-save-btn" title={t('pointcloud_open_3d_hint')}
+                        onClick={() => openCloud3d({ projectId: project.id, variantId: currentVariantId() })}>
+                        {t('cross_section_open_3d')}
+                      </button>
+                    </>
                   )}
                 </>
               )}
