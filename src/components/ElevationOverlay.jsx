@@ -6,7 +6,7 @@ import { coupledPoints, trackHeightAt } from '../utils/switchGradient'
 import { ruleById, severityLabelKey } from '../utils/regelkatalog'
 import {
   trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps, elementAtStation,
-  insertHeightPoint,
+  insertHeightPoint, endOfIndex, solveHeightPoint, GIVEN_MODES,
 } from '../utils/heightUtils'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
 import { fillHeights } from '../utils/elevationFill'
@@ -29,6 +29,7 @@ import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
 import NumberInput from './form/NumberInput'
+import ElevationTable from './ElevationTable'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
 const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
@@ -117,6 +118,12 @@ const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
  * are the main route's (switchGradient): drawn dashed, and not edited or
  * deleted here — the store would put them back.
  *
+ * The same gradient can be shown as a table instead (ElevationTable): station,
+ * height, the gradients either side and the vertical curve of every point,
+ * two of the first four given and typed, the other two following. Which view
+ * and which two are kept on this device. In the graphic view a single point's
+ * station is typed in the header, with its height given.
+ *
  * A track without a gradient shows none — the terrain is not read on its own.
  * The empty profile offers to compute one from the height data instead.
  */
@@ -146,6 +153,18 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   // Reading the gradient from the terrain: { trackId, state } with state
   // 'busy', 'missing' (no height data there) or 'failed'.
   const [reading, setReading] = useState(null)
+
+  // ── Graphic or table view, and which two values the table is given ───────
+  const [viewKind, setViewKind] = useState(() => {
+    try { return loadSettings().elevationView === 'table' ? 'table' : 'graphic' } catch { return 'graphic' }
+  })
+  const [given, setGiven] = useState(() => {
+    try { const g = loadSettings().elevationGiven; return GIVEN_MODES[g] ? g : 'sz' } catch { return 'sz' }
+  })
+  const remember = (patch) => { try { saveSettings(patch) } catch { /* kept for this session only */ } }
+  const chooseView = (v) => { setViewKind(v); remember({ elevationView: v }) }
+  const chooseGiven = (v) => { setGiven(v); remember({ elevationGiven: v }) }
+  const [stDraft, setStDraft]   = useState('')     // station of a single selected point
 
   // ── The reference axis laid over the profile ─────────────────────────────
   // '' for none, 'auto' for the one the track runs along the furthest, or an
@@ -329,8 +348,11 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     const picked = points.filter(p => indices.includes(p.index))
     setDraft(common(picked.map(p => p.z)))
     setRvDraft(common(picked.map(p => p.rv)))
+    setStDraft(picked.length === 1 ? String(Math.round(picked[0].station * 1000) / 1000) : '')
     setRvNote(null)
   }
+  // A point's station can move unless it is a joint or a turnout sets it.
+  const stationMovable = (p) => !locked.has(p.index) && endOfIndex(track, p.index) == null
   const rvMixed = selectedPoints.some(p => p.rv !== selectedPoints[0]?.rv)
   /** Click picks one point, Ctrl/Shift-click adds it to or drops it from the selection. */
   const pick = (p, e) => {
@@ -345,6 +367,19 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     const patch = {}
     if (draft.trim())   { const z  = Number(draft);   if (!Number.isFinite(z))  return; patch.z  = z }
     if (rvDraft.trim()) { const rv = Number(rvDraft); if (!Number.isFinite(rv)) return; patch.rv = rv > 0 ? rv : null }
+    // A single point's station typed anew: it moves there with its height —
+    // between its neighbours, which stay.
+    const one = selectedPoints.length === 1 ? selectedPoints[0] : null
+    const st = one && stationMovable(one) && stDraft.trim() ? Number(stDraft) : null
+    if (st != null && Number.isFinite(st) && Math.abs(st - one.station) > 1e-9) {
+      const r = solveHeightPoint(track.heights, one.index, { s: st, z: patch.z ?? one.z }, { length: profile.length })
+      if (r.error) { setRvNote(fill(`elevation_table_error_${r.error}`, { n: one.index + 1 })); return }
+      const q = { ...track.heights[one.index], station: r.station, z: r.z }
+      if (patch.rv !== undefined) { if (patch.rv == null) delete q.rv; else q.rv = patch.rv }
+      setTrackHeights(track.id, track.heights.map((h, i) => (i === one.index ? q : h)))
+      setStDraft(String(r.station)); setRvNote(null)
+      return
+    }
     if (!Object.keys(patch).length) return
     // Where tracks meet there is one point, whatever its index is on each of
     // them: it moves on all of them — over a switch too.
@@ -755,16 +790,41 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
       <div className="track-table-header">
         <span className="track-table-title">{track.name || track.id.slice(0, 8)}</span>
         <div className="profile-controls">
-          {selectedPoints.length && selectedPoints.every(p => locked.has(p.index)) ? (
+          <div className="profile-view-switch" role="group" aria-label={t('elevation_view')}>
+            {['graphic', 'table'].map(v => (
+              <button key={v} type="button" className={viewKind === v ? 'active' : undefined} aria-pressed={viewKind === v}
+                onClick={() => chooseView(v)}>
+                {t(`elevation_view_${v}`)}
+              </button>
+            ))}
+          </div>
+          {viewKind === 'table' ? (
+            <label className="profile-edit" title={t('elevation_given_hint')}>
+              {t('elevation_given')}
+              <select className="settings-select" value={given} onChange={e => chooseGiven(e.target.value)}>
+                {Object.keys(GIVEN_MODES).map(m => <option key={m} value={m}>{t(`elevation_given_${m}`)}</option>)}
+              </select>
+            </label>
+          ) : selectedPoints.length && selectedPoints.every(p => locked.has(p.index)) ? (
             <div className="profile-edit">
               <span className="profile-hint">{lockedNote(locked.get(selectedPoints[0].index))}</span>
               <CloseButton onClick={() => select([])} />
             </div>
           ) : selectedPoints.length ? (
             <div className="profile-edit">
-              <span>{selectedPoints.length === 1
-                ? `${t('elevation_station')} ${selectedPoints[0].station.toFixed(2)} m`
-                : fill('elevation_selected', { n: selectedPoints.length })}</span>
+              {selectedPoints.length === 1 && stationMovable(selectedPoints[0]) ? (
+                <>
+                  <span>{t('elevation_station')}</span>
+                  <NumberInput className="track-table-input" step="0.1" value={stDraft}
+                    onChange={e => setStDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
+                  <span>m</span>
+                </>
+              ) : (
+                <span>{selectedPoints.length === 1
+                  ? `${t('elevation_station')} ${selectedPoints[0].station.toFixed(2)} m`
+                  : fill('elevation_selected', { n: selectedPoints.length })}</span>
+              )}
               <NumberInput className="track-table-input" step="0.01" value={draft} autoFocus
                 placeholder={t('elevation_mixed')}
                 onChange={e => setDraft(e.target.value)}
@@ -804,7 +864,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               </span>
             )
           })()}
-          {axes.length > 0 && (
+          {viewKind === 'graphic' && axes.length > 0 && (
             <label className="profile-edit" title={t('elevation_ref_hint')}>
               <span className="profile-ref-swatch" aria-hidden="true" />
               {t('shift_axis')}
@@ -816,12 +876,14 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               {refNote && <span className="profile-hint">{refNote}</span>}
             </label>
           )}
-          <label className="profile-edit">
-            {t('elevation_exaggeration')}
-            <select className="settings-select" value={exaggeration} onChange={e => setExaggeration(Number(e.target.value))}>
-              {EXAGGERATIONS.map(x => <option key={x} value={x}>{x}×</option>)}
-            </select>
-          </label>
+          {viewKind === 'graphic' && (
+            <label className="profile-edit">
+              {t('elevation_exaggeration')}
+              <select className="settings-select" value={exaggeration} onChange={e => setExaggeration(Number(e.target.value))}>
+                {EXAGGERATIONS.map(x => <option key={x} value={x}>{x}×</option>)}
+              </select>
+            </label>
+          )}
           <CloseButton onClick={onClose} />
         </div>
       </div>
@@ -838,7 +900,12 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               {readState === 'failed' && <span className="form-error">{t('elevation_failed')}</span>}
             </div>
           )
-          : drawing()}
+          : viewKind === 'table' && points.length ? (
+            <ElevationTable track={track} tracks={tracks} switches={switches} points={points} length={profile.length}
+              mode={given} locked={locked} lockedNote={lockedNote}
+              stretchAt={stretchAt} curveAt={curveAt} stretchNote={stretchNote} curveNote={curveNote}
+              selection={selection} onSelect={select} />
+          ) : drawing()}
       </div>
     </div>
   )

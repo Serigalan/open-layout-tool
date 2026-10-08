@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { heightAt, gradientAt, verticalCurve, verticalCurveOverlaps, splitHeights, joinHeights, endOfIndex, insertHeightPoint } from './heightUtils'
+import { heightAt, gradientAt, verticalCurve, verticalCurveOverlaps, splitHeights, joinHeights, endOfIndex, insertHeightPoint,
+  pointGrades, solveHeightPoint } from './heightUtils'
 
 describe('gradientAt — the height a track is built at', () => {
   // +10 ‰ up to a crest at 100 m, −10 ‰ down from it, rounded with R 2000:
@@ -146,5 +147,46 @@ describe('insertHeightPoint — splitting a gradient', () => {
     expect(insertHeightPoint(heights, 401)).toBeNull()
     expect(insertHeightPoint(heights, 200.05)).toBeNull()
     expect(insertHeightPoint([{ station: 0, z: 1 }], 0.5)).toBeNull()
+  })
+})
+
+describe('solveHeightPoint — a gradient point from two of its values', () => {
+  // 0 → 100 rising 10 ‰ to the point at 100, falling 5 ‰ after it to 300.
+  const h = [{ station: 0, z: 100 }, { station: 100, z: 101, rv: 5000 }, { station: 300, z: 100 }]
+
+  it('reads the gradients either side', () => {
+    expect(pointGrades(h, 1).before).toBeCloseTo(0.01, 9)
+    expect(pointGrades(h, 1).after).toBeCloseTo(-0.005, 9)
+    expect(pointGrades(h, 0).before).toBeNull()
+    expect(pointGrades(h, 2).after).toBeNull()
+  })
+
+  it('takes station and height as they are', () => {
+    expect(solveHeightPoint(h, 1, { s: 120.0004, z: 101.2346 })).toEqual({ station: 120, z: 101.235 })
+  })
+
+  it('slides along the gradient before or after, its station given', () => {
+    expect(solveHeightPoint(h, 1, { s: 150, gb: 0.01 })).toEqual({ station: 150, z: 101.5 })
+    expect(solveHeightPoint(h, 1, { s: 200, ga: -0.005 })).toEqual({ station: 200, z: 100.5 })
+  })
+
+  it('finds the station where a gradient reaches the height', () => {
+    expect(solveHeightPoint(h, 1, { z: 101.2, gb: 0.008 })).toEqual({ station: 150, z: 101.2 })
+    expect(solveHeightPoint(h, 1, { z: 101, ga: -0.004 })).toEqual({ station: 50, z: 101 })
+    expect(solveHeightPoint(h, 1, { z: 101, gb: 0 })).toEqual({ error: 'flat' })
+  })
+
+  it('meets two gradients where they cross', () => {
+    // 12 ‰ up from (0, 100), 4 ‰ down to (300, 100): 0.012 s = 0.004 (300 − s) → s = 75.
+    expect(solveHeightPoint(h, 1, { gb: 0.012, ga: -0.004 })).toEqual({ station: 75, z: 100.9 })
+    expect(solveHeightPoint(h, 1, { gb: 0.01, ga: 0.01 })).toEqual({ error: 'parallel' })
+  })
+
+  it('keeps the point between its neighbours and on the track', () => {
+    expect(solveHeightPoint(h, 1, { s: 299.95, z: 101 })).toEqual({ error: 'order' })
+    expect(solveHeightPoint(h, 1, { z: 104, gb: 0.01 })).toEqual({ error: 'order' })
+    expect(solveHeightPoint(h, 0, { s: -1, z: 100 }, { length: 300 })).toEqual({ error: 'order' })
+    expect(solveHeightPoint(h, 0, { s: 0, gb: 0.01 })).toEqual({ error: 'missing' })
+    expect(solveHeightPoint(h, 0, { s: 0, ga: 0.02 })).toEqual({ station: 0, z: 99 })
   })
 })

@@ -83,6 +83,61 @@ export function heightAt(heights, station) {
   return heights[heights.length - 1].z
 }
 
+/** The gradients into and out of height point `i` [m/m] — null where there is no point before or after. */
+export function pointGrades(heights, i) {
+  const p = heights?.[i], a = heights?.[i - 1], b = heights?.[i + 1]
+  const grade = (u, v) => (u && v && v.station > u.station ? (v.z - u.z) / (v.station - u.station) : null)
+  return { before: p ? grade(a, p) : null, after: p ? grade(p, b) : null }
+}
+
+/**
+ * The two values of a gradient point that are given when it is edited in the
+ * Höhenplan table — the other two follow, its neighbours stay (solveHeightPoint):
+ * s station, z height, gb / ga the gradient before / after it.
+ */
+export const GIVEN_MODES = {
+  sz: ['s', 'z'],
+  sgb: ['s', 'gb'],
+  sga: ['s', 'ga'],
+  zgb: ['z', 'gb'],
+  zga: ['z', 'ga'],
+  gbga: ['gb', 'ga'],
+}
+
+/**
+ * Where height point `index` goes when two of its four values are given
+ * (`given`: two of s station, z height, gb gradient before, ga gradient after
+ * [m/m]) and its neighbours stay: { station, z } at whole millimetres, or
+ * { error } — 'missing' (a gradient asked for at an end that has none),
+ * 'flat' (a level gradient cannot reach another height), 'parallel' (two
+ * equal gradients meet nowhere) or 'order' (it would pass a neighbour, or
+ * come closer to it than `minGap` [m], or leave the track, 0 … `length`).
+ */
+export function solveHeightPoint(heights, index, given, { length = Infinity, minGap = 0.1 } = {}) {
+  const a = heights[index - 1], b = heights[index + 1]
+  const has = (k) => given[k] != null && Number.isFinite(given[k])
+  if ((has('gb') && !a) || (has('ga') && !b)) return { error: 'missing' }
+  let s = null, z = null
+  if (has('s') && has('z')) { s = given.s; z = given.z }
+  else if (has('s') && has('gb')) { s = given.s; z = a.z + given.gb * (s - a.station) }
+  else if (has('s') && has('ga')) { s = given.s; z = b.z - given.ga * (b.station - s) }
+  else if (has('z') && has('gb')) {
+    if (Math.abs(given.gb) < 1e-9) return { error: 'flat' }
+    z = given.z; s = a.station + (z - a.z) / given.gb
+  } else if (has('z') && has('ga')) {
+    if (Math.abs(given.ga) < 1e-9) return { error: 'flat' }
+    z = given.z; s = b.station - (b.z - z) / given.ga
+  } else if (has('gb') && has('ga')) {
+    if (Math.abs(given.gb - given.ga) < 1e-9) return { error: 'parallel' }
+    s = (b.z - a.z + given.gb * a.station - given.ga * b.station) / (given.gb - given.ga)
+    z = a.z + given.gb * (s - a.station)
+  } else return { error: 'missing' }
+  const station = Math.round(s * 1000) / 1000
+  if (!Number.isFinite(station) || station < -1e-9 || station > length + 1e-9
+    || (a && station < a.station + minGap - 1e-9) || (b && station > b.station - minGap + 1e-9)) return { error: 'order' }
+  return { station, z: Math.round(z * 1000) / 1000 }
+}
+
 /**
  * The heights with a point added at `station` inside the stretch it falls in,
  * at the height of that stretch — the gradient is split there, not changed:

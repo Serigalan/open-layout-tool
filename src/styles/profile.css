@@ -276,3 +276,45 @@
 .bands-findings-toggle .profile-rules {
   cursor: pointer;
 }
+
+/* Höhenplan: graphic or table view. */
+.profile-view-switch {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.profile-view-switch button {
+  border: 0;
+  background: transparent;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: var(--fs-s);
+  color: var(--color-text-soft);
+  cursor: pointer;
+}
+
+.profile-view-switch button + button {
+  border-left: 1px solid var(--color-border);
+}
+
+.profile-view-switch button.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* The table view fills the body and scrolls in it. */
+.profile-table {
+  position: absolute;
+  inset: 0;
+}
+
+.profile-table .track-table-input {
+  width: 96px;
+}
+
+.profile-table-error {
+  margin: 6px 12px;
+}
