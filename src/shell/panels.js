@@ -84,8 +84,10 @@ export const PANELS = [
     id: 'elevation', group: 'heights', icon: ElevationIcon, titleKey: 'tooltip_elevation', place: 'top', Component: ElevationPanel,
     overlay: 'profile',
     props: (s) => ({
-      profileTrackId: s.overlay?.kind === 'profile' ? s.overlay.trackId : null,
+      profileTrackId: s.overlay?.kind === 'profile' && !s.overlay.routeId ? s.overlay.trackId : null,
+      profileRouteId: s.overlay?.kind === 'profile' ? s.overlay.routeId ?? null : null,
       onShowProfile: (trackId) => (trackId ? s.openOverlay({ kind: 'profile', trackId }) : s.closeOverlay('profile')),
+      onShowRouteProfile: (routeId) => (routeId ? s.openOverlay({ kind: 'profile', routeId }) : s.closeOverlay('profile')),
     }),
   },
   {

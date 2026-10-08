@@ -1079,6 +1079,7 @@
   "elevation_rules_unchecked": "{n} Neigungswechsel ohne Entwurfsgeschwindigkeit: Länge und Halbmesser dort nicht geprüft.",
   "elevation_rules_at": "zuerst bei {station} m",
   "elevation_rules_pick": "Gleis wählen, um seine Gradiente zu prüfen.",
+  "elevation_route_gaps": "Route unterbrochen – die Lücken sind unter Bearbeiten › Routen genannt.",
   "plan_titleblock": "Schriftfeld",
   "plan_titleblock_compact": "Kompakt",
   "plan_titleblock_full": "Ausführlich",

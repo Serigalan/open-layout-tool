@@ -8,6 +8,9 @@ import { fillHeights } from '../../utils/elevationFill'
 import { chosenTerrainSource } from '../../utils/elevationSource'
 import TerrainSourceSelect from '../TerrainSourceSelect'
 import GroupedTrackList from './GroupedTrackList'
+import RouteList from './RouteList'
+import { resolveRoute } from '../../utils/routes'
+import useRouteOnMap from '../../map/useRouteOnMap'
 import GradientFindings from './GradientFindings'
 import CrossoverGradientForm from './CrossoverGradientForm'
 import { BackIcon } from '../icons'
@@ -29,7 +32,7 @@ import useMapPick from '../../map/useMapPick'
  * it, since the list of a large project runs far below the screen. The
  * crossovers to fit come last.
  */
-export default function ElevationPanel({ profileTrackId, onShowProfile }) {
+export default function ElevationPanel({ profileTrackId, profileRouteId = null, onShowProfile, onShowRouteProfile }) {
   const { t, fill } = useI18n()
   const tracks = loadTracks() ?? []
   const [busy, setBusy]     = useState(false)
@@ -48,13 +51,28 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
   // it only marks the elements its selection falls in — so this stays live
   // while a profile is open, and a click swaps it over to the track clicked.
   // While a crossover is being fitted, a click on the map marks its range instead.
-  useMapPick({ active: !crossover, hover: 'track', onPick: ({ trackId }) => onShowProfile?.(trackId) })
+  // The route on show (Paket RT), drawn on the map; its tracks are what a reload reads.
+  const route = profileRouteId ? (project?.routes ?? []).find(r => r.id === profileRouteId) ?? null : null
+  const resolvedRoute = route && project ? resolveRoute(route, project.tracks, project.switches) : null
+  useRouteOnMap('elevation-route', resolvedRoute)
+  // A click on one of the route's own tracks keeps the route.
+  useMapPick({ active: !crossover, hover: 'track', onPick: ({ trackId }) => {
+    if (!resolvedRoute?.parts.some(p => p.trackId === trackId)) onShowProfile?.(trackId)
+  } })
+  const shownTrackIds = resolvedRoute ? resolvedRoute.parts.map(p => p.trackId) : profileTrackId ? [profileTrackId] : []
 
-  const run = async (opts) => {
+  const run = async (opts, trackIds = [null]) => {
     setBusy(true)
     setResult(null)
     try {
-      const r = await fillHeights(currentProject, { ...opts, source: terrainSource })
+      // One track or every track of the route on show, read in one go and written as one step.
+      const r = { heights: new Map(), updated: 0, missing: 0 }
+      for (const trackId of trackIds) {
+        const one = await fillHeights(currentProject, { ...opts, ...(trackId ? { trackId } : {}), source: terrainSource })
+        for (const [id, h] of one.heights) r.heights.set(id, h)
+        r.updated += one.updated
+        r.missing += one.missing
+      }
       if (r.heights.size) setHeightsForTracks(r.heights, { undo: !!opts?.force })
       setResult(r)
     } catch {
@@ -101,7 +119,12 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
             {LINE_CATEGORIES.map(key => <option key={key} value={key}>{t(`line_category_${key}`)}</option>)}
           </select>
         </div>
-        <GradientFindings trackId={profileTrackId} />
+        {resolvedRoute ? resolvedRoute.parts.map(p => (
+          <div key={p.trackId} className="route-findings">
+            <span className="create-element-section">{p.track.name || p.trackId.slice(0, 8)}</span>
+            <GradientFindings trackId={p.trackId} />
+          </div>
+        )) : <GradientFindings trackId={profileTrackId} />}
         {uncoupled > 0 && (
           <>
             <p className="selecting-hint">{fill('elevation_couple_hint', { n: uncoupled })}</p>
@@ -111,6 +134,7 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
           </>
         )}
       </FormSection>
+      <RouteList activeId={profileRouteId} onPick={(r) => onShowRouteProfile?.(r.id)} />
       <GroupedTrackList tracks={tracks}
         isActive={(track) => track.id === profileTrackId}
         onPick={(track) => onShowProfile?.(track.id)} />
@@ -119,7 +143,7 @@ export default function ElevationPanel({ profileTrackId, onShowProfile }) {
         <TerrainSourceSelect value={terrainSource} onChange={setTerrainSource} />
       </div>
       <button className="panel-btn panel-btn-full mt-4"
-        disabled={busy || !profileTrackId} onClick={() => run({ force: true, trackId: profileTrackId })}>
+        disabled={busy || !shownTrackIds.length} onClick={() => run({ force: true }, shownTrackIds)}>
         {t('elevation_reload_track')}
       </button>
       <button className="panel-btn panel-btn-full mt-2 secondary"

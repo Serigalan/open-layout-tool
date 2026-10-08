@@ -1079,6 +1079,7 @@
   "elevation_rules_unchecked": "{n} gradient changes without a design speed: length and radius not checked there.",
   "elevation_rules_at": "first at {station} m",
   "elevation_rules_pick": "Pick a track to check its gradient.",
+  "elevation_route_gaps": "Route broken — the gaps are named under Edit › Routes.",
   "plan_titleblock": "Title block",
   "plan_titleblock_compact": "Compact",
   "plan_titleblock_full": "Detailed",

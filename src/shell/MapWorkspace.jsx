@@ -356,7 +356,7 @@ export default function MapWorkspace({ wc, onHome }) {
           {overlay?.kind === 'trackTable' && <TrackTableOverlay track={overlay.track}
             initialRow={overlay.initialRow} onPickTrack={(track) => openOverlay({ kind: 'trackTable', track, initialRow: null })}
             onDirtyChange={setTableDirty} onClose={() => closeOverlay('trackTable')} />}
-          {overlay?.kind === 'profile' && <ElevationOverlay trackId={overlay.trackId}
+          {overlay?.kind === 'profile' && <ElevationOverlay trackId={overlay.trackId} routeId={overlay.routeId ?? null}
             section={detached?.kind === 'crossSection' ? detached.at : null} onClose={() => closeOverlay('profile')} />}
           {overlay?.kind === 'bands' && <BandsOverlay trackId={overlay.trackId} onClose={() => closeOverlay('bands')} />}
           {overlay?.kind === 'crossSection' && <CrossSectionOverlay at={overlay.at}

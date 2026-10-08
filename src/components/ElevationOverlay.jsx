@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { setTrackHeights, setHeightsForTracks, currentProject } from '../storage'
-import { useProject, useReferenceAxes, useSwitches, useTracks } from '../hooks/useStore'
+import { setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches } from '../storage'
+import { useProject, useReferenceAxes, useRoutes, useSwitches, useTracks } from '../hooks/useStore'
 import { checkVertical, regularVerticalRadius, verticalFindings } from '../utils/gradientCheck'
 import { coupledPoints, trackHeightAt } from '../utils/switchGradient'
 import { ruleById, severityLabelKey } from '../utils/regelkatalog'
 import {
-  trackProfile, adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps, elementAtStation,
-  insertHeightPoint, endOfIndex, solveHeightPoint, GIVEN_MODES,
+  adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps, elementAtStation,
+  insertHeightPoint, solveHeightPoint, GIVEN_MODES,
 } from '../utils/heightUtils'
+import { partStation, resolveRoute, routeAt, routePointAt } from '../utils/routes'
+import { routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute } from '../utils/routeProfile'
+import { reverseTrack } from '../utils/trackModel'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
 import { fillHeights } from '../utils/elevationFill'
 import { chosenTerrainSource } from '../utils/elevationSource'
@@ -19,7 +22,6 @@ import useReferenceAxesOnMap from '../map/useReferenceAxesOnMap'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import usePreview from '../map/usePreview'
-import { pointAtStation } from '../utils/platformUtils'
 import { utmToWgs84 } from '../utils/coordinateUtils'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
@@ -33,6 +35,7 @@ import NumberInput from './form/NumberInput'
 import ElevationTable from './ElevationTable'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
+const NO_POINTS = []
 const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
 const MIN_OVERLAY_PX = 140
 // Narrower than this and the gradient label would not fit between its points.
@@ -127,16 +130,34 @@ const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
  *
  * A track without a gradient shows none — the terrain is not read on its own.
  * The empty profile offers to compute one from the height data instead.
+ *
+ * A route (Paket RT, `routeId`) is shown the same way, over its own stations:
+ * the points of all its tracks, one where two meet, the curves and the
+ * stretches across the joints, and where it goes over to the next track a
+ * line with that track's name. Every edit lands in the track the point
+ * belongs to (routeProfile, decision 251); a point moves only within its
+ * track, and a double click adds a point to the track the route runs there.
  */
 // The profile is read from the store, through the subscription: every write
 // draws it again.
-export default function ElevationOverlay({ trackId, section = null, onClose }) {
+export default function ElevationOverlay({ trackId, routeId = null, section = null, onClose }) {
   const { t, fill } = useI18n()
   const map = useMap()
   const tracks   = useTracks()
   const switches = useSwitches()
   const project  = useProject()
-  const track    = tracks.find(tr => tr.id === trackId)
+  const routes   = useRoutes()
+  // A route (Paket RT) or a single track — the track as the route of one part,
+  // so both are drawn and edited the same way (decision 251).
+  const routeRec = routeId ? routes.find(r => r.id === routeId) ?? null : null
+  const track    = routeRec ? null : tracks.find(tr => tr.id === trackId) ?? null
+  const viewKey  = routeRec ? `route:${routeRec.id}` : trackId
+  const resolved = useMemo(() => {
+    if (routeRec) { const r = resolveRoute(routeRec, tracks, switches); return r.parts.length ? r : null }
+    return track ? trackAsRoute(track) : null
+  }, [routeRec, track, tracks, switches])
+  const parts = resolved?.parts ?? []
+  const title = routeRec ? routeRec.name : track ? track.name || track.id.slice(0, 8) : ''
 
   const [exaggeration, setExaggeration] = useState(10)
   const [view, setView]         = useState(null)     // { k, x0, z0 }: px per m, station at the left edge, height at the bottom edge
@@ -151,7 +172,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const svgRef  = useRef(null)
   const size = useElementSize(bodyRef)                // { w, h } of the drawing area
   const overlay = useOverlayHeight(bodyRef, { min: MIN_OVERLAY_PX })
-  // Reading the gradient from the terrain: { trackId, state } with state
+  // Reading the gradient from the terrain: { key, state } with state
   // 'busy', 'missing' (no height data there) or 'failed'.
   const [reading, setReading] = useState(null)
 
@@ -183,7 +204,19 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     try { v = Number(loadSettings().shiftValues?.limitZ) } catch { v = NaN }
     return (Number.isFinite(v) && v > 0 ? v : DEFAULT_LIMIT_Z) / 1000
   })
-  const elements = track?.elements, epsg = track?.epsg, heights = track?.heights
+  // ── Data: the profile along the route, its points the tracks' own ────────
+  const profile = useMemo(() => (resolved ? routeProfile(resolved) : null), [resolved])
+  const points  = profile?.points ?? NO_POINTS
+  // The route as one line in one plane, for the reference axis — none where its tracks lie in different planes.
+  const epsg = parts.length && parts.every(p => Number(p.track.epsg) === Number(parts[0].track.epsg)) ? parts[0].track.epsg : null
+  const heightEpsg = parts[0]?.track.heightEpsg
+  // A single track hands on its own elements, so an edited height does not read the axis again.
+  const elements = useMemo(() => {
+    if (!resolved || !epsg) return null
+    const only = resolved.parts.length === 1 && !resolved.parts[0].reversed ? resolved.parts[0] : null
+    return only ? only.track.elements : routeElements(resolved, reverseTrack)
+  }, [resolved, epsg])
+  const heights = useMemo(() => points.map(p => ({ station: p.station, z: p.z, ...(p.rv != null ? { rv: p.rv } : {}) })), [points])
   const inPlane = useMemo(() => axes.filter(a => Number(a.epsg) === Number(epsg)), [axes, epsg])
   // The track's axis as the shift values read it — its heights are added
   // where they are compared, so an edited height does not sample it again.
@@ -192,7 +225,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     [inPlane.length, elements, epsg])
   const autoAxis = useMemo(() => (geometry ? nearestAxis(inPlane, geometry, epsg) : null), [geometry, inPlane, epsg])
   const refAxis = !refChoice ? null : refChoice === 'auto' ? autoAxis : inPlane.find(a => a.id === refChoice) ?? null
-  const refComparable = !!refAxis && heightsComparable(refAxis, track?.heightEpsg)
+  const refComparable = !!refAxis && heightsComparable(refAxis, heightEpsg)
   const refRows = useMemo(
     () => (refAxis && geometry && refComparable ? shiftValues(refAxis, geometry, { every: REF_EVERY, withHeights: false }) : []),
     [refAxis, geometry, refComparable])
@@ -209,16 +242,18 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
           : !refRuns.length ? fill('shift_no_overlap', { axis: refAxis.name })
             : null
 
-  // ── Data: the track's own profile and the stubs of the joined tracks ──────
-  // Recomputed on every render — it is a few hundred numbers, and the
-  // subscription re-renders us after each write to the store.
-  const profile = track ? trackProfile(track) : null
-  const points  = profile?.points ?? []
-  const stubs = track ? [['BEGIN', -1, 0], ['END', 1, profile.length]].flatMap(([end, sign, origin]) =>
-    adjacentTracks(tracks, switches, track, end).map(n => ({
+  // The tracks joined at either end of the route — its own left out — show
+  // their first stretch beyond the joint.
+  const inRoute = new Set(parts.map(p => p.trackId))
+  const first = parts[0], lastPart = parts[parts.length - 1]
+  const stubs = resolved ? [
+    [first.track, first.reversed ? 'END' : 'BEGIN', -1, 0],
+    [lastPart.track, lastPart.reversed ? 'BEGIN' : 'END', 1, profile.length],
+  ].flatMap(([tr, end, sign, origin]) =>
+    adjacentTracks(tracks, switches, tr, end).filter(n => !inRoute.has(n.track.id)).map(n => ({
       name:   n.track.name || n.track.id.slice(0, 8),
       points: neighbourStub(n).map(p => ({ station: origin + sign * p.d, z: p.z })),
-    })).filter(s => s.points.length === 2),
+    })).filter(st => st.points.length === 2),
   ) : []
   const allPoints = [...points, ...stubs.flatMap(s => s.points)]
   // The curves rounding the gradient changes.
@@ -226,11 +261,27 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const overlaps = verticalCurveOverlaps(points)
   // What the Höhenplan rules say, by the point a stretch ends at and the
   // point a gradient change sits at.
-  const check = track ? checkVertical(track, { project, switches }) : null
-  const stretchAt = new Map((check?.stretches ?? []).map(s => [s.index, s]))
-  const curveAt = new Map((check?.curves ?? []).map(c => [c.index, c]))
-  // Points a turnout's main route sets on this branch, by index → switch.
-  const locked = track ? coupledPoints(tracks, switches, track) : new Map()
+  // Each track judged on its own, laid onto the route.
+  const check = profile
+    ? routeFindings(profile, new Map(parts.map(p => [p.trackId, checkVertical(p.track, { project, switches })])))
+    : null
+  const stretchAt = check?.stretchAt ?? new Map()
+  const curveAt = check?.curveAt ?? new Map()
+  // Points a turnout's main route sets on a branch, by route index → switch.
+  const locked = new Map()
+  for (const part of parts) {
+    for (const [index, sw] of coupledPoints(tracks, switches, part.track)) {
+      const i = profile.byRef(part.trackId, index)
+      if (i != null) locked.set(i, sw)
+    }
+  }
+  /** The track and its own station at a station of the route. */
+  const onTrackAt = (s) => (resolved ? routeAt(resolved, s) : null)
+  /** The height built at a station of the route — on a turnout's branch, the plane of the turnout. */
+  const heightAt = (s) => {
+    const a = onTrackAt(s)
+    return a ? trackHeightAt(tracks, switches, a.part.track, a.station) : null
+  }
   const mainOf = (sw) => {
     const main = tracks.find(tr => tr.id === sw[`port${turnoutLinePort(sw)}_trackId`])
     return main?.name || main?.id.slice(0, 8) || '–'
@@ -250,7 +301,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   // point added or deleted here (`keepView`).
   // The reference axis counts as it is laid over the track or taken away.
   const fitPoints = [...allPoints, ...refPoints.map(p => ({ station: p.s, z: p.z }))]
-  const fitKeyFor = (n) => `${trackId}|${exaggeration}|${size ? 1 : 0}|${devPx}|${n}`
+  const fitKeyFor = (n) => `${viewKey}|${exaggeration}|${size ? 1 : 0}|${devPx}|${n}`
   const wantFit = fitKeyFor(fitPoints.length)
   const keepView = (n) => setFitKey(fitKeyFor(fitPoints.length + n))
   if (size && fitPoints.length && fitKey !== wantFit) {
@@ -266,23 +317,30 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     })
     setFitKey(wantFit)
   }
-  const [activeKey, setActiveKey] = useState(trackId)
-  if (activeKey !== trackId) { setActiveKey(trackId); setSelection([]); setDraft(''); setRvDraft('') }
+  const [activeKey, setActiveKey] = useState(viewKey)
+  if (activeKey !== viewKey) { setActiveKey(viewKey); setSelection([]); setDraft(''); setRvDraft('') }
 
   // ── Map: the elements the selected points sit on, in red ──────────────────
   // A height point belongs to the track, not to an element; the element it
   // happens to fall in is what the map can show.
   // Kept as a string so the effect runs on a changed set, not on every render.
-  const selectedElementsKey = [...new Set(selection
-    .map(i => elementAtStation(track?.elements, points[i]?.station ?? 0)?.elIdx)
-    .filter(i => i != null))].sort((a, b) => a - b).join(',')
+  const selectedElementsKey = [...new Set(selection.map(i => {
+    const o = points[i]?.owner
+    const el = o && elementAtStation(o.part.track.elements, o.part.track.heights?.[o.index]?.station ?? 0)?.elIdx
+    return el != null ? `${o.trackId}:${el}` : null
+  }).filter(Boolean))].sort().join(',')
   useEffect(() => {
     const m = map?.current
     if (!m?.getLayer(TRACKS_SELECTED_LAYER)) return
-    const idx = selectedElementsKey ? selectedElementsKey.split(',').map(Number) : []
-    m.setFilter(TRACKS_SELECTED_LAYER, idx.length ? filterForElements(trackId, idx) : FILTER_NONE)
+    const byTrack = new Map()
+    for (const k of selectedElementsKey ? selectedElementsKey.split(',') : []) {
+      const [id, el] = k.split(':')
+      byTrack.set(id, [...(byTrack.get(id) ?? []), Number(el)])
+    }
+    m.setFilter(TRACKS_SELECTED_LAYER, !byTrack.size ? FILTER_NONE
+      : ['any', ...[...byTrack].map(([id, idx]) => filterForElements(id, idx))])
     return () => { if (mapIsLive(map, m) && m.getLayer(TRACKS_SELECTED_LAYER)) m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE) }
-  }, [map, trackId, selectedElementsKey])
+  }, [map, selectedElementsKey])
 
   // ── Zoom about the cursor (both axes, the exaggeration stays) ─────────────
   useWheelZoom(svgRef, (f, px, py) => setView(v => {
@@ -296,11 +354,14 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   // ── The cursor's station on the map ──────────────────────────────────────
   const cursorPreview = usePreview(CURSOR_LAYERS)
   useEffect(() => {
-    const point = track && cursor != null ? pointAtStation(track, cursor) : null
+    const point = resolved && cursor != null ? routePointAt(resolved, cursor) : null
     if (!point) { cursorPreview.clear(); return }
-    const [lng, lat] = utmToWgs84(point.utm.easting, point.utm.northing, track.epsg)
+    const on = parts.find(p => p.trackId === point.trackId)
+    const [lng, lat] = utmToWgs84(point.utm.easting, point.utm.northing, on.track.epsg)
     cursorPreview.set(CURSOR_SOURCE, { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lng, lat] } })
-  }, [track, cursor, cursorPreview])
+    // parts follow resolved
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved, cursor, cursorPreview])
 
   // ── Pan by dragging, pick a group of points with Shift ────────────────────
   // A drag that stays put is a click on the background: it drops the selection.
@@ -353,7 +414,25 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     setRvNote(null)
   }
   // A point's station can move unless it is a joint or a turnout sets it.
-  const stationMovable = (p) => !locked.has(p.index) && endOfIndex(track, p.index) == null
+  const stationMovable = (p) => !locked.has(p.index) && p.trackEnd == null && !p.joint
+
+  /**
+   * Write a point solved along the route (`r`: { station, z } in route
+   * stations) to the track it belongs to: a station moved within that track,
+   * a height to every track meeting at it (jointHeightUpdates). `rv` a radius
+   * to set with it — null takes the curve away, undefined leaves it.
+   */
+  const writePoint = (p, r, rv) => {
+    const { part, index, trackId: id } = p.owner
+    const own = part.track.heights
+    if (Math.abs(r.station - p.station) > 1e-9) {
+      const q = { ...own[index], station: Math.round(partStation(part, r.station - part.offset) * 1e6) / 1e6, z: r.z }
+      if (rv !== undefined) { if (rv == null) delete q.rv; else q.rv = rv }
+      setTrackHeights(id, own.map((h, i) => (i === index ? q : h)))
+    } else if (Math.abs(r.z - p.z) > 1e-9 || rv !== undefined) {
+      setHeightsForTracks(jointHeightUpdates(tracks, switches, [{ trackId: id, index, z: r.z, ...(rv !== undefined ? { rv } : {}) }]))
+    }
+  }
   const rvMixed = selectedPoints.some(p => p.rv !== selectedPoints[0]?.rv)
   /** Click picks one point, Ctrl/Shift-click adds it to or drops it from the selection. */
   const pick = (p, e) => {
@@ -362,7 +441,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   }
 
   const commit = () => {
-    if (!track || !selectedPoints.length) return
+    if (!resolved || !selectedPoints.length) return
     // An empty field is the mixed values of the selection — it changes nothing.
     // A radius of 0 takes the vertical curve away.
     const patch = {}
@@ -373,19 +452,17 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     const one = selectedPoints.length === 1 ? selectedPoints[0] : null
     const st = one && stationMovable(one) && stDraft.trim() ? Number(stDraft) : null
     if (st != null && Number.isFinite(st) && Math.abs(st - one.station) > 1e-9) {
-      const r = solveHeightPoint(track.heights, one.index, { s: st, z: patch.z ?? one.z }, { length: profile.length })
+      const r = solveHeightPoint(points, one.index, { s: st, z: patch.z ?? one.z }, { length: profile.length })
       if (r.error) { setRvNote(fill(`elevation_table_error_${r.error}`, { n: one.index + 1 })); return }
-      const q = { ...track.heights[one.index], station: r.station, z: r.z }
-      if (patch.rv !== undefined) { if (patch.rv == null) delete q.rv; else q.rv = patch.rv }
-      setTrackHeights(track.id, track.heights.map((h, i) => (i === one.index ? q : h)))
-      setStDraft(String(r.station)); setRvNote(null)
+      writePoint(one, r, patch.rv)
+      setStDraft(String(Math.round(r.station * 1000) / 1000)); setRvNote(null)
       return
     }
     if (!Object.keys(patch).length) return
     // Where tracks meet there is one point, whatever its index is on each of
     // them: it moves on all of them — over a switch too.
     const entries = selectedPoints.filter(p => !locked.has(p.index))
-      .map(p => ({ trackId: track.id, index: p.index, ...patch }))
+      .map(p => ({ trackId: p.owner.trackId, index: p.owner.index, ...patch }))
     if (!entries.length) return
     setHeightsForTracks(jointHeightUpdates(tracks, switches, entries))
   }
@@ -396,44 +473,51 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
    * point without a known speed keeps its curve, and the panel says so.
    */
   const setRegularRadius = () => {
-    if (!track || !selectedPoints.length) return
+    if (!resolved || !selectedPoints.length) return
     const found = selectedPoints.filter(p => !locked.has(p.index))
-      .map(p => ({ p, r: regularVerticalRadius(track, p.index, { switches }) }))
+      .map(p => ({ p, r: regularVerticalRadius(p.owner.part.track, p.owner.index, { switches }) }))
       .filter(({ r }) => r)
     const set = found.filter(({ r }) => !r.noSpeed)
     const noSpeed = found.length - set.length
     setRvNote(noSpeed ? fill('elevation_vcurve_no_speed', { n: noSpeed }) : null)
     if (!set.length) return
     setHeightsForTracks(jointHeightUpdates(tracks, switches,
-      set.map(({ p, r }) => ({ trackId: track.id, index: p.index, rv: r.rv }))))
+      set.map(({ p, r }) => ({ trackId: p.owner.trackId, index: p.owner.index, rv: r.rv }))))
     const rvOf = new Map(set.map(({ p, r }) => [p.index, r.rv]))
     setRvDraft(common(selectedPoints.map(p => (rvOf.has(p.index) ? rvOf.get(p.index) : p.rv))))
   }
 
-  // Only the two ends of the track have to stay: they are where its height
+  // Only the two ends of each track have to stay: they are where its height
   // meets the tracks joined to it.
-  const isInner = (p) => p.index > 0 && p.index < points.length - 1
+  const isInner = (p) => !p.joint && p.owner.index > 0 && p.owner.index < (p.owner.part.track.heights?.length ?? 0) - 1
   const deletable = selectedPoints.filter(p => isInner(p) && !locked.has(p.index))
   const remove = () => {
-    if (!track || !deletable.length) return
-    const drop = new Set(deletable.map(p => p.index))
-    setTrackHeights(track.id, (track.heights ?? []).filter((_, i) => !drop.has(i)))
-    keepView(-drop.size)
+    if (!resolved || !deletable.length) return
+    const drop = new Map()
+    for (const p of deletable) drop.set(p.owner.trackId, new Set([...(drop.get(p.owner.trackId) ?? []), p.owner.index]))
+    setHeightsForTracks(new Map([...drop].map(([id, gone]) => [id,
+      (parts.find(x => x.trackId === id).track.heights ?? []).filter((_, i) => !gone.has(i))])))
+    keepView(-deletable.length)
     select([])
   }
 
   // ── Splitting the gradient with a new point ──────────────────────────────
-  /** The point a double click at (x, y) would add: on the gradient, between two points. */
+  /**
+   * The point a double click at (x, y) would add: on the gradient, between
+   * two points of the track the route runs there — added to that track.
+   */
   const insertAt = ({ x, y }) => {
     if (!view || !size || !points.length || x < MARGIN.left || x > size.w - MARGIN.right || y > plotBottom) return null
     const station = Math.round((view.x0 + (x - MARGIN.left) / view.k) * 100) / 100
-    const r = insertHeightPoint(track.heights, station)
+    const on = onTrackAt(station)
+    if (!on || station < 0 || station > profile.length) return null
+    const r = insertHeightPoint(on.part.track.heights, on.station)
     if (!r) return null
     const z = r.heights[r.index].z
-    const [a, b] = [r.heights[r.index - 1], r.heights[r.index + 1]]
+    const [a, b] = [r.heights[r.index - 1], r.heights[r.index + 1]].map(h => X(routeStationOfPart(on.part, h.station)))
     if (Math.abs(Y(z) - y) > INSERT_HIT_PX
-      || x - X(a.station) < INSERT_POINT_GAP_PX || X(b.station) - x < INSERT_POINT_GAP_PX) return null
-    return { station, z, ...r }
+      || Math.abs(x - a) < INSERT_POINT_GAP_PX || Math.abs(b - x) < INSERT_POINT_GAP_PX) return null
+    return { station, z, trackId: on.trackId, ...r }
   }
   // The station under the cursor, on the track — or null beside the plot.
   const cursorAt = ({ x, y }) => {
@@ -449,13 +533,17 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   const insert = (e) => {
     const c = insertAt(svgXY(e))
     if (!c) return
-    setTrackHeights(track.id, c.heights)
+    setTrackHeights(c.trackId, c.heights)
     keepView(1)
     setHover(null)
-    setSelection([c.index]); setDraft(String(c.z)); setRvDraft('')
+    // Where the new point stands in the route, read from the state just written.
+    const now = loadTracks(), sw = loadSwitches()
+    const next = routeRec ? resolveRoute(routeRec, now, sw) : trackAsRoute(now.find(tr => tr.id === trackId))
+    const i = routeProfile(next).byRef(c.trackId, c.index)
+    setSelection(i == null ? [] : [i]); setDraft(String(c.z)); setRvDraft('')
   }
 
-  if (!track) return null
+  if (!resolved) return null
 
   /** The tooltip of a stretch or gradient change: its values, then each finding. */
   const findingNote = (entry, values) => [
@@ -487,25 +575,39 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     return t('table_type_straight')
   }
 
-  const readState = reading?.trackId === trackId ? reading.state : null
+  // The gradient read from the terrain for every track of the route, as one step.
+  const readState = reading?.key === viewKey ? reading.state : null
   const readFromTerrain = async () => {
-    setReading({ trackId, state: 'busy' })
+    setReading({ key: viewKey, state: 'busy' })
     let state = null
     try {
-      const r = await fillHeights(currentProject, { force: true, trackId, source: chosenTerrainSource() })
-      if (r.heights.size) setHeightsForTracks(r.heights)
-      if (!r.updated) state = 'missing'
+      const all = new Map()
+      let updated = 0
+      for (const part of parts) {
+        const r = await fillHeights(currentProject, { force: true, trackId: part.trackId, source: chosenTerrainSource() })
+        for (const [id, h] of r.heights) all.set(id, h)
+        updated += r.updated
+      }
+      if (all.size) setHeightsForTracks(all)
+      if (!updated) state = 'missing'
     } catch {
       state = 'failed'
     }
-    setReading({ trackId, state })
+    setReading({ key: viewKey, state })
   }
 
-  // The cross section's station on this track, and the height built there.
-  const sectionStation = section?.trackId === trackId && Number.isFinite(section.station)
-    ? clamp(section.station, 0, profile.length) : null
-  const sectionZ = sectionStation != null ? trackHeightAt(tracks, switches, track, sectionStation) : null
-  const cursorZ = cursor != null ? trackHeightAt(tracks, switches, track, cursor) : null
+  // The cross section's station on the route — its own where it walks this
+  // route, else where it stands on one of its tracks — and the height built there.
+  const sectionStation = (() => {
+    if (!section) return null
+    if (routeRec && section.routeId === routeRec.id && Number.isFinite(section.routeStation)) {
+      return clamp(section.routeStation, 0, profile.length)
+    }
+    const part = parts.find(p => p.trackId === section.trackId)
+    return part && Number.isFinite(section.station) ? routeStationOfPart(part, clamp(section.station, 0, part.length)) : null
+  })()
+  const sectionZ = sectionStation != null ? heightAt(sectionStation) : null
+  const cursorZ = cursor != null ? heightAt(cursor) : null
   const cursorDz = cursor != null && devShown ? deviationAt(refRuns, cursor) : null
   /** A lift in mm, signed. */
   const mmLabel = (v) => { const m = Math.round(v * 1000); return `${m > 0 ? '+' : m < 0 ? '−' : ''}${Math.abs(m)} mm` }
@@ -651,6 +753,15 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               {b.el && <text x={X(b.station) + 3} y={MARGIN.top + 11} fontSize="10" fill={PALETTE.label}>{typeLabel(b.el)}</text>}
             </g>
           ))}
+          {/* where the route goes over from one track to the next, named */}
+          {profile.partStarts.map(({ station, part }) => (
+            <g key={`ps${part.trackId}${station}`} pointerEvents="none">
+              <line x1={X(station)} x2={X(station)} y1={MARGIN.top} y2={bottom} stroke={PALETTE.axis} strokeWidth="1.5" />
+              <text x={X(station) + 3} y={MARGIN.top + 23} fontSize="10" fill={PALETTE.textStrong}>
+                {`▶ ${part.track.name || part.trackId.slice(0, 8)}${part.reversed ? ' ⇄' : ''}`}
+              </text>
+            </g>
+          ))}
           {/* joined tracks */}
           {stubs.map((s, i) => {
             const [a, b] = s.points
@@ -790,7 +901,8 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
       <div className="profile-resize" onPointerDown={overlay.onResizeStart} />
       <div className="track-table-header">
         <div className="profile-head">
-          <span className="track-table-title">{track.name || track.id.slice(0, 8)}</span>
+          <span className="track-table-title">{title}</span>
+          {routeRec && !resolved.ok && <span className="profile-hint msg-warn">{t('elevation_route_gaps')}</span>}
           <div className="profile-tabs" role="tablist" aria-label={t('elevation_view')}>
             {['graphic', 'table'].map(v => (
               <button key={v} type="button" role="tab" aria-selected={viewKind === v}
@@ -907,7 +1019,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
             </div>
           )
           : viewKind === 'table' && points.length ? (
-            <ElevationTable track={track} tracks={tracks} switches={switches} points={points} length={profile.length}
+            <ElevationTable points={points} length={profile.length} onWrite={writePoint}
               mode={given} locked={locked} lockedNote={lockedNote}
               stretchAt={stretchAt} curveAt={curveAt} stretchNote={stretchNote} curveNote={curveNote}
               selection={selection} onSelect={select} />

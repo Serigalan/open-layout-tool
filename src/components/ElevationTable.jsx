@@ -1,8 +1,5 @@
 import { useRef, useState } from 'react'
-import { setTrackHeights, setHeightsForTracks } from '../storage'
-import {
-  GIVEN_MODES, endOfIndex, jointHeightUpdates, pointGrades, solveHeightPoint, tangentLength,
-} from '../utils/heightUtils'
+import { GIVEN_MODES, pointGrades, solveHeightPoint, tangentLength } from '../utils/heightUtils'
 import { useI18n } from '../locales/i18nContext'
 import NumberInput from './form/NumberInput'
 
@@ -55,17 +52,22 @@ function ValueCell({ value, digits, step, editable, onCommit, className, title }
 }
 
 /**
- * The gradient of one track as a table (the Höhenplan's second view): every
+ * The gradient of one track or route as a table (the Höhenplan's second view): every
  * point with its station, height, the gradients before and after it in ‰,
  * the radius of its vertical curve and the tangent length that gives. Two of
  * station, height and the two gradients are given (`mode`, GIVEN_MODES) and
  * can be typed; the other two follow, the points either side stay. A
  * gradient a rule flags and a curve with a finding are coloured as in the
  * graphic view. A row clicked is the selection the graphic view shows.
+ *
+ * `points` are the profile's (routeProfile): solved along the route, a point
+ * is written back by `onWrite(point, { station, z }, rv)` to the track it
+ * belongs to. A point at the end of its track — where tracks meet, also
+ * between two tracks of a route — keeps its station.
  */
 export default function ElevationTable({
-  track, tracks, switches, points, length, mode, locked, lockedNote,
-  stretchAt, curveAt, stretchNote, curveNote, selection, onSelect,
+  points, length, mode, locked, lockedNote,
+  stretchAt, curveAt, stretchNote, curveNote, selection, onSelect, onWrite,
 }) {
   const { t, fill } = useI18n()
   const [error, setError] = useState(null)       // { index, code } of the last value that could not be taken
@@ -75,18 +77,14 @@ export default function ElevationTable({
     const p = points[i]
     const g = pointGrades(points, i)
     const now = { s: p.station, z: p.z, gb: g.before, ga: g.after }
-    const r = solveHeightPoint(track.heights, i, { [key]: value, [partner]: now[partner] }, { length })
+    const r = solveHeightPoint(points, i, { [key]: value, [partner]: now[partner] }, { length })
     if (r.error) { setError({ index: i, code: r.error }); return }
     setError(null)
-    if (Math.abs(r.station - p.station) > 1e-9) {
-      setTrackHeights(track.id, track.heights.map((q, k) => (k === i ? { ...q, station: r.station, z: r.z } : q)))
-    } else if (Math.abs(r.z - p.z) > 1e-9) {
-      setHeightsForTracks(jointHeightUpdates(tracks, switches, [{ trackId: track.id, index: i, z: r.z }]))
-    }
+    onWrite(p, r)
   }
   const applyRadius = (i, rv) => {
     setError(null)
-    setHeightsForTracks(jointHeightUpdates(tracks, switches, [{ trackId: track.id, index: i, rv: rv > 0 ? rv : null }]))
+    onWrite(points[i], { station: points[i].station, z: points[i].z }, rv > 0 ? rv : null)
   }
 
   const sev = (entry) => (entry?.severity && entry.severity !== 'ok' ? `rule-sev-${entry.severity}` : undefined)
@@ -113,7 +111,7 @@ export default function ElevationTable({
         <tbody>
           {points.map((p, i) => {
             const isLocked = locked.has(i)
-            const joint = endOfIndex(track, i) != null
+            const joint = points[i].trackEnd != null || points[i].joint
             const edit = editableAt(i, n, mode, { joint, locked: isLocked })
             const g = pointGrades(points, i)
             const cell = (key) => ({
