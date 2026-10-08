@@ -46,23 +46,30 @@ export function useOverlayHeight(bodyRef, { min, fallback = 300 }) {
 /**
  * The wheel over the element behind `ref`, as a factor to zoom by and the
  * point it is over (px within the element). The listener is not passive, so
- * the page does not scroll along. `active` re-attaches it once the element is
- * there.
+ * the page does not scroll along. Only while `active`. It follows the
+ * element: a drawing taken out and put back — another tab shown in between,
+ * no data for a while — is a new element, and the wheel is bound to it anew.
  */
 export function useWheelZoom(ref, onZoom, active) {
   const onZoomRef = useRef(onZoom)
+  const bound = useRef(null)          // { el, off } — the element listened to
   useEffect(() => { onZoomRef.current = onZoom })
+  // After every render: cheap, it only binds when the element changed.
   useEffect(() => {
-    const el = ref.current
-    if (!el || !active) return
+    const el = active ? ref.current : null
+    if ((bound.current?.el ?? null) === el) return
+    bound.current?.off()
+    bound.current = null
+    if (!el) return
     const onWheel = (e) => {
       e.preventDefault()
       const rect = el.getBoundingClientRect()
       onZoomRef.current(Math.exp(-e.deltaY * 0.0015), e.clientX - rect.left, e.clientY - rect.top)
     }
     el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [ref, active])
+    bound.current = { el, off: () => el.removeEventListener('wheel', onWheel) }
+  })
+  useEffect(() => () => { bound.current?.off(); bound.current = null }, [])
 }
 
 /**
