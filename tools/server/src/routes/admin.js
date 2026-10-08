@@ -16,24 +16,26 @@ export default async function adminRoutes(api) {
     setName:   api.db.prepare('UPDATE user SET name = ? WHERE id = ?'),
     setRole:   api.db.prepare('UPDATE user SET role = ? WHERE id = ?'),
     setActive: api.db.prepare('UPDATE user SET active = ? WHERE id = ?'),
+    setClouds: api.db.prepare('UPDATE user SET can_edit_clouds = ? WHERE id = ?'),
   }
 
   api.get('/admin/users', opts, async () => ({ users: auth.listUsers().map(publicUser) }))
 
   api.post('/admin/users', opts, async (req, reply) => {
-    const { login, name, role = 'user', password } = req.body ?? {}
+    const { login, name, role = 'user', password, canEditClouds = false } = req.body ?? {}
     if (!/^[\p{L}\p{N}._@-]{2,64}$/u.test(String(login ?? '').trim())) throw new ApiError(422, 'login_invalid')
     if (!ROLES.has(role)) throw new ApiError(422, 'role_invalid')
     if (!passwordAcceptable(password)) throw new ApiError(422, 'password_too_short')
     if (auth.userByLogin(login)) throw new ApiError(409, 'login_taken')
     const user = await auth.createUser({ login, name: String(name ?? '').trim() || String(login).trim(), password, role, mustChangePassword: true })
-    return reply.code(201).send({ user: publicUser(user) })
+    if (canEditClouds) q.setClouds.run(1, user.id)
+    return reply.code(201).send({ user: publicUser(auth.userById(user.id)) })
   })
 
   api.patch('/admin/users/:id', opts, async (req) => {
     const user = auth.userById(Number(req.params.id))
     if (!user) throw new ApiError(404, 'not_found')
-    const { name, role, active, password } = req.body ?? {}
+    const { name, role, active, password, canEditClouds } = req.body ?? {}
     const losesAdmin = user.role === 'admin' && user.active
       && ((role !== undefined && role !== 'admin') || active === false)
     if (losesAdmin && auth.activeAdmins() <= 1) throw new ApiError(409, 'last_admin')
@@ -44,6 +46,7 @@ export default async function adminRoutes(api) {
       if (name !== undefined) q.setName.run(String(name).trim() || user.login, user.id)
       if (role !== undefined) q.setRole.run(role, user.id)
       if (active !== undefined) q.setActive.run(active ? 1 : 0, user.id)
+      if (canEditClouds !== undefined) q.setClouds.run(canEditClouds ? 1 : 0, user.id)
     })()
     if (password !== undefined) await auth.setPassword(user.id, password, { mustChange: true })
     if (active === false || password !== undefined) auth.closeAllSessions(user.id)

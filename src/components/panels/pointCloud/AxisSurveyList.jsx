@@ -7,6 +7,7 @@ import { crsName, utmToWgs84 } from '../../../utils/coordinateUtils'
 import { useI18n } from '../../../locales/i18nContext'
 import { formatDate } from '../../../locales/i18n'
 import { useAxisSurveys } from '../../../hooks/useStore'
+import { useMayEditClouds } from '../../../hooks/useCurrentUser'
 import { useMap } from '../../../map/MapContext'
 import usePreview from '../../../map/usePreview'
 import { PALETTE } from '../../../styles/palette'
@@ -38,6 +39,7 @@ export default function AxisSurveyList({ erasingId = null, onErasing }) {
   const { t, fill, language } = useI18n()
   const map = useMap()
   const surveys = useAxisSurveys()
+  const mayEdit = useMayEditClouds()
   const [soReference, setSoReference] = useState('lower')
   const [asking, setAsking] = useState(null)   // the survey a delete waits on
 
@@ -90,11 +92,15 @@ export default function AxisSurveyList({ erasingId = null, onErasing }) {
                 onClick={() => exportAxisPoints(surveyPoints(s), { name: s.name, epsg: s.epsg, soReference })}>
                 {t('axis_survey_export')}
               </button>
-              <button className={`modal-btn modal-btn-cancel${erasingId === s.id ? ' active' : ''}`}
-                onClick={() => onErasing?.(erasingId === s.id ? null : s.id)}>
-                {t(erasingId === s.id ? 'axis_survey_erase_done' : 'axis_survey_erase')}
-              </button>
-              <button className="modal-btn modal-btn-confirm" onClick={() => setAsking(s)}>{t('modal_delete')}</button>
+              {mayEdit && (
+                <>
+                  <button className={`modal-btn modal-btn-cancel${erasingId === s.id ? ' active' : ''}`}
+                    onClick={() => onErasing?.(erasingId === s.id ? null : s.id)}>
+                    {t(erasingId === s.id ? 'axis_survey_erase_done' : 'axis_survey_erase')}
+                  </button>
+                  <button className="modal-btn modal-btn-confirm" onClick={() => setAsking(s)}>{t('modal_delete')}</button>
+                </>
+              )}
             </div>
             {erasingId === s.id && <span className="selecting-hint">{t('axis_survey_erase_hint')}</span>}
           </div>

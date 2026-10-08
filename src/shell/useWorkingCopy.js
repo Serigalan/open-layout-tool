@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { closeWorkingCopy, currentWorkingCopy } from '../storage'
 import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, revertToHead, serverHead } from '../utils/workingCopySync'
 import { useProject } from '../hooks/useStore'
+import { errorText } from '../components/collab/errorText'
 
 // How often the open app asks whether the server has moved on [ms].
 const SERVER_POLL = 2 * 60 * 1000
@@ -147,7 +148,7 @@ export default function useWorkingCopy({ t }) {
       setNote(t('wc_checked_in'))
     } catch (err) {
       setSyncDialog({ kind: 'checkin', errors: err.body?.errors ?? [] })
-      if (!err.body?.errors) setNote(t('collab_err_generic'))
+      if (!err.body?.errors) setNote(errorText(t, err.code))
     } finally {
       setBusy(false)
     }

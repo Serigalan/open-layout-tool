@@ -5,6 +5,7 @@ import { forgetCloud } from '../../utils/pointCloud/cloudSection'
 import { sizeText } from '../../utils/pointCloud/cloudFormat'
 import { useI18n } from '../../locales/i18nContext'
 import { useProject } from '../../hooks/useStore'
+import { useMayEditClouds } from '../../hooks/useCurrentUser'
 import usePreview from '../../map/usePreview'
 import { PALETTE } from '../../styles/palette'
 import CloudImportForm from './pointCloud/CloudImportForm'
@@ -31,6 +32,7 @@ const OUTLINE_LAYERS = [{
 export default function PointCloudPanel() {
   const { t, fill } = useI18n()
   const project = useProject()
+  const mayEdit = useMayEditClouds()
   const [clouds, setClouds] = useState(null)
   const [storage, setStorage] = useState(null)  // { usage, quota, free, persisted }
   const [message, setMessage] = useState(null)  // { kind: 'error'|'done', text }
@@ -77,9 +79,11 @@ export default function PointCloudPanel() {
     <>
       <h2>{t('pointcloud_title')}</h2>
       <p className="selecting-hint">{t('pointcloud_hint')}</p>
-      <CloudImportForm storage={storage} onMessage={setMessage} onChanged={refresh} onRunning={setRunning} />
+      {mayEdit
+        ? <CloudImportForm storage={storage} onMessage={setMessage} onChanged={refresh} onRunning={setRunning} />
+        : <p className="selecting-hint">{t('pointcloud_view_only')}</p>}
       {message && <p className={message.kind === 'error' ? 'form-error' : 'selecting-hint'}>{message.text}</p>}
-      <CloudList clouds={clouds} busy={running} onDelete={remove} />
+      <CloudList clouds={clouds} busy={running} onDelete={mayEdit ? remove : null} />
       {clouds?.length > 0 && !running && <RailTraceSection clouds={clouds} paused={!!erasingId} />}
       <AxisSurveyList erasingId={erasingId} onErasing={setErasingId} />
       {storage && (

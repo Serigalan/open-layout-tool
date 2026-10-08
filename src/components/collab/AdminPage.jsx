@@ -97,6 +97,7 @@ export default function AdminPage({ user: me, onBack }) {
               <div className="admin-user-facts">
                 <span className={`admin-badge ${u.role}`}>{t(`admin_role_${u.role}`)}</span>
                 <span className={`admin-badge ${u.active ? 'active' : 'off'}`}>{t(u.active ? 'admin_active' : 'admin_inactive')}</span>
+                {u.canEditClouds && u.role !== 'admin' && <span className="admin-badge clouds" title={t('admin_clouds')}>{t('admin_badge_clouds')}</span>}
                 {u.mustChangePassword && <span className="admin-badge pending">{t('admin_start_password')}</span>}
                 <span className="collab-muted admin-last">
                   {u.lastLoginAt ? fill('admin_last_login', { date: formatDate(u.lastLoginAt, language) }) : t('admin_never')}
@@ -136,12 +137,13 @@ export default function AdminPage({ user: me, onBack }) {
   )
 }
 
-/** Create a user (login, name, role, start password) or edit one (name, role). */
+/** Create a user (login, name, role, start password) or edit one (name, role); both with the point cloud right. */
 function UserDialog({ user = null, onCancel, onSubmit }) {
   const { t } = useI18n()
   const [login, setLogin] = useState(user?.login ?? '')
   const [name, setName] = useState(user?.name ?? '')
   const [role, setRole] = useState(user?.role ?? 'user')
+  const [clouds, setClouds] = useState(user?.canEditClouds ?? false)
   const [password, setPassword] = useState(() => (user ? '' : startPassword()))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
@@ -150,7 +152,9 @@ function UserDialog({ user = null, onCancel, onSubmit }) {
     setBusy(true)
     setError(null)
     try {
-      await onSubmit(user ? { name: name.trim(), role } : { login: login.trim(), name: name.trim(), role, password })
+      await onSubmit(user
+        ? { name: name.trim(), role, canEditClouds: clouds }
+        : { login: login.trim(), name: name.trim(), role, password, canEditClouds: clouds })
     } catch (err) {
       setError(errorText(t, err.code, 'admin_err_'))
       setBusy(false)
@@ -179,6 +183,11 @@ function UserDialog({ user = null, onCancel, onSubmit }) {
           <option value="admin">{t('admin_role_admin')}</option>
         </select>
       </label>
+      <label className="collab-check">
+        <input type="checkbox" checked={role === 'admin' || clouds} disabled={role === 'admin'} onChange={e => setClouds(e.target.checked)} />
+        <span>{t('admin_clouds')}</span>
+      </label>
+      <p className="collab-hint">{t('admin_clouds_hint')}</p>
       {!user && (
         <label className="collab-field">
           <span>{t('admin_start_password')}</span>

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { ApiError } from '../errors.js'
-import { checkRecord, freshErrors } from '../checks.js'
+import { axisSurveysChanged, checkRecord, freshErrors, normalizedRecord } from '../checks.js'
+import { mayEditClouds } from '../auth.js'
 import { createStore, publicVariant } from '../store.js'
 
 /** Largest image [bytes]. */
@@ -221,7 +222,18 @@ export default async function projectRoutes(api) {
     if (!Array.isArray(remaps ?? [])) throw new ApiError(422, 'invalid_remaps')
     const { record, errors, warnings } = checkRecord(payload)
     if (record.id !== v.project_id) throw new ApiError(422, 'project_mismatch')
-    const known = store.revision(base).errorKeys
+    const parent = store.revision(base)
+    // Measured axes come from point clouds: changing them takes the right to
+    // (decision 216) — checked against the parents, so a merge that only
+    // brings the other side's along passes.
+    if (!mayEditClouds(req.user)
+      && axisSurveysChanged(record, normalizedRecord(parent.payload),
+        mergeParent != null ? normalizedRecord(store.revision(mergeParent).payload) : null)) {
+      throw new ApiError(403, 'clouds_not_allowed', {
+        message: 'Messachsen speichern oder löschen darf nur der Admin oder wer das Recht „Punktwolken bearbeiten“ hat.',
+      })
+    }
+    const known = parent.errorKeys
     const fresh = freshErrors(errors, known)
     if (fresh.length) return reply.code(422).send({ error: 'invalid_record', errors: fresh })
     const result = store.checkIn({

@@ -7,6 +7,7 @@ import { traceTrack, trackGuide, lineGuide, TRACE_STEP } from '../../../utils/po
 import { surveyFromTrace } from '../../../utils/axisSurvey'
 import { generateId } from '../../../utils/identifierUtils'
 import { saveAxisSurvey } from '../../../storage'
+import { useMayEditClouds } from '../../../hooks/useCurrentUser'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
 import { useMap } from '../../../map/MapContext'
@@ -50,6 +51,7 @@ const TRACE_LAYERS = [
  * measured axis (AP 12.3). `paused` leaves the map's clicks to someone else.
  */
 export default function RailTraceSection({ clouds, paused = false }) {
+  const mayEdit = useMayEditClouds()
   const { t, fill } = useI18n()
   const project = useProject()
   const tracks = loadTracks()
@@ -234,12 +236,16 @@ export default function RailTraceSection({ clouds, paused = false }) {
               </div>
               <button className="panel-btn panel-btn-full" onClick={exportCsv}>{t('railtrace_export')}</button>
               <span className="range-use">{fill('railtrace_export_hint', { epsg: String(result.epsg) })}</span>
-              <div className="form-field">
-                <label>{t('axis_survey_name')}</label>
-                <input type="text" value={surveyName} onChange={e => setSurveyName(e.target.value)} />
-              </div>
-              <button className="panel-btn panel-btn-full" onClick={keep}>{t('axis_survey_save')}</button>
-              <span className="range-use">{t('axis_survey_save_hint')}</span>
+              {mayEdit ? (
+                <>
+                  <div className="form-field">
+                    <label>{t('axis_survey_name')}</label>
+                    <input type="text" value={surveyName} onChange={e => setSurveyName(e.target.value)} />
+                  </div>
+                  <button className="panel-btn panel-btn-full" onClick={keep}>{t('axis_survey_save')}</button>
+                  <span className="range-use">{t('axis_survey_save_hint')}</span>
+                </>
+              ) : <span className="range-use">{t('pointcloud_view_only')}</span>}
             </>
           )}
         </>

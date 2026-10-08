@@ -548,6 +548,7 @@ a.collab-btn { display: inline-block; text-decoration: none; }
 .admin-badge.active { color: var(--collab-ok); border-color: var(--collab-ok); }
 .admin-badge.off { color: var(--collab-danger); border-color: var(--collab-danger); }
 .admin-badge.pending { color: var(--collab-warn); border-color: var(--collab-warn); }
+.admin-badge.clouds { color: var(--collab-fg); border-color: var(--collab-muted); }
 .admin-notice { line-height: 1.6; }
 .admin-password {
   font-family: ui-monospace, monospace;

@@ -51,7 +51,7 @@ export default function CloudList({ clouds, busy, onDelete }) {
             <span className="pointcloud-meta">{`${c.file?.name ?? ''} · ${formatDate(c.createdAt, language, { time: true })}`}</span>
             <div className="pointcloud-actions">
               <button className="modal-btn modal-btn-cancel" onClick={() => showOnMap(c)}>{t('pointcloud_show')}</button>
-              <button className="modal-btn modal-btn-confirm" disabled={busy} onClick={() => setAsking(c)}>{t('modal_delete')}</button>
+              {onDelete && <button className="modal-btn modal-btn-confirm" disabled={busy} onClick={() => setAsking(c)}>{t('modal_delete')}</button>}
             </div>
           </div>
         )

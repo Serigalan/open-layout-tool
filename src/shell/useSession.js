@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, setUnauthorizedHandler } from '../api/client'
 import { flushPendingWrites } from '../storage'
+import { setCurrentUser } from '../hooks/useCurrentUser'
 
 const ANON = { status: 'anon', user: null }
 
@@ -26,6 +27,8 @@ export default function useSession() {
     try { await api.logout() } catch { /* the session is gone either way */ }
     setSession(ANON)
   }, [])
+
+  useEffect(() => { setCurrentUser(session.user) }, [session.user])
 
   return { ...session, signedIn, signOut }
 }

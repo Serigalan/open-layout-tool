@@ -38,10 +38,18 @@ export function publicUser(row) {
     role: row.role,
     active: Boolean(row.active),
     mustChangePassword: Boolean(row.must_change_password),
+    canEditClouds: Boolean(row.can_edit_clouds),
     createdAt: row.created_at,
     lastLoginAt: row.last_login_at ?? null,
   }
 }
+
+/**
+ * Whether `user` may change point clouds — upload, delete, re-reference,
+ * start server jobs, save or delete measured axes: an admin, or a user the
+ * admin gave the right (decision 203). Seeing them is a project member's.
+ */
+export const mayEditClouds = (user) => Boolean(user && (user.role === 'admin' || user.can_edit_clouds))
 
 /**
  * Users and sessions on one database. `now` is injectable for tests.
