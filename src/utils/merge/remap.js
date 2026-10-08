@@ -1,5 +1,6 @@
-import { elementStations, pointAtStation, stationFromClick } from '../platformUtils'
+import { pointAtStation, stationOnTrack } from '../platformUtils'
 import { portsOf } from '../switchModel'
+import { repairRoute } from '../routes'
 
 /**
  * Carrying a reference across a change of track ids (decision 93, merge rule 5).
@@ -62,20 +63,6 @@ function endPoint(track, endpoint) {
   const els = track?.elements ?? []
   if (!els.length) return null
   return endpoint === 'BEGIN' ? planePoint(els[0].startNode) : planePoint(els[els.length - 1].endNode)
-}
-
-/** Nearest station of a plane point on a track, with its distance. */
-function stationOnTrack(track, utm) {
-  let best = null
-  for (const row of elementStations(track)) {
-    const s = stationFromClick(track, row.index, utm)
-    if (s == null) continue
-    const p = pointAtStation(track, s)
-    if (!p) continue
-    const d = dist(p.utm, utm)
-    if (!best || d < best.dist) best = { station: s, dist: d, bearing: p.bearing }
-  }
-  return best
 }
 
 /**
@@ -182,7 +169,18 @@ export function carryReferences(project, logs, oldTracks) {
     return { ...m, trackId: hit.trackId, endpoint: hit.endpoint }
   })
 
+  // A route takes, for a track that went, the pieces lying where it lay (decision 249).
+  const routes = (project.routes ?? []).map(r => {
+    const next = repairRoute(r, tracks, switches, oldTrack, candidatesFor)
+    if (next === r) return r
+    for (const id of r.trackIds.filter(x => !present.has(x))) {
+      carried.push({ collection: 'routes', id: r.id, from: id, to: next.trackIds.filter(x => !r.trackIds.includes(x)).join(',') })
+    }
+    return next
+  })
+
   const out = { ...project }
+  if (project.routes)    out.routes    = routes
   if (project.switches)  out.switches  = switches
   if (project.platforms) out.platforms = platforms
   if (project.endMarks)  out.endMarks  = endMarks

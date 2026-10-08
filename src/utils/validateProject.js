@@ -6,6 +6,7 @@ import { absLengthErrors, epsgMismatches, nodeGaps, untrueLengths } from './chai
 import { trackLabel } from './trackModel'
 import { surveyDefect } from './axisSurvey'
 import { referenceAxisDefect } from './referenceAxis'
+import { resolveRoute } from './routes'
 
 /**
  * Whether a project record holds together — the check every merge result and
@@ -136,6 +137,19 @@ export function validateProject(project) {
   for (const a of project?.referenceAxes ?? []) {
     const defect = referenceAxisDefect(a)
     if (defect) add(errors, 'reference_axis_malformed', 'referenceAxes', a?.id ?? '?', a?.name ?? a?.id, { field: defect })
+  }
+
+  // ── routes: tracks that are there and meet (Paket RT) ──
+  for (const r of project?.routes ?? []) {
+    const label = r?.name ?? r?.id
+    if (!Array.isArray(r?.trackIds) || !r.trackIds.length) {
+      add(errors, 'route_malformed', 'routes', r?.id ?? '?', label)
+      continue
+    }
+    for (const g of resolveRoute(r, tracks, switches).gaps) {
+      add(warnings, g.kind === 'missing' ? 'route_track_missing' : 'route_gap', 'routes', r.id, label,
+        g.kind === 'missing' ? { trackId: g.trackId } : {}, g.kind === 'missing' ? g.trackId : `g${g.after}`)
+    }
   }
 
   // ── tracks drawn twice ──

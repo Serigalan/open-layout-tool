@@ -21,11 +21,13 @@ const switchesOf = part('switches')
 const platformsOf = part('platforms')
 const axisSurveysOf = part('axisSurveys')
 const referenceAxesOf = part('referenceAxes')
+const routesOf = part('routes')
 export const useTracks = () => useSyncExternalStore(subscribe, tracksOf, tracksOf)
 export const useSwitches = () => useSyncExternalStore(subscribe, switchesOf, switchesOf)
 export const usePlatforms = () => useSyncExternalStore(subscribe, platformsOf, platformsOf)
 export const useAxisSurveys = () => useSyncExternalStore(subscribe, axisSurveysOf, axisSurveysOf)
 export const useReferenceAxes = () => useSyncExternalStore(subscribe, referenceAxesOf, referenceAxesOf)
+export const useRoutes = () => useSyncExternalStore(subscribe, routesOf, routesOf)
 /** The ids of the tracks hidden on the map (a Set, kept on this device). */
 export const useHiddenTracks = () => useSyncExternalStore(subscribe, hiddenTracks, hiddenTracks)
 /** The step undo would take back and the one redo would bring again: { before, after }, or null. */

@@ -83,6 +83,20 @@ export function pointAtStation(track, station) {
   return pointOnElement(row.el, track.epsg, s - row.start)
 }
 
+/** Nearest station of a plane point on a track, with its distance. */
+export function stationOnTrack(track, utm) {
+  let best = null
+  for (const row of elementStations(track)) {
+    const s = stationFromClick(track, row.index, utm)
+    if (s == null) continue
+    const p = pointAtStation(track, s)
+    if (!p) continue
+    const d = Math.hypot(p.utm.easting - utm.easting, p.utm.northing - utm.northing)
+    if (!best || d < best.dist) best = { station: s, dist: d, bearing: p.bearing }
+  }
+  return best
+}
+
 /**
  * Sampling step [m] along an element so its offset edge stays within the
  * element sagitta of the true curve. The edge carries its own radius (the

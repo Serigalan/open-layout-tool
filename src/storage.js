@@ -7,6 +7,7 @@ import { generateId } from './utils/identifierUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
 import { coupleSwitchGradients, touchedTurnouts } from './utils/switchGradient'
+import { repairRoutes } from './utils/routes'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -96,7 +97,8 @@ function mutate(fn, { undo = true } = {}) {
   const next = fn(_project)
   if (!next || next === before) { _idLog = logBefore; return true }
   if (undo) { pushUndo(before, logBefore); _redoStack = [] }
-  const after = withCoupledGradients(before, withPrunedMarks(next))
+  // A route over a track the write took away runs over what lies there now (decision 249).
+  const after = withCoupledGradients(before, withPrunedMarks(repairRoutes(before, next)))
   if (undo && _undoDepth === 0) recordStep('do', before, after)
   setProject(after)
   return true
@@ -991,6 +993,23 @@ export function saveReferenceAxis(axis) {
 
 export function deleteReferenceAxis(axisId) {
   return mutate(p => ({ ...p, referenceAxes: (p.referenceAxes ?? []).filter(a => a.id !== axisId) }))
+}
+
+// ── routes (Paket RT) ───────────────────────────────────────────────────────
+
+// (read through useRoutes, hooks/useStore; resolved through utils/routes)
+
+/** Add a route, or replace the one with its id. One undo step. */
+export function saveRoute(route) {
+  return mutate(p => {
+    const routes = p.routes ?? []
+    const i = routes.findIndex(r => r.id === route.id)
+    return { ...p, routes: i < 0 ? [...routes, route] : routes.map(r => (r.id === route.id ? route : r)) }
+  })
+}
+
+export function deleteRoute(routeId) {
+  return mutate(p => ({ ...p, routes: (p.routes ?? []).filter(r => r.id !== routeId) }))
 }
 
 // ── switches ────────────────────────────────────────────────────────────────
