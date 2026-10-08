@@ -1,3 +1,4 @@
+import { dirname, join, resolve } from 'node:path'
 import { buildApp } from './app.js'
 import { openDatabase } from './db.js'
 import { createAuth, passwordAcceptable, randomPassword } from './auth.js'
@@ -17,6 +18,8 @@ import { createAuth, passwordAcceptable, randomPassword } from './auth.js'
  */
 const env = process.env
 const DB = env.OLT_SERVER_DB ?? 'olt.sqlite'
+/** Where point clouds are kept (phase 13): beside the database unless said otherwise. */
+const CLOUDS = env.OLT_SERVER_CLOUDS ?? join(dirname(resolve(DB)), 'clouds')
 
 async function main([command, ...args]) {
   if (command === 'serve') {
@@ -26,6 +29,7 @@ async function main([command, ...args]) {
       secureCookie: env.OLT_SERVER_INSECURE_COOKIE !== '1',
       ...(env.OLT_SERVER_TRUST_PROXY ? { trustProxy: env.OLT_SERVER_TRUST_PROXY.split(',').map(s => s.trim()).filter(Boolean) } : {}),
       logger: { level: env.OLT_SERVER_LOG ?? 'info' },
+      cloudRoot: CLOUDS,
     })
     setInterval(() => app.auth.sweep(), 3600 * 1000).unref()
     const close = async () => { await app.close(); db.close(); process.exit(0) }

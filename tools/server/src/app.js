@@ -6,11 +6,22 @@ import authRoutes from './routes/auth.js'
 import adminRoutes from './routes/admin.js'
 import projectRoutes from './routes/projects.js'
 import userRoutes from './routes/users.js'
+import cloudRoutes from './routes/clouds.js'
+import { cloudStorage } from './clouds/storage.js'
 
 /** Largest request body [bytes] — a large MDB import fits, a runaway does not fill the disk. */
 const BODY_LIMIT = 20 * 1024 * 1024
 
 const WRITING = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+/**
+ * The one writing request that carries bytes, not JSON: a piece of a point
+ * cloud upload (AP 13.2). It must say so in a header of its own, which no
+ * form of another site can send without the browser asking first.
+ */
+const UPLOAD = /^\/api\/projects\/[^/?]+\/clouds\/[^/?]+\/raw(\?|$)/
+const isUpload = (req) => req.method === 'PUT' && UPLOAD.test(req.url)
+  && String(req.headers['content-type'] ?? '').startsWith('application/octet-stream') && req.headers['x-olt-upload'] === '1'
 
 /**
  * Whose X-Forwarded-For is believed: only the reverse proxy's (Caddy on the
@@ -27,15 +38,19 @@ const TRUSTED_PROXIES = ['127.0.0.1', '::1']
  * cross-site way in together with SameSite.
  *
  * `secureCookie` is off only for plain-http tests and local runs.
+ * `cloudRoot` is where point clouds are kept (phase 13); without one their
+ * routes answer 503.
  */
 export function buildApp({
   db, secureCookie = true, now = () => Date.now(), logger = false, routes = [], trustProxy = TRUSTED_PROXIES,
+  cloudRoot = null,
 } = {}) {
   const app = Fastify({ logger, bodyLimit: BODY_LIMIT, trustProxy })
   const auth = createAuth(db, { now })
   app.decorate('db', db)
   app.decorate('auth', auth)
   app.decorate('now', now)
+  app.decorate('cloudStorage', cloudRoot ? cloudStorage(cloudRoot) : null)
   app.decorateRequest('user', null)
 
   app.register(cookie)
@@ -49,7 +64,7 @@ export function buildApp({
   })
 
   app.addHook('onRequest', async (req) => {
-    if (WRITING.has(req.method) && !String(req.headers['content-type'] ?? '').startsWith('application/json')) {
+    if (WRITING.has(req.method) && !String(req.headers['content-type'] ?? '').startsWith('application/json') && !isUpload(req)) {
       throw new ApiError(415, 'json_required')
     }
     req.user = auth.resolveSession(req.cookies?.[COOKIE])
@@ -83,6 +98,7 @@ export function buildApp({
     api.register(adminRoutes)
     api.register(projectRoutes)
     api.register(userRoutes)
+    api.register(cloudRoutes)
     for (const r of routes) api.register(r)
   }, { prefix: '/api' })
 

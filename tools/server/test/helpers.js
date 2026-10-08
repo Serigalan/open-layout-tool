@@ -8,14 +8,14 @@ export const PW = 'correct horse battery'
  * A server on a database in memory with a clock the test turns, and an admin
  * and a user who have changed their start passwords already.
  */
-export async function setup({ routes } = {}) {
+export async function setup({ routes, cloudRoot = null } = {}) {
   const clock = { t: Date.parse('2026-10-01T08:00:00Z') }
   const now = () => clock.t
   const db = openDatabase(':memory:')
   const auth = createAuth(db, { now })
   await auth.createUser({ login: 'ada', name: 'Ada Admin', password: PW, role: 'admin', mustChangePassword: false })
   await auth.createUser({ login: 'max', name: 'Max Muster', password: PW, role: 'user', mustChangePassword: false })
-  const app = buildApp({ db, secureCookie: false, now, routes })
+  const app = buildApp({ db, secureCookie: false, now, routes, cloudRoot })
   await app.ready()
   return { app, db, clock }
 }
