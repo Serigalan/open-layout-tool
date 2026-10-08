@@ -90,6 +90,12 @@
   color: var(--color-muted);
 }
 
+/* The reference axis laid over the Höhenplan: its dashed brown line, as a key. */
+.profile-ref-swatch {
+  width: 18px;
+  border-top: 2px dashed #6d4c41;
+}
+
 /* What the Höhenplan rules say, in the colour of the worst step (rule-sev-*). */
 .profile-rules {
   font-size: var(--fs-s);

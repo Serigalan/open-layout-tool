@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { comparedLine, heightsComparable, nearestAxis, shiftSummary, shiftValues, shiftValuesCsv } from './shiftValues'
+import {
+  comparedLine, deviationAt, heightsComparable, nearestAxis, referenceProfile, shiftSummary, shiftValues, shiftValuesCsv,
+} from './shiftValues'
 import { buildReferenceAxis } from './referenceAxis'
 import { straightElement, arcFrom } from './elementFactory'
 import { recalcAbsLengths } from './trackModel'
@@ -58,6 +60,23 @@ describe('shift values', () => {
     const rows = shiftValues(refAxis, line, { every: 100 })
     expect(rows.map(r => r.along)).toEqual([100, 200, 300, 400].map(v => expect.closeTo(v, 6)))
     for (const r of rows) expect(r.dz).toBeCloseTo(0, 6)
+  })
+
+  it('lay the reference gradient over the line\'s stationing, in runs, with the lift', () => {
+    // The line runs west, against the reference: its station 0 is the reference's 1300.
+    const els = [straightElement(P(300, 0), P(0, 0))]
+    const geometry = comparedLine(els, EPSG)
+    const rows = shiftValues(refAxis, geometry, { every: 10, withHeights: false })
+    expect(rows.every(r => r.zRef != null)).toBe(true)
+    const heights = [{ station: 0, z: 100.31 }, { station: 300, z: 100.01 }]
+    const runs = referenceProfile(rows.filter(r => r.station < 1100 || r.station > 1150), heights, 10)
+    expect(runs.length).toBe(2)
+    expect(runs[0][0].s).toBeCloseTo(0, 6)
+    expect(runs[0][0].z).toBeCloseTo(100.3, 6)
+    for (const p of runs.flat()) expect(p.dz).toBeCloseTo(0.01, 6)
+    expect(deviationAt(runs, 55)).toBeCloseTo(0.01, 6)
+    expect(deviationAt(runs, 175)).toBeNull()
+    expect(referenceProfile(rows, null, 10)[0].every(p => p.dz === null)).toBe(true)
   })
 
   it('sum up to the largest either way and what lies beyond the limits', () => {

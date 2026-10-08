@@ -66,10 +66,11 @@ export const heightsComparable = (axis, heightEpsg) => (
 /**
  * The shift values of `line` (comparedLine) against the reference axis
  * `axis`, every `every` metres of its stationing where its normal meets the
- * line within REACH: [{ station, dq, dz, at, hit, along }] — `dq` across
- * [m, right +], `dz` lift [m, up +] or null (no height on either side, or
- * `withHeights` false), `at` the point on the reference axis and `hit` the
- * one on the line [e, n], `along` the station of the line there.
+ * line within REACH: [{ station, dq, dz, zRef, at, hit, along }] — `dq`
+ * across [m, right +], `dz` lift [m, up +] or null (no height on either side,
+ * or `withHeights` false), `zRef` the reference axis' own height or null,
+ * `at` the point on the reference axis and `hit` the one on the line [e, n],
+ * `along` the station of the line there.
  */
 export function shiftValues(axis, line, { every = 5, withHeights = true } = {}) {
   if (!axis || !line || line.e.length < 2) return []
@@ -120,14 +121,50 @@ export function shiftValues(axis, line, { every = 5, withHeights = true } = {}) 
     if (!best) continue
     const { u, k, lam } = best
     const along = line.s[k] + (line.s[k + 1] - line.s[k]) * lam
+    const zRef = ref.z && Number.isFinite(ref.z[i]) ? ref.z[i] : null
     let dz = null
-    if (withHeights && line.heights && ref.z && Number.isFinite(ref.z[i])) {
+    if (withHeights && line.heights && zRef != null) {
       const zc = gradientAt(line.heights, along)
-      if (zc != null) dz = zc - ref.z[i]
+      if (zc != null) dz = zc - zRef
     }
-    rows.push({ station: Math.round(st * 1000) / 1000, dq: u, dz, at: [pe, pn], hit: [pe + u * re, pn + u * rn], along })
+    rows.push({ station: Math.round(st * 1000) / 1000, dq: u, dz, zRef, at: [pe, pn], hit: [pe + u * re, pn + u * rn], along })
   }
   return rows
+}
+
+/**
+ * The reference axis' gradient over the stationing of the compared line, as
+ * its Höhenplan draws it: the `rows` (shiftValues, every `every` metres) that
+ * have a reference height, in the order of the line's station, in runs broken
+ * where the line leaves the axis for more than two steps. Each point
+ * { s, z, dz }: the line's station, the reference height there and the line's
+ * gradient `heights` minus it [m, up +] — null where the line has none.
+ */
+export function referenceProfile(rows, heights, every) {
+  const withHeights = heights?.length >= 2
+  const pts = rows.filter(r => r.zRef != null).map(r => {
+    const zc = withHeights ? gradientAt(heights, r.along) : null
+    return { s: r.along, z: r.zRef, dz: zc == null ? null : zc - r.zRef }
+  }).sort((a, b) => a.s - b.s)
+  const runs = []
+  let run = null
+  for (const p of pts) {
+    if (!run || p.s - run[run.length - 1].s > 2.5 * every) runs.push(run = [])
+    run.push(p)
+  }
+  return runs
+}
+
+/** The lift at the line's station `s` (referenceProfile runs), read off linearly — null off the runs. */
+export function deviationAt(runs, s) {
+  for (const run of runs) {
+    if (s < run[0].s || s > run[run.length - 1].s) continue
+    const k = run.findIndex(p => p.s >= s)
+    const b = run[k], a = run[Math.max(0, k - 1)]
+    if (a.dz == null || b.dz == null) return null
+    return b.s > a.s ? a.dz + (b.dz - a.dz) * (s - a.s) / (b.s - a.s) : b.dz
+  }
+  return null
 }
 
 /**

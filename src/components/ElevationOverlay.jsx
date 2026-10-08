@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { setTrackHeights, setHeightsForTracks, currentProject } from '../storage'
-import { useProject, useSwitches, useTracks } from '../hooks/useStore'
+import { useProject, useReferenceAxes, useSwitches, useTracks } from '../hooks/useStore'
 import { checkVertical, regularVerticalRadius, verticalFindings } from '../utils/gradientCheck'
 import { coupledPoints, trackHeightAt } from '../utils/switchGradient'
 import { ruleById, severityLabelKey } from '../utils/regelkatalog'
@@ -11,6 +11,11 @@ import {
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
 import { fillHeights } from '../utils/elevationFill'
 import { chosenTerrainSource } from '../utils/elevationSource'
+import {
+  comparedLine, deviationAt, heightsComparable, nearestAxis, referenceProfile, shiftValues,
+} from '../utils/shiftValues'
+import { loadSettings, saveSettings } from '../utils/settings'
+import useReferenceAxesOnMap from '../map/useReferenceAxesOnMap'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import usePreview from '../map/usePreview'
@@ -34,6 +39,14 @@ const GRADE_LABEL_MIN_PX = 46
 // stay from a point already there.
 const INSERT_HIT_PX = 8
 const INSERT_POINT_GAP_PX = 7
+// The reference axis (Paket V) laid over the profile: its height read every
+// this much [m], and the strip below the profile that draws how far the
+// gradient lies above or below it — its height and the gap above it [px].
+const REF_EVERY = 1
+const DEV_STRIP_PX = 64
+const DEV_GAP_PX = 14
+// The limit in height the shift values warn beyond [mm] (Entscheidung 200).
+const DEFAULT_LIMIT_Z = 50
 // Where the cursor stands on the profile, shown on the map: a dot on the
 // track at that station.
 const CURSOR_SOURCE = 'elevation-cursor-source'
@@ -86,6 +99,14 @@ const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
  * is marked as on the map — the line across and the height the track is built
  * at there.
  *
+ * Where the project has reference axes (Bestandsachsen, Paket V), one can be
+ * laid over the profile — the one the track runs along the furthest unless
+ * another is chosen: its heights, read where its normal meets the track
+ * (shiftValues), over the track's stations as a dashed brown line; below the
+ * profile a strip with the gradient minus it in mm, the height limit of the
+ * shift values either side, red beyond it. Only where both are stated in one
+ * height system — otherwise the header says why there is nothing to see.
+ *
  * The gradient is checked against the Höhenplan rules of DB Ril 800.0110 as it
  * is edited (gradientCheck): a stretch whose gradient a rule flags is drawn
  * over in the colour of its step, a gradient change with a finding gets a
@@ -126,6 +147,48 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   // 'busy', 'missing' (no height data there) or 'failed'.
   const [reading, setReading] = useState(null)
 
+  // ── The reference axis laid over the profile ─────────────────────────────
+  // '' for none, 'auto' for the one the track runs along the furthest, or an
+  // axis' id; on or off is kept for this device.
+  const axes = useReferenceAxes()
+  const [refChoice, setRefChoice] = useState(() => {
+    try { return loadSettings().elevationReference === 'auto' ? 'auto' : '' } catch { return '' }
+  })
+  const chooseRef = (v) => {
+    setRefChoice(v)
+    try { saveSettings({ elevationReference: v ? 'auto' : 'none' }) } catch { /* kept for this session only */ }
+  }
+  const [limitZ] = useState(() => {
+    let v
+    try { v = Number(loadSettings().shiftValues?.limitZ) } catch { v = NaN }
+    return (Number.isFinite(v) && v > 0 ? v : DEFAULT_LIMIT_Z) / 1000
+  })
+  const elements = track?.elements, epsg = track?.epsg, heights = track?.heights
+  const inPlane = useMemo(() => axes.filter(a => Number(a.epsg) === Number(epsg)), [axes, epsg])
+  // The track's axis as the shift values read it — its heights are added
+  // where they are compared, so an edited height does not sample it again.
+  const geometry = useMemo(
+    () => (inPlane.length && elements ? comparedLine(elements, epsg) : null),
+    [inPlane.length, elements, epsg])
+  const autoAxis = useMemo(() => (geometry ? nearestAxis(inPlane, geometry, epsg) : null), [geometry, inPlane, epsg])
+  const refAxis = !refChoice ? null : refChoice === 'auto' ? autoAxis : inPlane.find(a => a.id === refChoice) ?? null
+  const refComparable = !!refAxis && heightsComparable(refAxis, track?.heightEpsg)
+  const refRows = useMemo(
+    () => (refAxis && geometry && refComparable ? shiftValues(refAxis, geometry, { every: REF_EVERY, withHeights: false }) : []),
+    [refAxis, geometry, refComparable])
+  const refRuns = useMemo(() => referenceProfile(refRows, heights, REF_EVERY), [refRows, heights])
+  const refShown = useMemo(() => (refAxis ? [refAxis] : []), [refAxis])
+  useReferenceAxesOnMap('elevation-reference', refShown)
+  const refPoints = refRuns.flat()
+  const devShown = refPoints.some(p => p.dz != null)
+  // Why nothing of the reference axis is drawn, where it is not.
+  const refNote = !refChoice ? null
+    : !refAxis ? t('shift_no_axis')
+      : !refAxis.points.z ? t('elevation_ref_no_heights')
+        : !refComparable ? t('elevation_ref_datum')
+          : !refRuns.length ? fill('shift_no_overlap', { axis: refAxis.name })
+            : null
+
   // ── Data: the track's own profile and the stubs of the joined tracks ──────
   // Recomputed on every render — it is a few hundred numbers, and the
   // subscription re-renders us after each write to the store.
@@ -156,17 +219,22 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
 
   // ── Fit the view to the data when the track or the exaggeration changes ───
   const plotW = size ? size.w - MARGIN.left - MARGIN.right : 0
-  const plotH = size ? size.h - MARGIN.top - MARGIN.bottom : 0
+  // The deviation strip, where shown, takes its share below the profile.
+  const devPx = devShown ? DEV_STRIP_PX + DEV_GAP_PX : 0
+  const plotBottom = size ? size.h - MARGIN.bottom - devPx : 0
+  const plotH = size ? plotBottom - MARGIN.top : 0
   const [fitKey, setFitKey] = useState(null)
   // Re-fitted for another track or exaggeration, once the area is measured,
   // and when points appear or go (the terrain fill arriving, a reload) — not
   // for an edited height, which must not throw the view around — nor for a
   // point added or deleted here (`keepView`).
-  const fitKeyFor = (n) => `${trackId}|${exaggeration}|${size ? 1 : 0}|${n}`
-  const wantFit = fitKeyFor(allPoints.length)
-  const keepView = (n) => setFitKey(fitKeyFor(allPoints.length + n))
-  if (size && allPoints.length && fitKey !== wantFit) {
-    const stations = allPoints.map(p => p.station), zs = allPoints.map(p => p.z)
+  // The reference axis counts as it is laid over the track or taken away.
+  const fitPoints = [...allPoints, ...refPoints.map(p => ({ station: p.s, z: p.z }))]
+  const fitKeyFor = (n) => `${trackId}|${exaggeration}|${size ? 1 : 0}|${devPx}|${n}`
+  const wantFit = fitKeyFor(fitPoints.length)
+  const keepView = (n) => setFitKey(fitKeyFor(fitPoints.length + n))
+  if (size && fitPoints.length && fitKey !== wantFit) {
+    const stations = fitPoints.map(p => p.station), zs = fitPoints.map(p => p.z)
     const sMin = Math.min(...stations), sMax = Math.max(...stations)
     const zMin = Math.min(...zs), zMax = Math.max(...zs)
     const ds = Math.max(sMax - sMin, 10), dz = Math.max(zMax - zMin, 1)
@@ -201,8 +269,8 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     if (!v) return v
     const k = clamp(v.k * f, 1e-4, 1e4)
     const s = v.x0 + (px - MARGIN.left) / v.k
-    const z = v.z0 + (size.h - MARGIN.bottom - py) / (v.k * exaggeration)
-    return { k, x0: s - (px - MARGIN.left) / k, z0: z - (size.h - MARGIN.bottom - py) / (k * exaggeration) }
+    const z = v.z0 + (plotBottom - py) / (v.k * exaggeration)
+    return { k, x0: s - (px - MARGIN.left) / k, z0: z - (plotBottom - py) / (k * exaggeration) }
   }), !!size)
 
   // ── The cursor's station on the map ──────────────────────────────────────
@@ -321,7 +389,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
   // ── Splitting the gradient with a new point ──────────────────────────────
   /** The point a double click at (x, y) would add: on the gradient, between two points. */
   const insertAt = ({ x, y }) => {
-    if (!view || !size || x < MARGIN.left || x > size.w - MARGIN.right) return null
+    if (!view || !size || !points.length || x < MARGIN.left || x > size.w - MARGIN.right || y > plotBottom) return null
     const station = Math.round((view.x0 + (x - MARGIN.left) / view.k) * 100) / 100
     const r = insertHeightPoint(track.heights, station)
     if (!r) return null
@@ -376,7 +444,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
 
   // ── Geometry helpers ──────────────────────────────────────────────────────
   const X = (station) => MARGIN.left + (station - view.x0) * view.k
-  const Y = (z) => size.h - MARGIN.bottom - (z - view.z0) * view.k * exaggeration
+  const Y = (z) => plotBottom - (z - view.z0) * view.k * exaggeration
   const typeLabel = (el) => {
     if (el.elementType === 2) return t(el.transitionType === 'bloss' ? 'table_type_bloss' : 'table_type_transition')
     if (el.radius != null) return `R ${Math.round(Math.abs(el.radius))}`
@@ -402,10 +470,93 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     ? clamp(section.station, 0, profile.length) : null
   const sectionZ = sectionStation != null ? trackHeightAt(tracks, switches, track, sectionStation) : null
   const cursorZ = cursor != null ? trackHeightAt(tracks, switches, track, cursor) : null
+  const cursorDz = cursor != null && devShown ? deviationAt(refRuns, cursor) : null
+  /** A lift in mm, signed. */
+  const mmLabel = (v) => { const m = Math.round(v * 1000); return `${m > 0 ? '+' : m < 0 ? '−' : ''}${Math.abs(m)} mm` }
+
+  /**
+   * The points of a reference run one to a pixel column — the one furthest
+   * from 0 by `value` — so a long axis read every metre stays a clean line.
+   */
+  const perPixel = (pts, value = () => 0) => {
+    const out = []
+    let px = null, best = null
+    for (const p of pts) {
+      const x = Math.round(X(p.s))
+      if (x !== px) { if (best) out.push(best); px = x; best = p }
+      else if (Math.abs(value(p)) > Math.abs(value(best))) best = p
+    }
+    if (best) out.push(best)
+    return out
+  }
+
+  /**
+   * Below the profile: the gradient minus the reference axis [mm] over the
+   * same stations, the height limit dashed either side, red dots beyond it.
+   */
+  const deviationStrip = ({ sTicks, right, foot }) => {
+    const top = foot - DEV_STRIP_PX, mid = top + DEV_STRIP_PX / 2
+    const devs = refPoints.filter(p => p.dz != null)
+    const peak = Math.max(limitZ, 0.005, ...devs.map(p => Math.abs(p.dz))) * 1.15
+    const DY = (d) => mid - d / peak * (DEV_STRIP_PX / 2)
+    const labelled = Math.abs(DY(limitZ) - mid) >= 10 ? limitZ : peak / 1.15
+    return (
+      <g>
+        <rect x={MARGIN.left} y={top} width={plotW} height={DEV_STRIP_PX} fill="none" stroke={PALETTE.gridLine} />
+        {sTicks.map(s => <line key={`ds${s}`} x1={X(s)} x2={X(s)} y1={top} y2={foot} stroke={PALETTE.gridLine} />)}
+        <line x1={MARGIN.left} x2={right} y1={mid} y2={mid} stroke={PALETTE.axis} />
+        {[limitZ, -limitZ].map(v => (
+          <line key={`dl${v}`} x1={MARGIN.left} x2={right} y1={DY(v)} y2={DY(v)}
+            stroke={PALETTE.invalid} strokeDasharray="4 3" />
+        ))}
+        {[labelled, -labelled].map(v => (
+          <text key={`dt${v}`} x={MARGIN.left - 6} y={DY(v) + 4} fontSize="10" fill={PALETTE.textSoft} textAnchor="end">
+            {mmLabel(v).replace(' mm', '')}
+          </text>
+        ))}
+        <text x={MARGIN.left - 6} y={top - 4} fontSize="11" fill={PALETTE.muted} textAnchor="end">Δh [mm]</text>
+        <text x={MARGIN.left + 4} y={top - 4} fontSize="10" fill={PALETTE.referenceAxis}>
+          {fill('elevation_ref_strip', { name: refAxis.name, limit: Math.round(limitZ * 1000) })}
+        </text>
+        <g clipPath="url(#profile-dev-clip)" pointerEvents="none">
+          {refRuns.map((run, i) => {
+            // A run may lose the track's gradient on the way: draw what has one.
+            const parts = []
+            let part = []
+            for (const p of run) {
+              if (p.dz == null) { if (part.length) parts.push(part); part = []; continue }
+              part.push(p)
+            }
+            if (part.length) parts.push(part)
+            return parts.map((pts, j) => (
+              <polyline key={`dv${i}-${j}`} fill="none" stroke={PALETTE.previewLine} strokeWidth="1.5"
+                points={perPixel(pts, p => p.dz).map(p => `${X(p.s)},${DY(p.dz)}`).join(' ')} />
+            ))
+          })}
+          {devs.filter(p => Math.abs(p.dz) > limitZ + 1e-9).map(p => (
+            <circle key={`db${p.s}`} cx={X(p.s)} cy={DY(p.dz)} r="2" fill={PALETTE.invalid} />
+          ))}
+          {sectionStation != null && (
+            <line x1={X(sectionStation)} x2={X(sectionStation)} y1={top} y2={foot}
+              stroke={PALETTE.mapSelected} strokeWidth="1.5" strokeDasharray="3 2" />
+          )}
+          {cursor != null && (
+            <>
+              <line x1={X(cursor)} x2={X(cursor)} y1={top} y2={foot} stroke={PALETTE.mapHover} strokeWidth="1" strokeDasharray="2 2" />
+              {cursorDz != null && (
+                <circle cx={X(cursor)} cy={DY(cursorDz)} r="3" fill={PALETTE.mapHover} stroke={PALETTE.white} strokeWidth="1.5" />
+              )}
+            </>
+          )}
+        </g>
+      </g>
+    )
+  }
 
   const drawing = () => {
     if (!size || !view) return null
-    const right = size.w - MARGIN.right, bottom = size.h - MARGIN.bottom
+    // `bottom` is the profile's, `foot` the station axis' below the strip.
+    const right = size.w - MARGIN.right, bottom = plotBottom, foot = size.h - MARGIN.bottom
     const sStep = niceStep(70, view.k), zStep = niceStep(26, view.k * exaggeration)
     const sTicks = ticks(view.x0, view.x0 + plotW / view.k, sStep)
     const zTicks = ticks(view.z0, view.z0 + plotH / (view.k * exaggeration), zStep)
@@ -439,6 +590,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
         onDoubleClick={insert}>
         <defs>
           <clipPath id="profile-clip"><rect x={MARGIN.left} y={MARGIN.top} width={plotW} height={plotH} /></clipPath>
+          <clipPath id="profile-dev-clip"><rect x={MARGIN.left} y={foot - DEV_STRIP_PX} width={plotW} height={DEV_STRIP_PX} /></clipPath>
         </defs>
         {/* grid */}
         {sTicks.map(s => <line key={`gs${s}`} x1={X(s)} x2={X(s)} y1={MARGIN.top} y2={bottom} stroke={PALETTE.gridLine} />)}
@@ -447,12 +599,12 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
         <line x1={MARGIN.left} x2={right} y1={bottom} y2={bottom} stroke={PALETTE.axis} />
         <line x1={MARGIN.left} x2={MARGIN.left} y1={MARGIN.top} y2={bottom} stroke={PALETTE.axis} />
         {sTicks.map(s => (
-          <text key={`ts${s}`} x={X(s)} y={bottom + 16} fontSize="11" fill={PALETTE.textSoft} textAnchor="middle">{s.toFixed(stepDecimals(sStep))}</text>
+          <text key={`ts${s}`} x={X(s)} y={foot + 16} fontSize="11" fill={PALETTE.textSoft} textAnchor="middle">{s.toFixed(stepDecimals(sStep))}</text>
         ))}
         {zTicks.map(z => (
           <text key={`tz${z}`} x={MARGIN.left - 6} y={Y(z) + 4} fontSize="11" fill={PALETTE.textSoft} textAnchor="end">{z.toFixed(stepDecimals(zStep))}</text>
         ))}
-        <text x={right} y={bottom + 28} fontSize="11" fill={PALETTE.muted} textAnchor="end">{t('elevation_station')} [m]</text>
+        <text x={right} y={foot + 28} fontSize="11" fill={PALETTE.muted} textAnchor="end">{t('elevation_station')} [m]</text>
         <text x={MARGIN.left - 6} y={MARGIN.top - 12} fontSize="11" fill={PALETTE.muted} textAnchor="end">{t('elevation_height')} [m]</text>
 
         <g clipPath="url(#profile-clip)">
@@ -474,6 +626,11 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               </g>
             )
           })}
+          {/* the reference axis, where it runs along the track */}
+          {refRuns.map((run, i) => (
+            <polyline key={`ref${i}`} fill="none" stroke={PALETTE.referenceAxis} strokeWidth="1.5" strokeDasharray="6 3"
+              pointerEvents="none" points={perPixel(run).map(p => `${X(p.s)},${Y(p.z)}`).join(' ')} />
+          ))}
           {/* the vertical curves rounding the gradient changes */}
           {curves.map((c, i) => (
             <polyline key={`vc${i}`} fill="none" stroke={PALETTE.verticalCurve} strokeWidth="2"
@@ -568,6 +725,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
             )
           })}
         </g>
+        {devShown && deviationStrip({ sTicks, right, foot })}
         {sectionStation != null && X(sectionStation) >= MARGIN.left && X(sectionStation) <= right && (
           <text x={X(sectionStation)} y={MARGIN.top - 6} fontSize="10" fill={PALETTE.mapSelected} textAnchor="middle" pointerEvents="none">
             {fill('elevation_section_marker', {
@@ -579,7 +737,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
         {cursor != null && sectionStation == null && (
           <text x={clamp(X(cursor), MARGIN.left + 40, right - 40)} y={MARGIN.top - 6} fontSize="10" fill={PALETTE.mapHover}
             textAnchor="middle" pointerEvents="none">
-            {`${cursor.toFixed(1)} m${cursorZ != null ? ` · ${cursorZ.toFixed(3)} m` : ''}`}
+            {`${cursor.toFixed(1)} m${cursorZ != null ? ` · ${cursorZ.toFixed(3)} m` : ''}${cursorDz != null ? ` · Δh ${mmLabel(cursorDz)}` : ''}`}
           </text>
         )}
         {band && (
@@ -646,6 +804,18 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               </span>
             )
           })()}
+          {axes.length > 0 && (
+            <label className="profile-edit" title={t('elevation_ref_hint')}>
+              <span className="profile-ref-swatch" aria-hidden="true" />
+              {t('shift_axis')}
+              <select className="settings-select" value={refChoice} onChange={e => chooseRef(e.target.value)}>
+                <option value="">{t('elevation_ref_none')}</option>
+                <option value="auto">{fill('shift_axis_auto', { name: autoAxis?.name ?? '–' })}</option>
+                {inPlane.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              {refNote && <span className="profile-hint">{refNote}</span>}
+            </label>
+          )}
           <label className="profile-edit">
             {t('elevation_exaggeration')}
             <select className="settings-select" value={exaggeration} onChange={e => setExaggeration(Number(e.target.value))}>
@@ -656,7 +826,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
         </div>
       </div>
       <div className="profile-body" ref={bodyRef}>
-        {points.length === 0
+        {points.length === 0 && !refRuns.length
           ? (
             <div className="profile-empty">
               <span>{t('elevation_no_heights')}</span>
