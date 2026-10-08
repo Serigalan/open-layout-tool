@@ -163,6 +163,7 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
         {`${formatName(pick.header)} · `
           + (pick.header.format === 'e57' ? `${fill('pointcloud_scans', { n: count(pick.header.scans.length) })} · ` : '')
           + `${fill('pointcloud_points', { n: count(pick.header.pointCount) })} · `
+          + (pick.header.rgb ? `${t('pointcloud_rgb')} · ` : '')
           + `${fill('pointcloud_needs', { size: sizeText(needed) })}`}
       </span>
       {pick.header.coordinateMetadata && (

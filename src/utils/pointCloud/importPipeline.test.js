@@ -123,7 +123,7 @@ describe('importPointCloud — original resolution', () => {
       source, header, writer, original: true, mapper: () => { throw new Error('no conversion wanted') },
     })
     expect(index).toMatchObject({
-      version: 2, resolution: 'original', voxel: null, sourcePoints: 1800, points: 1800,
+      version: 3, resolution: 'original', voxel: null, sourcePoints: 1800, points: 1800,
       grid: { scale: [0.001, 0.001, 0.001], offset },
     })
     const want = []

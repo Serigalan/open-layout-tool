@@ -40,9 +40,10 @@ export default function CloudList({ clouds, busy, onDelete }) {
                 + ` · ${t('pointcloud_height_short')}: ${heightDatumLabel(c.heightEpsg)}`}
             </span>
             <span className="pointcloud-meta">
-              {c.grid
+              {(c.grid
                 ? fill('pointcloud_resolution_original_short', { step: stepText(c.grid.scale[0]) })
-                : t('pointcloud_resolution_voxel_short')}
+                : t('pointcloud_resolution_voxel_short'))
+                + (c.rgb ? ` · ${t('pointcloud_rgb')}` : '')}
             </span>
             <span className="pointcloud-meta">
               {`${Math.round(w)} × ${Math.round(h)} m · ${c.bounds.minZ.toFixed(1)}–${c.bounds.maxZ.toFixed(1)} m · `

@@ -13,12 +13,12 @@ import { parseXml, child } from './e57Xml'
  * holding a piece of every field's bytestream. A field is a float (4 or 8
  * bytes) or an integer packed into as few bits as its range needs, scaled for
  * a ScaledInteger. Only the fields the import needs are decoded: the
- * coordinates (Cartesian, or spherical turned Cartesian), the invalid state
- * and the intensity; colours and the rest are passed over.
+ * coordinates (Cartesian, or spherical turned Cartesian), the invalid state,
+ * the intensity and the colour (AP 13.4); the rest is passed over.
  *
  * What comes out are the same batches as from readLasPoints: x, y, z in the
- * file's frame (the pose applied) and the intensity on 0…65535 between its
- * limits. Points marked invalid are left out, so a batch may hold fewer
+ * file's frame (the pose applied), the intensity on 0…65535 between its
+ * limits and, where every scan has colour, red, green and blue the same way. Points marked invalid are left out, so a batch may hold fewer
  * points than records were read.
  */
 
@@ -149,6 +149,19 @@ function intensityRange(scan, field) {
   return [0, 1]
 }
 
+/** The range a colour channel spans: the scan's colorLimits, else the field's own, else 0…255. */
+function colorRange(scan, field, channel) {
+  const limits = child(scan, 'colorLimits')
+  if (limits) {
+    const lo = value(child(limits, `color${channel}Minimum`), NaN), hi = value(child(limits, `color${channel}Maximum`), NaN)
+    if (Number.isFinite(lo) && Number.isFinite(hi) && hi > lo) return [lo, hi]
+  }
+  if (field.kind === 'int' && field.high > field.low) return [field.low, field.high]
+  return [0, 255]
+}
+
+const COLORS = ['Red', 'Green', 'Blue']
+
 const CARTESIAN = ['cartesianX', 'cartesianY', 'cartesianZ']
 const SPHERICAL = ['sphericalRange', 'sphericalAzimuth', 'sphericalElevation']
 
@@ -172,6 +185,8 @@ function parseScan(node, i) {
   const state = at(coords === 'spherical' ? 'sphericalInvalidState' : 'cartesianInvalidState')
   let intensity = at('intensity')
   if (intensity >= 0 && fields[intensity].kind !== 'float' && fields[intensity].kind !== 'int') intensity = -1
+  const color = COLORS.map(c => at(`color${c}`))
+  const hasColor = color.every(k => k >= 0 && (fields[k].kind === 'float' || fields[k].kind === 'int'))
 
   const cb = child(node, 'cartesianBounds')
   const bounds = cb
@@ -183,6 +198,8 @@ function parseScan(node, i) {
     fields, coords, xyz, state: state >= 0 ? state : null,
     intensity: intensity >= 0 ? intensity : null,
     intensityRange: intensity >= 0 ? intensityRange(node, fields[intensity]) : null,
+    color: hasColor ? color : null,
+    colorRange: hasColor ? color.map((k, c) => colorRange(node, fields[k], COLORS[c])) : null,
     ...parsePose(node),
     bounds: bounds?.every(Number.isFinite) ? bounds : null,
     rangeMaximum: Number.isFinite(range) && range > 0 ? range : null,
@@ -286,14 +303,24 @@ function makeStream(field) {
   return new BitStream(field)
 }
 
-const newBatch = (n) => ({
+const newBatch = (n, rgb = false) => ({
   count: n,
   x: new Float64Array(n), y: new Float64Array(n), z: new Float64Array(n),
   intensity: new Uint16Array(n),
+  ...(rgb ? { red: new Uint16Array(n), green: new Uint16Array(n), blue: new Uint16Array(n) } : {}),
 })
 
-/** `n` records from the streams as one batch: valid points only, pose applied. */
-function assemble(scan, streams, n) {
+/** A value between `lo` and `hi` on 0…65535. */
+const to16 = (v, lo, hi) => {
+  const s = Math.round((v - lo) * 65535 / (hi - lo))
+  return s < 0 ? 0 : s > 65535 ? 65535 : s
+}
+
+/**
+ * `n` records from the streams as one batch: valid points only, pose applied.
+ * With `rgb` the batch has colour columns — black for a scan without colour.
+ */
+function assemble(scan, streams, n, rgb = false) {
   const col = (k) => {
     if (k == null) return null
     const s = streams.get(k)
@@ -302,12 +329,13 @@ function assemble(scan, streams, n) {
   const get = (c, i) => (c.a ? c.a[i] : c.c)
   const [ca, cb, cc] = scan.xyz.map(col)
   const st = col(scan.state), it = col(scan.intensity)
+  const cols = rgb && scan.color ? scan.color.map(col) : null
   const [r0, r1, r2, r3, r4, r5, r6, r7, r8] = scan.rotation
   const [tx, ty, tz] = scan.translation
   const [ilo, ihi] = scan.intensityRange ?? [0, 1]
   const iscale = 65535 / (ihi - ilo)
   const spherical = scan.coords === 'spherical'
-  const batch = newBatch(n)
+  const batch = newBatch(n, rgb)
   let m = 0
   for (let i = 0; i < n; i++) {
     if (st && get(st, i) !== 0) continue
@@ -322,6 +350,12 @@ function assemble(scan, streams, n) {
     if (it) {
       const v = Math.round((get(it, i) - ilo) * iscale)
       batch.intensity[m] = v < 0 ? 0 : v > 65535 ? 65535 : v
+    }
+    if (cols) {
+      const [rr, gr, br] = scan.colorRange
+      batch.red[m] = to16(get(cols[0], i), rr[0], rr[1])
+      batch.green[m] = to16(get(cols[1], i), gr[0], gr[1])
+      batch.blue[m] = to16(get(cols[2], i), br[0], br[1])
     }
     m++
   }
@@ -348,11 +382,11 @@ async function openSection(paged, scan) {
  * time; `limit` stops after so many logical bytes (the extent sample).
  * `onBytes(n)` reports the bytes of the section read so far.
  */
-async function* scanBatches(paged, scan, { signal, onBytes, window = WINDOW_BYTES, limit = Infinity } = {}) {
+async function* scanBatches(paged, scan, { signal, onBytes, window = WINDOW_BYTES, limit = Infinity, rgb = false } = {}) {
   if (!(scan.recordCount > 0)) return
   const { dataAt, end } = await openSection(paged, scan)
 
-  const needed = [...scan.xyz, scan.state, scan.intensity].filter(k => k != null)
+  const needed = [...scan.xyz, scan.state, scan.intensity, ...(rgb && scan.color ? scan.color : [])].filter(k => k != null)
   const streams = new Map(needed.map(k => [k, makeStream(scan.fields[k])]))
   const queued = [...streams.values()].filter(s => s.queue)
   let remaining = scan.recordCount
@@ -387,7 +421,7 @@ async function* scanBatches(paged, scan, { signal, onBytes, window = WINDOW_BYTE
     for (const s of queued) n = Math.min(n, s.queue.length)
     if (n > 0) {
       remaining -= n
-      yield assemble(scan, streams, n)
+      yield assemble(scan, streams, n, rgb)
     }
   }
   if (remaining > 0 && limit === Infinity) throw new Error(`E57 scan "${scan.name}" ends ${remaining} points early`)
@@ -482,6 +516,9 @@ export async function readE57Header(source) {
     offset: [0, 0, 0],
     pageSize,
     coordinateMetadata: child(root, 'coordinateMetadata')?.text.trim() || '',
+    // Colour only where every scan with points has it: a batch either has
+    // colour columns or not, file-wide.
+    rgb: scans.some(s => s.recordCount > 0) && scans.every(s => !(s.recordCount > 0) || s.color),
     scans,
   }
 }
@@ -503,7 +540,7 @@ export async function* readE57Points(source, header, { onProgress, signal } = {}
   let done = 0, points = 0
   for (const scan of header.scans) {
     let read = 0
-    for await (const batch of scanBatches(paged, scan, { signal, onBytes: (n) => { read = n } })) {
+    for await (const batch of scanBatches(paged, scan, { signal, rgb: header.rgb, onBytes: (n) => { read = n } })) {
       points += batch.records
       onProgress?.({ bytes: Math.min(totalBytes, done + read), totalBytes, points, totalPoints })
       yield batch

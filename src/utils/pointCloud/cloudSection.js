@@ -26,7 +26,7 @@ const files = new Map()   // "projectId|cloudId" → Promise<File>
 const MERGE_GAP = 256 * 1024
 
 const segmentBytes = (seg) => seg.x.byteLength + seg.y.byteLength + seg.z.byteLength + seg.i.byteLength
-  + (seg.intensity?.byteLength ?? 0)
+  + (seg.intensity?.byteLength ?? 0) + (seg.r ? 3 * seg.r.byteLength : 0)
 
 const forget = (key) => {
   cachedBytes -= segmentBytes(cache.get(key))
@@ -107,7 +107,7 @@ export function forgetAllClouds() {
  * i the intensity byte.
  */
 export async function cloudSectionPoints(projectId, cloud, { origin, bearing, crs, halfWidth, thickness }) {
-  const out = new SlicePoints()
+  const out = new SlicePoints(!!cloud.rgb)
   const frame = sliceFrame({ easting: origin.easting, northing: origin.northing, bearing, halfWidth, thickness })
   let tiles
   let toPlane = null

@@ -13,7 +13,8 @@ import { decodeChunkTable } from './lazChunkTable'
  * Plain LAS goes the same way, read in blocks.
  *
  * What comes out is a batch per chunk: x, y, z in the file's own units
- * (metres, scale and offset applied) and the intensity as stored.
+ * (metres, scale and offset applied), the intensity as stored and, for a
+ * point format with colour (`header.rgb`), red, green and blue as stored.
  */
 
 /** Read windows hold whole chunks up to about this many bytes. */
@@ -64,10 +65,11 @@ async function lazChunks(source, header) {
   })
 }
 
-const newBatch = (n) => ({
+const newBatch = (n, rgb = false) => ({
   count: n,
   x: new Float64Array(n), y: new Float64Array(n), z: new Float64Array(n),
   intensity: new Uint16Array(n),
+  ...(rgb ? { red: new Uint16Array(n), green: new Uint16Array(n), blue: new Uint16Array(n) } : {}),
 })
 
 /**
@@ -81,6 +83,7 @@ export async function* readLasPoints(source, header, { lazPerf = null, onProgres
   const [sx, sy, sz] = header.scale
   const [ox, oy, oz] = header.offset
   const totalPoints = header.pointCount
+  const rgb = header.rgb, rgbAt = header.rgbOffset
   let totalBytes = source.size - header.pointDataOffset
   let points = 0
 
@@ -91,13 +94,18 @@ export async function* readLasPoints(source, header, { lazPerf = null, onProgres
       const n = Math.min(LAS_BATCH, totalPoints - first)
       const bytes = await source.read(header.pointDataOffset + first * len, n * len)
       const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-      const batch = newBatch(n)
+      const batch = newBatch(n, rgb)
       for (let i = 0; i < n; i++) {
         const at = i * len
         batch.x[i] = view.getInt32(at, true) * sx + ox
         batch.y[i] = view.getInt32(at + 4, true) * sy + oy
         batch.z[i] = view.getInt32(at + 8, true) * sz + oz
         batch.intensity[i] = view.getUint16(at + 12, true)
+        if (rgb) {
+          batch.red[i] = view.getUint16(at + rgbAt, true)
+          batch.green[i] = view.getUint16(at + rgbAt + 2, true)
+          batch.blue[i] = view.getUint16(at + rgbAt + 4, true)
+        }
       }
       points += n
       onProgress?.({ bytes: (first + n) * len, totalBytes, points, totalPoints })
@@ -133,16 +141,21 @@ export async function* readLasPoints(source, header, { lazPerf = null, onProgres
         lazPerf.HEAPU8.set(window.subarray(chunk.offset - start, chunk.offset - start + chunk.bytes), dataPtr)
         decoder.open(header.pointFormat, header.pointLength, dataPtr)
         const n = chunk.points
-        const batch = newBatch(n)
-        const i32 = pointPtr >> 2, u16 = (pointPtr + 12) >> 1
+        const batch = newBatch(n, rgb)
+        const i32 = pointPtr >> 2, u16 = (pointPtr + 12) >> 1, c16 = (pointPtr + (rgbAt ?? 0)) >> 1
         for (let i = 0; i < n; i++) {
           decoder.getPoint(pointPtr)
           // Read after every call: the heap views are replaced when WASM memory grows.
-          const heap32 = lazPerf.HEAP32
+          const heap32 = lazPerf.HEAP32, heap16 = lazPerf.HEAPU16
           batch.x[i] = heap32[i32] * sx + ox
           batch.y[i] = heap32[i32 + 1] * sy + oy
           batch.z[i] = heap32[i32 + 2] * sz + oz
-          batch.intensity[i] = lazPerf.HEAPU16[u16]
+          batch.intensity[i] = heap16[u16]
+          if (rgb) {
+            batch.red[i] = heap16[c16]
+            batch.green[i] = heap16[c16 + 1]
+            batch.blue[i] = heap16[c16 + 2]
+          }
         }
         points += n
         onProgress?.({ bytes: chunk.offset + chunk.bytes - header.pointDataOffset, totalBytes, points, totalPoints })

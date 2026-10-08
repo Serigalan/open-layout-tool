@@ -18,6 +18,12 @@ const LASZIP_RECORD_ID = 22204
 /** chunk_size of a LAZ file whose chunks differ in length — the table then states each. */
 export const VARIABLE_CHUNK_SIZE = 0xFFFFFFFF
 
+/**
+ * Where a point record of each format holds its colour (three Uint16, red,
+ * green, blue), by point format — formats without colour are not listed.
+ */
+const RGB_OFFSET = { 2: 20, 3: 28, 5: 28, 7: 30, 8: 30, 10: 30 }
+
 const ascii = (bytes, from, length) => {
   let s = ''
   for (let i = from; i < from + length && bytes[i]; i++) s += String.fromCharCode(bytes[i])
@@ -80,9 +86,12 @@ export function parseLasHeader(buffer) {
     throw new Error(`LAZ compressor ${laszip.compressor} is not supported`)
   }
 
+  const rgbOffset = RGB_OFFSET[pointFormat] ?? null
   return {
     version: `${versionMajor}.${versionMinor}`,
     compressed, pointFormat, pointLength, pointCount, pointDataOffset,
     scale, offset, min, max, laszip,
+    rgb: rgbOffset != null && pointLength >= rgbOffset + 6,
+    rgbOffset,
   }
 }

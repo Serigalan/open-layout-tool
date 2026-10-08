@@ -15,7 +15,7 @@ import {
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/heightDatums'
 import { listClouds } from '../utils/pointCloud/cloudStore'
 import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
-import { paintCloudCanvas, CLOUD_COLORINGS, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
+import { paintCloudCanvas, coloringsFor, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
 import { checkClearance, BOTTOM_BAND } from '../utils/pointCloud/clearanceCheck'
 import { detectInClouds, soHeight, cantMm } from '../utils/pointCloud/railTrace'
 import {
@@ -125,7 +125,8 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   const [clouds, setClouds] = useState([])          // the project's point clouds on this device
   const [cloudOn, setCloudOn] = useState(true)
   const [thickness, setThickness] = useState(DEFAULT_THICKNESS)
-  const [coloring, setColoring] = useState(CLOUD_COLORINGS[0])
+  // null: the first on offer — RGB where a cloud has colour (AP 13.4).
+  const [chosenColoring, setColoring] = useState(null)
   const [slice, setSlice] = useState(null)          // { key, parts: [{ cloud, points }], ms }
   const [railsFound, setRailsFound] = useState(null) // { key, det } — the heads in the cloud (AP 12.1)
   // Zoom relative to the fitted drawing, and the point [mm] held in the middle
@@ -287,6 +288,8 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   // The last slice stays on screen while the next is read, so the drawing does
   // not flicker as the slider moves.
   const slicedParts = cloudOn && slice ? slice.parts : []
+  const colorings = coloringsFor(clouds.some(c => c.rgb))
+  const coloring = colorings.includes(chosenColoring) ? chosenColoring : colorings[0]
 
   // The clearance check (AP 11.5) against this track's outline, at its
   // gradient and cant. A track without a gradient has nothing to check against.
@@ -670,7 +673,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
                   </label>
                   <select className="cross-section-coloring" value={coloring} onChange={e => setColoring(e.target.value)}
                     title={t('cross_section_cloud_coloring')}>
-                    {CLOUD_COLORINGS.map(c => <option key={c} value={c}>{t(`cross_section_cloud_by_${c}`)}</option>)}
+                    {colorings.map(c => <option key={c} value={c}>{t(`cross_section_cloud_by_${c}`)}</option>)}
                   </select>
                 </>
               )}

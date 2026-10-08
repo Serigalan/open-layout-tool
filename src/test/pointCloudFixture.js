@@ -61,10 +61,11 @@ export async function nodeLazPerf() {
 /**
  * A plain LAS 1.2 file (point format 1, 28 bytes a point, mm scale) holding
  * `points` — `[{ x, y, z, intensity }]` — for tests that need a file whose
- * every point is known.
+ * every point is known. With `format: 3` (34 bytes) each point carries its
+ * colour too, `red`, `green`, `blue` as stored (16 bits).
  */
-export function makeLas(points, { offset = [0, 0, 0], scale = [0.001, 0.001, 0.001] } = {}) {
-  const HEADER = 227, LEN = 28
+export function makeLas(points, { offset = [0, 0, 0], scale = [0.001, 0.001, 0.001], format = 1 } = {}) {
+  const HEADER = 227, LEN = format === 3 ? 34 : 28
   const bytes = new Uint8Array(HEADER + points.length * LEN)
   const v = new DataView(bytes.buffer)
   bytes.set([76, 65, 83, 70], 0)          // LASF
@@ -72,7 +73,7 @@ export function makeLas(points, { offset = [0, 0, 0], scale = [0.001, 0.001, 0.0
   v.setUint16(94, HEADER, true)
   v.setUint32(96, HEADER, true)
   v.setUint32(100, 0, true)
-  bytes[104] = 1
+  bytes[104] = format
   v.setUint16(105, LEN, true)
   v.setUint32(107, points.length, true)
   scale.forEach((s, i) => v.setFloat64(131 + 8 * i, s, true))
@@ -91,6 +92,11 @@ export function makeLas(points, { offset = [0, 0, 0], scale = [0.001, 0.001, 0.0
     v.setInt32(at + 4, Math.round((p.y - offset[1]) / scale[1]), true)
     v.setInt32(at + 8, Math.round((p.z - offset[2]) / scale[2]), true)
     v.setUint16(at + 12, p.intensity ?? 0, true)
+    if (format === 3) {
+      v.setUint16(at + 28, p.red ?? 0, true)
+      v.setUint16(at + 30, p.green ?? 0, true)
+      v.setUint16(at + 32, p.blue ?? 0, true)
+    }
   })
   return bytes
 }

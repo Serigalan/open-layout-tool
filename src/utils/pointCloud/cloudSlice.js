@@ -42,22 +42,28 @@ export function tilesInSlice(index, frame) {
   })
 }
 
-/** Growable output of a slice: y [m], z [m, absolute], intensity [byte]. */
+/**
+ * Growable output of a slice: y [m], z [m, absolute], intensity [byte] and,
+ * with `rgb`, the colour as three bytes a point (`rgb[3k…3k+2]`).
+ */
 export class SlicePoints {
-  constructor() {
+  constructor(rgb = false) {
     this.count = 0
     this.y = new Float32Array(1024)
     this.z = new Float64Array(1024)
     this.i = new Uint8Array(1024)
+    this.rgb = rgb ? new Uint8Array(3072) : null
   }
 
-  push(y, z, i) {
+  push(y, z, i, r = 0, g = 0, b = 0) {
     if (this.count === this.y.length) {
-      const grow = (a) => { const b = new a.constructor(a.length * 2); b.set(a); return b }
+      const grow = (a) => { const c = new a.constructor(a.length * 2); c.set(a); return c }
       this.y = grow(this.y); this.z = grow(this.z); this.i = grow(this.i)
+      if (this.rgb) this.rgb = grow(this.rgb)
     }
     const k = this.count++
     this.y[k] = y; this.z[k] = z; this.i[k] = i
+    if (this.rgb) { this.rgb[3 * k] = r; this.rgb[3 * k + 1] = g; this.rgb[3 * k + 2] = b }
   }
 }
 
@@ -70,7 +76,8 @@ export class SlicePoints {
 export function sliceSegment(out, seg, place, frame, toPlane = null) {
   const { e, n, along, right, halfWidth, half } = frame
   const { ox, oy, oz, sx, sy, sz } = place
-  const { x, y, z, i } = seg
+  const { x, y, z, i, r, g, b } = seg
+  const color = !!(r && out.rgb)
   for (let k = 0; k < x.length; k++) {
     let pe = ox + x[k] * sx, pn = oy + y[k] * sy
     if (toPlane) [pe, pn] = toPlane(pe, pn)
@@ -79,6 +86,7 @@ export function sliceSegment(out, seg, place, frame, toPlane = null) {
     if (d > half || d < -half) continue
     const q = de * right[0] + dn * right[1]
     if (q > halfWidth || q < -halfWidth) continue
-    out.push(q, oz + z[k] * sz, i[k])
+    if (color) out.push(q, oz + z[k] * sz, i[k], r[k], g[k], b[k])
+    else out.push(q, oz + z[k] * sz, i[k])
   }
 }

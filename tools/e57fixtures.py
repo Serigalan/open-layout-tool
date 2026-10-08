@@ -42,7 +42,8 @@ class Writer:
         root.set('data3D', self.data3d)
         root.set('images2D', libe57.VectorNode(self.f, True))
 
-    def scan(self, name, fields, data, rotation=(1, 0, 0, 0), translation=(0, 0, 0), bounds=None, intensity_limits=None):
+    def scan(self, name, fields, data, rotation=(1, 0, 0, 0), translation=(0, 0, 0), bounds=None, intensity_limits=None,
+             color_limits=None):
         """`fields`: [(name, node factory)], `data`: {name: numpy array}."""
         f = self.f
         scan = libe57.StructureNode(f)
@@ -68,6 +69,12 @@ class Writer:
             il.set('intensityMinimum', libe57.FloatNode(f, float(intensity_limits[0])))
             il.set('intensityMaximum', libe57.FloatNode(f, float(intensity_limits[1])))
             scan.set('intensityLimits', il)
+        if color_limits is not None:
+            cl = libe57.StructureNode(f)
+            for c in ('Red', 'Green', 'Blue'):
+                cl.set(f'color{c}Minimum', libe57.IntegerNode(f, int(color_limits[0])))
+                cl.set(f'color{c}Maximum', libe57.IntegerNode(f, int(color_limits[1])))
+            scan.set('colorLimits', cl)
         proto = libe57.StructureNode(f)
         for fname, make in fields:
             proto.set(fname, make(f))
@@ -196,6 +203,34 @@ def fixtures():
     p2 = to_global(xyz2.astype(np.float64), rot2, tr2)
     expected['spherical_two_scans.e57'] = {
         'scans': [expectation(p1, norm16(fint[k1].astype(np.float64), 0, 1), 499), expectation(p2, None, 499)],
+    }
+
+    # 3 — colour in all three channels (AP 13.4): 16-bit integers stated as
+    # such by colorLimits, each an 8-bit value times 257, so 8 bits come back
+    # unchanged; coordinates on a millimetre grid.
+    n3 = 4000
+    raw3 = np.stack([rng.integers(0, 40000, n3), rng.integers(0, 6000, n3), rng.integers(0, 4000, n3)], axis=1)
+    rgb8 = rng.integers(0, 256, (n3, 3))
+    tr3 = (4470660.0, 5332190.0, 528.0)
+    w = Writer(os.path.join(OUT, 'color_rgb.e57'), 'EPSG:5678')
+    w.scan('color', [
+        ('cartesianX', scaled(0, 40000, 0.001)),
+        ('cartesianY', scaled(0, 6000, 0.001)),
+        ('cartesianZ', scaled(0, 4000, 0.001)),
+        ('colorRed', integer(0, 65535)),
+        ('colorGreen', integer(0, 65535)),
+        ('colorBlue', integer(0, 65535)),
+    ], {
+        'cartesianX': raw3[:, 0] * 0.001, 'cartesianY': raw3[:, 1] * 0.001, 'cartesianZ': raw3[:, 2] * 0.001,
+        'colorRed': (rgb8[:, 0] * 257).astype(np.uint16), 'colorGreen': (rgb8[:, 1] * 257).astype(np.uint16),
+        'colorBlue': (rgb8[:, 2] * 257).astype(np.uint16),
+    }, translation=tr3, color_limits=(0, 65535))
+    w.close()
+    pts3 = to_global(raw3 * 0.001, (1, 0, 0, 0), tr3)
+    expected['color_rgb.e57'] = {
+        **expectation(pts3, None, 397),
+        'rgbSum': [int(rgb8[:, c].sum()) for c in range(3)],
+        'rgbSample': [[int(i), *map(int, rgb8[i])] for i in range(0, n3, 397)],
     }
 
     with open(os.path.join(OUT, 'expected.json'), 'w') as fh:

@@ -20,14 +20,14 @@ const subscribe = (fn) => {
 const read = () => current
 
 /** The signed-in user as /api/me states them, or null. */
-export const useCurrentUser = () => useSyncExternalStore(subscribe, read, read)
+const useCurrentUser = () => useSyncExternalStore(subscribe, read, read)
 
 /**
  * Whether `user` may change point clouds — upload, read in locally, delete,
  * re-reference, start server jobs, save or delete measured axes: an admin, or
  * a user with the right (decision 203). The server checks it again.
  */
-export const mayEditClouds = (user) => Boolean(user && (user.role === 'admin' || user.canEditClouds))
+const mayEditClouds = (user) => Boolean(user && (user.role === 'admin' || user.canEditClouds))
 
 /** The same, for the signed-in user. */
 export const useMayEditClouds = () => mayEditClouds(useCurrentUser())

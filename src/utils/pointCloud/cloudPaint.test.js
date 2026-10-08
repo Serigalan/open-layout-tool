@@ -38,6 +38,16 @@ describe('drawCloudPoints', () => {
     expect(rects[0].fill).not.toBe(INTRUSION_COLOR)
   })
 
+  it('paints in the points\' own colour with RGB, a part without colour by intensity', () => {
+    const { ctx, rects } = fakeCtx()
+    const coloured = { ...points([[0, 101, 10], [1, 101, 10]]), rgb: Uint8Array.from([255, 0, 0, 0, 255, 255]) }
+    drawCloudPoints(ctx, {
+      w: 400, h: 300, k: 0.05, cx: 200, cy: 250, zRef: 100, coloring: 'rgb',
+      parts: [{ points: coloured }, { points: points([[2, 101, 255]]) }],
+    })
+    expect(rects.map(r => r.fill)).toEqual(['rgb(255,0,0)', 'rgb(0,255,255)', 'rgb(30,30,30)'])
+  })
+
   it('draws nothing without a reference height', () => {
     const { ctx, rects } = fakeCtx()
     expect(drawCloudPoints(ctx, { w: 10, h: 10, k: 1, cx: 0, cy: 0, zRef: null, parts: [{ points: points([[0, 0, 0]]) }] })).toBe(0)

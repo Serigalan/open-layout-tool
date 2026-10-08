@@ -6,8 +6,8 @@
  * of points paint in a few milliseconds.
  */
 
-/** The colourings on offer, the first the default. */
-export const CLOUD_COLORINGS = ['intensity', 'height']
+/** The colourings for clouds of which `anyRgb` says whether one has colour — and which comes first. */
+export const coloringsFor = (anyRgb) => (anyRgb ? ['rgb', 'intensity', 'height'] : ['intensity', 'height'])
 
 /** Points inside the clearance outline (AP 11.5). */
 export const INTRUSION_COLOR = '#e0201b'
@@ -28,11 +28,19 @@ const RAMP = Array.from({ length: BUCKETS }, (_, k) => {
   return `hsl(${Math.round(hue)},75%,42%)`
 })
 
+/** True colour in 4 bits a channel: up to 4096 fill styles, each set once. */
+const RGB_STEPS = 16
+const rgbFill = (b) => {
+  const c = (v) => Math.round(v * 255 / (RGB_STEPS - 1))
+  return `rgb(${c(b >> 8)},${c((b >> 4) & 15)},${c(b & 15)})`
+}
+
 /**
- * Paint `parts` — `[{ points: { count, y, z, i }, flags? }]`, y [m] across and
- * z [m] absolute; `flags[k]` 1 for a point inside the clearance outline, 2 for
- * one in an allowed area — onto `ctx` (already sized `w × h` CSS pixels at
- * `dpr`). Returns how many points were painted.
+ * Paint `parts` — `[{ points: { count, y, z, i, rgb? }, flags? }]`, y [m]
+ * across and z [m] absolute; `flags[k]` 1 for a point inside the clearance
+ * outline, 2 for one in an allowed area — onto `ctx` (already sized `w × h`
+ * CSS pixels at `dpr`). With 'rgb' a part without colour is painted by its
+ * intensity. Returns how many points were painted.
  */
 export function drawCloudPoints(ctx, { w, h, dpr = 1, k, cx, cy, zRef, parts, coloring = 'intensity' }) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -47,21 +55,34 @@ export function drawCloudPoints(ctx, { w, h, dpr = 1, k, cx, cy, zRef, parts, co
   const span = Math.max(zHi - zLo, 0.01)
   const palette = coloring === 'height' ? RAMP : GREYS
   const buckets = Array.from({ length: BUCKETS + 2 }, () => [])
+  const colors = new Map()   // 12-bit colour → [x, y, …]
   const size = 1.6
   let painted = 0
   for (const { points: p, flags } of parts) {
+    const rgb = coloring === 'rgb' ? p.rgb : null
     for (let n = 0; n < p.count; n++) {
       const px = cx + p.y[n] * 1000 * k
       const py = cy - (p.z[n] - zRef) * 1000 * k
       if (px < -2 || py < -2 || px > w + 2 || py > h + 2) continue
+      painted++
       let b
       if (flags?.[n] === 1) b = BUCKETS
       else if (flags?.[n] === 2) b = BUCKETS + 1
+      else if (rgb) {
+        const c = ((rgb[3 * n] >> 4) << 8) | ((rgb[3 * n + 1] >> 4) << 4) | (rgb[3 * n + 2] >> 4)
+        let xy = colors.get(c)
+        if (!xy) colors.set(c, xy = [])
+        xy.push(px, py)
+        continue
+      }
       else if (coloring === 'height') b = Math.min(BUCKETS - 1, Math.floor((p.z[n] - zLo) / span * BUCKETS))
       else b = p.i[n] >> 3
       buckets[b].push(px, py)
-      painted++
     }
+  }
+  for (const [c, xy] of colors) {
+    ctx.fillStyle = rgbFill(c)
+    for (let m = 0; m < xy.length; m += 2) ctx.fillRect(xy[m] - size / 2, xy[m + 1] - size / 2, size, size)
   }
   const fills = [...palette, INTRUSION_COLOR, ALLOWED_COLOR]
   buckets.forEach((xy, b) => {
