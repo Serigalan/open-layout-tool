@@ -70,6 +70,18 @@ export function epsgForLagesystem(sys) {
   return (zone && SYS_CODE[code[1]]?.[zone]) ?? null
 }
 
+/** The Lagesystem code of a Gauss-Krüger plane (`ER0` for 5684), null for any other. */
+export function lagesystemForEpsg(epsg) {
+  for (const [frame, zones] of Object.entries(SYS_CODE)) {
+    for (const [zone, code] of Object.entries(zones)) {
+      if (code !== Number(epsg)) continue
+      const strip = Object.keys(SYS_ZONE).find(s => SYS_ZONE[s] === Number(zone))
+      return `${strip}${frame}0`
+    }
+  }
+  return null
+}
+
 /**
  * Element type codes of Satzart 21. 3 and 7 are further transition forms with
  * no equivalent in the model; they keep their code so the report can name them.
