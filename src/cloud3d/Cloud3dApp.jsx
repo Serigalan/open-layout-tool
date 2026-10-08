@@ -17,7 +17,8 @@ import { downloadText } from '../utils/fileUtils'
 import { Viewer } from './viewer'
 import { COLORINGS, CLOUD_COLORS } from './shaders'
 import { cloud3dParams, openChannel } from './channel'
-import { trackSamples, trackLines, nearestOnTracks, sectionPlane, CLEARANCE_LENGTH, CLEARANCE_AHEAD } from './trackGeometry'
+import { trackSamples, trackLines, nearestOnTracks, sectionPlane, routeSamples, CLEARANCE_LENGTH, CLEARANCE_AHEAD } from './trackGeometry'
+import { resolveRoute, routeStationOf } from '../utils/routes'
 import { cloudPlacement } from './placement'
 import useRegistration from './useRegistration'
 import RegistrationPanel from './RegistrationPanel'
@@ -92,6 +93,7 @@ function Cloud3dPage() {
   const [clearanceOn, setClearanceOn] = useState(false)
   const [clearanceChoice, setClearanceChoice] = useState('')   // a profile of the catalogue; '' the project's
   const [tracksSampled, setTracksSampled] = useState([])   // geometryRef's tracks, as state for the drawing
+  const [routesSampled, setRoutesSampled] = useState([])   // geometryRef's routes (Paket RT): { id, label, resolved, samples }
   const [measuring, setMeasuring] = useState(false)
   const [measured, setMeasured] = useState([])
   const [note, setNote] = useState(null)
@@ -242,7 +244,7 @@ function Cloud3dPage() {
       viewerRef.current = viewer
       // For the checks in a headless browser (the dev server only).
       if (import.meta.env.DEV) window.__olt3d = { viewer, split: () => splitViewerRef.current }
-      geometryRef.current = { viewCrs, origin, tracks: [] }
+      geometryRef.current = { viewCrs, origin, tracks: [], routes: [] }
       setOptions(o => ({ ...o, coloring: clouds.some(c => c.rgb) ? 'rgb' : 'intensity' }))
       setState({ phase: 'ready', viewCrs })
     })()
@@ -334,6 +336,13 @@ function Cloud3dPage() {
       samples: trackSamples(tr, { tracks, switches, toView: planeMapper(tr.epsg, viewCrs) }),
     }))
     geo.tracks = sampled
+    // The routes walked as one: their tracks' samples one after the other (decision 253).
+    const byId = new Map(sampled.map(tr => [tr.id, tr.samples]))
+    geo.routes = (project.data.routes ?? []).map(r => {
+      const resolved = resolveRoute(r, tracks, switches)
+      return { id: r.id, key: `route:${r.id}`, label: r.name, resolved, samples: routeSamples(resolved.parts, byId) }
+    }).filter(r => r.samples.length > 1)
+    setRoutesSampled(geo.routes)
     viewer.setOverlay('surveys', axisSurveys.map(s => {
       const toView = planeMapper(s.epsg, viewCrs)
       const pts = surveyPoints(s).map(p => { const [e, n] = toView(p.easting, p.northing); return [e, n, (p.zLeft + p.zRight) / 2] })
@@ -496,11 +505,25 @@ function Cloud3dPage() {
 
   // ── the walk ───────────────────────────────────────────────────────────────
   /**
-   * Where the track view of a track begins: at the cross section of the main
-   * window where it is on this track, else where the track passes the
-   * clouds, else at its start.
+   * What the track view walks along, by the key the choice holds: a track by
+   * its id, a route (Paket RT) as `route:<id>` — each { samples } at its own
+   * stations.
+   */
+  const walkable = (key) => (String(key).startsWith('route:')
+    ? geometryRef.current?.routes.find(r => r.key === key)
+    : geometryRef.current?.tracks.find(x => x.id === key)) ?? null
+
+  /**
+   * Where the track view of a track or route begins: at the cross section of
+   * the main window where it is on it, else where it passes the clouds, else
+   * at its start.
    */
   const firstStation = (tr) => {
+    if (tr.resolved) {
+      if (section?.routeId === tr.id && Number.isFinite(section.routeStation)) return section.routeStation
+      const s = section ? routeStationOf(tr.resolved, section.trackId, section.station) : null
+      if (s != null) return s
+    }
     if (section?.trackId === tr.id) return section.station
     const v = viewerRef.current
     const box = new THREE.Box3()
@@ -513,10 +536,10 @@ function Cloud3dPage() {
     return tr.samples.find(p => p.z != null)?.s ?? 0
   }
 
-  /** Stand on a track in the track view, at `station` or where it begins. */
+  /** Stand on a track or route in the track view, at `station` or where it begins. */
   const walkOn = (id, station = null) => {
     const viewer = viewerRef.current
-    const tr = geometryRef.current?.tracks.find(x => x.id === id)
+    const tr = walkable(id)
     if (!viewer || !tr) { viewer?.stopWalk(); setWalking(null); return }
     if (viewer.startWalk(tr.samples, station ?? firstStation(tr))) {
       setWalking(viewer.walkState())
@@ -538,11 +561,13 @@ function Cloud3dPage() {
     else viewer?.orbit()
   }
 
-  // The stretch of the chosen track the slider spans: where it has a gradient.
+  // The stretch of the chosen track or route the slider spans: where it has a gradient.
   const walkRange = useMemo(() => {
-    const usable = tracksSampled.find(x => x.id === walkTrack)?.samples.filter(p => p.z != null) ?? []
+    const chosen = String(walkTrack).startsWith('route:')
+      ? routesSampled.find(r => r.key === walkTrack) : tracksSampled.find(x => x.id === walkTrack)
+    const usable = chosen?.samples.filter(p => p.z != null) ?? []
     return usable.length > 1 ? [usable[0].s, usable[usable.length - 1].s] : null
-  }, [tracksSampled, walkTrack])
+  }, [tracksSampled, routesSampled, walkTrack])
 
   // ── the page ───────────────────────────────────────────────────────────────
   if (state.phase === 'anon') return <div className="cloud3d-message">{t('cloud3d_sign_in')}</div>
@@ -673,7 +698,14 @@ function Cloud3dPage() {
                 <span>{t('cloud3d_walk_track')}</span>
                 <select value={walkTrack} onChange={e => { setWalkTrack(e.target.value); walkOn(e.target.value) }}>
                   <option value="">{t('cloud3d_choose')}</option>
-                  {tracks.map(tr => <option key={tr.id} value={tr.id}>{tr.label}</option>)}
+                  {routesSampled.length > 0 && (
+                    <optgroup label={t('routes')}>
+                      {routesSampled.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+                    </optgroup>
+                  )}
+                  <optgroup label={t('cloud3d_tracks_group')}>
+                    {tracks.map(tr => <option key={tr.id} value={tr.id}>{tr.label}</option>)}
+                  </optgroup>
                 </select>
               </label>
               {walking && walkRange && (

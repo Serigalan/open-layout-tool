@@ -40,6 +40,27 @@ export function trackSamples(track, { tracks = [], switches = [], toView = (e, n
   return out
 }
 
+/**
+ * The samples along a route (Paket RT): its tracks' samples one after the
+ * other at the route's stations — a track the route runs backwards in
+ * reverse, looking the other way, its cant on the other rail — and the point
+ * where two meet once. `parts` as resolveRoute gives them, `sampled` a track's
+ * samples by its id.
+ */
+export function routeSamples(parts, sampled) {
+  const out = []
+  for (const part of parts ?? []) {
+    const samples = sampled.get(part.trackId)
+    if (!samples?.length) continue
+    for (const p of part.reversed ? [...samples].reverse() : samples) {
+      const s = part.offset + (part.reversed ? part.length - p.s : p.s)
+      if (out.length && Math.abs(out[out.length - 1].s - s) < 1e-6) continue
+      out.push(part.reversed ? { ...p, s, bearing: (p.bearing + 180) % 360, cant: -p.cant } : { ...p, s })
+    }
+  }
+  return out
+}
+
 /** The direction to the right of a bearing [degrees from grid north], as (de, dn). */
 const rightOf = (bearing) => {
   const r = bearing * Math.PI / 180

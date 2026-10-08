@@ -149,3 +149,18 @@ describe('measuring (AP 13.11)', async () => {
     expect(lines[3].endsWith(';13.000;12.000;5.000')).toBe(true)
   })
 })
+
+describe('routeSamples', () => {
+  it('runs the tracks one after the other, a backwards one reversed with its bearing and cant turned', async () => {
+    const { routeSamples } = await import('./trackGeometry')
+    const a = [{ s: 0, e: 0, n: 0, z: 1, bearing: 90, cant: 0 }, { s: 10, e: 10, n: 0, z: 2, bearing: 90, cant: 20 }]
+    // b runs west from 20 to 10: the route meets it at its end.
+    const b = [{ s: 0, e: 20, n: 0, z: 4, bearing: 270, cant: -30 }, { s: 10, e: 10, n: 0, z: 2, bearing: 270, cant: 0 }]
+    const parts = [
+      { trackId: 'a', reversed: false, offset: 0, length: 10 },
+      { trackId: 'b', reversed: true, offset: 10, length: 10 },
+    ]
+    const out = routeSamples(parts, new Map([['a', a], ['b', b]]))
+    expect(out.map(p => [p.s, p.e, p.bearing, p.cant])).toEqual([[0, 0, 90, 0], [10, 10, 90, 20], [20, 20, 90, 30]])
+  })
+})

@@ -6,8 +6,8 @@ const SEND_AFTER = 400
 
 /**
  * The main window's side of the 3D window (AP 13.10): it answers the 3D
- * window's hello with the project — tracks, switches, measured axes, gauge
- * profile — and sends it again after every change, tells it which cross
+ * window's hello with the project — tracks, switches, routes, measured axes,
+ * gauge profile — and sends it again after every change, tells it which cross
  * section is shown, and opens the cross section where the 3D window was
  * double-clicked.
  */
@@ -45,14 +45,15 @@ export default function useCloud3dChannel({ project, at, onShowCrossSection }) {
   }, [project])
 
   const trackId = at?.trackId ?? null, station = at?.station ?? null
+  const routeId = at?.routeId ?? null, routeStation = at?.routeStation ?? null
   useEffect(() => {
     if (!listening.current) return
-    channel.current?.postMessage({ type: 'section', at: trackId ? { trackId, station } : null })
-  }, [trackId, station])
+    channel.current?.postMessage({ type: 'section', at: trackId ? { trackId, station, routeId, routeStation } : null })
+  }, [trackId, station, routeId, routeStation])
 }
 
 /** What the 3D window needs of the project. */
 const projectData = (p) => (p ? {
   id: p.id, title: p.title, tracks: p.tracks ?? [], switches: p.switches ?? [],
-  axisSurveys: p.axisSurveys ?? [], gaugeProfile: p.gaugeProfile ?? null,
+  axisSurveys: p.axisSurveys ?? [], gaugeProfile: p.gaugeProfile ?? null, routes: p.routes ?? [],
 } : null)
