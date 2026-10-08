@@ -113,7 +113,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
       const clicked  = Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000
       const sw = SWITCH_PICK_TYPES[switchTypeIdx]
-      const { stops } = switchOnTrackStops({ track, reversed, sw, side, straightLen: switchStraightLength(sw) }, elIdx)
+      const { stops } = switchOnTrackStops({ track, reversed, sw, side, speed, straightLen: switchStraightLength(sw) }, elIdx)
       begin({ trackId })
       setSlideEl(elIdx)
       setStation(String(nearestStop(stops, clicked) ?? clicked))
@@ -130,17 +130,17 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   // ── The slider: the stations on its element where the turnout lies and
   // keeps the minimum element length before WA (Entscheidung 217) ──────────
   const slider = useMemo(() => (track
-    ? switchOnTrackStops({ track, reversed, sw, side, straightLen }, slideEl)
-    : { stops: [], behind: 0 }), [track, reversed, sw, side, straightLen, slideEl])
+    ? switchOnTrackStops({ track, reversed, sw, side, speed, straightLen }, slideEl)
+    : { stops: [], behind: 0 }), [track, reversed, sw, side, speed, straightLen, slideEl])
   const stopIdx = Math.max(0, slider.stops.indexOf(nearestStop(slider.stops, toeStation)))
-  const remnant = track && Number.isFinite(toeStation) ? switchOnTrackRemnant(track, toeStation, reversed) : null
+  const remnant = track && Number.isFinite(toeStation) ? switchOnTrackRemnant(track, toeStation, reversed, speed) : null
 
   // A setting that changes where the turnout may lie keeps the toe where it
   // is while it still may stand there, else moves it to the nearest stop.
   const settle = (next) => {
     if (!track || !Number.isFinite(toeStation)) return
     const nextSw = next.sw ?? sw
-    const args = { track, reversed, sw, side, ...next, straightLen: switchStraightLength(nextSw) }
+    const args = { track, reversed, sw, side, speed, ...next, straightLen: switchStraightLength(nextSw) }
     if (switchOnTrackToeValid(args, toeStation)) return
     const to = nearestStop(switchOnTrackStops(args, slideEl).stops, toeStation)
     if (to != null) setStation(String(to))
@@ -298,7 +298,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
         </div>
         <ReadOnlyField label={t('switch_on_track_elements')} value={elementsText} />
         <SwitchFormField value={switchTypeIdx} onChange={i => {
-          settle({ sw: SWITCH_PICK_TYPES[i] }); setTypeIdx(i); setSpeed(SWITCH_PICK_TYPES[i].speed)
+          settle({ sw: SWITCH_PICK_TYPES[i], speed: SWITCH_PICK_TYPES[i].speed }); setTypeIdx(i); setSpeed(SWITCH_PICK_TYPES[i].speed)
         }} />
         <div className="form-field">
           <label>{t('switch_side')}</label>
@@ -309,7 +309,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
         </div>
         <div className="form-field">
           <label>{splitUnit(t('field_speed')).text}</label>
-          <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
+          <NumberInput min="0" value={speed} onChange={e => { settle({ speed: Number(e.target.value) }); setSpeed(Number(e.target.value)) }} unit="km/h" />
         </div>
         <SwitchCantField
           label={cantVaries ? t('switch_cant_ramp') : t('cant')}

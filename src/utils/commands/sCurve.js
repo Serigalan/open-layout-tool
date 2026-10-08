@@ -232,23 +232,25 @@ function turnoutSpan(picks, k, shift, res) {
 /**
  * The pieces a connection leaves of the two elements it is laid into: on
  * either track the piece before WA and the piece behind WE. Each has to be
- * none at all (the turnout on the node) or at least l_min of LP.EL.01 at its
- * element's speed (`pick.speed`); `short` marks the ones that are neither.
+ * none at all (the turnout on the node) or at least l_min of LP.EL.01: before
+ * WA at the speed of the diverging track — the connection's `speed`
+ * (Entscheidung 219) —, behind WE at the element's own (`pick.speed`); `short`
+ * marks the ones that are neither, `v` is the speed each was read at.
  * `pick.trackEnds` says whether the element's start and end node are its
  * track's open ends ([start, end]).
  *
- * Returns [{ track: 0|1, side: 'before'|'after', length, lMin, short }].
+ * Returns [{ track: 0|1, side: 'before'|'after', length, v, lMin, short }].
  */
-export function connectionRemnants(picks, shift, res) {
+export function connectionRemnants(picks, shift, res, speed) {
   const out = []
   for (const k of [0, 1]) {
     const { toe, far, len } = turnoutSpan(picks, k, shift, res)
-    const lMin = minElementLength(picks[k].speed)
     const before = far > toe ? toe : len - toe
     const after = far > toe ? len - far : far
-    for (const [side, length] of [['before', before], ['after', after]]) {
+    for (const [side, length, v] of [['before', before, speed || null], ['after', after, picks[k].speed || null]]) {
       const l = Math.max(0, length)
-      out.push({ track: k, side, length: l, lMin, short: lMin != null && l > NODE_TOL && l < lMin - NODE_TOL })
+      const lMin = minElementLength(v)
+      out.push({ track: k, side, length: l, v, lMin, short: lMin != null && l > NODE_TOL && l < lMin - NODE_TOL })
     }
   }
   return out
@@ -305,9 +307,9 @@ export function settleConnection({ picks, speed, shift }) {
   let res = solveConnection({ picks, speed, shift })
   if (!res?.valid) return { shift, result: res, moved: [], remnants: [] }
   const moved = []
-  const shortBefore = (k, r, s) => connectionRemnants(picks, s, r).find(x => x.track === k && x.side === 'before' && x.short)
+  const shortBefore = (k, r, s) => connectionRemnants(picks, s, r, speed).find(x => x.track === k && x.side === 'before' && x.short)
   const fail = (s, r, piece) => ({
-    shift: s, moved, remnants: connectionRemnants(picks, s, r),
+    shift: s, moved, remnants: connectionRemnants(picks, s, r, speed),
     result: { ...r, valid: false, reason: 'min_element_length', short: piece },
   })
 
@@ -345,7 +347,7 @@ export function settleConnection({ picks, speed, shift }) {
     moved.push(1)
   }
 
-  const remnants = connectionRemnants(picks, shift, res)
+  const remnants = connectionRemnants(picks, shift, res, speed)
   const still = remnants.find(x => x.short)
   if (still) return fail(shift, res, still)
   return { shift, result: res, moved, remnants }

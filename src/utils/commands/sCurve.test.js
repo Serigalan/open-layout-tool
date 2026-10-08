@@ -150,13 +150,14 @@ describe('minimum element length at the turnouts (LP.EL.01)', () => {
   })
 
   it('pushes the first toe back onto the node where the piece before WA would be short', () => {
-    const picks = [fast(P(500000, 5600000), 1000, 10), far2]
-    expect(connectionRemnants(picks, 0, solveConnection({ picks, speed: SPEED, shift: 0 }))
-      .find(r => r.track === 0 && r.side === 'before')).toMatchObject({ length: 10, short: true })
+    // Before WA l_min is the diverging track's: 6 m at the connection's 60 km/h.
+    const picks = [fast(P(500000, 5600000), 1000, 4), far2]
+    expect(connectionRemnants(picks, 0, solveConnection({ picks, speed: SPEED, shift: 0 }), SPEED)
+      .find(r => r.track === 0 && r.side === 'before')).toMatchObject({ length: 4, v: SPEED, short: true })
     const out = settleConnection({ picks, speed: SPEED, shift: 0 })
     expect(out.result.valid).toBe(true)
     expect(out.moved).toEqual([0])
-    expect(out.shift).toBeCloseTo(-10)
+    expect(out.shift).toBeCloseTo(-4)
     expect(out.result.TP1.northing).toBeCloseTo(5600000, 6)
     expect(out.remnants.find(r => r.track === 0 && r.side === 'before').length).toBeCloseTo(0, 6)
   })
@@ -171,7 +172,7 @@ describe('minimum element length at the turnouts (LP.EL.01)', () => {
     const p2 = fast(P(499995.5, end - len), len, 5600400 - (end - len))
     const picks = [p1, p2]
     const res = solveConnection({ picks, speed: SPEED, shift: 0 })
-    expect(connectionRemnants(picks, 0, res).find(r => r.track === 1 && r.side === 'before'))
+    expect(connectionRemnants(picks, 0, res, SPEED).find(r => r.track === 1 && r.side === 'before'))
       .toMatchObject({ short: true })
     const out = settleConnection({ picks, speed: SPEED, shift: 0 })
     expect(out.result.valid).toBe(true)
@@ -193,18 +194,30 @@ describe('minimum element length at the turnouts (LP.EL.01)', () => {
   })
 
   it('does not push a toe onto the open end of its track', () => {
-    const picks = [{ ...fast(P(500000, 5600000), 1000, 10), trackEnds: [true, false] }, far2]
+    const picks = [{ ...fast(P(500000, 5600000), 1000, 4), trackEnds: [true, false] }, far2]
     const out = settleConnection({ picks, speed: SPEED, shift: 0 })
     expect(out.moved).toEqual([])
     expect(out.result.valid).toBe(false)
-    expect(out.result.short).toMatchObject({ track: 0, side: 'before', length: 10 })
+    expect(out.result.short).toMatchObject({ track: 0, side: 'before', length: 4 })
   })
 
-  it('checks nothing on an element without a speed', () => {
-    const picks = [{ ...fast(P(500000, 5600000), 1000, 10), speed: undefined }, far2]
+  it('before WA reads the diverging track\'s speed, not the element\'s (Entscheidung 219)', () => {
+    // 10 m before WA on a 160 km/h element (l_min 32 m) are enough at 60 km/h.
+    const picks = [fast(P(500000, 5600000), 1000, 10), far2]
     const out = settleConnection({ picks, speed: SPEED, shift: 0 })
     expect(out.result.valid).toBe(true)
     expect(out.moved).toEqual([])
+    // …and an element without a speed is checked before WA all the same.
+    const bare4 = [{ ...fast(P(500000, 5600000), 1000, 4), speed: undefined }, far2]
+    expect(settleConnection({ picks: bare4, speed: SPEED, shift: 0 }).moved).toEqual([0])
+  })
+
+  it('checks nothing behind WE on an element without a speed', () => {
+    const through = solveConnection({ picks: [fast(P(500000, 5600000), 1000, 200), far2], speed: SPEED, shift: 0 }).throughLength
+    const picks = [{ ...fast(P(500000, 5600000), through + 10, 0), speed: undefined }, far2]
+    const out = settleConnection({ picks, speed: SPEED, shift: 0 })
+    expect(out.result.valid).toBe(true)
+    expect(out.remnants.find(r => r.track === 0 && r.side === 'after')).toMatchObject({ lMin: null, short: false })
   })
 })
 
@@ -218,11 +231,11 @@ describe.skipIf(!hasPekBestand)('minimum element length on the PEK Bestand', () 
     return tracks
   }
 
-  it('lays the connection on the joint instead of leaving a 10 m piece before WA', () => {
+  it('lays the connection on the joint instead of leaving a 4 m piece before WA', () => {
     const tracks = load()
     const t1 = tracks.find(tr => tr.name === '6340.19604')
     const t2 = tracks.find(tr => tr.name === '6340.20386')
-    const p1 = connectionPick(t1, 5, 10)
+    const p1 = connectionPick(t1, 5, 4)
     // The second pick abreast of the first, 100 m on.
     const near = (tr, idx, utm) => {
       const el = tr.elements[idx]
@@ -239,7 +252,7 @@ describe.skipIf(!hasPekBestand)('minimum element length on the PEK Bestand', () 
     const speed = 60
     const raw = solveConnection({ picks, speed, shift: 0 })
     expect(raw.valid).toBe(true)
-    expect(connectionRemnants(picks, 0, raw).find(r => r.track === 0 && r.side === 'before'))
+    expect(connectionRemnants(picks, 0, raw, speed).find(r => r.track === 0 && r.side === 'before'))
       .toMatchObject({ short: true })
 
     const out = settleConnection({ picks, speed, shift: 0 })

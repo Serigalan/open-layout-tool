@@ -8,36 +8,42 @@ const EPSG = 25832
 const START = { easting: 500000, northing: 5600000, zone: EPSG }
 const FORM = SWITCH_TYPES.find(f => f.label === '760 – 1:14')
 
-/** A straight track of two 100 m elements at design speed `speed` (l_min 15 m at 100 km/h). */
+/** A straight track of two 100 m elements at design speed `speed`. */
 function twoStraights(speed) {
   const a = straightFrom(START, 30, 100)
   const b = straightFrom({ easting: a.endNode[0], northing: a.endNode[1], zone: EPSG }, 30, 100)
   return trackOf([{ ...a, speed }, { ...b, speed }], EPSG, { name: 'line.001' }, 'host')
 }
-const argsOf = (track, reversed = false) => ({
-  track, reversed, sw: FORM, side: 'left', straightLen: switchStraightLength(FORM),
+/** The dialog's settings; `speed` is the diverging track's (l_min 15 m at 100 km/h). */
+const argsOf = (track, reversed = false, speed = 100) => ({
+  track, reversed, sw: FORM, side: 'left', speed, straightLen: switchStraightLength(FORM),
 })
 
 describe('switch on track — the piece before the toe (LP.EL.01)', () => {
   const track = twoStraights(100)
 
   it('is none where the toe sits on a node, else the piece of the element behind it', () => {
-    expect(switchOnTrackRemnant(track, 100, false)).toMatchObject({ length: 0, short: false })
-    expect(switchOnTrackRemnant(track, 100, true)).toMatchObject({ length: 0, short: false })
-    expect(switchOnTrackRemnant(track, 110, false)).toMatchObject({ elIdx: 1, length: 10, lMin: 15, short: true })
-    expect(switchOnTrackRemnant(track, 120, false)).toMatchObject({ elIdx: 1, length: 20, short: false })
+    expect(switchOnTrackRemnant(track, 100, false, 100)).toMatchObject({ length: 0, short: false })
+    expect(switchOnTrackRemnant(track, 100, true, 100)).toMatchObject({ length: 0, short: false })
+    expect(switchOnTrackRemnant(track, 110, false, 100)).toMatchObject({ elIdx: 1, length: 10, lMin: 15, short: true })
+    expect(switchOnTrackRemnant(track, 120, false, 100)).toMatchObject({ elIdx: 1, length: 20, short: false })
   })
 
   it('opening against the track, the piece behind the toe is the one towards the element end', () => {
-    expect(switchOnTrackRemnant(track, 90, true)).toMatchObject({ elIdx: 0, length: 10, short: true })
-    expect(switchOnTrackRemnant(track, 80, true)).toMatchObject({ elIdx: 0, length: 20, short: false })
+    expect(switchOnTrackRemnant(track, 90, true, 100)).toMatchObject({ elIdx: 0, length: 10, short: true })
+    expect(switchOnTrackRemnant(track, 80, true, 100)).toMatchObject({ elIdx: 0, length: 20, short: false })
     // With the track, the same toe leaves 80 m before it.
-    expect(switchOnTrackRemnant(track, 80, false)).toMatchObject({ length: 80, short: false })
+    expect(switchOnTrackRemnant(track, 80, false, 100)).toMatchObject({ length: 80, short: false })
   })
 
-  it('is not checked without a design speed of 40 km/h or more', () => {
-    const r = switchOnTrackRemnant(twoStraights(null), 110, false)
-    expect(r).toMatchObject({ length: 10, lMin: null, short: false })
+  it('is not checked where the diverging track runs below 40 km/h', () => {
+    expect(switchOnTrackRemnant(track, 110, false, 30)).toMatchObject({ length: 10, lMin: null, short: false })
+  })
+
+  it('takes the speed of the diverging track, not the element\'s (Entscheidung 219)', () => {
+    // 10 m are short at 100 km/h, enough at 60 (l_min 6 m) — on either element.
+    expect(switchOnTrackRemnant(track, 110, false, 60)).toMatchObject({ lMin: 6, short: false })
+    expect(switchOnTrackRemnant(twoStraights(null), 110, false, 100)).toMatchObject({ lMin: 15, short: true })
   })
 })
 
@@ -70,8 +76,8 @@ describe('switch on track — where the slider stands', () => {
     expect(stops.some(s => s > 85 && s < 100)).toBe(false)
   })
 
-  it('every whole metre where the element has no speed to check', () => {
-    const { stops } = switchOnTrackStops(argsOf(twoStraights(null)), 1)
+  it('every whole metre where the diverging track has no speed to check', () => {
+    const { stops } = switchOnTrackStops(argsOf(track, false, 30), 1)
     expect(stops.slice(0, 3)).toEqual([100, 101, 102])
   })
 

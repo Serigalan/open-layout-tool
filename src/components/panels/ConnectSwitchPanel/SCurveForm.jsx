@@ -299,7 +299,7 @@ export default function SCurveForm({ onCommitted }) {
               track: picks[result.short.track]?.name ?? '',
               l: result.short.length.toFixed(2),
               lmin: result.short.lMin.toFixed(2),
-              v: String(picks[result.short.track]?.speed ?? ''),
+              v: String(result.short.v ?? ''),
             })}
           </p>
         )}
