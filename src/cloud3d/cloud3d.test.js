@@ -164,3 +164,20 @@ describe('routeSamples', () => {
     expect(out.map(p => [p.s, p.e, p.bearing, p.cant])).toEqual([[0, 0, 90, 0], [10, 10, 90, 20], [20, 20, 90, 30]])
   })
 })
+
+describe('a track view in the address', () => {
+  it('goes out and comes back the same — a track or a route, station and view', async () => {
+    const { walkParams, cloud3dParams } = await import('./channel')
+    const walk = { key: 'route:r1', station: 1234.5678, yaw: 0.123456, pitch: -0.12, across: 1.234, height: 2.5 }
+    const q = new URLSearchParams({ project: 'p', variant: 'v', ...walkParams(walk) })
+    expect(Object.fromEntries(q)).toMatchObject({ walk: 'route:r1', at: '1234.57', yaw: '0.1235', pitch: '-0.12', across: '1.23', h: '2.5' })
+    const back = cloud3dParams(`#/cloud3d?${q}`)
+    expect(back).toMatchObject({ projectId: 'p', variantId: 'v' })
+    expect(back.walk).toEqual({ key: 'route:r1', station: 1234.57, yaw: 0.1235, pitch: -0.12, across: 1.23, height: 2.5 })
+    // A track goes by its id alone, as the choice holds it.
+    const t = cloud3dParams(`#/cloud3d?share=tok&${new URLSearchParams(walkParams({ key: 'abc', station: 10 }))}`)
+    expect(t).toMatchObject({ share: 'tok', walk: { key: 'abc', station: 10 } })
+    expect(cloud3dParams('#/cloud3d?project=p&walk=nonsense&at=1').walk).toBeNull()
+    expect(walkParams(null)).toEqual({})
+  })
+})

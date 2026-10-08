@@ -83,15 +83,6 @@ export function routeProfile(resolved) {
 }
 
 /**
- * The route point a track's height point a write produced lands on, after
- * the write: looked up in `profile` built from the new state.
- */
-export const pointOf = (profile, trackId, index) => {
-  const i = profile.byRef(trackId, index)
-  return i == null ? null : profile.points[i]
-}
-
-/**
  * What the Höhenplan rules said about each track (`checks`: trackId →
  * checkVertical result), on the route, in the shape checkVertical gives it —
  * { stretches, curves, severity } — so verticalFindings reads it as well:

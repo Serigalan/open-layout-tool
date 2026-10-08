@@ -15,7 +15,7 @@ const DEFAULT_EXPIRY = '30'
  * ticked it also shows the clouds added later. Nobody else sees this section
  * — the server refuses them the list.
  */
-export default function SharePanel({ projectId, variantId, rows }) {
+export default function SharePanel({ projectId, variantId, rows, walking = false, walkNow = () => null }) {
   const { t, fill, language } = useI18n()
   const [shares, setShares] = useState(null)      // null while unknown or not allowed
   const [label, setLabel] = useState('')
@@ -25,6 +25,8 @@ export default function SharePanel({ projectId, variantId, rows }) {
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(null)
   const [revoking, setRevoking] = useState(null)
+  // Copied links open at the track view as it stands now (Paket RT, decision 254).
+  const [atWalk, setAtWalk] = useState(false)
 
   useEffect(() => {
     if (!projectId) return
@@ -40,12 +42,13 @@ export default function SharePanel({ projectId, variantId, rows }) {
   const date = (iso) => new Date(iso).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB')
 
   const copy = async (share) => {
+    const url = cloud3dShareUrl(share.token, walking && atWalk ? walkNow() : null)
     try {
-      await navigator.clipboard.writeText(cloud3dShareUrl(share.token))
+      await navigator.clipboard.writeText(url)
       setCopied(share.id)
     } catch {
       setCopied(null)
-      window.prompt(t('cloud3d_share_copy_manual'), cloud3dShareUrl(share.token))
+      window.prompt(t('cloud3d_share_copy_manual'), url)
     }
   }
   const create = async () => {
@@ -107,6 +110,12 @@ export default function SharePanel({ projectId, variantId, rows }) {
       </div>
       {error && <p className="cloud3d-warn">{fill('cloud3d_share_error', { code: error })}</p>}
 
+      {walking && (
+        <label className="cloud3d-check">
+          <input type="checkbox" checked={atWalk} onChange={e => setAtWalk(e.target.checked)} />
+          <span>{t('cloud3d_share_at_walk')}</span>
+        </label>
+      )}
       {shares.length > 0 && (
         <ul className="cloud3d-shares">
           {shares.map(s => (

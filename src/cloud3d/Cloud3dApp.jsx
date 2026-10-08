@@ -16,7 +16,7 @@ import { trackLabel } from '../utils/trackModel'
 import { downloadText } from '../utils/fileUtils'
 import { Viewer } from './viewer'
 import { COLORINGS, CLOUD_COLORS } from './shaders'
-import { cloud3dParams, openChannel } from './channel'
+import { cloud3dParams, cloud3dShareUrl, cloud3dUrl, openChannel } from './channel'
 import { trackSamples, trackLines, nearestOnTracks, sectionPlane, routeSamples, CLEARANCE_LENGTH, CLEARANCE_AHEAD } from './trackGeometry'
 import { resolveRoute, routeStationOf } from '../utils/routes'
 import { cloudPlacement } from './placement'
@@ -97,6 +97,8 @@ function Cloud3dPage() {
   const [measuring, setMeasuring] = useState(false)
   const [measured, setMeasured] = useState([])
   const [note, setNote] = useState(null)
+  const [linkCopied, setLinkCopied] = useState(false)
+  const linkApplied = useRef(false)                // the track view the address names, taken once
   const canvasRef = useRef(null)
   const viewerRef = useRef(null)
   const channelRef = useRef(null)
@@ -552,6 +554,47 @@ function Cloud3dPage() {
     }
   }
 
+  // The track view the address names (Paket RT, decision 254): taken once the
+  // tracks are drawn. A track or route the state shown does not have is said
+  // — and looked for again when the main window's project comes.
+  useEffect(() => {
+    const walk = params?.walk
+    if (!walk || linkApplied.current || state.phase !== 'ready' || !tracksSampled.length) return
+    if (!walkable(walk.key)) {
+      setNote(t('cloud3d_link_missing'))
+      if (project?.from === 'main' || shared) linkApplied.current = true
+      return
+    }
+    linkApplied.current = true
+    setCameraMode('track')
+    setWalkTrack(walk.key)
+    walkOn(walk.key, walk.station)
+    viewerRef.current?.setWalkPose(walk)
+    setWalking(viewerRef.current?.walkState() ?? null)
+    // walkable and walkOn read the geometry the samples come from
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracksSampled, routesSampled, state.phase, project?.from])
+
+  /** Where the track view stands, as a link carries it — null while not walking. */
+  const walkNow = () => {
+    const pose = viewerRef.current?.walkPose()
+    return pose && walkTrack ? { key: walkTrack, ...pose } : null
+  }
+  /** Copy the address of this place in the track view: under the share link where opened through one. */
+  const copyWalkLink = async () => {
+    const walk = walkNow()
+    if (!walk) return
+    const url = shared ? cloud3dShareUrl(params.share, walk)
+      : cloud3dUrl({ projectId: params.projectId, variantId: params.variantId, walk })
+    try {
+      await navigator.clipboard.writeText(url)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2500)
+    } catch {
+      window.prompt(t('cloud3d_share_copy_manual'), url)
+    }
+  }
+
   const chooseCamera = (mode) => {
     const viewer = viewerRef.current
     setCameraMode(mode)
@@ -737,6 +780,14 @@ function Cloud3dPage() {
                 </>
               )}
               {walking && <p className="cloud3d-hint">{t('cloud3d_walk_keys')}</p>}
+              {walking && (
+                <>
+                  <div className="cloud3d-buttons">
+                    <button type="button" onClick={copyWalkLink}>{t(linkCopied ? 'cloud3d_share_copied' : 'cloud3d_walk_link')}</button>
+                  </div>
+                  <p className="cloud3d-hint">{t(shared ? 'cloud3d_walk_link_shared' : 'cloud3d_walk_link_hint')}</p>
+                </>
+              )}
             </>
           )}
         </div>
@@ -785,7 +836,8 @@ function Cloud3dPage() {
             <p className="cloud3d-hint">{t('cloud3d_dblclick_hint')}</p>
             <RegistrationPanel reg={reg} rows={allRows} mayEdit={mayEdit} userName={user?.name ?? ''}
               projectTitle={project?.data?.title ?? ''} heightName={heightName} />
-            {state.phase === 'ready' && <SharePanel projectId={params.projectId} variantId={params.variantId} rows={allRows} />}
+            {state.phase === 'ready' && <SharePanel projectId={params.projectId} variantId={params.variantId} rows={allRows}
+              walking={!!walking} walkNow={walkNow} />}
           </>
         )}
       </aside>

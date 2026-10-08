@@ -395,6 +395,23 @@ export class Viewer {
     return this.walk ? { station: this.walk.s, across: this.walk.across } : null
   }
 
+  /** How the walk stands and looks — what a link to it carries (Paket RT): { station, across, height, yaw, pitch }. */
+  walkPose() {
+    const w = this.walk
+    return w ? { station: w.s, across: w.across, height: w.height, yaw: w.yaw, pitch: w.pitch } : null
+  }
+
+  /** Stand and look as a pose says; what it leaves out stays. */
+  setWalkPose({ across, height, yaw, pitch } = {}) {
+    const w = this.walk
+    if (!w) return
+    if (Number.isFinite(across)) w.across = across
+    if (Number.isFinite(height)) w.height = height
+    if (Number.isFinite(yaw)) w.yaw = yaw
+    if (Number.isFinite(pitch)) w.pitch = Math.max(-1.4, Math.min(1.4, pitch))
+    this.placeWalker()
+  }
+
   stepWalk(dt) {
     const k = this.keys
     if (!this.walk || !k.size) return
