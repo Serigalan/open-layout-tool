@@ -1393,6 +1393,8 @@
   "cloud3d_track_right": "Right rail",
   "cloud3d_line_width": "Line width: {n} px",
   "cloud3d_clearance": "Show clearance gauge ({m} m)",
+  "cloud3d_clearance_profile": "Clearance gauge",
+  "cloud3d_clearance_project": "As in the project ({profile})",
   "cloud3d_clearance_hint": "While walking along the track: the clearance gauge “{profile}” over {m} m in the direction looked, starting {ahead} m ahead, turned by the cant.",
   "cloud3d_status": "{points} points in {tiles} tiles",
   "cloud3d_status_loading": "loading {n}",

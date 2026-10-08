@@ -1393,6 +1393,8 @@
   "cloud3d_track_right": "Schiene rechts",
   "cloud3d_line_width": "Linienstärke: {n} px",
   "cloud3d_clearance": "Lichtraumprofil einblenden ({m} m)",
+  "cloud3d_clearance_profile": "Lichtraumprofil",
+  "cloud3d_clearance_project": "Wie im Projekt ({profile})",
   "cloud3d_clearance_hint": "Beim Fahren am Gleis: das Lichtraumprofil „{profile}“ über {m} m in Blickrichtung, {ahead} m vor dem Standpunkt beginnend, mit der Überhöhung gedreht.",
   "cloud3d_status": "{points} Punkte in {tiles} Kacheln",
   "cloud3d_status_loading": "lädt {n}",

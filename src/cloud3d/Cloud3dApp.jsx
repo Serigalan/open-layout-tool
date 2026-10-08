@@ -9,7 +9,7 @@ import { planeMapper, cloudPlane } from '../utils/pointCloud/cloudCrs'
 import { loadGridsFor } from '../utils/ntv2Grid'
 import { crsDatum, crsName, utmToWgs84 } from '../utils/coordinateUtils'
 import { heightDatumLabel } from '../utils/heightDatums'
-import { gaugeProfile, gaugeProfileRing, gaugeProfileLabelKey, DEFAULT_GAUGE_PROFILE } from '../utils/gaugeProfiles'
+import { GAUGE_PROFILES, gaugeProfile, gaugeProfileRing, gaugeProfileLabelKey, DEFAULT_GAUGE_PROFILE } from '../utils/gaugeProfiles'
 import { surveyPoints } from '../utils/axisSurvey'
 import { trackLabel } from '../utils/trackModel'
 import { downloadText } from '../utils/fileUtils'
@@ -85,6 +85,7 @@ function Cloud3dPage() {
   const [walking, setWalking] = useState(null)    // { station, across } while walking
   const [trackLook, setTrackLook] = useState(loadTrackLook)
   const [clearanceOn, setClearanceOn] = useState(false)
+  const [clearanceChoice, setClearanceChoice] = useState('')   // a profile of the catalogue; '' the project's
   const [tracksSampled, setTracksSampled] = useState([])   // geometryRef's tracks, as state for the drawing
   const [measuring, setMeasuring] = useState(false)
   const [measured, setMeasured] = useState([])
@@ -319,13 +320,16 @@ function Cloud3dPage() {
   }, [tracksSampled, trackLook])
   const changeTrackLook = (key, value) => setTrackLook(l => { const next = { ...l, [key]: value }; saveTrackLook(next); return next })
 
-  // The clearance envelope carried along while walking, in the project's gauge profile.
+  // The clearance envelope carried along while walking: the profile chosen
+  // here, else the project's. The choice is this view's only — the project
+  // keeps its own.
+  const projectProfileId = gaugeProfile(project?.data?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE).id
+  const clearanceId = clearanceChoice || projectProfileId
   useEffect(() => {
     const viewer = viewerRef.current
     if (!viewer) return
-    const profile = gaugeProfile(project?.data?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
-    viewer.setWalkClearance(clearanceOn ? gaugeProfileRing(profile.points) : null, LOOK.outline)
-  }, [clearanceOn, project, state.phase])
+    viewer.setWalkClearance(clearanceOn ? gaugeProfileRing(gaugeProfile(clearanceId).points) : null, LOOK.outline)
+  }, [clearanceOn, clearanceId, state.phase])
 
   // ── the cross section of the main window as a plane ───────────────────────
   useEffect(() => {
@@ -626,9 +630,18 @@ function Cloud3dPage() {
                 <span>{fill('cloud3d_clearance', { m: CLEARANCE_LENGTH })}</span>
               </label>
               {clearanceOn && (
-                <p className="cloud3d-hint">{fill('cloud3d_clearance_hint', {
-                  profile: t(gaugeProfileLabelKey(project?.data?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)), m: CLEARANCE_LENGTH, ahead: CLEARANCE_AHEAD,
-                })}</p>
+                <>
+                  <label className="cloud3d-field">
+                    <span>{t('cloud3d_clearance_profile')}</span>
+                    <select value={clearanceChoice} onChange={e => setClearanceChoice(e.target.value)}>
+                      <option value="">{fill('cloud3d_clearance_project', { profile: t(gaugeProfileLabelKey(projectProfileId)) })}</option>
+                      {Object.keys(GAUGE_PROFILES).map(id => <option key={id} value={id}>{t(gaugeProfileLabelKey(id))}</option>)}
+                    </select>
+                  </label>
+                  <p className="cloud3d-hint">{fill('cloud3d_clearance_hint', {
+                    profile: t(gaugeProfileLabelKey(clearanceId)), m: CLEARANCE_LENGTH, ahead: CLEARANCE_AHEAD,
+                  })}</p>
+                </>
               )}
               {walking && <p className="cloud3d-hint">{t('cloud3d_walk_keys')}</p>}
             </>
