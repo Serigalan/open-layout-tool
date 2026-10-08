@@ -57,6 +57,10 @@ export function createQueue({ clouds, parallel = PARALLEL, poll = POLL, run = ru
       timer = setInterval(tick, poll)
     },
     tick,
+    /** Wait until no job runs (and none is started meanwhile). */
+    async drain() {
+      while (running.size) await Promise.allSettled([...running.values()])
+    },
     /** Stop taking jobs and wait for the running ones. */
     async stop() {
       stopped = true

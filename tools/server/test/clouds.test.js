@@ -126,7 +126,7 @@ describe('preparing a cloud (AP 13.3) and serving it (AP 13.5)', () => {
       run: (job) => prepareCloud({ cloudId: job.cloud_id, clouds: store, storage: ctx.app.cloudStorage }),
     })
     queue.tick()
-    await queue.stop()
+    await queue.drain()
     const ready = (await ada('GET', `/api/projects/${project.id}/clouds`)).json().clouds[0]
     expect(ready).toMatchObject({ status: 'ready', rgb: true, crs: 5678, points: expect.any(Number) })
     expect(ready.levels.map(l => l.level)).toEqual([0, 1, 2, 3, 4])
@@ -169,11 +169,30 @@ describe('preparing a cloud (AP 13.3) and serving it (AP 13.5)', () => {
       run: (job) => prepareCloud({ cloudId: job.cloud_id, clouds: store, storage: ctx.app.cloudStorage }),
     })
     queue.tick()
-    await queue.stop()
+    await queue.drain()
     const failed = (await ada('GET', `/api/projects/${project.id}/clouds`)).json().clouds[0]
     expect(failed).toMatchObject({ status: 'failed', error: expect.stringContaining('not a LAS file') })
     expect(existsSync(join(root, project.id, cloud.id, 'raw.part'))).toBe(true)
     expect((await ada('POST', `${url}/retry`)).json().cloud).toMatchObject({ status: 'queued', error: null })
+  })
+
+  it('a job cut off by stopping the service is not failed, and runs again at the next start', async () => {
+    const { ada, project } = await start()
+    const { url, cloud } = await upload(ada, project)
+    await ada('POST', `${url}/complete`)
+    const store = clouds()
+    let release
+    const queue = createQueue({
+      clouds: store, poll: 1e9, log: () => {},
+      run: () => new Promise((_, reject) => { release = () => reject(new Error('killed by SIGTERM')) }),
+    })
+    queue.tick()
+    const stopping = queue.stop()
+    release()
+    await stopping
+    expect(store.get(cloud.id).status).not.toBe('failed')
+    store.requeueRunning()
+    expect(store.claimJob()).toMatchObject({ cloud_id: cloud.id })
   })
 
   it('a job that was running when the service stopped is queued again', async () => {
