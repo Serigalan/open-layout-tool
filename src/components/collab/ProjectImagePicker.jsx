@@ -1,5 +1,4 @@
-import { readImageAsBase64 } from '../../utils/fileUtils'
-import { PROJECT_IMAGES, projectImageUrl } from '../../utils/projectImages'
+import { PROJECT_IMAGES, fileToProjectImage, projectImageUrl } from '../../utils/projectImages'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -7,7 +6,8 @@ import { useI18n } from '../../locales/i18nContext'
  * The picture of a new project: none, one of the default pictures, or a file
  * of the user's own. `value` is { kind: 'none' } | { kind: 'preset', key } |
  * { kind: 'file', dataUrl } — `dataUrl` null until a file was chosen; it is
- * both the preview and what is uploaded.
+ * both the preview and what is uploaded, already fitted to the 4:3 slot with
+ * a white margin (fileToProjectImage).
  *
  * Native radio buttons under the tiles, so the arrow keys move through them
  * like through any other choice of one.
@@ -26,7 +26,7 @@ export default function ProjectImagePicker({ value, onChange, disabled = false }
 
   const pickFile = async (e) => {
     const file = e.target.files?.[0] ?? null
-    onChange({ kind: 'file', dataUrl: file ? await readImageAsBase64(file) : null })
+    onChange({ kind: 'file', dataUrl: file ? await fileToProjectImage(file) : null })
   }
 
   const preset = value.kind === 'preset' ? PROJECT_IMAGES.find(i => i.key === value.key) : null

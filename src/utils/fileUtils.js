@@ -18,17 +18,6 @@ export function downloadText(text, filename, type = 'text/plain') {
   downloadBlob(new Blob([text], { type }), filename)
 }
 
-/** A picked image file as a data URL, or null. */
-export function readImageAsBase64(file) {
-  return new Promise((resolve) => {
-    if (!file) return resolve(null)
-    const reader = new FileReader()
-    reader.onload = (e) => resolve(e.target.result)
-    reader.onerror = () => resolve(null)
-    reader.readAsDataURL(file)
-  })
-}
-
 /** A chosen file's text. */
 export const readFileText = (file) => file.text()
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { PROJECT_IMAGES, textToBase64 } from './projectImages'
+import { PROJECT_IMAGES, fitToSlot, textToBase64 } from './projectImages'
 import { translations } from '../locales/i18n'
 
 const DIR = fileURLToPath(new URL('../../public/project-images/', import.meta.url))
@@ -34,5 +34,23 @@ describe('textToBase64', () => {
   it('encodes UTF-8, not Latin-1', () => {
     expect(atob(textToBase64('Österreich — ✓'))).toBe(
       String.fromCharCode(...new TextEncoder().encode('Österreich — ✓')))
+  })
+})
+
+describe('fitToSlot', () => {
+  it('pads a portrait picture left and right to 4:3', () => {
+    expect(fitToSlot(300, 600)).toEqual({ w: 800, h: 600, x: 250, y: 0, dw: 300, dh: 600 })
+  })
+
+  it('pads a wide picture above and below', () => {
+    expect(fitToSlot(800, 200)).toEqual({ w: 800, h: 600, x: 0, y: 200, dw: 800, dh: 200 })
+  })
+
+  it('leaves a 4:3 picture as it is', () => {
+    expect(fitToSlot(640, 480)).toEqual({ w: 640, h: 480, x: 0, y: 0, dw: 640, dh: 480 })
+  })
+
+  it('scales a large picture down to the width limit', () => {
+    expect(fitToSlot(4000, 4000)).toEqual({ w: 960, h: 720, x: 120, y: 0, dw: 720, dh: 720 })
   })
 })
