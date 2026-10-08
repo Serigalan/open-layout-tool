@@ -28,6 +28,7 @@ import { turnoutLinePort } from '../utils/switchModel'
 import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
+import InfoTip from './form/InfoTip'
 import NumberInput from './form/NumberInput'
 import ElevationTable from './ElevationTable'
 
@@ -788,23 +789,28 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
     <div className="profile-overlay" style={overlay.style}>
       <div className="profile-resize" onPointerDown={overlay.onResizeStart} />
       <div className="track-table-header">
-        <span className="track-table-title">{track.name || track.id.slice(0, 8)}</span>
-        <div className="profile-controls">
-          <div className="profile-view-switch" role="group" aria-label={t('elevation_view')}>
+        <div className="profile-head">
+          <span className="track-table-title">{track.name || track.id.slice(0, 8)}</span>
+          <div className="profile-tabs" role="tablist" aria-label={t('elevation_view')}>
             {['graphic', 'table'].map(v => (
-              <button key={v} type="button" className={viewKind === v ? 'active' : undefined} aria-pressed={viewKind === v}
-                onClick={() => chooseView(v)}>
+              <button key={v} type="button" role="tab" aria-selected={viewKind === v}
+                className={`profile-tab${viewKind === v ? ' active' : ''}`} onClick={() => chooseView(v)}>
                 {t(`elevation_view_${v}`)}
               </button>
             ))}
           </div>
+        </div>
+        <div className="profile-controls">
           {viewKind === 'table' ? (
-            <label className="profile-edit" title={t('elevation_given_hint')}>
-              {t('elevation_given')}
-              <select className="settings-select" value={given} onChange={e => chooseGiven(e.target.value)}>
-                {Object.keys(GIVEN_MODES).map(m => <option key={m} value={m}>{t(`elevation_given_${m}`)}</option>)}
-              </select>
-            </label>
+            <div className="profile-edit">
+              <label className="profile-edit">
+                {t('elevation_given')}
+                <select className="settings-select" value={given} onChange={e => chooseGiven(e.target.value)}>
+                  {Object.keys(GIVEN_MODES).map(m => <option key={m} value={m}>{t(`elevation_given_${m}`)}</option>)}
+                </select>
+              </label>
+              <InfoTip text={t('elevation_given_hint')} />
+            </div>
           ) : selectedPoints.length && selectedPoints.every(p => locked.has(p.index)) ? (
             <div className="profile-edit">
               <span className="profile-hint">{lockedNote(locked.get(selectedPoints[0].index))}</span>
@@ -848,7 +854,7 @@ export default function ElevationOverlay({ trackId, section = null, onClose }) {
               <CloseButton onClick={() => select([])} />
             </div>
           ) : (
-            <span className="profile-hint">{t('elevation_hint_edit')}</span>
+            <InfoTip text={t('elevation_hint_edit')} />
           )}
           {check && points.length >= 2 && (() => {
             // The rules in a word, beside the controls: the list itself is in
