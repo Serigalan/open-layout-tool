@@ -143,9 +143,13 @@ export function stretchDefaults(track, range) {
  * The request for `POST /reconnect`: the two neighbours as picks, the old
  * axis, the tolerance [m], the design speed, the kind of transition, the
  * radius where it is kept fixed (0: searched), the app's proposal of the
- * cant and the shortest new arc (LP.EL.01 at that speed).
+ * cant and the shortest new arc (LP.EL.01 at that speed) — and where a
+ * spacing to a neighbouring track is to be kept (Entscheidung 201),
+ * `clearance` { ref, dMin, profile }: its axis near the stretch
+ * (commands/splice neighbourAxisNear), the minimum spacing [m], the half
+ * clearance outline of the project's profile.
  */
-export function reconnectRequest(picks, points, { tolerance, speed, transitionType, radius }) {
+export function reconnectRequest(picks, points, { tolerance, speed, transitionType, radius }, clearance = null) {
   const pick = (p) => ({
     start: [p.startUtm.easting, p.startUtm.northing],
     end: [p.endUtm.easting, p.endUtm.northing],
@@ -163,6 +167,7 @@ export function reconnectRequest(picks, points, { tolerance, speed, transitionTy
     radius: Math.abs(Number(radius) || 0),
     cantModel: AUTO_CANT_MODEL,
     lMin: minElementLength(Number(speed)) ?? 0,
+    ...(clearance ? { clearance } : {}),
   }
 }
 

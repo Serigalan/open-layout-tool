@@ -103,6 +103,10 @@ describe('the request', () => {
     }
     expect(req).toMatchObject({ tolerance: 0.1, speed: 100, radius: 0, transition: 'clothoid' })
     expect(req.lMin).toBeGreaterThan(0)
+    expect('clearance' in req).toBe(false)
+    // With a neighbour to keep clear of, its axis, the minimum and the outline go along (Entscheidung 201).
+    const clearance = { ref: [[1, 2, 0]], dMin: 4.2, profile: [[0, 0]] }
+    expect(reconnectRequest(picks, axisPoints(track, 1, 5), { tolerance: 0.1, speed: 100 }, clearance).clearance).toEqual(clearance)
   })
 
   it('hands over a kept neighbour as the point it ends in', () => {

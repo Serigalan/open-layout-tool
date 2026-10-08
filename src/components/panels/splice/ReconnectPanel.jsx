@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadTracks, commitReconnect } from '../../../storage'
+import { loadTracks, commitReconnect, currentProject } from '../../../storage'
 import {
   axisPoints, buildReconnect, reconnectFromAnswer, reconnectPick, reconnectRange, reconnectRequest, replacedSpan, stretchDefaults,
 } from '../../../utils/commands/reconnect'
+import { neighbourAxisNear } from '../../../utils/commands/splice'
+import { gaugeProfile } from '../../../utils/gaugeProfiles'
 import { utmToWgs84 } from '../../../utils/coordinateUtils'
 import { trackLabel } from '../../../utils/trackModel'
 import { reconnectOnServer } from '../../../utils/optimizerService'
@@ -19,10 +21,14 @@ import NumberInput from '../../form/NumberInput'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import SpliceFindings from './SpliceFindings'
 import DeviationBand from '../../chart/DeviationBand'
+import ClearanceFields from './ClearanceFields'
+import { spacingMessage } from './spacingMessage'
 
 const OLD_AXIS_SOURCE = 'reconnect-old-source'
 const NEW_AXIS_SOURCE = 'reconnect-new-source'
 const WORST_SOURCE = 'reconnect-worst-source'
+// The tightest place to the neighbouring track: a line across to its axis.
+const SPACING_SOURCE = 'reconnect-spacing-source'
 const PREVIEW_LAYERS = [{
   sourceId: OLD_AXIS_SOURCE,
   layer: { id: 'reconnect-old-layer', type: 'line', paint: { 'line-color': PALETTE.muted, 'line-width': 2 } },
@@ -32,6 +38,9 @@ const PREVIEW_LAYERS = [{
     id: 'reconnect-new-layer', type: 'line',
     paint: { 'line-color': PALETTE.mapHover, 'line-width': ZOOM_LINE_WIDTH, 'line-dasharray': [6, 4] },
   },
+}, {
+  sourceId: SPACING_SOURCE,
+  layer: { id: 'reconnect-spacing-layer', type: 'line', paint: { 'line-color': ['get', 'colour'], 'line-width': 2 } },
 }, {
   sourceId: WORST_SOURCE,
   layer: {
@@ -45,7 +54,11 @@ const DEBOUNCE = 400
 /** The old axis on the map: one vertex in this many of the centimetre points. */
 const MAP_STRIDE = 50
 
-const DEFAULTS = { speed: '', tolerance: 0.1, transitionType: 'clothoid', radiusMode: 'auto', radius: 500 }
+const DEFAULTS = {
+  speed: '', tolerance: 0.1, transitionType: 'clothoid', radiusMode: 'auto', radius: 500,
+  // A spacing to keep to a neighbouring track (Entscheidung 201): the minimum, free to choose.
+  clearanceOn: false, clearanceDMin: 4.0,
+}
 
 const featureLine = (coordinates) => ({
   type: 'FeatureCollection',
@@ -78,6 +91,16 @@ export default function ReconnectPanel() {
   const preview = usePreview(PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
   const track = range ? loadTracks().find(tr => tr.id === range.trackId) ?? null : null
+  // The neighbouring track the spacing is kept to, and whether it is being picked.
+  const [refTrackId, setRefTrackId] = useState(null)
+  const [pickingRef, setPickingRef] = useState(false)
+  const keeping = !!range && s.clearanceOn && refTrackId != null && Number(s.clearanceDMin) > 0
+
+  useMapPick({
+    active: !!range && pickingRef, hover: 'track',
+    accept: (p) => p.trackId !== range?.trackId,
+    onPick: ({ trackId }) => { setRefTrackId(trackId); setPickingRef(false) },
+  })
 
   useMapPick({
     active: !range, hover: 'element', noSwitchBranch: true,
@@ -111,16 +134,33 @@ export default function ReconnectPanel() {
     return axisPoints(track, a, b)
   }, [track, range])
 
+  // The neighbour's axis near the old one, read once per neighbour and stretch.
+  const refTrack = keeping ? loadTracks().find(tr => tr.id === refTrackId) ?? null : null
+  const axis = useMemo(() => {
+    if (!refTrack || !points || !track) return null
+    let e0 = Infinity, e1 = -Infinity, n0 = Infinity, n1 = -Infinity
+    for (const [e, n] of points.coords) { e0 = Math.min(e0, e); e1 = Math.max(e1, e); n0 = Math.min(n0, n); n1 = Math.max(n1, n) }
+    return neighbourAxisNear(refTrack, track.epsg, [{ easting: e0, northing: n0 }, { easting: e1, northing: n1 }])
+    // the neighbour and the stretch are what the axis is read from
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refTrackId, points, track])
+
   const radius = s.radiusMode === 'fixed' ? Number(s.radius) || 0 : 0
   const ready = picks && points && Number(s.speed) > 0 && Number(s.tolerance) > 0
   // The key names the stretch rather than carrying its points.
-  const requestKey = ready ? JSON.stringify({ range, speed: Number(s.speed), tolerance: Number(s.tolerance), radius, tr: s.transitionType }) : null
+  const requestKey = ready ? JSON.stringify({
+    range, speed: Number(s.speed), tolerance: Number(s.tolerance), radius, tr: s.transitionType,
+    neighbour: keeping ? [refTrackId, Number(s.clearanceDMin)] : null,
+  }) : null
   useEffect(() => {
     if (!requestKey) return undefined
     const ctl = new AbortController()
     const timer = setTimeout(async () => {
       try {
-        const req = reconnectRequest(picks, points, { ...s, radius })
+        const clearance = keeping && axis
+          ? { ref: axis, dMin: Number(s.clearanceDMin), profile: gaugeProfile(currentProject()?.gaugeProfile).points }
+          : null
+        const req = reconnectRequest(picks, points, { ...s, radius }, clearance)
         const a = await reconnectOnServer(req, { signal: ctl.signal })
         setAnswer({ key: requestKey, read: reconnectFromAnswer(a, picks) })
         setChosen(0)
@@ -136,6 +176,7 @@ export default function ReconnectPanel() {
   const solutions = read?.solutions ?? null
   const solution = solutions?.[Math.min(chosen, solutions.length - 1)] ?? null
   const info = solution?.reconnect ?? null
+  const spacing = keeping ? info?.spacing ?? null : null
 
   useEffect(() => {
     const epsg = track?.epsg
@@ -143,6 +184,13 @@ export default function ReconnectPanel() {
       ? featureLine(points.coords.filter((_, i) => i % MAP_STRIDE === 0 || i === points.coords.length - 1).map(p => utmToWgs84(p[0], p[1], epsg)))
       : null)
     preview.set(NEW_AXIS_SOURCE, solution ? featureLine(solution.result.previewCoords) : null)
+    preview.set(SPACING_SOURCE, spacing?.at && spacing?.ref && epsg ? {
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature', properties: { colour: spacing.kept ? PALETTE.valid : PALETTE.invalid },
+        geometry: { type: 'LineString', coordinates: [utmToWgs84(...spacing.at, epsg), utmToWgs84(...spacing.ref, epsg)] },
+      }],
+    } : null)
     preview.set(WORST_SOURCE, info && epsg ? {
       type: 'FeatureCollection',
       features: [{
@@ -150,10 +198,11 @@ export default function ReconnectPanel() {
         geometry: { type: 'Point', coordinates: utmToWgs84(info.worstAt[0], info.worstAt[1], epsg) },
       }],
     } : null)
-  }, [points, solution, info, track, preview])
+  }, [points, solution, info, spacing, track, preview])
 
   const reset = () => {
     preview.clear(); setFirst(null); setRange(null); setAnswer(null); setChosen(0); setPickError(null)
+    setRefTrackId(null); setPickingRef(false)
   }
 
   const handleCommit = () => {
@@ -181,9 +230,14 @@ export default function ReconnectPanel() {
   const status = !(Number(s.speed) > 0) ? { msg: t('reconnect_need_speed'), error: true }
     : !read ? { msg: t('splice_solving'), error: false }
       : read.error ? { msg: t(read.error), error: true } : null
+  const refName = refTrackId ? (() => { const r = loadTracks().find(tr => tr.id === refTrackId); return r ? r.name || trackLabel(r) : '' })() : null
+  const spacingMsg = keeping && solution ? spacingMessage(t, fill, spacing, refName) : null
+  // Asked for, a spacing must be kept (Entscheidung 201) — and a neighbour named for it.
   const reason = !solution ? null
     : !info.within ? fill('reconnect_beyond', { tol: num(Number(s.tolerance) * 100, { digits: 1, unit: 'cm' }) })
-      : ruleError ? t('splice_rule_error') : null
+      : s.clearanceOn && !keeping ? t('reconnect_clearance_pick')
+        : keeping && !spacing?.kept ? t('reconnect_clearance_short')
+          : ruleError ? t('splice_rule_error') : null
   const lengths = solution?.result?.lengths?.filter(l => l.length > 0) ?? []
 
   return (
@@ -227,6 +281,8 @@ export default function ReconnectPanel() {
           </div>
         )}
       </div>
+      <ClearanceFields on={s.clearanceOn} onToggle={v => set('clearanceOn', v)} refName={refName}
+        picking={pickingRef} onPick={() => setPickingRef(p => !p)} dMin={s.clearanceDMin} onDMin={v => set('clearanceDMin', v)} />
 
       {status && <p className={status.error ? 'msg-error' : 'msg-info'}>{status.msg}</p>}
       {solution && (
@@ -259,6 +315,7 @@ export default function ReconnectPanel() {
               rms: num(info.rms * 100, { digits: 1, unit: 'cm' }),
             })}
           </p>
+          {spacingMsg && <p className={spacingMsg.error ? 'msg-error' : 'msg-info'}>{spacingMsg.msg}</p>}
           <DeviationBand band={info.band} tolerance={Number(s.tolerance)} />
           <SpliceFindings result={solution.result} />
         </>

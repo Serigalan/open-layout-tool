@@ -6,11 +6,8 @@ import FieldRule from '../../form/FieldRule'
 import NumberInput from '../../form/NumberInput'
 import FormSection from '../../form/FormSection'
 import TransitionLengthButtons from '../TransitionLengthButtons'
-import { QUERSCHNITT_KATALOG } from '../../../utils/gaugeProfiles'
+import ClearanceFields from './ClearanceFields'
 
-// The Regelgleisabstände of Ril 800.0130, as a hint beside the minimum spacing.
-const REGEL_ABSTAENDE = [...new Set(QUERSCHNITT_KATALOG.streckenquerschnitte.rows.map(r => r.gleisabstand))]
-  .sort((a, b) => a - b)
 
 /**
  * The settings of a splice: how two arcs are joined, the radius of an arc put
@@ -121,40 +118,17 @@ export default function SpliceSettings({
           )}
         </>
       )}
-      <FormSection title={t('splice_clearance_section')}>
-        <label className="transition-curve-row">
-          <input type="checkbox" checked={s.clearanceOn} onChange={e => set('clearanceOn', e.target.checked)} />
-          <span>{t('splice_clearance_on')}</span>
-        </label>
-        {s.clearanceOn && (
-          <>
-            <div className="form-field">
-              <label>{t('splice_clearance_track')}</label>
-              <div className="splice-clearance-pick">
-                <span>{clearance.refName || '–'}</span>
-                <button type="button" className={`panel-btn${clearance.pickingRef ? ' active' : ''}`} onClick={clearance.onPickRef}>
-                  {t(clearance.pickingRef ? 'splice_clearance_picking' : 'splice_clearance_pick')}
-                </button>
-              </div>
-            </div>
-            <div className="form-field">
-              <label>{t('splice_clearance_dmin')}</label>
-              {number('clearanceDMin', { min: 0.1, step: 0.05 })}
-              <span className="range-use">
-                {t('splice_clearance_regel')} {REGEL_ABSTAENDE.map(d => `${d.toFixed(2)} m`).join(' · ')}
-              </span>
-            </div>
-            {!bothArcs ? (
-              <label className="transition-curve-row">
-                <input type="checkbox" checked={s.clearanceMax} onChange={e => set('clearanceMax', e.target.checked)} />
-                <span>{t('splice_clearance_max')}</span>
-              </label>
-            ) : (
-              <p className="msg-hint">{t('splice_clearance_arcs')}</p>
-            )}
-          </>
+      <ClearanceFields on={s.clearanceOn} onToggle={v => set('clearanceOn', v)} refName={clearance.refName}
+        picking={clearance.pickingRef} onPick={clearance.onPickRef} dMin={s.clearanceDMin} onDMin={v => set('clearanceDMin', v)}>
+        {!bothArcs ? (
+          <label className="transition-curve-row">
+            <input type="checkbox" checked={s.clearanceMax} onChange={e => set('clearanceMax', e.target.checked)} />
+            <span>{t('splice_clearance_max')}</span>
+          </label>
+        ) : (
+          <p className="msg-hint">{t('splice_clearance_arcs')}</p>
         )}
-      </FormSection>
+      </ClearanceFields>
     </div>
   )
 }

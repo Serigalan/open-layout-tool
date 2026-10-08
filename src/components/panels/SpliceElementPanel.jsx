@@ -20,6 +20,7 @@ import SpliceFindings from './splice/SpliceFindings'
 import { severityRank } from '../../utils/regelkatalog'
 import SpliceSettings from './splice/SpliceSettings'
 import CancelButton from '../form/CancelButton'
+import { spacingMessage } from './splice/spacingMessage'
 import ShiftValuesSection from './shift/ShiftValuesSection'
 import { comparedLine } from '../../utils/shiftValues'
 
@@ -106,23 +107,6 @@ function spliceMessage(t, fill, splice, solution) {
 
 /** How a dialog names the neighbour: its name, else its line and track number. */
 const trackName = (track) => (track ? track.name || trackLabel(track) : '')
-
-/**
- * What the dialog says about the spacing to the neighbour: the tightest place
- * with the spacing it has and the one asked for there (the minimum and what
- * the cant adds), with the search the radius it found.
- */
-function spacingMessage(t, fill, c, refName) {
-  if (!c) return null
-  const found = c.maximized ? fill('splice_clearance_found', { r: String(c.radius), u: String(Math.round(c.cant)) }) + ' ' : ''
-  if (!c.near) return { msg: found + fill('splice_clearance_far', { track: refName }), error: false }
-  const mm = (u) => String(Math.round(Math.abs(u)))
-  const text = fill(c.kept ? 'splice_clearance_kept' : 'splice_clearance_short', {
-    track: refName, d: c.distance.toFixed(2), req: c.required.toFixed(2),
-    add: (c.required - c.dMin).toFixed(2), u1: mm(c.cantNew), u2: mm(c.cantRef),
-  })
-  return { msg: found + text, error: !c.kept }
-}
 
 /** Which solution is chosen: by the ends it joins and, for two arcs, how. */
 const solutionKey = (sol) => `${sol.result.ends.join()}|${sol.result.arcJoin ?? ''}`

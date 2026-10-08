@@ -152,7 +152,14 @@ const AXIS_MARGIN = 150
  * elements, so the request stays small however long the track is.
  */
 export function neighbourAxis(track, epsg, dep, arr) {
-  const corners = [dep.startUtm, dep.endUtm, arr.startUtm, arr.endUtm]
+  return neighbourAxisNear(track, epsg, [dep.startUtm, dep.endUtm, arr.startUtm, arr.endUtm])
+}
+
+/**
+ * The same near any points (`corners`, [{ easting, northing }]) — what
+ * reconnecting reads it near the old axis by (Paket N, Entscheidung 201).
+ */
+export function neighbourAxisNear(track, epsg, corners) {
   const e0 = Math.min(...corners.map(p => p.easting)) - AXIS_MARGIN
   const e1 = Math.max(...corners.map(p => p.easting)) + AXIS_MARGIN
   const n0 = Math.min(...corners.map(p => p.northing)) - AXIS_MARGIN

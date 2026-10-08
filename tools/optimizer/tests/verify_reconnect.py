@@ -9,6 +9,7 @@ rules where it can.
     WEBSITE/.venv/bin/python tools/optimizer/tests/verify_reconnect.py
 """
 
+import json
 import math
 import os
 import sys
@@ -24,6 +25,8 @@ from olt_optimizer.splice import arc, straight, transition                      
 from chain_check import chain_holds                                              # noqa: E402
 
 FAILED = []
+PROFILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "olt_optimizer", "constraints",
+                            "db-ril-800-0130.json")
 MODEL = {"coeff": 6.5, "defCoeff": 11.8, "defMin": 60, "max": 160, "step": 5}
 P0 = (500000.0, 5600000.0)
 
@@ -122,7 +125,8 @@ def main():
     ok("curve: best radius near 800", abs(best["reconnect"]["radius"] - 800) < 40)
     ok("curve: best chain holds together", holds(best))
     ok("curve: no error on the best", best["worst"] != "error")
-    ok("curve: every variant answered", len(ans["solutions"]) == 3)
+    ok("curve: every variant answered, the fitted lengths too",
+       sorted(x["reconnect"]["variant"]["lengths"] for x in ans["solutions"]) == ["fitted", "minimum", "none", "regular"])
     ok("curve: band covers the stretch", ans["solutions"][0]["reconnect"]["band"][-1][0] > 600)
     ok("curve: the dep and arr ends stay where they were",
        math.dist(best["elements"][0]["startNode"], curve[0]["startNode"]) < 1e-6
@@ -136,6 +140,17 @@ def main():
     # A radius given is kept.
     ans, _ = ask(curve, 0, 4, 0.50, 100, radius=900)
     ok("fixed radius: every solution at R 900", all(s["reconnect"]["radius"] == 900 for s in ans["solutions"]))
+
+    # ── transitions longer than the rules ask: fitted (Entscheidung 202) ─────
+    long_bloss = build([("s", 435), ("t", 188, None, -1890.0), ("a", 659, -1890.0), ("t", 188, -1890.0, None),
+                        ("s", 980)], profile="bloss")
+    ans, dt = ask(long_bloss, 0, 4, 0.05, 160, transition="bloss")
+    best = ans["solutions"][0]
+    print("   ", describe(best), f"{dt:.1f}s")
+    ok("fitted: the old 188 m Bloss transitions found again, within 5 mm",
+       best["reconnect"]["variant"]["lengths"] == "fitted" and abs(best["reconnect"]["variant"]["L"] - 188) < 0.5
+       and best["reconnect"]["radius"] == 1890 and best["reconnect"]["max"] < 0.005)
+    ok("fitted: answered within 10 s", dt < 10)
 
     # ── an arc without transitions, slow: no transition fits best ────────────────
     plain = build([("s", 150), ("a", 200, -1900.0), ("s", 150)])
@@ -181,6 +196,33 @@ def main():
         ok("two arcs: within", best["reconnect"]["within"])
         ok("two arcs: holds", holds(best))
         ok("two arcs: at least the three over a straight", len(ans["solutions"]) >= 3)
+
+    # ── the spacing to a neighbouring track (Entscheidung 201) ────────────────
+    # A track 4.20 m inside the curve, without cant: the curve's best within
+    # 10 cm moves in by up to 8 cm, which 4.0 m plus what the cant adds does
+    # not allow — the search has to find one that keeps it.
+    with open(PROFILE_PATH, encoding="utf-8") as f:
+        profile = next(p for p in json.load(f)["lichtraum"]["profile"] if p["id"] == "hauptgleis")["umriss"]
+    pts = chain_polyline(curve)
+    tang = np.gradient(pts, axis=0)
+    tang /= np.hypot(tang[:, 0], tang[:, 1])[:, None]
+    right = np.stack([tang[:, 1], -tang[:, 0]], axis=1)      # the curve turns right: inside is right
+    inside = pts + 4.20 * right
+    ref = [[float(p[0]), float(p[1]), 0.0] for p in inside[::max(1, len(inside) // 1500)]]
+    free, _ = ask(curve, 0, 4, 0.10, 100)
+    ans, dt = ask(curve, 0, 4, 0.10, 100, clearance={"ref": ref, "dMin": 4.0, "profile": profile})
+    best = ans["solutions"][0]
+    sp = best["reconnect"]["spacing"]
+    print("   ", describe(best), f"{dt:.1f}s", "spacing", round(sp["distance"], 3), ">=", round(sp["required"], 3))
+    ok("spacing: the free best does not keep it", free["solutions"][0]["reconnect"]["radius"] != best["reconnect"]["radius"]
+       or free["solutions"][0]["reconnect"]["variant"] != best["reconnect"]["variant"])
+    ok("spacing: the best keeps it, within the tolerance", sp["kept"] and sp["near"] and best["reconnect"]["within"])
+    ok("spacing: the distance is at least the minimum plus the widening", sp["distance"] >= sp["required"] - 1e-6 and sp["required"] > 4.0)
+    ans, _ = ask(curve, 0, 4, 0.10, 100, clearance={"ref": ref, "dMin": 4.5, "profile": profile})
+    ok("spacing: asked for more than there is, the best says it is not kept",
+       not ans["solutions"][0]["reconnect"]["spacing"]["kept"])
+    ans, _ = ask(curve, 0, 4, 0.10, 100, clearance={"ref": [], "dMin": 4.0, "profile": profile})
+    ok("spacing: no neighbour nearby, nothing to keep", ans["solutions"][0]["reconnect"]["spacing"]["near"] is False)
 
     # ── a reverse curve does not fit one arc ─────────────────────────────────────
     s_curve = build([("s", 100), ("a", 120, 500.0), ("a", 120, -500.0), ("s", 100)])
