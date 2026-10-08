@@ -366,7 +366,7 @@
   padding: 14px 16px;
 }
 .home-project-head { display: flex; align-items: flex-start; gap: 14px; }
-.home-project-image { width: 72px; height: 54px; object-fit: cover; border-radius: 8px; flex-shrink: 0; background: var(--collab-hover); }
+.home-project-image { width: 72px; height: 54px; box-sizing: border-box; border: 1px solid var(--collab-border); object-fit: cover; border-radius: 8px; flex-shrink: 0; background: var(--collab-hover); }
 .home-project-titles { flex: 1; min-width: 0; }
 .home-project-titles h3 { margin: 2px 0 4px; font-size: 16px; overflow-wrap: anywhere; }
 .home-project-toggle { border: none; background: none; color: inherit; font: inherit; cursor: pointer; padding: 0; text-align: left; display: flex; gap: 6px; align-items: baseline; }
