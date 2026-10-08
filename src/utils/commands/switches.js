@@ -11,7 +11,8 @@ import { switchRouteVaries } from '../switch/route'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../switchModel'
 import { cantExceptionFields, worstCantOf } from '../rules/cant'
 import { placeSwitchOnTrack } from '../switchPlacement'
-import { trackLength } from '../heightUtils'
+import { elementAtStation, trackLength } from '../heightUtils'
+import { minElementLength } from '../rules/elementLength'
 import { utmToWgs84 } from '../coordinateUtils'
 import { arcElement, straightElement } from '../elementFactory'
 
@@ -24,16 +25,11 @@ import { arcElement, straightElement } from '../elementFactory'
 const MIN_BEHIND = 0.5
 
 /**
- * Where a turnout laid into `track` at `toeStation` lies, and the geometry it
- * produces (SwitchOnTrackForm's preview and commit read the same) — read in
- * the track's own plane from the elements' stored nodes; the WGS84 twin of the
- * toe is derived for the display and never converted back.
- *
- * Returns { error: null } before there is a station, { error: { key, params } }
- * where the turnout cannot go there, else { error: null, place, plain, geom }.
+ * Where a turnout laid into `track` at `toeStation` lies — or why it cannot lie
+ * there: `{ error: { key, params } }` or `{ place }`. Without the turnout's
+ * geometry, which only the station the dialog settles on needs.
  */
-export function switchOnTrackPlacement({ track, toeStation, reversed, sw, side, straightLen }) {
-  if (!track || !Number.isFinite(toeStation)) return { error: null }
+function placeOnTrack({ track, toeStation, reversed, sw, side, straightLen }) {
   const noRoom = { key: 'switch_on_track_no_room' }
   const total  = trackLength(track)
   if (toeStation < 0 || toeStation > total) return { error: { key: 'switch_on_track_outside' } }
@@ -47,6 +43,22 @@ export function switchOnTrackPlacement({ track, toeStation, reversed, sw, side, 
   if (sw.symmetric && !piecesOnRadius(place.pieces, side === 'left' ? sw.R : -sw.R)) {
     return { error: { key: 'switch_on_track_symmetric', params: { r: String(sw.R) } } }
   }
+  return { error: null, place }
+}
+
+/**
+ * Where a turnout laid into `track` at `toeStation` lies, and the geometry it
+ * produces (SwitchOnTrackForm's preview and commit read the same) — read in
+ * the track's own plane from the elements' stored nodes; the WGS84 twin of the
+ * toe is derived for the display and never converted back.
+ *
+ * Returns { error: null } before there is a station, { error: { key, params } }
+ * where the turnout cannot go there, else { error: null, place, plain, geom }.
+ */
+export function switchOnTrackPlacement({ track, toeStation, reversed, sw, side, straightLen }) {
+  if (!track || !Number.isFinite(toeStation)) return { error: null }
+  const { error, place } = placeOnTrack({ track, toeStation, reversed, sw, side, straightLen })
+  if (error) return { error }
   // On nothing but straights the turnout is the ordinary, unbent one.
   const plain  = sw.symmetric || place.pieces.every(p => p.r1 == null && p.r2 == null)
   const toeWgs = utmToWgs84(place.toeUtm.easting, place.toeUtm.northing, track.epsg)
@@ -55,6 +67,83 @@ export function switchOnTrackPlacement({ track, toeStation, reversed, sw, side, 
     geom: computeSwitchGeometryUtm(place.toeUtm, place.bearing, sw, side, false, toeWgs,
       plain ? null : place.pieces),
   }
+}
+
+// ── Minimum element length before the toe (LP.EL.01) ────────────────────────
+
+/** Shorter than this a piece is none: the toe sits on the node [m] (switchPlacement's JOINT_TOL). */
+const NODE_TOL = 1e-3
+
+/**
+ * Where element `elIdx` of `track` runs along the track [m], and its node
+ * behind a turnout opening with the track (its start) or against it (its end).
+ */
+function elementSpan(track, elIdx, reversed) {
+  const start = track.elements.slice(0, elIdx).reduce((sum, e) => sum + (e.length ?? 0), 0)
+  const end   = start + (track.elements[elIdx]?.length ?? 0)
+  return { start, end, behind: reversed ? end : start }
+}
+
+/**
+ * The piece of its element a turnout at `toeStation` leaves before its toe
+ * (WA) — between the toe and the element's node on the side away from the
+ * turnout. It has to be none at all (the toe on the node) or at least l_min of
+ * LP.EL.01 at the element's design speed; behind the switch end nothing is
+ * asked (Entscheidung 217). `lMin` is null where the element has no speed the
+ * catalogue knows (below 40 km/h): then it is not checked.
+ *
+ * Returns { elIdx, length, lMin, speed, short } — or null off the track.
+ */
+export function switchOnTrackRemnant(track, toeStation, reversed) {
+  const hit = elementAtStation(track?.elements, toeStation)
+  if (!hit) return null
+  const len = hit.el.length ?? 0
+  const onNode = hit.s <= NODE_TOL || hit.s >= len - NODE_TOL
+  const length = onNode ? 0 : (reversed ? len - hit.s : hit.s)
+  const speed = hit.el.speed || null
+  const lMin = minElementLength(speed)
+  return { elIdx: hit.elIdx, length, lMin, speed, short: lMin != null && length > NODE_TOL && length < lMin - NODE_TOL }
+}
+
+/**
+ * May the toe stand at `toeStation`: the turnout lies there and leaves no
+ * piece too short before it? `args` are switchOnTrackPlacement's, without the station.
+ */
+export function switchOnTrackToeValid(args, toeStation) {
+  return !placeOnTrack({ ...args, toeStation }).error
+    && !switchOnTrackRemnant(args.track, toeStation, args.reversed)?.short
+}
+
+/**
+ * The stations the dialog's slider can stand on with the toe on element
+ * `elIdx`, ascending: both of its nodes and every whole metre from the node
+ * behind the toe, from l_min on — each only where the turnout lies and keeps
+ * the minimum element length before WA (Entscheidung 217). `behind` is the
+ * station of that node: the slider shows the toe's distance from it.
+ *
+ * `args` are switchOnTrackPlacement's, without the station.
+ */
+export function switchOnTrackStops(args, elIdx) {
+  const { track, reversed } = args
+  const el = track?.elements?.[elIdx]
+  if (!el) return { stops: [], behind: 0 }
+  const { start, end, behind } = elementSpan(track, elIdx, reversed)
+  const len = end - start
+  const lMin = minElementLength(el.speed || null) ?? 0
+  const dir = reversed ? -1 : 1
+  const ds = [0, len]
+  for (let d = Math.max(1, Math.ceil(lMin - NODE_TOL)); d < len - NODE_TOL; d++) ds.push(d)
+  // Stated to a tenth of a millimetre: the station field shows it as it is.
+  const at = (d) => Math.round((behind + dir * d) * 1e4) / 1e4
+  const stops = [...new Set(ds.map(at))].filter(s => switchOnTrackToeValid(args, s)).sort((a, b) => a - b)
+  return { stops, behind }
+}
+
+/** The stop of `stops` nearest to `station` — or null where there is none. */
+export function nearestStop(stops, station) {
+  let best = null
+  for (const s of stops) if (best == null || Math.abs(s - station) < Math.abs(best - station)) best = s
+  return best
 }
 
 /** Branch element from a piece of the branch with one radius (or none). */

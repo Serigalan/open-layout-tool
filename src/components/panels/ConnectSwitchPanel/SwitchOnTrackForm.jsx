@@ -4,7 +4,7 @@ import { wgs84ToUTM } from '../../../utils/coordinateUtils'
 import { SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, switchStraightLength } from '../../../utils/switch/catalogue'
 import { switchRouteVaries } from '../../../utils/switch/route'
 import { clickStation } from '../../../utils/switchPlacement'
-import { trackLength } from '../../../utils/heightUtils'
+import { elementAtStation, trackLength } from '../../../utils/heightUtils'
 import { computeSwitchCant, computeCantDef, computeCantDefSigned, switchCantError, MAX_SWITCH_CANT_DEF } from '../../../utils/rules/cant'
 import { elementPath } from '../../../utils/lineLookup'
 import useTrackFields from '../../../hooks/useTrackFields'
@@ -22,7 +22,9 @@ import { useProject } from '../../../hooks/useStore'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
-import { buildSwitchOnTrack, switchOnTrackPlacement } from '../../../utils/commands/switches'
+import {
+  buildSwitchOnTrack, nearestStop, switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackStops, switchOnTrackToeValid,
+} from '../../../utils/commands/switches'
 import CommitBar from '../../form/CommitBar'
 import DirectionToggle from '../../form/DirectionToggle'
 import ReadOnlyField from '../../form/ReadOnlyField'
@@ -38,6 +40,8 @@ import { splitUnit } from '../../../locales/i18n'
 // Display only — the stored values keep their full precision.
 const fmtR    = (r) => (r == null ? '∞' : `${Math.round(r)} m`)
 const fmtCant = (u) => String(Math.round(u))
+// A distance along the track: whole metres as such, else to the centimetre.
+const fmtM = (d) => (Math.abs(d - Math.round(d)) < 5e-3 ? String(Math.round(d)) : d.toFixed(2))
 
 /**
  * Radius of a route as a turnout states it: the one it keeps throughout, or
@@ -75,6 +79,9 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   const { fields, errors, setErrors, setField, lineNumberError } = useTrackFields()
   const { phase, pick, begin, reset: resetPhase } = useFormPhase()   // pick: { trackId }
   const [station, setStation]       = useState('')     // toe position along the track [m]
+  // The element the slider runs over: the clicked one, or the one a typed
+  // station falls in. The toe may stand on either of its nodes.
+  const [slideEl, setSlideEl]       = useState(0)
   const [switchTypeIdx, setTypeIdx] = useState(DEFAULT_SWITCH_TYPE_IDX)
   const [side, setSide]             = useState('left')
   const [reversed, setReversed]     = useState(false)  // switch opens against the track direction
@@ -102,9 +109,14 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       setErrors([])
       // The click is projected onto the element in the track's own plane and
       // stated as a station along the whole track, which the turnout is placed by.
+      // It snaps to the nearest station the slider may stand on (Entscheidung 217).
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
+      const clicked  = Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000
+      const sw = SWITCH_PICK_TYPES[switchTypeIdx]
+      const { stops } = switchOnTrackStops({ track, reversed, sw, side, straightLen: switchStraightLength(sw) }, elIdx)
       begin({ trackId })
-      setStation(String(Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000))
+      setSlideEl(elIdx)
+      setStation(String(nearestStop(stops, clicked) ?? clicked))
     },
   })
 
@@ -114,6 +126,37 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   const toeStation  = Number(station)
   const straightLen = switchStraightLength(sw)
   const arcLen      = switchBranchLength(sw)
+
+  // ── The slider: the stations on its element where the turnout lies and
+  // keeps the minimum element length before WA (Entscheidung 217) ──────────
+  const slider = useMemo(() => (track
+    ? switchOnTrackStops({ track, reversed, sw, side, straightLen }, slideEl)
+    : { stops: [], behind: 0 }), [track, reversed, sw, side, straightLen, slideEl])
+  const stopIdx = Math.max(0, slider.stops.indexOf(nearestStop(slider.stops, toeStation)))
+  const remnant = track && Number.isFinite(toeStation) ? switchOnTrackRemnant(track, toeStation, reversed) : null
+
+  // A setting that changes where the turnout may lie keeps the toe where it
+  // is while it still may stand there, else moves it to the nearest stop.
+  const settle = (next) => {
+    if (!track || !Number.isFinite(toeStation)) return
+    const nextSw = next.sw ?? sw
+    const args = { track, reversed, sw, side, ...next, straightLen: switchStraightLength(nextSw) }
+    if (switchOnTrackToeValid(args, toeStation)) return
+    const to = nearestStop(switchOnTrackStops(args, slideEl).stops, toeStation)
+    if (to != null) setStation(String(to))
+  }
+  // A typed station moves the slider onto the element it falls in.
+  const typeStation = (value) => {
+    setStation(value)
+    const v = Number(value)
+    if (!track || value === '' || !Number.isFinite(v)) return
+    const start = track.elements.slice(0, slideEl).reduce((sum, el) => sum + (el.length ?? 0), 0)
+    const end   = start + (track.elements[slideEl]?.length ?? 0)
+    if (v < start - 1e-3 || v > end + 1e-3) {
+      const hit = elementAtStation(track.elements, v)
+      if (hit) setSlideEl(hit.elIdx)
+    }
+  }
 
   // Where the turnout lies and the geometry it produces — derived, so the
   // preview and the commit always agree. Everything is read in the track's own
@@ -193,7 +236,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
 
   const handleCommit = () => {
     setErrors([])
-    if (lineNumberError || !g || !place || !track || placeError) return
+    if (lineNumberError || !g || !place || !track || placeError || remnantErr) return
     const tracks = loadTracks()
     const existingNames = new Set(tracks.map(tr => tr.name).filter(Boolean))
 
@@ -217,6 +260,13 @@ export default function SwitchOnTrackForm({ onCommitted }) {
     onCommitted?.()
   }
 
+  // The piece before WA (LP.EL.01, Entscheidung 217) — only where the turnout lies at all.
+  const remnantErr = !placeError && remnant?.short
+    ? fill('switch_on_track_min_element_short', {
+      l: remnant.length.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
+    })
+    : null
+  const remnantUnchecked = !placeError && remnant && remnant.lMin == null && remnant.length > 0
   const cantErr = switchCantError(worstCant, cantReason)
   const defErr  = cantDef > MAX_SWITCH_CANT_DEF || (stemDef ?? 0) > MAX_SWITCH_CANT_DEF
 
@@ -232,21 +282,27 @@ export default function SwitchOnTrackForm({ onCommitted }) {
 
   return (
     <>
-      <DirectionToggle value={reversed} onChange={setReversed} left={t('switch_on_track_along')} right={t('switch_on_track_against')} />
+      <DirectionToggle value={reversed} onChange={v => { settle({ reversed: v }); setReversed(v) }} left={t('switch_on_track_along')} right={t('switch_on_track_against')} />
 
       <FormSection title={t('section_geometry')}>
         <div className="form-field">
           <label>{splitUnit(t('switch_on_track_station')).text}</label>
           <NumberInput step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
-            onChange={e => setStation(e.target.value)} unit="m" />
+            onChange={e => typeStation(e.target.value)} unit="m" />
+        </div>
+        <div className="form-field">
+          <label>{t('scurve_shift')}: {fmtM(Math.abs(toeStation - slider.behind))} m</label>
+          <input type="range" min={0} max={Math.max(0, slider.stops.length - 1)} step="1" value={stopIdx}
+            disabled={slider.stops.length === 0}
+            onChange={e => setStation(String(slider.stops[Number(e.target.value)] ?? station))} />
         </div>
         <ReadOnlyField label={t('switch_on_track_elements')} value={elementsText} />
         <SwitchFormField value={switchTypeIdx} onChange={i => {
-          setTypeIdx(i); setSpeed(SWITCH_PICK_TYPES[i].speed)
+          settle({ sw: SWITCH_PICK_TYPES[i] }); setTypeIdx(i); setSpeed(SWITCH_PICK_TYPES[i].speed)
         }} />
         <div className="form-field">
           <label>{t('switch_side')}</label>
-          <select value={side} onChange={e => setSide(e.target.value)}>
+          <select value={side} onChange={e => { settle({ side: e.target.value }); setSide(e.target.value) }}>
             <option value="left">{t('switch_side_left')}</option>
             <option value="right">{t('switch_side_right')}</option>
           </select>
@@ -291,10 +347,13 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       {cantVaries && <p className="selecting-hint">{t('switch_in_cant_ramp')}</p>}
       <MessageList items={errors} className="form-error-list" small={false} />
       {placeError && <p className="form-error">{placeError}</p>}
+      {slider.stops.length === 0 && <p className="form-error">{t('switch_on_track_no_stop')}</p>}
+      {remnantErr && <p className="form-error">{remnantErr}</p>}
+      {remnantUnchecked && <p className="msg-hint">{t('switch_on_track_min_element_unchecked')}</p>}
       {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
       {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
 
-      <CommitBar onCommit={handleCommit} onCancel={handleCancel} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), placeError, cantErr && t(`switch_cant_error_${cantErr}`), defErr && t('switch_cant_def_error'))} className="" />
+      <CommitBar onCommit={handleCommit} onCancel={handleCancel} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), placeError, remnantErr, cantErr && t(`switch_cant_error_${cantErr}`), defErr && t('switch_cant_def_error'))} className="" />
     </>
   )
 }
