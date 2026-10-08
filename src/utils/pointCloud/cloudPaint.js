@@ -40,7 +40,8 @@ const rgbFill = (b) => {
  * across and z [m] absolute; `flags[k]` 1 for a point inside the clearance
  * outline, 2 for one in an allowed area — onto `ctx` (already sized `w × h`
  * CSS pixels at `dpr`). With 'rgb' a part without colour is painted by its
- * intensity. Returns how many points were painted.
+ * intensity; with 'cloud' every part in its own `color` (the two clouds of a
+ * re-referencing, AP 13.14). Returns how many points were painted.
  */
 export function drawCloudPoints(ctx, { w, h, dpr = 1, k, cx, cy, zRef, parts, coloring = 'intensity' }) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -58,13 +59,17 @@ export function drawCloudPoints(ctx, { w, h, dpr = 1, k, cx, cy, zRef, parts, co
   const colors = new Map()   // 12-bit colour → [x, y, …]
   const size = 1.6
   let painted = 0
-  for (const { points: p, flags } of parts) {
+  const own = []   // 'cloud': [colour, [x, y, …]] per part
+  for (const { points: p, flags, color } of parts) {
     const rgb = coloring === 'rgb' ? p.rgb : null
+    const mine = coloring === 'cloud' ? [] : null
+    if (mine) own.push([color ?? GREYS[GREYS.length - 1], mine])
     for (let n = 0; n < p.count; n++) {
       const px = cx + p.y[n] * 1000 * k
       const py = cy - (p.z[n] - zRef) * 1000 * k
       if (px < -2 || py < -2 || px > w + 2 || py > h + 2) continue
       painted++
+      if (mine) { mine.push(px, py); continue }
       let b
       if (flags?.[n] === 1) b = BUCKETS
       else if (flags?.[n] === 2) b = BUCKETS + 1
@@ -79,6 +84,10 @@ export function drawCloudPoints(ctx, { w, h, dpr = 1, k, cx, cy, zRef, parts, co
       else b = p.i[n] >> 3
       buckets[b].push(px, py)
     }
+  }
+  for (const [fill, xy] of own) {
+    ctx.fillStyle = fill
+    for (let m = 0; m < xy.length; m += 2) ctx.fillRect(xy[m] - size / 2, xy[m + 1] - size / 2, size, size)
   }
   for (const [c, xy] of colors) {
     ctx.fillStyle = rgbFill(c)

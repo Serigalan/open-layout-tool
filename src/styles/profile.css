@@ -127,6 +127,7 @@
   touch-action: none;
 }
 
+.cross-section-svg.picking { cursor: crosshair; }
 .cross-section-svg.dragging {
   cursor: grabbing;
 }

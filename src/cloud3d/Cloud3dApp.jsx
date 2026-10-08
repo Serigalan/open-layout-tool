@@ -5,7 +5,7 @@ import I18nProvider from '../locales/I18nProvider'
 import { useI18n } from '../locales/i18nContext'
 import { serverLevel, readableOnServer } from '../utils/pointCloud/projectClouds'
 import { projectPlane } from '../utils/pointCloud/cloudProbe'
-import { planeMapper } from '../utils/pointCloud/cloudCrs'
+import { planeMapper, cloudPlane } from '../utils/pointCloud/cloudCrs'
 import { loadGridsFor } from '../utils/ntv2Grid'
 import { crsDatum, crsName, utmToWgs84 } from '../utils/coordinateUtils'
 import { heightDatumLabel } from '../utils/heightDatums'
@@ -17,6 +17,9 @@ import { Viewer } from './viewer'
 import { COLORINGS, CLOUD_COLORS } from './shaders'
 import { cloud3dParams, openChannel } from './channel'
 import { trackSamples, trackLines, nearestOnTracks, sectionPlane } from './trackGeometry'
+import { cloudPlacement } from './placement'
+import useRegistration from './useRegistration'
+import RegistrationPanel from './RegistrationPanel'
 import { originalPoint, between, measurementsCsv } from './measure'
 import { PALETTE } from '../styles/palette'
 import './cloud3d.css'
@@ -29,6 +32,7 @@ const MAIN_TIMEOUT = 7000
 const LOOK = {
   axis: PALETTE.view3dAxis, rail: PALETTE.view3dRail, survey: PALETTE.view3dSurvey,
   plane: PALETTE.view3dPlane, outline: PALETTE.view3dOutline, pick: PALETTE.view3dPick,
+  pairRef: PALETTE.view3dPairRef, pairSrc: PALETTE.view3dPairSrc,
 }
 
 export default function Cloud3dApp() {
@@ -49,6 +53,9 @@ function Cloud3dPage() {
   const [mainSeen, setMainSeen] = useState(0)
   const [section, setSection] = useState(null)
   const [clouds, setClouds] = useState([])        // rows shown, with { key, color, visible, l0 }
+  const [allRows, setAllRows] = useState([])      // every ready cloud of the project, local systems too (AP 13.13)
+  const [mayEdit, setMayEdit] = useState(false)
+  const [user, setUser] = useState(null)
   const [options, setOptions] = useState({ coloring: null, budget: 6, sizeFactor: 1, edl: true, edlStrength: 0.6 })
   const [status, setStatus] = useState(null)
   const [walkTrack, setWalkTrack] = useState('')
@@ -60,6 +67,10 @@ function Cloud3dPage() {
   const viewerRef = useRef(null)
   const channelRef = useRef(null)
   const geometryRef = useRef(null)                 // { viewCrs, origin, tracks: [{ id, label, samples }] }
+  const splitCanvasRef = useRef(null)
+  const splitViewerRef = useRef(null)
+  const regRef = useRef(null)
+  const l0s = useRef(new Map())                    // cloud id → Promise<index of L0>
 
   // ── the session, the clouds and the project ─────────────────────────────
   useEffect(() => {
@@ -71,20 +82,24 @@ function Cloud3dPage() {
       if (msg.type === 'pong' || msg.type === 'project' || msg.type === 'section') setMainSeen(Date.now())
       if (msg.type === 'project') setProject({ data: msg.data, from: 'main' })
       if (msg.type === 'section') setSection(msg.at)
+      if (msg.type === 'pair') regRef.current?.receive(msg.pair)
+      if (msg.type === 'registration?') regRef.current?.announce()
     })
     channelRef.current = ch
     ch?.postMessage({ type: 'hello' })
     ;(async () => {
       try {
-        await api.me()
+        setUser((await api.me()).user ?? null)
       } catch {
         if (live) setState({ phase: 'anon' })
         return
       }
       try {
-        const { clouds: rows } = await api.clouds(params.projectId)
+        const { clouds: rows, mayEdit: may } = await api.clouds(params.projectId)
         const ready = rows.filter(readableOnServer)
         if (!live) return
+        setAllRows(rows.filter(r => r.status === 'ready'))
+        setMayEdit(Boolean(may))
         if (!ready.length) { setState({ phase: 'none' }); return }
         const first = ready.find(r => r.id === params.cloudId) ?? ready[0]
         setClouds([first, ...ready.filter(r => r !== first)].map((r, k) => ({
@@ -108,7 +123,7 @@ function Cloud3dPage() {
       }, MAIN_WAIT)
     })()
     const ping = setInterval(() => ch?.postMessage({ type: 'ping' }), MAIN_TIMEOUT / 2)
-    return () => { live = false; clearInterval(ping); ch?.close() }
+    return () => { live = false; clearInterval(ping); ch?.close(); if (channelRef.current === ch) channelRef.current = null }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -127,27 +142,32 @@ function Cloud3dPage() {
     ;(async () => {
       const data = project.data
       const tracks = data?.tracks ?? []
-      const viewCrs = projectPlane(tracks) ?? clouds[0].crs
+      const viewCrs = projectPlane(tracks) ?? cloudPlane(clouds[0])
       const b0 = clouds[0].bounds
-      // Grids for the conversions, where planes of other datums meet.
-      const datums = [...new Set([viewCrs, ...clouds.map(c => c.crs)].map(crsDatum).filter(Boolean))]
-      const [w, s] = utmToWgs84(b0.minE, b0.minN, clouds[0].crs), [e, n] = utmToWgs84(b0.maxE, b0.maxN, clouds[0].crs)
-      if (datums.length) await loadGridsFor([Math.min(w, e) - 0.05, Math.min(s, n) - 0.05, Math.max(w, e) + 0.05, Math.max(s, n) + 0.05], datums).catch(() => {})
-      const toViewOf = (crs) => planeMapper(crs, viewCrs)
-      const [ce, cn] = toViewOf(clouds[0].crs)((b0.minE + b0.maxE) / 2, (b0.minN + b0.maxN) / 2)
-      const origin = [Math.round(ce / 10) * 10, Math.round(cn / 10) * 10, Math.floor(b0.minZ)]
-      const zRange = [Math.min(...clouds.map(c => c.bounds.minZ)), Math.max(...clouds.map(c => c.bounds.maxZ))]
       const levels = await Promise.all(clouds.map(async (c) => {
         const ls = await Promise.all([1, 2, 3, 4].map(l => serverLevel(params.projectId, c, l)))
         return Object.fromEntries(ls.map((index, k) => [k + 1, index]))
       }))
+      // Grids for the conversions, where planes of other datums meet: the
+      // first cloud's corners as the view will show them.
+      const datums = [...new Set([viewCrs, ...clouds.flatMap(c => [c.crs, c.transform?.crs])].map(crsDatum).filter(Boolean))]
+      const first = cloudPlacement(levels[0][1], viewCrs)
+      const lo = first.toView(b0.minE, b0.minN, b0.minZ), hi = first.toView(b0.maxE, b0.maxN, b0.maxZ)
+      const [w, s] = utmToWgs84(Math.min(lo[0], hi[0]), Math.min(lo[1], hi[1]), viewCrs)
+      const [e, n] = utmToWgs84(Math.max(lo[0], hi[0]), Math.max(lo[1], hi[1]), viewCrs)
+      if (datums.length) await loadGridsFor([Math.min(w, e) - 0.05, Math.min(s, n) - 0.05, Math.max(w, e) + 0.05, Math.max(s, n) + 0.05], datums).catch(() => {})
+      const [ce, cn, cz] = first.toView((b0.minE + b0.maxE) / 2, (b0.minN + b0.maxN) / 2, b0.minZ)
+      const origin = [Math.round(ce / 10) * 10, Math.round(cn / 10) * 10, Math.floor(cz)]
+      const zRange = [Math.min(...clouds.map(c => c.bounds.minZ)), Math.max(...clouds.map(c => c.bounds.maxZ))]
       if (!live || !canvasRef.current) return
       const viewer = new Viewer(canvasRef.current, {
         projectId: params.projectId, origin, viewCrs, zRange,
         onStatus: setStatus,
         onDoubleClick: (hit) => onDoubleClickRef.current?.(hit),
       })
-      clouds.forEach((c, k) => viewer.addCloud({ key: c.key, row: c, levels: levels[k], toView: toViewOf(c.crs), color: c.color }))
+      clouds.forEach((c, k) => viewer.addCloud({
+        key: c.key, row: c, levels: levels[k], place: cloudPlacement(levels[k][1], viewCrs), color: c.color,
+      }))
       viewer.initWorkers({ base: document.baseURI, box: [Math.min(w, e) - 0.05, Math.min(s, n) - 0.05, Math.max(w, e) + 0.05, Math.max(s, n) + 0.05] })
       // The cloud asked for (or the first) fills the view; the others may lie
       // kilometres away.
@@ -156,6 +176,8 @@ function Cloud3dPage() {
       viewer.frame(box)
       viewer.setOptions({ coloring: clouds.some(c => c.rgb) ? 'rgb' : 'intensity', budget: 6e6 })
       viewerRef.current = viewer
+      // For the checks in a headless browser (the dev server only).
+      if (import.meta.env.DEV) window.__olt3d = { viewer, split: () => splitViewerRef.current }
       geometryRef.current = { viewCrs, origin, tracks: [] }
       setOptions(o => ({ ...o, coloring: clouds.some(c => c.rgb) ? 'rgb' : 'intensity' }))
       setState({ phase: 'ready', viewCrs })
@@ -165,6 +187,76 @@ function Cloud3dPage() {
   }, [ready])
 
   useEffect(() => () => viewerRef.current?.dispose(), [])
+
+  // ── re-referencing (AP 13.13, 13.14) ─────────────────────────────────────
+  /** The clouds again from the server — after a re-referencing was kept or put back. */
+  const reloadRows = async () => {
+    const { clouds: rows } = await api.clouds(params.projectId)
+    const fresh = rows.filter(r => r.status === 'ready')
+    setAllRows(fresh)
+    setClouds(list => list.map(c => ({ ...c, ...(fresh.find(r => r.id === c.id) ?? {}), key: c.key, color: c.color, visible: c.visible })))
+    // Clouds not being fitted move to where their re-referencing in force puts them.
+    const viewer = viewerRef.current
+    for (const r of fresh) {
+      if (!viewer?.hasCloud(r.id) || r.id === regRef.current?.adjRow?.id) continue
+      const levels = await Promise.all([1, 2, 3, 4].map(l => serverLevel(params.projectId, r, l)))
+      viewer.setPlacement(r.id, cloudPlacement(levels[0], state.viewCrs))
+    }
+  }
+  const reg = useRegistration({
+    projectId: params?.projectId, rows: allRows, viewerRef, viewCrs: state.viewCrs, ready: state.phase === 'ready',
+    channelRef, onSaved: reloadRows,
+  })
+  useEffect(() => { regRef.current = reg })
+
+  // The pairs in the view: the reference's points, the fitted cloud's where the preview puts them.
+  useEffect(() => {
+    const v = viewerRef.current
+    if (!v) return
+    const { ref, src, pending } = reg.markers
+    v.setOverlay('pairs', [
+      ...(ref.length ? [v.markers(ref, LOOK.pairRef, 9)] : []),
+      ...(src.length ? [v.markers(src, LOOK.pairSrc, 6)] : []),
+      ...(pending?.length ? [v.markers(pending, LOOK.pick, 11)] : []),
+    ])
+  }, [reg.markers])
+
+  // In the split view the main view shows the reference cloud alone.
+  const splitOn = reg.split && !!reg.adjRow
+  useEffect(() => {
+    const v = viewerRef.current
+    if (!v) return
+    for (const c of v.clouds) {
+      const row = clouds.find(x => x.key === c.key)
+      v.setCloudVisible(c.key, splitOn ? c.key === reg.refRow?.id : (row?.visible ?? true))
+    }
+  }, [splitOn, reg.refRow?.id, clouds, state.phase, reg.adjRow?.id, reg.preview])
+
+  // The cloud to be fitted on its own, in its own frame, beside the reference (AP 13.13).
+  const adjForSplit = splitOn ? reg.adjRow : null
+  useEffect(() => {
+    if (!adjForSplit || !splitCanvasRef.current) return undefined
+    let live = true, viewer = null
+    ;(async () => {
+      const levels = await Promise.all([1, 2, 3, 4].map(l => serverLevel(params.projectId, adjForSplit, l)))
+      if (!live || !splitCanvasRef.current) return
+      const index = { ...levels[0], transform: null }
+      const place = cloudPlacement(index, null, null)
+      const b = levels[0].bounds
+      viewer = new Viewer(splitCanvasRef.current, {
+        projectId: params.projectId, origin: place.preOrigin, viewCrs: null, zRange: [b.minZ, b.maxZ],
+      })
+      viewer.addCloud({ key: adjForSplit.id, row: adjForSplit, levels: Object.fromEntries(levels.map((l, k) => [k + 1, l])), place, color: LOOK.pairSrc })
+      viewer.initWorkers({ base: document.baseURI, box: null })
+      const box = new THREE.Box3()
+      for (const r of viewer.clouds[0].roots) box.union(r.view)
+      viewer.frame(box)
+      viewer.setOptions({ ...options, coloring: adjForSplit.rgb ? 'rgb' : 'intensity', budget: 3e6 })
+      splitViewerRef.current = viewer
+    })()
+    return () => { live = false; viewer?.dispose(); splitViewerRef.current = null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adjForSplit?.id])
 
   // ── the tracks and measured axes, whenever the project comes anew ───────
   const viewCrs = state.viewCrs
@@ -234,13 +326,12 @@ function Cloud3dPage() {
     const geo = geometryRef.current
     const [oe, on, oz] = geo.origin
     const cloud = clouds.find(c => c.key === hit.node.cloud)
+    const { place } = viewerRef.current.clouds.find(c => c.key === hit.node.cloud)
     const view = [hit.position[0] + oe, hit.position[1] + on, hit.position[2] + oz]
-    const toCloud = planeMapper(geo.viewCrs, cloud.crs), toView = planeMapper(cloud.crs, geo.viewCrs)
-    const [ce, cn] = toCloud(view[0], view[1])
+    const [ce, cn, cz] = place.toFile(...view)
     cloud.l0 ??= serverLevel(params.projectId, cloud, 0)
-    const orig = await originalPoint(params.projectId, await cloud.l0, [ce, cn, view[2]]).catch(() => null)
-    const [e, n] = orig ? toView(orig.e, orig.n) : [view[0], view[1]]
-    const z = orig ? orig.z : view[2]
+    const orig = await originalPoint(params.projectId, await cloud.l0, [ce, cn, cz]).catch(() => null)
+    const [e, n, z] = orig ? place.toView(orig.e, orig.n, orig.z) : view
     const along = nearestOnTracks(geo.tracks, e, n)
     const track = along ? geo.tracks.find(x => x.id === along.id) : null
     return {
@@ -259,26 +350,57 @@ function Cloud3dPage() {
     setNote(fill('cloud3d_station_set', { track: p.track, station: p.station.toFixed(1) }))
   }
 
-  // A click (not a drag) while measuring picks a point.
+  /**
+   * The original point under a pick in `viewer` (the main view or the split
+   * one), in its cloud's file — what a pair of the re-referencing takes.
+   */
+  const resolveFile = async (hit, viewer) => {
+    const vc = viewer.clouds.find(c => c.key === hit.node.cloud)
+    const [oe, on, oz] = viewer.origin
+    const view = [hit.position[0] + oe, hit.position[1] + on, hit.position[2] + oz]
+    const guess = vc.place.toFile(...view)
+    const row = allRows.find(r => r.id === vc.key) ?? vc.row
+    if (!l0s.current.has(row.id)) l0s.current.set(row.id, serverLevel(params.projectId, row, 0))
+    const orig = await originalPoint(params.projectId, await l0s.current.get(row.id), guess).catch(() => null)
+    const along = viewer === viewerRef.current ? nearestOnTracks(geometryRef.current?.tracks ?? [], view[0], view[1], 10) : null
+    return { cloudId: vc.key, file: orig ? [orig.e, orig.n, orig.z] : guess, original: !!orig, bearing: along?.bearing ?? null }
+  }
+
+  // A click (not a drag) while measuring picks a point; while pairs are
+  // picked it is one point of a pair. The split view picks pairs only.
+  const picking = measuring || reg.picking
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !measuring) return
-    let down = null
-    const onDown = (e) => { down = { x: e.clientX, y: e.clientY } }
-    const onUp = async (e) => {
-      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) { down = null; return }
-      down = null
-      const hit = viewerRef.current?.pickAt(e.offsetX, e.offsetY)
-      if (!hit) { setNote(t('cloud3d_pick_none')); return }
-      const p = await resolve(hit)
-      setNote(p.original ? null : t('cloud3d_pick_not_original'))
-      setMeasured(list => [...list, p])
+    const listen = (canvas, viewerOf) => {
+      if (!canvas) return () => {}
+      let down = null
+      const onDown = (e) => { down = { x: e.clientX, y: e.clientY } }
+      const onUp = async (e) => {
+        if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) { down = null; return }
+        down = null
+        const viewer = viewerOf()
+        const hit = viewer?.pickAt(e.offsetX, e.offsetY)
+        if (!hit) { setNote(t('cloud3d_pick_none')); return }
+        if (regRef.current?.picking) {
+          const p = await resolveFile(hit, viewer)
+          setNote(p.original ? null : t('cloud3d_pick_not_original'))
+          regRef.current.pick(p)
+          return
+        }
+        if (viewer !== viewerRef.current) return
+        const p = await resolve(hit)
+        setNote(p.original ? null : t('cloud3d_pick_not_original'))
+        setMeasured(list => [...list, p])
+      }
+      canvas.addEventListener('pointerdown', onDown)
+      canvas.addEventListener('pointerup', onUp)
+      return () => { canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointerup', onUp) }
     }
-    canvas.addEventListener('pointerdown', onDown)
-    canvas.addEventListener('pointerup', onUp)
-    return () => { canvas.removeEventListener('pointerdown', onDown); canvas.removeEventListener('pointerup', onUp) }
+    if (!picking) return undefined
+    const offMain = listen(canvasRef.current, () => viewerRef.current)
+    const offSplit = listen(splitCanvasRef.current, () => splitViewerRef.current)
+    return () => { offMain(); offSplit() }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [measuring, state.phase])
+  }, [picking, state.phase, splitOn, allRows])
 
   useEffect(() => {
     const v = viewerRef.current
@@ -313,7 +435,16 @@ function Cloud3dPage() {
   return (
     <div className="cloud3d">
       <div className="cloud3d-canvas">
-        <canvas ref={canvasRef} tabIndex={0} />
+        <div className="cloud3d-view">
+          <canvas ref={canvasRef} tabIndex={0} />
+          {splitOn && <span className="cloud3d-view-label">{reg.refRow?.name}</span>}
+        </div>
+        {splitOn && (
+          <div className="cloud3d-view cloud3d-view-split">
+            <canvas ref={splitCanvasRef} tabIndex={0} />
+            <span className="cloud3d-view-label">{reg.adjRow?.name}</span>
+          </div>
+        )}
         {state.phase !== 'ready' && <div className="cloud3d-loading">{t('cloud3d_loading')}</div>}
         {walking && (
           <div className="cloud3d-walk-hud">
@@ -426,6 +557,9 @@ function Cloud3dPage() {
         )}
         {note && <p className="cloud3d-warn">{note}</p>}
         <p className="cloud3d-hint">{t('cloud3d_dblclick_hint')}</p>
+
+        <RegistrationPanel reg={reg} rows={allRows} mayEdit={mayEdit} userName={user?.name ?? ''}
+          projectTitle={project?.data?.title ?? ''} heightName={heightName} />
       </aside>
     </div>
   )

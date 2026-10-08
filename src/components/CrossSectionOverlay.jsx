@@ -4,7 +4,7 @@ import { openCloud3d } from '../cloud3d/channel'
 import { trackLength } from '../utils/heightUtils'
 import { tracksOnFrom } from '../utils/topology'
 import { trackHeightAt } from '../utils/switchGradient'
-import { utmToWgs84 } from '../utils/coordinateUtils'
+import { utmToWgs84, transformGridBearing } from '../utils/coordinateUtils'
 import { pointAtStation } from '../utils/platformUtils'
 import { PLATFORM_FILL_COLOR, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderUtils'
 import { sampleHeightsWithSource, terrainSourceLabel, chosenTerrainSource } from '../utils/elevationSource'
@@ -14,7 +14,11 @@ import {
   sectionNeighbours, sectionLinePoints, sectionLevels, sectionOrigin, PLANUM_EDGE, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/heightDatums'
-import { readableClouds } from '../utils/pointCloud/projectClouds'
+import { readableClouds, serverLevel } from '../utils/pointCloud/projectClouds'
+import { planeMapper } from '../utils/pointCloud/cloudCrs'
+import { applyMatrix, invertMatrix } from '../utils/pointCloud/registration'
+import { api } from '../api/client'
+import useRegistrationSession from '../hooks/useRegistrationSession'
 import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
 import { paintCloudCanvas, coloringsFor, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
 import { checkClearance, BOTTOM_BAND } from '../utils/pointCloud/clearanceCheck'
@@ -37,6 +41,8 @@ import NumberInput from './form/NumberInput'
 const MARGIN = 28
 /** Length of the tick marking a rail inner face [mm in the track frame]. */
 const FACE_TICK = 250
+/** How close to a drawn point a click picks it for a pair [px]. */
+const PICK_PX = 12
 const MIN_OVERLAY_PX = 160
 /** How far either side of the track other tracks are looked for [m], unless the user says otherwise. */
 const DEFAULT_REACH = 20
@@ -126,6 +132,9 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   const [clouds, setClouds] = useState([])          // the project's point clouds, on the server and on this device
   const [cloudLevel, setCloudLevel] = useState(1)   // the server clouds' level: 1 the 2-cm voxel, 0 the original
   const [cloudOn, setCloudOn] = useState(true)
+  const [pairPick, setPairPick] = useState(false)   // picking pairs for the 3D window's re-referencing
+  const [pendingPick, setPendingPick] = useState(null) // { key, role, y, z } — the first point of a pair
+  const [pickNote, setPickNote] = useState(null)
   const [thickness, setThickness] = useState(DEFAULT_THICKNESS)
   // null: the first on offer — RGB where a cloud has colour (AP 13.4).
   const [chosenColoring, setColoring] = useState(null)
@@ -237,15 +246,46 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   }, [terrainKey])
 
   // ── The point clouds of the project, sliced at the section plane ─────────
+  const registration = useRegistrationSession(project.id)
+  const { cloudsVersion } = registration
   useEffect(() => {
     let live = true
     readableClouds(project.id, { level: cloudLevel }).then(c => { if (live) setClouds(c) }).catch(() => {})
     return () => { live = false }
-  }, [project.id, cloudLevel])
+  }, [project.id, cloudLevel, cloudsVersion])
   const onServer = clouds.some(c => c.server)
 
-  const cloudKey = track && cloudOn && clouds.length
-    ? `${track.id}|${station.toFixed(2)}|${reach}|${thickness}|${clouds.map(c => (c.server ? `${c.id}@${c.server.level}` : c.id)).join(',')}`
+  // While the 3D window re-references a cloud (AP 13.14), the section shows
+  // the two clouds alone, each in its colour — the one being fitted where the
+  // solution puts it — and pairs can be picked in it.
+  const reg = registration.session
+  const regKey = reg
+    ? `${reg.refId}|${reg.adjId}|${reg.refPlane}|${(reg.matrix ?? []).map(v => v.toPrecision(10)).join(',')}|${cloudLevel}|${cloudsVersion}`
+    : null
+  const [regClouds, setRegClouds] = useState({ key: null, clouds: [] })
+  useEffect(() => {
+    if (!regKey) return undefined
+    let live = true
+    api.clouds(project.id).then(async ({ clouds: rows }) => {
+      const ref = rows.find(r => r.id === reg.refId), adj = rows.find(r => r.id === reg.adjId)
+      const out = []
+      if (ref) out.push({ ...(await serverLevel(project.id, ref, cloudLevel)), color: PALETTE.sectionRefCloud, role: 'ref' })
+      if (adj && reg.matrix) {
+        out.push({
+          ...(await serverLevel(project.id, adj, cloudLevel)), transform: { matrix: reg.matrix, crs: reg.refPlane },
+          color: PALETTE.sectionFitCloud, role: 'adj',
+        })
+      }
+      if (live) setRegClouds({ key: regKey, clouds: out })
+    }).catch(() => { if (live) setRegClouds({ key: regKey, clouds: [] }) })
+    return () => { live = false }
+    // the session is part of the key
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regKey, project.id])
+  const sliceClouds = regKey ? (regClouds.key === regKey ? regClouds.clouds : []) : clouds
+
+  const cloudKey = track && cloudOn && sliceClouds.length
+    ? `${track.id}|${station.toFixed(2)}|${reach}|${thickness}|${sliceClouds.map(c => (c.server ? `${c.id}@${c.server.level}` : c.id)).join(',')}|${regKey ?? ''}`
     : null
 
   useEffect(() => {
@@ -254,7 +294,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
     const origin = sectionOrigin(track, station)
     if (!origin) return
     const t0 = performance.now()
-    Promise.all(clouds.map(async (cloud) => ({
+    Promise.all(sliceClouds.map(async (cloud) => ({
       cloud,
       points: await cloudSectionPoints(project.id, cloud, {
         origin: origin.utm, bearing: origin.bearing, crs: track.epsg,
@@ -279,7 +319,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
     let cancelled = false
     const origin = sectionOrigin(track, station)
     if (!origin) return
-    detectInClouds(project.id, clouds, { origin: origin.utm, bearing: origin.bearing, crs: track.epsg, rail: mainRail })
+    detectInClouds(project.id, sliceClouds, { origin: origin.utm, bearing: origin.bearing, crs: track.epsg, rail: mainRail })
       .then(det => { if (!cancelled) setRailsFound({ key: railsKey, det }) })
       .catch(() => { if (!cancelled) setRailsFound({ key: railsKey, det: { reason: 'failed' } }) })
     return () => { cancelled = true }
@@ -292,7 +332,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   // not flicker as the slider moves.
   const slicedParts = cloudOn && slice ? slice.parts : []
   const colorings = coloringsFor(clouds.some(c => c.rgb))
-  const coloring = colorings.includes(chosenColoring) ? chosenColoring : colorings[0]
+  const coloring = regKey ? 'cloud' : colorings.includes(chosenColoring) ? chosenColoring : colorings[0]
 
   // The clearance check (AP 11.5) against this track's outline, at its
   // gradient and cant. A track without a gradient has nothing to check against.
@@ -304,7 +344,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   // ring and areas follow the profile id; the arrays are new on every render
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [slicedParts, mainZ, mainCant, profile.id])
-  const cloudParts = slicedParts.map((p, n) => ({ ...p, flags: checks?.[n]?.flags }))
+  const cloudParts = slicedParts.map((p, n) => ({ ...p, flags: checks?.[n]?.flags, color: p.cloud.color }))
   const clearance = checks && checks.length ? (() => {
     let insideCount = 0, deepest = null, nearest = null
     checks.forEach((c, n) => {
@@ -391,10 +431,49 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
 
   // ── Pan by dragging; a double click fits the drawing again ─────────────────
   const drag = useDrag({
-    onStart: () => (fit ? { mid: fit.mid, k: fit.k } : null),
+    onStart: () => (fit && !pairPick ? { mid: fit.mid, k: fit.k } : null),
     onMove: (e, start, { dx, dy }) => setCenter({ y: start.mid.y - dx / start.k, z: start.mid.z + dy / start.k }),
   })
   const onDoubleClick = () => { setZoom(1); setCenter(null) }
+
+  // ── A pair for the re-referencing: one point of each cloud (AP 13.14) ───────
+  // The nearest point drawn within PICK_PX, first of either cloud, then of
+  // the other; the pair counts across and in height (decision 213). Its
+  // points go to the 3D window in the reference plane — the fitted cloud's
+  // back through the transformation it is drawn with.
+  const pending = pendingPick?.key === cloudKey ? pendingPick : null
+  const pickPair = (e) => {
+    if (!pairPick || !reg?.matrix || !fit || zRef == null) return
+    const box = svgRef.current.getBoundingClientRect()
+    const px = e.clientX - box.left, py = e.clientY - box.top
+    const want = pending ? (pending.role === 'ref' ? 'adj' : 'ref') : null
+    let best = null
+    for (const part of slicedParts) {
+      const role = part.cloud.role
+      if (!role || (want && role !== want)) continue
+      const P = part.points
+      for (let n = 0; n < P.count; n++) {
+        const d = Math.hypot(fit.cx + P.y[n] * 1000 * fit.k - px, fit.cy - (P.z[n] - zRef) * 1000 * fit.k - py)
+        if (d <= PICK_PX && (!best || d < best.d)) best = { d, role, y: P.y[n], z: P.z[n] }
+      }
+    }
+    if (!best) { setPickNote(t('cross_section_reg_none')); return }
+    if (!pending) { setPendingPick({ key: cloudKey, role: best.role, y: best.y, z: best.z }); setPickNote(null); return }
+    const refP = best.role === 'ref' ? best : pending, adjP = best.role === 'adj' ? best : pending
+    const origin = sectionOrigin(track, station)
+    const rad = origin.bearing * Math.PI / 180
+    const toRef = planeMapper(track.epsg, reg.refPlane)
+    const at = (p) => toRef(origin.utm.easting + Math.cos(rad) * p.y, origin.utm.northing - Math.sin(rad) * p.y)
+    const [re, rn] = at(refP), [ae, an] = at(adjP)
+    const bearing = Number(track.epsg) === Number(reg.refPlane) ? origin.bearing
+      : transformGridBearing(origin.utm.easting, origin.utm.northing, origin.bearing, track.epsg, reg.refPlane)
+    registration.sendPair({
+      refId: reg.refId, adjId: reg.adjId, bearing,
+      ref: [re, rn, refP.z], src: applyMatrix(invertMatrix(reg.matrix), [ae, an, adjP.z]),
+    })
+    setPendingPick(null)
+    setPickNote(t('cross_section_reg_sent'))
+  }
 
   // The cloud is painted under the drawing, in the drawing's own transform.
   const cloudCount = cloudParts.reduce((n, part) => n + part.points.count, 0)
@@ -493,8 +572,9 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
     const path = (pts) => pts.map(([y, z], i) => `${i ? 'L' : 'M'}${X(y)},${Y(z)}`).join(' ')
 
     return (
-      <svg ref={svgRef} width={size.w} height={size.h} className={`cross-section-svg${drag.dragging ? ' dragging' : ''}`}
-        {...drag.handlers} onDoubleClick={onDoubleClick}>
+      <svg ref={svgRef} width={size.w} height={size.h}
+        className={`cross-section-svg${drag.dragging ? ' dragging' : ''}${pairPick && reg ? ' picking' : ''}`}
+        {...drag.handlers} onDoubleClick={onDoubleClick} onClick={pickPair}>
         <title>{t('cross_section_view_hint')}</title>
         {/* the horizontal through this track's running plane, so the cant is
             visible as the angle it is */}
@@ -542,6 +622,11 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
             </g>
           )
         })}
+        {/* the first point of a pair being picked */}
+        {pending && zRef != null && (
+          <circle cx={X(pending.y * 1000)} cy={Y((pending.z - zRef) * 1000)} r="6" fill="none" strokeWidth="2"
+            stroke={pending.role === 'ref' ? PALETTE.sectionRefCloud : PALETTE.sectionFitCloud} />
+        )}
         {/* heights: of every track's gradient under it, of every platform edge over it */}
         {placed.map((p, n) => (
           <text key={`l${p.track.id}|${p.station}`} x={X(p.axis[0])} y={Y(bottomOf(p)) + 14}
@@ -674,10 +759,12 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
                       onChange={e => setThickness(clamp(Number(e.target.value) || DEFAULT_THICKNESS, 1, MAX_THICKNESS))} />
                     cm
                   </label>
-                  <select className="cross-section-coloring" value={coloring} onChange={e => setColoring(e.target.value)}
-                    title={t('cross_section_cloud_coloring')}>
-                    {colorings.map(c => <option key={c} value={c}>{t(`cross_section_cloud_by_${c}`)}</option>)}
-                  </select>
+                  {!reg && (
+                    <select className="cross-section-coloring" value={coloring} onChange={e => setColoring(e.target.value)}
+                      title={t('cross_section_cloud_coloring')}>
+                      {colorings.map(c => <option key={c} value={c}>{t(`cross_section_cloud_by_${c}`)}</option>)}
+                    </select>
+                  )}
                   {onServer && (
                     <>
                       <select className="cross-section-coloring" value={cloudLevel} onChange={e => setCloudLevel(Number(e.target.value))}
@@ -692,6 +779,26 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
                     </>
                   )}
                 </>
+              )}
+            </>
+          )}
+          {reg && (
+            <>
+              <span className="profile-hint cross-section-reg">
+                <span style={{ color: PALETTE.sectionRefCloud }}>{`■ ${reg.refName}`}</span>
+                {' '}
+                <span style={{ color: PALETTE.sectionFitCloud }}>{`■ ${reg.adjName}`}</span>
+              </span>
+              <label className="profile-edit" title={t('cross_section_reg_pick_hint')}>
+                <input type="checkbox" checked={pairPick} disabled={!reg.matrix}
+                  onChange={e => { setPairPick(e.target.checked); setPendingPick(null); setPickNote(null) }} />
+                {t('cross_section_reg_pick')}
+              </label>
+              {pairPick && (
+                <span className="profile-hint">
+                  {pending ? fill('cross_section_reg_pending', { name: pending.role === 'ref' ? reg.adjName : reg.refName })
+                    : (pickNote ?? t('cross_section_reg_pick_first'))}
+                </span>
               )}
             </>
           )}

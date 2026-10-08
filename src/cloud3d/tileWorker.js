@@ -1,10 +1,11 @@
 // Decoding tiles for the 3D view (AP 13.9), off the main thread. Messages in:
 //   { type: 'init', base, crs: [[from, to], …], box: [w, s, e, n] }  grids for the conversions
-//   { type: 'tile', id, cloud, viewCrs, origin, tx, ty, segs, bytes }
-// and out: { type: 'tile', id, count, position, color, intensity } — positions
-// as Float32 relative to `origin` in the view's plane (float32 alone would
-// leave some half a metre at 4 467 335 / 5 333 806, AP 13.8), colour and
-// intensity as bytes; or { type: 'error', id, message }.
+//   { type: 'tile', id, cloud, preCrs, origin, tx, ty, segs, bytes }
+// and out: { type: 'tile', id, count, position, color, intensity, origin } —
+// positions as Float32 relative to `origin` in plane `preCrs` (float32 alone
+// would leave some half a metre at 4 467 335 / 5 333 806, AP 13.8; the model
+// matrix takes them on into the view, placement.js), colour and intensity as
+// bytes; or { type: 'error', id, message }.
 import { decodeCloudSegment, segmentPlacement } from '../utils/pointCloud/tiles'
 import { planeMapper } from '../utils/pointCloud/cloudCrs'
 import { loadNtv2Grid, loadGridsFor } from '../utils/ntv2Grid'
@@ -24,12 +25,12 @@ async function init({ base, crs, box }) {
   if (datums.length && box) await loadGridsFor(box, datums, { base })
 }
 
-function tile({ id, cloud, viewCrs, origin, tx, ty, segs, bytes }) {
+function tile({ id, cloud, preCrs, origin, tx, ty, segs, bytes }) {
   const count = segs.reduce((n, s) => n + s[0], 0)
   const position = new Float32Array(count * 3)
   const color = cloud.rgb ? new Uint8Array(count * 3) : null
   const intensity = new Uint8Array(count)
-  const toView = cloud.crs == null || Number(cloud.crs) === Number(viewCrs) ? null : mapperFor(cloud.crs, viewCrs)
+  const toView = cloud.crs == null || preCrs == null || Number(cloud.crs) === Number(preCrs) ? null : mapperFor(cloud.crs, preCrs)
   const [oe, on, oz] = origin
   let k = 0
   segs.forEach(([n, z0], j) => {
@@ -46,7 +47,7 @@ function tile({ id, cloud, viewCrs, origin, tx, ty, segs, bytes }) {
     }
   })
   const transfer = [position.buffer, intensity.buffer, ...(color ? [color.buffer] : [])]
-  self.postMessage({ type: 'tile', id, count, position, color, intensity }, transfer)
+  self.postMessage({ type: 'tile', id, count, position, color, intensity, origin }, transfer)
 }
 
 self.onmessage = async ({ data }) => {

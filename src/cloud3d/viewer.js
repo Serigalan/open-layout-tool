@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { buildTree, selectNodes } from './lod'
 import { pointMaterial, pickLowMaterial, setLook, edlPass } from './shaders'
 import { sourceOf } from '../utils/pointCloud/cloudSource'
+import { modelMatrix } from './placement'
 
 /**
  * The 3D view of a project's point clouds (AP 13.8–13.11), plain three.js on
@@ -11,7 +12,10 @@ import { sourceOf } from '../utils/pointCloud/cloudSource'
  * Everything is drawn relative to an `origin` near the clouds: float32 at
  * 4 467 335 / 5 333 806 would keep only about half a metre (AP 13.8). The
  * view's plane is the tracks' (or the first cloud's); a tile in another plane
- * is converted point by point in the worker. The axes: x east, y north, z up.
+ * is converted point by point in the worker. A re-referenced cloud is drawn
+ * through its model matrix (placement.js, AP 13.13), so that the
+ * transformation being fitted moves it without a tile read again. The axes:
+ * x east, y north, z up.
  *
  * Tiles come by level of detail within a point budget (lod.js), read through
  * the same source and OPFS cache as the cross section (cloudSource), decoded
@@ -33,6 +37,9 @@ const SELECT_EVERY = 120
 const PICK_RADIUS = 8
 /** Speed of the walk along a track [m/s], four times that with Shift. */
 const WALK_SPEED = 6
+
+/** Whether two placements put the points into the same pre plane about the same origin. */
+const samePre = (a, b) => !!a && !!b && a.preCrs === b.preCrs && a.preOrigin.every((v, i) => v === b.preOrigin[i])
 
 const DEFAULTS = { coloring: 'intensity', budget: 6e6, sizeFactor: 1, edl: true, edlStrength: 0.6 }
 
@@ -122,28 +129,102 @@ export class Viewer {
 
   /** Initialise the workers' grids for the planes the clouds and the view are in. */
   initWorkers({ base, box }) {
-    const crs = this.clouds.filter(c => c.crs != null && c.crs !== this.viewCrs).map(c => [c.crs, this.viewCrs])
+    this.gridArea = { base, box }
+    const crs = this.clouds.filter(c => c.crs != null && c.place.preCrs != null && c.crs !== c.place.preCrs)
+      .map(c => [c.crs, c.place.preCrs])
     for (const w of this.workers) w.postMessage({ type: 'init', base, crs, box })
   }
 
   /**
    * A cloud to draw: `row` as the API lists it, `levels[l]` the index of level
-   * l (1…4, with `server: { level }`), `toView(e, n)` its plane into the view's.
+   * l (1…4, with `server: { level }`), `place` where it is drawn (placement.js).
    */
-  addCloud({ key, row, levels, toView, color }) {
+  addCloud({ key, row, levels, place, color }) {
     const { roots, nodes } = buildTree(key, levels, this.nextNodeId)
+    const cloud = { key, row, levels, crs: row.crs, color, rgb: row.rgb, roots, nodes, visible: true, zSamples: [], zRange: null }
+    this.clouds.push(cloud)
+    this.place(cloud, place)
+    this.needSelect = true
+  }
+
+  /**
+   * Draw a cloud elsewhere (AP 13.13): a new transformation moves what is
+   * loaded; a new pre plane or origin reads its tiles again.
+   */
+  setPlacement(key, place) {
+    const cloud = this.clouds.find(c => c.key === key)
+    if (!cloud) return
+    const same = samePre(cloud.place, place)
+    if (!same) {
+      // The workers may need the grids of a plane they have not converted into yet.
+      if (this.gridArea && cloud.crs != null && place.preCrs != null && cloud.crs !== place.preCrs) {
+        for (const w of this.workers) w.postMessage({ type: 'init', ...this.gridArea, crs: [[cloud.crs, place.preCrs]] })
+      }
+      for (const [node, { points }] of [...this.loaded]) {
+        if (node.cloud !== key) continue
+        this.pointsGroup.remove(points)
+        points.geometry.dispose()
+        points.material.dispose()
+        points.userData.low.dispose()
+        this.loaded.delete(node)
+      }
+      cloud.zSamples = []
+      cloud.zRange = null
+    }
+    this.place(cloud, place)
+    this.needSelect = true
+    this.dirty = true
+  }
+
+  /** Set a cloud's placement: its model matrix, and its boxes in the view's frame. */
+  place(cloud, place) {
+    cloud.place = place
+    cloud.model = new THREE.Matrix4().set(...modelMatrix(place, this.origin))
     const [oe, on, oz] = this.origin
     // The boxes in the view's frame: the corners carried over, widened a little.
-    for (const n of nodes) {
+    for (const n of cloud.nodes) {
       const [x0, y0, z0, x1, y1, z1] = n.box
-      const corners = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([e, nn]) => toView(e, nn))
-      const es = corners.map(c => c[0]), ns = corners.map(c => c[1])
+      const corners = [[x0, y0, z0], [x1, y0, z0], [x0, y1, z0], [x1, y1, z0], [x0, y0, z1], [x1, y0, z1], [x0, y1, z1], [x1, y1, z1]]
+        .map(([e, nn, z]) => place.toView(e, nn, z))
+      const [es, ns, zs] = [0, 1, 2].map(i => corners.map(c => c[i]))
       n.view = new THREE.Box3(
-        new THREE.Vector3(Math.min(...es) - oe - 0.05, Math.min(...ns) - on - 0.05, z0 - oz - 0.05),
-        new THREE.Vector3(Math.max(...es) - oe + 0.05, Math.max(...ns) - on + 0.05, z1 - oz + 0.05))
+        new THREE.Vector3(Math.min(...es) - oe - 0.05, Math.min(...ns) - on - 0.05, Math.min(...zs) - oz - 0.05),
+        new THREE.Vector3(Math.max(...es) - oe + 0.05, Math.max(...ns) - on + 0.05, Math.max(...zs) - oz + 0.05))
     }
-    this.clouds.push({ key, row, levels, crs: row.crs, color, rgb: row.rgb, roots, nodes, visible: true, zSamples: [], zRange: null })
+    cloud.modelInverse = cloud.model.clone().invert()
+    for (const [node, { points }] of this.loaded) {
+      if (node.cloud !== cloud.key) continue
+      points.matrix.copy(cloud.model)
+      points.matrixWorldNeedsUpdate = true
+      this.bound(points.geometry, node, cloud)
+    }
+  }
+
+  /**
+   * A tile's bounds in its geometry's own frame — the pre plane: three.js
+   * culls by them through the model matrix.
+   */
+  bound(geometry, node, cloud) {
+    geometry.boundingBox = node.view.clone().applyMatrix4(cloud.modelInverse)
+    geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(new THREE.Sphere())
+  }
+
+  /** Whether a cloud is drawn here at all. */
+  hasCloud(key) { return this.clouds.some(c => c.key === key) }
+
+  /** Stop drawing a cloud and free what it loaded. */
+  removeCloud(key) {
+    for (const [node, { points }] of [...this.loaded]) {
+      if (node.cloud !== key) continue
+      this.pointsGroup.remove(points)
+      points.geometry.dispose()
+      points.material.dispose()
+      points.userData.low.dispose()
+      this.loaded.delete(node)
+    }
+    this.clouds = this.clouds.filter(c => c.key !== key)
     this.needSelect = true
+    this.dirty = true
   }
 
   setCloudVisible(key, visible) {
@@ -320,7 +401,7 @@ export class Viewer {
     const common = { size: node.voxel, scale: this.projScale, sizeFactor: o.sizeFactor }
     setLook(points.material, {
       ...common, coloring, hasColor: !!cloud.rgb, cloudColor: cloud.color,
-      zRange: cloud.zRange ?? [this.zRange[0] - this.origin[2], this.zRange[1] - this.origin[2]],
+      zRange: cloud.zRange ?? [this.zRange[0] - cloud.place.preOrigin[2], this.zRange[1] - cloud.place.preOrigin[2]],
     })
     const low = points.userData.low.uniforms
     low.uSize.value = node.voxel * o.sizeFactor
@@ -331,6 +412,7 @@ export class Viewer {
     this.loading.add(node)
     try {
       const cloud = this.clouds.find(c => c.key === node.cloud)
+      const placed = cloud.place
       const index = cloud.levels[node.level]
       const bytes = await sourceOf(this.projectId, index).readMany(node.segs.map(s => [s[0], s[1]]))
       const data = await new Promise((resolve, reject) => {
@@ -338,7 +420,7 @@ export class Viewer {
         this.jobs.set(id, { resolve, reject })
         const copies = bytes.map(b => b.slice())
         this.workers[id % this.workers.length].postMessage({
-          type: 'tile', id, viewCrs: this.viewCrs, origin: this.origin, tx: node.tx, ty: node.ty,
+          type: 'tile', id, preCrs: cloud.place.preCrs, origin: cloud.place.preOrigin, tx: node.tx, ty: node.ty,
           segs: node.segs.map(s => [s[2], s[3]]), bytes: copies,
           cloud: {
             crs: index.crs, grid: index.grid, perMetre: index.perMetre, tileSize: index.tileSize,
@@ -346,7 +428,8 @@ export class Viewer {
           },
         }, copies.map(c => c.buffer))
       })
-      this.addPoints(node, data)
+      // Moved to another pre plane meanwhile: these points are of the old one.
+      if (samePre(cloud.place, placed)) this.addPoints(node, data)
     } catch (err) {
       node.failed = true
       console.error('tile did not load', err)
@@ -370,12 +453,14 @@ export class Viewer {
     g.setAttribute('position', new THREE.BufferAttribute(position, 3))
     g.setAttribute('intensity', new THREE.BufferAttribute(intensity, 1, true))
     if (color) g.setAttribute('color', new THREE.BufferAttribute(color, 3, true))
-    g.boundingBox = node.view.clone()
-    g.boundingSphere = node.view.getBoundingSphere(new THREE.Sphere())
+    const cloud = this.clouds.find(c => c.key === node.cloud)
+    this.bound(g, node, cloud)
     const points = new THREE.Points(g, pointMaterial())
     points.userData = { node, low: pickLowMaterial(), count }
     points.visible = false
     points.matrixAutoUpdate = false
+    points.matrix.copy(cloud.model)
+    points.matrixWorldNeedsUpdate = true
     this.heightsFrom(node, position, count)
     this.look(node, points)
     this.pointsGroup.add(points)
@@ -573,11 +658,8 @@ export class Viewer {
     const points = this.drawn[best.tile - 1]
     if (!points || best.index >= points.userData.count) return null
     const a = points.geometry.attributes.position
-    return {
-      node: points.userData.node,
-      index: best.index,
-      position: [a.getX(best.index), a.getY(best.index), a.getZ(best.index)],
-    }
+    const at = new THREE.Vector3(a.getX(best.index), a.getY(best.index), a.getZ(best.index)).applyMatrix4(points.matrix)
+    return { node: points.userData.node, index: best.index, position: [at.x, at.y, at.z] }
   }
 
   dispose() {

@@ -52,6 +52,11 @@ export const PALETTE = Object.freeze({
   view3dPlane: '#4f8cff',
   view3dOutline: '#ff3b30',
   view3dPick: '#ff2bd6',
+  // Re-referencing (AP 13.13–13.14): the reference cloud and the one fitted to it.
+  view3dPairRef: '#36c5f0',
+  view3dPairSrc: '#ff7a45',
+  sectionRefCloud: '#1f6fb2',
+  sectionFitCloud: '#d9480f',
   referenceAxis: '#6d4c41',
   topOfRail: '#e4e4ec',
   sleeper: '#d9d4cc',

@@ -92,7 +92,7 @@ export function nearestOnTracks(tracks, e, n, reach = 50) {
       // Right of the direction of travel is positive.
       const side = Math.sign(de * (n - a.n) - dn * (e - a.e)) || 1
       const z = a.z != null && b.z != null ? a.z + u * (b.z - a.z) : null
-      best = { id: t.id, station: a.s + u * (b.s - a.s), offset: -side * d, distance: d, z }
+      best = { id: t.id, station: a.s + u * (b.s - a.s), offset: -side * d, distance: d, z, bearing: b.bearing ?? null }
     }
   }
   return best

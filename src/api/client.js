@@ -94,6 +94,11 @@ export const api = {
   deleteCloud:    (projectId, cloudId) => request('DELETE', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}`),
   cloudIndex:     (projectId, cloudId, level) => request('GET', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/L${level}/index`),
   cloudAdmin:     () => request('GET', '/admin/clouds'),
+  // Re-referencing a cloud on the server (AP 13.13–13.14).
+  cloudTransforms: (projectId, cloudId) => request('GET', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/transforms`),
+  saveCloudTransform: (projectId, cloudId, body) => request('POST', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/transforms`, body),
+  activateCloudTransform: (projectId, cloudId, id) =>
+    request('POST', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/transforms/active`, { id }),
   // Long runs over the project's clouds on the server (AP 13.7).
   runs:           (projectId) => request('GET', `/projects/${enc(projectId)}/runs`),
   run:            (projectId, runId) => request('GET', `/projects/${enc(projectId)}/runs/${enc(runId)}`),

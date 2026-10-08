@@ -12,11 +12,24 @@ html, body, #root { height: 100%; margin: 0; }
 
 .cloud3d-canvas {
   position: relative;
+  display: flex;
   flex: 1;
   min-width: 0;
   overflow: hidden;
 }
 .cloud3d-canvas canvas { display: block; outline: none; }
+/* One view, or two side by side while a cloud in a local system is fitted (AP 13.13). */
+.cloud3d-view { position: relative; flex: 1; min-width: 0; height: 100%; }
+.cloud3d-view-split { border-left: 2px solid #454959; }
+.cloud3d-view-label {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
 
 .cloud3d-loading,
 .cloud3d-walk-hud {
@@ -61,6 +74,34 @@ html, body, #root { height: 100%; margin: 0; }
 
 .cloud3d-points { margin: 6px 0; padding-left: 20px; }
 .cloud3d-points li { margin: 0 0 6px; display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
+
+.cloud3d-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #8fb8ff;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* The pairs of a re-referencing and their residuals (AP 13.14). */
+.cloud3d-pairs { width: 100%; border-collapse: collapse; margin: 6px 0; font-variant-numeric: tabular-nums; font-size: 12px; }
+.cloud3d-pairs th { text-align: left; font-weight: normal; color: #a8acbb; padding: 2px 3px; }
+.cloud3d-pairs td { padding: 2px 3px; border-top: 1px solid #343745; }
+.cloud3d-pairs input[type=text] {
+  width: 56px;
+  background: #343745;
+  color: inherit;
+  border: 1px solid #454959;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font: inherit;
+}
+.cloud3d-pairs tr.suspect td { color: #ffb347; }
+.cloud3d-pairs tr.off td { opacity: 0.5; }
+.cloud3d-params { list-style: none; margin: 6px 0; padding: 0; font-variant-numeric: tabular-nums; }
+.cloud3d-params li { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
 
 .cloud3d-message {
   display: flex;
