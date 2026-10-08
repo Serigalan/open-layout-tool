@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { api } from '../api/client'
+import { api, setShareLink } from '../api/client'
 import I18nProvider from '../locales/I18nProvider'
 import { useI18n } from '../locales/i18nContext'
+import { languageLabels } from '../locales/i18n'
 import { serverLevel, readableOnServer } from '../utils/pointCloud/projectClouds'
 import { projectPlane } from '../utils/pointCloud/cloudProbe'
 import { planeMapper, cloudPlane } from '../utils/pointCloud/cloudCrs'
@@ -20,6 +21,7 @@ import { trackSamples, trackLines, nearestOnTracks, sectionPlane, CLEARANCE_LENG
 import { cloudPlacement } from './placement'
 import useRegistration from './useRegistration'
 import RegistrationPanel from './RegistrationPanel'
+import SharePanel from './SharePanel'
 import { originalPoint, between, measurementsCsv } from './measure'
 import { PALETTE } from '../styles/palette'
 import './cloud3d.css'
@@ -68,8 +70,11 @@ export default function Cloud3dApp() {
  * track and measuring points of the original.
  */
 function Cloud3dPage() {
-  const { t, fill } = useI18n()
-  const params = useMemo(() => cloud3dParams(), [])
+  const { t, fill, language, setLanguage } = useI18n()
+  // Opened through a share link, the project is learnt from the link.
+  const [params, setParams] = useState(cloud3dParams)
+  const shared = Boolean(params?.share)
+  const [shareInfo, setShareInfo] = useState(null)   // { projectTitle, variantName, label, expiresAt } through a link
   const [state, setState] = useState({ phase: 'loading' })   // loading | anon | none | error | ready
   const [project, setProject] = useState(null)   // { data, from: 'main' | 'server' }
   const [mainSeen, setMainSeen] = useState(0)
@@ -99,8 +104,40 @@ function Cloud3dPage() {
   const regRef = useRef(null)
   const l0s = useRef(new Map())                    // cloud id → Promise<index of L0>
 
+  /**
+   * The view through a read-only share link: no session, no main window —
+   * the clouds the link names and its variant's checked-in head, read under
+   * the link's token.
+   */
+  const openShared = () => {
+    let live = true
+    setShareLink(params.share)
+    ;(async () => {
+      let info
+      try {
+        info = await api.share(params.share)
+      } catch (err) {
+        if (live) setState({ phase: 'error', text: t(err.status === 404 ? 'cloud3d_share_gone' : 'cloud3d_share_failed') })
+        return
+      }
+      if (!live) return
+      const { share, clouds: rows } = info
+      document.title = `3D · ${share.projectTitle} · Open Layout Tool`
+      setShareInfo(share)
+      setParams(p => ({ ...p, projectId: share.projectId }))
+      setAllRows(rows)
+      const ready = rows.filter(readableOnServer)
+      if (!ready.length) { setState({ phase: 'none' }); return }
+      setClouds(ready.map((r, k) => ({ ...r, key: r.id, color: CLOUD_COLORS[k % CLOUD_COLORS.length], visible: true })))
+      const payload = share.variantName ? await api.head().then(r => r.payload).catch(() => null) : null
+      if (live) setProject({ data: payload, from: payload ? 'server' : 'none' })
+    })()
+    return () => { live = false }
+  }
+
   // ── the session, the clouds and the project ─────────────────────────────
   useEffect(() => {
+    if (shared) return openShared()
     if (!params?.projectId) { setState({ phase: 'error', text: t('cloud3d_no_project') }); return }
     document.title = `3D · Open Layout Tool`
     let live = true
@@ -390,6 +427,7 @@ function Cloud3dPage() {
 
   const onDoubleClickRef = useRef(null)
   onDoubleClickRef.current = async (hit) => {
+    if (shared) return
     const p = await resolve(hit)
     if (!p.trackId) { setNote(t('cloud3d_no_track_here')); return }
     if (!mainThere) { setNote(t('cloud3d_station_needs_main')); return }
@@ -536,10 +574,33 @@ function Cloud3dPage() {
       </div>
       <aside className="cloud3d-panel">
         <h1>{t('cloud3d_title')}</h1>
-        <p className={mainThere ? 'cloud3d-hint' : 'cloud3d-warn'}>
-          {mainThere ? t('cloud3d_main_connected')
-            : project?.from === 'server' ? t('cloud3d_main_missing_server') : t('cloud3d_main_missing')}
-        </p>
+        {shared && (
+          // Whoever opens a link may not have chosen a language in this app yet.
+          <div className="cloud3d-langs">
+            {Object.keys(languageLabels).map(lang => (
+              <button key={lang} type="button" className={language === lang ? 'active' : undefined} onClick={() => setLanguage(lang)}>
+                {languageLabels[lang]}
+              </button>
+            ))}
+          </div>
+        )}
+        {shared ? (
+          <p className="cloud3d-hint cloud3d-shared">
+            <strong>{shareInfo?.projectTitle}</strong>
+            {shareInfo?.variantName && ` · ${shareInfo.variantName}`}
+            <br />
+            {fill('cloud3d_shared_view', {
+              until: shareInfo?.expiresAt
+                ? fill('cloud3d_share_until', { date: new Date(shareInfo.expiresAt).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB') })
+                : t('cloud3d_share_forever'),
+            })}
+          </p>
+        ) : (
+          <p className={mainThere ? 'cloud3d-hint' : 'cloud3d-warn'}>
+            {mainThere ? t('cloud3d_main_connected')
+              : project?.from === 'server' ? t('cloud3d_main_missing_server') : t('cloud3d_main_missing')}
+          </p>
+        )}
 
         <h2>{t('cloud3d_clouds')}</h2>
         {clouds.map(c => (
@@ -687,10 +748,14 @@ function Cloud3dPage() {
           </>
         )}
         {note && <p className="cloud3d-warn">{note}</p>}
-        <p className="cloud3d-hint">{t('cloud3d_dblclick_hint')}</p>
-
-        <RegistrationPanel reg={reg} rows={allRows} mayEdit={mayEdit} userName={user?.name ?? ''}
-          projectTitle={project?.data?.title ?? ''} heightName={heightName} />
+        {!shared && (
+          <>
+            <p className="cloud3d-hint">{t('cloud3d_dblclick_hint')}</p>
+            <RegistrationPanel reg={reg} rows={allRows} mayEdit={mayEdit} userName={user?.name ?? ''}
+              projectTitle={project?.data?.title ?? ''} heightName={heightName} />
+            {state.phase === 'ready' && <SharePanel projectId={params.projectId} variantId={params.variantId} rows={allRows} />}
+          </>
+        )}
       </aside>
     </div>
   )

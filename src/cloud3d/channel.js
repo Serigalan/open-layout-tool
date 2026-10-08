@@ -38,10 +38,16 @@ export function openCloud3d(params) {
   return win
 }
 
-/** The parameters of the 3D window's address, or null when this window is not one. */
+/** The address a read-only share link opens: the 3D window under the link's token. */
+export const cloud3dShareUrl = (token) => `${location.origin}${location.pathname}#/cloud3d?share=${encodeURIComponent(token)}`
+
+/**
+ * The parameters of the 3D window's address, or null when this window is not
+ * one — `share` the token where it was opened through a share link.
+ */
 export function cloud3dParams(hash = location.hash) {
   const m = /^#\/cloud3d\?(.*)$/.exec(hash)
   if (!m) return null
   const q = new URLSearchParams(m[1])
-  return { projectId: q.get('project'), variantId: q.get('variant'), cloudId: q.get('cloud') }
+  return { projectId: q.get('project'), variantId: q.get('variant'), cloudId: q.get('cloud'), share: q.get('share') }
 }

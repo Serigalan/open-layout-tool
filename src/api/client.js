@@ -43,6 +43,15 @@ async function request(method, path, body) {
 
 const enc = encodeURIComponent
 
+/**
+ * A share link's token, in the 3D window opened through one: the clouds,
+ * their tiles and the variant's head are then read under /share/<token>
+ * instead of the project's own routes, without a session.
+ */
+let shareToken = null
+export const setShareLink = (token) => { shareToken = token || null }
+const cloudsPath = (projectId) => (shareToken ? `/share/${enc(shareToken)}/clouds` : `/projects/${enc(projectId)}/clouds`)
+
 /** The URL an image of the server is shown from. */
 export const blobUrl = (hash) => (hash ? `${BASE}/blobs/${enc(hash)}` : null)
 
@@ -64,7 +73,7 @@ export const api = {
 
   variant:        (id) => request('GET', `/variants/${enc(id)}`),
   patchVariant:   (id, body) => request('PATCH', `/variants/${enc(id)}`, body),
-  head:           (id) => request('GET', `/variants/${enc(id)}/head`),
+  head:           (id) => request('GET', shareToken ? `/share/${enc(shareToken)}/head` : `/variants/${enc(id)}/head`),
   history:        (id) => request('GET', `/variants/${enc(id)}/revisions`),
   revision:       (id) => request('GET', `/revisions/${enc(id)}`),
   commonBase:     (a, b) => request('GET', `/revisions/${enc(a)}/base/${enc(b)}`),
@@ -88,11 +97,17 @@ export const api = {
 
   // Point clouds on the server (phase 13).
   clouds:         (projectId) => request('GET', `/projects/${enc(projectId)}/clouds`),
+  // Read-only share links to the 3D view: made by the project's creator, and
+  // opened through their token without a session.
+  shares:         (projectId) => request('GET', `/projects/${enc(projectId)}/shares`),
+  createShare:    (projectId, body) => request('POST', `/projects/${enc(projectId)}/shares`, body),
+  deleteShare:    (projectId, id) => request('DELETE', `/projects/${enc(projectId)}/shares/${enc(id)}`),
+  share:          (token) => request('GET', `/share/${enc(token)}`),
   createCloud:    (projectId, body) => request('POST', `/projects/${enc(projectId)}/clouds`, body),
   completeCloud:  (projectId, cloudId) => request('POST', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/complete`),
   retryCloud:     (projectId, cloudId) => request('POST', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/retry`),
   deleteCloud:    (projectId, cloudId) => request('DELETE', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}`),
-  cloudIndex:     (projectId, cloudId, level) => request('GET', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/L${level}/index`),
+  cloudIndex:     (projectId, cloudId, level) => request('GET', `${cloudsPath(projectId)}/${enc(cloudId)}/L${level}/index`),
   cloudAdmin:     () => request('GET', '/admin/clouds'),
   // Re-referencing a cloud on the server (AP 13.13–13.14).
   cloudTransforms: (projectId, cloudId) => request('GET', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/transforms`),
@@ -131,7 +146,7 @@ export const api = {
   async cloudRanges(projectId, cloudId, level, ranges) {
     let res
     try {
-      res = await fetch(`${BASE}/projects/${enc(projectId)}/clouds/${enc(cloudId)}/L${level}/ranges`, {
+      res = await fetch(`${BASE}${cloudsPath(projectId)}/${enc(cloudId)}/L${level}/ranges`, {
         method: 'POST', credentials: 'same-origin', body: JSON.stringify({ ranges }),
         headers: { 'content-type': 'application/json', accept: 'application/octet-stream' },
       })

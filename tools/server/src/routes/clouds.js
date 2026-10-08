@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, existsSync, openSync, closeSync, readSync, writeSync, statSync, readFileSync } from 'node:fs'
+import { createReadStream, existsSync, openSync, closeSync, writeSync, statSync, readFileSync } from 'node:fs'
 import { ApiError } from '../errors.js'
 import { mayEditClouds } from '../auth.js'
 import { createStore } from '../store.js'
 import { createCloudStore, publicCloud, publicTransform } from '../clouds/cloudStore.js'
 import { DISK_RESERVE, DISK_WARN, PROJECT_QUOTA, estimateTileBytes } from '../clouds/storage.js'
+import { readRanges } from '../clouds/ranges.js'
 
 /** Bytes of one upload piece (AP 13.2) … */
 const CHUNK_BYTES = 8 * 1024 * 1024
@@ -12,10 +13,6 @@ const CHUNK_BYTES = 8 * 1024 * 1024
 const CHUNK_LIMIT = CHUNK_BYTES + 64 * 1024
 /** Largest delivery accepted [bytes]. */
 const FILE_LIMIT = 64 * 1024 ** 3
-/** Ranges one collective request may ask for (AP 13.5) … */
-const MAX_RANGES = 64
-/** … and bytes it may return at most. */
-const MAX_RANGES_BYTES = 64 * 1024 * 1024
 /** How long a session's membership of a project is believed without asking again [ms]. */
 const MEMBER_TTL = 60 * 1000
 
@@ -279,30 +276,7 @@ export default async function cloudRoutes(api) {
   api.post('/projects/:id/clouds/:cid/:level/ranges', opts, async (req, reply) => {
     const c = cloudOr404(req)
     const level = levelOr404(req, c)
-    const ranges = req.body?.ranges
-    if (!Array.isArray(ranges) || !ranges.length || ranges.length > MAX_RANGES) throw new ApiError(422, 'ranges_invalid')
-    let total = 0
-    for (const r of ranges) {
-      if (!Array.isArray(r) || !Number.isInteger(r[0]) || !Number.isInteger(r[1]) || r[0] < 0 || r[1] <= 0) {
-        throw new ApiError(422, 'ranges_invalid')
-      }
-      total += r[1]
-    }
-    if (total > MAX_RANGES_BYTES) throw new ApiError(413, 'too_large')
-    const path = storage.tiles(c.project_id, c.id, level)
-    const size = statSync(path).size
-    const out = Buffer.allocUnsafe(total)
-    const fd = openSync(path, 'r')
-    try {
-      let at = 0
-      for (const [offset, length] of ranges) {
-        if (offset + length > size) throw new ApiError(416, 'range_past_end')
-        readSync(fd, out, at, length, offset)
-        at += length
-      }
-    } finally {
-      closeSync(fd)
-    }
+    const out = readRanges(storage.tiles(c.project_id, c.id, level), req.body?.ranges)
     reply.header('cache-control', 'private, no-store')
     return reply.type('application/octet-stream').send(out)
   })

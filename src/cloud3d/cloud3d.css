@@ -129,3 +129,18 @@ html, body, #root { height: 100%; margin: 0; }
 .cloud3d-segmented button.active { background: #4f8cff; color: #fff; }
 .cloud3d-view-details { padding: 4px 8px; margin: 0 0 6px; border-left: 2px solid #4f8cff; }
 .cloud3d-range-ends { display: flex; justify-content: space-between; color: #a8acbb; font-size: 11px; }
+
+/* Share links (the 3D view read-only, without signing in). */
+.cloud3d-field input[type=text] {
+  background: #343745; color: inherit; border: 1px solid #454959; border-radius: 5px; padding: 4px 8px; font: inherit;
+}
+.cloud3d-field-label { display: block; margin: 6px 0 2px; }
+.cloud3d-shares { list-style: none; margin: 8px 0; padding: 0; }
+.cloud3d-shares li { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-top: 1px solid #343745; }
+.cloud3d-share-name { font-weight: 600; }
+.cloud3d-share-expired .cloud3d-share-name { color: #a8acbb; text-decoration: line-through; }
+.cloud3d-buttons button.cloud3d-danger { background: #8a2b2b; border-color: #a33; }
+.cloud3d-shared { border-left: 2px solid #4f8cff; padding-left: 8px; }
+.cloud3d-langs { display: flex; gap: 8px; margin: 0 0 6px; }
+.cloud3d-langs button { background: none; border: none; padding: 0; color: #a8acbb; font: inherit; cursor: pointer; text-decoration: underline; }
+.cloud3d-langs button.active { color: #e8e8ee; text-decoration: none; font-weight: 600; }
