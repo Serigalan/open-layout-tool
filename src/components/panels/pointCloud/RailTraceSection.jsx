@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks } from '../../../storage'
 import { trackLabel } from '../../../utils/trackModel'
 import { RAILS, DEFAULT_RAIL, superstructureAt } from '../../../utils/crossSectionUtils'
@@ -8,7 +8,9 @@ import { surveyFromTrace } from '../../../utils/axisSurvey'
 import { generateId } from '../../../utils/identifierUtils'
 import { saveAxisSurvey } from '../../../storage'
 import { useMayEditClouds } from '../../../hooks/useCurrentUser'
+import useServerRun, { runIsActive, runsOnServer } from '../../../hooks/useServerRun'
 import { useI18n } from '../../../locales/i18nContext'
+import { tOr, formatDate } from '../../../locales/i18n'
 import { useProject } from '../../../hooks/useStore'
 import { useMap } from '../../../map/MapContext'
 import usePreview from '../../../map/usePreview'
@@ -17,6 +19,7 @@ import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import { PALETTE } from '../../../styles/palette'
 import FormSection from '../../form/FormSection'
 import { SO_REFERENCES, exportAxisPoints } from './axisExport'
+import ServerRunStatus from './ServerRunStatus'
 
 // The guide drawn by hand, and the axis points found along it.
 const GUIDE_SOURCE = 'railtrace-guide-source'
@@ -49,10 +52,14 @@ const TRACE_LAYERS = [
  * the rail heads every 50 cm, show the axis points on the map and hand them
  * out as a point file (Entscheidung 138) or keep them with the project as a
  * measured axis (AP 12.3). `paused` leaves the map's clicks to someone else.
+ *
+ * Where every cloud lies on the server and the user may start jobs there, the
+ * trace runs on the server (AP 13.7, decision 237); its result waits there
+ * until it is kept as a measured axis, also after the window was closed.
  */
 export default function RailTraceSection({ clouds, paused = false }) {
   const mayEdit = useMayEditClouds()
-  const { t, fill } = useI18n()
+  const { t, fill, language } = useI18n()
   const project = useProject()
   const tracks = loadTracks()
   const [mode, setMode] = useState('track')      // 'track' | 'line'
@@ -67,6 +74,17 @@ export default function RailTraceSection({ clouds, paused = false }) {
   const [saved, setSaved] = useState(null)       // the name of the measured axis just kept
   const abortRef = useRef(null)
   useEffect(() => () => abortRef.current?.abort(), [])
+  const onServer = runsOnServer(clouds, mayEdit)
+  const server = useServerRun(project.id, 'trace', null, clouds.some(c => c.server))
+  const serverBusy = runIsActive(server.run)
+
+  // What the browser found just now, else the last trace on the server not yet kept.
+  const shown = useMemo(() => {
+    if (result) return result
+    const r = server.run
+    if (r?.status !== 'done' || !r.result) return null
+    return { ...r.result, name: r.subject?.name || t('railtrace_line_name'), run: r }
+  }, [result, server.run, t])
 
   const track = tracks.find(tr => tr.id === trackId) ?? null
   const chooseTrack = (id) => {
@@ -100,23 +118,35 @@ export default function RailTraceSection({ clouds, paused = false }) {
       : null)
   }, [preview, mode, line])
   useEffect(() => {
-    const pts = result?.points ?? []
+    const pts = shown?.points ?? []
     preview.set(POINTS_SOURCE, {
       type: 'FeatureCollection',
       features: pts.map(p => ({
         type: 'Feature', properties: { quality: p.quality },
-        geometry: { type: 'Point', coordinates: utmToWgs84(p.easting, p.northing, result.epsg) },
+        geometry: { type: 'Point', coordinates: utmToWgs84(p.easting, p.northing, shown.epsg) },
       })),
     })
-  }, [preview, result])
+  }, [preview, shown])
 
   // A drawn guide lies in the plane of the clouds' tiles.
   const lineEpsg = clouds.find(c => c.crs != null)?.crs
+  const lineVertices = () => line.map(ll => { const p = wgs84ToUTM(ll, lineEpsg); return [p.easting, p.northing] })
   const guide = mode === 'track'
     ? (track ? trackGuide(track) : null)
-    : (line.length >= 2 && !drawing && lineEpsg
-      ? lineGuide(line.map(ll => { const p = wgs84ToUTM(ll, lineEpsg); return [p.easting, p.northing] }), lineEpsg)
-      : null)
+    : (line.length >= 2 && !drawing && lineEpsg ? lineGuide(lineVertices(), lineEpsg) : null)
+  const guideName = () => (mode === 'track' ? trackLabel(track) : t('railtrace_line_name'))
+
+  const startOnServer = () => {
+    if (!guide) return
+    setResult(null)
+    setSaved(null)
+    const name = guideName()
+    setSurveyName(name)
+    server.start(
+      { rail, guide: mode === 'track' ? { kind: 'track', track } : { kind: 'line', epsg: lineEpsg, vertices: lineVertices() } },
+      { name, guide: mode, trackId: mode === 'track' ? trackId : '', rail },
+    )
+  }
 
   const start = async () => {
     if (!guide) return
@@ -130,7 +160,7 @@ export default function RailTraceSection({ clouds, paused = false }) {
         projectId: project.id, clouds, guide, rail,
         signal: ctl.signal, onProgress: (share) => setRun({ share }),
       })
-      const name = mode === 'track' ? trackLabel(track) : t('railtrace_line_name')
+      const name = guideName()
       setResult({ ...r, name })
       setSurveyName(name)
     } catch (err) {
@@ -139,22 +169,27 @@ export default function RailTraceSection({ clouds, paused = false }) {
     setRun(null)
   }
 
-  const exportCsv = () => exportAxisPoints(result.points, { name: result.name, epsg: result.epsg, soReference })
+  const exportCsv = () => exportAxisPoints(shown.points, { name: shown.name, epsg: shown.epsg, soReference })
 
   // Kept with the project, the points show in the list of measured axes;
-  // the trace's own preview gives way to it.
+  // the trace's own preview gives way to it. A trace from the server says
+  // itself what it followed, and is forgotten there once kept.
   const keep = () => {
-    const name = surveyName.trim() || result.name
+    const name = surveyName.trim() || shown.name
+    const about = shown.run?.subject
+    const by = about
+      ? { rail: about.rail, guide: about.guide === 'track' ? { kind: 'track', trackId: about.trackId } : { kind: 'line' } }
+      : { rail, guide: mode === 'track' ? { kind: 'track', trackId } : { kind: 'line' } }
     saveAxisSurvey(surveyFromTrace({
-      id: generateId(), name, rail,
-      guide: mode === 'track' ? { kind: 'track', trackId } : { kind: 'line' },
+      id: generateId(), name, ...by,
       cloudNames: clouds.map(c => c.name), createdAt: new Date().toISOString(), step: TRACE_STEP,
-    }, result))
+    }, shown))
+    if (shown.run) server.forget()
     setResult(null)
     setSaved(name)
   }
 
-  const good = result?.points?.filter(p => p.quality === 'good').length ?? 0
+  const good = shown?.points?.filter(p => p.quality === 'good').length ?? 0
 
   return (
     <FormSection title={t('railtrace_title')}>
@@ -210,24 +245,35 @@ export default function RailTraceSection({ clouds, paused = false }) {
             {t('btn_cancel')}
           </button>
         </>
+      ) : serverBusy ? (
+        <ServerRunStatus run={server.run} mayCancel={mayEdit} onCancel={server.cancel} />
       ) : (
-        <button className="panel-btn panel-btn-full" disabled={!guide} onClick={start}>{t('railtrace_start')}</button>
+        <button className="panel-btn panel-btn-full" disabled={!guide} onClick={onServer ? startOnServer : start}>
+          {t('railtrace_start')}
+        </button>
       )}
+      {server.error && <p className="form-error">{tOr(t, `pointcloud_err_${server.error.code}`, server.error.message)}</p>}
+      {server.run?.status === 'failed' && !run && <p className="form-error">{fill('server_run_failed', { reason: server.run.error ?? '' })}</p>}
       {result?.error && <p className="form-error">{result.error}</p>}
       {saved && <p className="selecting-hint">{fill('axis_survey_saved', { name: saved })}</p>}
-      {result?.points && (
+      {shown?.run && (
+        <span className="range-use">
+          {fill('server_run_trace_of', { name: shown.name, date: formatDate(shown.run.finishedAt, language, { time: true }) })}
+        </span>
+      )}
+      {shown?.points && (
         <>
           <p className="selecting-hint">
-            {fill('railtrace_found', { n: result.points.length, good, doubtful: result.points.length - good })}
+            {fill('railtrace_found', { n: shown.points.length, good, doubtful: shown.points.length - good })}
           </p>
-          {result.gaps.length > 0 && (
+          {shown.gaps.length > 0 && (
             <p className="selecting-hint">
               {fill('railtrace_gaps', {
-                list: result.gaps.map(g => (g.from === g.to ? g.from.toFixed(1) : `${g.from.toFixed(1)}–${g.to.toFixed(1)}`)).join(', '),
+                list: shown.gaps.map(g => (g.from === g.to ? g.from.toFixed(1) : `${g.from.toFixed(1)}–${g.to.toFixed(1)}`)).join(', '),
               })}
             </p>
           )}
-          {result.points.length > 0 && (
+          {shown.points.length > 0 && (
             <>
               <div className="form-field">
                 <label>{t('railtrace_so')}</label>
@@ -236,7 +282,7 @@ export default function RailTraceSection({ clouds, paused = false }) {
                 </select>
               </div>
               <button className="panel-btn panel-btn-full" onClick={exportCsv}>{t('railtrace_export')}</button>
-              <span className="range-use">{fill('railtrace_export_hint', { epsg: String(result.epsg) })}</span>
+              <span className="range-use">{fill('railtrace_export_hint', { epsg: String(shown.epsg) })}</span>
               {mayEdit ? (
                 <>
                   <div className="form-field">

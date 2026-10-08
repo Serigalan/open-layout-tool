@@ -2,8 +2,10 @@ import { dirname, join, resolve } from 'node:path'
 import { openDatabase } from '../db.js'
 import { cloudStorage } from './storage.js'
 import { createCloudStore } from './cloudStore.js'
-import { createQueue } from './jobs.js'
+import { createQueue, runQueueJobs } from './jobs.js'
 import { prepareCloud } from './prepare.js'
+import { createRunStore } from './runStore.js'
+import { executeRun } from './runs.js'
 
 const env = process.env
 const DB = env.OLT_SERVER_DB ?? 'olt.sqlite'
@@ -19,8 +21,14 @@ export async function main([command, ...args]) {
       clouds, parallel: Number(env.OLT_CLOUDJOBS_PARALLEL ?? 2),
       log: (m) => console.log(`${stamp()} ${m}`),
     })
+    // The long runs (AP 13.7) in a queue of their own, beside the preparations.
+    const runQueue = createQueue({
+      clouds, jobs: runQueueJobs(createRunStore(db)), parallel: Number(env.OLT_CLOUDRUNS_PARALLEL ?? 2),
+      log: (m) => console.log(`${stamp()} ${m}`),
+    })
     queue.begin()
-    const close = async () => { await queue.stop(); db.close(); process.exit(0) }
+    runQueue.begin()
+    const close = async () => { await Promise.all([queue.stop(), runQueue.stop()]); db.close(); process.exit(0) }
     process.on('SIGTERM', close)
     process.on('SIGINT', close)
     console.log(`${stamp()} olt-cloudjobs: queue in ${DB}, clouds in ${CLOUDS}`)
@@ -39,6 +47,18 @@ export async function main([command, ...args]) {
     db.close()
     return
   }
-  console.error('usage: olt-cloudjobs serve | run <job>')
+  if (command === 'exec') {
+    const runs = createRunStore(db)
+    try {
+      await executeRun({ runId: Number(args[0]), runs, clouds, storage, log: (m) => console.log(`${stamp()} ${m}`) })
+    } catch (err) {
+      console.error(String(err?.message ?? err))
+      db.close()
+      process.exit(1)
+    }
+    db.close()
+    return
+  }
+  console.error('usage: olt-cloudjobs serve | run <job> | exec <run>')
   process.exit(2)
 }

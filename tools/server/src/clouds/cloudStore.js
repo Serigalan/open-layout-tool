@@ -35,6 +35,16 @@ export function createCloudStore(db, { now = () => Date.now() } = {}) {
     finish:    db.prepare('UPDATE cloud_job SET status = ?, finished_at = ?, error = ? WHERE id = ?'),
     requeue:   db.prepare("UPDATE cloud_job SET status = 'queued', started_at = NULL WHERE status = 'running'"),
     requeueClouds: db.prepare("UPDATE point_cloud SET status = 'queued', progress = NULL WHERE status = 'processing'"),
+    transforms: db.prepare(`SELECT t.*, u.name AS created_by_name FROM point_cloud_transform t JOIN user u ON u.id = t.created_by
+                            WHERE t.cloud_id = ? ORDER BY t.id DESC`),
+    transform:  db.prepare('SELECT * FROM point_cloud_transform WHERE id = ?'),
+    active:     db.prepare('SELECT * FROM point_cloud_transform WHERE cloud_id = ? AND active = 1'),
+    activeIn:   db.prepare(`SELECT t.* FROM point_cloud_transform t JOIN point_cloud c ON c.id = t.cloud_id
+                            WHERE c.project_id = ? AND t.active = 1`),
+    deactivate: db.prepare('UPDATE point_cloud_transform SET active = 0 WHERE cloud_id = ?'),
+    activate:   db.prepare('UPDATE point_cloud_transform SET active = 1 WHERE id = ? AND cloud_id = ?'),
+    addTransform: db.prepare(`INSERT INTO point_cloud_transform (cloud_id, matrix, params, pairs, residuals, reference_cloud_id,
+                                active, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`),
   }
 
   return {
@@ -90,11 +100,56 @@ export function createCloudStore(db, { now = () => Date.now() } = {}) {
     requeueRunning() {
       db.transaction(() => { q.requeue.run(); q.requeueClouds.run() })()
     },
+
+    // ── re-referencing (decision 211, AP 13.13–13.14) ──────────────────────
+    /** A cloud's transformations, newest first, with who made them. */
+    transforms: (cloudId) => q.transforms.all(cloudId),
+    transform: (id) => q.transform.get(id) ?? null,
+    /** The transformation in force for a cloud, or null. */
+    activeTransform: (cloudId) => q.active.get(cloudId) ?? null,
+    /** The transformations in force in a project, by cloud. */
+    activeTransforms: (projectId) => new Map(q.activeIn.all(projectId).map(t => [t.cloud_id, t])),
+    /** A new transformation, from now on the one in force. */
+    addTransform({ cloudId, matrix, params, pairs, residuals, referenceCloudId, userId }) {
+      return db.transaction(() => {
+        q.deactivate.run(cloudId)
+        return Number(q.addTransform.run(cloudId, JSON.stringify(matrix), JSON.stringify(params), JSON.stringify(pairs),
+          JSON.stringify(residuals), referenceCloudId ?? null, userId, iso()).lastInsertRowid)
+      })()
+    },
+    /** Put an earlier transformation in force again — or none (`id` null). */
+    setActiveTransform(cloudId, id) {
+      return db.transaction(() => {
+        q.deactivate.run(cloudId)
+        return id == null || q.activate.run(id, cloudId).changes === 1
+      })()
+    },
   }
 }
 
-/** A cloud as the API shows it. */
-export function publicCloud(row) {
+/** A transformation as the API shows it; `full` with pairs and residuals. */
+export function publicTransform(row, { full = false } = {}) {
+  const params = JSON.parse(row.params || '{}')
+  return {
+    id: row.id,
+    cloudId: row.cloud_id,
+    matrix: JSON.parse(row.matrix),
+    crs: params.crs ?? null,
+    active: Boolean(row.active),
+    referenceCloudId: row.reference_cloud_id ?? null,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    ...(full ? {
+      createdByName: row.created_by_name ?? null,
+      params,
+      pairs: JSON.parse(row.pairs || '[]'),
+      residuals: JSON.parse(row.residuals || '{}'),
+    } : {}),
+  }
+}
+
+/** A cloud as the API shows it, with the transformation in force (`transform`, a row) if there is one. */
+export function publicCloud(row, transform = null) {
   return {
     id: row.id,
     projectId: row.project_id,
@@ -116,5 +171,6 @@ export function publicCloud(row) {
     createdBy: row.created_by,
     createdAt: row.created_at,
     readyAt: row.ready_at ?? null,
+    transform: transform ? publicTransform(transform) : null,
   }
 }

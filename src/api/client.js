@@ -94,6 +94,11 @@ export const api = {
   deleteCloud:    (projectId, cloudId) => request('DELETE', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}`),
   cloudIndex:     (projectId, cloudId, level) => request('GET', `/projects/${enc(projectId)}/clouds/${enc(cloudId)}/L${level}/index`),
   cloudAdmin:     () => request('GET', '/admin/clouds'),
+  // Long runs over the project's clouds on the server (AP 13.7).
+  runs:           (projectId) => request('GET', `/projects/${enc(projectId)}/runs`),
+  run:            (projectId, runId) => request('GET', `/projects/${enc(projectId)}/runs/${enc(runId)}`),
+  startRun:       (projectId, body) => request('POST', `/projects/${enc(projectId)}/runs`, body),
+  cancelRun:      (projectId, runId) => request('DELETE', `/projects/${enc(projectId)}/runs/${enc(runId)}`),
 
   /**
    * One piece of a cloud upload at `offset`, with its SHA-256 (hex): resolves

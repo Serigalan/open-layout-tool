@@ -3,7 +3,7 @@ import { createReadStream, existsSync, openSync, closeSync, readSync, writeSync,
 import { ApiError } from '../errors.js'
 import { mayEditClouds } from '../auth.js'
 import { createStore } from '../store.js'
-import { createCloudStore, publicCloud } from '../clouds/cloudStore.js'
+import { createCloudStore, publicCloud, publicTransform } from '../clouds/cloudStore.js'
 import { DISK_RESERVE, DISK_WARN, PROJECT_QUOTA, estimateTileBytes } from '../clouds/storage.js'
 
 /** Bytes of one upload piece (AP 13.2) … */
@@ -82,7 +82,8 @@ export default async function cloudRoutes(api) {
 
   api.get('/projects/:id/clouds', opts, async (req) => {
     const p = projectOr404(req)
-    return { clouds: clouds.list(p.id).map(publicCloud), mayEdit: mayEditClouds(req.user) }
+    const active = clouds.activeTransforms(p.id)
+    return { clouds: clouds.list(p.id).map(c => publicCloud(c, active.get(c.id))), mayEdit: mayEditClouds(req.user) }
   })
 
   // A new cloud, empty: what the browser read from the file's header, and the
@@ -189,6 +190,45 @@ export default async function cloudRoutes(api) {
     clouds.remove(c.id)
     storage.remove(c.project_id, c.id)
     return reply.code(204).send()
+  })
+
+  // ── re-referencing (decision 211, AP 13.13–13.14) ──────────────────────
+  // A cloud's transformations stand outside the revisions, with a history of
+  // their own: the newest is in force, an earlier one can be put back, or none.
+
+  api.get('/projects/:id/clouds/:cid/transforms', opts, async (req) => {
+    const c = cloudOr404(req)
+    return { transforms: clouds.transforms(c.id).map(t => publicTransform(t, { full: true })) }
+  })
+
+  api.post('/projects/:id/clouds/:cid/transforms', opts, async (req, reply) => {
+    const c = cloudOr404(req)
+    editor(req)
+    if (c.status !== 'ready') throw new ApiError(409, 'cloud_not_ready')
+    const b = req.body ?? {}
+    const m = b.matrix
+    if (!Array.isArray(m) || m.length !== 16 || !m.every(Number.isFinite)) throw new ApiError(422, 'transform_matrix')
+    if (!Number.isInteger(b.crs)) throw new ApiError(422, 'transform_crs')
+    const ref = b.referenceCloudId == null ? null : clouds.get(String(b.referenceCloudId))
+    if (b.referenceCloudId != null && (!ref || ref.project_id !== c.project_id || ref.id === c.id)) {
+      throw new ApiError(422, 'transform_reference')
+    }
+    const pairs = Array.isArray(b.pairs) ? b.pairs.slice(0, 500) : []
+    const id = clouds.addTransform({
+      cloudId: c.id, matrix: m, params: { ...(b.params ?? {}), crs: b.crs }, pairs,
+      residuals: b.residuals ?? {}, referenceCloudId: ref?.id ?? null, userId: req.user.id,
+    })
+    return reply.code(201).send({ transform: publicTransform(clouds.transform(id), { full: true }) })
+  })
+
+  // Put an earlier transformation in force again, or none (`id: null`).
+  api.post('/projects/:id/clouds/:cid/transforms/active', opts, async (req) => {
+    const c = cloudOr404(req)
+    editor(req)
+    const id = req.body?.id ?? null
+    if (id != null && clouds.transform(Number(id))?.cloud_id !== c.id) throw new ApiError(404, 'not_found')
+    clouds.setActiveTransform(c.id, id == null ? null : Number(id))
+    return { cloud: publicCloud(clouds.get(c.id), clouds.activeTransform(c.id)) }
   })
 
   // ── serving the tiles (AP 13.5) ──────────────────────────────────────────

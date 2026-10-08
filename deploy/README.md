@@ -21,7 +21,7 @@ Internet ─▶ Caddy (TLS, Let's Encrypt)
              ├─ /optimizer/* olt-optimizer  Python, Optimierung, MDB, Gelände   ┐ nur mit
              └─ /data/km*    Km-Linien aus dist/                                  ┘ Sitzung
 
-olt-cloudjobs (ohne Port): bereitet hochgeladene Punktwolken auf, Warteschlange in derselben SQLite
+olt-cloudjobs (ohne Port): bereitet hochgeladene Punktwolken auf und rechnet lange Läufe darauf, Warteschlangen in derselben SQLite
 ```
 
 Beide Dienste hören nur auf `OLT_BIND` (Standard `127.0.0.1`), nie öffentlich.
@@ -92,7 +92,14 @@ Hochgeladen wird in Stücken von 8 MB über `olt-server` (fortsetzbar); danach
 bereitet `olt-cloudjobs` die Wolke auf — höchstens zwei Aufträge zugleich, je in
 einem eigenen Prozess, mit `CPUQuota=300%`, `Nice=10` und `MemoryMax=2G`. Ein
 Neustart des Dienstes (etwa durch `deploy.sh`) unterbricht einen laufenden
-Auftrag; er beginnt beim nächsten Start von vorn. Ausgeliefert werden die
+Auftrag; er beginnt beim nächsten Start von vorn.
+
+Daneben, in einer eigenen Warteschlange, die **langen Läufe** (AP 13.7): die
+gleisweite Lichtraumprüfung und die Schienenverfolgung über die Wolken des
+Projekts, gestartet aus der App von Admin oder Nutzern mit dem Recht
+„Punktwolken bearbeiten“. Höchstens zwei zugleich (`OLT_CLOUDRUNS_PARALLEL`),
+je in einem eigenen Prozess mit 320 MB Heap; ihr Ergebnis bleibt sieben Tage in
+der Tabelle `cloud_run`. Ausgeliefert werden die
 Kacheln von `olt-server` selbst, mit Prüfung der Projekt-Mitgliedschaft, nicht
 von Caddy.
 

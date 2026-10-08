@@ -1,7 +1,7 @@
 import { sourceOf, forgetSource, forgetSources } from './cloudSource'
 import { decodeCloudSegment, segmentPlacement } from './tiles'
 import { sliceFrame, tilesInSlice, sliceSegment, SlicePoints } from './cloudSlice'
-import { planeMapper } from './cloudCrs'
+import { cloudToPlane, planeToCloud } from './cloudCrs'
 import { transformPlanePoint, transformGridBearing } from '../coordinateUtils'
 
 /**
@@ -96,11 +96,11 @@ export function forgetAllClouds() {
 export async function cloudSectionPoints(projectId, cloud, { origin, bearing, crs, halfWidth, thickness }) {
   const out = new SlicePoints(!!cloud.rgb)
   const frame = sliceFrame({ easting: origin.easting, northing: origin.northing, bearing, halfWidth, thickness })
+  const toPlane = cloudToPlane(cloud, crs)
   let tiles
-  let toPlane = null
-  if (Number(cloud.crs) === Number(crs)) {
+  if (!toPlane) {
     tiles = tilesInSlice(cloud, frame)
-  } else {
+  } else if (!cloud.transform) {
     // Tiles are found in the cloud's plane, a little wider for the scale the
     // planes differ by; the points are then carried into the track's plane
     // and cut exactly there.
@@ -109,7 +109,22 @@ export async function cloudSectionPoints(projectId, cloud, { origin, bearing, cr
     tiles = tilesInSlice(cloud, sliceFrame({
       easting: e, northing: n, bearing: b, halfWidth: halfWidth * 1.01 + 0.1, thickness: thickness + 0.2,
     }))
-    toPlane = planeMapper(cloud.crs, crs)
+  } else {
+    // A re-referenced cloud (AP 13.15): the section carried back through T
+    // into the file — at the height the cloud lies at, a tilt moves it there —
+    // and widened by what a tilt may move over the cloud's height.
+    const back = planeToCloud(cloud, crs)
+    const m = cloud.transform.matrix
+    const { minZ, maxZ } = cloud.bounds
+    const zMid = toPlane((cloud.bounds.minE + cloud.bounds.maxE) / 2, (cloud.bounds.minN + cloud.bounds.maxN) / 2, (minZ + maxZ) / 2)[2]
+    const [e, n] = back(origin.easting, origin.northing, zMid)
+    const rad = bearing * Math.PI / 180
+    const [e2, n2] = back(origin.easting + Math.sin(rad), origin.northing + Math.cos(rad), zMid)
+    const b = Math.atan2(e2 - e, n2 - n) * 180 / Math.PI
+    const slack = Math.hypot(m[2], m[6]) * (maxZ - minZ) + 0.1
+    tiles = tilesInSlice(cloud, sliceFrame({
+      easting: e, northing: n, bearing: b, halfWidth: halfWidth * 1.01 + slack, thickness: thickness + 2 * slack,
+    }))
   }
   const decoded = await segments(projectId, cloud, tiles.flatMap(([, , segs]) => segs))
   const t0 = performance.now()

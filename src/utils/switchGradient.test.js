@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   switchCoupling, coupledBranchHeights, coupleSwitchGradients, branchPlaneHeight, trackHeightAt,
-  touchedTurnouts, coupledPoints, switchBodySpans, switchLds,
+  touchedTurnouts, coupledPoints, switchBodySpans, switchLds, heightContext,
 } from './switchGradient'
 import { endPointCurvedUtm, endPointStraightUtm } from './elementUtils'
 import { reverseTrack } from './trackModel'
@@ -141,6 +141,18 @@ describe('the plane between WA and ldS', () => {
     const tracks = [mainTrack(50), branchTrack()]
     expect(trackHeightAt(tracks, [turnout()], tracks[1], 50, opts)).toBeCloseTo(105.2 + 0.3 * 50 / 60, 6)
     expect(trackHeightAt(tracks, [turnout()], tracks[0], 20, opts)).toBeCloseTo(105.2 + 0.01375 * 20, 6)
+  })
+
+  it('needs only the branch, its main route and the turnout (heightContext)', () => {
+    const other = { ...mainTrack(0), id: 'other' }
+    const tracks = [mainTrack(50), other, branchTrack()]
+    const ctx = heightContext(tracks, [turnout()], tracks[2], opts)
+    expect(ctx.tracks.map(t => t.id)).toEqual([tracks[2].id, tracks[0].id])
+    expect(ctx.switches).toEqual([turnout()])
+    for (const d of [5, 20, 39, 50]) {
+      expect(trackHeightAt(ctx.tracks, ctx.switches, tracks[2], d, opts)).toBe(trackHeightAt(tracks, [turnout()], tracks[2], d, opts))
+    }
+    expect(heightContext(tracks, [turnout()], tracks[0], opts)).toEqual({ tracks: [tracks[0]], switches: [] })
   })
 })
 

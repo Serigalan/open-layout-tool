@@ -70,8 +70,9 @@ export class SlicePoints {
 /**
  * Add the points of one decoded segment that lie in the slice to `out`.
  * `place` (segmentPlacement) says where the segment's points lie; `toPlane`,
- * where given, carries a point from the cloud's plane into the frame's (the
- * track's), when the two differ.
+ * where given, carries a point `(e, n, z)` from the cloud's plane into the
+ * frame's (the track's) — `[e, n]`, or `[e, n, z]` where the height changes
+ * too (a re-referenced cloud, cloudToPlane).
  */
 export function sliceSegment(out, seg, place, frame, toPlane = null) {
   const { e, n, along, right, halfWidth, half } = frame
@@ -79,14 +80,18 @@ export function sliceSegment(out, seg, place, frame, toPlane = null) {
   const { x, y, z, i, r, g, b } = seg
   const color = !!(r && out.rgb)
   for (let k = 0; k < x.length; k++) {
-    let pe = ox + x[k] * sx, pn = oy + y[k] * sy
-    if (toPlane) [pe, pn] = toPlane(pe, pn)
+    let pe = ox + x[k] * sx, pn = oy + y[k] * sy, pz = oz + z[k] * sz
+    if (toPlane) {
+      const p = toPlane(pe, pn, pz)
+      pe = p[0]; pn = p[1]
+      if (p.length > 2) pz = p[2]
+    }
     const de = pe - e, dn = pn - n
     const d = de * along[0] + dn * along[1]
     if (d > half || d < -half) continue
     const q = de * right[0] + dn * right[1]
     if (q > halfWidth || q < -halfWidth) continue
-    if (color) out.push(q, oz + z[k] * sz, i[k], r[k], g[k], b[k])
-    else out.push(q, oz + z[k] * sz, i[k])
+    if (color) out.push(q, pz, i[k], r[k], g[k], b[k])
+    else out.push(q, pz, i[k])
   }
 }

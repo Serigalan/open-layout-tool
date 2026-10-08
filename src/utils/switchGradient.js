@@ -327,6 +327,20 @@ export function trackHeightAt(tracks, switches, track, station, opts) {
 }
 
 /**
+ * What trackHeightAt needs of a project for `track`: the track, the main
+ * routes of the turnouts it branches off from, and those turnouts — what a
+ * long run on the server is sent instead of the whole project (AP 13.7).
+ */
+export function heightContext(tracks, switches, track, opts) {
+  const couplings = switchCouplings(tracks, switches, opts).filter(c => c.branch.track.id === track.id)
+  const mains = new Set(couplings.map(c => c.main.track.id))
+  return {
+    tracks: [track, ...(tracks ?? []).filter(t => t.id !== track.id && mains.has(t.id))],
+    switches: couplings.map(c => c.sw),
+  }
+}
+
+/**
  * The stretches of a track the Höhenplan treats as the turnout (WA to ldS,
  * decision 156), as [{ from, to }] in its stations — on the main route and on
  * the branch. A turnout whose form states no ldS reaches to its end (WE), as

@@ -1,4 +1,5 @@
 import { planeCoordsToWgs84 } from '../coordinateUtils'
+import { cloudPlane, cloudToPlane } from './cloudCrs'
 
 /**
  * Where a point cloud lies, for the map: the outline of the cells of
@@ -40,9 +41,18 @@ export function outlineFeature(index) {
     properties: { cloudId: index.id, name: index.name },
     geometry: {
       type: 'MultiLineString',
-      coordinates: outlineSegments(index, Math.max(CELL, 2 * index.tileSize)).map(seg => planeCoordsToWgs84(seg, index.crs)),
+      coordinates: placedSegments(index).map(seg => planeCoordsToWgs84(seg, cloudPlane(index))),
     },
   }
+}
+
+/** The outline's segments where the cloud is read — through its re-referencing, if it has one. */
+function placedSegments(index) {
+  const segs = outlineSegments(index, Math.max(CELL, 2 * index.tileSize))
+  if (!index.transform) return segs
+  const toPlane = cloudToPlane(index, index.transform.crs)
+  const z = (index.bounds.minZ + index.bounds.maxZ) / 2
+  return segs.map(seg => seg.map(([e, n]) => toPlane(e, n, z).slice(0, 2)))
 }
 
 /** Width across and length along the cloud's box [m]. */

@@ -20,6 +20,7 @@ vi.mock('../../api/client', () => ({
 }))
 
 const { sourceOf } = await import('./cloudSource')
+const { transformMatrix, applyMatrix, invertMatrix } = await import('./registration')
 const { cloudSectionPoints } = await import('./cloudSection')
 
 const memoryWriter = () => {
@@ -81,5 +82,37 @@ describe('a cloud read from the server (AP 13.6)', () => {
     const rows = (p) => Array.from({ length: p.count }, (_, k) => [p.y[k], p.z[k], p.i[k], ...p.rgb.subarray(3 * k, 3 * k + 3)].join()).sort()
     expect(rows(b)).toEqual(rows(a))
     expect(calls.length).toBe(1)
+  })
+})
+
+describe('a re-referenced cloud (AP 13.13, 13.15)', () => {
+  /** The points of PTS carried by `m`, as the file of a cloud that T = m⁻¹ puts back. */
+  const moved = (m) => PTS.map(p => { const [x, y, z] = applyMatrix(m, [p.x, p.y, p.z]); return { ...p, x, y, z } })
+  const original = async (points, offset) => {
+    const source = bytesSource(makeLas(points, { offset, format: 3 }))
+    const header = await readLasHeader(source)
+    const w = memoryWriter()
+    const index = (await importLevels({ source, header, writers: { 0: w }, levels: [0] }))[0]
+    return { ...index, source: memorySource(w.bytes()) }
+  }
+  const rows = (p) => Array.from({ length: p.count }, (_, k) => [p.y[k], p.z[k]])
+  const frame = { origin: { easting: 4470015.03, northing: 5332005.1 }, bearing: 80, crs: 5678, halfWidth: 8, thickness: 0.1 }
+
+  it.each([
+    ['a residual offset in the same plane', 5678, { tE: 0.3, tN: -0.2, tH: 0.05, kappa: 0.0008 }, [4470000, 5332000, 500]],
+    ['a scan in a local system, turned', null, { tE: -4470000, tN: -5332000, tH: -500, kappa: 1.2 }, [0, 0, 0]],
+  ])('reads %s as the cloud it was fitted to', async (_, crs, params, offset) => {
+    const toFile = transformMatrix(params, [4470015, 5332005, 531])
+    const ref = await original(PTS, [4470000, 5332000, 500])
+    const fitted = await original(moved(toFile), offset)
+    const a = await cloudSectionPoints('p', { ...ref, id: `ref${crs}`, crs: 5678 }, frame)
+    const b = await cloudSectionPoints('p', {
+      ...fitted, id: `fit${crs}`, crs, transform: { matrix: invertMatrix(toFile), crs: 5678 },
+    }, frame)
+    expect(a.count).toBeGreaterThan(15)
+    expect(Math.abs(b.count - a.count)).toBeLessThanOrEqual(2)
+    for (const [y, z] of rows(a)) {
+      expect(rows(b).some(([y2, z2]) => Math.abs(y2 - y) < 0.002 && Math.abs(z2 - z) < 0.002)).toBe(true)
+    }
   })
 })
