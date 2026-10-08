@@ -419,6 +419,26 @@ describe('the two tracks need not be the same kind of element', () => {
     expect(res.reason).toBe('cant_mismatch')
   })
 
+  it('compares the cant at the ldS, not at WA (Entscheidung 218)', () => {
+    // Track 1 ramps under the first turnout and reaches track 2's cant exactly
+    // at its ldS: WA–WE along the through route and the form's ldS behind it.
+    const C = 10, L = 300, along = 100
+    const toLds = switchStraightLength(FORM) + FORM.lds
+    const ramp = stem(ORIGIN, 0, null, 0, { length: L, along, cantEnd: C * L / (along + toLds) })
+    const res = solveSwitchConnection(ramp, stem(at(ORIGIN, -4.5), 0, null, C, { length: L, along }), SPEED)
+    expect(res.valid).toBe(true)
+    expect(res.switchType).toBe(FORM)
+    expect(res.cant1Start).toBeLessThan(C - 2)          // different at WA
+    expect(res.cantLds1).toBeCloseTo(C, 9)
+    expect(res.cantLds2).toBe(C)
+    expect(res.cantMid).toBe(C)
+
+    // A ramp 3 mm past C at the ldS is refused, whatever it is at WA.
+    const past = stem(ORIGIN, 0, null, 0, { length: L, along, cantEnd: (C + 3) * L / (along + toLds) })
+    const off = solveSwitchConnection(past, stem(at(ORIGIN, -4.5), 0, null, C, { length: L, along }), SPEED)
+    expect(off.reason).toBe('cant_mismatch')
+  })
+
   it('the branch over a ramp carries the ramp, not one value', () => {
     // Where the cant does run under a turnout, the branch states both ends —
     // which is what a transition element is for (AP 1.1's rule for a turnout in

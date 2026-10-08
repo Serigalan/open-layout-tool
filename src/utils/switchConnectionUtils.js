@@ -252,6 +252,12 @@ function footOnStem(g, p) {
  */
 const SOLVE_TOL = 1e-8
 
+/**
+ * Two cants this close are one [mm]: inside a ramp the value at a station is
+ * rarely a whole millimetre, and the middle element takes the rounded mean.
+ */
+const CANT_TOL = 1
+
 /** Iterations the secant gets before the scan takes over. */
 const SOLVE_STEPS = 40
 
@@ -346,9 +352,16 @@ function buildConnection(sw, frame, speed) {
   const cant1End   = stemCant(stem1, s1 + Lb)
   const cant2Start = stemCant(stem2, s2 - Lb)      // at B2A
   const cant2End   = stemCant(stem2, s2)           // at TP2
-  // The element between them can only carry one value, so the two ends it joins
-  // have to agree on it.
-  const cantMid = cant1End
+  // The element between them can only carry one value, so the two tracks have
+  // to agree on it — at the last through sleeper (ldS) of either turnout, up to
+  // which a turnout lies on its own track's sleepers. At WA they may differ
+  // (Entscheidung 218). Where the form states no ldS, it is WE. Read on the
+  // element the turnout was picked on: an ldS beyond its end takes the cant at
+  // that end.
+  const toLds    = switchStraightLength(sw) + (Number.isFinite(sw.lds) ? sw.lds : 0)
+  const cantLds1 = stemCant(stem1, s1 + toLds)
+  const cantLds2 = stemCant(stem2, s2 - toLds)
+  const cantMid  = Math.round((cantLds1 + cantLds2) / 2)
 
   const worst = (a, b) => (Math.abs(a) >= Math.abs(b) ? a : b)
   // The worst deficiency anywhere along a branch: the pieces of a chain are not
@@ -367,7 +380,7 @@ function buildConnection(sw, frame, speed) {
   const reason =
     !Number.isFinite(Lg)                                  ? 'no_solution'
       : Lg < sw.minl                                      ? 'too_short'
-        : cant1End !== cant2Start                         ? 'cant_mismatch'
+        : Math.abs(cantLds1 - cantLds2) > CANT_TOL        ? 'cant_mismatch'
           : worstCant > MAX_SWITCH_CANT                   ? 'cant_over'
             : Math.max(defB1, defB2) > MAX_SWITCH_CANT_DEF ? 'branch_too_sharp'
               : defMid > MAX_SWITCH_CANT_DEF              ? 'too_sharp'
@@ -382,7 +395,7 @@ function buildConnection(sw, frame, speed) {
     // is the piece at the toe. A straight end piece says nothing about the form.
     signedR1: chain1[0].r1, signedR2: negR(chain2own[0].r1),
     L1: Lb, L2: Lb,
-    cant1Start, cant1End, cant2Start, cant2End, cantMid,
+    cant1Start, cant1End, cant2Start, cant2End, cantMid, cantLds1, cantLds2,
     cantDef: defMid, branchCantDef: Math.max(defB1, defB2),
     bearing1: bearingOf(psiToe1),
     bearing2:  bearOwn,                       // at TP2, towards B2A — where the split parts
@@ -550,6 +563,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
     stemR2: stemRadius(frame.stem2, c.s2),
     cant1Start: c.cant1Start, cant1End: c.cant1End,
     cant2Start: c.cant2Start, cant2End: c.cant2End, cantMid: c.cantMid,
+    cantLds1: c.cantLds1, cantLds2: c.cantLds2,
     cantDef: c.cantDef, branchCantDef: c.branchCantDef,
     bearing1: c.bearing1, bearing2: c.bearing2,
     arc1Coords, arc1CoordsRender, arc2Coords, arc2CoordsRender,

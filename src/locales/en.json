@@ -826,7 +826,7 @@
   "scurve_branch_radius": "Branch radii",
   "scurve_cant": "Cant",
   "scurve_branch_too_sharp": "The turnout bent into the curve gets too sharp for this speed.",
-  "scurve_cant_mismatch": "The two tracks carry different cant – the middle element would need a ramp.",
+  "scurve_cant_mismatch": "At the last through sleeper (ldS) of the two switches the tracks carry different cant ({u1} mm / {u2} mm) – the middle element would need a ramp. At the toe it may differ.",
   "scurve_cant_over": "Cant above 100 mm: no turnout may be laid there.",
   "plan_title": "Plan export",
   "plan_intro": "Creates a to-scale site plan or a schematic overview plan of the tracks as a PDF.",

@@ -61,6 +61,16 @@ function buildPreviewGeoJSON(result) {
   }
 }
 
+/**
+ * The two cants at the ldS, for the message that they differ: as magnitudes,
+ * signed only where they lean to different sides.
+ */
+function ldsCants({ cantLds1: a = 0, cantLds2: b = 0 }) {
+  const opposite = a * b < 0
+  const show = (u) => String(opposite ? Math.round(u) : Math.abs(Math.round(u)))
+  return { u1: show(a), u2: show(b) }
+}
+
 function buildPointsGeoJSON(result) {
   return {
     type: 'FeatureCollection',
@@ -266,7 +276,9 @@ export default function SCurveForm({ onCommitted }) {
         )}
 
         <p className={result?.valid ? 'msg-info' : 'msg-error'}>
-          {result?.valid ? t('scurve_valid') : t(REASON_MSG[result?.reason] ?? 'scurve_invalid')}
+          {result?.valid ? t('scurve_valid')
+            : result?.reason === 'cant_mismatch' ? fill('scurve_cant_mismatch', ldsCants(result))
+              : t(REASON_MSG[result?.reason] ?? 'scurve_invalid')}
         </p>
         {settled?.moved.length > 0 && (
           <p className="msg-hint">

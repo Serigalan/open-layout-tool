@@ -826,7 +826,7 @@
   "scurve_branch_radius": "Radius Zweiggleise",
   "scurve_cant": "Überhöhung",
   "scurve_branch_too_sharp": "Die in den Bogen gelegte Weiche wird zu eng für diese Geschwindigkeit.",
-  "scurve_cant_mismatch": "Die beiden Gleise tragen verschiedene Überhöhung – das Zwischenelement bräuchte eine Rampe.",
+  "scurve_cant_mismatch": "An der ldS der beiden Weichen tragen die Gleise verschiedene Überhöhung ({u1} mm / {u2} mm) – das Zwischenelement bräuchte eine Rampe. Am WA darf sie verschieden sein.",
   "scurve_cant_over": "Überhöhung über 100 mm: darauf lässt sich keine Weiche legen.",
   "plan_title": "Zeichenausgabe",
   "plan_intro": "Erzeugt einen maßstäblichen Lageplan oder einen schematischen Übersichtsplan der Gleise als PDF.",
