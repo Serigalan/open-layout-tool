@@ -3,6 +3,7 @@ import { loadTracks, loadPlatforms, loadSwitches, currentProject, currentVariant
 import { openCloud3d } from '../cloud3d/channel'
 import { trackLength } from '../utils/heightUtils'
 import { tracksOnFrom } from '../utils/topology'
+import { resolveRoute, routeAt, routeStationOf } from '../utils/routes'
 import { trackHeightAt } from '../utils/switchGradient'
 import { utmToWgs84, transformGridBearing } from '../utils/coordinateUtils'
 import { pointAtStation } from '../utils/platformUtils'
@@ -64,6 +65,8 @@ const CLEAR_COLOR = PALETTE.clear
 /** How far the drawing can be zoomed out and in, relative to the fitted view. */
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 200
+/** A slice's points seen from the other side: y negated, the rest as it is. */
+const mirrored = (points) => ({ ...points, y: Float32Array.from(points.y, y => -y) })
 const heightName = (epsg) => HEIGHT_DATUMS.find(d => d.epsg === Number(epsg))?.label ?? `EPSG ${epsg}`
 
 // Where the section is taken: a dot on the track at the slider's station, and
@@ -152,9 +155,26 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
 
   const tracks = loadTracks()
   const switches = loadSwitches()
-  const track = tracks.find(tr => tr.id === at.trackId)
+  // Along a route (Paket RT) its station decides track and station; where the
+  // route runs a track against its stations, the section looks the route's
+  // way (decision 252) — `flip`: its bearing turned round, so the clouds, the
+  // terrain and the tracks beside come in the route's left and right.
+  const route = at.routeId ? (currentProject()?.routes ?? []).find(r => r.id === at.routeId) ?? null : null
+  const resolvedRoute = route ? resolveRoute(route, tracks, switches) : null
+  const onRoute = resolvedRoute?.parts.length ? resolvedRoute : null
+  const routeTotal = onRoute ? Math.round(onRoute.length * 10) / 10 : 0
+  const routeS = onRoute
+    ? clamp(at.routeStation ?? routeStationOf(onRoute, at.trackId, at.station ?? 0) ?? 0, 0, routeTotal) : null
+  const routePos = onRoute ? routeAt(onRoute, routeS) : null
+  const flip = !!routePos?.part.reversed
+  const track = routePos ? routePos.part.track : tracks.find(tr => tr.id === at.trackId)
   const total = track ? Math.round(trackLength(track) * 10) / 10 : 0
-  const station = track ? clamp(at.station ?? 0, 0, total) : 0
+  const station = routePos ? routePos.station : track ? clamp(at.station ?? 0, 0, total) : 0
+  /** Where the section is taken, looking the way it is drawn. */
+  const lookOrigin = () => {
+    const o = sectionOrigin(track, station)
+    return o && flip ? { ...o, bearing: (o.bearing + 180) % 360 } : o
+  }
 
   // Another station or track: the section comes back to the middle, the zoom stays.
   const centerKey = `${at.trackId}|${station}`
@@ -164,7 +184,10 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   const preview = usePreview(MARKER_LAYERS, { resetCursor: true })
 
   // In a window of its own, the window is named after what it shows.
-  const title = track ? `${track.name || track.id.slice(0, 8)} · ${t('cross_section_station')} ${station.toFixed(1)} m` : ''
+  const trackName = track ? track.name || track.id.slice(0, 8) : ''
+  const title = !track ? ''
+    : onRoute ? `${route.name} · ${t('cross_section_station')} ${routeS.toFixed(1)} m · ${trackName} ${station.toFixed(1)} m`
+      : `${trackName} · ${t('cross_section_station')} ${station.toFixed(1)} m`
   useEffect(() => {
     const doc = bodyRef.current?.ownerDocument
     if (detached && doc && title) doc.title = `${t('platform_cross_section')} · ${title}`
@@ -211,8 +234,10 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
     }
   }
 
-  const main = track ? sectionOf({ track, station }) : null
-  const neighbours = track ? sectionNeighbours(track, station, tracks, reach).map(sectionOf) : []
+  const main = track ? sectionOf({ track, station, mirrored: flip }) : null
+  // Looked at the other way, a track to the right stands to the left.
+  const neighbours = track ? sectionNeighbours(track, station, tracks, reach)
+    .map(d => (flip ? { ...d, offset: -d.offset, mirrored: !d.mirrored } : d)).map(sectionOf) : []
   const drawn = main ? [main, ...neighbours] : []
 
   // ── The terrain along the section line, read once the slider rests ────────
@@ -220,7 +245,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   // where a track without a gradient stands, and that depends on the terrain.
   const terrainHalf = Math.max(reach + 10, MIN_TERRAIN_HALF)
   const terrainStep = Math.max(0.5, Math.round(2 * terrainHalf / 200 * 2) / 2)
-  const terrainKey = track ? `${track.id}|${station.toFixed(1)}|${terrainHalf}|${terrainStep}|${terrainSource}` : null
+  const terrainKey = track ? `${track.id}|${station.toFixed(1)}|${terrainHalf}|${terrainStep}|${terrainSource}|${flip}` : null
 
   useEffect(() => {
     if (!terrainKey || !track) return
@@ -233,7 +258,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
         if (cancelled) return
         setTerrain({
           key: terrainKey,
-          points: line.map((p, i) => ({ y: p.y, z: heights[i] })),
+          points: line.map((p, i) => ({ y: flip ? -p.y : p.y, z: heights[i] })),
           sources: [...new Set(sources.filter(Boolean))],
         })
       } catch {
@@ -285,13 +310,13 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   const sliceClouds = regKey ? (regClouds.key === regKey ? regClouds.clouds : []) : clouds
 
   const cloudKey = track && cloudOn && sliceClouds.length
-    ? `${track.id}|${station.toFixed(2)}|${reach}|${thickness}|${sliceClouds.map(c => (c.server ? `${c.id}@${c.server.level}` : c.id)).join(',')}|${regKey ?? ''}`
+    ? `${track.id}|${station.toFixed(2)}|${flip}|${reach}|${thickness}|${sliceClouds.map(c => (c.server ? `${c.id}@${c.server.level}` : c.id)).join(',')}|${regKey ?? ''}`
     : null
 
   useEffect(() => {
     if (!cloudKey || !track) return
     let cancelled = false
-    const origin = sectionOrigin(track, station)
+    const origin = lookOrigin()
     if (!origin) return
     const t0 = performance.now()
     Promise.all(sliceClouds.map(async (cloud) => ({
@@ -317,7 +342,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   useEffect(() => {
     if (!railsKey || !track) return
     let cancelled = false
-    const origin = sectionOrigin(track, station)
+    const origin = lookOrigin()
     if (!origin) return
     detectInClouds(project.id, sliceClouds, { origin: origin.utm, bearing: origin.bearing, crs: track.epsg, rail: mainRail })
       .then(det => { if (!cancelled) setRailsFound({ key: railsKey, det }) })
@@ -340,10 +365,12 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   const mainCant = main?.state?.cant ?? 0
   const checks = useMemo(() => (mainZ == null
     ? null
-    : slicedParts.map(p => checkClearance(p.points, { zTrack: mainZ, cant: mainCant, ring, areas }))),
+    // Sliced looking the route's way, the points are mirrored back into the
+    // track's own frame, which the outline and its cant are stated in.
+    : slicedParts.map(p => checkClearance(flip ? mirrored(p.points) : p.points, { zTrack: mainZ, cant: mainCant, ring, areas }))),
   // ring and areas follow the profile id; the arrays are new on every render
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [slicedParts, mainZ, mainCant, profile.id])
+  [slicedParts, mainZ, mainCant, profile.id, flip])
   const cloudParts = slicedParts.map((p, n) => ({ ...p, flags: checks?.[n]?.flags, color: p.cloud.color }))
   const clearance = checks && checks.length ? (() => {
     let insideCount = 0, deepest = null, nearest = null
@@ -460,7 +487,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
     if (!best) { setPickNote(t('cross_section_reg_none')); return }
     if (!pending) { setPendingPick({ key: cloudKey, role: best.role, y: best.y, z: best.z }); setPickNote(null); return }
     const refP = best.role === 'ref' ? best : pending, adjP = best.role === 'adj' ? best : pending
-    const origin = sectionOrigin(track, station)
+    const origin = lookOrigin()
     const rad = origin.bearing * Math.PI / 180
     const toRef = planeMapper(track.epsg, reg.refPlane)
     const at = (p) => toRef(origin.utm.easting + Math.cos(rad) * p.y, origin.utm.northing - Math.sin(rad) * p.y)
@@ -722,9 +749,21 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
     return here.length === 1 ? here[0] : null
   }
 
+  // Along a route the slider spans the whole of it, and stepping goes over the
+  // joints between its tracks without asking.
+  const goRoute = (s) => {
+    const sr = clamp(s, 0, routeTotal)
+    const p = routeAt(onRoute, sr)
+    onAtChange?.({ ...at, routeId: route.id, routeStation: sr, trackId: p.trackId, station: p.station })
+  }
+
   // One metre on or back, to the next whole metre — from 30.4 to 31 or 30 —
   // so stepping walks the stations a surveyor would read off.
   const stepTo = (dir) => {
+    if (onRoute) {
+      goRoute(dir > 0 ? Math.floor(routeS + 1e-6) + 1 : Math.ceil(routeS - 1e-6) - 1)
+      return
+    }
     const atEnd = dir > 0 ? station >= total : station <= 0
     const sole = atEnd ? soleOnward(dir > 0 ? 'END' : 'BEGIN') : null
     if (sole) { goOnto(sole); return }
@@ -841,6 +880,20 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
           style={size ? { width: size.w, height: size.h } : undefined} />
         {drawing()}
       </div>
+      {onRoute ? (
+        <div className="cross-section-slider">
+          <button className="cross-section-step" disabled={routeS <= 0} onClick={() => stepTo(-1)}
+            title={t('cross_section_step_back')} aria-label={t('cross_section_step_back')}>◀</button>
+          <input type="range" min={0} max={routeTotal} step={0.1} value={routeS}
+            onChange={e => goRoute(Number(e.target.value))} />
+          <button className="cross-section-step" disabled={routeS >= routeTotal} onClick={() => stepTo(1)}
+            title={t('cross_section_step_forward')} aria-label={t('cross_section_step_forward')}>▶</button>
+          <span className="cross-section-slider-label">{`${routeS.toFixed(1)} / ${routeTotal.toFixed(1)} m`}</span>
+          <span className="cross-section-onward" title={t(flip ? 'cross_section_route_against' : 'cross_section_route_along')}>
+            {fill('cross_section_route_on', { name: trackName, s: station.toFixed(1) })}{flip ? ' ⇄' : ''}
+          </span>
+        </div>
+      ) : (
       <div className="cross-section-slider">
         <button className="cross-section-step" disabled={station <= 0 && !soleOnward('BEGIN')} onClick={() => stepTo(-1)}
           title={t('cross_section_step_back')} aria-label={t('cross_section_step_back')}>◀</button>
@@ -864,6 +917,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
           </span>
         )}
       </div>
+      )}
     </div>
   )
 }

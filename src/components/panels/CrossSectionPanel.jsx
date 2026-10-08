@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { loadTracks, updateTrack, updateProject, currentProject } from '../../storage'
+import { loadTracks, loadSwitches, updateTrack, updateProject, currentProject } from '../../storage'
 import { trackLength } from '../../utils/heightUtils'
 import { wgs84ToUTM } from '../../utils/coordinateUtils'
 import { stationFromClick } from '../../utils/platformUtils'
@@ -10,6 +10,9 @@ import {
   GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
 } from '../../utils/gaugeProfiles'
 import GroupedTrackList from './GroupedTrackList'
+import RouteList from './RouteList'
+import { partStation, resolveRoute, routeStationOf } from '../../utils/routes'
+import useRouteOnMap from '../../map/useRouteOnMap'
 import ClearanceScanSection from './ClearanceScanSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
@@ -48,6 +51,17 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
   const track  = tracks.find(tr => tr.id === trackId) ?? null
   const shown  = crossSectionAt != null && crossSectionAt.trackId === trackId
 
+  // The route the section walks along, if it does (Paket RT), drawn on the map.
+  const routeId = crossSectionAt?.routeId ?? null
+  const route = routeId ? (currentProject()?.routes ?? []).find(r => r.id === routeId) ?? null : null
+  const resolvedRoute = route ? resolveRoute(route, tracks, loadSwitches()) : null
+  useRouteOnMap('cross-section-route', resolvedRoute)
+  const openRoute = (r, res) => {
+    const first = res.parts[0]
+    setTrackId(first.trackId)
+    onShowCrossSection?.({ routeId: r.id, routeStation: 0, trackId: first.trackId, station: partStation(first, 0) })
+  }
+
   // ── Pick the track — and with the click, the station ──────────────────────
   useMapPick({
     hover: trackId ? null : 'element',
@@ -57,6 +71,12 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], clicked.epsg)
       const station  = stationFromClick(clicked, elementIndex, clickUtm)
       setTrackId(clicked.id)
+      // On the route shown, the click walks along it; off it, the track clicked is shown alone.
+      const sr = resolvedRoute ? routeStationOf(resolvedRoute, clicked.id, station ?? 0) : null
+      if (sr != null) {
+        onShowCrossSection?.({ routeId, routeStation: sr, trackId: clicked.id, station: station ?? 0 })
+        return
+      }
       onShowCrossSection?.({ trackId: clicked.id, station: station ?? 0 })
     },
   })
@@ -124,14 +144,15 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
       <h2>{t('cross_section_title')}</h2>
       {!track && <p>{t('cross_section_hint')}</p>}
 
+      <RouteList activeId={routeId} onPick={openRoute} />
       {tracks.length > 0 && (
         <GroupedTrackList tracks={tracks}
-          isActive={(tr) => tr.id === trackId}
+          isActive={(tr) => !routeId && tr.id === trackId}
           onPick={(tr) => {
             setTrackId(tr.id)
             // Picked from the list, the track opens at its begin — or stays
             // where it is shown already.
-            if (crossSectionAt?.trackId !== tr.id) onShowCrossSection?.({ trackId: tr.id, station: 0 })
+            if (crossSectionAt?.trackId !== tr.id || routeId) onShowCrossSection?.({ trackId: tr.id, station: 0 })
           }} />
       )}
 

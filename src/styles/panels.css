@@ -961,3 +961,4 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 }
 .route-dir { color: var(--color-primary); margin-right: 6px; font-size: var(--fs-xs); }
 .route-gap { color: var(--color-warn); list-style: none; margin-left: -22px; font-size: var(--fs-xs); }
+.route-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
