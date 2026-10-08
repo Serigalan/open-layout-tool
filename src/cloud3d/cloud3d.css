@@ -112,3 +112,10 @@ html, body, #root { height: 100%; margin: 0; }
   text-align: center;
   font-family: var(--font-ui, system-ui, sans-serif);
 }
+
+/* The colours of the track lines (axis, left and right rail), side by side. */
+.cloud3d-colors { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0; }
+.cloud3d-color { display: flex; align-items: center; gap: 5px; }
+.cloud3d-color input[type=color] {
+  width: 26px; height: 20px; padding: 0; border: 1px solid #454959; border-radius: 4px; background: none; cursor: pointer;
+}

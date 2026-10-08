@@ -47,7 +47,9 @@ export const PALETTE = Object.freeze({
   measuredAxis: '#b0136e',
   // The 3D view of the point clouds (phase 13), on its dark background.
   view3dAxis: '#ffd400',
-  view3dRail: '#d8d8d8',
+  // The two rails apart at a glance; the viewer may choose others (Cloud3dApp).
+  view3dRailLeft: '#ff9f1c',
+  view3dRailRight: '#4dd0e1',
   view3dSurvey: '#2ee88a',
   view3dPlane: '#4f8cff',
   view3dOutline: '#ff3b30',

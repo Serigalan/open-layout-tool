@@ -1,9 +1,13 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { Line2 } from 'three/examples/jsm/lines/Line2.js'
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js'
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { buildTree, selectNodes } from './lod'
 import { pointMaterial, pickLowMaterial, setLook, edlPass } from './shaders'
 import { sourceOf } from '../utils/pointCloud/cloudSource'
 import { modelMatrix } from './placement'
+import { clearanceEnvelope, CLEARANCE_AHEAD } from './trackGeometry'
 
 /**
  * The 3D view of a project's point clouds (AP 13.8–13.11), plain three.js on
@@ -283,6 +287,7 @@ export class Viewer {
     if (!this.walk) return
     this.walk = null
     this.keys.clear()
+    this.drawClearance()
     this.controls.enabled = true
     const dir = new THREE.Vector3()
     this.camera.getWorldDirection(dir)
@@ -327,8 +332,41 @@ export class Viewer {
     const heading = b - w.yaw
     const look = new THREE.Vector3(Math.sin(heading) * Math.cos(w.pitch), Math.cos(heading) * Math.cos(w.pitch), Math.sin(w.pitch))
     this.camera.lookAt(this.camera.position.clone().add(look))
+    this.drawClearance()
     this.dirty = true
     this.needSelect = true
+  }
+
+  /**
+   * The clearance envelope to carry along while walking: `ring` the gauge
+   * outline [mm] (gaugeProfileRing), null for none. It reaches
+   * CLEARANCE_LENGTH into the direction looked — with the stations, or
+   * against them once turned round — beginning CLEARANCE_AHEAD in front of
+   * where the walk stands.
+   */
+  setWalkClearance(ring, color) {
+    this.clearance = ring?.length ? { ring, color } : null
+    this.clearanceAt = undefined
+    this.drawClearance()
+  }
+
+  drawClearance() {
+    const w = this.walk, c = this.clearance
+    const dir = w && Math.cos(w.yaw) < 0 ? -1 : 1
+    const key = w && c ? `${w.s.toFixed(2)}|${dir}` : null
+    if (key === this.clearanceAt) return
+    this.clearanceAt = key
+    if (!key) { this.setOverlay('clearance', []); return }
+    const rings = clearanceEnvelope(w.samples, w.s, { ring: c.ring, dir, ahead: CLEARANCE_AHEAD })
+    if (rings.length < 2) { this.setOverlay('clearance', []); return }
+    // The walls see-through, the outline at both ends, and its corners drawn along.
+    const along = rings[0].map((_, j) => rings.map(r => r[j]))
+    this.setOverlay('clearance', [
+      this.tube(rings, c.color, 0.1),
+      this.fatLine(rings[0], c.color, 2.5),
+      this.fatLine(rings[rings.length - 1], c.color, 2.5),
+      ...along.map(pts => this.line(pts, c.color, { opacity: 0.45 })),
+    ])
   }
 
   /** Where the walk stands: { station, across } or null. */
@@ -373,6 +411,38 @@ export class Viewer {
     const g = new THREE.BufferGeometry().setFromPoints(points.map(([e, n, z]) => new THREE.Vector3(e - oe, n - on, z - oz)))
     const m = new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity })
     return loop ? new THREE.LineLoop(g, m) : new THREE.Line(g, m)
+  }
+
+  /**
+   * A polyline of `[e, n, z]` drawn `width` pixels wide on screen, whatever
+   * the distance — WebGL draws a plain line one pixel wide only.
+   */
+  fatLine(points, color, width = 3) {
+    const [oe, on, oz] = this.origin
+    const g = new LineGeometry().setPositions(points.flatMap(([e, n, z]) => [e - oe, n - on, z - oz]))
+    const m = new LineMaterial({ color, linewidth: width, worldUnits: false })
+    m.resolution.copy(this.renderer.getSize(new THREE.Vector2()))
+    const line = new Line2(g, m)
+    line.computeLineDistances()
+    return line
+  }
+
+  /**
+   * The walls between rings of `[e, n, z]` with the same number of points
+   * each, see-through: one band of quads from each ring to the next.
+   */
+  tube(rings, color, opacity = 0.1) {
+    const [oe, on, oz] = this.origin
+    const v = (p) => [p[0] - oe, p[1] - on, p[2] - oz]
+    const pos = []
+    for (let i = 0; i + 1 < rings.length; i++) {
+      const a = rings[i], b = rings[i + 1]
+      for (let j = 0; j + 1 < a.length; j++) pos.push(...v(a[j]), ...v(b[j]), ...v(b[j + 1]), ...v(a[j]), ...v(b[j + 1]), ...v(a[j + 1]))
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false })
+    return new THREE.Mesh(g, m)
   }
 
   /** A filled quad of four `[e, n, z]` corners, see-through. */
@@ -556,6 +626,8 @@ export class Viewer {
       depthTexture: new THREE.DepthTexture(size.x, size.y, THREE.UnsignedIntType),
     })
     this.edl.material.uniforms.uTexel.value.set(1 / size.x, 1 / size.y)
+    // Wide lines are as wide as they are said to be on the screen they are on.
+    for (const o of this.overlay.children) if (o.material?.isLineMaterial) o.material.resolution.set(w, h)
     for (const [node, entry] of this.loaded) this.look(node, entry.points)
     this.dirty = true
     this.needSelect = true
@@ -586,6 +658,10 @@ export class Viewer {
     cam.updateProjectionMatrix()
     const r = this.renderer
     if (this.options.edl) {
+      // The points alone through the eye-dome lighting; the overlays after it,
+      // unshaded — EDL would bead a wide line at every joint of its segments —
+      // but against the points' depth the pass hands on.
+      cam.layers.set(0)
       r.setRenderTarget(this.target)
       r.setClearColor('#1d1f27', 1)
       r.clear()
@@ -598,6 +674,11 @@ export class Viewer {
       u.uFar.value = cam.far
       u.uStrength.value = this.options.edlStrength
       r.render(this.edl.scene, this.edl.camera)
+      cam.layers.set(1)
+      r.autoClear = false
+      r.render(this.scene, cam)
+      r.autoClear = true
+      cam.layers.enable(0)
     } else {
       r.setRenderTarget(null)
       r.setClearColor('#1d1f27', 1)

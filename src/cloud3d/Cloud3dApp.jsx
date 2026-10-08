@@ -9,14 +9,14 @@ import { planeMapper, cloudPlane } from '../utils/pointCloud/cloudCrs'
 import { loadGridsFor } from '../utils/ntv2Grid'
 import { crsDatum, crsName, utmToWgs84 } from '../utils/coordinateUtils'
 import { heightDatumLabel } from '../utils/heightDatums'
-import { gaugeProfile, gaugeProfileRing, DEFAULT_GAUGE_PROFILE } from '../utils/gaugeProfiles'
+import { gaugeProfile, gaugeProfileRing, gaugeProfileLabelKey, DEFAULT_GAUGE_PROFILE } from '../utils/gaugeProfiles'
 import { surveyPoints } from '../utils/axisSurvey'
 import { trackLabel } from '../utils/trackModel'
 import { downloadText } from '../utils/fileUtils'
 import { Viewer } from './viewer'
 import { COLORINGS, CLOUD_COLORS } from './shaders'
 import { cloud3dParams, openChannel } from './channel'
-import { trackSamples, trackLines, nearestOnTracks, sectionPlane } from './trackGeometry'
+import { trackSamples, trackLines, nearestOnTracks, sectionPlane, CLEARANCE_LENGTH, CLEARANCE_AHEAD } from './trackGeometry'
 import { cloudPlacement } from './placement'
 import useRegistration from './useRegistration'
 import RegistrationPanel from './RegistrationPanel'
@@ -30,9 +30,28 @@ const MAIN_WAIT = 1200
 const MAIN_TIMEOUT = 7000
 
 const LOOK = {
-  axis: PALETTE.view3dAxis, rail: PALETTE.view3dRail, survey: PALETTE.view3dSurvey,
+  survey: PALETTE.view3dSurvey,
   plane: PALETTE.view3dPlane, outline: PALETTE.view3dOutline, pick: PALETTE.view3dPick,
   pairRef: PALETTE.view3dPairRef, pairSrc: PALETTE.view3dPairSrc,
+}
+
+/**
+ * How the tracks are drawn — the colours of axis and rails and the width of
+ * the lines [px]: the viewer's own choice, kept in this browser.
+ */
+const TRACK_LOOK_KEY = 'olt.cloud3d.trackLook'
+const TRACK_LOOK = { axis: PALETTE.view3dAxis, left: PALETTE.view3dRailLeft, right: PALETTE.view3dRailRight, width: 3 }
+
+function loadTrackLook() {
+  try {
+    return { ...TRACK_LOOK, ...JSON.parse(localStorage.getItem(TRACK_LOOK_KEY) ?? '{}') }
+  } catch {
+    return { ...TRACK_LOOK }
+  }
+}
+
+function saveTrackLook(look) {
+  try { localStorage.setItem(TRACK_LOOK_KEY, JSON.stringify(look)) } catch { /* kept for this window only */ }
 }
 
 export default function Cloud3dApp() {
@@ -60,6 +79,9 @@ function Cloud3dPage() {
   const [status, setStatus] = useState(null)
   const [walkTrack, setWalkTrack] = useState('')
   const [walking, setWalking] = useState(null)    // { station, across } while walking
+  const [trackLook, setTrackLook] = useState(loadTrackLook)
+  const [clearanceOn, setClearanceOn] = useState(false)
+  const [tracksSampled, setTracksSampled] = useState([])   // geometryRef's tracks, as state for the drawing
   const [measuring, setMeasuring] = useState(false)
   const [measured, setMeasured] = useState([])
   const [note, setNote] = useState(null)
@@ -270,19 +292,36 @@ function Cloud3dPage() {
       samples: trackSamples(tr, { tracks, switches, toView: planeMapper(tr.epsg, viewCrs) }),
     }))
     geo.tracks = sampled
-    const objects = []
-    for (const tr of sampled) {
-      const lines = trackLines(tr.samples)
-      for (const run of lines.axis) objects.push(viewer.line(run, LOOK.axis))
-      for (const run of [...lines.left, ...lines.right]) objects.push(viewer.line(run, LOOK.rail, { opacity: 0.8 }))
-    }
-    viewer.setOverlay('tracks', objects)
     viewer.setOverlay('surveys', axisSurveys.map(s => {
       const toView = planeMapper(s.epsg, viewCrs)
       const pts = surveyPoints(s).map(p => { const [e, n] = toView(p.easting, p.northing); return [e, n, (p.zLeft + p.zRight) / 2] })
       return viewer.markers(pts, LOOK.survey, 3)
     }))
+    setTracksSampled(sampled)
   }, [project, viewCrs])
+
+  // The axis and the two rails, each in its colour and as wide as chosen.
+  useEffect(() => {
+    const viewer = viewerRef.current
+    if (!viewer) return
+    const objects = []
+    for (const tr of tracksSampled) {
+      const lines = trackLines(tr.samples)
+      for (const run of lines.axis) objects.push(viewer.fatLine(run, trackLook.axis, trackLook.width))
+      for (const run of lines.left) objects.push(viewer.fatLine(run, trackLook.left, trackLook.width))
+      for (const run of lines.right) objects.push(viewer.fatLine(run, trackLook.right, trackLook.width))
+    }
+    viewer.setOverlay('tracks', objects)
+  }, [tracksSampled, trackLook])
+  const changeTrackLook = (key, value) => setTrackLook(l => { const next = { ...l, [key]: value }; saveTrackLook(next); return next })
+
+  // The clearance envelope carried along while walking, in the project's gauge profile.
+  useEffect(() => {
+    const viewer = viewerRef.current
+    if (!viewer) return
+    const profile = gaugeProfile(project?.data?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
+    viewer.setWalkClearance(clearanceOn ? gaugeProfileRing(profile.points) : null, LOOK.outline)
+  }, [clearanceOn, project, state.phase])
 
   // ── the cross section of the main window as a plane ───────────────────────
   useEffect(() => {
@@ -493,6 +532,19 @@ function Cloud3dPage() {
           <input type="checkbox" checked={options.edl} onChange={e => setOptions(o => ({ ...o, edl: e.target.checked }))} />
           <span>{t('cloud3d_edl')}</span>
         </label>
+        <div className="cloud3d-colors">
+          {['axis', 'left', 'right'].map(k => (
+            <label key={k} className="cloud3d-color">
+              <input type="color" value={trackLook[k]} onChange={e => changeTrackLook(k, e.target.value)} />
+              <span>{t(`cloud3d_track_${k}`)}</span>
+            </label>
+          ))}
+        </div>
+        <label className="cloud3d-field">
+          <span>{fill('cloud3d_line_width', { n: trackLook.width })}</span>
+          <input type="range" min={1} max={10} step={0.5} value={trackLook.width}
+            onChange={e => changeTrackLook('width', Number(e.target.value))} />
+        </label>
         {status && (
           <p className="cloud3d-hint cloud3d-status">
             {fill('cloud3d_status', { points: status.points.toLocaleString(), tiles: status.tiles })}
@@ -515,6 +567,15 @@ function Cloud3dPage() {
         <div className="cloud3d-buttons">
           <button type="button" disabled={!walkTrack} onClick={startWalk}>{t('cloud3d_walk')}</button>
         </div>
+        <label className="cloud3d-check">
+          <input type="checkbox" checked={clearanceOn} onChange={e => setClearanceOn(e.target.checked)} />
+          <span>{fill('cloud3d_clearance', { m: CLEARANCE_LENGTH })}</span>
+        </label>
+        {clearanceOn && (
+          <p className="cloud3d-hint">{fill('cloud3d_clearance_hint', {
+            profile: t(gaugeProfileLabelKey(project?.data?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)), m: CLEARANCE_LENGTH, ahead: CLEARANCE_AHEAD,
+          })}</p>
+        )}
         <p className="cloud3d-hint">{t(walking ? 'cloud3d_walk_keys' : 'cloud3d_orbit_keys')}</p>
 
         <h2>{t('cloud3d_measure')}</h2>

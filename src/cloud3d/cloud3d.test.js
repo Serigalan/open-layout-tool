@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildTree, selectNodes } from './lod'
-import { trackSamples, trackLines, nearestOnTracks, sectionPlane } from './trackGeometry'
+import { trackSamples, trackLines, nearestOnTracks, sectionPlane, clearanceEnvelope } from './trackGeometry'
 
 // A cloud of 256 × 64 m, its levels as indexes: every tile holds points.
 function levels() {
@@ -91,6 +91,27 @@ describe('the tracks in 3D (AP 13.10, 13.11)', () => {
     expect(plane.quad[0][1]).toBeCloseTo(5700030, 6)
     expect(plane.outline).toHaveLength(3)
     expect(plane.outline[2][2]).toBeGreaterThan(106.9)
+  })
+
+  it('sweeps the clearance outline 10 m along the track in the direction looked', () => {
+    const samples = trackSamples(track, { tracks: [track] })
+    const ring = [[-1000, 0], [1000, 0], [0, 4000]]
+    const ahead = clearanceEnvelope(samples, 30, { ring })
+    expect(ahead).toHaveLength(21)                 // every 0.5 m from 30 to 40
+    expect(ahead.every(r => r.length === 3)).toBe(true)
+    expect(ahead[0][0][1]).toBeCloseTo(5700030, 6)
+    expect(ahead[20][0][1]).toBeCloseTo(5700040, 6)
+    const back = clearanceEnvelope(samples, 30, { ring, dir: -1 })
+    expect(back[0][0][1]).toBeCloseTo(5700020, 6)
+    expect(back[back.length - 1][0][1]).toBeCloseTo(5700030, 6)
+    // Cut off at the track's end, nothing past it.
+    const end = clearanceEnvelope(samples, 96, { ring })
+    expect(end[end.length - 1][0][1]).toBeCloseTo(5700100, 6)
+    expect(clearanceEnvelope(samples, 100, { ring })).toEqual([])
+    // Begun ahead of the walk.
+    const lead = clearanceEnvelope(samples, 30, { ring, ahead: 5 })
+    expect(lead[0][0][1]).toBeCloseTo(5700035, 6)
+    expect(lead[lead.length - 1][0][1]).toBeCloseTo(5700045, 6)
   })
 })
 

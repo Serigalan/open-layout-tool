@@ -141,6 +141,9 @@ const edlFragment = /* glsl */`
   void main() {
     float d = texture(tDepth, vUv).r;
     vec4 c = texture(tColor, vUv);
+    // The points' depth handed on, so what is drawn over them afterwards
+    // (the overlays, unshaded) still hides behind them.
+    gl_FragDepth = d;
     if (d >= 1.0) { gl_FragColor = vec4(uBackground, 1.0); return; }
     float here = logDepth(d);
     float sum = 0.0;
@@ -155,10 +158,13 @@ const edlFragment = /* glsl */`
   }
 `
 
-/** The full-screen pass that shades the rendered points by the depth around them. */
+/**
+ * The full-screen pass that shades the rendered points by the depth around
+ * them, and writes their depth into the screen's for the overlays drawn after.
+ */
 export function edlPass() {
   const material = new THREE.ShaderMaterial({
-    vertexShader: edlVertex, fragmentShader: edlFragment, depthTest: false, depthWrite: false,
+    vertexShader: edlVertex, fragmentShader: edlFragment, depthTest: true, depthFunc: THREE.AlwaysDepth, depthWrite: true,
     uniforms: {
       tColor: { value: null }, tDepth: { value: null }, uTexel: { value: new THREE.Vector2() },
       uNear: { value: 0.1 }, uFar: { value: 10000 }, uStrength: { value: 0.6 }, uBackground: { value: new THREE.Color('#1d1f27') },

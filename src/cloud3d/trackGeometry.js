@@ -98,6 +98,31 @@ export function nearestOnTracks(tracks, e, n, reach = 50) {
   return best
 }
 
+/** The track at a station, interpolated between the samples either side: `{ s, e, n, z, bearing, cant }`. */
+export function sampleAt(samples, station) {
+  let i = samples.findIndex(p => p.s >= station)
+  if (i < 0) i = samples.length - 1
+  const a = samples[Math.max(0, i - 1)], b = samples[i]
+  const u = b.s > a.s ? Math.max(0, Math.min(1, (station - a.s) / (b.s - a.s))) : 0
+  return {
+    s: a.s + u * (b.s - a.s), e: a.e + u * (b.e - a.e), n: a.n + u * (b.n - a.n),
+    z: a.z != null && b.z != null ? a.z + u * (b.z - a.z) : (b.z ?? a.z),
+    bearing: b.bearing, cant: a.cant + u * (b.cant - a.cant),
+  }
+}
+
+/** A point `y` right of the axis and `z` over SO at sample p [m], as `[e, n, z]`. */
+const across = (p) => {
+  const [re, rn] = rightOf(p.bearing)
+  return (y, z) => [p.e + re * y, p.n + rn * y, p.z + z]
+}
+
+/** The clearance outline `ring` [mm] at sample p, turned by its cant, as `[e, n, z]`. */
+const outlineAt = (p, ring) => {
+  const at = across(p)
+  return crossSection({ cant: p.cant, gaugeRing: ring }).gauge.map(([y, z]) => at(y / 1000, z / 1000))
+}
+
 /**
  * The cross section plane at a station (AP 13.10): the sample there, the
  * quad of the plane `halfWidth` either side from `below` under to `above`
@@ -105,19 +130,44 @@ export function nearestOnTracks(tracks, e, n, reach = 50) {
  */
 export function sectionPlane(samples, station, { ring = [], halfWidth = 20, below = 2, above = 8 } = {}) {
   if (!samples.length) return null
-  let i = samples.findIndex(p => p.s >= station)
-  if (i < 0) i = samples.length - 1
-  const a = samples[Math.max(0, i - 1)], b = samples[i]
-  const u = b.s > a.s ? Math.max(0, Math.min(1, (station - a.s) / (b.s - a.s))) : 0
-  const p = {
-    e: a.e + u * (b.e - a.e), n: a.n + u * (b.n - a.n),
-    z: a.z != null && b.z != null ? a.z + u * (b.z - a.z) : (b.z ?? a.z),
-    bearing: b.bearing, cant: a.cant + u * (b.cant - a.cant),
-  }
+  const p = sampleAt(samples, station)
   if (p.z == null) return { at: p, quad: null, outline: [] }
-  const [re, rn] = rightOf(p.bearing)
-  const at = (y, z) => [p.e + re * y, p.n + rn * y, p.z + z]
+  const at = across(p)
   const quad = [at(-halfWidth, -below), at(halfWidth, -below), at(halfWidth, above), at(-halfWidth, above)]
-  const outline = crossSection({ cant: p.cant, gaugeRing: ring }).gauge.map(([y, z]) => at(y / 1000, z / 1000))
-  return { at: p, quad, outline }
+  return { at: p, quad, outline: outlineAt(p, ring) }
+}
+
+/** How far the clearance envelope reaches along the track while walking [m]. */
+export const CLEARANCE_LENGTH = 10
+/**
+ * How far ahead of the walk it begins [m]: far enough that its near outline
+ * is in the picture whole, seen from the walk's height — and the camera is
+ * not inside its walls, which would tint everything looked at.
+ */
+export const CLEARANCE_AHEAD = 5
+
+/**
+ * The clearance envelope while walking along a track: the outline `ring`
+ * [mm], turned by the cant, `ahead` metres from `station` and at every sample
+ * from there `length` metres on, in direction `dir` (+1 with the stations,
+ * −1 against) —
+ * a list of rings of `[e, n, z]` in the order of the stations, each with the
+ * same number of points. Cut off at the track's ends and where it has no
+ * gradient.
+ */
+export function clearanceEnvelope(samples, station, { ring = [], length = CLEARANCE_LENGTH, ahead = 0, dir = 1 } = {}) {
+  if (samples.length < 2 || !ring.length) return []
+  const first = samples[0].s, last = samples[samples.length - 1].s
+  const clamp = (s) => Math.max(first, Math.min(last, s))
+  const a = clamp(station + dir * ahead), b = clamp(station + dir * (ahead + length))
+  const lo = Math.min(a, b), hi = Math.max(a, b)
+  if (!(hi - lo > 1e-6)) return []
+  const stations = [lo, ...samples.filter(p => p.s > lo + 1e-6 && p.s < hi - 1e-6).map(p => p.s), hi]
+  const rings = []
+  for (const s of stations) {
+    const p = sampleAt(samples, s)
+    if (p.z == null) break
+    rings.push(outlineAt(p, ring))
+  }
+  return rings
 }
