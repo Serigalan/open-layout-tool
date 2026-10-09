@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { coupleSwitchGradients, coupleSwitchHeights, heightRoles, pendingTurnouts, CROSSOVER_SPAN } from './switchChain'
-import { switchCoupling } from './switchGradient'
+import { couplingOf, ldsPlaneHeight, switchCoupling } from './switchGradient'
 import { endPointCurvedUtm, endPointStraightUtm } from './elementUtils'
 import { formOf } from '../test/turnoutFixture'
 import { hasPek, loadPek } from '../test/pekFixture'
@@ -24,6 +24,25 @@ const track = (id, elements, heights) => ({ id, epsg: 5684, trackType: 1, elemen
 const opts = { formOf }
 const t = (p, id) => p.tracks.find(x => x.id === id).heights
 const zAt = (h, s) => h.find(p => Math.abs(p.station - s) < 0.002)?.z
+
+/**
+ * How far the connecting track `x` of a crossover leaves one straight line
+ * from toe to toe (decision 276) [m]: its stored points, and the plane of
+ * either turnout on its ldS.
+ */
+function crossoverBend(p, ids = ['s1', 's2']) {
+  const x = t(p, 'x')
+  const [a, b] = [x[0], x[x.length - 1]]
+  const line = (s) => a.z + (b.z - a.z) * (s - a.station) / (b.station - a.station)
+  const off = x.map(q => Math.abs(q.z - line(q.station)))
+  for (const id of ids) {
+    const c = couplingOf(p.tracks, p.switches, p.switches.find(s => s.switchId === id), opts)
+    off.push(Math.abs(ldsPlaneHeight(c) - line(c.ldsBranch)))
+  }
+  return Math.max(...off)
+}
+/** Do three points lie on one straight line, to 0.1 mm? */
+const collinear = (s1, z1, s2, z2, s3, z3) => Math.abs(z2 - (z1 + (z3 - z1) * (s2 - s1) / (s3 - s1))) <= 0.00015
 
 /** A turnout at `at`: approach `a` (100 m, ending at WA), main `m` (60 m), branch `b` (60 m on R 500). */
 function single(heights) {
@@ -243,7 +262,7 @@ describe('a crossover (decision 272)', () => {
     expect(heightRoles(p, opts).get('x').get(x.indexOf(M))).toMatchObject({ kind: 'middle' })
   })
 
-  it('carries none with 20 m or less, and the leading turnout sets the other\'s toe', () => {
+  it('carries none with 20 m or less, and one gradient runs through from toe to toe', () => {
     const raw = build(30)
     const withExtra = { ...raw, tracks: raw.tracks.map(x => (x.id === 'x'
       ? { ...x, heights: [x.heights[0], { station: 45, z: 100.3 }, x.heights[1]] } : x)) }
@@ -257,17 +276,17 @@ describe('a crossover (decision 272)', () => {
     const g1 = (z1 - x[0].z) / l1
     const end = x[x.length - 1]
     expect(end.z).toBeCloseTo(z1 + g1 * (end.station - l1), 3)
-    // s2's line Q₂ → P₂ is shifted through it: same gradient as before, Q₂ and P₂ along.
+    // s2's line Q₂ → P₂ runs through it with the gradient that puts its
+    // plane on the ldS onto the same line (decision 276).
     const a2 = t(p, 'a2'), m2 = t(p, 'm2')
     expect(m2[0].z).toBe(end.z)
-    const slope = (a2[0].z - m2[m2.length - 1].z) / 200
-    expect(slope).toBeCloseTo((100.4 + 0.3 - 100.1) / 200, 4)
-    expect(a2[0].z - end.z).toBeCloseTo(slope * 100, 3)
+    expect(collinear(-100, a2[0].z, 0, m2[0].z, 100, m2[m2.length - 1].z)).toBe(true)
+    expect(crossoverBend(p)).toBeLessThan(0.0005)
     expect(coupleSwitchGradients(p, opts)).toBe(p)
   })
 })
 
-describe('who leads a crossover: the track the write changed (decision 275)', () => {
+describe('who leads a crossover: the track the write changed (decisions 275, 276)', () => {
   // The crossover of decision 272 with 20 m or less between the ldS (mid 30),
   // and with the two stretches overlapping (mid 0) — the usual one.
   const build = (mid) => {
@@ -310,11 +329,11 @@ describe('who leads a crossover: the track the write changed (decision 275)', ()
         expect(t(after, 'm1')[0].z).not.toBeCloseTo(t(p, 'm1')[0].z, 3)
         expect(last(t(after, 'x')).z).not.toBeCloseTo(last(t(p, 'x')).z, 3)
         expect(t(after, 'm2')[0].z).toBe(last(t(after, 'x')).z)
-        // Q₂ and P₂ rise by the same amount, the toe of s2 with them.
-        const dQ = t(after, 'a2')[1].z - t(p, 'a2')[1].z
-        expect(Math.abs(dQ)).toBeGreaterThan(0.01)
-        expect(last(t(after, 'm2')).z - last(t(p, 'm2')).z).toBeCloseTo(dQ, 4)
-        expect(t(after, 'm2')[0].z - t(p, 'm2')[0].z).toBeCloseTo(dQ, 3)  // each kept to 0.1 mm
+        // Q₂ and P₂ move onto the line through s2's toe that continues the
+        // connecting track's gradient (decision 276).
+        expect(t(after, 'a2')[1].z).not.toBeCloseTo(t(p, 'a2')[1].z, 2)
+        expect(collinear(-50, t(after, 'a2')[1].z, 0, t(after, 'm2')[0].z, 100, last(t(after, 'm2')).z)).toBe(true)
+        expect(crossoverBend(after)).toBeLessThan(0.0005)
         expect(coupleSwitchGradients(after, opts)).toBe(after)
       })
 
@@ -324,14 +343,13 @@ describe('who leads a crossover: the track the write changed (decision 275)', ()
         // The edit stays, and s2's toe sits on the line through it.
         expect(t(after, 'a2')[1].z).toBe(roundTo(t(p, 'a2')[1].z + 0.5))
         expect(last(t(after, 'a2')).z).not.toBeCloseTo(last(t(p, 'a2')).z, 3)
-        // s1 follows: its toe on s2's continuation, Q₁ and P₁ by the same amount.
+        // s1 follows: its toe on s2's continuation, Q₁ and P₁ on the line through it.
         expect(t(after, 'x')[0].z).not.toBeCloseTo(t(p, 'x')[0].z, 3)
         expect(t(after, 'm1')[0].z).toBe(t(after, 'x')[0].z)
-        const dQ = t(after, 'a1')[1].z - t(p, 'a1')[1].z
-        expect(Math.abs(dQ)).toBeGreaterThan(0.01)
-        expect(last(t(after, 'm1')).z - last(t(p, 'm1')).z).toBeCloseTo(dQ, 4)
-        expect(t(after, 'x')[0].z - t(p, 'x')[0].z).toBeCloseTo(dQ, 3)  // each kept to 0.1 mm
-        // Coupling again keeps s2 leading — it sets s1's toe now.
+        expect(t(after, 'a1')[1].z).not.toBeCloseTo(t(p, 'a1')[1].z, 2)
+        expect(collinear(-50, t(after, 'a1')[1].z, 0, t(after, 'm1')[0].z, 100, last(t(after, 'm1')).z)).toBe(true)
+        expect(crossoverBend(after)).toBeLessThan(0.0005)
+        // Coupling again keeps it so.
         expect(coupleSwitchGradients(after, opts)).toBe(after)
         expect(pendingTurnouts(after, opts)).toHaveLength(0)
         // An edit far from both turnouts leaves that as it is.
@@ -342,8 +360,8 @@ describe('who leads a crossover: the track the write changed (decision 275)', ()
   }
 })
 
-describe.skipIf(!hasPek)('the crossovers of PEK Halle–Könnern (decision 275)', () => {
-  it('pass an edit before either toe on to the other turnout, and stay coupled', () => {
+describe.skipIf(!hasPek)('the crossovers of PEK Halle–Könnern (decisions 275, 276)', () => {
+  it('pass an edit before either toe on to the other turnout, with one gradient through, and stay coupled', () => {
     const p = coupleSwitchGradients(hydrateProjects([loadPek()])[0])
     expect(coupleSwitchGradients(p)).toBe(p)
     const roles = heightRoles(p)
@@ -367,6 +385,12 @@ describe.skipIf(!hasPek)('the crossovers of PEK Halle–Könnern (decision 275)'
       const bh = (q) => q.tracks.find(x => x.id === b.id).heights
       const otherToe = (q) => (b.end === 'BEGIN' ? bh(q)[bh(q).length - 1] : bh(q)[0]).z
       expect(Math.abs(otherToe(after) - otherToe(p)), `${s.name} → ${o.name}`).toBeGreaterThan(0.001)
+      // One gradient through the connecting track (decision 276): every stretch
+      // longer than the one between the two ldS on it rises alike.
+      const h = bh(after)
+      const grades = h.slice(1).map((q, i) => [q.station - h[i].station, (q.z - h[i].z) / (q.station - h[i].station)])
+        .filter(([len]) => len > 2).map(([, g]) => g)
+      expect(Math.max(...grades) - Math.min(...grades), `${s.name} → ${o.name}`).toBeLessThan(0.00005)
       expect(coupleSwitchGradients(after)).toBe(after)
       checked++
     }

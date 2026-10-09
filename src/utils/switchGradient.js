@@ -332,6 +332,19 @@ export function branchPlaneHeight(c, station) {
 export const ldsPlaneHeight = (c) => (c?.ldsSleeper ? planeHeight(c, c.ldsSleeper) : null)
 
 /**
+ * The plane on the ldS sleeper as the main route's gradient makes it, where
+ * that runs straight from WA: z = z_WA + g · run + lift, g in the main route's
+ * stations. What the other turnout of a crossover needs to continue the
+ * connecting track's gradient (decision 276). Null without the sleeper.
+ */
+export function ldsPlaneTerms(c) {
+  const sl = c?.ldsSleeper
+  const off = sl && (sl.a != null ? sl : sleeperOffsets(c, sl))
+  if (!off) return null
+  return { run: sl.main - c.main.station(0) + off.a, lift: (cantOn(c, sl) / RUNNING_CIRCLE_DISTANCE) * off.y }
+}
+
+/**
  * The switchIds of the turnouts a write reached: those one of whose three
  * tracks changed — the approach carries the point their main route's line
  * starts at (decision 270) — or whose own record did. What the store couples after
