@@ -8,10 +8,15 @@ import NumberInput from './form/NumberInput'
  * stays while it changes: the two of `mode` — at an end without the gradient
  * a mode names, the station or the height in its place; on a joint (a track
  * end other tracks meet) the station stays whatever is typed. Nothing on a
- * point a turnout's main route sets.
+ * point the coupling at a turnout sets (`role`, switchChain.heightRoles); on a
+ * point on a turnout's continuation its station and the gradient on its free
+ * side, the one toward the turnout staying (decision 271).
  */
-function editableAt(i, n, mode, { joint, locked }) {
-  if (locked) return new Map()
+function editableAt(i, n, mode, { joint, role }) {
+  if (role?.kind === 'continuation') {
+    return joint ? new Map() : new Map([['s', role.fixedKey], [role.freeKey, role.fixedKey]])
+  }
+  if (role) return new Map()
   const available = ['s', 'z', i > 0 && 'gb', i < n - 1 && 'ga'].filter(Boolean)
   if (joint) return new Map(available.filter(k => k !== 's').map(k => [k, 's']))
   const pair = [...GIVEN_MODES[mode]]
@@ -67,10 +72,11 @@ function ValueCell({ value, digits, step, editable, onCommit, className, title }
  * `points` are the profile's (routeProfile): solved along the route, a point
  * is written back by `onWrite(point, { station, z }, { rv?, la? })` to the track it
  * belongs to. A point at the end of its track — where tracks meet, also
- * between two tracks of a route — keeps its station.
+ * between two tracks of a route — keeps its station; `roles` (route index →
+ * role) are what the coupling at the ldS holds.
  */
 export default function ElevationTable({
-  points, length, mode, locked, noteAt,
+  points, length, mode, roles, noteAt,
   stretchAt, curveAt, stretchNote, curveNote, selection, onSelect, onWrite,
 }) {
   const { t, fill } = useI18n()
@@ -119,9 +125,9 @@ export default function ElevationTable({
         </thead>
         <tbody>
           {points.map((p, i) => {
-            const isLocked = locked.has(i)
+            const role = roles.get(i)
             const joint = points[i].trackEnd != null || points[i].joint
-            const edit = editableAt(i, n, mode, { joint, locked: isLocked })
+            const edit = editableAt(i, n, mode, { joint, role })
             const g = pointGrades(points, i)
             const cell = (key) => ({
               editable: edit.has(key),
@@ -129,7 +135,8 @@ export default function ElevationTable({
             })
             const before = stretchAt.get(i), after = stretchAt.get(i + 1), curve = curveAt.get(i)
             const tl = tangentLength(points, i)
-            const inner = !isLocked && i > 0 && i < n - 1
+            // Toe and ldS carry no curve of their own.
+            const inner = !['wa', 'lds'].includes(role?.kind) && i > 0 && i < n - 1
             const governs = p.la != null ? fill('elevation_vcurve_length_governs', { la: p.la.toFixed(2) }) : null
             return (
               <tr key={i} className={selection.includes(i) ? 'track-table-row-active' : undefined}

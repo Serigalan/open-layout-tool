@@ -3,10 +3,11 @@ import { setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadS
 import { useProject, useReferenceAxes, useRoutes, useSwitches, useTracks } from '../hooks/useStore'
 import { checkVertical, regularVerticalRadius, verticalFindings } from '../utils/gradientCheck'
 import { coupledPoints, trackHeightAt } from '../utils/switchGradient'
+import { heightRoles } from '../utils/switchChain'
 import { ruleById, severityLabelKey } from '../utils/regelkatalog'
 import {
   adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps, elementAtStation,
-  insertHeightPoint, solveHeightPoint, GIVEN_MODES,
+  insertHeightPoint, solveHeightPoint, pointGrades, GIVEN_MODES,
 } from '../utils/heightUtils'
 import { partStation, resolveRoute, routeAt, routePointAt } from '../utils/routes'
 import { routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute } from '../utils/routeProfile'
@@ -26,7 +27,7 @@ import { utmToWgs84 } from '../utils/coordinateUtils'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
-import { portsOf, turnoutDivergingPort, turnoutLinePort } from '../utils/switchModel'
+import { turnoutDivergingPort, turnoutLinePort } from '../utils/switchModel'
 import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
@@ -188,6 +189,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const chooseView = (v) => { setViewKind(v); remember({ elevationView: v }) }
   const chooseGiven = (v) => { setGiven(v); remember({ elevationGiven: v }) }
   const [stDraft, setStDraft]   = useState('')     // station of a single selected point
+  const [gDraft, setGDraft]     = useState(null)   // gradient [‰] typed on a continuation point's free side; null: untouched
 
   // ── The reference axis laid over the profile ─────────────────────────────
   // '' for none, 'auto' for the one the track runs along the furthest, or an
@@ -278,21 +280,27 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       if (i != null) paired.set(i, info)
     }
   }
-  const locked = new Map()
-  // The toe of a turnout — the ends of its tracks that meet there — belongs to
-  // it as well.
-  const toes = new Map()
-  for (const sw of switches) {
-    if ((sw.kind ?? 'turnout') !== 'turnout') continue
-    for (const port of portsOf(sw)) {
-      const track = parts.find(pt => pt.trackId === sw[port.trackKey])?.track
-      if (!track?.heights?.length) continue
-      const index = (sw[port.endKey] ?? 'BEGIN') === 'END' ? track.heights.length - 1 : 0
-      const i = profile.byRef(track.id, index)
-      if (i == null) continue
-      toes.set(i, sw)
+  // What the coupling at the ldS makes of a point (Paket WK), by route index:
+  // the toe and the ldS points are shown only, so is the one point between
+  // the ldS of a crossover but for its curve and reason; a point on a
+  // turnout's continuation moves along it, by its station or the gradient on
+  // its free side (`freeKey`, 'ga' or 'gb' in the route's direction), the one
+  // on the other (`fixedKey`) staying.
+  const roles = new Map()
+  const RANK = { wa: 3, lds: 2, middle: 1, continuation: 0 }
+  const byTrack = heightRoles(project)
+  for (const part of parts) {
+    for (const [index, role] of byTrack.get(part.trackId) ?? []) {
+      const i = profile.byRef(part.trackId, index)
+      if (i == null || (roles.has(i) && RANK[roles.get(i).kind] >= RANK[role.kind])) continue
+      const ahead = role.kind === 'continuation' && role.free * (part.reversed ? -1 : 1) > 0
+      roles.set(i, { ...role, part, ...(role.kind === 'continuation' ? { freeKey: ahead ? 'ga' : 'gb', fixedKey: ahead ? 'gb' : 'ga' } : {}) })
     }
   }
+  // Shown only — height, station and the point itself.
+  const locked = new Map([...roles].filter(([, r]) => r.kind !== 'continuation'))
+  /** Does the coupling hold the point's curve and reason as well (toe, ldS)? */
+  const curveHeld = (i) => ['wa', 'lds'].includes(roles.get(i)?.kind)
   /** The track and its own station at a station of the route. */
   const onTrackAt = (s) => (resolved ? routeAt(resolved, s) : null)
   /** The height built at a station of the route — on a turnout's branch, the plane of the turnout. */
@@ -305,7 +313,11 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     return tr?.name || tr?.id.slice(0, 8) || '–'
   }
   const swName = (sw) => sw.name ?? sw.label ?? ''
-  const lockedNote = (sw) => fill('elevation_locked_point', { name: swName(sw) })
+  const roleNote = (role) => (!role ? null
+    : role.kind === 'wa' ? fill('elevation_role_wa', { name: swName(role.sw) })
+      : role.kind === 'lds' ? fill(role.side === 'main' ? 'elevation_role_lds_main' : 'elevation_role_lds_branch', { name: swName(role.sw) })
+        : role.kind === 'middle' ? fill('elevation_role_middle', { a: swName(role.sw), b: swName(role.other) })
+          : fill('elevation_role_continuation', { name: swName(role.sw) }))
   // Sleepers are counted from WA, the first being 1; the last is the ldS.
   // A sleeper of the neighbour in a crossover's overlap says whose it is.
   const sleeperLabel = (sl) => {
@@ -317,7 +329,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     other: trackName(sw[`port${side === 'main' ? turnoutDivergingPort(sw) : turnoutLinePort(sw)}_trackId`]),
   }), also.length > 0 && fill('elevation_paired_shared', { names: also.map(swName).join(', ') })].filter(Boolean).join(' ')
   const planeNote = (info) => (info?.dz != null ? fill('elevation_plane_off', { dz: (info.dz * 1000).toFixed(0) }) : null)
-  const pointNote = (i) => [locked.has(i) ? lockedNote(locked.get(i)) : paired.has(i) ? pairedNote(paired.get(i)) : null,
+  const pointNote = (i) => [roleNote(roles.get(i)), paired.has(i) && !roles.has(i) ? pairedNote(paired.get(i)) : null,
     planeNote(paired.get(i)), points[i]?.reason && fill('elevation_reason_note', { reason: points[i].reason })]
     .filter(Boolean).join('\n') || null
 
@@ -451,6 +463,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     setStDraft(picked.length === 1 ? String(Math.round(picked[0].station * 1000) / 1000) : '')
     setRvNote(null)
     setReasonDraft(null)
+    setGDraft(null)
   }
   // A point's station can move unless it is a joint or a turnout sets it.
   const stationMovable = (p) => !locked.has(p.index) && p.trackEnd == null && !p.joint
@@ -516,11 +529,30 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     const reason = reasonDraft?.trim() || null
     if (reasonDraft != null && selectedPoints.some(p => (p.reason ?? null) !== reason)) patch.reason = reason
     // A single point's station typed anew: it moves there with its height —
-    // between its neighbours, which stay.
+    // between its neighbours, which stay. A point on a turnout's continuation
+    // moves along it instead, the gradient toward the turnout staying, and
+    // a gradient typed on its free side moves it to where that one meets it
+    // (decision 271).
     const one = selectedPoints.length === 1 ? selectedPoints[0] : null
+    const cont = one && roles.get(one.index)?.kind === 'continuation' ? roles.get(one.index) : null
     const st = one && stationMovable(one) && stDraft.trim() ? Number(stDraft) : null
-    if (st != null && Number.isFinite(st) && Math.abs(st - one.station) > 1e-9) {
-      const r = solveHeightPoint(points, one.index, { s: st, z: patch.z ?? one.z }, { length: profile.length })
+    const grades = one && pointGrades(points, one.index)
+    const now = grades && { gb: grades.before, ga: grades.after }
+    const moved = st != null && Number.isFinite(st) && Math.abs(st - one.station) > 1e-9
+    if (cont && !moved && gDraft?.trim()) {
+      const g = Number(gDraft) / 1000
+      if (!Number.isFinite(g) || now[cont.freeKey] == null || Math.abs(g - now[cont.freeKey]) < 1e-9) return
+      delete patch.z
+      const r = solveHeightPoint(points, one.index, { [cont.freeKey]: g, [cont.fixedKey]: now[cont.fixedKey] }, { length: profile.length })
+      if (r.error) { setRvNote(fill(`elevation_table_error_${r.error}`, { n: one.index + 1 })); return }
+      writePoint(one, r, patch)
+      setStDraft(String(Math.round(r.station * 1000) / 1000)); setGDraft(null); setRvNote(null); setRvDraft(null); setReasonDraft(null)
+      return
+    }
+    if (moved) {
+      if (cont) delete patch.z
+      const r = solveHeightPoint(points, one.index,
+        cont ? { s: st, [cont.fixedKey]: now[cont.fixedKey] } : { s: st, z: patch.z ?? one.z }, { length: profile.length })
       if (r.error) { setRvNote(fill(`elevation_table_error_${r.error}`, { n: one.index + 1 })); return }
       writePoint(one, r, patch)
       setStDraft(String(Math.round(r.station * 1000) / 1000)); setRvNote(null); setRvDraft(null); setReasonDraft(null)
@@ -528,9 +560,14 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     }
     if (!Object.keys(patch).length) return
     // Where tracks meet there is one point, whatever its index is on each of
-    // them: it moves on all of them — over a switch too.
-    const entries = selectedPoints.filter(p => !locked.has(p.index))
-      .map(p => ({ trackId: p.owner.trackId, index: p.owner.index, ...patch }))
+    // them: it moves on all of them — over a switch too. The coupling holds
+    // the height of its points, and the curve and reason of toe and ldS.
+    const entries = selectedPoints.map(p => {
+      const q = { ...patch }
+      if (roles.has(p.index)) delete q.z
+      if (curveHeld(p.index)) { delete q.rv; delete q.la; delete q.reason }
+      return Object.keys(q).length ? { trackId: p.owner.trackId, index: p.owner.index, ...q } : null
+    }).filter(Boolean)
     if (!entries.length) return
     setHeightsForTracks(jointHeightUpdates(tracks, switches, entries))
     setRvDraft(null); setReasonDraft(null)
@@ -545,7 +582,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
    */
   const setRegularRadius = () => {
     if (!resolved || !selectedPoints.length) return
-    const found = selectedPoints.filter(p => !locked.has(p.index))
+    const found = selectedPoints.filter(p => !curveHeld(p.index))
       .map(p => ({ p, r: regularVerticalRadius(p.owner.part.track, p.owner.index, { switches }) }))
       .filter(({ r }) => r)
     const set = found.filter(({ r }) => !r.noSpeed)
@@ -560,6 +597,22 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   // Only the two ends of each track have to stay: they are where its height
   // meets the tracks joined to it.
   const isInner = (p) => !p.joint && p.owner.index > 0 && p.owner.index < (p.owner.part.track.heights?.length ?? 0) - 1
+  /** The gradient on the free side of a point on a turnout's continuation, as a field: what moves it along. */
+  const contEdit = (p) => {
+    const role = roles.get(p.index)
+    if (role?.kind !== 'continuation' || !stationMovable(p)) return null
+    const g = pointGrades(points, p.index)[role.freeKey === 'ga' ? 'after' : 'before']
+    if (g == null) return null
+    return (
+      <>
+        <span title={roleNote(role)}>{t(role.freeKey === 'ga' ? 'elevation_grade_after' : 'elevation_grade_before')}</span>
+        <NumberInput className="track-table-input" step="0.1" title={roleNote(role)}
+          value={gDraft ?? String(Math.round(g * 1e5) / 100)}
+          onChange={e => setGDraft(e.target.value)} {...editProps} />
+        <span>‰</span>
+      </>
+    )
+  }
   const deletable = selectedPoints.filter(p => isInner(p) && !locked.has(p.index))
   const remove = () => {
     if (!resolved || !deletable.length) return
@@ -937,7 +990,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                 stroke={on ? PALETTE.mapSelected : paired.get(p.index)?.dz != null ? PALETTE.error : 'var(--color-primary)'} strokeWidth="2"
                 strokeDasharray={locked.has(p.index) ? '2 1.5' : undefined}
                 onPointerDown={e => e.stopPropagation()} onClick={e => pick(p, e)}>
-                {(curveAt.has(p.index) || paired.has(p.index) || p.reason) && (
+                {(curveAt.has(p.index) || paired.has(p.index) || roles.has(p.index) || p.reason) && (
                   <title>
                     {[pointNote(p.index), curveAt.has(p.index) && curveNote(curveAt.get(p.index))].filter(Boolean).join('\n')}
                   </title>
@@ -997,9 +1050,9 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               </label>
               <InfoTip text={t('elevation_given_hint')} />
             </div>
-          ) : selectedPoints.length && selectedPoints.every(p => locked.has(p.index)) ? (
+          ) : selectedPoints.length && selectedPoints.every(p => curveHeld(p.index)) ? (
             <div className="profile-edit">
-              <span className="profile-hint">{lockedNote(locked.get(selectedPoints[0].index))}</span>
+              <span className="profile-hint">{roleNote(roles.get(selectedPoints[0].index))}</span>
               <CloseButton onClick={() => select([])} />
             </div>
           ) : selectedPoints.length ? (
@@ -1016,10 +1069,19 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                   ? `${t('elevation_station')} ${selectedPoints[0].station.toFixed(2)} m`
                   : fill('elevation_selected', { n: selectedPoints.length })}</span>
               )}
-              <NumberInput className="track-table-input" step="0.001" value={draft} autoFocus
-                placeholder={t('elevation_mixed')}
-                onChange={e => setDraft(e.target.value)} {...editProps} />
-              <span>m</span>
+              {selectedPoints.some(p => !roles.has(p.index)) ? (
+                <>
+                  <NumberInput className="track-table-input" step="0.001" value={draft} autoFocus
+                    placeholder={t('elevation_mixed')}
+                    onChange={e => setDraft(e.target.value)} {...editProps} />
+                  <span>m</span>
+                </>
+              ) : selectedPoints.length === 1 && (
+                <span className="profile-hint" title={roleNote(roles.get(selectedPoints[0].index))}>
+                  {`${t('elevation_height')} ${num(selectedPoints[0].z, { digits: 4 })} m`}
+                </span>
+              )}
+              {selectedPoints.length === 1 && contEdit(selectedPoints[0])}
               <span title={t('elevation_vcurve_hint')}>{t('elevation_vcurve')}</span>
               <NumberInput className="track-table-input" step="100" min="0" value={rvShown}
                 placeholder={rvMixed ? t('elevation_mixed') : '–'} title={t('elevation_vcurve_hint')}
@@ -1111,7 +1173,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           )
           : viewKind === 'table' && points.length ? (
             <ElevationTable points={points} length={profile.length} onWrite={writePoint}
-              mode={given} locked={locked} noteAt={pointNote}
+              mode={given} roles={roles} noteAt={pointNote}
               stretchAt={stretchAt} curveAt={curveAt} stretchNote={stretchNote} curveNote={curveNote}
               selection={selection} onSelect={select} />
           ) : drawing()}
