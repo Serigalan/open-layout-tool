@@ -15,7 +15,6 @@ import { PALETTE } from '../../styles/palette'
 import FormSection from '../form/FormSection'
 import StationNameInput from './StationNameInput'
 import PlatformGeometryFields from './platform/PlatformGeometryFields'
-import CancelButton from '../form/CancelButton'
 
 const PREVIEW_FILL_SOURCE = 'platform-preview-fill-source'
 const PREVIEW_LINE_SOURCE = 'platform-preview-line-source'

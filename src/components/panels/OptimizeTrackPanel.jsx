@@ -7,7 +7,7 @@ import {
 import { reconstructElements } from '../../utils/elementReconstruct'
 import { ZOOM_LINE_WIDTH } from '../../map/style'
 import { optimizeRequest, optimizedTrack, optimizeErrorText } from '../../utils/optimizeApply'
-import { BackIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon } from '../icons'
+import { OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { TRACKS_HOVER_LAYER } from '../../map/layerIds'
@@ -19,6 +19,7 @@ import useElapsed from '../../hooks/useElapsed'
 import OptimizeSettings from './optimize/OptimizeSettings'
 import OptimizeResult from './optimize/OptimizeResult'
 import AxisFitPanel from './optimize/AxisFitPanel'
+import BackButton from './BackButton'
 
 const OPTIMIZE_PREVIEW_SOURCE = 'optimize-preview-source'
 const OPTIMIZE_PREVIEW_LAYER  = 'optimize-preview-layer'
@@ -134,10 +135,7 @@ export default function OptimizeTrackPanel({ initialPage = 'menu', onExit, onSho
   }
 
   const backButton = (
-    <button className="back-btn" onClick={() => { handleCancel(); onExit ? onExit() : setPage('menu') }}>
-      <BackIcon />
-      {t('btn_back')}
-    </button>
+    <BackButton onBack={() => { handleCancel(); onExit ? onExit() : setPage('menu') }} />
   )
 
   const handleRun = () => {

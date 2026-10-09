@@ -11,7 +11,7 @@ import math
 
 from .geometry import (
     dir_of, sample_transition, sample_arc, transition_end, as_points,
-    arc_center, arc_sweep, arc_bearing_at, RAD2DEG,
+    arc_center, arc_sweep, RAD2DEG,
 )
 
 # Arcs that turn opposite ways need the S-curve solver, and it takes exactly

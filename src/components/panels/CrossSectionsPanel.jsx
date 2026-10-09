@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import CrossSectionPanel from './CrossSectionPanel'
 import PointCloudPanel from './PointCloudPanel'
-import { BackIcon, PointCloudIcon } from '../icons'
+import { PointCloudIcon } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
+import BackButton from './BackButton'
 
 /**
  * The cross sections: the panel opens on the cross section of a track at once,
@@ -16,10 +17,7 @@ export default function CrossSectionsPanel({ crossSectionAt, onShowCrossSection 
 
   if (clouds) return (
     <>
-      <button className="back-btn" onClick={() => setClouds(false)}>
-        <BackIcon />
-        {t('btn_back')}
-      </button>
+      <BackButton onBack={() => setClouds(false)} />
       <PointCloudPanel />
     </>
   )

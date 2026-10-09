@@ -3,11 +3,12 @@ import OptimizeTrackPanel from './OptimizeTrackPanel'
 import ShiftValuesPage from './shift/ShiftValuesPage'
 import GroupedTrackList from './GroupedTrackList'
 import {
-  PhysicsIcon, RegelwerkIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon, BandsIcon, BackIcon, ShiftValuesIcon,
+  PhysicsIcon, RegelwerkIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon, BandsIcon, ShiftValuesIcon,
 } from '../icons'
 import { useTracks } from '../../hooks/useStore'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
+import BackButton from './BackButton'
 
 /**
  * The bands of a track: pick one from the list or on the map, and its
@@ -20,10 +21,7 @@ function BandsPage({ trackId, onShow, onExit }) {
   useMapPick({ active: true, hover: 'track', onPick: ({ trackId: id }) => onShow?.(id) })
   return (
     <>
-      <button className="back-btn" onClick={onExit}>
-        <BackIcon />
-        {t('btn_back')}
-      </button>
+      <BackButton onBack={onExit} />
       <h2>{t('check_bands')}</h2>
       <p className="selecting-hint">{t('bands_hint')}</p>
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
@@ -57,10 +55,7 @@ export default function CheckPanel({ onShowPhysics, onShowRegelwerk, bandsTrackI
   if (page === 'shift') {
     return (
       <>
-        <button className="back-btn" onClick={() => setPage('menu')}>
-          <BackIcon />
-          {t('btn_back')}
-        </button>
+        <BackButton onBack={() => setPage('menu')} />
         <ShiftValuesPage trackId={shiftTrackId} onPick={setShiftTrackId} />
       </>
     )

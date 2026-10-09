@@ -3,7 +3,7 @@ import { scanClearance } from '../../../../src/utils/pointCloud/clearanceScan.js
 import { traceTrack, trackGuide, lineGuide } from '../../../../src/utils/pointCloud/railTrace.js'
 
 /** The level long runs read: the 2-cm voxel, as in the browser (AP 13.6). */
-export const RUN_LEVEL = 1
+const RUN_LEVEL = 1
 /** Progress reaches the database, and a cancel is noticed, at most this often [ms]. */
 const PROGRESS_EVERY = 1000
 
@@ -32,7 +32,7 @@ function diskSource(path) {
  * since the run was queued, or one in a local system without a
  * re-referencing, is left out; none left fails the run.
  */
-export function runClouds({ run, clouds, storage }) {
+function runClouds({ run, clouds, storage }) {
   const out = []
   for (const id of JSON.parse(run.clouds || '[]')) {
     const c = clouds.get(id)

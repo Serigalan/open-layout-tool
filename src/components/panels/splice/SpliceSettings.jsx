@@ -5,7 +5,6 @@ import ReadOnlyField from '../../form/ReadOnlyField'
 import AdvancedInfo from '../../form/AdvancedInfo'
 import FieldRule from '../../form/FieldRule'
 import NumberInput from '../../form/NumberInput'
-import FormSection from '../../form/FormSection'
 import TransitionLengthButtons from '../TransitionLengthButtons'
 import ClearanceFields from './ClearanceFields'
 

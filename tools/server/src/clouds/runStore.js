@@ -1,5 +1,5 @@
 /** How long a finished run and what it found are kept [ms] (decision 238). */
-export const RUN_KEEP = 7 * 24 * 3600 * 1000
+const RUN_KEEP = 7 * 24 * 3600 * 1000
 
 /**
  * The long runs over a project's clouds on the database (AP 13.7): the

@@ -77,7 +77,7 @@ export function createQueue({
 }
 
 /** The preparations of uploaded clouds (AP 13.3). */
-export function prepareJobs(clouds) {
+function prepareJobs(clouds) {
   return {
     claim: () => clouds.claimJob(),
     requeue: () => clouds.requeueRunning(),

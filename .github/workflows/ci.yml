@@ -45,6 +45,10 @@ jobs:
         working-directory: tools/optimizer
       - run: python tests/verify_reconnect.py
         working-directory: tools/optimizer
+      - run: python tests/verify_clearance.py
+        working-directory: tools/optimizer
+      - run: python tests/verify_splice_props.py
+        working-directory: tools/optimizer
       - run: python tests/verify.py
         working-directory: tools/optimizer
 

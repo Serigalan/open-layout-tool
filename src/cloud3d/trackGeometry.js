@@ -120,7 +120,7 @@ export function nearestOnTracks(tracks, e, n, reach = 50) {
 }
 
 /** The track at a station, interpolated between the samples either side: `{ s, e, n, z, bearing, cant }`. */
-export function sampleAt(samples, station) {
+function sampleAt(samples, station) {
   let i = samples.findIndex(p => p.s >= station)
   if (i < 0) i = samples.length - 1
   const a = samples[Math.max(0, i - 1)], b = samples[i]

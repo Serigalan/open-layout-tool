@@ -537,7 +537,7 @@ export function lineCoordinates(line, from, to, step = 2) {
 }
 
 /** The line distance of a station of one of the line's tracks, or null where the track is not on it. */
-export function lineDistance(line, trackId, station) {
+function lineDistance(line, trackId, station) {
   const seg = line.find(s => s.track.id === trackId)
   return seg ? distanceOf(seg, station) : null
 }

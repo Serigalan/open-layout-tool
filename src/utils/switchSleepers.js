@@ -54,7 +54,7 @@ export const mainRouteLength = (track, sw) => (track.elements ?? [])
   .reduce((sum, el) => sum + (el.length ?? 0), 0)
 
 /** Point [E, N] at a station of a track. */
-export function pointAt(track, station) {
+function pointAt(track, station) {
   const hit = elementAtStation(track.elements, station)
   if (!hit) return null
   const p = pointAtStationUtm(hit.el, hit.s, track.epsg)
@@ -62,7 +62,7 @@ export function pointAt(track, station) {
 }
 
 /** Unit tangent at a station of a track, in the direction its stations run. */
-export function tangentAt(track, station, length = trackLength(track)) {
+function tangentAt(track, station, length = trackLength(track)) {
   const h = 0.05
   const a = pointAt(track, Math.max(0, station - h))
   const b = pointAt(track, Math.min(length, station + h))

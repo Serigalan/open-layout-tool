@@ -40,7 +40,7 @@ export function invertAffine(m) {
 }
 
 /** Plane `from` into `to` as an affine map about (e, n): exact there, to the millimetre over a delivery. */
-export function affineAbout(from, to, e, n) {
+function affineAbout(from, to, e, n) {
   if (from == null || to == null || Number(from) === Number(to)) return IDENTITY
   const map = planeMapper(from, to)
   const H = 50

@@ -6,21 +6,10 @@ import ParallelTrackForm from './CreateElementPanel/ParallelTrackForm'
 import BufferStopForm from './CreateElementPanel/BufferStopForm'
 import PlatformPanel from './PlatformPanel'
 import {
-  BackIcon, CreateLineIcon, CreateArcIcon, CreateParallelIcon, CreateParallelTrackIcon, BufferStopIcon, NewPlatformIcon,
+  CreateLineIcon, CreateArcIcon, CreateParallelIcon, CreateParallelTrackIcon, BufferStopIcon, NewPlatformIcon,
 } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
-
-// The gray line between the two tool groups, the same separator the layers
-// panel draws between its basemap groups.
-function BackButton({ onBack }) {
-  const { t } = useI18n()
-  return (
-    <button className="back-btn" onClick={onBack}>
-      <BackIcon />
-      {t('btn_back')}
-    </button>
-  )
-}
+import BackButton from './BackButton'
 
 /**
  * Creating elements, buffer stops and platforms in one panel: the menu keeps

@@ -3,21 +3,12 @@ import SpliceElementPanel from './SpliceElementPanel'
 import ReconnectPanel from './splice/ReconnectPanel'
 import ConnectStraightForm from './ConnectElementPanel/ConnectStraightForm'
 import ConnectCurvedForm from './ConnectElementPanel/ConnectCurvedForm'
-import { BackIcon, SpliceJoinIcon, ReconnectIcon, ConnectStraightIcon, ConnectCurvedIcon } from '../icons'
+import { SpliceJoinIcon, ReconnectIcon, ConnectStraightIcon, ConnectCurvedIcon } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
+import BackButton from './BackButton'
 
 // The gray line between the two tool groups, the same separator the layers
 // panel draws between its basemap groups.
-function BackButton({ onBack }) {
-  const { t } = useI18n()
-  return (
-    <button className="back-btn" onClick={onBack}>
-      <BackIcon />
-      {t('btn_back')}
-    </button>
-  )
-}
-
 /**
  * Splicing two elements and connecting a straight or a curve to a track end in
  * one panel: the menu keeps both headings, separated by the gray line. The

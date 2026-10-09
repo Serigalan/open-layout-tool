@@ -73,7 +73,7 @@ function slopeAt(heights, station) {
  * its cant, a and y the sleeper's run along and across it. `zP` the main
  * route's height at P, its rounded gradient unless stated. Null without one.
  */
-export function planeHeight(c, sl, zP = gradientAt(c.main.track.heights, sl.main)) {
+function planeHeight(c, sl, zP = gradientAt(c.main.track.heights, sl.main)) {
   if (zP == null) return null
   const off = sl.a != null ? sl : sleeperOffsets(c, sl)
   if (!off) return null
@@ -118,7 +118,7 @@ export function switchCoupling(tracks, sw, opts = {}) {
 // section ask for every station they draw.
 let lastCouplings = null
 
-export function switchCouplings(tracks, switches, opts) {
+function switchCouplings(tracks, switches, opts) {
   const formOf = opts?.formOf
   if (lastCouplings && lastCouplings.tracks === tracks && lastCouplings.switches === switches
     && lastCouplings.formOf === formOf) return lastCouplings.result
@@ -197,7 +197,7 @@ export function couplingOf(tracks, switches, sw, opts) {
 }
 
 /** Is a station of one of the coupling's tracks behind WA, within the stretch it owns? */
-export function inBody(c, side, station) {
+function inBody(c, side, station) {
   const d = c[side].distance(station)
   return d > STATION_TOL && d <= c.end[side] + STATION_TOL
 }

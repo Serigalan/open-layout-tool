@@ -12,7 +12,7 @@ export default defineConfig({
   base: './',
   // The project server (tools/server) answers under /api and the optimizer
   // service (tools/optimizer) under /optimizer on the app's own origin, as both
-  // do behind Caddy in production (deploy/Caddyfile.template). The optimizer
+  // do behind Caddy in production (deploy/templates/Caddyfile). The optimizer
   // itself knows nothing of the prefix, so it is cut off here as there.
   server: {
     proxy: {

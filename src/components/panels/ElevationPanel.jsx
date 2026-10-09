@@ -13,12 +13,12 @@ import { resolveRoute } from '../../utils/routes'
 import useRouteOnMap from '../../map/useRouteOnMap'
 import GradientFindings from './GradientFindings'
 import CrossoverGradientForm from './CrossoverGradientForm'
-import { BackIcon } from '../icons'
 import { findCrossovers } from '../../utils/crossoverGradient'
 import { turnoutLinePort } from '../../utils/switchModel'
 import FormSection from '../form/FormSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
+import BackButton from './BackButton'
 
 /**
  * Vertical alignment: pick a track to see its profile in the overlay, and
@@ -88,10 +88,7 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
   if (crossover) {
     return (
       <>
-        <button className="back-btn" onClick={() => setCrossover(null)}>
-          <BackIcon />
-          {t('btn_back')}
-        </button>
+        <BackButton onBack={() => setCrossover(null)} />
         <h2>{t('crossover_title')}</h2>
         <CrossoverGradientForm switchIds={crossover} onDone={() => setCrossover(null)} />
       </>

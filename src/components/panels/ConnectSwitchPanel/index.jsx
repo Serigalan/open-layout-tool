@@ -8,20 +8,11 @@ import TrackLinkForm from './TrackLinkForm'
 import SwitchSearch from './SwitchSearch'
 import CrossoverGradientForm from '../CrossoverGradientForm'
 import {
-  BackIcon, SwitchStraightIcon, SwitchCurvedIcon, SwitchOnTrackIcon, SwitchConnectionIcon,
+  SwitchStraightIcon, SwitchCurvedIcon, SwitchOnTrackIcon, SwitchConnectionIcon,
   CrossingIcon, CrossingSwitchIcon, CrossingOnTrackIcon, SwitchLinkIcon,
 } from '../../../components/icons'
 import { useI18n } from '../../../locales/i18nContext'
-
-function BackButton({ onBack }) {
-  const { t } = useI18n()
-  return (
-    <button className="back-btn" onClick={onBack}>
-      <BackIcon />
-      {t('btn_back')}
-    </button>
-  )
-}
+import BackButton from '../BackButton'
 
 export default function ConnectSwitchPanel() {
   const { t } = useI18n()

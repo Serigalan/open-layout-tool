@@ -13,12 +13,13 @@ import TrackVisibilityForm from './TrackVisibilityForm'
 import RoutesForm from './RoutesForm'
 import BufferStopForm from '../CreateElementPanel/BufferStopForm'
 import {
-  BackIcon, EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
+  EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
   ChangeDirectionIcon, AssignTracksIcon, DeleteTrackIcon, DeleteSwitchIcon,
   BufferStopIcon, TrackVisibilityIcon, RouteIcon,
 } from '../../../components/icons'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick from '../../../map/useMapPick'
+import BackButton from '../BackButton'
 
 export default function EditElementPanel({ trackTableId, onShowTrackTable, onCloseConstraints }) {
   const { t } = useI18n()
@@ -42,10 +43,7 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
   } })
 
   const backButton = (onBack) => (
-    <button className="back-btn" onClick={() => { setPage('menu'); onBack?.() }}>
-      <BackIcon />
-      {t('btn_back')}
-    </button>
+    <BackButton onBack={() => { setPage('menu'); onBack?.() }} />
   )
 
   if (page === 'edit_length') return (

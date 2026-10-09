@@ -32,10 +32,10 @@
  */
 
 /** The parameters in the order of the unknowns. */
-export const PARAMETERS = ['tE', 'tN', 'tH', 'kappa', 'omega', 'phi', 'scale']
+const PARAMETERS = ['tE', 'tN', 'tH', 'kappa', 'omega', 'phi', 'scale']
 
 /** Normalised residual above which an equation is suspect (two-sided, α = 0.1 %). */
-export const SUSPECT_W = 3.29
+const SUSPECT_W = 3.29
 
 /** The smallest eigenvalue of the scaled normal matrix against the largest below which a parameter counts as undetermined. */
 const RANK_TOL = 1e-9
@@ -47,12 +47,12 @@ const rad = (deg) => deg * Math.PI / 180
 export const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 
 /** Which unknowns are estimated: the four always, tilts and scale on request. */
-export function estimatedParameters({ tilts = false, scale = false } = {}) {
+function estimatedParameters({ tilts = false, scale = false } = {}) {
   return PARAMETERS.filter(p => (p === 'omega' || p === 'phi' ? tilts : p === 'scale' ? scale : true))
 }
 
 /** R = Rz(κ) · Ry(φ) · Rx(ω), row-major 3 × 3. */
-export function rotation(kappa = 0, omega = 0, phi = 0) {
+function rotation(kappa = 0, omega = 0, phi = 0) {
   const [ck, sk, co, so, cp, sp] = [Math.cos(kappa), Math.sin(kappa), Math.cos(omega), Math.sin(omega), Math.cos(phi), Math.sin(phi)]
   const rz = [ck, -sk, 0, sk, ck, 0, 0, 0, 1]
   const ry = [cp, 0, sp, 0, 1, 0, -sp, 0, cp]
@@ -103,7 +103,7 @@ export function chainMatrices(a, b) {
 }
 
 /** The turn of a matrix about the vertical [rad], anticlockwise. */
-export const matrixKappa = (m) => Math.atan2(m[4], m[0])
+const matrixKappa = (m) => Math.atan2(m[4], m[0])
 
 /** The unit vectors across (right) and along a grid bearing [degrees]. */
 function frame(bearing) {

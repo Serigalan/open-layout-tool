@@ -2,7 +2,8 @@
 // Translation keys no source file uses (R6.2). A key counts as used when it
 // appears as a string anywhere under src/, or when it starts with a prefix
 // that a key is built from at runtime: `status_${s}`, t(`admin_err_${code}`),
-// or a prefix handed on as a string ending in "_" ('admin_err_').
+// or a prefix handed on as a string ending in "_" ('admin_err_'), or when it is
+// another literal with a suffix put after it at runtime: t(`${key}_hint`).
 //
 //   node tools/i18n-unused.mjs          list the unused keys, exit 1 if any
 //   node tools/i18n-unused.mjs --fix    remove them from every locale file
@@ -27,7 +28,9 @@ const prefixes = new Set([
   ...[...sources.matchAll(/`([a-z][a-z0-9_]*_)\$\{/g)].map(m => m[1]),
   ...[...literals].filter(l => l.endsWith('_')),
 ])
-const used = (key) => literals.has(key) || [...prefixes].some(p => key.startsWith(p))
+const suffixes = new Set([...sources.matchAll(/\}(_[a-z0-9_]+)`/g)].map(m => m[1]))
+const used = (key) => literals.has(key) || [...prefixes].some(p => key.startsWith(p)) ||
+  [...suffixes].some(s => key.endsWith(s) && literals.has(key.slice(0, -s.length)))
 const unused = keys.filter(k => !used(k))
 
 if (process.argv.includes('--fix')) {
