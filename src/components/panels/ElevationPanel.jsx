@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { loadTracks, currentProject, setHeightsForTracks, updateProject, coupleAllSwitchGradients } from '../../storage'
-import { coupledBranchHeights, switchCouplings } from '../../utils/switchGradient'
+import { unpairedTurnouts } from '../../utils/switchGradient'
 import { useProject } from '../../hooks/useStore'
 import { LINE_CATEGORIES } from '../../utils/identifierUtils'
 import { projectLineCategory } from '../../utils/gradientCheck'
@@ -40,10 +40,9 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
   const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
   const project = useProject()
   const [crossover, setCrossover] = useState(null)   // switchIds of the crossover being fitted
-  // Turnouts whose branch does not yet follow its main route: the store couples
-  // a turnout when a write reaches it, so a project from before has some.
-  const uncoupled = project ? switchCouplings(project.tracks, project.switches)
-    .filter(c => coupledBranchHeights(c)).length : 0
+  // Turnouts whose points do not lie in pairs on their sleepers yet: the store
+  // pairs a turnout when a write reaches it, so a project from before has some.
+  const uncoupled = project ? unpairedTurnouts(project.tracks, project.switches).length : 0
 
   // A track is picked on the map as readily as from the list, and the one under
   // the cursor is drawn on the hover layer so it is clear which it would be.

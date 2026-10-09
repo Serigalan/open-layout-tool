@@ -65,10 +65,14 @@ describe('the sleepers of a turnout', () => {
     expect(b.branch).toBeCloseTo(60 - a.branch, 4)
   })
 
-  it('are worked out once for the same tracks', () => {
+  it('are worked out once for the same shape, whatever the heights', () => {
     const tracks = [mainTrack(), branchTrack()]
     const sw = turnout()
-    expect(turnoutSleepers(tracks, sw, { formOf })).toBe(turnoutSleepers(tracks, sw, { formOf }))
+    const first = turnoutSleepers(tracks, sw, { formOf })
+    const raised = [{ ...tracks[0], heights: [{ station: 0, z: 1 }, { station: 60, z: 2 }] }, tracks[1]]
+    const again = turnoutSleepers(raised, sw, { formOf })
+    expect(again.sleepers).toBe(first.sleepers)
+    expect(again.main.track).toBe(raised[0])
   })
 
   it('are none for a form without ldS or another kind of switch', () => {

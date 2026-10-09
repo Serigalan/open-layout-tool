@@ -34,7 +34,7 @@ import { elementBelongsToSwitch, turnoutDivergingPort, turnoutLinePort, turnoutL
 export const FIRST_SLEEPER = 0.3
 export const SLEEPER_SPACING = 0.6
 
-const STEP = 0.25          // m along the bisector between two traced points
+const STEP = 1.0           // m along the bisector between two traced points
 const NEWTON = 12
 const EPS = 1e-9
 
@@ -169,7 +169,7 @@ function traceBisector(main, branch, ldsMain) {
   if (!start || !t0) return null
   const samples = [{ s: 0, x: start, dir: t0, m: 0, b: 0 }]
   let x = start, dir = t0, s = 0, fm = 0, fb = 0, m = 0, b = 0
-  const maxSteps = Math.ceil((ldsMain * 2 + 10) / STEP)
+  const maxSteps = Math.ceil((ldsMain * 2 + 10) / STEP) + 20
   const direction = (p, gm, gb) => {
     const am = foot(main, p, gm), ab = foot(branch, p, gb)
     if (am == null || ab == null) return null
@@ -178,10 +178,12 @@ function traceBisector(main, branch, ldsMain) {
     return d ? { d, am, ab } : null
   }
   for (let i = 0; i < maxSteps && m < ldsMain; i++) {
+    // The last step only just past the ldS: a track may end right behind it.
+    const h = Math.min(STEP, Math.max(0.05, ldsMain - m + 0.02))
     // Midpoint step along the bisector's direction…
-    const half = direction(add(x, dir, STEP / 2), fm, fb)
+    const half = direction(add(x, dir, h / 2), fm, fb)
     if (!half) return null
-    let next = add(x, half.d, STEP)
+    let next = add(x, half.d, h)
     // …and back to where both axes are equally far.
     for (let k = 0; k < 2; k++) {
       const am = foot(main, next, half.am), ab = foot(branch, next, half.ab)
@@ -219,9 +221,10 @@ function sampleAt(samples, key, value) {
   return null
 }
 
-// Frames are worked out once per turnout and the two tracks it joins — the
-// project's records are immutable, so a changed track is a new object.
-const frames = new WeakMap()
+// The geometry is worked out once per turnout and the shape of the two tracks
+// it joins — the project's records are immutable, so a track whose elements
+// change has a new elements array, while one whose heights change keeps it.
+const geometries = new WeakMap()
 
 /**
  * The sleepers of one turnout, or null where it has none to speak of: not a
@@ -232,10 +235,11 @@ const frames = new WeakMap()
  * `main` / `branch` the two tracks as seen from WA (routeFrom), `we` and
  * `lds` the distances WA–WE and WA–ldS along the main route, `ldsMain` /
  * `ldsBranch` the stations of the ldS on either track, and `sleepers` every
- * sleeper from the first to the ldS — [{ k, s, m, b, main, branch }] with `k`
- * its number ('lds' for the last), `s` its distance along the bisector, `m` /
- * `b` its distance from WA along each track and `main` / `branch` its station
- * on each.
+ * sleeper from the first to the ldS — [{ k, s, m, b, main, branch, a, y }]
+ * with `k` its number ('lds' for the last), `s` its distance along the
+ * bisector, `m` / `b` its distance from WA along each track, `main` /
+ * `branch` its station on each and `a` / `y` how it sits in the main track's
+ * frame (sleeperOffsets).
  */
 export function turnoutSleepers(tracks, sw, { formOf } = {}) {
   if (!isTurnout(sw)) return null
@@ -246,16 +250,17 @@ export function turnoutSleepers(tracks, sw, { formOf } = {}) {
   if (!main || !branch || main.track.id === branch.track.id) return null
   if (Number(main.track.epsg) !== Number(branch.track.epsg)) return null
 
-  const cached = frames.get(sw)
-  if (cached && cached.mainTrack === main.track && cached.branchTrack === branch.track && cached.behindWe === behindWe) {
-    return cached.frame
+  const key = [main.track.elements, branch.track.elements, main.sense, branch.sense, behindWe]
+  const cached = geometries.get(sw)
+  let geo = cached && cached.key.every((v, i) => v === key[i]) ? cached.geo : undefined
+  if (geo === undefined) {
+    geo = buildGeometry(sw, main, branch, behindWe)
+    geometries.set(sw, { key, geo })
   }
-  const frame = buildFrame(sw, main, branch, behindWe)
-  frames.set(sw, { mainTrack: main.track, branchTrack: branch.track, behindWe, frame })
-  return frame
+  return geo && { sw, main, branch, ...geo }
 }
 
-function buildFrame(sw, main, branch, behindWe) {
+function buildGeometry(sw, main, branch, behindWe) {
   const we = mainRouteLength(main.track, sw)
   if (!(we > 0)) return null
   const lds = we + behindWe
@@ -273,9 +278,9 @@ function buildFrame(sw, main, branch, behindWe) {
     sleepers.push({ k, s, m: p.m, b: p.b, main: main.station(p.m), branch: branch.station(p.b) })
   }
   sleepers.push({ k: 'lds', s: last.s, m: lds, b: last.b, main: main.station(lds), branch: branch.station(last.b) })
+  for (const sl of sleepers) Object.assign(sl, sleeperOffsets({ main, branch }, sl) ?? { a: 0, y: 0 })
   return {
-    sw, main, branch, we, lds,
-    ldsMain: main.station(lds), ldsBranch: branch.station(last.b), ldsBranchDistance: last.b,
+    we, lds, ldsMain: main.station(lds), ldsBranch: branch.station(last.b), ldsBranchDistance: last.b,
     samples, sleepers,
   }
 }

@@ -66,7 +66,7 @@ function ValueCell({ value, digits, step, editable, onCommit, className, title }
  * between two tracks of a route — keeps its station.
  */
 export default function ElevationTable({
-  points, length, mode, locked, lockedNote,
+  points, length, mode, locked, noteAt,
   stretchAt, curveAt, stretchNote, curveNote, selection, onSelect, onWrite,
 }) {
   const { t, fill } = useI18n()
@@ -122,7 +122,7 @@ export default function ElevationTable({
             const tl = tangentLength(points, i)
             return (
               <tr key={i} className={selection.includes(i) ? 'track-table-row-active' : undefined}
-                title={isLocked ? lockedNote(locked.get(i)) : joint ? t('elevation_table_joint') : undefined}
+                title={noteAt(i) ?? (joint ? t('elevation_table_joint') : undefined)}
                 onClick={() => onSelect([i])}>
                 <td>{i + 1}</td>
                 <ValueCell value={p.station} digits={3} step={0.1} {...cell('s')} />

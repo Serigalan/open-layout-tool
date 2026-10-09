@@ -1,6 +1,6 @@
 import { useProject } from '../../hooks/useStore'
 import { checkVertical, verticalFindings } from '../../utils/gradientCheck'
-import { coupledBranchHeights, switchCoupling, switchLds } from '../../utils/switchGradient'
+import { couplingOf, pairedHeights, switchLds } from '../../utils/switchGradient'
 import { isLinkSwitch, portsOf } from '../../utils/switchModel'
 import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
 import { useI18n } from '../../locales/i18nContext'
@@ -22,14 +22,15 @@ export default function GradientFindings({ trackId }) {
   const turnouts = (project.switches ?? []).filter(sw => !isLinkSwitch(sw)
     && portsOf(sw).some(p => sw[p.trackKey] === track.id))
   const switchLines = turnouts.map(sw => {
-    const c = switchCoupling(project.tracks, sw)
+    const c = couplingOf(project.tracks, project.switches, sw)
     const name = sw.name ?? sw.label ?? ''
     if (c) {
       const station = (c.main.track.id === track.id ? c.ldsMain : c.branch.track.id === track.id ? c.ldsBranch : null)
       if (station == null) return null
-      // Coupled where the branch already lies in the plane — else it will be
-      // with the next write that reaches the turnout, or the button below.
-      const key = coupledBranchHeights(c) ? 'elevation_switch_pending' : 'elevation_switch_coupled'
+      // Coupled where its points already lie in pairs on the sleepers — else
+      // they will with the next write that reaches the turnout, or the button.
+      const key = sw.heightsLocked ? 'elevation_switch_locked'
+        : pairedHeights(c, 'main') ? 'elevation_switch_pending' : 'elevation_switch_coupled'
       return fill(key, { name, label: sw.label ?? '', station: station.toFixed(2) })
     }
     if ((sw.kind ?? 'turnout') === 'turnout' && switchLds(sw) == null) {

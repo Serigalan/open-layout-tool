@@ -6,7 +6,7 @@ import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTr
 import { generateId } from './utils/identifierUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
-import { coupleSwitchGradients, touchedTurnouts } from './utils/switchGradient'
+import { coupleSwitchGradients, coupleSwitchHeights } from './utils/switchGradient'
 import { repairRoutes } from './utils/routes'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
@@ -293,16 +293,15 @@ export function withUndo(fn) {
 // write that takes the track away or connects a switch to that end drops it.
 // Done here rather than in each writer, because every writer comes by here.
 /**
- * The project with the branch of every turnout a write reached coupled to its
- * main route again (switchGradient): the main route leads, so a height, a cant
- * or a geometry changed there moves the branch along, and a height changed on
- * the branch between WA and ldS goes back to the plane — in the same step, so
- * one undo takes back both. Turnouts the write did not reach are left alone,
- * coupled or not.
+ * The project with every turnout a write reached paired again (switchGradient,
+ * decisions 258–259): the track the write led with keeps its points, each on
+ * a sleeper, and the other follows on the same sleepers — a height edited on
+ * the branch moves the main route, one edited on the main route (or a cant or
+ * a geometry changed) moves the branch; in the same step, so one undo takes
+ * back both. Turnouts the write did not reach are left alone.
  */
 function withCoupledGradients(before, project) {
-  const only = touchedTurnouts(before, project)
-  return only.size ? coupleSwitchGradients(project, { only }) : project
+  return coupleSwitchHeights(before, project)
 }
 
 /**

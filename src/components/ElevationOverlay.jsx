@@ -26,7 +26,7 @@ import { utmToWgs84 } from '../utils/coordinateUtils'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
-import { turnoutLinePort } from '../utils/switchModel'
+import { turnoutDivergingPort, turnoutLinePort } from '../utils/switchModel'
 import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
@@ -267,14 +267,17 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     : null
   const stretchAt = check?.stretchAt ?? new Map()
   const curveAt = check?.curveAt ?? new Map()
-  // Points a turnout's main route sets on a branch, by route index → switch.
-  const locked = new Map()
+  // Points in a turnout's stretch, by route index → { sw, side, sleeper }: each
+  // has a partner on the same sleeper of the other track, which follows it
+  // (decision 258) — locked where the turnout's heights are (decision 260).
+  const paired = new Map()
   for (const part of parts) {
-    for (const [index, sw] of coupledPoints(tracks, switches, part.track)) {
+    for (const [index, info] of coupledPoints(tracks, switches, part.track)) {
       const i = profile.byRef(part.trackId, index)
-      if (i != null) locked.set(i, sw)
+      if (i != null) paired.set(i, info)
     }
   }
+  const locked = new Map([...paired].filter(([, v]) => v.sw.heightsLocked).map(([i, v]) => [i, v.sw]))
   /** The track and its own station at a station of the route. */
   const onTrackAt = (s) => (resolved ? routeAt(resolved, s) : null)
   /** The height built at a station of the route — on a turnout's branch, the plane of the turnout. */
@@ -282,11 +285,19 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     const a = onTrackAt(s)
     return a ? trackHeightAt(tracks, switches, a.part.track, a.station) : null
   }
-  const mainOf = (sw) => {
-    const main = tracks.find(tr => tr.id === sw[`port${turnoutLinePort(sw)}_trackId`])
-    return main?.name || main?.id.slice(0, 8) || '–'
+  const trackName = (id) => {
+    const tr = tracks.find(x => x.id === id)
+    return tr?.name || tr?.id.slice(0, 8) || '–'
   }
-  const lockedNote = (sw) => fill('elevation_coupled_point', { name: sw.name ?? sw.label ?? '', main: mainOf(sw) })
+  const swName = (sw) => sw.name ?? sw.label ?? ''
+  const lockedNote = (sw) => fill('elevation_locked_point', { name: swName(sw) })
+  // Sleepers are counted from WA, the first being 1; the last is the ldS.
+  const sleeperLabel = (sl) => (sl?.k === 'lds' ? t('elevation_lds') : String((sl?.k ?? 0) + 1))
+  const pairedNote = ({ sw, side, sleeper }) => fill(side === 'main' ? 'elevation_paired_main' : 'elevation_paired_branch', {
+    name: swName(sw), sleeper: sleeperLabel(sleeper),
+    other: trackName(sw[`port${side === 'main' ? turnoutDivergingPort(sw) : turnoutLinePort(sw)}_trackId`]),
+  })
+  const pointNote = (i) => (locked.has(i) ? lockedNote(locked.get(i)) : paired.has(i) ? pairedNote(paired.get(i)) : null)
 
   // ── Fit the view to the data when the track or the exaggeration changes ───
   const plotW = size ? size.w - MARGIN.left - MARGIN.right : 0
@@ -859,13 +870,13 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
             const on = isSelected(p)
             return (
               <circle className="clickable" key={`p${p.index}`} cx={X(p.station)} cy={Y(p.z)} r={on ? 5.5 : 3.5}
-                fill={on ? PALETTE.mapSelected : PALETTE.white} stroke={on ? PALETTE.mapSelected : 'var(--color-primary)'} strokeWidth="2"
+                fill={on ? PALETTE.mapSelected : paired.has(p.index) ? PALETTE.sleeper : PALETTE.white}
+                stroke={on ? PALETTE.mapSelected : 'var(--color-primary)'} strokeWidth="2"
                 strokeDasharray={locked.has(p.index) ? '2 1.5' : undefined}
                 onPointerDown={e => e.stopPropagation()} onClick={e => pick(p, e)}>
-                {(curveAt.has(p.index) || locked.has(p.index)) && (
+                {(curveAt.has(p.index) || paired.has(p.index)) && (
                   <title>
-                    {[locked.has(p.index) && lockedNote(locked.get(p.index)),
-                      curveAt.has(p.index) && curveNote(curveAt.get(p.index))].filter(Boolean).join('\n')}
+                    {[pointNote(p.index), curveAt.has(p.index) && curveNote(curveAt.get(p.index))].filter(Boolean).join('\n')}
                   </title>
                 )}
               </circle>
@@ -963,6 +974,14 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                 title={t('elevation_delete_hint')} onClick={remove}>
                 {fill('elevation_delete', { n: deletable.length })}
               </button>
+              {selectedPoints.length === 1 && paired.has(selectedPoints[0].index) && (
+                <span className="profile-hint" title={pairedNote(paired.get(selectedPoints[0].index))}>
+                  {fill('elevation_paired_short', {
+                    sleeper: sleeperLabel(paired.get(selectedPoints[0].index).sleeper),
+                    name: swName(paired.get(selectedPoints[0].index).sw),
+                  })}
+                </span>
+              )}
               <CloseButton onClick={() => select([])} />
             </div>
           ) : (
@@ -1020,7 +1039,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           )
           : viewKind === 'table' && points.length ? (
             <ElevationTable points={points} length={profile.length} onWrite={writePoint}
-              mode={given} locked={locked} lockedNote={lockedNote}
+              mode={given} locked={locked} noteAt={pointNote}
               stretchAt={stretchAt} curveAt={curveAt} stretchNote={stretchNote} curveNote={curveNote}
               selection={selection} onSelect={select} />
           ) : drawing()}

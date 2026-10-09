@@ -8,7 +8,7 @@
  * between WA and ldS the branch's height is the main route's, plus the tilt
  * over the distance between the two:
  *
- *   z_branch = z_main + u / 1500 · y
+ *   z_branch = z_main + u / 1500 · y        (a square sleeper; decision 257 for one that leans)
  *
  * with u the main route's cant there [mm] — stored signed, a positive cant
  * raises the left rail (rules/cant) — and y the branch axis' offset to the
@@ -18,12 +18,16 @@
  * cant the branch simply has the main route's height; with it, a branch to
  * the raised side lies higher and one to the other side lower.
  *
- * The main route leads (decision 155): what is stored on the branch is its
- * point at the ldS — and any point it has between WA and ldS — with the height
- * the plane gives it; WA is a joint and carries one height already
- * (jointGroup). In between, the plane is not a straight line (the offset grows
- * along the branch arc), and the heights it gives are only computed where they
- * are drawn, in the cross section — never stored.
+ * The turnout lies on sleepers (switchSleepers, decision 256), and every
+ * height point between WA and the ldS sits on one of them and has a partner on
+ * the same sleeper of the other track (decision 258). Either track can be
+ * edited: after a write the track that led — the branch where only its heights
+ * changed, the main route otherwise — decides which sleepers carry points, and
+ * the other follows with the heights the plane gives (decision 259). WA is a
+ * joint and carries one height already (jointGroup); the branch always has a
+ * point on the ldS. Between the points the plane is not a straight line (the
+ * offset grows along the branch arc), and the heights it gives there are only
+ * computed where they are drawn, in the cross section — never stored.
  *
  * Where the ldS lies comes from the switch catalogue (db-ril-800-0120, `lds`):
  * how far behind the switch end (WE) it is. From WA that is the length of the
@@ -71,11 +75,14 @@ function slopeAt(heights, station) {
  */
 export function planeHeight(c, sl, zP = gradientAt(c.main.track.heights, sl.main)) {
   if (zP == null) return null
-  const off = sleeperOffsets(c, sl)
+  const off = sl.a != null ? sl : sleeperOffsets(c, sl)
   if (!off) return null
   const cant = sectionAtStation(c.main.track, sl.main)?.cant ?? 0
   return zP + slopeAt(c.main.track.heights, sl.main) * off.a + (cant / RUNNING_CIRCLE_DISTANCE) * off.y
 }
+
+/** The main route's cant on a sleeper [mm] — geometry, so kept with it. */
+const cantOn = (c, sl) => (sl.cant ??= sectionAtStation(c.main.track, sl.main)?.cant ?? 0)
 
 /**
  * How one turnout couples its branch to its main route, or null where it does
@@ -89,64 +96,184 @@ export function switchCoupling(tracks, sw, opts = {}) {
   const frame = turnoutSleepers(tracks, sw, opts)
   if (!frame) return null
   const ldsSleeper = frame.sleepers[frame.sleepers.length - 1]
-  const off = sleeperOffsets(frame, ldsSleeper)
-  if (!off) return null
-  return { ...frame, ldsSleeper, offset: off.y, cant: sectionAtStation(frame.main.track, frame.ldsMain)?.cant ?? 0 }
-}
-
-/** Every coupling a project's turnouts make. */
-export function switchCouplings(tracks, switches, opts) {
-  return (switches ?? []).map(sw => switchCoupling(tracks, sw, opts)).filter(Boolean)
-}
-
-/** The stations of a coupled branch between WA (exclusive) and the ldS (inclusive). */
-const inCoupledStretch = (c, station) => {
-  const d = c.branch.distance(station)
-  return d > STATION_TOL && d <= c.ldsBranchDistance + STATION_TOL
+  return { ...frame, ldsSleeper, offset: ldsSleeper.y, cant: cantOn(frame, ldsSleeper) }
 }
 
 /**
- * The branch heights a coupling asks for: its point at the ldS, and every
- * point it already has between WA and ldS, at the plane's height — or null
- * where they already are, or where there is nothing to couple yet (a main
- * route without a gradient over WA–ldS, a branch without one: decision 64,
- * no gradient is made up).
+ * Every coupling a project's turnouts make, each with the stretch it owns on
+ * its two tracks. Where two turnouts reach into one track from its two ends —
+ * the connecting track of a crossover is the branch of both — and their
+ * stretches overlap, the overlap is split in the middle: every height point
+ * belongs to one turnout, or the two would pull it onto their own sleepers in
+ * turn.
+ *
+ * Each coupling gets `end` { main, branch } — how far from WA its stretch
+ * reaches on either track — and `owned`, the sleepers within both.
  */
-export function coupledBranchHeights(c) {
-  const mainH = c.main.track.heights
-  const branchH = c.branch.track.heights
-  if (!(mainH?.length >= 2) || !(branchH?.length >= 2)) return null
-  const [m0, m1] = [mainH[0].station, mainH[mainH.length - 1].station]
-  const [wa, ldsM] = [c.main.station(0), c.ldsMain]
-  if (Math.min(wa, ldsM) < m0 - STATION_TOL || Math.max(wa, ldsM) > m1 + STATION_TOL) return null
+// The last answer, for the same project state: the profile and the cross
+// section ask for every station they draw.
+let lastCouplings = null
 
-  let changed = false
-  const heightAtBranch = (station) => {
-    if (Math.abs(c.branch.distance(station) - c.ldsBranchDistance) <= STATION_TOL) {
-      return planeHeight(c, c.ldsSleeper)
+export function switchCouplings(tracks, switches, opts) {
+  const formOf = opts?.formOf
+  if (lastCouplings && lastCouplings.tracks === tracks && lastCouplings.switches === switches
+    && lastCouplings.formOf === formOf) return lastCouplings.result
+  const result = couplingsOf(tracks, switches, opts)
+  lastCouplings = { tracks, switches, formOf, result }
+  return result
+}
+
+function couplingsOf(tracks, switches, opts) {
+  const cs = (switches ?? []).map(sw => switchCoupling(tracks, sw, opts)).filter(Boolean)
+  for (const c of cs) c.end = { main: c.lds, branch: c.ldsBranchDistance }
+  const onTrack = new Map()
+  for (const c of cs) {
+    for (const side of ['main', 'branch']) {
+      const id = c[side].track.id
+      onTrack.set(id, [...(onTrack.get(id) ?? []), { c, side }])
     }
-    return branchPlaneHeight(c, station)
   }
-  const out = branchH.map(p => {
-    if (!inCoupledStretch(c, p.station)) return p
-    const z = heightAtBranch(p.station)
-    if (z == null || Math.abs(z - p.z) <= Z_TOL) return p
-    changed = true
-    return { ...p, z: roundMm(z) }
-  })
-  const hasLds = out.some(p => Math.abs(p.station - c.ldsBranch) <= STATION_TOL)
-  if (!hasLds) {
-    const z = planeHeight(c, c.ldsSleeper)
-    // Only within the stretch the branch's heights cover: a branch whose
-    // gradient stops short of the ldS is not given one beyond it.
-    const [b0, b1] = [out[0].station, out[out.length - 1].station]
-    if (z == null || c.ldsBranch < b0 || c.ldsBranch > b1) return changed ? out : null
-    changed = true
-    const at = { station: roundMm(c.ldsBranch), z: roundMm(z) }
-    const i = out.findIndex(p => p.station > at.station)
-    out.splice(i < 0 ? out.length : i, 0, at)
+  for (const entries of onTrack.values()) {
+    for (const [i, e1] of entries.entries()) {
+      for (const e2 of entries.slice(i + 1)) {
+        if (e1.c[e1.side].sense === e2.c[e2.side].sense) continue
+        const L = e1.c[e1.side].length
+        const [r1, r2] = [e1.c.end[e1.side], e2.c.end[e2.side]]
+        if (r1 + r2 <= L) continue
+        const split = (r1 + L - r2) / 2
+        e1.c.end[e1.side] = split
+        e2.c.end[e2.side] = L - split
+      }
+    }
   }
-  return changed ? out : null
+  for (const c of cs) {
+    c.owned = c.sleepers.filter(sl => sl.m <= c.end.main + STATION_TOL && sl.b <= c.end.branch + STATION_TOL)
+  }
+  return cs
+}
+
+/** The coupling of one turnout, with the stretch it owns (switchCouplings). */
+export function couplingOf(tracks, switches, sw, opts) {
+  const own = switchCoupling(tracks, sw, opts)
+  if (!own) return null
+  // Only turnouts on its two tracks can share a stretch with it.
+  const ids = new Set([own.main.track.id, own.branch.track.id])
+  const near = (switches ?? []).filter(s => s.switchId === sw.switchId
+    || [s.portB1_trackId, s.portB2_trackId].some(id => ids.has(id)))
+  return couplingsOf(tracks, near, opts).find(c => c.sw.switchId === sw.switchId) ?? null
+}
+
+/** Is a station of one of the coupling's tracks behind WA, within the stretch it owns? */
+export function inBody(c, side, station) {
+  const d = c[side].distance(station)
+  return d > STATION_TOL && d <= c.end[side] + STATION_TOL
+}
+
+/** The sleeper the coupling owns that lies nearest to a station of one of its tracks. */
+function nearestOwned(c, side, station) {
+  const key = side === 'main' ? 'm' : 'b'
+  const d = c[side].distance(station)
+  let best = null
+  for (const sl of c.owned) if (!best || Math.abs(sl[key] - d) < Math.abs(best[key] - d)) best = sl
+  return best
+}
+
+/**
+ * How far the branch lies above the main route on a sleeper (decision 257):
+ * g · a + u/1500 · y, with g from the main route's heights `mainH`.
+ */
+const lift = (c, sl, mainH) => slopeAt(mainH, sl.main) * sl.a + (cantOn(c, sl) / RUNNING_CIRCLE_DISTANCE) * sl.y
+
+/** Do the heights reach over a stretch of the track? */
+const covers = (h, a, b) => Math.min(a, b) >= h[0].station - STATION_TOL && Math.max(a, b) <= h[h.length - 1].station + STATION_TOL
+
+const byStation = (a, b) => a.station - b.station
+/** What a point's partner takes over besides its height: its curve and its reason. */
+const carried = (p) => ({ ...(p.rv != null ? { rv: p.rv } : {}), ...(p.reason ? { reason: p.reason } : {}) })
+const samePoints = (a, b) => a.length === b.length && a.every((p, i) => {
+  const q = b[i]
+  return Math.abs(p.station - q.station) < 1e-9 && Math.abs(p.z - q.z) < 1e-9
+    && (p.rv ?? null) === (q.rv ?? null) && (p.reason ?? null) === (q.reason ?? null)
+})
+/** The point a track already has on a sleeper, if any. */
+const pointOn = (h, station) => h.find(p => Math.abs(p.station - station) <= STATION_TOL)
+/** A height for a partner: the one it has where that is the plane's to the millimetre. */
+const kept = (had, z) => (had && Math.abs(had.z - z) <= Z_TOL + 1e-9 ? had.z : roundMm(z))
+
+/**
+ * The heights of both tracks of a turnout with every point in its stretch
+ * paired (decision 258), `leader` ('main' or 'branch') the track whose points
+ * count (decision 259): each of them on its nearest sleeper, one per sleeper,
+ * and the other track with a point on the same sleeper — at the height the
+ * plane gives it, with the same curve and reason — and no other point there.
+ * The branch always has a point on the ldS; the main route only where the
+ * branch's ldS height asks for one.
+ *
+ * Returns { main, branch } — the new heights of either, null where they stay —
+ * or null where nothing changes, or where there is nothing to pair: a track
+ * without a gradient over the stretch (decision 64, none is made up).
+ */
+export function pairedHeights(c, leader = 'main') {
+  const mainH = c.main.track.heights, branchH = c.branch.track.heights
+  if (!(mainH?.length >= 2) || !(branchH?.length >= 2) || !c.owned?.length) return null
+  const last = c.owned[c.owned.length - 1]
+  if (!covers(mainH, c.main.station(0), last.main) || !covers(branchH, c.branch.station(0), last.branch)) return null
+
+  const lead = leader === 'branch' ? 'branch' : 'main'
+  const onSleeper = new Map()
+  for (const p of c[lead].track.heights) {
+    if (!inBody(c, lead, p.station)) continue
+    const sl = nearestOwned(c, lead, p.station)
+    const had = onSleeper.get(sl)
+    if (!had || Math.abs(c[lead].distance(p.station) - sl[lead === 'main' ? 'm' : 'b'])
+      < Math.abs(c[lead].distance(had.station) - sl[lead === 'main' ? 'm' : 'b'])) onSleeper.set(sl, p)
+  }
+  const outside = (h, side) => h.filter(p => !inBody(c, side, p.station))
+  const ldsSl = c.owned.find(sl => sl.k === 'lds') ?? null
+
+  let newMain, newBranch
+  if (lead === 'main') {
+    newMain = [...outside(mainH, 'main'),
+      ...[...onSleeper].map(([sl, p]) => ({ ...p, station: roundMm(sl.main) }))].sort(byStation)
+    const pairs = [...onSleeper].map(([sl, p]) => ({ sl, z: p.z, from: p }))
+    if (ldsSl && !onSleeper.has(ldsSl)) {
+      const z = gradientAt(newMain, ldsSl.main)
+      if (z != null) pairs.push({ sl: ldsSl, z, from: {} })
+    }
+    newBranch = [...outside(branchH, 'branch'), ...pairs.map(({ sl, z, from }) => ({
+      station: roundMm(sl.branch), z: kept(pointOn(branchH, sl.branch), z + lift(c, sl, newMain)), ...carried(from),
+    }))].sort(byStation)
+  } else {
+    newBranch = [...outside(branchH, 'branch'),
+      ...[...onSleeper].map(([sl, p]) => ({ ...p, station: roundMm(sl.branch) }))].sort(byStation)
+    const base = outside(mainH, 'main')
+    const grid = [...onSleeper].filter(([sl]) => sl !== ldsSl)
+    // The lift reads the main route's gradient, which these points make: twice round.
+    newMain = base
+    for (let k = 0; k < 2; k++) {
+      newMain = [...base, ...grid.map(([sl, p]) => ({
+        station: roundMm(sl.main), z: kept(pointOn(mainH, sl.main), p.z - lift(c, sl, newMain)), ...carried(p),
+      }))].sort(byStation)
+    }
+    const atLds = ldsSl && onSleeper.get(ldsSl)
+    if (atLds) {
+      const z = atLds.z - lift(c, ldsSl, newMain)
+      const had = pointOn(mainH, ldsSl.main)
+      const there = gradientAt(newMain, ldsSl.main)
+      if (had || there == null || Math.abs(there - z) > Z_TOL) {
+        newMain = [...newMain, { station: roundMm(ldsSl.main), z: kept(had, z), ...carried(atLds) }].sort(byStation)
+      }
+    } else if (ldsSl) {
+      // The branch's ldS point came away: it is the main route's again.
+      const z = gradientAt(newMain, ldsSl.main)
+      if (z != null) {
+        newBranch = [...newBranch, { station: roundMm(ldsSl.branch), z: roundMm(z + lift(c, ldsSl, newMain)) }].sort(byStation)
+      }
+    }
+  }
+  const main = samePoints(newMain, mainH) ? null : newMain
+  const branch = samePoints(newBranch, branchH) ? null : newBranch
+  return main || branch ? { main, branch } : null
 }
 
 /**
@@ -160,24 +287,66 @@ export function branchPlaneHeight(c, station) {
 }
 
 /**
- * The project with every branch coupled to its main route — for the turnouts
- * `only` names (their switchIds), or all of them. The same project where
- * nothing had to change, so a write that touched no turnout costs nothing.
+ * Which track of a turnout a write led with (decision 259): the branch where
+ * only its heights changed and the main route stayed as it was, the main
+ * route in every other case — its heights, its shape or its cant changed, or
+ * there is nothing before to compare with.
+ */
+function leaderOf(wasTrack, c) {
+  const mainBefore = wasTrack.get(c.main.track.id), branchBefore = wasTrack.get(c.branch.track.id)
+  const branchEdited = branchBefore && branchBefore.heights !== c.branch.track.heights
+    && branchBefore.elements === c.branch.track.elements
+  return branchEdited && mainBefore === c.main.track ? 'branch' : 'main'
+}
+
+const touches = (sw, ids) => [sw.portA_trackId, sw.portB1_trackId, sw.portB2_trackId].some(id => ids.has(id))
+
+/**
+ * The project after a write with every turnout the write reached paired again
+ * (decisions 258, 259) — in the same step, so one undo takes back both. A
+ * turnout that changes a track passes it on to the turnouts on that track: in
+ * a run of turnouts the branch of one is the main route of the next. Each
+ * turnout once per write; a turnout whose heights are locked is left alone.
+ * The same project where nothing had to change.
+ */
+export function coupleSwitchHeights(before, after, { only = touchedTurnouts(before, after), formOf } = {}) {
+  if (!only?.size) return after
+  const wasTrack = new Map((before?.tracks ?? []).map(t => [t.id, t]))
+  let project = after
+  const queue = [...only]
+  const done = new Set()
+  while (queue.length) {
+    const id = queue.shift()
+    if (done.has(id)) continue
+    done.add(id)
+    const sw = (project.switches ?? []).find(s => s.switchId === id)
+    if (!sw || sw.heightsLocked) continue
+    const c = couplingOf(project.tracks ?? [], project.switches, sw, { formOf })
+    if (!c) continue
+    const r = pairedHeights(c, leaderOf(wasTrack, c))
+    if (!r) continue
+    const write = new Map([[c.main.track.id, r.main], [c.branch.track.id, r.branch]].filter(([, h]) => h))
+    project = { ...project, tracks: project.tracks.map(t => (write.has(t.id) ? { ...t, heights: write.get(t.id) } : t)) }
+    const ids = new Set(write.keys())
+    for (const s of project.switches ?? []) if (!done.has(s.switchId) && isTurnout(s) && touches(s, ids)) queue.push(s.switchId)
+  }
+  return project
+}
+
+/**
+ * The project with every turnout paired, its main route leading — for the
+ * turnouts `only` names (their switchIds), or all of them: a project from
+ * before the pairing, or the button that does it for all.
  */
 export function coupleSwitchGradients(project, { only = null, formOf } = {}) {
-  const switches = (project?.switches ?? []).filter(sw => !only || only.has(sw.switchId))
-  if (!switches.length) return project
-  let tracks = project.tracks ?? []
-  let changed = false
-  for (const sw of switches) {
-    const c = switchCoupling(tracks, sw, { formOf })
-    if (!c) continue
-    const heights = coupledBranchHeights(c)
-    if (!heights) continue
-    changed = true
-    tracks = tracks.map(t => (t.id === c.branch.track.id ? { ...t, heights } : t))
-  }
-  return changed ? { ...project, tracks } : project
+  const ids = new Set((project?.switches ?? []).filter(sw => isTurnout(sw) && (!only || only.has(sw.switchId)))
+    .map(sw => sw.switchId))
+  return coupleSwitchHeights(null, project, { only: ids, formOf })
+}
+
+/** The turnouts whose heights are not paired yet — what „Alle Weichen koppeln“ would change. */
+export function unpairedTurnouts(tracks, switches, opts) {
+  return switchCouplings(tracks, switches, opts).filter(c => !c.sw.heightsLocked && pairedHeights(c, 'main'))
 }
 
 /**
@@ -199,15 +368,21 @@ export function touchedTurnouts(before, after) {
 }
 
 /**
- * The height point indices of a track that a coupling sets, with the switch
- * that sets them — the branch's ldS point and its points between WA and ldS.
- * What the profile locks.
+ * The height points of a track that lie in a turnout's stretch, by index:
+ * { sw, side, sleeper } — the turnout, which of its tracks this is, and the
+ * sleeper the point sits on (or would snap to). Each has a partner on the
+ * same sleeper of the other track; what the profile marks, and locks where
+ * the turnout's heights are locked.
  */
 export function coupledPoints(tracks, switches, track, opts) {
   const out = new Map()
   for (const c of switchCouplings(tracks, switches, opts)) {
-    if (c.branch.track.id !== track.id) continue
-    ;(track.heights ?? []).forEach((p, i) => { if (inCoupledStretch(c, p.station)) out.set(i, c.sw) })
+    for (const side of ['main', 'branch']) {
+      if (c[side].track.id !== track.id) continue
+      ;(track.heights ?? []).forEach((p, i) => {
+        if (inBody(c, side, p.station)) out.set(i, { sw: c.sw, side, sleeper: nearestOwned(c, side, p.station) })
+      })
+    }
   }
   return out
 }
@@ -219,7 +394,7 @@ export function coupledPoints(tracks, switches, track, opts) {
  */
 export function trackHeightAt(tracks, switches, track, station, opts) {
   for (const c of switchCouplings(tracks, switches, opts)) {
-    if (c.branch.track.id !== track.id || !inCoupledStretch(c, station)) continue
+    if (c.branch.track.id !== track.id || !inBody(c, 'branch', station)) continue
     const z = branchPlaneHeight(c, station)
     if (z != null) return z
   }
@@ -227,17 +402,20 @@ export function trackHeightAt(tracks, switches, track, station, opts) {
 }
 
 /**
- * What trackHeightAt needs of a project for `track`: the track, the main
- * routes of the turnouts it branches off from, and those turnouts — what a
- * long run on the server is sent instead of the whole project (AP 13.7).
+ * What trackHeightAt needs of a project for `track`: the track, the turnouts
+ * on it and their tracks — the main routes it branches off from, and the
+ * tracks of a turnout that shares a stretch with one of them — what a long
+ * run on the server is sent instead of the whole project (AP 13.7).
  */
 export function heightContext(tracks, switches, track, opts) {
-  const couplings = switchCouplings(tracks, switches, opts).filter(c => c.branch.track.id === track.id)
-  const mains = new Set(couplings.map(c => c.main.track.id))
-  return {
-    tracks: [track, ...(tracks ?? []).filter(t => t.id !== track.id && mains.has(t.id))],
-    switches: couplings.map(c => c.sw),
-  }
+  const couplings = switchCouplings(tracks, switches, opts)
+    .filter(c => c.branch.track.id === track.id || c.main.track.id === track.id)
+  const ids = new Set(couplings.flatMap(c => [c.main.track.id, c.branch.track.id]))
+  ids.delete(track.id)
+  const coupledHere = couplings.some(c => c.branch.track.id === track.id)
+  return coupledHere
+    ? { tracks: [track, ...(tracks ?? []).filter(t => ids.has(t.id))], switches: couplings.map(c => c.sw) }
+    : { tracks: [track], switches: [] }
 }
 
 /**
