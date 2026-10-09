@@ -43,25 +43,31 @@ function neighbourCell(input, step) {
  * unless told otherwise — the justification is the one text column. Only a
  * real change is committed: merely tabbing through a cell must not rebuild the
  * element and re-chain everything behind it.
+ *
+ * `digits` rounds what the cell shows while it is not being typed in; focused,
+ * it holds the value as stored, so typing — or tabbing through — keeps every
+ * decimal it has.
  */
 export function EditCell({
-  value, onCommit, disabled = false, step, type = 'number', wide = false, className = '', placeholder,
+  value, onCommit, disabled = false, step, type = 'number', wide = false, className = '', placeholder, digits = null,
 }) {
   const { language } = useI18n()
   const [draft, setDraft] = useState(null)
   const droppedRef = useRef(false)   // Escape took the typing back: the blur commits nothing
   // Numbers as the interface language writes them, typed with comma or point (R10.8).
   const numeric = type === 'number'
-  const shown = value == null ? '' : numeric ? formatNum(value, language) : String(value)
+  const full = value == null ? '' : numeric ? formatNum(value, language) : String(value)
+  const shown = numeric && digits != null && value != null && Number.isFinite(Number(value))
+    ? formatNum(Math.round(Number(value) * 10 ** digits) / 10 ** digits, language) : full
   return (
     <input className={inputClass(wide, className)} type={numeric ? 'text' : type} inputMode={numeric ? 'decimal' : undefined}
       disabled={disabled} data-step={step}
       placeholder={placeholder}
       value={draft ?? shown}
-      onFocus={() => setDraft(shown)}
+      onFocus={() => setDraft(full)}
       onChange={e => setDraft(e.target.value)}
       onBlur={() => {
-        if (!droppedRef.current && draft != null && draft !== shown) onCommit(numeric ? parseNumText(draft) : draft)
+        if (!droppedRef.current && draft != null && draft !== full) onCommit(numeric ? parseNumText(draft) : draft)
         droppedRef.current = false
         setDraft(null)
       }}

@@ -3,7 +3,7 @@ import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
 import { useTracks, useProject } from '../hooks/useStore'
 import { planElementChange, mergeElementEdits } from '../utils/editGeometry'
 import { elementStations } from '../utils/platformUtils'
-import { checkTrack } from '../utils/trassierungCheck'
+import { boundaryScope, checkTrack } from '../utils/trassierungCheck'
 import { clampCant } from '../utils/rules/cant'
 import { maxSpeeds } from '../utils/rules/speed'
 import { filterForElement, FILTER_NONE, mapIsLive } from '../map/pick'
@@ -178,6 +178,12 @@ export default function TrackTableOverlay({
   // Where each element starts along the track, and how long the whole of it is
   // — from the working copy, so both follow an unsaved length straight away.
   const stations = elementStations(current)
+  // The joint each element starts with: its comparison radius r_w (LP.UB.01)
+  // and the boundary rules' verdict there, where they judged it.
+  const boundaryAt = new Map(check.boundaries.map(b => [b.index, b]))
+  const jointAt = (i) => (i > 0
+    ? { rw: boundaryScope(elements, i - 1)['physics.r_w'], ...(boundaryAt.get(i - 1) ?? {}) }
+    : null)
   const trackLength = stations.length ? stations[stations.length - 1].end : 0
 
   // Every switch of the project by its id: an element of a switch route is
@@ -296,7 +302,7 @@ export default function TrackTableOverlay({
           <tbody key={track.id}>
             {elements.map((el, i) => (
               <TrackTableRow key={i} elements={elements} i={i} sw={switchById.get(el.switchId)}
-                station={stations[i]?.start} rules={check.perElement[i]} epsg={current.epsg}
+                station={stations[i]?.start} rules={check.perElement[i]} joint={jointAt(i)} epsg={current.epsg}
                 active={i === activeRow} onActivate={() => setActiveRow(i)}
                 onEdit={(key, raw) => commit(i, key, raw)} />
             ))}

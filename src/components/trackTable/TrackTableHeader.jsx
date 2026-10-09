@@ -63,6 +63,7 @@ export function TrackTableHead() {
         <th>{t('table_end_bearing')} (°)</th>
         <th>{t('table_length')} (m)</th>
         <th>{t('table_radius')} (m)</th>
+        <th title={t('table_comparison_radius_hint')}>{t('table_comparison_radius')} (m)</th>
         <th>{t('table_speed')} (km/h)</th>
         <th>{t('table_cant')} (mm)</th>
         <th>{t('table_cant_exception')}</th>

@@ -3,17 +3,20 @@ import { cantDefLevel, computeCantDefSigned, maxSpeedFor, CANT_STEP } from '../.
 import { governing } from '../../utils/rules/speed'
 import { useI18n } from '../../locales/i18nContext'
 import { EditCell, TextCell } from './cells'
+import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
 import {
   isTransition, typeLabel, switchNote, hintNote, cantNote, cantClass, defClass, defNote,
-  ruleClass, ruleText, ruleNote, degText, lengthText, radiusText,
+  ruleClass, ruleText, ruleNote, degText, lengthText, radiusText, comparisonRadiusText,
 } from './rowText'
 
 /**
  * One element of the table. `onEdit(key, raw)` gets what a cell was changed
  * to; the deficiency and the speed limit are derived and follow the speed,
- * cant and radius cells live.
+ * cant and radius cells live. Length and radius show three decimals and keep
+ * every one they have while typed. `joint` is the joint the element starts
+ * with — its comparison radius and what the boundary rules said there.
  */
-export default function TrackTableRow({ elements, i, sw, station, rules, epsg, active, onActivate, onEdit }) {
+export default function TrackTableRow({ elements, i, sw, station, rules, joint, epsg, active, onActivate, onEdit }) {
   const { t, fill, language, num } = useI18n()
   const el = elements[i]
   const g = governing(elements, i)
@@ -41,14 +44,18 @@ export default function TrackTableRow({ elements, i, sw, station, rules, epsg, a
       <td title={el.switchBranch ? dimension : undefined}>
         {el.switchBranch
           ? <TextCell value={lengthText(el.length, language)} />
-          : <EditCell value={el.length} onCommit={edit('length')} />}
+          : <EditCell value={el.length} onCommit={edit('length')} digits={3} />}
       </td>
       <td title={el.switchBranch && !isTransition(el) && el.radius ? dimension : undefined}>
         {isTransition(el)
           ? <TextCell value={radiusText(el, language)} wide />
           : el.switchBranch
             ? <TextCell value={el.radius ? lengthText(el.radius, language) : '–'} />
-            : <EditCell value={el.radius} onCommit={edit('radius')} disabled={!el.radius} />}
+            : <EditCell value={el.radius} onCommit={edit('radius')} disabled={!el.radius} digits={3} />}
+      </td>
+      <td title={jointNote(t, fill, i, joint)}>
+        <TextCell value={comparisonRadiusText(joint?.rw, language)}
+          className={joint?.severity && joint.severity !== 'ok' ? `rule-sev-${joint.severity}` : ''} />
       </td>
       {/* The speed is the cell to change when the deficiency it makes is too
           high, so it carries the same mark. */}
@@ -75,4 +82,12 @@ export default function TrackTableRow({ elements, i, sw, station, rules, epsg, a
       <td title={crsLabel(epsg)}><TextCell value={epsg ?? '–'} /></td>
     </tr>
   )
+}
+
+/** What the comparison radius cell says: which joint it is, and every boundary rule that fired there. */
+function jointNote(t, fill, i, joint) {
+  if (!joint) return t('table_comparison_radius_none')
+  const fired = (joint.results ?? []).filter(r => r.severity !== 'ok')
+    .map(r => `${r.id} · ${t(severityLabelKey(r.severity))}: ${ruleById(r.id)?.title ?? ''}`)
+  return [fill('table_comparison_radius_at', { a: String(i), b: String(i + 1) }), ...fired].join('\n')
 }

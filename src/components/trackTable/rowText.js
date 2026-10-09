@@ -108,6 +108,14 @@ export const lengthText = (m, language) => (Number.isFinite(m) ? formatNum(Math.
  * end), so the column shows that ramp instead of an empty, uneditable cell.
  */
 export function radiusText(el, language) {
-  const r = (v) => (v ? formatNum(Math.round(v * 100) / 100, language) : '∞')
+  const r = (v) => (v ? formatNum(Math.round(v * 1000) / 1000, language) : '∞')
   return `${r(el.r1)} → ${r(el.r2)}`
 }
+
+/**
+ * The comparison radius r_w at the joint an element starts with (LP.UB.01):
+ * 1/r_w = |1/r_end − 1/r_start| of the two elements meeting there — the
+ * radius the curvature jump amounts to. Where the curvature runs on there is
+ * none.
+ */
+export const comparisonRadiusText = (rw, language) => (Number.isFinite(rw) ? lengthText(rw, language) : '–')
