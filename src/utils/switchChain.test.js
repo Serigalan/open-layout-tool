@@ -3,6 +3,8 @@ import { coupleSwitchGradients, coupleSwitchHeights, heightRoles, pendingTurnout
 import { switchCoupling } from './switchGradient'
 import { endPointCurvedUtm, endPointStraightUtm } from './elementUtils'
 import { formOf } from '../test/turnoutFixture'
+import { hasPek, loadPek } from '../test/pekFixture'
+import { hydrateProjects } from './persistenceUtils'
 
 // Turnouts of the TEST form (WA–WE 30 m, ldS 10 m behind WE) on R 500 to
 // the left, built anywhere: `at` the toe, `bearing` the way the main route
@@ -262,5 +264,112 @@ describe('a crossover (decision 272)', () => {
     expect(slope).toBeCloseTo((100.4 + 0.3 - 100.1) / 200, 4)
     expect(a2[0].z - end.z).toBeCloseTo(slope * 100, 3)
     expect(coupleSwitchGradients(p, opts)).toBe(p)
+  })
+})
+
+describe('who leads a crossover: the track the write changed (decision 275)', () => {
+  // The crossover of decision 272 with 20 m or less between the ldS (mid 30),
+  // and with the two stretches overlapping (mid 0) — the usual one.
+  const build = (mid) => {
+    const wa1 = { easting: 1000, northing: 1000, zone: 5684 }
+    const x1 = arc(wa1, 90, 30, -R, { switchId: 's1', switchRoute: 'branch' })
+    const parts = [x1]
+    if (mid > 0) parts.push(straight(endOf(x1), x1.endBearing, mid))
+    const x3 = arc(endOf(parts[parts.length - 1]), x1.endBearing, 30, R, { switchId: 's2', switchRoute: 'branch' })
+    parts.push(x3)
+    const wa2 = endOf(x3)
+    const m1 = straight(wa1, 90, 30, { switchId: 's1', switchRoute: 'main' })
+    const m2 = straight(wa2, 270, 30, { switchId: 's2', switchRoute: 'main' })
+    return {
+      tracks: [
+        track('a1', [straight(endPointStraightUtm(wa1, 270, 100), 90, 100)], [{ station: 0, z: 99.5 }, { station: 50, z: 99.8 }, { station: 100, z: 100 }]),
+        track('m1', [m1, straight(endOf(m1), 90, 70)], [{ station: 0, z: 100 }, { station: 100, z: 100.6 }]),
+        track('x', parts, [{ station: 0, z: 100 }, { station: 60 + mid, z: 100.4 }]),
+        track('a2', [straight(endPointStraightUtm(wa2, 90, 100), 270, 100)], [{ station: 0, z: 100.7 }, { station: 50, z: 100.5 }, { station: 100, z: 100.4 }]),
+        track('m2', [m2, straight(endOf(m2), 270, 70)], [{ station: 0, z: 100.4 }, { station: 100, z: 100.1 }]),
+      ],
+      switches: [
+        { switchId: 's1', kind: 'turnout', label: 'TEST', portA_trackId: 'a1', portA_endpoint: 'END',
+          portB1_trackId: 'x', portB1_endpoint: 'BEGIN', portB2_trackId: 'm1', portB2_endpoint: 'BEGIN' },
+        { switchId: 's2', kind: 'turnout', label: 'TEST', portA_trackId: 'a2', portA_endpoint: 'END',
+          portB1_trackId: 'x', portB1_endpoint: 'END', portB2_trackId: 'm2', portB2_endpoint: 'BEGIN' },
+      ],
+    }
+  }
+  const lift = (p, id, index, dz) => ({ ...p, tracks: p.tracks.map(x => (x.id === id
+    ? { ...x, heights: x.heights.map((q, i) => (i === index ? { ...q, z: roundTo(q.z + dz) } : q)) } : x)) })
+  const roundTo = (z) => Math.round(z * 10000) / 10000
+  const last = (h) => h[h.length - 1]
+
+  for (const mid of [30, 0]) {
+    describe(`${mid ? '10' : 'no'} m between the ldS`, () => {
+      it('passes an edit of the first track on to the turnout across and the track beside', () => {
+        const p = coupleSwitchGradients(build(mid), opts)
+        // s1 leads by the order of the project as well: its toe moves, s2 follows.
+        const after = coupleSwitchHeights(p, lift(p, 'a1', 1, 0.5), opts)
+        expect(t(after, 'm1')[0].z).not.toBeCloseTo(t(p, 'm1')[0].z, 3)
+        expect(last(t(after, 'x')).z).not.toBeCloseTo(last(t(p, 'x')).z, 3)
+        expect(t(after, 'm2')[0].z).toBe(last(t(after, 'x')).z)
+        // Q₂ and P₂ rise by the same amount, the toe of s2 with them.
+        const dQ = t(after, 'a2')[1].z - t(p, 'a2')[1].z
+        expect(Math.abs(dQ)).toBeGreaterThan(0.01)
+        expect(last(t(after, 'm2')).z - last(t(p, 'm2')).z).toBeCloseTo(dQ, 4)
+        expect(t(after, 'm2')[0].z - t(p, 'm2')[0].z).toBeCloseTo(dQ, 3)  // each kept to 0.1 mm
+        expect(coupleSwitchGradients(after, opts)).toBe(after)
+      })
+
+      it('lets the second track lead where it is the one edited, and keeps it so', () => {
+        const p = coupleSwitchGradients(build(mid), opts)
+        const after = coupleSwitchHeights(p, lift(p, 'a2', 1, 0.5), opts)
+        // The edit stays, and s2's toe sits on the line through it.
+        expect(t(after, 'a2')[1].z).toBe(roundTo(t(p, 'a2')[1].z + 0.5))
+        expect(last(t(after, 'a2')).z).not.toBeCloseTo(last(t(p, 'a2')).z, 3)
+        // s1 follows: its toe on s2's continuation, Q₁ and P₁ by the same amount.
+        expect(t(after, 'x')[0].z).not.toBeCloseTo(t(p, 'x')[0].z, 3)
+        expect(t(after, 'm1')[0].z).toBe(t(after, 'x')[0].z)
+        const dQ = t(after, 'a1')[1].z - t(p, 'a1')[1].z
+        expect(Math.abs(dQ)).toBeGreaterThan(0.01)
+        expect(last(t(after, 'm1')).z - last(t(p, 'm1')).z).toBeCloseTo(dQ, 4)
+        expect(t(after, 'x')[0].z - t(p, 'x')[0].z).toBeCloseTo(dQ, 3)  // each kept to 0.1 mm
+        // Coupling again keeps s2 leading — it sets s1's toe now.
+        expect(coupleSwitchGradients(after, opts)).toBe(after)
+        expect(pendingTurnouts(after, opts)).toHaveLength(0)
+        // An edit far from both turnouts leaves that as it is.
+        const far = coupleSwitchHeights(after, lift(after, 'a1', 0, 0.2), opts)
+        expect(t(far, 'm2')).toBe(t(after, 'm2'))
+      })
+    })
+  }
+})
+
+describe.skipIf(!hasPek)('the crossovers of PEK Halle–Könnern (decision 275)', () => {
+  it('pass an edit before either toe on to the other turnout, and stay coupled', () => {
+    const p = coupleSwitchGradients(hydrateProjects([loadPek()])[0])
+    expect(coupleSwitchGradients(p)).toBe(p)
+    const roles = heightRoles(p)
+    const turnouts = p.switches.filter(s => switchCoupling(p.tracks, s))
+    const branchOf = (s) => (s.portB1_trackId && p.tracks.find(x => x.id === s.portB1_trackId)?.elements.some(el => el.switchRoute === 'branch' && el.switchId === s.switchId)
+      ? { id: s.portB1_trackId, end: s.portB1_endpoint } : { id: s.portB2_trackId, end: s.portB2_endpoint })
+    let checked = 0
+    for (const s of turnouts) {
+      const b = branchOf(s)
+      const o = turnouts.find(x => x !== s && branchOf(x).id === b.id && branchOf(x).end !== b.end)
+      if (!o) continue
+      const gap = Math.abs(switchCoupling(p.tracks, o).ldsBranch - switchCoupling(p.tracks, s).ldsBranch)
+      if (gap > CROSSOVER_SPAN) continue
+      // The free point next to the toe on the approach.
+      const a = p.tracks.find(x => x.id === s.portA_trackId)
+      const index = s.portA_endpoint === 'END' ? a.heights.length - 2 : 1
+      if (roles.get(a.id)?.has(index)) continue
+      const edited = { ...p, tracks: p.tracks.map(x => (x === a
+        ? { ...x, heights: x.heights.map((q, i) => (i === index ? { ...q, z: q.z + 0.5 } : q)) } : x)) }
+      const after = coupleSwitchHeights(p, edited)
+      const bh = (q) => q.tracks.find(x => x.id === b.id).heights
+      const otherToe = (q) => (b.end === 'BEGIN' ? bh(q)[bh(q).length - 1] : bh(q)[0]).z
+      expect(Math.abs(otherToe(after) - otherToe(p)), `${s.name} → ${o.name}`).toBeGreaterThan(0.001)
+      expect(coupleSwitchGradients(after)).toBe(after)
+      checked++
+    }
+    expect(checked).toBeGreaterThanOrEqual(3)
   })
 })

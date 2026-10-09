@@ -325,6 +325,13 @@ export function branchPlaneHeight(c, station) {
 }
 
 /**
+ * Height of a coupled branch on its ldS sleeper, from the plane of the
+ * turnout — on the sleeper itself: the ldS station rounded to the millimetre
+ * may lie just beyond it.
+ */
+export const ldsPlaneHeight = (c) => (c?.ldsSleeper ? planeHeight(c, c.ldsSleeper) : null)
+
+/**
  * The switchIds of the turnouts a write reached: those one of whose three
  * tracks changed — the approach carries the point their main route's line
  * starts at (decision 270) — or whose own record did. What the store couples after
