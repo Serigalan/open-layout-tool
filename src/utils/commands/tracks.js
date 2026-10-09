@@ -1,6 +1,7 @@
 import { generateId, buildTypeFields } from '../identifierUtils'
 import { rebuildCoords, recalcAbsLengths } from '../trackModel'
 import { arcElement, arcFrom, straightElement, straightFrom, transitionElement } from '../elementFactory'
+import { cantSign } from '../rules/cant'
 
 // What the create and connect dialogs commit (R4.2), as pure functions: the
 // dialog gathers its inputs, calls one of these and writes the result — a
@@ -23,9 +24,16 @@ export function buildLineTrack({ start, end, speed, meta, id }) {
   return trackOf([straightElement(start, end, { speed })], start.zone, meta, id)
 }
 
+/**
+ * The cant an arc of `signedR` stores: the dialogs take it as a magnitude, the
+ * store keeps it signed with the curve (rules/cant `cantSign`) — unsigned, a
+ * left-hand curve's cant would count against it.
+ */
+export const curveCant = (signedR, cant) => cantSign(signedR) * Math.abs(Number(cant) || 0)
+
 /** CurvedLineForm: one arc between two points with a (fitted) radius. */
 export function buildCurvedLineTrack({ start, end, signedR, speed, cant, meta, id }) {
-  return trackOf([arcElement(start, end, signedR, { speed, cant })], start.zone, meta, id)
+  return trackOf([arcElement(start, end, signedR, { speed, cant: curveCant(signedR, cant) })], start.zone, meta, id)
 }
 
 /** ParallelLineForm: one element offset from a picked one — an arc where it has a radius. */
@@ -75,6 +83,6 @@ export function buildConnectCurved({ start, bearing, arcLength, signedR, speed, 
   const from = lead ? lead.endUtm : start
   const b    = lead ? lead.endBearing : bearing
   // The arc keeps the bearing and length it was asked for; the factory derives the rest.
-  const arc  = arcFrom(from, b, arcLength, signedR, { speed, cant })
+  const arc  = arcFrom(from, b, arcLength, signedR, { speed, cant: curveCant(signedR, cant) })
   return [...(lead ? [lead.element] : []), { ...arc, bearing: b, length: arcLength }]
 }

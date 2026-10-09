@@ -22,7 +22,7 @@ import { useMap } from '../../../map/MapContext'
 import { useProject } from '../../../hooks/useStore'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapEvents from '../../../map/useMapEvents'
-import { buildCurvedLineTrack, trackMeta } from '../../../utils/commands/tracks'
+import { buildCurvedLineTrack, curveCant, trackMeta } from '../../../utils/commands/tracks'
 import CommitBar from '../../form/CommitBar'
 import FormSection from '../../form/FormSection'
 import ReadOnlyField from '../../form/ReadOnlyField'
@@ -55,7 +55,8 @@ export default function CurvedLineForm({ onDone }) {
   const geometry = startPoint && endPoint ? elementPath(startPoint, endPoint, Number(signedRadius) || null) : null
   const { name, setName, reset: resetName } = useTrackName(project.id, fields, { geometry, setField })
 
-  // Cant follows speed and radius unless the user overrode it for that pair.
+  // Cant follows speed and radius unless the user overrode it for that pair —
+  // a magnitude, signed with the curve where the arc is judged and written.
   const absR = Math.abs(Number(signedRadius))
   const [cant, setCant, clearCant] = useDerivedField(`${speed}|${signedRadius}`, absR > 0 ? computeAutoC(speed, absR) : 0)
 
@@ -223,7 +224,7 @@ export default function CurvedLineForm({ onDone }) {
                 <FieldRule name="speed" />
               </div>
               <CantField value={cant} onChange={setCant}
-                min={-MAX_CANT} max={MAX_CANT} speed={speed} radius={absR} />
+                min={0} max={MAX_CANT} speed={speed} radius={absR} />
               <div className="form-field">
                 <label>{t('create_crs')}</label>
                 <select className="settings-select" value={startPoint.zone} onChange={e => handleEpsgChange(e.target.value)}>
@@ -255,7 +256,7 @@ export default function CurvedLineForm({ onDone }) {
         // a fixed 150 mm, which the deficiency limit stopped being when it
         // became LP.KB.02's step over the speed.
         const element = {
-          elementType: 1, radius: Number(signedRadius), cant, speed, length: Number(arcLength),
+          elementType: 1, radius: Number(signedRadius), cant: curveCant(Number(signedRadius), cant), speed, length: Number(arcLength),
         }
         const blocked = hasRuleError([element])
         return (

@@ -6,6 +6,7 @@ import { arcFrom, straightFrom, transitionElement } from '../utils/elementFactor
 import { endPointStraightUtm, endPointCurvedUtm } from '../utils/elementUtils'
 import { SWITCH_TYPES, switchStraightLength } from '../utils/switch/catalogue'
 import { dehydrateProjects, hydrateProjects } from '../utils/persistenceUtils'
+import { hasRuleError } from '../utils/trassierungCheck'
 import {
   expectValidTrack, expectNodesJoin, expectTangentsContinuous, expectSwitchCantAdmissible, expectSwitchRoutesCarved,
 } from './chainInvariants'
@@ -40,6 +41,21 @@ describe('create element', () => {
   it('CurvedLineForm commits a valid one-element track, either hand', () => {
     for (const signedR of [600, -600]) {
       expectValidTrack(curvedTrack(endPointCurvedUtm(START, 42, 250, signedR), signedR))
+    }
+  })
+
+  // The dialogs take the cant as a magnitude; unsigned on a left-hand curve it
+  // counted against the curve, and LP.KB.02 found a deficiency of v²/R·11.8 + u.
+  it('the arc stores its cant signed with the curve, either hand, and the deficiency is not exceeded', () => {
+    for (const signedR of [600, -600]) {
+      const [arc] = curvedTrack(endPointCurvedUtm(START, 42, 250, signedR), signedR).elements
+      const [connected] = buildConnectCurved({
+        start: START, bearing: 42, arcLength: 100, signedR, speed: SPEED, cant: 80,
+      })
+      for (const el of [arc, connected]) {
+        expect(el.cant).toBe(Math.sign(signedR) * 80)
+        expect(hasRuleError([el])).toBe(false)
+      }
     }
   })
 })
