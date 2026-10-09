@@ -1,6 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
+    "src/main.local.jsx",
     "src/**/*.test.js",
     "tools/server/bin/*.mjs",
     "tools/server/test/**/*.test.js"

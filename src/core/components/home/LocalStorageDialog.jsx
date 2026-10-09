@@ -14,8 +14,10 @@ import Modal from '../Modal'
  * IndexedDB holds comes as the sections of whoever keeps it there
  * (`localStoreSections`). `projects` is the start page's list, to name
  * projects and variants by. `onClose(changed)` says whether anything was deleted.
+ * `introKey` and `deleteAllKey` say it the way the build keeps its projects
+ * (the local build: nowhere else).
  */
-export default function LocalStorageDialog({ projects, onClose }) {
+export default function LocalStorageDialog({ projects, onClose, introKey = 'local_store_intro', deleteAllKey = 'local_store_delete_all_ask' }) {
   const { t, fill, language } = useI18n()
   const [store, setStore] = useState(null)
   const [asking, setAsking] = useState(null)      // the key of the row a delete waits on, or 'all'
@@ -114,7 +116,7 @@ export default function LocalStorageDialog({ projects, onClose }) {
         )}
         <button type="button" className="modal-btn collab-btn-primary" disabled={busy} onClick={() => onClose(changed)}>{t('btn_close')}</button>
       </>}>
-      <p className="collab-muted">{t('local_store_intro')}</p>
+      <p className="collab-muted">{t(introKey)}</p>
       {store?.estimate && (
         <p className="collab-muted">
           {fill('local_store_usage', { used: bytesText(store.estimate.usage, language), quota: bytesText(store.estimate.quota, language) })}
@@ -128,7 +130,7 @@ export default function LocalStorageDialog({ projects, onClose }) {
 
       {asking === 'all' && (
         <div className="local-store-confirm-all" role="alert">
-          <p>{t('local_store_delete_all_ask')}</p>
+          <p>{t(deleteAllKey)}</p>
           {unsaved > 0 && <p className="local-store-warn">{fill('local_store_delete_all_unsaved', { n: unsaved })}</p>}
           <div className="collab-actions">
             <button type="button" className="collab-btn" disabled={busy} onClick={() => setAsking(null)}>{t('btn_cancel')}</button>

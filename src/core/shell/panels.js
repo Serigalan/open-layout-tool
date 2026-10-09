@@ -1,4 +1,5 @@
 import { lazy } from 'react'
+import { extensionsOf } from '../extensions'
 import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, CrossSectionIcon, PlanExportIcon, ElevationIcon, CheckIcon } from '../components/icons'
 
 // Each panel is its own chunk (R9.1), loaded the first time it is opened.
@@ -69,7 +70,11 @@ export const PANELS = [
     },
   },
   { id: 'places', group: 'design', icon: PlaceIcon, titleKey: 'create_element', place: 'top', Component: CreatePanel },
-  { id: 'splice', group: 'design', icon: SpliceElementIcon, titleKey: 'splice_element', place: 'top', Component: SpliceConnectPanel },
+  {
+    id: 'splice', group: 'design', icon: SpliceElementIcon, place: 'top', Component: SpliceConnectPanel,
+    // Splicing is the server's (Paket L); without it the panel only connects, and says so.
+    get titleKey() { return extensionsOf('panelTools').some(x => x.panel === 'splice') ? 'splice_element' : 'connect_element' },
+  },
   { id: 'connect_switch', group: 'design', icon: ConnectSwitchIcon, titleKey: 'connect_switch', place: 'top', Component: ConnectSwitchPanel },
   {
     id: 'edit', group: 'edit', icon: EditElementIcon, titleKey: 'edit', place: 'top', Component: EditElementPanel,

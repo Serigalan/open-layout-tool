@@ -1895,5 +1895,16 @@
   "local_store_delete_all_ask": "Delete everything the app keeps in this browser – point clouds, working copies and settings?",
   "local_store_delete_all_unsaved": "Among them {n} working cop(ies) with changes not checked in – these will be lost.",
   "local_store_deleted_all": "Local storage is cleared.",
-  "local_store_delete_failed": "Delete failed: {error}"
+  "local_store_delete_failed": "Delete failed: {error}",
+  "local_badge": "Local",
+  "local_start_intro": "This edition runs in your browser alone – without a server and without signing in. The projects are kept only in this browser on this device; export them as a file to have a backup. Optimizing, splicing, reconnecting, the alignment fit from axis points, the MDB import, DGM1 and the 3D view are only in the server edition.",
+  "local_not_persisted": "The browser does not keep this storage for good and may clear it when space runs low – export your projects regularly.",
+  "local_project_line": "{tracks} tracks · {switches} switches · changed {date}",
+  "local_edit_title": "Edit project",
+  "local_projects_store": "Projects",
+  "local_projects_store_hint": "The only copy of each project – export it as a file before deleting it.",
+  "local_projects_delete_ask": "Delete project “{title}” for good? There is no other copy.",
+  "local_store_intro_local": "What the app keeps in this browser on this device. The projects exist nowhere else – export them as files to keep them.",
+  "local_store_delete_all_ask_local": "Delete everything the app keeps in this browser – projects, point clouds and settings?",
+  "local_open_failed": "The project could not be opened."
 }

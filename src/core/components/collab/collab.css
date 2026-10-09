@@ -411,6 +411,13 @@
 .home-menu-user { margin: 0; padding: 6px 10px 8px; font-weight: 600; border-bottom: 1px solid var(--collab-border); margin-bottom: 4px; }
 .home-menu-list button.danger { color: var(--collab-danger); }
 
+/* The local build (Paket L): its badge beside the name, and Open beside a project's title. */
+.local-badge {
+  font-size: 12px; font-weight: 600; color: var(--color-primary);
+  border: 1px solid var(--color-primary); border-radius: 999px; padding: 2px 9px;
+}
+.home-project-open { flex-shrink: 0; }
+
 .home-section { margin-top: 32px; }
 /* The guideline's preview (GuideDialog's GuidePreview): its top, fading out, the whole of it a button. */
 .home-guide-preview { position: relative; height: 280px; overflow: hidden; border: 1px solid var(--collab-border); border-radius: 8px; background: #fff; }

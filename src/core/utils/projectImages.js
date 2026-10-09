@@ -18,7 +18,7 @@ export const PROJECT_IMAGES = [
   'neubau', 'umbau', 'elektrifizierung', 'studie',
 ].map(key => ({ key, labelKey: `project_image_${key}`, file: `${key}.svg` }))
 
-const PROJECT_IMAGE_MIME = 'image/svg+xml'
+export const PROJECT_IMAGE_MIME = 'image/svg+xml'
 
 /** Where the app serves a picture from — relative, like every asset (`base: './'`). */
 export const projectImageUrl = (image) => `./project-images/${image.file}`

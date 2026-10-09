@@ -1895,5 +1895,16 @@
   "local_store_delete_all_ask": "Alles löschen, was die App in diesem Browser abgelegt hat – Punktwolken, Arbeitskopien und Einstellungen?",
   "local_store_delete_all_unsaved": "Darunter {n} Arbeitskopie(n) mit nicht eingecheckten Änderungen – die gehen verloren.",
   "local_store_deleted_all": "Der lokale Speicher ist geleert.",
-  "local_store_delete_failed": "Löschen fehlgeschlagen: {error}"
+  "local_store_delete_failed": "Löschen fehlgeschlagen: {error}",
+  "local_badge": "Lokal",
+  "local_start_intro": "Diese Ausgabe läuft nur in Ihrem Browser – ohne Server und ohne Anmeldung. Die Projekte liegen ausschließlich in diesem Browser auf diesem Gerät; exportieren Sie sie als Datei, um eine Sicherung zu haben. Optimieren, Zusammenfügen, Neu verbinden, Trassieren aus Achspunkten, MDB-Import, DGM1 und die 3D-Ansicht gibt es nur in der Serverversion.",
+  "local_not_persisted": "Der Browser hält diesen Speicher nicht dauerhaft fest und darf ihn bei Platzmangel leeren – exportieren Sie Ihre Projekte regelmäßig.",
+  "local_project_line": "{tracks} Gleise · {switches} Weichen · geändert {date}",
+  "local_edit_title": "Projekt bearbeiten",
+  "local_projects_store": "Projekte",
+  "local_projects_store_hint": "Die einzige Kopie jedes Projekts – vor dem Löschen als Datei exportieren.",
+  "local_projects_delete_ask": "Projekt „{title}“ endgültig löschen? Es gibt keine andere Kopie.",
+  "local_store_intro_local": "Was die App in diesem Browser auf diesem Gerät ablegt. Die Projekte gibt es nirgends sonst – exportieren Sie sie als Datei, um sie zu behalten.",
+  "local_store_delete_all_ask_local": "Alles löschen, was die App in diesem Browser ablegt – Projekte, Punktwolken und Einstellungen?",
+  "local_open_failed": "Das Projekt ließ sich nicht öffnen."
 }
