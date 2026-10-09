@@ -2,13 +2,15 @@
 
 Alles, was ein Server für das Open Layout Tool braucht, liegt hier: eine
 Konfigurationsdatei, zwei Skripte und die Vorlagen für systemd und Caddy.
-Dienste: `olt-server`, `olt-optimizer`, `olt-cloudjobs` und die tägliche Sicherung.
+Dienste: `olt-server`, `olt-optimizer`, `olt-cloudjobs` und die tägliche Sicherung —
+je Instanz, siehe *Mehrere Instanzen*.
 
 | Datei | |
 |---|---|
 | `olt.env.example` | Konfiguration, kommt nach `/etc/open-layout-tool/olt.env` |
 | `setup.sh` | einmalige Einrichtung (darf wiederholt werden) |
-| `deploy.sh` | nach jedem Update: Abhängigkeiten, Build, Neustart, Health-Check |
+| `deploy.sh` | nach jedem Update: Abhängigkeiten, Build, Sicherung der DB, Neustart, Health-Check |
+| `release.sh` | gibt einen Stand für die Produktion frei: Tag `prod-JJJJ-MM-TT`, nur bei grüner CI |
 | `templates/` | systemd-Units, Caddy-Site; `@OLT_…@` wird aus der Konfiguration gefüllt |
 
 ## Aufbau
@@ -58,12 +60,63 @@ cd /opt/open-layout-tool && deploy/deploy.sh --pull
 ```
 
 Installiert npm- und pip-Abhängigkeiten nur, wenn sich ihre Lock-/Projektdatei
-geändert hat, baut die App neben `dist/` und gleicht sie dann hinein ab (die Seite
-ist während des Builds nie leer), startet die Dienste neu und prüft
-`/api/health` und `/health`. Nur prüfen: `deploy/deploy.sh --check-only`.
+geändert hat (Python-Versionen aus `tools/optimizer/requirements.lock`), baut die
+App neben `dist/` und gleicht sie dann hinein ab (die Seite ist während des Builds
+nie leer), kopiert die Datenbank (`backups/olt-JJJJ-MM-TT-predeploy-HHMMSS.sqlite`),
+startet die Dienste neu und prüft `/api/health` und `/health`. Nur prüfen:
+`deploy/deploy.sh --check-only`. Welcher Stand läuft: `$OLT_DATA/.deploy-state/ref`
+und `commit`.
 
 Nach einer Änderung an der Konfiguration oder an `templates/`: `setup.sh` erneut
 ausführen.
+
+## Mehrere Instanzen: Test und Produktion
+
+Auf einer Maschine laufen beliebig viele Instanzen nebeneinander, jede mit eigener
+Konfiguration, eigenem Checkout, Nutzer, Daten, Ports und Units. `OLT_INSTANCE`
+gibt ihr den Namen: `OLT_INSTANCE=prod` → Units `olt-prod-server`,
+`olt-prod-optimizer`, `olt-prod-cloudjobs`, `olt-prod-server-backup.timer`, Nutzer
+`olt-prod`, Daten `/var/lib/open-layout-tool-prod`. Ohne Namen gelten die
+einfachen Namen (`olt-server` …). Beide Skripte nehmen die Konfiguration mit
+`--config <datei>`:
+
+```bash
+deploy/setup.sh  --config /root/open-layout-tool-prod/olt.env
+deploy/deploy.sh --config /root/open-layout-tool-prod/olt.env --ref prod-2026-10-09
+```
+
+`setup.sh` bricht ab, wenn eine Unit des gewünschten Namens zu einem anderen
+Checkout gehört oder eine andere Instanz schon dieselbe Datenbank oder dieselben
+Ports benutzt. Liegt der Checkout unter einem geschlossenen Verzeichnis (`/root`,
+Modus 0700), gibt `setup.sh` dem Dienstnutzer per ACL nur das Durchgangsrecht
+(`setfacl -m u:olt-prod:--x /root`), nicht das Lesen.
+
+**Release-Weg.** Eine Instanz mit `OLT_TRACK=main` (Test) zieht mit `--pull` jeden
+Stand von `main`. Eine mit `OLT_TRACK=tags` (Produktion) nimmt nur Tags `prod-…`:
+
+1. Arbeit auf `main`, `deploy.sh --pull` auf dem Test, dort abnehmen.
+2. `deploy/release.sh` (oder `release.sh <commit>`) — legt den nächsten freien Tag
+   `prod-JJJJ-MM-TT` (dann `.2`, `.3`) an und pusht ihn, nur wenn die CI auf GitHub
+   für den Commit grün ist.
+3. Auf der Produktion `deploy.sh --config … --ref prod-JJJJ-MM-TT`. Das Skript prüft
+   die CI noch einmal (übersteuerbar mit `--force`), checkt den Tag aus, sichert die
+   Datenbank und startet neu.
+
+**Zurück** auf den vorigen Stand: `deploy.sh --config … --ref <voriger Tag>`.
+Migrationen laufen nur vorwärts — hat der neue Stand das Schema geändert, vorher
+die Sicherung von vor dem Deploy zurückspielen (siehe unten).
+
+**Auf dieser Maschine** (seit 2026-10-09):
+
+| | Test | Produktion |
+|---|---|---|
+| Adresse | online.open-layout-tool.org | db-ec.open-layout-tool.org |
+| Konfiguration | `/etc/open-layout-tool/olt.env` | `/root/open-layout-tool-prod/olt.env` |
+| Checkout | `/opt/open-layout-tool` (folgt `main`) | `/root/open-layout-tool-prod/app` (nur Tags) |
+| Units, Nutzer | `olt-*`, `olt` | `olt-prod-*`, `olt-prod` |
+| Ports (an 172.18.0.1) | 8787, 8099 | 8788, 8100 |
+| Daten | `/var/lib/open-layout-tool` | `/var/lib/open-layout-tool-prod` |
+| Frontend im Caddy | `/srv/olt/test` | `/srv/olt/prod` |
 
 ## Daten und Sicherung
 
@@ -75,8 +128,14 @@ ausführen.
 | NTv2-Gitter für PROJ | `/var/lib/open-layout-tool/share/proj/` |
 | Punktwolken | `/var/lib/open-layout-tool/clouds/<Projekt>/<Wolke>/` (`OLT_CLOUDS`), **nicht** in der täglichen Kopie |
 
-Wiederherstellen: `systemctl stop olt-server`, Sicherung über `olt.sqlite` kopieren
-(die `-wal`/`-shm`-Dateien daneben löschen), `systemctl start olt-server`.
+Dazu vor jedem Neustart durch `deploy.sh` eine Kopie
+`olt-JJJJ-MM-TT-predeploy-HHMMSS.sqlite`, die wie die täglichen nach 30 Tagen geht.
+Gesichert wird nur auf dieser Maschine; eine Sicherung außer Haus gibt es noch nicht.
+
+Wiederherstellen (bei einer Instanz mit Namen: `olt-<name>-…` und deren `OLT_DATA`):
+`systemctl stop olt-server olt-cloudjobs`, Sicherung über `olt.sqlite` kopieren
+(die `-wal`/`-shm`-Dateien daneben löschen, Eigentümer der Dienstnutzer),
+`systemctl start olt-server olt-cloudjobs`.
 
 ## Punktwolken (Phase 13)
 
@@ -130,13 +189,30 @@ Admin von Hand anlegen:
 ## Caddy in einem Container (`OLT_CADDY=external`)
 
 Läuft schon ein Caddy, der die Ports 80/443 hält (z. B. in Docker), schreibt
-`setup.sh` die Site nur nach `$OLT_DATA/open-layout-tool.caddy`. Sie wird dort von
-Hand eingebunden. `OLT_UPSTREAM` ist dann die Adresse, unter der der Container
-den Host erreicht (z. B. das Gateway des Docker-Netzes, und `OLT_BIND` dieselbe
-Adresse), `OLT_SITE_ROOT` der Pfad, unter dem `dist/` im Container eingehängt
-ist, und `OLT_TRUST_PROXY` das Netz des Containers (sonst sieht die Login-Bremse
-alle Anfragen von einer Adresse). `dist/` bleibt beim Deploy dasselbe Verzeichnis, ein Bind-Mount überlebt
-den Build also.
+`setup.sh` die Site nur nach `$OLT_CADDY_DIR/open-layout-tool[-<instanz>].caddy`
+und führt danach `OLT_CADDY_RELOAD` aus, falls gesetzt. `OLT_UPSTREAM` ist dann die
+Adresse, unter der der Container den Host erreicht (z. B. das Gateway des
+Docker-Netzes, und `OLT_BIND` dieselbe Adresse), `OLT_SITE_ROOT` der Pfad, unter
+dem `dist/` im Container eingehängt ist, und `OLT_TRUST_PROXY` das Netz des
+Containers (sonst sieht die Login-Bremse alle Anfragen von einer Adresse).
+`dist/` bleibt beim Deploy dasselbe Verzeichnis, ein Bind-Mount überlebt den
+Build also.
+
+**Auf dieser Maschine** ist das der Container `osrd-caddy` eines anderen Projekts
+(`/root/osrd/deploy/`). Eingehängt sind dort (`docker-compose.deploy.yml`):
+
+| Host | im Container |
+|---|---|
+| `/etc/open-layout-tool/caddy/` (Site-Blöcke beider Instanzen) | `/etc/caddy/olt/` |
+| `/opt/open-layout-tool/dist` | `/srv/olt/test` |
+| `/root/open-layout-tool-prod/app/dist` | `/srv/olt/prod` |
+
+Das OSRD-Caddyfile enthält nur `import /etc/caddy/olt/*.caddy`. Weil das ein
+eingehängtes **Verzeichnis** ist, sieht Caddy neue oder geänderte Site-Dateien
+nach `caddy reload` sofort (anders als das einzeln eingehängte Caddyfile, nach
+dessen Änderung der Container neu erzeugt werden muss). **Achtung:** OSRDs eigenes
+`setup.sh` schreibt das Caddyfile neu und verliert dabei die `import`-Zeile — danach
+wieder anfügen und `docker restart osrd-caddy`.
 
 ## Lokale Entwicklung
 
@@ -146,5 +222,5 @@ weiter, wie Caddy im Betrieb. Dienste lokal:
 
 ```bash
 cd tools/server && npm ci && OLT_SERVER_INSECURE_COOKIE=1 OLT_SERVER_DB=/tmp/olt.sqlite node bin/olt-server.mjs serve
-python3 -m venv .venv && .venv/bin/pip install -e 'tools/optimizer[terrain]' && .venv/bin/olt-optimizer-serve
+python3 -m venv .venv && .venv/bin/pip install -c tools/optimizer/requirements.lock -e 'tools/optimizer[terrain]' && .venv/bin/olt-optimizer-serve
 ```

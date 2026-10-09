@@ -1,6 +1,6 @@
 # Rendered by deploy/setup.sh from deploy/templates/olt-server-backup.service — edit the template, not this file.
 [Unit]
-Description=Open Layout Tool — daily copy of the project database
+Description=Open Layout Tool@OLT_LABEL@ — daily copy of the project database
 
 [Service]
 Type=oneshot

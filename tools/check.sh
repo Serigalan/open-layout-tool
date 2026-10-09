@@ -19,9 +19,7 @@ echo "== tests"; npx vitest run
 echo "== build (catches imports of names that are gone)"; npx vite build --outDir "$(mktemp -d)" --logLevel error
 
 py=${OLT_PYTHON:-}
-for cand in .venv/bin/python; do
-  [ -z "$py" ] && [ -x "$cand" ] && py=$PWD/$cand
-done
+if [ -z "$py" ] && [ -x .venv/bin/python ]; then py=$PWD/.venv/bin/python; fi
 if [ -z "$py" ] || ! "$py" -c 'import olt_optimizer' 2>/dev/null; then
   echo "== optimizer: skipped (no Python environment with olt_optimizer; set OLT_PYTHON)"
   exit 0

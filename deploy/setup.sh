@@ -3,9 +3,10 @@
 # newer), or bring an existing one in line with the configuration. Safe to run
 # again: every step checks what is there first.
 #
-#   sudo deploy/setup.sh            needs /etc/open-layout-tool/olt.env (see olt.env.example)
+#   sudo deploy/setup.sh                     needs /etc/open-layout-tool/olt.env (see olt.env.example)
+#   sudo deploy/setup.sh --config <file>     another instance on the same machine (OLT_INSTANCE)
 #
-# What it does: system packages (Node 22, Python venv, mdbtools, Caddy),
+# What it does: system packages (Node 22, Python venv, mdbtools, acl, Caddy),
 # the service user and data directory (with the point clouds' directory), the
 # NTv2 grids for PROJ, the systemd units (olt-server, olt-optimizer,
 # olt-cloudjobs, the backup) and the Caddy site, then deploy.sh for the first build, and finally the
@@ -15,14 +16,38 @@ set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 
 [ "$(id -u)" = 0 ] || die "run as root"
+parse_common "$@"
+[ ${#REST[@]} = 0 ] || die "unknown option ${REST[0]}"
 load_config
 cd "$OLT_REPO"
+
+step "Instance ${OLT_INSTANCE:-(default)}: units ${OLT_UNIT_PREFIX}*, user $OLT_USER, data $OLT_DATA"
+# Never take over another instance's units, database or ports: a second
+# configuration with the default names would silently rewire the first one.
+for t in "${UNIT_TEMPLATES[@]}"; do
+  u=/etc/systemd/system/$(unit_name "$t")
+  case "$t" in *.timer|*backup*) continue ;; esac
+  if [ -f "$u" ] && ! grep -q "^WorkingDirectory=$OLT_REPO/" "$u"; then
+    die "$u belongs to another checkout ($(grep -m1 '^WorkingDirectory=' "$u")) — set OLT_INSTANCE"
+  fi
+done
+for u in /etc/systemd/system/olt-*server.service; do
+  if [ ! -f "$u" ] || [ "$(basename "$u")" = "$(unit_name olt-server.service)" ]; then continue; fi
+  grep -q "^Environment=OLT_SERVER_DB=$OLT_DB\$" "$u" && die "$u already uses the database $OLT_DB"
+  grep -q "^Environment=OLT_SERVER_PORT=$OLT_SERVER_PORT\$" "$u" && die "$u already uses port $OLT_SERVER_PORT"
+done
+for u in /etc/systemd/system/olt-*optimizer.service; do
+  if [ ! -f "$u" ] || [ "$(basename "$u")" = "$(unit_name olt-optimizer.service)" ]; then continue; fi
+  grep -q "^Environment=OLT_OPTIMIZER_PORT=$OLT_OPTIMIZER_PORT\$" "$u" && die "$u already uses port $OLT_OPTIMIZER_PORT"
+done
+# The configuration names paths and users, nothing secret, but it is root's.
+chmod go-w "$OLT_CONFIG"
 
 step "System packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q ca-certificates curl gnupg git rsync python3 python3-venv python3-dev \
-  build-essential mdbtools debian-keyring debian-archive-keyring apt-transport-https
+  build-essential mdbtools acl debian-keyring debian-archive-keyring apt-transport-https
 
 node_major() { node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0; }
 if [ "$(node_major)" -lt 22 ]; then
@@ -56,9 +81,19 @@ install -d -m 0750 -o "$OLT_USER" -g "$(id -gn "$OLT_USER")" "$OLT_DATA"
 for d in "$OLT_BACKUPS" "$OLT_TERRAIN_CACHE" "$OLT_CLOUDS" "$OLT_DATA/share/proj" "$(dirname "$OLT_DB")"; do
   install -d -m 0750 -o "$OLT_USER" -g "$(id -gn "$OLT_USER")" "$d"
 done
-# The service user only reads the checkout; the build is done as root.
+# The service user only reads the checkout; the build is done as root. A
+# checkout under a closed directory (/root, mode 0700) gets the user through
+# with an ACL that allows passing, not listing — for this user only.
+d=$OLT_REPO
+while [ "$d" != / ]; do
+  d=$(dirname "$d")
+  if ! as_user test -x "$d"; then
+    setfacl -m "u:$OLT_USER:--x" "$d"
+    echo "ACL: $OLT_USER may pass through $d"
+  fi
+done
 if ! as_user test -r "$OLT_REPO/tools/server/bin/olt-server.mjs"; then
-  die "$OLT_USER cannot read $OLT_REPO — put the checkout where it can (e.g. /opt/open-layout-tool)"
+  die "$OLT_USER cannot read $OLT_REPO — make the checkout readable (chmod -R a+rX)"
 fi
 
 step "NTv2 grids for PROJ"
@@ -72,37 +107,45 @@ if [ ! -x "$OLT_VENV/bin/python" ]; then
 fi
 
 step "First build and install"
-"$OLT_REPO/deploy/deploy.sh" --no-restart
+"$OLT_REPO/deploy/deploy.sh" --config "$OLT_CONFIG" --no-restart
 
 step "systemd units"
-for unit in olt-server.service olt-optimizer.service olt-cloudjobs.service olt-server-backup.service olt-server-backup.timer; do
+for t in "${UNIT_TEMPLATES[@]}"; do
+  unit=$(unit_name "$t")
   # A unit linked in from elsewhere (an older hand-made setup) is replaced.
   [ -L "/etc/systemd/system/$unit" ] && rm "/etc/systemd/system/$unit"
-  render "deploy/templates/$unit" "/etc/systemd/system/$unit"
+  render "deploy/templates/$t" "/etc/systemd/system/$unit"
 done
 systemctl daemon-reload
-systemctl enable --now olt-server.service olt-optimizer.service olt-cloudjobs.service olt-server-backup.timer
-systemctl restart olt-server.service olt-optimizer.service olt-cloudjobs.service
+mapfile -t services < <(service_units)
+systemctl enable --now "${services[@]}" "$(unit_name olt-server-backup.timer)"
+systemctl restart "${services[@]}"
 
 step "Caddy site"
+install -d "$OLT_CADDY_DIR"
 if [ "$OLT_CADDY" = system ]; then
-  install -d /etc/caddy/conf.d
-  render deploy/templates/Caddyfile /etc/caddy/conf.d/open-layout-tool.caddy
+  render deploy/templates/Caddyfile "$OLT_CADDY_SITE"
   # The package's own Caddyfile serves a placeholder on :80; replace it with
   # one that imports the sites. A Caddyfile somebody has written is kept and
   # only gains the import.
   if [ ! -f /etc/caddy/Caddyfile ] || grep -q 'The Caddyfile is an easy way to configure your Caddy web server' /etc/caddy/Caddyfile; then
-    printf '# Sites live in conf.d/, one file each.\nimport /etc/caddy/conf.d/*.caddy\n' > /etc/caddy/Caddyfile
-  elif ! grep -q 'import /etc/caddy/conf.d/\*.caddy' /etc/caddy/Caddyfile; then
-    printf '\nimport /etc/caddy/conf.d/*.caddy\n' >> /etc/caddy/Caddyfile
+    printf '# Sites live in %s/, one file each.\nimport %s/*.caddy\n' "$OLT_CADDY_DIR" "$OLT_CADDY_DIR" > /etc/caddy/Caddyfile
+  elif ! grep -qF "import $OLT_CADDY_DIR/*.caddy" /etc/caddy/Caddyfile; then
+    printf '\nimport %s/*.caddy\n' "$OLT_CADDY_DIR" >> /etc/caddy/Caddyfile
   fi
   caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
   systemctl enable caddy
   systemctl reload-or-restart caddy
 else
-  render deploy/templates/Caddyfile "$OLT_DATA/open-layout-tool.caddy"
-  echo "OLT_CADDY=external: the site block is in $OLT_DATA/open-layout-tool.caddy —"
-  echo "include it in the running Caddy's configuration and reload it there."
+  render deploy/templates/Caddyfile "$OLT_CADDY_SITE"
+  chmod 0644 "$OLT_CADDY_SITE"
+  if [ -n "$OLT_CADDY_RELOAD" ]; then
+    echo "site block in $OLT_CADDY_SITE; reloading: $OLT_CADDY_RELOAD"
+    bash -c "$OLT_CADDY_RELOAD"
+  else
+    echo "OLT_CADDY=external: the site block is in $OLT_CADDY_SITE —"
+    echo "include it in the running Caddy's configuration and reload it there."
+  fi
 fi
 
 step "First admin"
@@ -120,6 +163,6 @@ else
   echo "$count user(s) exist — no admin created"
 fi
 
-"$OLT_REPO/deploy/deploy.sh" --check-only
+"$OLT_REPO/deploy/deploy.sh" --config "$OLT_CONFIG" --check-only
 echo
 echo "Done: https://$OLT_DOMAIN/"

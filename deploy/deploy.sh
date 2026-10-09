@@ -1,24 +1,33 @@
 #!/usr/bin/env bash
 # Open Layout Tool — bring a set-up server to the state of the checkout:
 # dependencies where they changed, the app build, the optimizer package, a
-# restart of the services and a health check.
+# copy of the database, a restart of the services and a health check.
 #
-#   sudo deploy/deploy.sh                 after git pull (or with --pull)
-#   sudo deploy/deploy.sh --pull          git pull --ff-only first
-#   sudo deploy/deploy.sh --check-only    only the health check
+#   sudo deploy/deploy.sh                    after git pull (or with --pull)
+#   sudo deploy/deploy.sh --pull             git pull --ff-only first (OLT_TRACK=main)
+#   sudo deploy/deploy.sh --ref prod-…       check out that tag first (OLT_TRACK=tags);
+#                                            refused unless CI was green for it (--force)
+#   sudo deploy/deploy.sh --check-only       only the health check
+#   … --config <file>                        another instance (see setup.sh)
 #   (--no-restart is setup.sh's, before the units exist)
 set -euo pipefail
 # shellcheck source=deploy/lib.sh
 . "$(dirname "$0")/lib.sh"
 
-pull=0 restart=1 build=1
-for arg in "$@"; do
-  case "$arg" in
+parse_common "$@"
+pull=0 restart=1 build=1 ref='' force=0
+set -- "${REST[@]+"${REST[@]}"}"
+while [ $# -gt 0 ]; do
+  case "$1" in
     --pull) pull=1 ;;
+    --ref) [ $# -ge 2 ] || die "--ref needs a tag"; ref=$2; shift ;;
+    --ref=*) ref=${1#--ref=} ;;
+    --force) force=1 ;;
     --no-restart) restart=0 ;;
     --check-only) build=0 restart=0 ;;
-    *) die "unknown option $arg" ;;
+    *) die "unknown option $1" ;;
   esac
+  shift
 done
 
 load_config
@@ -35,9 +44,35 @@ health() {
 }
 
 if [ "$build" = 1 ]; then
-  if [ "$pull" = 1 ]; then
-    step "git pull"
-    git pull --ff-only
+  if [ "$OLT_TRACK" = tags ]; then
+    # Production: only a prod-* tag, accepted on the test server and green in CI.
+    [ "$pull" = 0 ] || die "OLT_TRACK=tags: no --pull here, deploy a tag with --ref"
+    if [ -n "$ref" ]; then
+      case "$ref" in prod-*) ;; *) die "--ref takes a prod-* tag, not $ref" ;; esac
+      step "git fetch, check out $ref"
+      git fetch -q --tags --force origin
+      git rev-parse -q --verify "refs/tags/$ref" >/dev/null || die "no tag $ref on origin"
+      sha=$(git rev-list -n1 "$ref")
+      if [ "$force" = 1 ]; then
+        echo "CI not checked (--force)"
+      elif ci_green "$sha"; then
+        echo "CI green for ${sha:0:7}"
+      else
+        die "no green CI run for $ref (${sha:0:7}) — wait for it, or --force"
+      fi
+      git -c advice.detachedHead=false checkout -q --detach "$ref"
+    else
+      # Without --ref only what is checked out, and only when it is a tag
+      # (setup.sh's first build).
+      ref=$(git describe --tags --exact-match --match 'prod-*' HEAD 2>/dev/null) \
+        || die "OLT_TRACK=tags: HEAD is not on a prod-* tag — deploy with --ref <tag>"
+    fi
+  else
+    [ -z "$ref" ] || die "--ref is for OLT_TRACK=tags; this instance follows main (--pull)"
+    if [ "$pull" = 1 ]; then
+      step "git pull"
+      git pull --ff-only
+    fi
   fi
 
   if changed npm package-lock.json || [ ! -d node_modules ]; then
@@ -71,17 +106,29 @@ if [ "$build" = 1 ]; then
   mkdir -p dist
   rsync -a --delete "$out/" dist/
   chmod -R a+rX dist
+  mkdir -p "$OLT_STATE"
+  git rev-parse HEAD > "$OLT_STATE/commit"
+  echo "${ref:-$(git rev-parse --abbrev-ref HEAD)}" > "$OLT_STATE/ref"
 fi
 
+mapfile -t services < <(service_units)
 if [ "$restart" = 1 ]; then
-  step "Restart"
-  systemctl restart olt-server.service olt-optimizer.service
-  # Installed by setup.sh from phase 13 on; a job it was running is queued again.
-  if [ -f /etc/systemd/system/olt-cloudjobs.service ]; then
-    systemctl restart olt-cloudjobs.service
-  else
-    echo "olt-cloudjobs is not installed — run deploy/setup.sh once"
+  # Migrations only go forward: a copy from just before the new code starts
+  # is what a step back to the previous state needs. Same name pattern as the
+  # daily copy, so the backup timer prunes it after OLT_BACKUP_DAYS.
+  if [ -f "$OLT_DB" ]; then
+    step "Database copy"
+    copy="$OLT_BACKUPS/olt-$(date +%F)-predeploy-$(date +%H%M%S).sqlite"
+    (cd tools/server && OLT_SERVER_DB="$OLT_DB" as_user "$OLT_NODE" bin/olt-server.mjs backup "$copy")
   fi
+  step "Restart"
+  for u in "${services[@]}"; do
+    if [ -f "/etc/systemd/system/$u" ]; then
+      systemctl restart "$u"
+    else
+      echo "$u is not installed — run deploy/setup.sh once"
+    fi
+  done
 fi
 
 if [ "$build" = 0 ] || [ "$restart" = 1 ]; then

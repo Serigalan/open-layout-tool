@@ -1,6 +1,6 @@
 # Rendered by deploy/setup.sh from deploy/templates/olt-server.service — edit the template, not this file.
 [Unit]
-Description=Open Layout Tool — project server (users, variants, revisions)
+Description=Open Layout Tool@OLT_LABEL@ — project server (users, variants, revisions)
 After=network.target
 
 [Service]
@@ -15,6 +15,8 @@ Environment=OLT_SERVER_HOST=@OLT_BIND@
 Environment=OLT_SERVER_PORT=@OLT_SERVER_PORT@
 # Whose X-Forwarded-For is believed — Caddy's address only.
 Environment=OLT_SERVER_TRUST_PROXY=@OLT_TRUST_PROXY@
+Environment=OLT_SERVER_LOG=@OLT_SERVER_LOG@
+MemoryMax=@OLT_SERVER_MEMORY@
 Restart=on-failure
 RestartSec=2
 NoNewPrivileges=true

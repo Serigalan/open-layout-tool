@@ -1,6 +1,6 @@
 # Rendered by deploy/setup.sh from deploy/templates/olt-optimizer.service — edit the template, not this file.
 [Unit]
-Description=Open Layout Tool — optimizer, MDB conversion and terrain service
+Description=Open Layout Tool@OLT_LABEL@ — optimizer, MDB conversion and terrain service
 After=network.target
 
 [Service]
@@ -17,6 +17,7 @@ Environment=OLT_TERRAIN_CACHE=@OLT_TERRAIN_CACHE@
 # where setup.sh copies them from grids/; no downloads at run time.
 Environment=XDG_DATA_HOME=@OLT_DATA@/share
 Environment=PROJ_NETWORK=OFF
+MemoryMax=@OLT_OPTIMIZER_MEMORY@
 Restart=always
 RestartSec=2
 NoNewPrivileges=true
