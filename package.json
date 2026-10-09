@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:local": "vite build --mode standalone && node tools/check-local-bundle.mjs dist-local",
+    "dev:local": "vite --mode standalone",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

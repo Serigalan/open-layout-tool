@@ -23,7 +23,7 @@ const jsxUsesVars = {
 }
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'dist-local']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
