@@ -20,7 +20,8 @@ An interactive web application for designing railway track layouts on a map — 
   labels, switch symbols, kilometrage, a title block and an optional map backdrop
 - **Data exchange** — import/export full projects or selected tracks as JSON, import Verm.ESN surveying data,
   and export to [OSRD](https://osrd.fr) format
-- **Project management** — projects with variants and revisions on a project server, users with sign-in
+- **Project management** — projects with variants and revisions on a project server, users with sign-in;
+  or, in the local version, projects in the browser alone
 
 ## Getting Started
 
@@ -32,6 +33,20 @@ npm run dev
 The dev server runs over HTTPS (with a self-signed certificate, which the browser will warn about once).
 It forwards `/api` to the project server (`tools/server`) and `/optimizer` to the optimizer service
 (`tools/optimizer`); see `deploy/README.md` for running both locally.
+
+## Local version
+
+The same codebase also builds a version that runs in the browser alone — no server, no sign-in, the
+projects kept in the browser's storage, with export and import as files (Paket L). It holds only the
+browser components (`src/core`); what needs the project server or the optimizer service (`src/server`)
+is left out of its bundle.
+
+```bash
+npm run local       # build it and serve it on http://localhost:8080/
+npm run local:zip   # the same as a zip to hand on: app, a small server (Node.js 18+), start scripts
+```
+
+What it can and cannot do: [`tools/local/README.md`](tools/local/README.md) — the README in the zip.
 
 ## Running a server
 

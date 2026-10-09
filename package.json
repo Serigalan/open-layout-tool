@@ -11,6 +11,8 @@
     "build": "vite build",
     "build:local": "vite build --mode standalone && node tools/check-local-bundle.mjs dist-local",
     "dev:local": "vite --mode standalone",
+    "local": "npm run build:local && node tools/local/serve.mjs",
+    "local:zip": "npm run build:local && node tools/local/pack.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

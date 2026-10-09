@@ -27,8 +27,10 @@ export default defineConfig(({ mode }) => ({
   // The dev server runs over https because two of the Landesvermessung WMS
   // (Sachsen-Anhalt, Schleswig-Holstein) only answer CORS for https origins —
   // over plain http://localhost the browser drops their tiles. Production is
-  // served over https anyway, so this only affects local development.
-  plugins: [react(), basicSsl(), entryFor(mode)],
+  // served over https anyway, so this only affects local development. The
+  // local build stays on http://localhost, as its own server (tools/local)
+  // serves it: no certificate to click away, and those two layers missing.
+  plugins: mode === LOCAL ? [react(), entryFor(mode)] : [react(), basicSsl(), entryFor(mode)],
   base: './',
   build: mode === LOCAL ? { outDir: 'dist-local' } : {},
   // The project server (tools/server) answers under /api and the optimizer
