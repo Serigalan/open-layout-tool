@@ -299,20 +299,39 @@ describe('two turnouts reaching into one track from its two ends', () => {
   const sw2 = turnout({ switchId: 's2', portB1_trackId: 'c', portB1_endpoint: 'BEGIN', portB2_trackId: 'm', portB2_endpoint: 'END' })
   const project = { tracks: [main, branchTrack(), second], switches: [turnout(), sw2] }
 
-  it('gives each the half of the shared stretch nearer its toe', () => {
+  it('lays each turnout\'s own sleepers up to the middle and couples every sleeper there to all three tracks', () => {
     const p = coupleSwitchGradients(project, opts)
-    const t = (id) => p.tracks.find(x => x.id === id)
-    // The first no longer reaches its ldS: its branch keeps no point there.
-    expect(t('b').heights).toHaveLength(2)
+    const t = (q, id) => q.tracks.find(x => x.id === id)
+    // Neither reaches its ldS on its own: no ldS point on either branch.
+    expect(t(p, 'b').heights).toHaveLength(2)
     const edited = { ...p, tracks: p.tracks.map(x => (x.id === 'm'
       ? { ...x, heights: [{ station: 0, z: 105.2 }, { station: 25, z: 105.5 }, { station: 35, z: 105.7 }, { station: 60, z: 106.025 }] } : x)) }
     const after = coupleSwitchHeights(p, edited, opts)
-    const at = (id) => after.tracks.find(x => x.id === id).heights
-    // 25 m is the first turnout's, 35 m the second's: each partner on its own branch.
-    expect(at('b')).toHaveLength(3)
-    expect(at('c').length).toBeGreaterThan(2)
-    const marks = coupledPoints(after.tracks, after.switches, after.tracks[0], opts)
-    expect([...marks.values()].map(v => v.sw.switchId)).toEqual(['s1', 's2'])
+    // 25 m lies on the first turnout's grid, 35 m on the second's — and both
+    // have a partner on both branches.
+    const g1 = turnoutSleepers(after.tracks, turnout(), opts).sleepers
+    const g2 = turnoutSleepers(after.tracks, sw2, opts).sleepers
+    const main = t(after, 'm').heights
+    expect(g1.some(sl => Math.abs(sl.main - main[1].station) < 0.001)).toBe(true)
+    expect(g2.some(sl => Math.abs(sl.main - main[2].station) < 0.001)).toBe(true)
+    expect(t(after, 'b').heights).toHaveLength(4)
+    expect(t(after, 'c').heights).toHaveLength(4)
+    // Without cant the three lie at one height on a sleeper, to the gradient over its lean.
+    for (const id of ['b', 'c']) {
+      const inner = t(after, id).heights.slice(1, 3).map(q => q.z).sort()
+      expect(Math.abs(inner[0] - 105.5)).toBeLessThan(0.003)
+      expect(Math.abs(inner[1] - 105.7)).toBeLessThan(0.003)
+    }
+    const marks = [...coupledPoints(after.tracks, after.switches, after.tracks[0], opts).values()]
+    expect(marks.map(v => [v.sw.switchId, v.also.map(x => x.switchId)])).toEqual([['s1', ['s2']], ['s2', ['s1']]])
+    // Raised on one branch, the shared sleeper takes the main track and the other branch along.
+    const b = t(after, 'b').heights
+    const i = b.findIndex(q => Math.abs(q.z - 105.7) < 0.003)
+    const raised = { ...after, tracks: after.tracks.map(x => (x.id === 'b' ? { ...x, heights: b.map((q, k) => (k === i ? { ...q, z: q.z + 0.01 } : q)) } : x)) }
+    const moved = coupleSwitchHeights(after, raised, opts)
+    expect(t(moved, 'm').heights[2].z).toBeCloseTo(105.71, 3)
+    const c = t(moved, 'c').heights
+    expect(c.some(q => Math.abs(q.z - 105.71) < 0.003)).toBe(true)
   })
 })
 

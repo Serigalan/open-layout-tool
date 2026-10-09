@@ -1044,6 +1044,8 @@
   "elevation_reason_hint": "A gradient change between switch toe and last through sleeper needs a reason (HP.AR.06). It holds for both points of a pair and shows in the elevation profile and the bands.",
   "elevation_reason_note": "Reason: {reason}",
   "bands_reason_mark": "Reason",
+  "elevation_sleeper_of": "{n} of switch {name}",
+  "elevation_paired_shared": "Sleeper shared with switch {names}: its other track follows as well.",
   "elevation_switch_coupled": "Switch {name} ({label}): gradient coupled, last through sleeper at station {station} m",
   "elevation_switch_pending": "Switch {name} ({label}): not coupled yet, last through sleeper at station {station} m",
   "crossover_section": "Crossovers",

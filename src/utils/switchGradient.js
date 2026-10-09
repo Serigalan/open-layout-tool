@@ -103,12 +103,16 @@ export function switchCoupling(tracks, sw, opts = {}) {
  * Every coupling a project's turnouts make, each with the stretch it owns on
  * its two tracks. Where two turnouts reach into one track from its two ends —
  * the connecting track of a crossover is the branch of both — and their
- * stretches overlap, the overlap is split in the middle: every height point
- * belongs to one turnout, or the two would pull it onto their own sleepers in
- * turn.
+ * stretches overlap, the long sleepers there carry all three tracks
+ * (decision 264): each turnout keeps its own grid of sleepers up to the
+ * middle of the overlap, and every sleeper in it couples the shared track to
+ * the other track of both turnouts.
  *
- * Each coupling gets `end` { main, branch } — how far from WA its stretch
- * reaches on either track — and `owned`, the sleepers within both.
+ * Each coupling gets `reach` { main, branch } — how far from WA its stretch
+ * reaches on either track, to the ldS — `end` — how far the part it owns
+ * reaches, to the middle of an overlap — `owned`, its sleepers within that,
+ * and `slots`: the sleepers it pairs points on, its own and, beyond the
+ * middle of an overlap, the other turnout's laid through its frame.
  */
 // The last answer, for the same project state: the profile and the cross
 // section ask for every station they draw.
@@ -125,7 +129,10 @@ export function switchCouplings(tracks, switches, opts) {
 
 function couplingsOf(tracks, switches, opts) {
   const cs = (switches ?? []).map(sw => switchCoupling(tracks, sw, opts)).filter(Boolean)
-  for (const c of cs) c.end = { main: c.lds, branch: c.ldsBranchDistance }
+  for (const c of cs) {
+    c.reach = { main: c.lds, branch: c.ldsBranchDistance }
+    c.end = { ...c.reach }
+  }
   const onTrack = new Map()
   for (const c of cs) {
     for (const side of ['main', 'branch']) {
@@ -133,23 +140,49 @@ function couplingsOf(tracks, switches, opts) {
       onTrack.set(id, [...(onTrack.get(id) ?? []), { c, side }])
     }
   }
+  const overlaps = []
   for (const entries of onTrack.values()) {
     for (const [i, e1] of entries.entries()) {
       for (const e2 of entries.slice(i + 1)) {
         if (e1.c[e1.side].sense === e2.c[e2.side].sense) continue
         const L = e1.c[e1.side].length
-        const [r1, r2] = [e1.c.end[e1.side], e2.c.end[e2.side]]
+        const [r1, r2] = [e1.c.reach[e1.side], e2.c.reach[e2.side]]
         if (r1 + r2 <= L) continue
         const split = (r1 + L - r2) / 2
         e1.c.end[e1.side] = split
         e2.c.end[e2.side] = L - split
+        overlaps.push([e1, e2])
       }
     }
   }
   for (const c of cs) {
     c.owned = c.sleepers.filter(sl => sl.m <= c.end.main + STATION_TOL && sl.b <= c.end.branch + STATION_TOL)
+    c.guests = []
   }
+  for (const [e1, e2] of overlaps) {
+    addGuests(e1, e2)
+    addGuests(e2, e1)
+  }
+  for (const c of cs) c.slots = [...c.owned, ...c.guests].sort((x, y) => x.m - y.m)
   return cs
+}
+
+/**
+ * The sleepers of `host`'s neighbour on the track they share that lie beyond
+ * the middle of the overlap but within `host`'s reach, laid through `host`'s
+ * frame: the same sleeper on the shared track, where it meets `host`'s other
+ * track there, and how it sits.
+ */
+function addGuests({ c: host, side }, { c: other, side: otherSide }) {
+  for (const sl of other.owned) {
+    const st = sl[otherSide]
+    const d = host[side].distance(st)
+    if (d <= host.end[side] + STATION_TOL || d > host.reach[side] + STATION_TOL) continue
+    const through = sleeperThrough(host, side, st)
+    const off = through && sleeperOffsets(host, through)
+    if (!off) continue
+    host.guests.push({ ...through, [side]: st, k: sl.k, of: other.sw, a: off.a, y: off.y })
+  }
 }
 
 /** The coupling of one turnout, with the stretch it owns (switchCouplings). */
@@ -169,14 +202,21 @@ export function inBody(c, side, station) {
   return d > STATION_TOL && d <= c.end[side] + STATION_TOL
 }
 
-/** The sleeper the coupling owns that lies nearest to a station of one of its tracks. */
-function nearestOwned(c, side, station) {
+/** Is a station of one of the coupling's tracks behind WA, within its reach — to the ldS? */
+const inReach = (c, side, station) => {
+  const d = c[side].distance(station)
+  return d > STATION_TOL && d <= c.reach[side] + STATION_TOL
+}
+
+/** The sleeper nearest to a station of one of the coupling's tracks, among `among`. */
+function nearestOf(among, c, side, station) {
   const key = side === 'main' ? 'm' : 'b'
   const d = c[side].distance(station)
   let best = null
-  for (const sl of c.owned) if (!best || Math.abs(sl[key] - d) < Math.abs(best[key] - d)) best = sl
+  for (const sl of among) if (!best || Math.abs(sl[key] - d) < Math.abs(best[key] - d)) best = sl
   return best
 }
+const nearestSlot = (c, side, station) => nearestOf(c.slots, c, side, station)
 
 /**
  * How far the branch lies above the main route on a sleeper (decision 257):
@@ -215,20 +255,20 @@ const kept = (had, z) => (had && Math.abs(had.z - z) <= Z_TOL + 1e-9 ? had.z : r
  */
 export function pairedHeights(c, leader = 'main') {
   const mainH = c.main.track.heights, branchH = c.branch.track.heights
-  if (!(mainH?.length >= 2) || !(branchH?.length >= 2) || !c.owned?.length) return null
-  const last = c.owned[c.owned.length - 1]
+  if (!(mainH?.length >= 2) || !(branchH?.length >= 2) || !c.slots?.length) return null
+  const last = c.slots[c.slots.length - 1]
   if (!covers(mainH, c.main.station(0), last.main) || !covers(branchH, c.branch.station(0), last.branch)) return null
 
   const lead = leader === 'branch' ? 'branch' : 'main'
   const onSleeper = new Map()
   for (const p of c[lead].track.heights) {
-    if (!inBody(c, lead, p.station)) continue
-    const sl = nearestOwned(c, lead, p.station)
+    if (!inReach(c, lead, p.station)) continue
+    const sl = nearestSlot(c, lead, p.station)
     const had = onSleeper.get(sl)
     if (!had || Math.abs(c[lead].distance(p.station) - sl[lead === 'main' ? 'm' : 'b'])
       < Math.abs(c[lead].distance(had.station) - sl[lead === 'main' ? 'm' : 'b'])) onSleeper.set(sl, p)
   }
-  const outside = (h, side) => h.filter(p => !inBody(c, side, p.station))
+  const outside = (h, side) => h.filter(p => !inReach(c, side, p.station))
   const ldsSl = c.owned.find(sl => sl.k === 'lds') ?? null
 
   let newMain, newBranch
@@ -373,18 +413,35 @@ export function touchedTurnouts(before, after) {
  * sleeper the point sits on (or would snap to). Each has a partner on the
  * same sleeper of the other track; what the profile marks, and locks where
  * the turnout's heights are locked. `dz` where the pair no longer lies in the
- * turnout's plane (planeDeviations).
+ * turnout's plane (planeDeviations), `also` the turnouts that share the
+ * sleeper — in an overlap it carries three tracks (decision 264).
  */
 export function coupledPoints(tracks, switches, track, opts) {
   const out = new Map()
-  for (const c of switchCouplings(tracks, switches, opts)) {
+  const cs = switchCouplings(tracks, switches, opts)
+  for (const c of cs) {
     for (const side of ['main', 'branch']) {
       if (c[side].track.id !== track.id) continue
       const off = new Map(planeDeviations(c).map(d => [d.sleeper, d.dz]))
       ;(track.heights ?? []).forEach((p, i) => {
         if (!inBody(c, side, p.station)) return
-        const sleeper = nearestOwned(c, side, p.station)
-        out.set(i, { sw: c.sw, side, sleeper, ...(off.has(sleeper) ? { dz: off.get(sleeper) } : {}) })
+        const sleeper = nearestSlot(c, side, p.station)
+        out.set(i, {
+          sw: c.sw, side, sleeper, also: sleeper.of ? [sleeper.of] : [],
+          ...(off.has(sleeper) ? { dz: off.get(sleeper) } : {}),
+        })
+      })
+    }
+  }
+  // Beyond the middle of an overlap a point is the neighbour's, and coupled
+  // through this turnout as well (decision 264).
+  for (const c of cs) {
+    for (const side of ['main', 'branch']) {
+      if (c[side].track.id !== track.id) continue
+      ;(track.heights ?? []).forEach((p, i) => {
+        const info = out.get(i)
+        if (!info || info.sw === c.sw || !inReach(c, side, p.station) || info.also.includes(c.sw)) return
+        out.set(i, { ...info, also: [...info.also, c.sw] })
       })
     }
   }
@@ -475,13 +532,13 @@ function heldPoints(tracks, switches, sw, opts) {
     const h = c[side].track.heights ?? []
     // At the stations points are stored at, to the mm: a sleeper's own
     // station may lie a fraction of a mm beside its point.
-    const built = [c[side].station(0), ...c.owned.map(sl => roundMm(sl[side]))]
+    const built = [c[side].station(0), ...c.slots.map(sl => roundMm(sl[side]))]
       .map(st => ({ side, d: c[side].distance(st), z: gradientAt(h, st) }))
     const stored = h.map(p => ({ side, d: c[side].distance(p.station), z: p.z, rv: p.rv ?? null, reason: p.reason ?? null }))
-      .filter(({ d }) => d >= -STATION_TOL && d <= c.end[side] + STATION_TOL)
+      .filter(({ d }) => d >= -STATION_TOL && d <= c.reach[side] + STATION_TOL)
     return [...built, ...stored]
   })
-  return { shape: [c.main.track.elements, c.branch.track.elements, c.end.main, c.end.branch], points }
+  return { shape: [c.main.track.elements, c.branch.track.elements, c.reach.main, c.reach.branch], points }
 }
 
 const sameHeld = (a, b) => a.length === b.length && a.every((x, i) => {
@@ -524,9 +581,9 @@ const PLANE_TOL = 0.001
  */
 export function planeDeviations(c) {
   const mainH = c.main.track.heights, branchH = c.branch.track.heights
-  if (!(mainH?.length >= 2) || !(branchH?.length >= 2) || !c.owned?.length) return []
+  if (!(mainH?.length >= 2) || !(branchH?.length >= 2) || !c.slots?.length) return []
   const out = []
-  for (const sl of c.owned) {
+  for (const sl of c.slots) {
     const pm = pointOn(mainH, sl.main), pb = pointOn(branchH, sl.branch)
     if (!pm && !pb) continue
     const zm = pm?.z ?? gradientAt(mainH, sl.main)

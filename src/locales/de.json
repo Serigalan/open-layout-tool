@@ -1044,6 +1044,8 @@
   "elevation_reason_hint": "Ein Neigungswechsel zwischen Weichenanfang und letzter durchgehender Schwelle braucht eine Begründung (HP.AR.06). Sie gilt für beide Punkte eines Paars und steht in Höhenprofil und Bändern.",
   "elevation_reason_note": "Begründung: {reason}",
   "bands_reason_mark": "Begr.",
+  "elevation_sleeper_of": "{n} der Weiche {name}",
+  "elevation_paired_shared": "Gemeinsame Schwelle mit Weiche {names}: auch deren anderes Gleis folgt.",
   "elevation_switch_coupled": "Weiche {name} ({label}): Gradiente gekoppelt, ldS bei Station {station} m",
   "elevation_switch_pending": "Weiche {name} ({label}): noch nicht gekoppelt, ldS bei Station {station} m",
   "crossover_section": "Weichenverbindungen",

@@ -308,11 +308,15 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const swName = (sw) => sw.name ?? sw.label ?? ''
   const lockedNote = (sw) => fill('elevation_locked_point', { name: swName(sw) })
   // Sleepers are counted from WA, the first being 1; the last is the ldS.
-  const sleeperLabel = (sl) => (sl?.k === 'lds' ? t('elevation_lds') : String((sl?.k ?? 0) + 1))
-  const pairedNote = ({ sw, side, sleeper }) => fill(side === 'main' ? 'elevation_paired_main' : 'elevation_paired_branch', {
+  // A sleeper of the neighbour in a crossover's overlap says whose it is.
+  const sleeperLabel = (sl) => {
+    const n = sl?.k === 'lds' ? t('elevation_lds') : String((sl?.k ?? 0) + 1)
+    return sl?.of ? fill('elevation_sleeper_of', { n, name: swName(sl.of) }) : n
+  }
+  const pairedNote = ({ sw, side, sleeper, also = [] }) => [fill(side === 'main' ? 'elevation_paired_main' : 'elevation_paired_branch', {
     name: swName(sw), sleeper: sleeperLabel(sleeper),
     other: trackName(sw[`port${side === 'main' ? turnoutDivergingPort(sw) : turnoutLinePort(sw)}_trackId`]),
-  })
+  }), also.length > 0 && fill('elevation_paired_shared', { names: also.map(swName).join(', ') })].filter(Boolean).join(' ')
   const planeNote = (info) => (info?.dz != null ? fill('elevation_plane_off', { dz: (info.dz * 1000).toFixed(0) }) : null)
   const pointNote = (i) => [locked.has(i) ? lockedNote(locked.get(i)) : paired.has(i) ? pairedNote(paired.get(i)) : null,
     planeNote(paired.get(i)), points[i]?.reason && fill('elevation_reason_note', { reason: points[i].reason })]
