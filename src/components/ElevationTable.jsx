@@ -54,14 +54,18 @@ function ValueCell({ value, digits, step, editable, onCommit, className, title }
 /**
  * The gradient of one track or route as a table (the Höhenplan's second view): every
  * point with its station, height, the gradients before and after it in ‰,
- * the radius of its vertical curve and the tangent length that gives. Two of
+ * the radius of its vertical curve, its length and the tangent length. Two of
  * station, height and the two gradients are given (`mode`, GIVEN_MODES) and
  * can be typed; the other two follow, the points either side stay. A
  * gradient a rule flags and a curve with a finding are coloured as in the
  * graphic view. A row clicked is the selection the graphic view shows.
  *
+ * A radius typed is what counts for the curve; a length typed is noted on the
+ * point instead (`la`, decision 266) and the store works the radius out from
+ * it — again whenever a gradient beside the point changes.
+ *
  * `points` are the profile's (routeProfile): solved along the route, a point
- * is written back by `onWrite(point, { station, z }, rv)` to the track it
+ * is written back by `onWrite(point, { station, z }, { rv?, la? })` to the track it
  * belongs to. A point at the end of its track — where tracks meet, also
  * between two tracks of a route — keeps its station.
  */
@@ -84,7 +88,11 @@ export default function ElevationTable({
   }
   const applyRadius = (i, rv) => {
     setError(null)
-    onWrite(points[i], { station: points[i].station, z: points[i].z }, rv > 0 ? rv : null)
+    onWrite(points[i], { station: points[i].station, z: points[i].z }, { rv: rv > 0 ? rv : null, la: null })
+  }
+  const applyLength = (i, la) => {
+    setError(null)
+    onWrite(points[i], { station: points[i].station, z: points[i].z }, { la: la > 0 ? la : null })
   }
 
   const sev = (entry) => (entry?.severity && entry.severity !== 'ok' ? `rule-sev-${entry.severity}` : undefined)
@@ -105,6 +113,7 @@ export default function ElevationTable({
             <th>{t('elevation_grade_before')} [‰]</th>
             <th>{t('elevation_grade_after')} [‰]</th>
             <th title={t('elevation_vcurve_hint')}>{t('elevation_vcurve')} [m]</th>
+            <th title={t('elevation_vcurve_length_hint')}>{t('elevation_vcurve_length')} [m]</th>
             <th>T [m]</th>
           </tr>
         </thead>
@@ -120,6 +129,8 @@ export default function ElevationTable({
             })
             const before = stretchAt.get(i), after = stretchAt.get(i + 1), curve = curveAt.get(i)
             const tl = tangentLength(points, i)
+            const inner = !isLocked && i > 0 && i < n - 1
+            const governs = p.la != null ? fill('elevation_vcurve_length_governs', { la: p.la.toFixed(2) }) : null
             return (
               <tr key={i} className={selection.includes(i) ? 'track-table-row-active' : undefined}
                 title={noteAt(i) ?? (joint ? t('elevation_table_joint') : undefined)}
@@ -132,8 +143,11 @@ export default function ElevationTable({
                 <ValueCell value={g.after == null ? null : g.after * 1000} digits={2} step={0.1} {...cell('ga')}
                   className={sev(after)} title={after ? stretchNote(after) : undefined} />
                 <ValueCell value={p.rv ?? null} digits={0} step={100}
-                  editable={!isLocked && i > 0 && i < n - 1} onCommit={(v) => applyRadius(i, v)}
+                  editable={inner} onCommit={(v) => applyRadius(i, v)}
                   className={sev(curve)} title={curve ? curveNote(curve) : undefined} />
+                <ValueCell value={tl == null ? (p.la ?? null) : 2 * tl} digits={2} step={1}
+                  editable={inner && !joint} onCommit={(v) => applyLength(i, v)}
+                  className={governs ? 'profile-governing' : undefined} title={governs ?? t('elevation_vcurve_length_hint')} />
                 <td>{tl == null ? '–' : tl.toFixed(2)}</td>
               </tr>
             )

@@ -141,7 +141,7 @@ const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
 // The profile is read from the store, through the subscription: every write
 // draws it again.
 export default function ElevationOverlay({ trackId, routeId = null, section = null, onClose }) {
-  const { t, fill } = useI18n()
+  const { t, fill, num } = useI18n()
   const map = useMap()
   const tracks   = useTracks()
   const switches = useSwitches()
@@ -163,7 +163,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const [view, setView]         = useState(null)     // { k, x0, z0 }: px per m, station at the left edge, height at the bottom edge
   const [selection, setSelection] = useState([])   // indices of the height points being edited
   const [draft, setDraft]       = useState('')
-  const [rvDraft, setRvDraft]   = useState('')     // vertical curve radius of the selection
+  const [rvDraft, setRvDraft]   = useState(null)   // vertical curve radius typed for the selection, null: untouched
   const [rvNote, setRvNote]     = useState(null)     // what setting the Regelwert left undone
   const [reasonDraft, setReasonDraft] = useState(null)   // the reason typed for the selection; null: untouched
   const [band, setBand]         = useState(null)     // rubber band { x0, y0, x1, y1 } while Shift-dragging
@@ -352,7 +352,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     setFitKey(wantFit)
   }
   const [activeKey, setActiveKey] = useState(viewKey)
-  if (activeKey !== viewKey) { setActiveKey(viewKey); setSelection([]); setDraft(''); setRvDraft('') }
+  if (activeKey !== viewKey) { setActiveKey(viewKey); setSelection([]); setDraft(''); setRvDraft(null) }
 
   // ── Map: the elements the selected points sit on, in red ──────────────────
   // A height point belongs to the track, not to an element; the element it
@@ -460,7 +460,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     setSelection(indices)
     const picked = points.filter(p => indices.includes(p.index))
     setDraft(common(picked.map(p => p.z)))
-    setRvDraft(common(picked.map(p => p.rv)))
+    setRvDraft(null)
     setStDraft(picked.length === 1 ? String(Math.round(picked[0].station * 1000) / 1000) : '')
     setRvNote(null)
     setReasonDraft(null)
@@ -472,24 +472,27 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
    * Write a point solved along the route (`r`: { station, z } in route
    * stations) to the track it belongs to: a station moved within that track,
    * a height to every track meeting at it (jointHeightUpdates). `rv` a radius
-   * to set with it — null takes the curve away, undefined leaves it — and
-   * `reason` the same for its reason (decision 261).
+   * to set with it — null takes the curve away, undefined leaves it —, `la`
+   * the same for the length that counts for it (decision 266) and `reason`
+   * for its reason (decision 261).
    */
-  const writePoint = (p, r, rv, reason) => {
+  const writePoint = (p, r, fields = {}) => {
     const { part, index, trackId: id } = p.owner
     const own = part.track.heights
+    const set = Object.fromEntries(['rv', 'la', 'reason'].filter(k => fields[k] !== undefined).map(k => [k, fields[k]]))
     if (Math.abs(r.station - p.station) > 1e-9) {
       const q = { ...own[index], station: Math.round(partStation(part, r.station - part.offset) * 1e6) / 1e6, z: r.z }
-      if (rv !== undefined) { if (rv == null) delete q.rv; else q.rv = rv }
-      if (reason !== undefined) { if (reason == null) delete q.reason; else q.reason = reason }
+      for (const [k, v] of Object.entries(set)) { if (v == null) delete q[k]; else q[k] = v }
       setTrackHeights(id, own.map((h, i) => (i === index ? q : h)))
-    } else if (Math.abs(r.z - p.z) > 1e-9 || rv !== undefined || reason !== undefined) {
-      setHeightsForTracks(jointHeightUpdates(tracks, switches, [{
-        trackId: id, index, z: r.z, ...(rv !== undefined ? { rv } : {}), ...(reason !== undefined ? { reason } : {}),
-      }]))
+    } else if (Math.abs(r.z - p.z) > 1e-9 || Object.keys(set).length) {
+      setHeightsForTracks(jointHeightUpdates(tracks, switches, [{ trackId: id, index, z: r.z, ...set }]))
     }
   }
   const rvMixed = selectedPoints.some(p => p.rv !== selectedPoints[0]?.rv)
+  const rvShown = rvDraft ?? common(selectedPoints.map(p => p.rv))
+  // The length that counts for the selection's curves, where they share one.
+  const laShown = selectedPoints.length && selectedPoints.every(p => p.la != null && p.la === selectedPoints[0].la)
+    ? selectedPoints[0].la : null
   /** Click picks one point, Ctrl/Shift-click adds it to or drops it from the selection. */
   const pick = (p, e) => {
     if (!(e.shiftKey || e.ctrlKey || e.metaKey)) return select([p.index])
@@ -499,10 +502,14 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const commit = () => {
     if (!resolved || !selectedPoints.length) return
     // An empty field is the mixed values of the selection — it changes nothing.
-    // A radius of 0 takes the vertical curve away.
+    // A radius typed is what counts from then on, not a length (decision
+    // 266); a radius of 0 takes the vertical curve away.
     const patch = {}
     if (draft.trim())   { const z  = Number(draft);   if (!Number.isFinite(z))  return; patch.z  = z }
-    if (rvDraft.trim()) { const rv = Number(rvDraft); if (!Number.isFinite(rv)) return; patch.rv = rv > 0 ? rv : null }
+    if (rvDraft?.trim()) {
+      const rv = Number(rvDraft); if (!Number.isFinite(rv)) return
+      patch.rv = rv > 0 ? rv : null; patch.la = null
+    }
     // A reason typed: set on every selected point, or taken away when emptied.
     if (reasonDraft != null) patch.reason = reasonDraft.trim() || null
     // A single point's station typed anew: it moves there with its height —
@@ -512,8 +519,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     if (st != null && Number.isFinite(st) && Math.abs(st - one.station) > 1e-9) {
       const r = solveHeightPoint(points, one.index, { s: st, z: patch.z ?? one.z }, { length: profile.length })
       if (r.error) { setRvNote(fill(`elevation_table_error_${r.error}`, { n: one.index + 1 })); return }
-      writePoint(one, r, patch.rv, patch.reason)
-      setStDraft(String(Math.round(r.station * 1000) / 1000)); setRvNote(null)
+      writePoint(one, r, patch)
+      setStDraft(String(Math.round(r.station * 1000) / 1000)); setRvNote(null); setRvDraft(null)
       return
     }
     if (!Object.keys(patch).length) return
@@ -523,12 +530,15 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       .map(p => ({ trackId: p.owner.trackId, index: p.owner.index, ...patch }))
     if (!entries.length) return
     setHeightsForTracks(jointHeightUpdates(tracks, switches, entries))
+    setRvDraft(null)
   }
 
   /**
    * Every selected gradient change rounded as the rules ask at its design
    * speed (regularVerticalRadius) — or not at all where they want none. A
    * point without a known speed keeps its curve, and the panel says so.
+   * Where the 20 m length set the radius rather than the Regelwert, the point
+   * notes it, and its radius follows its gradients from then on (decision 266).
    */
   const setRegularRadius = () => {
     if (!resolved || !selectedPoints.length) return
@@ -540,9 +550,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     setRvNote(noSpeed ? fill('elevation_vcurve_no_speed', { n: noSpeed }) : null)
     if (!set.length) return
     setHeightsForTracks(jointHeightUpdates(tracks, switches,
-      set.map(({ p, r }) => ({ trackId: p.owner.trackId, index: p.owner.index, rv: r.rv }))))
-    const rvOf = new Map(set.map(({ p, r }) => [p.index, r.rv]))
-    setRvDraft(common(selectedPoints.map(p => (rvOf.has(p.index) ? rvOf.get(p.index) : p.rv))))
+      set.map(({ p, r }) => ({ trackId: p.owner.trackId, index: p.owner.index, rv: r.rv, la: r.la ?? null }))))
+    setRvDraft(null)
   }
 
   // Only the two ends of each track have to stay: they are where its height
@@ -598,7 +607,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     const now = loadTracks(), sw = loadSwitches()
     const next = routeRec ? resolveRoute(routeRec, now, sw) : trackAsRoute(now.find(tr => tr.id === trackId))
     const i = routeProfile(next).byRef(c.trackId, c.index)
-    setSelection(i == null ? [] : [i]); setDraft(String(c.z)); setRvDraft('')
+    setSelection(i == null ? [] : [i]); setDraft(String(c.z)); setRvDraft(null)
   }
 
   if (!resolved) return null
@@ -611,10 +620,13 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   ].join('\n')
   const stretchNote = (s) => findingNote(s, `s = ${Math.abs(s.grade).toFixed(2)} ‰`)
   const curveNote = (c) => findingNote(c, [
-    `Δs = ${Math.abs(c.gradeChange).toFixed(2)} ‰`,
-    c.radius ? `ra = ${Math.round(c.radius)} m, la = ${c.length.toFixed(2)} m` : 'ra –',
-    c.speed ? `v = ${c.speed} km/h` : null,
-  ].filter(Boolean).join(', '))
+    [
+      `Δs = ${Math.abs(c.gradeChange).toFixed(2)} ‰`,
+      c.radius ? `ra = ${Math.round(c.radius)} m, la = ${c.length.toFixed(2)} m` : 'ra –',
+      c.speed ? `v = ${c.speed} km/h` : null,
+    ].filter(Boolean).join(', '),
+    points[c.index]?.la != null ? fill('elevation_vcurve_length_governs', { la: num(points[c.index].la, { digits: 2 }) }) : null,
+  ].filter(Boolean).join('\n'))
 
   const overlapNote = (o) => [
     fill('elevation_vcurve_overlap', {
@@ -887,7 +899,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           ))}
           {labelled.map(p => (
             <text key={`l${p.index}`} x={X(p.station)} y={Y(p.z) - 9} fontSize="10" fill={PALETTE.textStrong} textAnchor="middle">
-              {p.z.toFixed(2)}{p.rv != null && <tspan fill={PALETTE.label}> R{Math.round(p.rv)}</tspan>}
+              {p.z.toFixed(2)}{p.rv != null && <tspan fill={PALETTE.label}> R{Math.round(p.rv)}
+                {p.la != null && ` ${fill('elevation_vcurve_length_label', { la: num(p.la, { digits: 0 }) })}`}</tspan>}
             </text>
           ))}
           {/* where the cross section is taken */}
@@ -1008,7 +1021,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                 onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
               <span>m</span>
               <span title={t('elevation_vcurve_hint')}>{t('elevation_vcurve')}</span>
-              <NumberInput className="track-table-input" step="100" min="0" value={rvDraft}
+              <NumberInput className="track-table-input" step="100" min="0" value={rvShown}
                 placeholder={rvMixed ? t('elevation_mixed') : '–'} title={t('elevation_vcurve_hint')}
                 onChange={e => setRvDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
@@ -1016,6 +1029,11 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               <button className="track-table-save-btn" title={t('elevation_vcurve_regular_hint')} onClick={setRegularRadius}>
                 {t('elevation_vcurve_regular')}
               </button>
+              {laShown != null && (
+                <span className="profile-hint" title={fill('elevation_vcurve_length_governs', { la: num(laShown, { digits: 2 }) })}>
+                  {fill('elevation_vcurve_length_label', { la: num(laShown, { digits: 0 }) })}
+                </span>
+              )}
               {reasonAsked && (
                 <>
                   <span title={t('elevation_reason_hint')}>{t('elevation_reason')}</span>

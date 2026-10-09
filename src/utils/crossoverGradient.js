@@ -346,15 +346,20 @@ function lineWrites(chain, verts) {
       const { d, vertex, ...rest } = p
       if (vertex) {
         const q = { ...rest, z: roundHeight(vertex.z) }
+        // The fit sets the radius: a length that counted for the old one is gone.
         if (vertex.rv) q.rv = vertex.rv; else delete q.rv
+        delete q.la
         // The ends of the ramps keep the curve they had where none is needed.
-        if (!vertex.rv && (vertex === v0 || vertex === v1) && p.rv) q.rv = p.rv
+        if (!vertex.rv && (vertex === v0 || vertex === v1) && p.rv) {
+          q.rv = p.rv
+          if (p.la != null) q.la = p.la
+        }
         return [q]
       }
       const off = offset(d)
       if (off === null) {
         if (p.station !== first && p.station !== last) return []
-        const { rv: _rv, ...flat } = rest
+        const { rv: _rv, la: _la, ...flat } = rest
         return [{ ...flat, z: straight(d) }]
       }
       return [off ? { ...rest, z: roundHeight(rest.z + off) } : rest]

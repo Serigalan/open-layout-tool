@@ -382,3 +382,9 @@
 
 .info-tip-left { left: 0; }
 .info-tip-right { right: 0; }
+
+/* A curve whose length counts (decision 266): its length in the table, set apart. */
+.profile-table .profile-governing,
+.profile-table .profile-governing .track-table-input {
+  font-weight: 600;
+}

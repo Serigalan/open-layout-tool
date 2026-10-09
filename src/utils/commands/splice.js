@@ -297,7 +297,7 @@ function overlapOf(piece, orig, node, pieceNode) {
 }
 
 /** A point the merged gradient meets the splice at: a plain point, no curve. */
-const plain = ({ rv: _rv, ...p }) => p
+const plain = ({ rv: _rv, la: _la, ...p }) => p
 
 /**
  * The vertical alignment of the merged track: the departure track's gradient

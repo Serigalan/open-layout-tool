@@ -542,3 +542,27 @@ describe('the gradient of a turnout is coupled', () => {
   })
 })
 
+
+describe('a vertical curve whose length counts (decision 266)', () => {
+  const track = (heights) => ({ id: 'g', elements: [{ elementType: 0, length: 2000, speed: 100 }], heights })
+  const heights = () => loadTracks().find(t => t.id === 'g').heights
+
+  it('takes the radius its gradients ask for whenever one beside it changes, in the same step', () => {
+    openProject({ id: 'la', tracks: [track([{ station: 0, z: 100 }, { station: 1000, z: 101 }, { station: 2000, z: 100 }])] })
+    // The length noted: the radius follows from it — Δs 2 ‰, 20 m: 10000 m.
+    setHeightsForTracks(new Map([['g', heights().map((p, i) => (i === 1 ? { ...p, la: 20 } : p))]]))
+    expect(heights()[1]).toEqual({ station: 1000, z: 101, la: 20, rv: 10000 })
+    // The gradient after it steepens to 2 ‰: Δs 3 ‰, so 6700 m.
+    setTrackHeights('g', heights().map((p, i) => (i === 2 ? { ...p, z: 99 } : p)))
+    expect(heights()[1].rv).toBe(6700)
+    undo()
+    expect(heights()[1].rv).toBe(10000)
+    expect(heights()[2].z).toBe(100)
+  })
+
+  it('leaves a radius alone that no length governs', () => {
+    openProject({ id: 'rv', tracks: [track([{ station: 0, z: 100 }, { station: 1000, z: 101, rv: 10000 }, { station: 2000, z: 100 }])] })
+    setTrackHeights('g', heights().map((p, i) => (i === 2 ? { ...p, z: 99 } : p)))
+    expect(heights()[1].rv).toBe(10000)
+  })
+})

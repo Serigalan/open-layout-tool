@@ -8,6 +8,7 @@ import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trac
 import * as idb from './utils/idbStorage'
 import { coupleSwitchGradients, coupleSwitchHeights, lockedHeightsChanged } from './utils/switchGradient'
 import { repairRoutes } from './utils/routes'
+import { lengthGovernedRadii } from './utils/gradientCheck'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -97,7 +98,11 @@ function mutate(fn, { undo = true } = {}) {
   const next = fn(_project)
   if (!next || next === before) { _idLog = logBefore; return true }
   // A route over a track the write took away runs over what lies there now (decision 249).
-  const after = withCoupledGradients(before, withPrunedMarks(repairRoutes(before, next)))
+  // A curve whose length counts takes the radius its gradients ask for now
+  // (decision 266) — before the turnouts are paired, which read the curves,
+  // and again for the tracks the pairing moved.
+  const repaired = withPrunedMarks(repairRoutes(before, next))
+  const after = withLengthRadii(before, withCoupledGradients(before, withLengthRadii(before, repaired)))
   // A write that would change the heights of a locked turnout does not happen
   // (decision 260); the notice over the map says which turnout held it.
   const refused = lockedHeightsChanged(before, after)
@@ -311,6 +316,16 @@ export function withUndo(fn) {
  */
 function withCoupledGradients(before, project) {
   return coupleSwitchHeights(before, project)
+}
+
+/**
+ * The project with the radius of every vertical curve whose length counts
+ * (`la` on its point, decision 266) worked out again where a write changed
+ * the gradients either side of it, or the speed under it.
+ */
+function withLengthRadii(before, project) {
+  const tracks = lengthGovernedRadii(before.tracks, project.tracks)
+  return tracks === project.tracks ? project : { ...project, tracks }
 }
 
 /**

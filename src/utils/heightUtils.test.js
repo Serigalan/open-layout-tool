@@ -218,4 +218,12 @@ describe('jointHeightUpdates', () => {
     expect(inner.get('a')[1]).toEqual({ station: 50, z: 10.6, reason: 'Bestand' })
     expect(inner.has('b')).toBe(false)
   })
+
+  it('notes the length that counts for a curve, and drops it with a radius typed', () => {
+    const set = jointHeightUpdates([a, b], [], [{ trackId: 'a', index: 1, la: 20 }])
+    expect(set.get('a')[1]).toEqual({ station: 50, z: 10.5, la: 20 })
+    const noted = [{ ...a, heights: set.get('a') }, b]
+    const typed = jointHeightUpdates(noted, [], [{ trackId: 'a', index: 1, rv: 5000, la: null }])
+    expect(typed.get('a')[1]).toEqual({ station: 50, z: 10.5, rv: 5000 })
+  })
 })

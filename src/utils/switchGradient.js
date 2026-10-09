@@ -228,12 +228,14 @@ const lift = (c, sl, mainH) => slopeAt(mainH, sl.main) * sl.a + (cantOn(c, sl) /
 const covers = (h, a, b) => Math.min(a, b) >= h[0].station - STATION_TOL && Math.max(a, b) <= h[h.length - 1].station + STATION_TOL
 
 const byStation = (a, b) => a.station - b.station
-/** What a point's partner takes over besides its height: its curve and its reason. */
-const carried = (p) => ({ ...(p.rv != null ? { rv: p.rv } : {}), ...(p.reason ? { reason: p.reason } : {}) })
+/** What a point's partner takes over besides its height: its curve, the length that counts for it, and its reason. */
+const carried = (p) => ({
+  ...(p.rv != null ? { rv: p.rv } : {}), ...(p.la != null ? { la: p.la } : {}), ...(p.reason ? { reason: p.reason } : {}),
+})
 const samePoints = (a, b) => a.length === b.length && a.every((p, i) => {
   const q = b[i]
   return Math.abs(p.station - q.station) < 1e-9 && Math.abs(p.z - q.z) < 1e-9
-    && (p.rv ?? null) === (q.rv ?? null) && (p.reason ?? null) === (q.reason ?? null)
+    && (p.rv ?? null) === (q.rv ?? null) && (p.la ?? null) === (q.la ?? null) && (p.reason ?? null) === (q.reason ?? null)
 })
 /** The point a track already has on a sleeper, if any. */
 const pointOn = (h, station) => h.find(p => Math.abs(p.station - station) <= STATION_TOL)

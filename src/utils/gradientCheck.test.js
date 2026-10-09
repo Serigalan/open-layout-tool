@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkVertical, lineCategoryOf, regularVerticalRadius, verticalFindings } from './gradientCheck'
+import { checkVertical, lengthGovernedRadii, lengthGovernedRadius, lineCategoryOf, regularVerticalRadius, verticalFindings } from './gradientCheck'
 import { ruleById, evaluateRule } from './regelkatalog'
 
 // A straight line track of `length` metres at `speed`, with the given height points.
@@ -229,7 +229,7 @@ describe('the rounding the rules ask for', () => {
   ], rest)
 
   it('is the Regelwert of Tabelle 12, rounded up to 100 m, and passes the check', () => {
-    expect(regularVerticalRadius(change(10, 10), 1)).toEqual({ rv: 4000, speed: 100 })
+    expect(regularVerticalRadius(change(10, 10), 1)).toEqual({ rv: 4000, la: null, speed: 100 })
     expect(regularVerticalRadius(change(10, 10, { speed: 160 }), 1).rv).toBe(10300)
     expect(regularVerticalRadius(change(10, 10, { speed: 250 }), 1).rv).toBe(22500)
     const track = change(10, 10, { speed: 160 })
@@ -239,8 +239,8 @@ describe('the rounding the rules ask for', () => {
   })
 
   it('makes the curve 20 m long where the Regelwert would leave it shorter', () => {
-    // Δs 2 ‰: 4000 m would be 8 m long, 10000 m are 20 m.
-    expect(regularVerticalRadius(change(1, 1), 1).rv).toBe(10000)
+    // Δs 2 ‰: 4000 m would be 8 m long, 10000 m are 20 m — the length set it.
+    expect(regularVerticalRadius(change(1, 1), 1)).toEqual({ rv: 10000, la: 20, speed: 100 })
     const track = change(1, 1)
     track.heights[1].rv = 10000
     expect(sev(checkVertical(track).curves[0], 'HP.AR.02')).toBe('ok')
@@ -257,12 +257,49 @@ describe('the rounding the rules ask for', () => {
     // either side, onto the 200 km/h element from 990 m.
     const track = change(10, 10, { at: 980 })
     track.elements = [{ elementType: 0, length: 990, speed: 100 }, { elementType: 0, length: 1010, speed: 200 }]
-    expect(regularVerticalRadius(track, 1)).toEqual({ rv: 16000, speed: 200 })
+    expect(regularVerticalRadius(track, 1)).toEqual({ rv: 16000, la: null, speed: 200 })
   })
 
   it('says so where the design speed is unknown, and nothing at the ends', () => {
     expect(regularVerticalRadius(change(10, 10, { speed: 0 }), 1)).toEqual({ noSpeed: true })
     expect(regularVerticalRadius(change(10, 10), 0)).toBeNull()
     expect(regularVerticalRadius(change(10, 10), 2)).toBeNull()
+  })
+})
+
+describe('a curve whose length counts', () => {
+  const change = (up, down, rest = {}) => line([
+    { station: 0, z: 100 }, { station: 1000, z: 100 + up },
+    { station: 2000, z: 100 + up - down },
+  ], rest)
+
+  it('keeps its length when a gradient beside it changes, the radius rounded up to 100 m', () => {
+    // Δs 3 ‰ → 6700 m (20.1 m long); 2 ‰ → 10000 m; 1 ‰ → 20000 m.
+    expect(lengthGovernedRadius(change(1.5, 1.5), 1, 20)).toBe(6700)
+    expect(lengthGovernedRadius(change(1, 1), 1, 20)).toBe(10000)
+    expect(lengthGovernedRadius(change(0.5, 0.5), 1, 20)).toBe(20000)
+  })
+
+  it('goes no lower than the Regelwert, nor higher than the Höchstwert', () => {
+    // Δs 20 ‰ at 100 km/h: 20 m would be 1000 m, the Regelwert is 4000 m.
+    expect(lengthGovernedRadius(change(10, 10), 1, 20)).toBe(4000)
+    // Without a known speed the length alone.
+    expect(lengthGovernedRadius(change(10, 10, { speed: 0 }), 1, 20)).toBe(1000)
+    expect(lengthGovernedRadius(change(0.25, 0.25), 1, 20)).toBe(25000)
+    expect(lengthGovernedRadius(change(1, -1), 1, 20)).toBeNull()
+  })
+
+  it('is worked out again on the tracks whose heights changed, and only there', () => {
+    const track = change(1, 1)
+    track.id = 't'
+    track.heights[1] = { ...track.heights[1], rv: 10000, la: 20 }
+    const other = { ...change(1, 1), id: 'o' }
+    other.heights[1] = { ...other.heights[1], rv: 3000, la: 20 }
+    const before = [track, other]
+    expect(lengthGovernedRadii(before, before)).toBe(before)
+    const steeper = { ...track, heights: track.heights.map((p, i) => (i === 2 ? { ...p, z: 100 - 1 } : p)) }
+    const after = lengthGovernedRadii(before, [steeper, other])
+    expect(after[0].heights[1]).toEqual({ station: 1000, z: 101, rv: 6700, la: 20 })
+    expect(after[1]).toBe(other)
   })
 })

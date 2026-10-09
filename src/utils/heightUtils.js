@@ -5,10 +5,13 @@ import { utmToWgs84 } from './coordinateUtils'
 import { HEIGHT_POINT_SPACING, HEIGHT_SPLIT_MIN } from './heightDatums'
 
 // The vertical alignment of a track is its own thing, independent of the
-// horizontal elements it runs over: `track.heights` is [{ station, z, rv? }]
-// with station the distance along the track [m] from its BEGIN, z the height
-// [m] and rv the radius of the vertical curve rounding the gradient change
-// there, absent where there is none. Ascending in station, the first at 0 and
+// horizontal elements it runs over: `track.heights` is [{ station, z, rv?,
+// la?, reason? }] with station the distance along the track [m] from its
+// BEGIN, z the height [m] and rv the radius of the vertical curve rounding the
+// gradient change there, absent where there is none. Where the curve's length
+// rather than a radius is what counts, la is that length [m] and rv follows
+// the gradients either side (lengthGovernedRadii, decision 266); reason is why
+// a gradient changes in a turnout (decision 261). Ascending in station, the first at 0 and
 // the last at the track's length — the two that meet the neighbouring tracks.
 // An imported gradient can cover less than its track: then a stretch at either
 // end has no heights yet, its outermost point is no joint, and the stretch is
@@ -410,11 +413,11 @@ export function jointGroup(tracks, switches, ref) {
   return [...group.values()]
 }
 
-/** A height point with the stated fields of `entry` applied: z, rv and reason (null removes either). */
+/** A height point with the stated fields of `entry` applied: z, rv, la and reason (null removes any of them). */
 function patchedPoint(q, entry) {
   const out = { ...q }
   if (entry.z !== undefined) out.z = entry.z
-  for (const key of ['rv', 'reason']) {
+  for (const key of ['rv', 'la', 'reason']) {
     if (entry[key] === undefined) continue
     if (entry[key] == null) delete out[key]; else out[key] = entry[key]
   }
@@ -423,7 +426,8 @@ function patchedPoint(q, entry) {
 
 /**
  * The writes that give the points of `entries` ({ trackId, index, z?, rv?,
- * reason? }) their stated height, vertical curve radius and reason, and every
+ * la?, reason? }) their stated height, vertical curve radius, the length that
+ * counts for it (decision 266) and reason, and every
  * point joined to them the same ones, as Map(trackId → heights) for
  * `setHeightsForTracks`. A field left undefined stays as it is; rv null
  * removes the curve, reason null the reason. Later entries build on the

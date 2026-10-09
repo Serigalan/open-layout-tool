@@ -32,7 +32,7 @@ export const routeStationOfPart = (part, station) => part.offset + partStation(p
  * The profile of a resolved route: { length, parts, points, boundaries,
  * partStarts, byRef }.
  *
- * - `points` [{ index, station, z, rv?, owner, refs, joint, trackEnd }] in the
+ * - `points` [{ index, station, z, rv?, la?, owner, refs, joint, trackEnd }] in the
  *   order of the route — `index` the position in this list, `trackEnd` the
  *   end of its own track the point sits on ('BEGIN' / 'END', null between).
  * - `boundaries` [{ station, el, part }] where each element begins, in route order.
@@ -70,7 +70,7 @@ export function routeProfile(resolved) {
         continue
       }
       const p = {
-        index: points.length, station, z: h.z, ...(h.rv != null ? { rv: h.rv } : {}), ...(h.reason ? { reason: h.reason } : {}),
+        index: points.length, station, z: h.z, ...(h.rv != null ? { rv: h.rv } : {}), ...(h.la != null ? { la: h.la } : {}), ...(h.reason ? { reason: h.reason } : {}),
         owner, refs: [owner], joint: false, trackEnd,
       }
       ref.set(`${track.id}|${index}`, p.index)

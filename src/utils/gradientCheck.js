@@ -226,6 +226,56 @@ export function checkVertical(track, { project = null, switches = [], tracks = p
 const RADIUS_STEP = 100
 
 /**
+ * The radius for the gradient change `exact` [‰] at `station`, as the rules
+ * set it: the Regelwert of Tabelle 12 at the design speed (HP.AR.03), larger
+ * where the curve would otherwise stay shorter than `length` (null: the 20 m
+ * of HP.AR.02),
+ * up to the Höchstwert, rounded up to a full 100 m. The speed is the fastest
+ * element's under the curve, found again for the length the new curve has,
+ * since a longer one may reach onto a faster element.
+ *
+ * Returns { rv, length, speed, byLength } — byLength where the length, not the
+ * Regelwert, sets the radius — or { noSpeed: true } where no design speed is
+ * known under the curve. `anySpeed` takes the length alone there instead.
+ */
+function radiusByRules(spans, station, exact, crest, length, { anySpeed = false } = {}) {
+  const ds = round2(exact)
+  const radiusFor = (v) => {
+    const scope = {
+      'physics.gradient_change': ds, 'point.vertical_radius': 1, 'point.design_speed': v,
+      'physics.vertical_curve_length': 0, 'model.crest': crest,
+    }
+    const reg = v > 0 ? catalogLimit('HP.AR.03', 'reg', scope) : 0
+    const min = length ?? catalogLimit('HP.AR.02', 'reg', scope)
+    const byLength = 1000 * min / exact
+    // Rounded up, but not for the floating point a height leaves in Δs.
+    const rv = Math.ceil(Math.max(reg, byLength) / RADIUS_STEP - 1e-6) * RADIUS_STEP
+    return { rv: Math.min(rv, catalogLimit('HP.AR.03', 'max', scope)), length: min, byLength: byLength > reg }
+  }
+  let speed = 0, found = null
+  // The speed only grows with the curve, and the curve with the speed: a few
+  // rounds settle it.
+  for (let k = 0; k < 5; k++) {
+    const t = found ? found.rv * exact / 2000 : 0
+    const v = Math.max(0, ...overlapping(spans, station - t, station + t).map(s => s.speed))
+    if (!(v > 0) && !anySpeed) return { noSpeed: true }
+    if (found && v === speed) break
+    speed = v
+    found = radiusFor(v)
+  }
+  return { ...found, speed }
+}
+
+/** The gradient change at inner point `index` [‰, unsigned, exact] and whether it is a crest, or null. */
+function changeAt(heights, index) {
+  if (!(index > 0 && index < heights.length - 1)) return null
+  const grades = stretchGrades(heights)
+  const before = grades[index], after = grades[index + 1]
+  if (before == null || after == null) return null
+  return { exact: Math.abs(after - before), crest: after < before }
+}
+
+/**
  * The vertical curve the rules ask for at the inner height point `index`, by
  * the design speed there: the Regelwert of Tabelle 12 (HP.AR.03), longer
  * where the curve would otherwise stay short of 20 m (HP.AR.02), up to the
@@ -233,24 +283,19 @@ const RADIUS_STEP = 100
  * a curve (HP.AR.01: ≤ 1 ‰, ≤ 4.5 ‰ on a siding or a track connection) gets
  * none.
  *
- * The speed is the fastest element's under the curve, as the check takes it —
- * found again for the length the new curve has, since a longer one may reach
- * onto a faster element.
- *
- * Returns { rv, speed } with rv in m, { rv: null } where no curve is wanted,
- * { noSpeed: true } where one is but no design speed is known, and null for a
- * point without a gradient change on this track (an end, or a stretch of no
- * length).
+ * Returns { rv, la, speed } with rv in m and la the length that set it where
+ * it was the length rather than the Regelwert (decision 266) — the point
+ * keeps it as `la`, and its radius follows the gradients from then on
+ * (lengthGovernedRadii). { rv: null } where no curve is wanted, { noSpeed:
+ * true } where one is but no design speed is known, and null for a point
+ * without a gradient change on this track (an end, or a stretch of no length).
  */
 export function regularVerticalRadius(track, index, { switches = [] } = {}) {
   const heights = track?.heights ?? []
-  if (!(index > 0 && index < heights.length - 1)) return null
-  const grades = stretchGrades(heights)
-  const before = grades[index], after = grades[index + 1]
-  if (before == null || after == null) return null
+  const change = changeAt(heights, index)
+  if (!change) return null
   // Judged to 0.01 ‰ as the check does; the curve's length is the exact one's.
-  const exact = Math.abs(after - before)
-  const ds = round2(exact)
+  const ds = round2(change.exact)
   const contexts = new Set([
     ...(trackUseOf(track) === 'siding' ? ['siding'] : []),
     ...(isConnectionTrack(track, switches) ? ['track_connection'] : []),
@@ -258,31 +303,54 @@ export function regularVerticalRadius(track, index, { switches = [] } = {}) {
   const free = catalogLimit('HP.AR.01', 'ds_free', { 'physics.gradient_change': ds, 'point.vertical_radius': 0 },
     { inContext: (id) => contexts.has(id) })
   if (ds <= free) return { rv: null }
+  const r = radiusByRules(elementSpans(track.elements), heights[index].station, change.exact, change.crest, null)
+  if (r.noSpeed) return r
+  return { rv: r.rv, la: r.byLength ? r.length : null, speed: r.speed }
+}
 
-  const spans = elementSpans(track.elements)
-  const station = heights[index].station
-  const radiusFor = (v) => {
-    const scope = {
-      'physics.gradient_change': ds, 'point.vertical_radius': 1, 'point.design_speed': v,
-      'physics.vertical_curve_length': 0, 'model.crest': after < before,
-    }
-    const reg = catalogLimit('HP.AR.03', 'reg', scope)
-    const length = catalogLimit('HP.AR.02', 'reg', scope)
-    const rv = Math.ceil(Math.max(reg, 1000 * length / exact) / RADIUS_STEP) * RADIUS_STEP
-    return Math.min(rv, catalogLimit('HP.AR.03', 'max', scope))
-  }
-  let speed = 0, rv = null
-  // The speed only grows with the curve, and the curve with the speed: a few
-  // rounds settle it.
-  for (let k = 0; k < 5; k++) {
-    const t = rv ? rv * exact / 2000 : 0
-    const v = Math.max(0, ...overlapping(spans, station - t, station + t).map(s => s.speed))
-    if (!(v > 0)) return { noSpeed: true }
-    if (v === speed) break
-    speed = v
-    rv = radiusFor(v)
-  }
-  return { rv, speed }
+/**
+ * The radius of a curve whose length is what counts (`la` on its point,
+ * decision 266): the smallest that keeps it at least `la` long at the
+ * gradient change the point has now, and not under the Regelwert where the
+ * design speed is known — rounded up to a full 100 m as the rules round it,
+ * up to the Höchstwert. Null where the point has no gradient change.
+ */
+export function lengthGovernedRadius(track, index, la) {
+  const heights = track?.heights ?? []
+  const change = changeAt(heights, index)
+  if (!change || !(change.exact > 1e-6) || !(la > 0)) return null
+  return radiusByRules(elementSpans(track.elements), heights[index].station, change.exact, change.crest, la,
+    { anySpeed: true }).rv
+}
+
+/**
+ * The tracks with the radius of every curve whose length counts worked out
+ * again (lengthGovernedRadius) — on the tracks whose heights or elements
+ * changed against `before`, since a gradient either side of the point, or
+ * the speed under it, is what the radius follows. The same array where
+ * nothing moved.
+ */
+export function lengthGovernedRadii(before, tracks) {
+  const was = new Map((before ?? []).map(t => [t.id, t]))
+  let changed = false
+  const out = (tracks ?? []).map(track => {
+    const old = was.get(track.id)
+    const heights = track.heights
+    if (!heights?.some(p => p.la > 0)) return track
+    if (old && old.heights === heights && old.elements === track.elements) return track
+    let next = heights
+    heights.forEach((p, i) => {
+      if (!(p.la > 0)) return
+      const rv = lengthGovernedRadius(track, i, p.la)
+      if (rv == null || rv === p.rv) return
+      if (next === heights) next = [...heights]
+      next[i] = { ...p, rv }
+    })
+    if (next === heights) return track
+    changed = true
+    return { ...track, heights: next }
+  })
+  return changed ? out : tracks
 }
 
 /**
