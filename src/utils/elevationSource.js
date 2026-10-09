@@ -25,6 +25,7 @@
 
 import { terrainOnServer } from './optimizerService'
 import { loadSettings } from './settings'
+import { MAPTILER_KEY } from './mapTiler'
 
 /** The choices of terrain source, the first the default. */
 export const TERRAIN_SOURCES = ['auto', 'dgm1', 'dgm5', 'maptiler']
@@ -78,7 +79,7 @@ async function sampleDgm1(lngLats, timeoutMs) {
 
 const SOURCES = [
   { id: 'dgm5',    zoom: 15, url: (z, x, y) => `https://sg.geodatenzentrum.de/gdz_basemapde_3d_gelaende/dgm5_rgb_tiles/${z}/${x}/${y}.png` },
-  { id: 'terrain', zoom: 12, url: (z, x, y) => `https://api.maptiler.com/tiles/terrain-rgb/${z}/${x}/${y}.png?key=QojDLOuI2wG4mNbHjzA7` },
+  { id: 'terrain', zoom: 12, url: (z, x, y) => `https://api.maptiler.com/tiles/terrain-rgb/${z}/${x}/${y}.png?key=${MAPTILER_KEY}` },
 ]
 const TILE_CACHE_MAX = 256
 const FETCH_CONCURRENCY = 6

@@ -1,5 +1,7 @@
+import { MAPTILER_KEY } from './utils/mapTiler'
+
 const TERRAIN_URL =
-  'https://api.maptiler.com/tiles/terrain-rgb/tiles.json?key=QojDLOuI2wG4mNbHjzA7'
+  `https://api.maptiler.com/tiles/terrain-rgb/tiles.json?key=${MAPTILER_KEY}`
 
 const DGM5_URL = 'https://sgx.geodatenzentrum.de/gdz_basemapde_3d_gelaende/dgm5_3857_rgb.json'
 
@@ -285,7 +287,7 @@ export const BASEMAPS = [
     id: 'satellite',
     labelKey: 'basemap_satellite',
     group: 'worldwide',
-    style: 'https://api.maptiler.com/maps/satellite/style.json?key=QojDLOuI2wG4mNbHjzA7',
+    style: `https://api.maptiler.com/maps/satellite/style.json?key=${MAPTILER_KEY}`,
   },
   {
     id: 'ign-ortho',
