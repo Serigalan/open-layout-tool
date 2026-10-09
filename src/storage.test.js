@@ -8,7 +8,7 @@ import {
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
   openWorkingCopy, currentWorkingCopy, markCheckedIn, adoptWorkingCopy, closeWorkingCopy, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
-  setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms, updateSwitch, lastStep,
+  setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 import { endPointCurvedUtm, endPointStraightUtm } from './utils/elementUtils'
@@ -521,24 +521,6 @@ describe('the gradient of a turnout is coupled', () => {
     undo()
     expect(main()).toHaveLength(2)
     expect(branch()[1].z).toBeCloseTo(expected(0.6 / 60), 3)
-  })
-
-  it('refuses a write that would change the heights of a locked turnout, and says which', () => {
-    openProject(project())
-    setHeightsForTracks(new Map([['b', [{ station: 0, z: 100 }, { station: 60, z: 100.2 }]]]))
-    updateSwitch('s1', { name: 'W1', heightsLocked: true })
-    const was = currentProject()
-    const undoable = canUndo()
-    expect(setTrackHeights('m', [{ station: 0, z: 100 }, { station: 20, z: 100.5 }, { station: 60, z: 100.6 }])).toBe(false)
-    expect(currentProject()).toBe(was)
-    expect(lastStep()).toMatchObject({ kind: 'refused', refused: ['W1'] })
-    expect(canUndo()).toBe(undoable)
-    // Beyond the turnout's stretch the track is as free as ever.
-    expect(setTrackHeights('m', [{ station: 0, z: 100 }, { station: 60, z: 100.7 }])).toBe(false)
-    expect(setTrackHeights('b', [...branch().slice(0, 2), { station: 60, z: 100.3 }])).toBe(true)
-    // Unlocked, the same write goes through.
-    updateSwitch('s1', { heightsLocked: undefined })
-    expect(setTrackHeights('m', [{ station: 0, z: 100 }, { station: 20, z: 100.5 }, { station: 60, z: 100.6 }])).toBe(true)
   })
 })
 

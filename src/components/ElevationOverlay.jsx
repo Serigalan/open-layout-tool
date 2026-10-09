@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches, updateSwitch } from '../storage'
+import { setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches } from '../storage'
 import { useProject, useReferenceAxes, useRoutes, useSwitches, useTracks } from '../hooks/useStore'
 import { checkVertical, regularVerticalRadius, verticalFindings } from '../utils/gradientCheck'
 import { coupledPoints, trackHeightAt } from '../utils/switchGradient'
@@ -270,7 +270,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const curveAt = check?.curveAt ?? new Map()
   // Points in a turnout's stretch, by route index → { sw, side, sleeper }: each
   // has a partner on the same sleeper of the other track, which follows it
-  // (decision 258) — locked where the turnout's heights are (decision 260).
+  // (decision 258).
   const paired = new Map()
   for (const part of parts) {
     for (const [index, info] of coupledPoints(tracks, switches, part.track)) {
@@ -278,9 +278,9 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       if (i != null) paired.set(i, info)
     }
   }
-  const locked = new Map([...paired].filter(([, v]) => v.sw.heightsLocked).map(([i, v]) => [i, v.sw]))
+  const locked = new Map()
   // The toe of a turnout — the ends of its tracks that meet there — belongs to
-  // it as well, and is held where its heights are locked.
+  // it as well.
   const toes = new Map()
   for (const sw of switches) {
     if ((sw.kind ?? 'turnout') !== 'turnout') continue
@@ -291,7 +291,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       const i = profile.byRef(track.id, index)
       if (i == null) continue
       toes.set(i, sw)
-      if (sw.heightsLocked) locked.set(i, sw)
     }
   }
   /** The track and its own station at a station of the route. */
@@ -439,23 +438,11 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   // The drafts follow the selection: the common height and curve radius, or
   // empty when they differ (and for the radius, when there is none).
   const common = (vs) => (vs.length && vs.every(v => v === vs[0]) && vs[0] != null ? String(vs[0]) : '')
-  /** The turnout a selection belongs to, where all of it lies in one turnout's stretch or toe. */
-  const selectedTurnout = (() => {
-    const sws = selectedPoints.map(p => locked.get(p.index) ?? paired.get(p.index)?.sw ?? toes.get(p.index))
-    return sws.length && sws.every(sw => sw && sw.switchId === sws[0].switchId) ? sws[0] : null
-  })()
   // A gradient change in a turnout's stretch asks for a reason (HP.AR.06,
   // decision 261); one that has a reason shows it wherever it lies.
   const reasonAsked = selectedPoints.length > 0 && selectedPoints.some(p => p.reason
     || curveAt.get(p.index)?.results?.some(r => r.id === 'HP.AR.06'))
   const reasonShown = reasonDraft ?? common(selectedPoints.map(p => p.reason))
-  const lockToggle = selectedTurnout && (
-    <label className="checkbox-row" title={t('switch_heights_locked_hint')}>
-      <input type="checkbox" checked={!!selectedTurnout.heightsLocked}
-        onChange={e => updateSwitch(selectedTurnout.switchId, { heightsLocked: e.target.checked || undefined })} />
-      {fill('elevation_lock_switch', { name: swName(selectedTurnout) })}
-    </label>
-  )
   const select = (indices) => {
     setSelection(indices)
     const picked = points.filter(p => indices.includes(p.index))
@@ -1013,7 +1000,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           ) : selectedPoints.length && selectedPoints.every(p => locked.has(p.index)) ? (
             <div className="profile-edit">
               <span className="profile-hint">{lockedNote(locked.get(selectedPoints[0].index))}</span>
-              {lockToggle}
               <CloseButton onClick={() => select([])} />
             </div>
           ) : selectedPoints.length ? (
@@ -1068,7 +1054,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                   })}
                 </span>
               )}
-              {lockToggle}
               <CloseButton onClick={() => select([])} />
             </div>
           ) : (

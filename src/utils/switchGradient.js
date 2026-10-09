@@ -348,7 +348,7 @@ const touches = (sw, ids) => [sw.portA_trackId, sw.portB1_trackId, sw.portB2_tra
  * (decisions 258, 259) — in the same step, so one undo takes back both. A
  * turnout that changes a track passes it on to the turnouts on that track: in
  * a run of turnouts the branch of one is the main route of the next. Each
- * turnout once per write; a turnout whose heights are locked is left alone.
+ * turnout once per write.
  * The same project where nothing had to change.
  */
 export function coupleSwitchHeights(before, after, { only = touchedTurnouts(before, after), formOf } = {}) {
@@ -362,7 +362,7 @@ export function coupleSwitchHeights(before, after, { only = touchedTurnouts(befo
     if (done.has(id)) continue
     done.add(id)
     const sw = (project.switches ?? []).find(s => s.switchId === id)
-    if (!sw || sw.heightsLocked) continue
+    if (!sw) continue
     const c = couplingOf(project.tracks ?? [], project.switches, sw, { formOf })
     if (!c) continue
     const r = pairedHeights(c, leaderOf(wasTrack, c))
@@ -388,7 +388,7 @@ export function coupleSwitchGradients(project, { only = null, formOf } = {}) {
 
 /** The turnouts whose heights are not paired yet — what „Alle Weichen koppeln“ would change. */
 export function unpairedTurnouts(tracks, switches, opts) {
-  return switchCouplings(tracks, switches, opts).filter(c => !c.sw.heightsLocked && pairedHeights(c, 'main'))
+  return switchCouplings(tracks, switches, opts).filter(c => pairedHeights(c, 'main'))
 }
 
 /**
@@ -413,8 +413,7 @@ export function touchedTurnouts(before, after) {
  * The height points of a track that lie in a turnout's stretch, by index:
  * { sw, side, sleeper } — the turnout, which of its tracks this is, and the
  * sleeper the point sits on (or would snap to). Each has a partner on the
- * same sleeper of the other track; what the profile marks, and locks where
- * the turnout's heights are locked. `dz` where the pair no longer lies in the
+ * same sleeper of the other track; what the profile marks. `dz` where the pair no longer lies in the
  * turnout's plane (planeDeviations), `also` the turnouts that share the
  * sleeper — in an overlap it carries three tracks (decision 264).
  */
@@ -517,64 +516,11 @@ export function switchBodySpans(tracks, switches, track, opts) {
 
 const ordered = (a, b) => ({ from: Math.min(a, b), to: Math.max(a, b) })
 
-// ── Locked heights (decision 260) ───────────────────────────────────────────
-
-/**
- * What a locked turnout holds: the shape it lies on (the two tracks'
- * elements, how far its stretch reaches), the height of either track at WA
- * and on every sleeper it owns — as built, the gradient with its curves, so a
- * point moved beyond the stretch that tilts the gradient through it counts —
- * and the points stored there with their curves and reasons. Null where the
- * turnout has no coupling.
- */
-function heldPoints(tracks, switches, sw, opts) {
-  const c = couplingOf(tracks, switches, sw, opts)
-  if (!c) return null
-  const points = ['main', 'branch'].flatMap(side => {
-    const h = c[side].track.heights ?? []
-    // At the stations points are stored at, to the mm: a sleeper's own
-    // station may lie a fraction of a mm beside its point.
-    const built = [c[side].station(0), ...c.slots.map(sl => roundMm(sl[side]))]
-      .map(st => ({ side, d: c[side].distance(st), z: gradientAt(h, st) }))
-    const stored = h.map(p => ({ side, d: c[side].distance(p.station), z: p.z, rv: p.rv ?? null, reason: p.reason ?? null }))
-      .filter(({ d }) => d >= -STATION_TOL && d <= c.reach[side] + STATION_TOL)
-    return [...built, ...stored]
-  })
-  return { shape: [c.main.track.elements, c.branch.track.elements, c.reach.main, c.reach.branch], points }
-}
-
-const sameHeld = (a, b) => a.length === b.length && a.every((x, i) => {
-  const y = b[i]
-  return x.side === y.side && Math.abs(x.d - y.d) < 1e-6 && (x.z == null ? y.z == null : Math.abs(x.z - y.z) < 1e-9)
-    && (x.rv ?? null) === (y.rv ?? null) && (x.reason ?? null) === (y.reason ?? null)
-})
-
-/**
- * The turnouts whose heights are locked — before the write and after it — and
- * which a write would change there: what the store refuses (decision 260).
- * A write that changes the shape a turnout lies on is not one of them: the
- * heights stay as they are, and planeDeviations says what no longer fits.
- */
-export function lockedHeightsChanged(before, after, opts) {
-  const wasSw = new Map((before?.switches ?? []).map(s => [s.switchId, s]))
-  const out = []
-  for (const id of touchedTurnouts(before, after)) {
-    const sw = (after.switches ?? []).find(s => s.switchId === id)
-    const was = wasSw.get(id)
-    if (!sw?.heightsLocked || !was?.heightsLocked) continue
-    const a = heldPoints(before.tracks ?? [], before.switches, was, opts)
-    const b = heldPoints(after.tracks ?? [], after.switches, sw, opts)
-    if (!a || !b || a.shape.some((v, i) => v !== b.shape[i])) continue
-    if (!sameHeld(a.points, b.points)) out.push(sw)
-  }
-  return out
-}
-
 /** How far apart two heights may be before the plane counts as broken [m]: 0.2 mm. */
 const PLANE_TOL = 0.0002
 
 /**
- * Where a turnout's two tracks no longer lie in its plane (decision 260): on
+ * Where a turnout's two tracks no longer lie in its plane: on
  * every sleeper it owns that carries a point on either track, how far the
  * branch lies above or below where the plane puts it — [{ sleeper, main,
  * branch, dz }] with the stations on either track and dz [m], beyond 0.2 mm

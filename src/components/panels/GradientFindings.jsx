@@ -29,10 +29,10 @@ export default function GradientFindings({ trackId }) {
       if (station == null) return null
       // Coupled where its points already lie in pairs on the sleepers — else
       // they will with the next write that reaches the turnout, or the button.
-      const pending = !sw.heightsLocked && pairedHeights(c, 'main')
-      const key = sw.heightsLocked ? 'elevation_switch_locked' : pending ? 'elevation_switch_pending' : 'elevation_switch_coupled'
+      const pending = pairedHeights(c, 'main')
+      const key = pending ? 'elevation_switch_pending' : 'elevation_switch_coupled'
       const line = fill(key, { name, label: sw.label ?? '', station: station.toFixed(2) })
-      // Where the two tracks no longer lie in the turnout's plane (decision 260).
+      // Where the two tracks no longer lie in the turnout's plane.
       const off = pending ? [] : planeDeviations(c)
       if (!off.length) return line
       const worst = Math.max(...off.map(d => Math.abs(d.dz)))

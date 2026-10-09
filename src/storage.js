@@ -6,7 +6,7 @@ import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTr
 import { generateId } from './utils/identifierUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
-import { coupleSwitchGradients, coupleSwitchHeights, lockedHeightsChanged } from './utils/switchGradient'
+import { coupleSwitchGradients, coupleSwitchHeights } from './utils/switchGradient'
 import { repairRoutes } from './utils/routes'
 import { lengthGovernedRadii } from './utils/gradientCheck'
 
@@ -103,15 +103,6 @@ function mutate(fn, { undo = true } = {}) {
   // and again for the tracks the pairing moved.
   const repaired = withPrunedMarks(repairRoutes(before, next))
   const after = withLengthRadii(before, withCoupledGradients(before, withLengthRadii(before, repaired)))
-  // A write that would change the heights of a locked turnout does not happen
-  // (decision 260); the notice over the map says which turnout held it.
-  const refused = lockedHeightsChanged(before, after)
-  if (refused.length) {
-    _idLog = logBefore
-    recordStep('refused', before, before, { refused: refused.map(sw => sw.name ?? sw.label ?? sw.switchId) })
-    notify()
-    return false
-  }
   if (undo) { pushUndo(before, logBefore); _redoStack = [] }
   if (undo && _undoDepth === 0) recordStep('do', before, after)
   setProject(after)

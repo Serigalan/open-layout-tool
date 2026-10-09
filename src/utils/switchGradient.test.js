@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   switchCoupling, couplingOf, pairedHeights, coupleSwitchGradients, coupleSwitchHeights, branchPlaneHeight,
   trackHeightAt, touchedTurnouts, coupledPoints, switchBodySpans, switchLds, heightContext, unpairedTurnouts,
-  lockedHeightsChanged, planeDeviations,
+  planeDeviations,
 } from './switchGradient'
 import { turnoutSleepers } from './switchSleepers'
 import { reverseTrack } from './trackModel'
@@ -259,12 +259,6 @@ describe('points in pairs on the sleepers, either track leading', () => {
     expect(p1.tracks[0]).toBe(p0.tracks[0])
   })
 
-  it('leaves a turnout whose heights are locked alone', () => {
-    const p0 = { ...base(), switches: [{ ...sw, heightsLocked: true }] }
-    const edited = withHeights(p0, 0, [{ station: 0, z: 105.2 }, { station: 60, z: 107 }])
-    expect(couple(p0, edited)).toBe(edited)
-  })
-
   it('counts the turnouts that are not paired yet', () => {
     const raw = { tracks: [mainTrack(50), branchTrack()], switches: [sw] }
     expect(unpairedTurnouts(raw.tracks, raw.switches, opts)).toHaveLength(1)
@@ -335,38 +329,14 @@ describe('two turnouts reaching into one track from its two ends', () => {
   })
 })
 
-describe('a turnout with its heights locked', () => {
+describe('where a turnout no longer lies in its plane', () => {
   const sw = turnout()
   const paired = () => coupleSwitchGradients({ tracks: [mainTrack(50), branchTrack()], switches: [sw] }, opts)
-  const locked = () => { const p = paired(); return { ...p, switches: [{ ...sw, heightsLocked: true }] } }
-  const withHeights = (p, i, heights) => ({ ...p, tracks: p.tracks.map((t, j) => (j === i ? { ...t, heights } : t)) })
 
-  it('is changed by a write that moves a point from WA to the ldS, on either track', () => {
-    const p = locked()
-    const main = withHeights(p, 0, [{ station: 0, z: 105.2 }, { station: 20, z: 105.5 }, { station: 60, z: 106.025 }])
-    expect(lockedHeightsChanged(p, main, opts).map(s => s.switchId)).toEqual(['s1'])
-    const branch = withHeights(p, 1, p.tracks[1].heights.map((q, i) => (i === 1 ? { ...q, z: q.z + 0.01 } : q)))
-    expect(lockedHeightsChanged(p, branch, opts)).toHaveLength(1)
-    // The toe is held as well.
-    const toe = withHeights(p, 0, p.tracks[0].heights.map((q, i) => (i === 0 ? { ...q, z: 105.3 } : q)))
-    expect(lockedHeightsChanged(p, toe, opts)).toHaveLength(1)
-  })
-
-  it('is not changed by a write beyond its stretch, nor by one that takes the lock off', () => {
-    const p = locked()
-    const beyond = withHeights(p, 1, p.tracks[1].heights.map((q, i) => (i === 2 ? { ...q, z: 105.9 } : q)))
-    expect(lockedHeightsChanged(p, beyond, opts)).toEqual([])
-    const unlocked = { ...withHeights(p, 0, [{ station: 0, z: 105.2 }, { station: 20, z: 105.5 }, { station: 60, z: 106.025 }]), switches: [sw] }
-    expect(lockedHeightsChanged(p, unlocked, opts)).toEqual([])
-  })
-
-  it('keeps its heights when the cant changes, and says where its plane no longer fits', () => {
-    const p = locked()
+  it('says on which sleeper and by how much, when the cant changed and nothing coupled again', () => {
+    const p = paired()
     const recant = { ...p, tracks: [{ ...p.tracks[0], elements: p.tracks[0].elements.map(el => ({ ...el, cant: 100 })) }, p.tracks[1]] }
-    expect(lockedHeightsChanged(p, recant, opts)).toEqual([])
-    expect(coupleSwitchHeights(p, recant, opts)).toBe(recant)
-    const c = couplingOf(recant.tracks, recant.switches, recant.switches[0], opts)
-    const off = planeDeviations(c)
+    const off = planeDeviations(couplingOf(recant.tracks, recant.switches, recant.switches[0], opts))
     expect(off).toHaveLength(1)
     expect(off[0].sleeper.k).toBe('lds')
     // 50 mm more cant lifts the branch by 50/1500 of its offset there.
