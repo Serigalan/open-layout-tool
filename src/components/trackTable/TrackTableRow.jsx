@@ -14,7 +14,8 @@ import {
  * to; the deficiency and the speed limit are derived and follow the speed,
  * cant and radius cells live. Length and radius show three decimals and keep
  * every one they have while typed. `joint` is the joint the element starts
- * with — its comparison radius and what the boundary rules said there.
+ * with — its comparison radius and what the boundary rules said there, shown
+ * in the last column on the line between this row and the one before.
  */
 export default function TrackTableRow({ elements, i, sw, station, rules, joint, epsg, active, onActivate, onEdit }) {
   const { t, fill, language, num } = useI18n()
@@ -53,10 +54,6 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
             ? <TextCell value={el.radius ? lengthText(el.radius, language) : '–'} />
             : <EditCell value={el.radius} onCommit={edit('radius')} disabled={!el.radius} digits={3} />}
       </td>
-      <td title={jointNote(t, fill, i, joint)}>
-        <TextCell value={comparisonRadiusText(joint?.rw, language)}
-          className={joint?.severity && joint.severity !== 'ok' ? `rule-sev-${joint.severity}` : ''} />
-      </td>
       {/* The speed is the cell to change when the deficiency it makes is too
           high, so it carries the same mark. */}
       <td title={defTip}><EditCell value={el.speed} onCommit={edit('speed')} className={defClass(level)} /></td>
@@ -80,6 +77,16 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
       {/* The plane the whole track is stated in — one code per track, so the
           column says which frame these eastings and northings are in. */}
       <td title={crsLabel(epsg)}><TextCell value={epsg ?? '–'} /></td>
+      {/* The joint this element starts with lies between its row and the one
+          before, so its field stands on the line between the two. */}
+      <td className="track-table-joint">
+        {joint && (
+          <div className="track-table-joint-field" title={jointNote(t, fill, i, joint)}>
+            <TextCell value={comparisonRadiusText(joint.rw, language)}
+              className={joint.severity && joint.severity !== 'ok' ? `rule-sev-${joint.severity}` : ''} />
+          </div>
+        )}
+      </td>
     </tr>
   )
 }

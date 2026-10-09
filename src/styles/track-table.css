@@ -65,6 +65,8 @@
   color: var(--color-text-soft);
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
+  /* Above the comparison radius fields, which reach half a row upwards. */
+  z-index: 2;
 }
 
 .track-table td {
@@ -260,4 +262,19 @@
 
 @media (max-width: 1440px) {
   .track-table-overlay { height: 42%; }
+}
+
+/* The comparison radius belongs to the joint between two elements: its field
+   stands on the line between their rows, half in each. */
+.track-table td.track-table-joint {
+  position: relative;
+  min-width: 80px;
+}
+
+.track-table-joint-field {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  transform: translateY(-50%);
+  z-index: 1;
 }
