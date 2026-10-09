@@ -372,15 +372,19 @@ export function touchedTurnouts(before, after) {
  * { sw, side, sleeper } — the turnout, which of its tracks this is, and the
  * sleeper the point sits on (or would snap to). Each has a partner on the
  * same sleeper of the other track; what the profile marks, and locks where
- * the turnout's heights are locked.
+ * the turnout's heights are locked. `dz` where the pair no longer lies in the
+ * turnout's plane (planeDeviations).
  */
 export function coupledPoints(tracks, switches, track, opts) {
   const out = new Map()
   for (const c of switchCouplings(tracks, switches, opts)) {
     for (const side of ['main', 'branch']) {
       if (c[side].track.id !== track.id) continue
+      const off = new Map(planeDeviations(c).map(d => [d.sleeper, d.dz]))
       ;(track.heights ?? []).forEach((p, i) => {
-        if (inBody(c, side, p.station)) out.set(i, { sw: c.sw, side, sleeper: nearestOwned(c, side, p.station) })
+        if (!inBody(c, side, p.station)) return
+        const sleeper = nearestOwned(c, side, p.station)
+        out.set(i, { sw: c.sw, side, sleeper, ...(off.has(sleeper) ? { dz: off.get(sleeper) } : {}) })
       })
     }
   }
@@ -453,3 +457,83 @@ export function switchBodySpans(tracks, switches, track, opts) {
 }
 
 const ordered = (a, b) => ({ from: Math.min(a, b), to: Math.max(a, b) })
+
+// ── Locked heights (decision 260) ───────────────────────────────────────────
+
+/**
+ * What a locked turnout holds: the shape it lies on (the two tracks'
+ * elements, how far its stretch reaches), the height of either track at WA
+ * and on every sleeper it owns — as built, the gradient with its curves, so a
+ * point moved beyond the stretch that tilts the gradient through it counts —
+ * and the points stored there with their curves and reasons. Null where the
+ * turnout has no coupling.
+ */
+function heldPoints(tracks, switches, sw, opts) {
+  const c = couplingOf(tracks, switches, sw, opts)
+  if (!c) return null
+  const points = ['main', 'branch'].flatMap(side => {
+    const h = c[side].track.heights ?? []
+    // At the stations points are stored at, to the mm: a sleeper's own
+    // station may lie a fraction of a mm beside its point.
+    const built = [c[side].station(0), ...c.owned.map(sl => roundMm(sl[side]))]
+      .map(st => ({ side, d: c[side].distance(st), z: gradientAt(h, st) }))
+    const stored = h.map(p => ({ side, d: c[side].distance(p.station), z: p.z, rv: p.rv ?? null, reason: p.reason ?? null }))
+      .filter(({ d }) => d >= -STATION_TOL && d <= c.end[side] + STATION_TOL)
+    return [...built, ...stored]
+  })
+  return { shape: [c.main.track.elements, c.branch.track.elements, c.end.main, c.end.branch], points }
+}
+
+const sameHeld = (a, b) => a.length === b.length && a.every((x, i) => {
+  const y = b[i]
+  return x.side === y.side && Math.abs(x.d - y.d) < 1e-6 && (x.z == null ? y.z == null : Math.abs(x.z - y.z) < 1e-9)
+    && (x.rv ?? null) === (y.rv ?? null) && (x.reason ?? null) === (y.reason ?? null)
+})
+
+/**
+ * The turnouts whose heights are locked — before the write and after it — and
+ * which a write would change there: what the store refuses (decision 260).
+ * A write that changes the shape a turnout lies on is not one of them: the
+ * heights stay as they are, and planeDeviations says what no longer fits.
+ */
+export function lockedHeightsChanged(before, after, opts) {
+  const wasSw = new Map((before?.switches ?? []).map(s => [s.switchId, s]))
+  const out = []
+  for (const id of touchedTurnouts(before, after)) {
+    const sw = (after.switches ?? []).find(s => s.switchId === id)
+    const was = wasSw.get(id)
+    if (!sw?.heightsLocked || !was?.heightsLocked) continue
+    const a = heldPoints(before.tracks ?? [], before.switches, was, opts)
+    const b = heldPoints(after.tracks ?? [], after.switches, sw, opts)
+    if (!a || !b || a.shape.some((v, i) => v !== b.shape[i])) continue
+    if (!sameHeld(a.points, b.points)) out.push(sw)
+  }
+  return out
+}
+
+/** How far apart two heights may be before the plane counts as broken [m]. */
+const PLANE_TOL = 0.001
+
+/**
+ * Where a turnout's two tracks no longer lie in its plane (decision 260): on
+ * every sleeper it owns that carries a point on either track, how far the
+ * branch lies above or below where the plane puts it — [{ sleeper, main,
+ * branch, dz }] with the stations on either track and dz [m], beyond 1 mm
+ * (the heights are kept to the mm on both). Empty where it fits, or where
+ * either track has no gradient there.
+ */
+export function planeDeviations(c) {
+  const mainH = c.main.track.heights, branchH = c.branch.track.heights
+  if (!(mainH?.length >= 2) || !(branchH?.length >= 2) || !c.owned?.length) return []
+  const out = []
+  for (const sl of c.owned) {
+    const pm = pointOn(mainH, sl.main), pb = pointOn(branchH, sl.branch)
+    if (!pm && !pb) continue
+    const zm = pm?.z ?? gradientAt(mainH, sl.main)
+    const zb = pb?.z ?? gradientAt(branchH, sl.branch)
+    if (zm == null || zb == null) continue
+    const dz = zb - (zm + lift(c, sl, mainH))
+    if (Math.abs(dz) > PLANE_TOL) out.push({ sleeper: sl, main: sl.main, branch: sl.branch, dz })
+  }
+  return out
+}

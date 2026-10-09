@@ -1,6 +1,6 @@
 import { useProject } from '../../hooks/useStore'
 import { checkVertical, verticalFindings } from '../../utils/gradientCheck'
-import { couplingOf, pairedHeights, switchLds } from '../../utils/switchGradient'
+import { couplingOf, pairedHeights, planeDeviations, switchLds } from '../../utils/switchGradient'
 import { isLinkSwitch, portsOf } from '../../utils/switchModel'
 import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
 import { useI18n } from '../../locales/i18nContext'
@@ -29,15 +29,20 @@ export default function GradientFindings({ trackId }) {
       if (station == null) return null
       // Coupled where its points already lie in pairs on the sleepers — else
       // they will with the next write that reaches the turnout, or the button.
-      const key = sw.heightsLocked ? 'elevation_switch_locked'
-        : pairedHeights(c, 'main') ? 'elevation_switch_pending' : 'elevation_switch_coupled'
-      return fill(key, { name, label: sw.label ?? '', station: station.toFixed(2) })
+      const pending = !sw.heightsLocked && pairedHeights(c, 'main')
+      const key = sw.heightsLocked ? 'elevation_switch_locked' : pending ? 'elevation_switch_pending' : 'elevation_switch_coupled'
+      const line = fill(key, { name, label: sw.label ?? '', station: station.toFixed(2) })
+      // Where the two tracks no longer lie in the turnout's plane (decision 260).
+      const off = pending ? [] : planeDeviations(c)
+      if (!off.length) return line
+      const worst = Math.max(...off.map(d => Math.abs(d.dz)))
+      return [line, fill('elevation_switch_plane_off', { name, label: sw.label ?? '', n: off.length, dz: (worst * 1000).toFixed(0) })]
     }
     if ((sw.kind ?? 'turnout') === 'turnout' && switchLds(sw) == null) {
       return fill('elevation_switch_no_lds', { name, label: sw.label ?? '' })
     }
     return null
-  }).filter(Boolean)
+  }).flat().filter(Boolean)
   const switchList = switchLines.length > 0 && (
     <ul className="rule-findings">{switchLines.map(line => <li key={line}>{line}</li>)}</ul>
   )

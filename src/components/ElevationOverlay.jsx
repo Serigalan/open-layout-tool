@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches } from '../storage'
+import { setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches, updateSwitch } from '../storage'
 import { useProject, useReferenceAxes, useRoutes, useSwitches, useTracks } from '../hooks/useStore'
 import { checkVertical, regularVerticalRadius, verticalFindings } from '../utils/gradientCheck'
 import { coupledPoints, trackHeightAt } from '../utils/switchGradient'
@@ -26,7 +26,7 @@ import { utmToWgs84 } from '../utils/coordinateUtils'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
-import { turnoutDivergingPort, turnoutLinePort } from '../utils/switchModel'
+import { portsOf, turnoutDivergingPort, turnoutLinePort } from '../utils/switchModel'
 import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
@@ -278,6 +278,21 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     }
   }
   const locked = new Map([...paired].filter(([, v]) => v.sw.heightsLocked).map(([i, v]) => [i, v.sw]))
+  // The toe of a turnout — the ends of its tracks that meet there — belongs to
+  // it as well, and is held where its heights are locked.
+  const toes = new Map()
+  for (const sw of switches) {
+    if ((sw.kind ?? 'turnout') !== 'turnout') continue
+    for (const port of portsOf(sw)) {
+      const track = parts.find(pt => pt.trackId === sw[port.trackKey])?.track
+      if (!track?.heights?.length) continue
+      const index = (sw[port.endKey] ?? 'BEGIN') === 'END' ? track.heights.length - 1 : 0
+      const i = profile.byRef(track.id, index)
+      if (i == null) continue
+      toes.set(i, sw)
+      if (sw.heightsLocked) locked.set(i, sw)
+    }
+  }
   /** The track and its own station at a station of the route. */
   const onTrackAt = (s) => (resolved ? routeAt(resolved, s) : null)
   /** The height built at a station of the route — on a turnout's branch, the plane of the turnout. */
@@ -297,7 +312,9 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     name: swName(sw), sleeper: sleeperLabel(sleeper),
     other: trackName(sw[`port${side === 'main' ? turnoutDivergingPort(sw) : turnoutLinePort(sw)}_trackId`]),
   })
-  const pointNote = (i) => (locked.has(i) ? lockedNote(locked.get(i)) : paired.has(i) ? pairedNote(paired.get(i)) : null)
+  const planeNote = (info) => (info?.dz != null ? fill('elevation_plane_off', { dz: (info.dz * 1000).toFixed(0) }) : null)
+  const pointNote = (i) => [locked.has(i) ? lockedNote(locked.get(i)) : paired.has(i) ? pairedNote(paired.get(i)) : null,
+    planeNote(paired.get(i))].filter(Boolean).join('\n') || null
 
   // ── Fit the view to the data when the track or the exaggeration changes ───
   const plotW = size ? size.w - MARGIN.left - MARGIN.right : 0
@@ -413,6 +430,18 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   // ── Selecting points, editing and deleting them ───────────────────────────
   const isSelected = (p) => selection.includes(p.index)
   const selectedPoints = points.filter(isSelected)
+  /** The turnout a selection belongs to, where all of it lies in one turnout's stretch or toe. */
+  const selectedTurnout = (() => {
+    const sws = selectedPoints.map(p => locked.get(p.index) ?? paired.get(p.index)?.sw ?? toes.get(p.index))
+    return sws.length && sws.every(sw => sw && sw.switchId === sws[0].switchId) ? sws[0] : null
+  })()
+  const lockToggle = selectedTurnout && (
+    <label className="checkbox-row" title={t('switch_heights_locked_hint')}>
+      <input type="checkbox" checked={!!selectedTurnout.heightsLocked}
+        onChange={e => updateSwitch(selectedTurnout.switchId, { heightsLocked: e.target.checked || undefined })} />
+      {fill('elevation_lock_switch', { name: swName(selectedTurnout) })}
+    </label>
+  )
   // The drafts follow the selection: the common height and curve radius, or
   // empty when they differ (and for the radius, when there is none).
   const common = (vs) => (vs.length && vs.every(v => v === vs[0]) && vs[0] != null ? String(vs[0]) : '')
@@ -871,7 +900,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
             return (
               <circle className="clickable" key={`p${p.index}`} cx={X(p.station)} cy={Y(p.z)} r={on ? 5.5 : 3.5}
                 fill={on ? PALETTE.mapSelected : paired.has(p.index) ? PALETTE.sleeper : PALETTE.white}
-                stroke={on ? PALETTE.mapSelected : 'var(--color-primary)'} strokeWidth="2"
+                stroke={on ? PALETTE.mapSelected : paired.get(p.index)?.dz != null ? PALETTE.error : 'var(--color-primary)'} strokeWidth="2"
                 strokeDasharray={locked.has(p.index) ? '2 1.5' : undefined}
                 onPointerDown={e => e.stopPropagation()} onClick={e => pick(p, e)}>
                 {(curveAt.has(p.index) || paired.has(p.index)) && (
@@ -937,6 +966,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           ) : selectedPoints.length && selectedPoints.every(p => locked.has(p.index)) ? (
             <div className="profile-edit">
               <span className="profile-hint">{lockedNote(locked.get(selectedPoints[0].index))}</span>
+              {lockToggle}
               <CloseButton onClick={() => select([])} />
             </div>
           ) : selectedPoints.length ? (
@@ -982,6 +1012,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                   })}
                 </span>
               )}
+              {lockToggle}
               <CloseButton onClick={() => select([])} />
             </div>
           ) : (

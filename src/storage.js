@@ -6,7 +6,7 @@ import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTr
 import { generateId } from './utils/identifierUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
-import { coupleSwitchGradients, coupleSwitchHeights } from './utils/switchGradient'
+import { coupleSwitchGradients, coupleSwitchHeights, lockedHeightsChanged } from './utils/switchGradient'
 import { repairRoutes } from './utils/routes'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
@@ -33,7 +33,7 @@ let _redoStack = []
 // | 'redo', before, after } — what the step notice says and highlights.
 let _lastStep = null
 let _stepSerial = 0
-const recordStep = (kind, before, after) => { _lastStep = { serial: ++_stepSerial, kind, before, after } }
+const recordStep = (kind, before, after, extra) => { _lastStep = { serial: ++_stepSerial, kind, before, after, ...extra } }
 
 /** The last step taken, undone or redone, or null since the project was opened. */
 export const lastStep = () => _lastStep
@@ -96,9 +96,18 @@ function mutate(fn, { undo = true } = {}) {
   const before = _project, logBefore = _idLog
   const next = fn(_project)
   if (!next || next === before) { _idLog = logBefore; return true }
-  if (undo) { pushUndo(before, logBefore); _redoStack = [] }
   // A route over a track the write took away runs over what lies there now (decision 249).
   const after = withCoupledGradients(before, withPrunedMarks(repairRoutes(before, next)))
+  // A write that would change the heights of a locked turnout does not happen
+  // (decision 260); the notice over the map says which turnout held it.
+  const refused = lockedHeightsChanged(before, after)
+  if (refused.length) {
+    _idLog = logBefore
+    recordStep('refused', before, before, { refused: refused.map(sw => sw.name ?? sw.label ?? sw.switchId) })
+    notify()
+    return false
+  }
+  if (undo) { pushUndo(before, logBefore); _redoStack = [] }
   if (undo && _undoDepth === 0) recordStep('do', before, after)
   setProject(after)
   return true
@@ -856,7 +865,7 @@ export function setTrackHeights(trackId, heights, opts = {}) {
  */
 export function setHeightsForTracks(byTrack, { undo = true } = {}) {
   let written = false
-  mutate(p => {
+  const done = mutate(p => {
     const tracks = (p.tracks ?? []).map(t => {
       if (!byTrack.has(t.id)) return t
       written = true
@@ -867,7 +876,7 @@ export function setHeightsForTracks(byTrack, { undo = true } = {}) {
     })
     return written ? { ...p, tracks } : p
   }, { undo })
-  return written
+  return written && done
 }
 
 /**

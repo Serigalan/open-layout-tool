@@ -889,6 +889,14 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 }
 .run-status { display: flex; gap: var(--space-5); align-items: center; font-size: var(--fs-s); color: var(--color-text-soft); margin-top: var(--space-3); }
 
+/* A checkbox with its text, one line (a switch's heights locked). */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
 /* Fitting a crossover's gradient: a choice per line, two fields side by side. */
 .crossover-option {
   display: flex;

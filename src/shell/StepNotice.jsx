@@ -33,7 +33,7 @@ export default function StepNotice() {
   }, [step])
 
   // What a step brought or changed, lit — not what an undo took away.
-  const shownIds = step && step.kind !== 'undo' ? stepTrackIds(step.before, step.after) : []
+  const shownIds = step && step.kind !== 'undo' && step.kind !== 'refused' ? stepTrackIds(step.before, step.after) : []
   const idsKey = shownIds.join(',')
   useEffect(() => {
     const m = map?.current
@@ -44,6 +44,15 @@ export default function StepNotice() {
   }, [map, idsKey, step?.serial])
 
   if (!step || closed === step.serial) return null
+  // A write the store would not take (decision 260): nothing to undo or show.
+  if (step.kind === 'refused') {
+    return (
+      <div className="step-notice" role="alert">
+        <span className="step-notice-text msg-warn">{fill('notice_refused_locked', { names: step.refused.join(', ') })}</span>
+        <CloseButton className="step-notice-close" onClick={() => setClosed(step.serial)} />
+      </div>
+    )
+  }
   // An undo is told as the step it took back.
   const { key, params } = step.kind === 'undo' ? describeStep(step.after, step.before) : describeStep(step.before, step.after)
   const what = fill(key, params)
