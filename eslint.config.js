@@ -49,6 +49,21 @@ export default defineConfig([
     },
   },
   {
+    // The one direction between the two layers (Paket L, decision 277): the
+    // browser components never import the server components. Where a server
+    // part has to show up in core, core offers an extension point
+    // (core/extensions.js) that src/server/register.js fills.
+    files: ['src/core/**/*.{js,jsx}'],
+    rules: {
+      'no-restricted-imports': ['warn', {
+        patterns: [{
+          regex: '^(\\.\\./)+server(/|$)',
+          message: 'src/core never imports from src/server (decision 277) — add an extension point to core/extensions.js instead.',
+        }],
+      }],
+    },
+  },
+  {
     files: ['src/**/*.test.js', 'src/test/**/*.js', 'tools/server/**/*.{js,mjs}', '*.config.js'],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },

@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "check": "tools/check.sh",
     "knip": "knip --no-progress",
+    "boundary": "node tools/boundary.mjs",
     "i18n:unused": "node tools/i18n-unused.mjs"
   },
   "dependencies": {
