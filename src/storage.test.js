@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest'
+import { sleeperAtX, xAtMain } from './test/turnoutFixture'
 import {
   withUndo, openProject, saveTrack, saveSwitch, loadTracks, loadSwitches,
   undo, canUndo, loadImportReports, saveImportReport, clearImportReports,
@@ -464,8 +465,9 @@ describe('the gradient of a turnout is coupled', () => {
   const WE = endPointStraightUtm(START, 90, 30)
   const BE = endPointCurvedUtm(START, 90, 30, -500)
   const turned = 90 - (30 / 500) * 180 / Math.PI
-  const lds = 36.334
-  const offset = 500 - Math.sqrt(500 ** 2 - lds ** 2)
+  // The ldS sleeper leans with the bisector (decision 256): it meets the
+  // branch LDS.branch along it, LDS.q[1] to the left and LDS.q[0] east of WA.
+  const LDS = sleeperAtX(xAtMain(36.334))
   const project = () => ({
     id: 'coupled',
     tracks: [
@@ -488,14 +490,14 @@ describe('the gradient of a turnout is coupled', () => {
     }],
   })
   const branch = () => loadTracks().find(t => t.id === 'b').heights
-  const expected = (slope) => 100 + slope * lds + 0.06 * offset / 1.5
+  const expected = (slope) => 100 + slope * LDS.q[0] + 0.06 * LDS.q[1] / 1.5
 
   it('follows a height edited on the main route, and undoes with it in one step', () => {
     openProject(project())
     expect(branch()).toHaveLength(2)          // opened as it was: nothing written yet
     setTrackHeights('m', [{ station: 0, z: 100 }, { station: 60, z: 101.2 }])
     const ldsPoint = branch()[1]
-    expect(ldsPoint.station).toBeCloseTo(500 * Math.asin(lds / 500), 2)
+    expect(ldsPoint.station).toBeCloseTo(LDS.branch, 2)
     expect(ldsPoint.z).toBeCloseTo(expected(1.2 / 60), 3)
     undo()
     expect(branch()).toHaveLength(2)
