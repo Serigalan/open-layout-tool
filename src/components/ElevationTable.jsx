@@ -126,7 +126,7 @@ export default function ElevationTable({
                 onClick={() => onSelect([i])}>
                 <td>{i + 1}</td>
                 <ValueCell value={p.station} digits={3} step={0.1} {...cell('s')} />
-                <ValueCell value={p.z} digits={3} step={0.01} {...cell('z')} />
+                <ValueCell value={p.z} digits={4} step={0.001} {...cell('z')} />
                 <ValueCell value={g.before == null ? null : g.before * 1000} digits={2} step={0.1} {...cell('gb')}
                   className={sev(before)} title={before ? stretchNote(before) : undefined} />
                 <ValueCell value={g.after == null ? null : g.after * 1000} digits={2} step={0.1} {...cell('ga')}

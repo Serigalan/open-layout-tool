@@ -1002,7 +1002,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                   ? `${t('elevation_station')} ${selectedPoints[0].station.toFixed(2)} m`
                   : fill('elevation_selected', { n: selectedPoints.length })}</span>
               )}
-              <NumberInput className="track-table-input" step="0.01" value={draft} autoFocus
+              <NumberInput className="track-table-input" step="0.001" value={draft} autoFocus
                 placeholder={t('elevation_mixed')}
                 onChange={e => setDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />

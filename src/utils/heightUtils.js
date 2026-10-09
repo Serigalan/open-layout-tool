@@ -104,10 +104,15 @@ export const GIVEN_MODES = {
   gbga: ['gb', 'ga'],
 }
 
+/** Heights are kept to a tenth of a millimetre: a gradient between two of
+ * them is then good to the hundredth of a per mille over a few metres. */
+export const roundHeight = (z) => Math.round(z * 1e4) / 1e4
+
 /**
  * Where height point `index` goes when two of its four values are given
  * (`given`: two of s station, z height, gb gradient before, ga gradient after
- * [m/m]) and its neighbours stay: { station, z } at whole millimetres, or
+ * [m/m]) and its neighbours stay: { station, z }, the station at whole
+ * millimetres and the height to a tenth of one (roundHeight), or
  * { error } — 'missing' (a gradient asked for at an end that has none),
  * 'flat' (a level gradient cannot reach another height), 'parallel' (two
  * equal gradients meet nowhere) or 'order' (it would pass a neighbour, or
@@ -135,7 +140,7 @@ export function solveHeightPoint(heights, index, given, { length = Infinity, min
   const station = Math.round(s * 1000) / 1000
   if (!Number.isFinite(station) || station < -1e-9 || station > length + 1e-9
     || (a && station < a.station + minGap - 1e-9) || (b && station > b.station - minGap + 1e-9)) return { error: 'order' }
-  return { station, z: Math.round(z * 1000) / 1000 }
+  return { station, z: roundHeight(z) }
 }
 
 /**
@@ -150,7 +155,7 @@ export function insertHeightPoint(heights, station, minGap = 0.1) {
   const i = heights.findIndex(p => p.station > station)
   if (i <= 0) return null
   if (station - heights[i - 1].station < minGap || heights[i].station - station < minGap) return null
-  const z = Math.round(heightAt(heights, station) * 1000) / 1000
+  const z = roundHeight(heightAt(heights, station))
   return { heights: [...heights.slice(0, i), { station, z }, ...heights.slice(i)], index: i }
 }
 

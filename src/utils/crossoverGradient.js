@@ -34,7 +34,7 @@
  */
 
 import { catalogLimit } from './regelkatalog'
-import { adjacentTracks, elementAtStation, gradientAt, jointHeightUpdates, pointAtStationUtm, trackLength } from './heightUtils'
+import { adjacentTracks, elementAtStation, gradientAt, jointHeightUpdates, pointAtStationUtm, roundHeight, trackLength } from './heightUtils'
 import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from './crossSectionUtils'
 import { cantSign, roundCant } from './rules/cant'
 import { isLinkSwitch, portsOf, turnoutDivergingPort, turnoutLinePort } from './switchModel'
@@ -321,7 +321,7 @@ function reshape(chain, zone, r0, r1, da, db, siding) {
 function lineWrites(chain, verts) {
   const [v0, va, vb, v1] = verts
   const z0 = (d) => chainZ(chain, d)
-  const [za, zb] = [roundMm(va.z), roundMm(vb.z)]
+  const [za, zb] = [roundHeight(va.z), roundHeight(vb.z)]
   const offset = (d) => {
     if (d <= v0.d || d >= v1.d) return 0
     if (d < va.d) return (za - z0(va.d)) * (d - v0.d) / (va.d - v0.d)
@@ -345,7 +345,7 @@ function lineWrites(chain, verts) {
     const out = pts.flatMap(p => {
       const { d, vertex, ...rest } = p
       if (vertex) {
-        const q = { ...rest, z: roundMm(vertex.z) }
+        const q = { ...rest, z: roundHeight(vertex.z) }
         if (vertex.rv) q.rv = vertex.rv; else delete q.rv
         // The ends of the ramps keep the curve they had where none is needed.
         if (!vertex.rv && (vertex === v0 || vertex === v1) && p.rv) q.rv = p.rv
@@ -357,7 +357,7 @@ function lineWrites(chain, verts) {
         const { rv: _rv, ...flat } = rest
         return [{ ...flat, z: straight(d) }]
       }
-      return [off ? { ...rest, z: roundMm(rest.z + off) } : rest]
+      return [off ? { ...rest, z: roundHeight(rest.z + off) } : rest]
     }).sort((a, b) => a.station - b.station)
     writes.set(seg.track.id, out)
   }

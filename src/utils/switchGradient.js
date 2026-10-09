@@ -35,7 +35,7 @@
  * on. A form that does not state one is not coupled.
  */
 
-import { gradientAt } from './heightUtils'
+import { gradientAt, roundHeight } from './heightUtils'
 import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from './crossSectionUtils'
 import { mainRouteLength, routeFrom, sleeperOffsets, sleeperThrough, switchLds, turnoutSleepers } from './switchSleepers'
 import { turnoutLinePort } from './switchModel'
@@ -43,7 +43,7 @@ import { turnoutLinePort } from './switchModel'
 export { switchLds }
 
 const STATION_TOL = 0.01    // m — a height point this close to the ldS is the ldS point
-const Z_TOL = 0.0005        // m — heights that agree to this already agree
+const Z_TOL = 0.00005       // m — heights that agree to this already agree (they are kept to 0.1 mm)
 const roundMm = (x) => Math.round(x * 1000) / 1000
 
 /**
@@ -238,7 +238,7 @@ const samePoints = (a, b) => a.length === b.length && a.every((p, i) => {
 /** The point a track already has on a sleeper, if any. */
 const pointOn = (h, station) => h.find(p => Math.abs(p.station - station) <= STATION_TOL)
 /** A height for a partner: the one it has where that is the plane's to the millimetre. */
-const kept = (had, z) => (had && Math.abs(had.z - z) <= Z_TOL + 1e-9 ? had.z : roundMm(z))
+const kept = (had, z) => (had && Math.abs(had.z - z) <= Z_TOL + 1e-9 ? had.z : roundHeight(z))
 
 /**
  * The heights of both tracks of a turnout with every point in its stretch
@@ -307,7 +307,7 @@ export function pairedHeights(c, leader = 'main') {
       // The branch's ldS point came away: it is the main route's again.
       const z = gradientAt(newMain, ldsSl.main)
       if (z != null) {
-        newBranch = [...newBranch, { station: roundMm(ldsSl.branch), z: roundMm(z + lift(c, ldsSl, newMain)) }].sort(byStation)
+        newBranch = [...newBranch, { station: roundMm(ldsSl.branch), z: roundHeight(z + lift(c, ldsSl, newMain)) }].sort(byStation)
       }
     }
   }
@@ -568,15 +568,15 @@ export function lockedHeightsChanged(before, after, opts) {
   return out
 }
 
-/** How far apart two heights may be before the plane counts as broken [m]. */
-const PLANE_TOL = 0.001
+/** How far apart two heights may be before the plane counts as broken [m]: 0.2 mm. */
+const PLANE_TOL = 0.0002
 
 /**
  * Where a turnout's two tracks no longer lie in its plane (decision 260): on
  * every sleeper it owns that carries a point on either track, how far the
  * branch lies above or below where the plane puts it — [{ sleeper, main,
- * branch, dz }] with the stations on either track and dz [m], beyond 1 mm
- * (the heights are kept to the mm on both). Empty where it fits, or where
+ * branch, dz }] with the stations on either track and dz [m], beyond 0.2 mm
+ * (the heights are kept to 0.1 mm on both). Empty where it fits, or where
  * either track has no gradient there.
  */
 export function planeDeviations(c) {

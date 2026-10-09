@@ -161,8 +161,15 @@ describe('solveHeightPoint — a gradient point from two of its values', () => {
     expect(pointGrades(h, 2).after).toBeNull()
   })
 
-  it('takes station and height as they are', () => {
-    expect(solveHeightPoint(h, 1, { s: 120.0004, z: 101.2346 })).toEqual({ station: 120, z: 101.235 })
+  it('takes station and height as they are — the station to the mm, the height to 0.1 mm', () => {
+    expect(solveHeightPoint(h, 1, { s: 120.0004, z: 101.23456 })).toEqual({ station: 120, z: 101.2346 })
+  })
+
+  it('keeps a gradient typed to the hundredth of a per mille over a short stretch', () => {
+    // 3.27 ‰ over 7.3 m: a height to the mm would make it 3.29 ‰.
+    const short = [{ station: 0, z: 100 }, { station: 7.3, z: 100.1 }, { station: 20, z: 100.2 }]
+    const r = solveHeightPoint(short, 1, { s: 7.3, gb: 0.00327 })
+    expect(Math.round((r.z - 100) / 7.3 * 1e5) / 100).toBe(3.27)
   })
 
   it('slides along the gradient before or after, its station given', () => {
