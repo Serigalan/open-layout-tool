@@ -504,23 +504,20 @@ describe('the gradient of a turnout is coupled', () => {
     expect(loadTracks().find(t => t.id === 'm').heights[1].z).toBe(100.6)
   })
 
-  it('moves the main route along when the branch is edited there, and undoes both in one step', () => {
+  it('gives an edited ldS height on the branch back to the plane (decision 269)', () => {
     openProject(project())
-    // A write to the branch reaches the turnout as well: it is paired at once.
+    // A write to the branch reaches the turnout as well: it is coupled at once,
+    // and the main route gets its point on the ldS.
     setHeightsForTracks(new Map([['b', [{ station: 0, z: 100 }, { station: 60, z: 100.2 }]]]))
     const coupled = branch()
     expect(coupled).toHaveLength(3)
     const main = () => loadTracks().find(t => t.id === 'm').heights
-    setHeightsForTracks(new Map([['b', coupled.map((p, i) => (i === 1 ? { ...p, z: p.z + 0.05 } : p))]]))
-    expect(branch()[1].z).toBeCloseTo(expected(0.6 / 60) + 0.05, 3)
-    // The main route gets a point on the ldS, 50 mm up as well.
     expect(main()).toHaveLength(3)
     expect(main()[1].station).toBeCloseTo(36.334, 3)
-    // Rounded to the mm on the branch and again on the main route.
-    expect(Math.abs(main()[1].z - (100 + 0.01 * 36.334 + 0.05))).toBeLessThan(0.0011)
-    undo()
-    expect(main()).toHaveLength(2)
+    const was = main()
+    setHeightsForTracks(new Map([['b', coupled.map((p, i) => (i === 1 ? { ...p, z: p.z + 0.05 } : p))]]))
     expect(branch()[1].z).toBeCloseTo(expected(0.6 / 60), 3)
+    expect(main()).toEqual(was)
   })
 })
 

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  switchCoupling, couplingOf, pairedHeights, coupleSwitchGradients, coupleSwitchHeights, branchPlaneHeight,
-  trackHeightAt, touchedTurnouts, coupledPoints, switchBodySpans, switchLds, heightContext, unpairedTurnouts,
+  switchCoupling, couplingOf, pairedHeights, branchPlaneHeight,
+  trackHeightAt, touchedTurnouts, coupledPoints, switchBodySpans, switchLds, heightContext,
   planeDeviations,
 } from './switchGradient'
+import { coupleSwitchGradients, coupleSwitchHeights, pendingTurnouts } from './switchChain'
 import { turnoutSleepers } from './switchSleepers'
 import { reverseTrack } from './trackModel'
 import { endPointCurvedUtm } from './elementUtils'
@@ -135,11 +136,12 @@ describe('the plane between WA and ldS', () => {
 describe('coupling a project', () => {
   const project = (cant = 50) => ({ tracks: [mainTrack(cant), branchTrack()], switches: [turnout()] })
 
-  it('writes the branch and leaves a coupled project as it is', () => {
+  it('writes the branch and the main route\'s ldS point, and leaves a coupled project as it is', () => {
     const once = coupleSwitchGradients(project(), opts)
     expect(once.tracks[1].heights).toHaveLength(3)
-    // The main route leads and is left as it was.
-    expect(once.tracks[0]).toEqual(project().tracks[0])
+    // The main route keeps its gradient and gets a point on the ldS (decision 269).
+    expect(once.tracks[0].heights.map(p => p.station)).toEqual([0, 40, 60])
+    expect(once.tracks[0].heights[1].z).toBeCloseTo(105.2 + G * 40, 4)
     expect(coupleSwitchGradients(once, opts)).toBe(once)
   })
 
@@ -154,6 +156,8 @@ describe('coupling a project', () => {
     const after = coupleSwitchGradients(edited, { ...opts, only: touchedTurnouts(before, edited) })
     const lds = after.tracks[1].heights[1]
     expect(lds.z).toBeCloseTo(ldsZ(50, 105.2, 1.8 / 60), 3)
+    // The main route's ldS point moved onto the new line through WA and 60 m.
+    expect(after.tracks[0].heights[1].z).toBeCloseTo(105.2 + 1.8 / 60 * 40, 4)
   })
 
   it('marks the points in the turnout\'s stretch, with their sleeper', () => {
@@ -161,7 +165,9 @@ describe('coupling a project', () => {
     const marked = coupledPoints(p.tracks, p.switches, p.tracks[1], opts)
     expect([...marked.keys()]).toEqual([1])
     expect(marked.get(1)).toMatchObject({ side: 'branch', sleeper: { k: 'lds' } })
-    expect(coupledPoints(p.tracks, p.switches, p.tracks[0], opts).size).toBe(0)
+    const onMain = coupledPoints(p.tracks, p.switches, p.tracks[0], opts)
+    expect([...onMain.keys()]).toEqual([1])
+    expect(onMain.get(1)).toMatchObject({ side: 'main', sleeper: { k: 'lds' } })
   })
 })
 
@@ -240,17 +246,12 @@ describe('points in pairs on the sleepers, either track leading', () => {
     expect(p4.tracks[0].heights).toHaveLength(mainCount)
   })
 
-  it('gives the main route a point on the ldS where the branch\'s ldS height asks for one', () => {
+  it('gives an ldS height edited on the branch back to the plane over the main route (decision 269)', () => {
     const p0 = base()
     const lds = p0.tracks[1].heights[1]
     const p1 = couple(p0, withHeights(p0, 1, p0.tracks[1].heights.map(q => (q === lds ? { ...q, z: q.z + 0.05 } : q))))
-    const main = p1.tracks[0].heights
-    expect(main).toHaveLength(3)
-    expect(main[1].station).toBeCloseTo(40, 3)
-    expect(main[1].z).toBeCloseTo(105.2 + G * 40 + 0.05, 3)
-    // Its ldS height given back, the main route keeps the point — at the plane's height.
-    const p2 = couple(p1, withHeights(p1, 1, p1.tracks[1].heights.map(q => (Math.abs(q.station - lds.station) < 1e-9 ? lds : q))))
-    expect(p2.tracks[0].heights[1].z).toBeCloseTo(105.2 + G * 40, 3)
+    expect(p1.tracks[1].heights[1].z).toBeCloseTo(lds.z, 4)
+    expect(p1.tracks[0].heights).toEqual(p0.tracks[0].heights)
   })
 
   it('leaves the main route as it is for an edit on the branch beyond the ldS', () => {
@@ -261,9 +262,9 @@ describe('points in pairs on the sleepers, either track leading', () => {
 
   it('counts the turnouts that are not paired yet', () => {
     const raw = { tracks: [mainTrack(50), branchTrack()], switches: [sw] }
-    expect(unpairedTurnouts(raw.tracks, raw.switches, opts)).toHaveLength(1)
+    expect(pendingTurnouts(raw, opts)).toHaveLength(1)
     const p = base()
-    expect(unpairedTurnouts(p.tracks, p.switches, opts)).toHaveLength(0)
+    expect(pendingTurnouts(p, opts)).toHaveLength(0)
   })
 })
 

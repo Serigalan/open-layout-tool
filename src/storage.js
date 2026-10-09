@@ -6,7 +6,7 @@ import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTr
 import { generateId } from './utils/identifierUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
 import * as idb from './utils/idbStorage'
-import { coupleSwitchGradients, coupleSwitchHeights } from './utils/switchGradient'
+import { coupleSwitchGradients, coupleSwitchHeights } from './utils/switchChain'
 import { repairRoutes } from './utils/routes'
 import { lengthGovernedRadii } from './utils/gradientCheck'
 

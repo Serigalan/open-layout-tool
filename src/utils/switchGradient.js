@@ -42,9 +42,9 @@ import { turnoutLinePort } from './switchModel'
 
 export { switchLds }
 
-const STATION_TOL = 0.01    // m — a height point this close to the ldS is the ldS point
-const Z_TOL = 0.00005       // m — heights that agree to this already agree (they are kept to 0.1 mm)
-const roundMm = (x) => Math.round(x * 1000) / 1000
+export const STATION_TOL = 0.01    // m — a height point this close to the ldS is the ldS point
+export const Z_TOL = 0.00005       // m — heights that agree to this already agree (they are kept to 0.1 mm)
+export const roundMm = (x) => Math.round(x * 1000) / 1000
 
 /**
  * How far from WA along the main route the turnout's body reaches: to the
@@ -57,7 +57,7 @@ export function ldsFromToe(tracks, sw, { formOf } = {}) {
   return we + (switchLds(sw, formOf) ?? 0)
 }
 
-const isTurnout = (sw) => (sw?.kind ?? 'turnout') === 'turnout'
+export const isTurnout = (sw) => (sw?.kind ?? 'turnout') === 'turnout'
 
 /** Longitudinal gradient [m/m] of a track's rounded gradient at a station. */
 function slopeAt(heights, station) {
@@ -118,7 +118,7 @@ export function switchCoupling(tracks, sw, opts = {}) {
 // section ask for every station they draw.
 let lastCouplings = null
 
-function switchCouplings(tracks, switches, opts) {
+export function switchCouplings(tracks, switches, opts) {
   const formOf = opts?.formOf
   if (lastCouplings && lastCouplings.tracks === tracks && lastCouplings.switches === switches
     && lastCouplings.formOf === formOf) return lastCouplings.result
@@ -229,7 +229,7 @@ const covers = (h, a, b) => Math.min(a, b) >= h[0].station - STATION_TOL && Math
 
 const byStation = (a, b) => a.station - b.station
 /** What a point's partner takes over besides its height: its curve, the length that counts for it, and its reason. */
-const carried = (p) => ({
+export const carried = (p) => ({
   ...(p.rv != null ? { rv: p.rv } : {}), ...(p.la != null ? { la: p.la } : {}), ...(p.reason ? { reason: p.reason } : {}),
 })
 const samePoints = (a, b) => a.length === b.length && a.every((p, i) => {
@@ -248,8 +248,8 @@ const kept = (had, z) => (had && Math.abs(had.z - z) <= Z_TOL + 1e-9 ? had.z : r
  * count (decision 259): each of them on its nearest sleeper, one per sleeper,
  * and the other track with a point on the same sleeper — at the height the
  * plane gives it, with the same curve and reason — and no other point there.
- * The branch always has a point on the ldS; the main route only where the
- * branch's ldS height asks for one.
+ * The branch always has a point on the ldS, at the plane's height over the
+ * main route (decision 269); the main route keeps the one it has there.
  *
  * Returns { main, branch } — the new heights of either, null where they stay —
  * or null where nothing changes, or where there is nothing to pair: a track
@@ -286,30 +286,26 @@ export function pairedHeights(c, leader = 'main') {
       station: roundMm(sl.branch), z: kept(pointOn(branchH, sl.branch), z + lift(c, sl, newMain)), ...carried(from),
     }))].sort(byStation)
   } else {
+    // The branch leads only with its points between WA and the ldS: its ldS
+    // point is the plane's over the main route's (decision 269).
     newBranch = [...outside(branchH, 'branch'),
-      ...[...onSleeper].map(([sl, p]) => ({ ...p, station: roundMm(sl.branch) }))].sort(byStation)
-    const base = outside(mainH, 'main')
+      ...[...onSleeper].filter(([sl]) => sl !== ldsSl).map(([sl, p]) => ({ ...p, station: roundMm(sl.branch) }))].sort(byStation)
+    const mainLds = ldsSl && pointOn(mainH, ldsSl.main)
+    const base = [...outside(mainH, 'main'), ...(mainLds ? [{ ...mainLds, station: roundMm(ldsSl.main) }] : [])]
     const grid = [...onSleeper].filter(([sl]) => sl !== ldsSl)
     // The lift reads the main route's gradient, which these points make: twice round.
-    newMain = base
+    newMain = [...base].sort(byStation)
     for (let k = 0; k < 2; k++) {
       newMain = [...base, ...grid.map(([sl, p]) => ({
         station: roundMm(sl.main), z: kept(pointOn(mainH, sl.main), p.z - lift(c, sl, newMain)), ...carried(p),
       }))].sort(byStation)
     }
-    const atLds = ldsSl && onSleeper.get(ldsSl)
-    if (atLds) {
-      const z = atLds.z - lift(c, ldsSl, newMain)
-      const had = pointOn(mainH, ldsSl.main)
-      const there = gradientAt(newMain, ldsSl.main)
-      if (had || there == null || Math.abs(there - z) > Z_TOL) {
-        newMain = [...newMain, { station: roundMm(ldsSl.main), z: kept(had, z), ...carried(atLds) }].sort(byStation)
-      }
-    } else if (ldsSl) {
-      // The branch's ldS point came away: it is the main route's again.
+    if (ldsSl) {
       const z = gradientAt(newMain, ldsSl.main)
       if (z != null) {
-        newBranch = [...newBranch, { station: roundMm(ldsSl.branch), z: roundHeight(z + lift(c, ldsSl, newMain)) }].sort(byStation)
+        newBranch = [...newBranch, {
+          station: roundMm(ldsSl.branch), z: kept(pointOn(branchH, ldsSl.branch), z + lift(c, ldsSl, newMain)),
+        }].sort(byStation)
       }
     }
   }
@@ -329,71 +325,9 @@ export function branchPlaneHeight(c, station) {
 }
 
 /**
- * Which track of a turnout a write led with (decision 259): the branch where
- * only its heights changed and the main route stayed as it was, the main
- * route in every other case — its heights, its shape or its cant changed, or
- * there is nothing before to compare with.
- */
-function leaderOf(wasTrack, c) {
-  const mainBefore = wasTrack.get(c.main.track.id), branchBefore = wasTrack.get(c.branch.track.id)
-  const branchEdited = branchBefore && branchBefore.heights !== c.branch.track.heights
-    && branchBefore.elements === c.branch.track.elements
-  return branchEdited && mainBefore === c.main.track ? 'branch' : 'main'
-}
-
-const touches = (sw, ids) => [sw.portA_trackId, sw.portB1_trackId, sw.portB2_trackId].some(id => ids.has(id))
-
-/**
- * The project after a write with every turnout the write reached paired again
- * (decisions 258, 259) — in the same step, so one undo takes back both. A
- * turnout that changes a track passes it on to the turnouts on that track: in
- * a run of turnouts the branch of one is the main route of the next. Each
- * turnout once per write.
- * The same project where nothing had to change.
- */
-export function coupleSwitchHeights(before, after, { only = touchedTurnouts(before, after), formOf } = {}) {
-  if (!only?.size) return after
-  const wasTrack = new Map((before?.tracks ?? []).map(t => [t.id, t]))
-  let project = after
-  const queue = [...only]
-  const done = new Set()
-  while (queue.length) {
-    const id = queue.shift()
-    if (done.has(id)) continue
-    done.add(id)
-    const sw = (project.switches ?? []).find(s => s.switchId === id)
-    if (!sw) continue
-    const c = couplingOf(project.tracks ?? [], project.switches, sw, { formOf })
-    if (!c) continue
-    const r = pairedHeights(c, leaderOf(wasTrack, c))
-    if (!r) continue
-    const write = new Map([[c.main.track.id, r.main], [c.branch.track.id, r.branch]].filter(([, h]) => h))
-    project = { ...project, tracks: project.tracks.map(t => (write.has(t.id) ? { ...t, heights: write.get(t.id) } : t)) }
-    const ids = new Set(write.keys())
-    for (const s of project.switches ?? []) if (!done.has(s.switchId) && isTurnout(s) && touches(s, ids)) queue.push(s.switchId)
-  }
-  return project
-}
-
-/**
- * The project with every turnout paired, its main route leading — for the
- * turnouts `only` names (their switchIds), or all of them: a project from
- * before the pairing, or the button that does it for all.
- */
-export function coupleSwitchGradients(project, { only = null, formOf } = {}) {
-  const ids = new Set((project?.switches ?? []).filter(sw => isTurnout(sw) && (!only || only.has(sw.switchId)))
-    .map(sw => sw.switchId))
-  return coupleSwitchHeights(null, project, { only: ids, formOf })
-}
-
-/** The turnouts whose heights are not paired yet — what „Alle Weichen koppeln“ would change. */
-export function unpairedTurnouts(tracks, switches, opts) {
-  return switchCouplings(tracks, switches, opts).filter(c => pairedHeights(c, 'main'))
-}
-
-/**
- * The switchIds of the turnouts a write reached: those whose main route or
- * branch track changed, or whose own record did. What the store couples after
+ * The switchIds of the turnouts a write reached: those one of whose three
+ * tracks changed — the approach carries the point their main route's line
+ * starts at (decision 270) — or whose own record did. What the store couples after
  * a write, so an edit far from any turnout leaves the turnouts alone.
  */
 export function touchedTurnouts(before, after) {
@@ -404,7 +338,8 @@ export function touchedTurnouts(before, after) {
   for (const sw of after?.switches ?? []) {
     if (!isTurnout(sw)) continue
     if (wasSw.get(sw.switchId) !== sw
-      || changedTrack.has(sw.portB1_trackId) || changedTrack.has(sw.portB2_trackId)) ids.add(sw.switchId)
+      || changedTrack.has(sw.portA_trackId) || changedTrack.has(sw.portB1_trackId)
+      || changedTrack.has(sw.portB2_trackId)) ids.add(sw.switchId)
   }
   return ids
 }
