@@ -499,19 +499,35 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     select(isSelected(p) ? selection.filter(i => i !== p.index) : [...selection, p.index])
   }
 
+  // What is typed is applied on Enter or on leaving the field — there is no
+  // button for it; Escape drops it and the selection.
+  const escaped = useRef(false)
+  const editProps = {
+    onFocus: () => { escaped.current = false },
+    onBlur: () => { if (escaped.current) escaped.current = false; else commit() },
+    onKeyDown: (e) => {
+      if (e.key === 'Enter') commit()
+      if (e.key === 'Escape') { e.preventDefault(); escaped.current = true; select([]) }
+    },
+  }
   const commit = () => {
     if (!resolved || !selectedPoints.length) return
-    // An empty field is the mixed values of the selection — it changes nothing.
+    // An empty field is the mixed values of the selection — it changes nothing,
+    // nor does a height every selected point has already.
     // A radius typed is what counts from then on, not a length (decision
     // 266); a radius of 0 takes the vertical curve away.
     const patch = {}
-    if (draft.trim())   { const z  = Number(draft);   if (!Number.isFinite(z))  return; patch.z  = z }
+    if (draft.trim()) {
+      const z = Number(draft); if (!Number.isFinite(z)) return
+      if (selectedPoints.some(p => Math.abs(p.z - z) > 1e-9)) patch.z = z
+    }
     if (rvDraft?.trim()) {
       const rv = Number(rvDraft); if (!Number.isFinite(rv)) return
       patch.rv = rv > 0 ? rv : null; patch.la = null
     }
     // A reason typed: set on every selected point, or taken away when emptied.
-    if (reasonDraft != null) patch.reason = reasonDraft.trim() || null
+    const reason = reasonDraft?.trim() || null
+    if (reasonDraft != null && selectedPoints.some(p => (p.reason ?? null) !== reason)) patch.reason = reason
     // A single point's station typed anew: it moves there with its height —
     // between its neighbours, which stay.
     const one = selectedPoints.length === 1 ? selectedPoints[0] : null
@@ -520,7 +536,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       const r = solveHeightPoint(points, one.index, { s: st, z: patch.z ?? one.z }, { length: profile.length })
       if (r.error) { setRvNote(fill(`elevation_table_error_${r.error}`, { n: one.index + 1 })); return }
       writePoint(one, r, patch)
-      setStDraft(String(Math.round(r.station * 1000) / 1000)); setRvNote(null); setRvDraft(null)
+      setStDraft(String(Math.round(r.station * 1000) / 1000)); setRvNote(null); setRvDraft(null); setReasonDraft(null)
       return
     }
     if (!Object.keys(patch).length) return
@@ -530,7 +546,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       .map(p => ({ trackId: p.owner.trackId, index: p.owner.index, ...patch }))
     if (!entries.length) return
     setHeightsForTracks(jointHeightUpdates(tracks, switches, entries))
-    setRvDraft(null)
+    setRvDraft(null); setReasonDraft(null)
   }
 
   /**
@@ -1006,8 +1022,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                 <>
                   <span>{t('elevation_station')}</span>
                   <NumberInput className="track-table-input" step="0.1" value={stDraft}
-                    onChange={e => setStDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
+                    onChange={e => setStDraft(e.target.value)} {...editProps} />
                   <span>m</span>
                 </>
               ) : (
@@ -1017,14 +1032,12 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               )}
               <NumberInput className="track-table-input" step="0.001" value={draft} autoFocus
                 placeholder={t('elevation_mixed')}
-                onChange={e => setDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
+                onChange={e => setDraft(e.target.value)} {...editProps} />
               <span>m</span>
               <span title={t('elevation_vcurve_hint')}>{t('elevation_vcurve')}</span>
               <NumberInput className="track-table-input" step="100" min="0" value={rvShown}
                 placeholder={rvMixed ? t('elevation_mixed') : '–'} title={t('elevation_vcurve_hint')}
-                onChange={e => setRvDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
+                onChange={e => setRvDraft(e.target.value)} {...editProps} />
               <span>m</span>
               <button className="track-table-save-btn" title={t('elevation_vcurve_regular_hint')} onClick={setRegularRadius}>
                 {t('elevation_vcurve_regular')}
@@ -1039,12 +1052,10 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                   <span title={t('elevation_reason_hint')}>{t('elevation_reason')}</span>
                   <input type="text" className="track-table-input profile-reason" value={reasonShown}
                     placeholder={t('elevation_reason_placeholder')} title={t('elevation_reason_hint')}
-                    onChange={e => setReasonDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
+                    onChange={e => setReasonDraft(e.target.value)} {...editProps} />
                 </>
               )}
               {rvNote && <span className="form-error">{rvNote}</span>}
-              <button className="track-table-save-btn" onClick={commit}>{t('elevation_apply')}</button>
               <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
                 title={t('elevation_delete_hint')} onClick={remove}>
                 {fill('elevation_delete', { n: deletable.length })}
