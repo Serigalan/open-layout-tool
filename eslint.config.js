@@ -4,6 +4,24 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
+// ESLint's own no-unused-vars does not see a component used only as JSX
+// (`<Panel />`). This marks such names as used — the one rule of
+// eslint-plugin-react this codebase needs, without its hundred dependencies.
+const jsxUsesVars = {
+  meta: { type: 'problem', schema: [] },
+  create(context) {
+    return {
+      JSXOpeningElement(node) {
+        let name = node.name
+        while (name.type === 'JSXMemberExpression') name = name.object
+        if (name.type !== 'JSXIdentifier') return
+        if (node.name.type === 'JSXIdentifier' && !/^[A-Z]/.test(name.name)) return
+        context.sourceCode.markVariableAsUsed(name.name, node)
+      },
+    }
+  },
+}
+
 export default defineConfig([
   globalIgnores(['dist']),
   {
@@ -13,6 +31,7 @@ export default defineConfig([
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
+    plugins: { local: { rules: { 'jsx-uses-vars': jsxUsesVars } } },
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
@@ -23,9 +42,10 @@ export default defineConfig([
       },
     },
     rules: {
+      'local/jsx-uses-vars': 'error',
       // `const { a: _a, ...rest } = obj` is how this codebase omits keys — the
       // named siblings of a rest element are omissions, not unused variables.
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', ignoreRestSiblings: true }],
+      'no-unused-vars': ['error', { varsIgnorePattern: '^_', ignoreRestSiblings: true }],
     },
   },
   {
