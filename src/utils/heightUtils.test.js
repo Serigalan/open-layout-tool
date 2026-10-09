@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { heightAt, gradientAt, verticalCurve, verticalCurveOverlaps, splitHeights, joinHeights, endOfIndex, insertHeightPoint,
-  pointGrades, solveHeightPoint } from './heightUtils'
+  pointGrades, solveHeightPoint, jointHeightUpdates } from './heightUtils'
 
 describe('gradientAt — the height a track is built at', () => {
   // +10 ‰ up to a crest at 100 m, −10 ‰ down from it, rounded with R 2000:
@@ -188,5 +188,27 @@ describe('solveHeightPoint — a gradient point from two of its values', () => {
     expect(solveHeightPoint(h, 0, { s: -1, z: 100 }, { length: 300 })).toEqual({ error: 'order' })
     expect(solveHeightPoint(h, 0, { s: 0, gb: 0.01 })).toEqual({ error: 'missing' })
     expect(solveHeightPoint(h, 0, { s: 0, ga: 0.02 })).toEqual({ station: 0, z: 99 })
+  })
+})
+
+describe('jointHeightUpdates', () => {
+  // Two tracks end to end at (100, 0): a's END is b's BEGIN.
+  const a = { id: 'a', epsg: 5684, elements: [{ elementType: 0, startNode: [0, 0], endNode: [100, 0], bearing: 90, length: 100 }],
+    heights: [{ station: 0, z: 10 }, { station: 50, z: 10.5 }, { station: 100, z: 11 }] }
+  const b = { id: 'b', epsg: 5684, elements: [{ elementType: 0, startNode: [100, 0], endNode: [200, 0], bearing: 90, length: 100 }],
+    heights: [{ station: 0, z: 11 }, { station: 100, z: 12 }] }
+
+  it('gives a reason to the point and to every point joined to it, and takes it away again', () => {
+    const set = jointHeightUpdates([a, b], [], [{ trackId: 'a', index: 2, reason: 'Zwangspunkt' }])
+    expect(set.get('a')[2]).toEqual({ station: 100, z: 11, reason: 'Zwangspunkt' })
+    expect(set.get('b')[0]).toEqual({ station: 0, z: 11, reason: 'Zwangspunkt' })
+    const withReason = [{ ...a, heights: set.get('a') }, { ...b, heights: set.get('b') }]
+    const off = jointHeightUpdates(withReason, [], [{ trackId: 'a', index: 2, reason: null }])
+    expect(off.get('a')[2]).toEqual({ station: 100, z: 11 })
+    expect(off.get('b')[0]).toEqual({ station: 0, z: 11 })
+    // An inner point is alone in its group; a field left out stays.
+    const inner = jointHeightUpdates([a, b], [], [{ trackId: 'a', index: 1, z: 10.6, reason: 'Bestand' }])
+    expect(inner.get('a')[1]).toEqual({ station: 50, z: 10.6, reason: 'Bestand' })
+    expect(inner.has('b')).toBe(false)
   })
 })

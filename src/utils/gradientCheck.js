@@ -183,6 +183,8 @@ export function checkVertical(track, { project = null, switches = [], tracks = p
       : p.station > b.from + STATION_EPS && p.station < b.to - STATION_EPS))
     const areas = new Set([
       ...(inBody ? ['switch_body'] : []),
+      // A reason given at the point (decision 261).
+      ...(typeof p.reason === 'string' && p.reason.trim() ? ['justified'] : []),
       // A connection is a track of its own between two switches; a turnout
       // in a main track does not make that track one.
       ...(connection ? ['track_connection'] : []),

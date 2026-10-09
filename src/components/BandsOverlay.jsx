@@ -437,6 +437,14 @@ export default function BandsOverlay({ trackId, onClose }) {
                     <title>{`s = ${Math.abs(entry.grade).toFixed(2)} ‰\n${findingNote(entry.results)}`}</title>
                   </rect>
                 ))}
+                {/* a gradient change with a reason (decision 261), marked where it lies */}
+                {b === 'height' && points.filter(p => p.reason).map(p => (
+                  <text key={`r${p.index}`} x={X(p.station)} y={Math.max(top + 10, Y(p.z) - 9)} fontSize="10"
+                    fill={PALETTE.datumNote} textAnchor="middle">
+                    {t('bands_reason_mark')}
+                    <title>{fill('elevation_reason_note', { reason: p.reason })}</title>
+                  </text>
+                ))}
                 {showFindings && b === 'height' && vCurves.filter(c => points[c.index]).map(c => (
                   <circle key={`vc${c.index}`} className={`rule-sev-${c.severity}`} cx={X(c.station)} cy={Y(points[c.index].z)}
                     r="6.5" fill="transparent" stroke="currentColor" strokeWidth="2">

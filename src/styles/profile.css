@@ -44,6 +44,12 @@
   width: 90px;
 }
 
+/* The reason for a gradient change in a turnout: a line of text, not a number. */
+.profile-edit .track-table-input.profile-reason {
+  width: 16em;
+  text-align: left;
+}
+
 /* Discreet entry point at the bottom of a panel — a section that is there when
    it is wanted and out of the way otherwise. */
 .panel-dot-row {

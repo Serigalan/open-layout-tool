@@ -69,7 +69,10 @@ export function routeProfile(resolved) {
         ref.set(`${track.id}|${index}`, prev.index)
         continue
       }
-      const p = { index: points.length, station, z: h.z, ...(h.rv != null ? { rv: h.rv } : {}), owner, refs: [owner], joint: false, trackEnd }
+      const p = {
+        index: points.length, station, z: h.z, ...(h.rv != null ? { rv: h.rv } : {}), ...(h.reason ? { reason: h.reason } : {}),
+        owner, refs: [owner], joint: false, trackEnd,
+      }
       ref.set(`${track.id}|${index}`, p.index)
       points.push(p)
     }

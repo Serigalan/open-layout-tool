@@ -405,23 +405,24 @@ export function jointGroup(tracks, switches, ref) {
   return [...group.values()]
 }
 
-/** A height point with the stated fields of `entry` applied: z, and rv (null removes it). */
+/** A height point with the stated fields of `entry` applied: z, rv and reason (null removes either). */
 function patchedPoint(q, entry) {
   const out = { ...q }
   if (entry.z !== undefined) out.z = entry.z
-  if (entry.rv !== undefined) {
-    if (entry.rv == null) delete out.rv; else out.rv = entry.rv
+  for (const key of ['rv', 'reason']) {
+    if (entry[key] === undefined) continue
+    if (entry[key] == null) delete out[key]; else out[key] = entry[key]
   }
   return out
 }
 
 /**
- * The writes that give the points of `entries` ({ trackId, index, z?, rv? })
- * their stated height and vertical curve radius, and every point joined to
- * them the same ones, as Map(trackId → heights) for `setHeightsForTracks`. A
- * field left undefined stays as it is; rv null removes the curve. Later
- * entries build on the earlier ones, so several points of one track can move
- * at once.
+ * The writes that give the points of `entries` ({ trackId, index, z?, rv?,
+ * reason? }) their stated height, vertical curve radius and reason, and every
+ * point joined to them the same ones, as Map(trackId → heights) for
+ * `setHeightsForTracks`. A field left undefined stays as it is; rv null
+ * removes the curve, reason null the reason. Later entries build on the
+ * earlier ones, so several points of one track can move at once.
  */
 export function jointHeightUpdates(tracks, switches, entries) {
   const byTrack = new Map()

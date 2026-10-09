@@ -355,3 +355,30 @@ describe('a turnout with its heights locked', () => {
     expect(planeDeviations(couplingOf(p.tracks, p.switches, p.switches[0], opts))).toEqual([])
   })
 })
+
+describe('a gradient change in a turnout, with its reason', () => {
+  // A crest at 20 m, between WA and ldS of the main route; 80 km/h there,
+  // so the Regelwert of Tabelle 12 is 0.4 · 80² = 2560 m.
+  const main = (point) => mainTrack(0, [{ station: 0, z: 105 }, { station: 20, z: 105.3, ...point }, { station: 60, z: 105.4 }])
+  const results = (point) => {
+    const m = main(point)
+    const curve = checkVertical(m, { tracks: [m, branchTrack()], switches: [turnout()], formOf }).curves[0]
+    return Object.fromEntries(curve.results.map(r => [r.id, r.severity]))
+  }
+
+  it('warns without a reason and holds with one (HP.AR.06)', () => {
+    expect(results({ rv: 3000 })['HP.AR.06']).toBe('warning')
+    expect(results({ rv: 3000, reason: 'Bestand, Zwangspunkt Brücke' })['HP.AR.06']).toBe('ok')
+    // Blank is no reason.
+    expect(results({ rv: 3000, reason: '  ' })['HP.AR.06']).toBe('warning')
+  })
+
+  it('is an error below the Regelwert, whatever the reason (HP.AR.07)', () => {
+    expect(results({ rv: 2000, reason: 'Bestand' })['HP.AR.07']).toBe('error')
+    expect(results({ rv: 2560 })['HP.AR.07']).toBe('ok')
+    // Beyond the ldS the rule is silent.
+    const far = mainTrack(0, [{ station: 0, z: 105 }, { station: 50, z: 105.3, rv: 2000 }, { station: 60, z: 105.32 }])
+    const curve = checkVertical(far, { tracks: [far, branchTrack()], switches: [turnout()], formOf }).curves[0]
+    expect(curve.results.map(r => r.id)).not.toContain('HP.AR.07')
+  })
+})

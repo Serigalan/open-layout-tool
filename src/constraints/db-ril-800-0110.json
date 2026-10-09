@@ -2,9 +2,9 @@
   "catalog": {
     "id": "db-ril-800-0110",
     "title": "DB Ril 800.0110 | Linienführung",
-    "katalog_version": "0.5.1",
+    "katalog_version": "0.6.0",
     "status": "draft",
-    "date": "2026-10-06",
+    "date": "2026-10-09",
     "language": "de",
     "scope": {
       "included": [
@@ -25,6 +25,15 @@
   },
 
   "changelog": [
+    {
+      "version": "0.6.0",
+      "date": "2026-10-09",
+      "changes": [
+        "Kontext justified neu: ein Neigungswechsel, an dessen Höhenpunkt eine Begründung steht (Entscheidung 261)",
+        "HP.AR.06: mit Begründung eingehalten, ohne sie eine Warnung",
+        "HP.AR.07 neu: Ausrundung im Weichenbereich mindestens mit dem Regelwert, sonst ein Fehler, den keine Begründung aufhebt (Entscheidung 262)"
+      ]
+    },
     {
       "version": "0.5.1",
       "date": "2026-10-06",
@@ -218,13 +227,15 @@
       { "id": "cant_ramp", "group": "area", "title": "Überhöhungsrampe", "extent": "Übergangsbogen, über den sich die Überhöhung ändert" },
       { "id": "switch_body", "group": "area", "title": "Weichenbereich im Höhenplan", "extent": "zwischen Weichenanfang (WA) und letzter durchgehender Schwelle (ldS), auf Stamm- und Zweiggleis; ohne ldS im Weichenkatalog bis Weichenende (WE). Ein Neigungswechsel liegt darin, wenn sein Punkt zwischen WA und ldS liegt oder seine Ausrundung den Bereich auf einer Länge > 0 überdeckt" },
       { "id": "main_track", "group": "track_use", "title": "Hauptgleis" },
-      { "id": "siding", "group": "track_use", "title": "Nebengleis" }
+      { "id": "siding", "group": "track_use", "title": "Nebengleis" },
+      { "id": "justified", "group": "state", "title": "Begründet", "extent": "Neigungswechsel, an dessen Höhenpunkt eine Begründung steht (Feld reason, Entscheidung 261); im Weichenbereich steht sie auf beiden Punkten eines Paars" }
     ],
     "rules": {
       "area": "Ein Objekt liegt in einem Bereich, sobald es sich mit ihm auf einer Länge > 0 überschneidet; eine Elementgrenze, sobald sie im Bereich liegt.",
       "track_kind": "Jedes Gleis ist genau eines von beiden; ein Neigungsabschnitt gehört zur Gleisart seines Gleises.",
       "line_category": "Jedes Streckengleis gehört genau einer Streckenart an.",
-      "track_use": "Jedes Gleis ist Haupt- oder Nebengleis."
+      "track_use": "Jedes Gleis ist Haupt- oder Nebengleis.",
+      "state": "Ein Neigungswechsel ist begründet, sobald an seinem Höhenpunkt ein Begründungstext steht."
     }
   },
 
@@ -919,13 +930,38 @@
       },
       "condition": "ds > 0 and in_context('switch_body')",
       "evaluation": [
+        { "if": "in_context('justified')", "severity": "ok" },
         { "else": "warning" }
       ],
       "notes": [
-        "Neigungswechsel, auch deren Ausrundungen, sollen nicht zwischen Weichenanfang und letzter durchgehender Schwelle liegen; die Ril lässt sie in Weichen mit r_a mindestens Regelwert zu (HP.AR.05), das Werkzeug verlangt für jeden eine Begründung.",
-        "Bis zur ldS liegen Stamm- und Zweiggleis auf einer Ebene, die Gradiente des Zweiggleises folgt der des Stammgleises (db-ril-800-0120, lds)."
+        "Neigungswechsel, auch deren Ausrundungen, sollen nicht zwischen Weichenanfang und letzter durchgehender Schwelle liegen; die Ril lässt sie in Weichen mit r_a mindestens Regelwert zu (HP.AR.07), das Werkzeug verlangt für jeden eine Begründung.",
+        "Mit einer Begründung am Höhenpunkt ist die Regel eingehalten (Entscheidung 261).",
+        "Bis zur ldS liegen Stamm- und Zweiggleis auf einer Ebene; jeder Höhenpunkt dazwischen hat auf derselben Schwelle einen Partner im anderen Gleis (db-ril-800-0120, lds; Entscheidungen 256–259)."
       ],
-      "source": { "ref": "RIL_800_0110", "section": "Kap. 10; Festlegung des Auftraggebers vom 2026-10-06" },
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10; Festlegung des Auftraggebers vom 2026-10-06 und 2026-10-09" },
+      "status": "confirmed"
+    },
+    {
+      "id": "HP.AR.07",
+      "title": "Ausrundung im Weichenbereich mindestens Regelwert",
+      "applies_to": { "scope": "vertical_curve" },
+      "inputs": {
+        "v": { "from": "point.design_speed", "unit": "km/h" },
+        "ds": { "from": "physics.gradient_change", "unit": "‰" },
+        "ra": { "from": "point.vertical_radius", "unit": "m" }
+      },
+      "condition": "ds > 0 and ra > 0 and in_context('switch_body')",
+      "thresholds": {
+        "reg": { "expr": "if(v <= 230, max(0.4 * v^2, 2000), 22500)", "unit": "m" }
+      },
+      "evaluation": [
+        { "if": "ra >= reg", "severity": "ok" },
+        { "else": "error" }
+      ],
+      "notes": [
+        "Die Ril lässt Ausrundungen in Weichen nur mit r_a mindestens Regelwert (Tabelle 12, wie HP.AR.03) zu; darunter ist es ein Fehler, den keine Begründung aufhebt (Entscheidung 262)."
+      ],
+      "source": { "ref": "RIL_800_0110", "section": "Kap. 10; Festlegung des Auftraggebers vom 2026-10-09" },
       "status": "confirmed"
     }
   ],

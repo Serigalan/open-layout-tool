@@ -36,7 +36,7 @@ describe('the catalogue file', () => {
 
   it('is versioned as the machine-readable rendering it is, not as the Ril', () => {
     expect(KATALOG.catalog.title).toBe('DB Ril 800.0110 | Linienführung')
-    expect(KATALOG.catalog.katalog_version).toBe('0.5.1')
+    expect(KATALOG.catalog.katalog_version).toBe('0.6.0')
     expect(KATALOG.catalog.status).toBe('draft')
     // The Ril's own edition and validity date are stated nowhere: this file
     // renders the Ril, it does not speak for it.
@@ -130,7 +130,7 @@ describe('every rule the catalogue states', () => {
     expect([...scopes].sort()).toEqual(['boundary', 'cant_ramp', 'element', 'gradient', 'vertical_curve'])
     expect(rulesForScope('gradient').map(r => r.id)).toEqual(['HP.LN.01', 'HP.LN.02', 'HP.LN.03'])
     expect(rulesForScope('vertical_curve').map(r => r.id))
-      .toEqual(['HP.AR.01', 'HP.AR.02', 'HP.AR.03', 'HP.AR.04', 'HP.AR.05', 'HP.AR.06'])
+      .toEqual(['HP.AR.01', 'HP.AR.02', 'HP.AR.03', 'HP.AR.04', 'HP.AR.05', 'HP.AR.06', 'HP.AR.07'])
     expect(rulesForScope('boundary').map(r => r.id)).toEqual(['LP.UB.01', 'LP.KS.01', 'LP.KS.02'])
     expect(rulesForScope('cant_ramp').map(r => r.id)).toEqual(['LP.UB.02'])
   })
@@ -144,10 +144,11 @@ describe('every rule the catalogue states', () => {
     }
   })
 
-  // HP.AR.05 holds a curve in a ramp or a switch to the Regelwert of Tabelle
-  // 12 — the very one HP.AR.03 grades by, not a second statement of it.
-  it('reads one Regelwert of Tabelle 12 for HP.AR.03 and HP.AR.05', () => {
+  // HP.AR.05 and HP.AR.07 hold a curve in a ramp or a switch to the Regelwert
+  // of Tabelle 12 — the very one HP.AR.03 grades by, not a second statement of it.
+  it('reads one Regelwert of Tabelle 12 for HP.AR.03, HP.AR.05 and HP.AR.07', () => {
     expect(ruleById('HP.AR.05').thresholds.reg.expr).toBe(ruleById('HP.AR.03').thresholds.reg.expr)
+    expect(ruleById('HP.AR.07').thresholds.reg.expr).toBe(ruleById('HP.AR.03').thresholds.reg.expr)
   })
 })
 

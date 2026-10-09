@@ -165,6 +165,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const [draft, setDraft]       = useState('')
   const [rvDraft, setRvDraft]   = useState('')     // vertical curve radius of the selection
   const [rvNote, setRvNote]     = useState(null)     // what setting the Regelwert left undone
+  const [reasonDraft, setReasonDraft] = useState(null)   // the reason typed for the selection; null: untouched
   const [band, setBand]         = useState(null)     // rubber band { x0, y0, x1, y1 } while Shift-dragging
   const [hover, setHover]       = useState(null)     // { station, z } a double click would add a point at
   const [cursor, setCursor]     = useState(null)     // station [m] the cursor stands over, shown on the map
@@ -314,7 +315,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   })
   const planeNote = (info) => (info?.dz != null ? fill('elevation_plane_off', { dz: (info.dz * 1000).toFixed(0) }) : null)
   const pointNote = (i) => [locked.has(i) ? lockedNote(locked.get(i)) : paired.has(i) ? pairedNote(paired.get(i)) : null,
-    planeNote(paired.get(i))].filter(Boolean).join('\n') || null
+    planeNote(paired.get(i)), points[i]?.reason && fill('elevation_reason_note', { reason: points[i].reason })]
+    .filter(Boolean).join('\n') || null
 
   // ── Fit the view to the data when the track or the exaggeration changes ───
   const plotW = size ? size.w - MARGIN.left - MARGIN.right : 0
@@ -430,11 +432,19 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   // ── Selecting points, editing and deleting them ───────────────────────────
   const isSelected = (p) => selection.includes(p.index)
   const selectedPoints = points.filter(isSelected)
+  // The drafts follow the selection: the common height and curve radius, or
+  // empty when they differ (and for the radius, when there is none).
+  const common = (vs) => (vs.length && vs.every(v => v === vs[0]) && vs[0] != null ? String(vs[0]) : '')
   /** The turnout a selection belongs to, where all of it lies in one turnout's stretch or toe. */
   const selectedTurnout = (() => {
     const sws = selectedPoints.map(p => locked.get(p.index) ?? paired.get(p.index)?.sw ?? toes.get(p.index))
     return sws.length && sws.every(sw => sw && sw.switchId === sws[0].switchId) ? sws[0] : null
   })()
+  // A gradient change in a turnout's stretch asks for a reason (HP.AR.06,
+  // decision 261); one that has a reason shows it wherever it lies.
+  const reasonAsked = selectedPoints.length > 0 && selectedPoints.some(p => p.reason
+    || curveAt.get(p.index)?.results?.some(r => r.id === 'HP.AR.06'))
+  const reasonShown = reasonDraft ?? common(selectedPoints.map(p => p.reason))
   const lockToggle = selectedTurnout && (
     <label className="checkbox-row" title={t('switch_heights_locked_hint')}>
       <input type="checkbox" checked={!!selectedTurnout.heightsLocked}
@@ -442,9 +452,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       {fill('elevation_lock_switch', { name: swName(selectedTurnout) })}
     </label>
   )
-  // The drafts follow the selection: the common height and curve radius, or
-  // empty when they differ (and for the radius, when there is none).
-  const common = (vs) => (vs.length && vs.every(v => v === vs[0]) && vs[0] != null ? String(vs[0]) : '')
   const select = (indices) => {
     setSelection(indices)
     const picked = points.filter(p => indices.includes(p.index))
@@ -452,6 +459,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     setRvDraft(common(picked.map(p => p.rv)))
     setStDraft(picked.length === 1 ? String(Math.round(picked[0].station * 1000) / 1000) : '')
     setRvNote(null)
+    setReasonDraft(null)
   }
   // A point's station can move unless it is a joint or a turnout sets it.
   const stationMovable = (p) => !locked.has(p.index) && p.trackEnd == null && !p.joint
@@ -460,17 +468,21 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
    * Write a point solved along the route (`r`: { station, z } in route
    * stations) to the track it belongs to: a station moved within that track,
    * a height to every track meeting at it (jointHeightUpdates). `rv` a radius
-   * to set with it — null takes the curve away, undefined leaves it.
+   * to set with it — null takes the curve away, undefined leaves it — and
+   * `reason` the same for its reason (decision 261).
    */
-  const writePoint = (p, r, rv) => {
+  const writePoint = (p, r, rv, reason) => {
     const { part, index, trackId: id } = p.owner
     const own = part.track.heights
     if (Math.abs(r.station - p.station) > 1e-9) {
       const q = { ...own[index], station: Math.round(partStation(part, r.station - part.offset) * 1e6) / 1e6, z: r.z }
       if (rv !== undefined) { if (rv == null) delete q.rv; else q.rv = rv }
+      if (reason !== undefined) { if (reason == null) delete q.reason; else q.reason = reason }
       setTrackHeights(id, own.map((h, i) => (i === index ? q : h)))
-    } else if (Math.abs(r.z - p.z) > 1e-9 || rv !== undefined) {
-      setHeightsForTracks(jointHeightUpdates(tracks, switches, [{ trackId: id, index, z: r.z, ...(rv !== undefined ? { rv } : {}) }]))
+    } else if (Math.abs(r.z - p.z) > 1e-9 || rv !== undefined || reason !== undefined) {
+      setHeightsForTracks(jointHeightUpdates(tracks, switches, [{
+        trackId: id, index, z: r.z, ...(rv !== undefined ? { rv } : {}), ...(reason !== undefined ? { reason } : {}),
+      }]))
     }
   }
   const rvMixed = selectedPoints.some(p => p.rv !== selectedPoints[0]?.rv)
@@ -487,6 +499,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     const patch = {}
     if (draft.trim())   { const z  = Number(draft);   if (!Number.isFinite(z))  return; patch.z  = z }
     if (rvDraft.trim()) { const rv = Number(rvDraft); if (!Number.isFinite(rv)) return; patch.rv = rv > 0 ? rv : null }
+    // A reason typed: set on every selected point, or taken away when emptied.
+    if (reasonDraft != null) patch.reason = reasonDraft.trim() || null
     // A single point's station typed anew: it moves there with its height —
     // between its neighbours, which stay.
     const one = selectedPoints.length === 1 ? selectedPoints[0] : null
@@ -494,7 +508,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     if (st != null && Number.isFinite(st) && Math.abs(st - one.station) > 1e-9) {
       const r = solveHeightPoint(points, one.index, { s: st, z: patch.z ?? one.z }, { length: profile.length })
       if (r.error) { setRvNote(fill(`elevation_table_error_${r.error}`, { n: one.index + 1 })); return }
-      writePoint(one, r, patch.rv)
+      writePoint(one, r, patch.rv, patch.reason)
       setStDraft(String(Math.round(r.station * 1000) / 1000)); setRvNote(null)
       return
     }
@@ -903,7 +917,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                 stroke={on ? PALETTE.mapSelected : paired.get(p.index)?.dz != null ? PALETTE.error : 'var(--color-primary)'} strokeWidth="2"
                 strokeDasharray={locked.has(p.index) ? '2 1.5' : undefined}
                 onPointerDown={e => e.stopPropagation()} onClick={e => pick(p, e)}>
-                {(curveAt.has(p.index) || paired.has(p.index)) && (
+                {(curveAt.has(p.index) || paired.has(p.index) || p.reason) && (
                   <title>
                     {[pointNote(p.index), curveAt.has(p.index) && curveNote(curveAt.get(p.index))].filter(Boolean).join('\n')}
                   </title>
@@ -998,6 +1012,15 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               <button className="track-table-save-btn" title={t('elevation_vcurve_regular_hint')} onClick={setRegularRadius}>
                 {t('elevation_vcurve_regular')}
               </button>
+              {reasonAsked && (
+                <>
+                  <span title={t('elevation_reason_hint')}>{t('elevation_reason')}</span>
+                  <input type="text" className="track-table-input profile-reason" value={reasonShown}
+                    placeholder={t('elevation_reason_placeholder')} title={t('elevation_reason_hint')}
+                    onChange={e => setReasonDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { e.preventDefault(); select([]) } }} />
+                </>
+              )}
               {rvNote && <span className="form-error">{rvNote}</span>}
               <button className="track-table-save-btn" onClick={commit}>{t('elevation_apply')}</button>
               <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
