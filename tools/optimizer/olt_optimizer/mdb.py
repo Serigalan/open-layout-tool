@@ -4,7 +4,7 @@ The browser cannot read an Access file, so the conversion runs here (ROADMAP
 decision 11). This module does no fachliche interpretation: it lifts the tables
 that matter out of the database and hands them over under short names. What the
 values mean — element types, Bauformen, Lagesysteme — is decided in
-`src/utils/mdbImport.js`, where it is testable without a database.
+`src/core/utils/mdbImport.js`, where it is testable without a database.
 
 Reading is done with `mdb-export` from mdbtools, one child process per table.
 """

@@ -126,7 +126,7 @@ try:
        and any(rw["id"] == "db-ril-800-0110" for rw in body.get("regelwerke", [])))
     ok("GET /regelwerke nennt die Katalogversion der Datei",
        body["regelwerke"][0].get("version") == json.loads(
-           (pathlib.Path(__file__).resolve().parents[3] / "src" / "constraints" / "db-ril-800-0110.json")
+           (pathlib.Path(__file__).resolve().parents[3] / "src" / "core" / "constraints" / "db-ril-800-0110.json")
            .read_text(encoding="utf-8"))["catalog"]["katalog_version"])
     status, body, _ = call(BASE, "/regelwerke/db-ril-800-0110")
     ok("GET /regelwerke/db-ril-800-0110 nennt, woran ein Lauf je Stufe gehalten ist",

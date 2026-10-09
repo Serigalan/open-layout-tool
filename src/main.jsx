@@ -1,9 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.jsx'
-import { initStorage } from './storage'
-import { loadNtv2Grid } from './utils/ntv2Grid'
+import './core/index.css'
+import App from './server/App.jsx'
+import { initStorage } from './core/storage'
+import { loadNtv2Grid } from './core/utils/ntv2Grid'
 
 // The grid first, then the store — in that order, not side by side.
 //
@@ -24,7 +24,7 @@ import { loadNtv2Grid } from './utils/ntv2Grid'
 // `#/cloud3d?…`: it opens no working copy and loads three.js as a chunk of its
 // own, which the app itself never fetches.
 if (location.hash.startsWith('#/cloud3d')) {
-  loadNtv2Grid().then(() => import('./cloud3d/Cloud3dApp.jsx')).then((mod) => {
+  loadNtv2Grid().then(() => import('./server/cloud3d/Cloud3dApp.jsx')).then((mod) => {
     const Cloud3dApp = mod.default
     createRoot(document.getElementById('root')).render(<StrictMode><Cloud3dApp /></StrictMode>)
   })

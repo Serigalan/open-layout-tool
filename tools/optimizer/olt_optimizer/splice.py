@@ -3,7 +3,7 @@
 Since AP 12.4 this is the only implementation: the panel asks the service
 (`POST /splice`), and the alignment fit from measured axis points (phase 12)
 builds its arcs with the same functions. It replaces the app's former
-src/utils/spliceUtils.js.
+src/core/utils/spliceUtils.js.
 
 The two picked elements come in the plane of their track (one CRS for both):
 each with its two ends, the bearing at its end in the element's own direction

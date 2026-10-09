@@ -64,7 +64,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/**/*.test.js', 'src/test/**/*.js', 'tools/server/**/*.{js,mjs}', '*.config.js'],
+    files: ['src/**/*.test.js', 'src/core/test/**/*.js', 'tools/server/**/*.{js,mjs}', '*.config.js'],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
 ])

@@ -1,6 +1,6 @@
 import { closeSync, existsSync, openSync, readFileSync, readSync } from 'node:fs'
-import { scanClearance } from '../../../../src/utils/pointCloud/clearanceScan.js'
-import { traceTrack, trackGuide, lineGuide } from '../../../../src/utils/pointCloud/railTrace.js'
+import { scanClearance } from '../../../../src/core/utils/pointCloud/clearanceScan.js'
+import { traceTrack, trackGuide, lineGuide } from '../../../../src/core/utils/pointCloud/railTrace.js'
 
 /** The level long runs read: the 2-cm voxel, as in the browser (AP 13.6). */
 const RUN_LEVEL = 1

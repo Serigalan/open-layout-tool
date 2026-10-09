@@ -4,11 +4,11 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setup, signIn } from './helpers.js'
-import { makeLas } from '../../../src/test/pointCloudFixture.js'
+import { makeLas } from '../../../src/core/test/pointCloudFixture.js'
 import { createCloudStore } from '../src/clouds/cloudStore.js'
 import { createQueue } from '../src/clouds/jobs.js'
 import { prepareCloud } from '../src/clouds/prepare.js'
-import { decodeCloudSegment } from '../../../src/utils/pointCloud/tiles.js'
+import { decodeCloudSegment } from '../../../src/core/utils/pointCloud/tiles.js'
 
 let ctx, root
 afterEach(async () => {

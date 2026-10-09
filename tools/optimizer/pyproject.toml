@@ -23,7 +23,7 @@ include = ["olt_optimizer*"]
 
 # The rule catalogues are data a run reads at request time — they must ship
 # with the package, not just live in the source tree. `olt_optimizer/constraints`
-# is a symlink to the repo's src/constraints/; setuptools copies what it points
+# is a symlink to the repo's src/core/constraints/; setuptools copies what it points
 # at, so the installed package carries the very files the app bundles.
 [tool.setuptools.package-data]
 olt_optimizer = ["constraints/*.json"]

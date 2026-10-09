@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
-import { SCHEMA_VERSION } from '../../../src/utils/persistenceUtils.js'
+import { SCHEMA_VERSION } from '../../../src/core/utils/persistenceUtils.js'
 
 
 const pack = (payload) => gzipSync(Buffer.from(JSON.stringify(payload)))

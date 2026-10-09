@@ -1,11 +1,11 @@
 """Which rule catalogues a run may be held to, and loading them.
 
 There is no copy of a regelwerk in this package any more. A run reads the
-catalogue the app reads — src/constraints/db-ril-800-0110.json — and applies
+catalogue the app reads — src/core/constraints/db-ril-800-0110.json — and applies
 it with the same expression language (katalog.py, ruleexpr.py); grenzen.py
 turns it into the limits for the level a run is asked for.
 
-`olt_optimizer/constraints` is a symlink to the repo's src/constraints/, so
+`olt_optimizer/constraints` is a symlink to the repo's src/core/constraints/, so
 the files stay where the rulebooks are maintained and still ship with
 `pip install tools/optimizer`: setuptools follows the link and copies what it
 points at (see the package-data entry in pyproject.toml).
@@ -47,7 +47,7 @@ def _catalogues():
 def catalog_hash():
     """SHA-256 over every catalogue file the package ships, in name order:
     for each file its name, a NUL, its bytes, a NUL. The app hashes its own
-    bundled copies the same way (src/utils/catalogHash.js) and says so when
+    bundled copies the same way (src/core/utils/catalogHash.js) and says so when
     the two differ — then the service is running against other rules than the
     app shows."""
     digest = hashlib.sha256()

@@ -1,6 +1,6 @@
 """The rule catalogue applied to an element chain — the app's
-src/utils/trassierungCheck.js, ported. The shared vectors
-(src/constraints/tests/checks.json, tests/vectors.py) hold the two alike.
+src/core/utils/trassierungCheck.js, ported. The shared vectors
+(src/core/constraints/tests/checks.json, tests/vectors.py) hold the two alike.
 
 The splice (splice.py, Paket S) judges the chain it proposes with it, and
 finds the lengths of the transitions it inserts from the scope it fills

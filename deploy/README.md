@@ -47,7 +47,7 @@ $EDITOR /etc/open-layout-tool/olt.env          # mindestens OLT_DOMAIN
 `setup.sh` installiert Node 22 (NodeSource), Python-venv, `mdbtools` und Caddy,
 legt den Dienstnutzer `olt` und `/var/lib/open-layout-tool` an, kopiert die
 NTv2-Gitter aus `grids/` dorthin, wo PROJ sie findet, baut die App, installiert
-den Optimierer (editierbar, liest `src/constraints` direkt), richtet die
+den Optimierer (editierbar, liest `src/core/constraints` direkt), richtet die
 systemd-Units und die Caddy-Site ein und legt den ersten Admin an. Dessen
 Startpasswort steht danach in `/var/lib/open-layout-tool/admin-start-password.txt`;
 es muss bei der ersten Anmeldung geändert werden, die Datei danach löschen.

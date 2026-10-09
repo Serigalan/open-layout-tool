@@ -87,7 +87,7 @@ if [ "$build" = 1 ]; then
   fi
   if changed pip tools/optimizer/pyproject.toml tools/optimizer/requirements.lock || [ ! -x "$OLT_VENV/bin/olt-optimizer-serve" ]; then
     step "pip install (optimizer, editable)"
-    # Editable: the service reads src/constraints through the symlink
+    # Editable: the service reads src/core/constraints through the symlink
     # olt_optimizer/constraints, so app and service always read the same
     # catalogue files (the app compares their hash, R0.1). The versions come
     # from requirements.lock, the same on every server and in CI.

@@ -6,7 +6,7 @@
 // because something it imports does. Those belong to src/server; the rest is
 // src/core. Once the split is done the list under src/core is empty: core
 // never imports from server, and the lint rule (eslint.config.js) and
-// src/test/architecture.test.js hold it there.
+// src/core/test/architecture.test.js hold it there.
 //
 //   node tools/boundary.mjs           the server modules, direct and indirect
 //   node tools/boundary.mjs --core    only the modules in src/core that still reach a client
@@ -21,7 +21,7 @@ const SRC = join(ROOT, 'src')
 // (Before AP L.1 moved them, both lived in src/api and src/utils.)
 export const CLIENTS = [
   'src/server/api/client.js', 'src/server/optimizerService.js',
-  'src/api/client.js', 'src/utils/optimizerService.js',
+  'src/server/api/client.js', 'src/server/optimizerService.js',
 ]
 
 const files = (dir) => readdirSync(dir).flatMap(name => {

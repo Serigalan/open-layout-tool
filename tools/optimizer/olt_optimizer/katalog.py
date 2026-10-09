@@ -1,6 +1,6 @@
 """A rule catalogue — DB Ril 800.0110 Linienführung as the repo holds it
-(src/constraints/db-ril-800-0110.json), read and applied. The Python half of
-the app's src/utils/regelkatalog.js, and meant to read like it: the same file,
+(src/core/constraints/db-ril-800-0110.json), read and applied. The Python half of
+the app's src/core/utils/regelkatalog.js, and meant to read like it: the same file,
 the same expression language (ruleexpr.py), the same evaluation order, so the
 optimizer builds to exactly the limits the app's element table judges by.
 

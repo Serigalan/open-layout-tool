@@ -54,7 +54,7 @@ def optimize_payload(track, corridor_cm=50.0, grenzwert=DEFAULT_STUFE, uebergang
     alignment away for speed nobody asked for nor keeps searching once its
     slowest curve has arrived.
 
-    regelwerk: id of the rule catalogue (src/constraints/, see regelwerk.py)
+    regelwerk: id of the rule catalogue (src/core/constraints/, see regelwerk.py)
     the run is held to — None for the default, DB Ril 800.0110.
     grenzwert: the level of it — 'reg' (Regelwert: nothing the run proposes
     worse than a hint) or 'discretion' (Ermessensgrenze: nothing worse than a

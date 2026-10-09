@@ -1,6 +1,6 @@
-"""Writes src/test/fixtures/reconnect_answers.json: a track and real answers of
+"""Writes src/core/test/fixtures/reconnect_answers.json: a track and real answers of
 the reconnect search (olt_optimizer/reconnect.py) for the app's own tests
-(src/utils/commands/reconnect.test.js) — the app's half, the stretch, the
+(src/core/utils/commands/reconnect.test.js) — the app's half, the stretch, the
 points, the request and the track written back, is tested against what the
 service really says. Run again after changing reconnect.py or splice.py:
 
@@ -57,7 +57,7 @@ for name, req in cases.items():
     for sol in answer["solutions"]:
         sol["reconnect"]["band"] = sol["reconnect"]["band"][::20]
     out["cases"][name] = {"request": req, "answer": answer}
-path = pathlib.Path(__file__).resolve().parents[3] / "src" / "test" / "fixtures" / "reconnect_answers.json"
+path = pathlib.Path(__file__).resolve().parents[3] / "src" / "core" / "test" / "fixtures" / "reconnect_answers.json"
 path.write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
 print("wrote", path, {n: [(s["reconnect"]["variant"]["lengths"], s["reconnect"]["radius"], s["reconnect"]["max"])
                           for s in c["answer"]["solutions"]] for n, c in out["cases"].items()})

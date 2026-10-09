@@ -1,6 +1,6 @@
 """The geometry kernel of the optimizer.
 
-Originally a port of the app's own (src/utils/clothoidUtils.js and the since
+Originally a port of the app's own (src/core/utils/clothoidUtils.js and the since
 removed optimizeUtils.js); since AP 7.1 this is the only implementation, and
 the reference values in tests/verify.py are what keeps it honest.
 
@@ -11,10 +11,10 @@ Conventions — the app's, so an element chain crosses unchanged:
   * transition profiles: 'clothoid' (linear curvature), 'bloss' (cubic)
 
 The physical constant below (v = sqrt(R (u+uf) / 11.8)) is derived, with its
-formula, in src/constraints/physics.json; it stays a literal here and
+formula, in src/core/constraints/physics.json; it stays a literal here and
 tests/verify.py checks that it has not drifted from the file. The limits a run
 is held to are not here at all: they are the rules of the catalogue in
-src/constraints/, read and applied at run time (grenzen.py). What is left is
+src/core/constraints/, read and applied at run time (grenzen.py). What is left is
 the buildability grid and the search's own numerics — nothing a railway
 administration sets, and nothing with a counterpart in a rulebook.
 """
@@ -24,7 +24,7 @@ import math
 DEG2RAD = math.pi / 180.0
 RAD2DEG = 180.0 / math.pi
 
-# v = sqrt(R * (u + uf) / 11.8) — see src/constraints/physics.json for the derivation.
+# v = sqrt(R * (u + uf) / 11.8) — see src/core/constraints/physics.json for the derivation.
 CANT_DEFICIENCY_COEFF = 11.8
 
 # The grid a run hands its numbers out on: radii in whole metres, lengths in

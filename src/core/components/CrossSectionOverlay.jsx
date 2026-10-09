@@ -1,0 +1,923 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { loadTracks, loadPlatforms, loadSwitches, currentProject, currentVariantId } from '../storage'
+import { openCloud3d } from '../../server/cloud3d/channel'
+import { trackLength } from '../utils/heightUtils'
+import { tracksOnFrom } from '../utils/topology'
+import { resolveRoute, routeAt, routeStationOf } from '../utils/routes'
+import { trackHeightAt } from '../utils/switchGradient'
+import { utmToWgs84, transformGridBearing } from '../utils/coordinateUtils'
+import { pointAtStation } from '../utils/platformUtils'
+import { PLATFORM_FILL_COLOR, PLATFORM_OUTLINE_COLOR } from '../utils/mapRenderUtils'
+import { sampleHeightsWithSource, terrainSourceLabel, chosenTerrainSource } from '../utils/elevationSource'
+import TerrainSourceSelect from './TerrainSourceSelect'
+import {
+  crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, placeSection,
+  sectionNeighbours, sectionLinePoints, sectionLevels, sectionOrigin, PLANUM_EDGE, RAILS, SLEEPERS,
+} from '../utils/crossSectionUtils'
+import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/heightDatums'
+import { readableClouds, serverLevel } from '../utils/pointCloud/projectClouds'
+import { planeMapper } from '../utils/pointCloud/cloudCrs'
+import { applyMatrix, invertMatrix } from '../utils/pointCloud/registration'
+import { api } from '../../server/api/client'
+import useRegistrationSession from '../hooks/useRegistrationSession'
+import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
+import { paintCloudCanvas, coloringsFor, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
+import { checkClearance, BOTTOM_BAND } from '../utils/pointCloud/clearanceCheck'
+import { detectInClouds, soHeight, cantMm } from '../utils/pointCloud/railTrace'
+import {
+  gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
+  DEFAULT_GAUGE_PROFILE,
+} from '../utils/gaugeProfiles'
+import { useI18n } from '../locales/i18nContext'
+import { useMap } from '../map/MapContext'
+import { useProject } from '../hooks/useStore'
+import usePreview from '../map/usePreview'
+import { PALETTE } from '../styles/palette'
+import { clamp } from '../utils/format'
+import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
+import CloseButton from './form/CloseButton'
+import { ExternalLinkIcon } from './icons'
+import NumberInput from './form/NumberInput'
+
+const MARGIN = 28
+/** Length of the tick marking a rail inner face [mm in the track frame]. */
+const FACE_TICK = 250
+/** How close to a drawn point a click picks it for a pair [px]. */
+const PICK_PX = 12
+const MIN_OVERLAY_PX = 160
+/** How far either side of the track other tracks are looked for [m], unless the user says otherwise. */
+const DEFAULT_REACH = 20
+const MAX_REACH = 100
+/** Wait after the last move of the slider before the terrain is read [ms]. */
+const TERRAIN_DEBOUNCE = 250
+const TERRAIN_COLOR = PALETTE.terrain
+/** Terrain is read at least this far either side of the track [m]. */
+const MIN_TERRAIN_HALF = 40
+const ASSUMED_COLOR = PALETTE.assumed
+/** Slice thickness of the point cloud unless the user says otherwise [cm]. */
+const DEFAULT_THICKNESS = 10
+const MAX_THICKNESS = 100
+/** How far beyond the reach the point cloud is still read [m] — the drawing runs past the outer tracks. */
+const CLOUD_MARGIN = 5
+const CLOUD_COLOR = PALETTE.cloud
+const MEASURED_COLOR = PALETTE.measuredAxis
+const CLEAR_COLOR = PALETTE.clear
+/** How far the drawing can be zoomed out and in, relative to the fitted view. */
+const MIN_ZOOM = 0.5
+const MAX_ZOOM = 200
+/** A slice's points seen from the other side: y negated, the rest as it is. */
+const mirrored = (points) => ({ ...points, y: Float32Array.from(points.y, y => -y) })
+const heightName = (epsg) => HEIGHT_DATUMS.find(d => d.epsg === Number(epsg))?.label ?? `EPSG ${epsg}`
+
+// Where the section is taken: a dot on the track at the slider's station, and
+// the section line through it as far as other tracks are looked for — so the
+// drawing and the map say the same thing.
+const LINE_SOURCE = 'cross-section-line-source'
+const MARKER_SOURCE = 'cross-section-marker-source'
+const MARKER_LAYERS = [{
+  sourceId: LINE_SOURCE,
+  layer: {
+    id: 'cross-section-line-layer', type: 'line',
+    paint: { 'line-color': PALETTE.mapSelected, 'line-width': 1.5, 'line-dasharray': [3, 2] },
+  },
+}, {
+  sourceId: MARKER_SOURCE,
+  layer: {
+    id: 'cross-section-marker-layer', type: 'circle',
+    paint: {
+      'circle-radius': 6,
+      'circle-color': PALETTE.mapSelected,
+      'circle-stroke-width': 2,
+      'circle-stroke-color': PALETTE.white,
+    },
+  },
+}]
+
+/** From this close to an end of the track on [m], the tracks carrying on there are offered. */
+const ON_REACH = 1
+
+const inRange = (p, station) => station >= (p.startStation ?? 0) && station <= (p.endStation ?? Infinity)
+
+/**
+ * The cross section of a track at a station, drawn to scale: the running plane
+ * with its two running circles, the rail inner faces, and the clearance
+ * contour over them — all turned by the cant that holds at that station,
+ * because the contour is fixed to the track and leans with it.
+ *
+ * Beside it stand the other tracks the section line crosses, each with its own
+ * cant and platforms, and under all of them the terrain as a thin green line.
+ * Everything is placed at its height relative to this track's gradient, and
+ * every track is labelled with its absolute height and its cant (u=…), every
+ * platform with the height of its edge. A track without a gradient says so:
+ * it is drawn greyed, its top of rail assumed a little over the terrain at its
+ * axis — the gradient is never read from the terrain on its own (see the
+ * profile's button for that).
+ *
+ * The drawing zooms about the cursor with the wheel and pans by dragging;
+ * a double click fits it again. Walking the station puts the section back in
+ * the middle at the zoom chosen — the further in, the closer to this track.
+ *
+ * The slider walks the station along the whole track; nothing here is
+ * editable. The section is a view of the alignment; what it shows is changed
+ * by changing the track (see CrossSectionPanel).
+ *
+ * `onDetach` takes it into a window of its own; there (`detached`) it fills
+ * the window, follows every edit made in the app's window as it is written,
+ * and `onDock` brings it back over the map.
+ */
+export default function CrossSectionOverlay({ at, onAtChange, onClose, detached = false, onDetach, onDock }) {
+  const { t, fill } = useI18n()
+  const map = useMap()
+  const project = useProject()
+  const [reach, setReach] = useState(DEFAULT_REACH)
+  const [terrain, setTerrain] = useState(null)   // { key, points: [{ y, z }], sources }
+  const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
+  const [clouds, setClouds] = useState([])          // the project's point clouds, on the server and on this device
+  const [cloudLevel, setCloudLevel] = useState(1)   // the server clouds' level: 1 the 2-cm voxel, 0 the original
+  const [cloudOn, setCloudOn] = useState(true)
+  const [pairPick, setPairPick] = useState(false)   // picking pairs for the 3D window's re-referencing
+  const [pendingPick, setPendingPick] = useState(null) // { key, role, y, z } — the first point of a pair
+  const [pickNote, setPickNote] = useState(null)
+  const [thickness, setThickness] = useState(DEFAULT_THICKNESS)
+  // null: the first on offer — RGB where a cloud has colour (AP 13.4).
+  const [chosenColoring, setColoring] = useState(null)
+  const [slice, setSlice] = useState(null)          // { key, parts: [{ cloud, points }], ms }
+  const [railsFound, setRailsFound] = useState(null) // { key, det } — the heads in the cloud (AP 12.1)
+  // Zoom relative to the fitted drawing, and the point [mm] held in the middle
+  // of the box — null while the section is centred by itself.
+  const [zoom, setZoom] = useState(1)
+  const [center, setCenter] = useState(null)
+  const bodyRef = useRef(null)
+  const canvasRef = useRef(null)
+  const svgRef = useRef(null)
+  const size = useElementSize(bodyRef)
+  const overlay = useOverlayHeight(bodyRef, { min: MIN_OVERLAY_PX, fallback: 320 })
+
+  const tracks = loadTracks()
+  const switches = loadSwitches()
+  // Along a route (Paket RT) its station decides track and station; where the
+  // route runs a track against its stations, the section looks the route's
+  // way (decision 252) — `flip`: its bearing turned round, so the clouds, the
+  // terrain and the tracks beside come in the route's left and right.
+  const route = at.routeId ? (currentProject()?.routes ?? []).find(r => r.id === at.routeId) ?? null : null
+  const resolvedRoute = route ? resolveRoute(route, tracks, switches) : null
+  const onRoute = resolvedRoute?.parts.length ? resolvedRoute : null
+  const routeTotal = onRoute ? Math.round(onRoute.length * 10) / 10 : 0
+  const routeS = onRoute
+    ? clamp(at.routeStation ?? routeStationOf(onRoute, at.trackId, at.station ?? 0) ?? 0, 0, routeTotal) : null
+  const routePos = onRoute ? routeAt(onRoute, routeS) : null
+  const flip = !!routePos?.part.reversed
+  const track = routePos ? routePos.part.track : tracks.find(tr => tr.id === at.trackId)
+  const total = track ? Math.round(trackLength(track) * 10) / 10 : 0
+  const station = routePos ? routePos.station : track ? clamp(at.station ?? 0, 0, total) : 0
+  /** Where the section is taken, looking the way it is drawn. */
+  const lookOrigin = () => {
+    const o = sectionOrigin(track, station)
+    return o && flip ? { ...o, bearing: (o.bearing + 180) % 360 } : o
+  }
+
+  // Another station or track: the section comes back to the middle, the zoom stays.
+  const centerKey = `${at.trackId}|${station}`
+  const [centeredFor, setCenteredFor] = useState(centerKey)
+  if (centeredFor !== centerKey) { setCenteredFor(centerKey); setCenter(null) }
+
+  const preview = usePreview(MARKER_LAYERS, { resetCursor: true })
+
+  // In a window of its own, the window is named after what it shows.
+  const trackName = track ? track.name || track.id.slice(0, 8) : ''
+  const title = !track ? ''
+    : onRoute ? `${route.name} · ${t('cross_section_station')} ${routeS.toFixed(1)} m · ${trackName} ${station.toFixed(1)} m`
+      : `${trackName} · ${t('cross_section_station')} ${station.toFixed(1)} m`
+  useEffect(() => {
+    const doc = bodyRef.current?.ownerDocument
+    if (detached && doc && title) doc.title = `${t('platform_cross_section')} · ${title}`
+  }, [detached, title, t])
+
+  // The marker follows the station, on the track's own geometry, and the
+  // section line reaches as far as other tracks are looked for.
+  useEffect(() => {
+    const m = map?.current
+    if (!m || !track) return
+    const point = pointAtStation(track, station)
+    if (!point) return
+    const [lng, lat] = utmToWgs84(point.utm.easting, point.utm.northing, track.epsg)
+    preview.set(MARKER_SOURCE, {
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lng, lat] } }],
+    })
+    const ends = sectionLinePoints(track, station, -reach, reach, 2 * reach)
+    preview.set(LINE_SOURCE, {
+      type: 'FeatureCollection',
+      features: ends.length === 2
+        ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: ends.map(e => e.lngLat) } }]
+        : [],
+    })
+  }, [map, track, station, reach, preview])
+
+  // ── What the section shows: this track and the ones beside it ─────────────
+  const allPlatforms = loadPlatforms()
+  const profile = gaugeProfile(currentProject()?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE)
+  const ring  = gaugeProfileRing(profile.points)
+  const areas = gaugeProfileAreas(profile.einragungen)
+
+  const sectionOf = ({ track: tr, station: st, offset = 0, mirrored = false }) => {
+    const state = sectionAtStation(tr, st)
+    const { rail, sleeper } = superstructureAt(tr, st)
+    return {
+      track: tr, station: st, offset, mirrored, state, rail, sleeper,
+      // On a turnout's branch between WA and ldS: the plane of the turnout.
+      z: trackHeightAt(tracks, switches, tr, st),
+      section: crossSection({ cant: state?.cant ?? 0, gaugeRing: ring, gaugeAreas: areas, rail, sleeper }),
+      // The platforms laid along the track here, level beside it as they are built.
+      platforms: allPlatforms.filter(p => p.trackId === tr.id && inRange(p, st))
+        .map(p => ({ platform: p, outline: platformSection(p, { rail, sleeper }) })),
+    }
+  }
+
+  const main = track ? sectionOf({ track, station, mirrored: flip }) : null
+  // Looked at the other way, a track to the right stands to the left.
+  const neighbours = track ? sectionNeighbours(track, station, tracks, reach)
+    .map(d => (flip ? { ...d, offset: -d.offset, mirrored: !d.mirrored } : d)).map(sectionOf) : []
+  const drawn = main ? [main, ...neighbours] : []
+
+  // ── The terrain along the section line, read once the slider rests ────────
+  // A fixed stretch either side, not the fitted drawing: the drawing depends on
+  // where a track without a gradient stands, and that depends on the terrain.
+  const terrainHalf = Math.max(reach + 10, MIN_TERRAIN_HALF)
+  const terrainStep = Math.max(0.5, Math.round(2 * terrainHalf / 200 * 2) / 2)
+  const terrainKey = track ? `${track.id}|${station.toFixed(1)}|${terrainHalf}|${terrainStep}|${terrainSource}|${flip}` : null
+
+  useEffect(() => {
+    if (!terrainKey || !track) return
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      const line = sectionLinePoints(track, station, -terrainHalf, terrainHalf, terrainStep)
+      if (!line.length) return
+      try {
+        const { heights, sources } = await sampleHeightsWithSource(line.map(p => p.lngLat), { source: terrainSource })
+        if (cancelled) return
+        setTerrain({
+          key: terrainKey,
+          points: line.map((p, i) => ({ y: flip ? -p.y : p.y, z: heights[i] })),
+          sources: [...new Set(sources.filter(Boolean))],
+        })
+      } catch {
+        if (!cancelled) setTerrain({ key: terrainKey, points: [], sources: [] })
+      }
+    }, TERRAIN_DEBOUNCE)
+    return () => { cancelled = true; clearTimeout(timer) }
+    // track and station are part of the key; the track object is new on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [terrainKey])
+
+  // ── The point clouds of the project, sliced at the section plane ─────────
+  const registration = useRegistrationSession(project.id)
+  const { cloudsVersion } = registration
+  useEffect(() => {
+    let live = true
+    readableClouds(project.id, { level: cloudLevel }).then(c => { if (live) setClouds(c) }).catch(() => {})
+    return () => { live = false }
+  }, [project.id, cloudLevel, cloudsVersion])
+  const onServer = clouds.some(c => c.server)
+
+  // While the 3D window re-references a cloud (AP 13.14), the section shows
+  // the two clouds alone, each in its colour — the one being fitted where the
+  // solution puts it — and pairs can be picked in it.
+  const reg = registration.session
+  const regKey = reg
+    ? `${reg.refId}|${reg.adjId}|${reg.refPlane}|${(reg.matrix ?? []).map(v => v.toPrecision(10)).join(',')}|${cloudLevel}|${cloudsVersion}`
+    : null
+  const [regClouds, setRegClouds] = useState({ key: null, clouds: [] })
+  useEffect(() => {
+    if (!regKey) return undefined
+    let live = true
+    api.clouds(project.id).then(async ({ clouds: rows }) => {
+      const ref = rows.find(r => r.id === reg.refId), adj = rows.find(r => r.id === reg.adjId)
+      const out = []
+      if (ref) out.push({ ...(await serverLevel(project.id, ref, cloudLevel)), color: PALETTE.sectionRefCloud, role: 'ref' })
+      if (adj && reg.matrix) {
+        out.push({
+          ...(await serverLevel(project.id, adj, cloudLevel)), transform: { matrix: reg.matrix, crs: reg.refPlane },
+          color: PALETTE.sectionFitCloud, role: 'adj',
+        })
+      }
+      if (live) setRegClouds({ key: regKey, clouds: out })
+    }).catch(() => { if (live) setRegClouds({ key: regKey, clouds: [] }) })
+    return () => { live = false }
+    // the session is part of the key
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regKey, project.id])
+  const sliceClouds = regKey ? (regClouds.key === regKey ? regClouds.clouds : []) : clouds
+
+  const cloudKey = track && cloudOn && sliceClouds.length
+    ? `${track.id}|${station.toFixed(2)}|${flip}|${reach}|${thickness}|${sliceClouds.map(c => (c.server ? `${c.id}@${c.server.level}` : c.id)).join(',')}|${regKey ?? ''}`
+    : null
+
+  useEffect(() => {
+    if (!cloudKey || !track) return
+    let cancelled = false
+    const origin = lookOrigin()
+    if (!origin) return
+    const t0 = performance.now()
+    Promise.all(sliceClouds.map(async (cloud) => ({
+      cloud,
+      points: await cloudSectionPoints(project.id, cloud, {
+        origin: origin.utm, bearing: origin.bearing, crs: track.epsg,
+        halfWidth: reach + CLOUD_MARGIN, thickness: thickness / 100,
+      }),
+    }))).then((parts) => {
+      if (!cancelled) setSlice({ key: cloudKey, parts, ms: performance.now() - t0 })
+    }).catch(() => {
+      if (!cancelled) setSlice({ key: cloudKey, parts: [], ms: 0, failed: true })
+    })
+    return () => { cancelled = true }
+    // track and station are part of the key; the track object is new on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudKey])
+
+  // The rail heads of this track in the clouds (AP 12.1): a slice of its own,
+  // as thick as a trace step, searched about the track's axis.
+  const mainRail = track ? superstructureAt(track, station).rail : null
+  const railsKey = cloudKey ? `${cloudKey}|${mainRail}` : null
+  useEffect(() => {
+    if (!railsKey || !track) return
+    let cancelled = false
+    const origin = lookOrigin()
+    if (!origin) return
+    detectInClouds(project.id, sliceClouds, { origin: origin.utm, bearing: origin.bearing, crs: track.epsg, rail: mainRail })
+      .then(det => { if (!cancelled) setRailsFound({ key: railsKey, det }) })
+      .catch(() => { if (!cancelled) setRailsFound({ key: railsKey, det: { reason: 'failed' } }) })
+    return () => { cancelled = true }
+    // track and station are part of the key; the track object is new on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [railsKey])
+  const rails = cloudOn && railsFound?.key === railsKey ? railsFound.det : null
+
+  // The last slice stays on screen while the next is read, so the drawing does
+  // not flicker as the slider moves.
+  const slicedParts = cloudOn && slice ? slice.parts : []
+  const colorings = coloringsFor(clouds.some(c => c.rgb))
+  const coloring = regKey ? 'cloud' : colorings.includes(chosenColoring) ? chosenColoring : colorings[0]
+
+  // The clearance check (AP 11.5) against this track's outline, at its
+  // gradient and cant. A track without a gradient has nothing to check against.
+  const mainZ = main?.z ?? null
+  const mainCant = main?.state?.cant ?? 0
+  const checks = useMemo(() => (mainZ == null
+    ? null
+    // Sliced looking the route's way, the points are mirrored back into the
+    // track's own frame, which the outline and its cant are stated in.
+    : slicedParts.map(p => checkClearance(flip ? mirrored(p.points) : p.points, { zTrack: mainZ, cant: mainCant, ring, areas }))),
+  // ring and areas follow the profile id; the arrays are new on every render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [slicedParts, mainZ, mainCant, profile.id, flip])
+  const cloudParts = slicedParts.map((p, n) => ({ ...p, flags: checks?.[n]?.flags, color: p.cloud.color }))
+  const clearance = checks && checks.length ? (() => {
+    let insideCount = 0, deepest = null, nearest = null
+    checks.forEach((c, n) => {
+      insideCount += c.inside
+      const at = (hit) => hit && { distance: hit.distance, y: slicedParts[n].points.y[hit.index], z: slicedParts[n].points.z[hit.index] }
+      if (c.deepest && (!deepest || c.deepest.distance > deepest.distance)) deepest = at(c.deepest)
+      if (c.nearest && (!nearest || c.nearest.distance < nearest.distance)) nearest = at(c.nearest)
+    })
+    return { inside: insideCount, deepest, nearest }
+  })() : null
+
+  const terrainPoints = terrain?.key === terrainKey ? terrain.points : null
+  // Every track at its gradient; one without stands a little over the ground,
+  // greyed, and the drawing is relative to the stated height nearest to hand.
+  const { levels, zRef } = sectionLevels(drawn.map(d => ({ z: d.z, offset: d.offset })), terrainPoints)
+  const placed = drawn.map((d, i) => {
+    const level = levels[i]
+    const place = (pts) => placeSection(pts, {
+      offset: d.offset, mirrored: d.mirrored,
+      dz: level.z != null && zRef != null ? (level.z - zRef) * 1000 : 0,
+    })
+    const { section } = d
+    // The inner-face ticks stand square on the running plane, so they are
+    // built in the track's own frame and moved with the rest.
+    const ticks = section.railFaces.map(([y, z]) =>
+      place([[y, z], [y - Math.sin(section.angle) * FACE_TICK, z + Math.cos(section.angle) * FACE_TICK]]))
+    return {
+      ...d,
+      level,
+      gauge: place(section.gauge),
+      areas: section.areas.map(place),
+      rails: section.rails.map(place),
+      sleeper: place(section.sleeper),
+      runningCircles: place(section.runningCircles),
+      ticks,
+      platformOutlines: d.platforms.map(p => ({ ...p, outline: place(p.outline) })),
+      axis: place([[0, 0]])[0],
+    }
+  })
+
+  // Fitted to the tracks, their platforms and the planum edge beyond the
+  // outermost — the terrain is not fitted to: it runs out of the drawing
+  // where it lies far off, rather than shrinking the tracks to nothing.
+  const bottomOf = (p) => Math.min(...(p.sleeper.length ? p.sleeper : p.runningCircles).map(q => q[1]))
+  const fitPoints = placed.flatMap(p => [
+    ...p.gauge, ...p.runningCircles, ...p.sleeper, ...p.areas.flat(), ...p.platformOutlines.flatMap(o => o.outline),
+  ])
+  if (placed.length) {
+    const left  = placed.reduce((a, b) => (b.axis[0] < a.axis[0] ? b : a))
+    const right = placed.reduce((a, b) => (b.axis[0] > a.axis[0] ? b : a))
+    // Room under the outermost tracks for their two label lines.
+    fitPoints.push([left.axis[0] - PLANUM_EDGE, bottomOf(left) - 200], [right.axis[0] + PLANUM_EDGE, bottomOf(right) - 200])
+  }
+  const fitted = size && size.w >= 40 && size.h >= 40 && fitPoints.length ? fitSection(fitPoints, size, MARGIN) : null
+
+  // The view: the fitted drawing zoomed, with the chosen point in the middle —
+  // or, while none is chosen, a point that slides from the middle of the whole
+  // drawing to the middle of this track as the zoom goes in, so zooming in on
+  // a section between other tracks keeps this one in sight.
+  const fit = (() => {
+    if (!fitted) return null
+    const k = fitted.k * zoom
+    let mid = center
+    if (!mid) {
+      const own = [...placed[0].gauge, ...placed[0].runningCircles, ...placed[0].sleeper]
+      const ys = own.map(q => q[0]), zs = own.map(q => q[1])
+      const ownMid = { y: (Math.min(...ys) + Math.max(...ys)) / 2, z: (Math.min(...zs) + Math.max(...zs)) / 2 }
+      const all = { y: (size.w / 2 - fitted.cx) / fitted.k, z: (fitted.cy - size.h / 2) / fitted.k }
+      const pull = zoom > 1 ? 1 - 1 / zoom : 0
+      mid = { y: all.y + (ownMid.y - all.y) * pull, z: all.z + (ownMid.z - all.z) * pull }
+    }
+    return { ...fitted, k, cx: size.w / 2 - mid.y * k, cy: size.h / 2 + mid.z * k, mid }
+  })()
+
+  // ── Zoom about the cursor ──────────────────────────────────────────────────
+  useWheelZoom(svgRef, (f, px, py) => {
+    if (!fit) return
+    const y = (px - fit.cx) / fit.k, z = (fit.cy - py) / fit.k
+    const next = clamp(zoom * f, MIN_ZOOM, MAX_ZOOM)
+    const k = fitted.k * next
+    setZoom(next)
+    setCenter({ y: y + (size.w / 2 - px) / k, z: z - (size.h / 2 - py) / k })
+  }, fit != null)
+
+  // ── Pan by dragging; a double click fits the drawing again ─────────────────
+  const drag = useDrag({
+    onStart: () => (fit && !pairPick ? { mid: fit.mid, k: fit.k } : null),
+    onMove: (e, start, { dx, dy }) => setCenter({ y: start.mid.y - dx / start.k, z: start.mid.z + dy / start.k }),
+  })
+  const onDoubleClick = () => { setZoom(1); setCenter(null) }
+
+  // ── A pair for the re-referencing: one point of each cloud (AP 13.14) ───────
+  // The nearest point drawn within PICK_PX, first of either cloud, then of
+  // the other; the pair counts across and in height (decision 213). Its
+  // points go to the 3D window in the reference plane — the fitted cloud's
+  // back through the transformation it is drawn with.
+  const pending = pendingPick?.key === cloudKey ? pendingPick : null
+  const pickPair = (e) => {
+    if (!pairPick || !reg?.matrix || !fit || zRef == null) return
+    const box = svgRef.current.getBoundingClientRect()
+    const px = e.clientX - box.left, py = e.clientY - box.top
+    const want = pending ? (pending.role === 'ref' ? 'adj' : 'ref') : null
+    let best = null
+    for (const part of slicedParts) {
+      const role = part.cloud.role
+      if (!role || (want && role !== want)) continue
+      const P = part.points
+      for (let n = 0; n < P.count; n++) {
+        const d = Math.hypot(fit.cx + P.y[n] * 1000 * fit.k - px, fit.cy - (P.z[n] - zRef) * 1000 * fit.k - py)
+        if (d <= PICK_PX && (!best || d < best.d)) best = { d, role, y: P.y[n], z: P.z[n] }
+      }
+    }
+    if (!best) { setPickNote(t('cross_section_reg_none')); return }
+    if (!pending) { setPendingPick({ key: cloudKey, role: best.role, y: best.y, z: best.z }); setPickNote(null); return }
+    const refP = best.role === 'ref' ? best : pending, adjP = best.role === 'adj' ? best : pending
+    const origin = lookOrigin()
+    const rad = origin.bearing * Math.PI / 180
+    const toRef = planeMapper(track.epsg, reg.refPlane)
+    const at = (p) => toRef(origin.utm.easting + Math.cos(rad) * p.y, origin.utm.northing - Math.sin(rad) * p.y)
+    const [re, rn] = at(refP), [ae, an] = at(adjP)
+    const bearing = Number(track.epsg) === Number(reg.refPlane) ? origin.bearing
+      : transformGridBearing(origin.utm.easting, origin.utm.northing, origin.bearing, track.epsg, reg.refPlane)
+    registration.sendPair({
+      refId: reg.refId, adjId: reg.adjId, bearing,
+      ref: [re, rn, refP.z], src: applyMatrix(invertMatrix(reg.matrix), [ae, an, adjP.z]),
+    })
+    setPendingPick(null)
+    setPickNote(t('cross_section_reg_sent'))
+  }
+
+  // The cloud is painted under the drawing, in the drawing's own transform.
+  const cloudCount = cloudParts.reduce((n, part) => n + part.points.count, 0)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !size) return
+    paintCloudCanvas(canvas, { w: size.w, h: size.h, view: fit, zRef, parts: cloudParts, coloring })
+  })
+
+  if (!track) return null
+
+  const fmt = (z, digits = 3) => z.toFixed(digits)
+
+  const terrainState = (() => {
+    if (!terrainPoints) return { text: t('cross_section_terrain_loading') }
+    if (!terrainPoints.some(p => p.z != null)) return { text: t('cross_section_terrain_none') }
+    if (zRef == null) return { text: t('cross_section_terrain_no_height') }
+    const axis = terrainPoints.reduce((a, b) => (Math.abs(b.y) < Math.abs(a.y) ? b : a))
+    return {
+      text: `${t('cross_section_terrain')} · ${terrain.sources.map(terrainSourceLabel).join(', ')}`
+        + (axis.z != null ? ` · ${t('cross_section_terrain_axis')} ${fmt(axis.z, 2)} m` : ''),
+      // Split at the gaps where no source had a height, so a gap stays one.
+      runs: terrainPoints.reduce((runs, p) => {
+        if (p.z == null) { if (runs[runs.length - 1]?.length) runs.push([]); return runs }
+        runs[runs.length - 1].push([p.y, (p.z - zRef) * 1000])
+        return runs
+      }, [[]]).filter(r => r.length >= 2),
+    }
+  })()
+
+  // What the cloud says about itself under the drawing: how many points are in
+  // the slice, and — since the app does not convert between height systems
+  // (elevationSource) — whether its heights are in another one than the track's.
+  const cloudState = (() => {
+    if (!cloudOn || !clouds.length) return null
+    if (zRef == null) return { text: t('cross_section_cloud_no_height') }
+    if (!slice) return { text: t('cross_section_cloud_loading') }
+    if (slice.failed) return { text: t('cross_section_cloud_failed') }
+    const trackDatum = Number(track.heightEpsg) || DEFAULT_HEIGHT_EPSG
+    const others = [...new Set(cloudParts.filter(p => p.points.count && Number(p.cloud.heightEpsg) !== trackDatum)
+      .map(p => heightName(p.cloud.heightEpsg)))]
+    const mm = (d) => Math.round(d).toLocaleString()
+    let check = null
+    if (!clearance) check = { text: t('cross_section_clearance_no_gradient'), color: PALETTE.muted }
+    else if (clearance.inside) {
+      check = {
+        text: fill('cross_section_clearance_hit', { n: clearance.inside.toLocaleString(), mm: mm(clearance.deepest.distance) }),
+        color: INTRUSION_COLOR,
+      }
+    } else if (clearance.nearest) {
+      check = { text: fill('cross_section_clearance_free', { mm: mm(clearance.nearest.distance) }), color: CLEAR_COLOR }
+    } else if (cloudCount) {
+      check = { text: t('cross_section_clearance_far'), color: CLEAR_COLOR }
+    }
+    let measured = null
+    if (rails?.reason && rails.reason !== 'failed') measured = { text: t('cross_section_rails_none'), color: PALETTE.muted }
+    else if (rails && !rails.reason) {
+      const so = soHeight(rails)
+      const dy = Math.round(rails.axis * 1000)
+      measured = {
+        text: fill('cross_section_rails_axis', {
+          mm: String(Math.abs(dy)),
+          side: t(dy >= 0 ? 'cross_section_rails_right' : 'cross_section_rails_left'),
+          u: String(Math.abs(cantMm(rails))),
+          gauge: String(Math.round(rails.gauge * 1000)),
+        }) + (rails.quality === 'good' ? '' : t('cross_section_rails_doubtful')),
+        sub: fill('cross_section_rails_so', { so: fmt(so) })
+          + (main.z != null ? fill('cross_section_rails_so_diff', { mm: String(Math.round((so - main.z) * 1000)) }) : ''),
+        color: MEASURED_COLOR,
+      }
+    }
+    return {
+      check,
+      measured,
+      text: fill('cross_section_cloud_count', { n: cloudCount.toLocaleString(), half: String(thickness / 2) }),
+      datum: others.length
+        ? fill('cross_section_cloud_datum', { cloud: others.join(', '), track: heightName(trackDatum) })
+        : null,
+    }
+  })()
+
+  /** The two lines under a track: its name (not for the track itself) and height, then its cant. */
+  const trackLabel = (p, isMain) => {
+    const name = isMain ? '' : `${p.track.name || p.track.id.slice(0, 8)} · `
+    if (!p.level.assumed) return `${name}SO ${fmt(p.z)} m`
+    if (p.level.z == null) return `${name}${t('cross_section_no_gradient')}`
+    return `${name}${t('cross_section_no_gradient')} · SO ≈ ${fmt(p.level.z, 2)} m`
+  }
+
+  const drawing = () => {
+    if (!fit) return null
+    const { k, cx, cy, bounds } = fit
+    const { zMax } = bounds
+    const X = (y) => cx + y * k
+    const Y = (z) => cy - z * k
+    const path = (pts) => pts.map(([y, z], i) => `${i ? 'L' : 'M'}${X(y)},${Y(z)}`).join(' ')
+
+    return (
+      <svg ref={svgRef} width={size.w} height={size.h}
+        className={`cross-section-svg${drag.dragging ? ' dragging' : ''}${pairPick && reg ? ' picking' : ''}`}
+        {...drag.handlers} onDoubleClick={onDoubleClick} onClick={pickPair}>
+        <title>{t('cross_section_view_hint')}</title>
+        {/* the horizontal through this track's running plane, so the cant is
+            visible as the angle it is */}
+        <line x1={MARGIN / 2} x2={size.w - MARGIN / 2} y1={Y(0)} y2={Y(0)} stroke={PALETTE.topOfRail} strokeDasharray="6 4" />
+        {/* the ground along the section line */}
+        {terrainState.runs?.map((r, i) => (
+          <path key={`g${i}`} d={path(r)} fill="none" stroke={TERRAIN_COLOR} strokeWidth="1.2" />
+        ))}
+        {placed.map((p, n) => {
+          const isMain = n === 0
+          return (
+            <g key={`${p.track.id}|${p.station}`} opacity={p.level.assumed ? 0.4 : 1}
+              style={p.level.assumed ? { filter: 'grayscale(1)' } : undefined}>
+              {/* the clearance contour, and the areas inside it that may be
+                  reached into — dashed, because they are part of the outline
+                  but not of the space that has to stay free */}
+              <path d={`${path(p.gauge)} Z`} fill={isMain ? 'rgba(108,92,231,0.07)' : 'rgba(108,92,231,0.03)'}
+                stroke="var(--color-primary)" strokeWidth={isMain ? 1.5 : 1} />
+              {p.areas.map((a, i) => (
+                <path key={`a${i}`} d={`${path(a)} Z`} fill={PALETTE.white} fillOpacity="0.6"
+                  stroke="var(--color-primary)" strokeWidth="1" strokeDasharray="5 4" opacity="0.8" />
+              ))}
+              {/* the platforms beside the track, level while the track leans */}
+              {p.platformOutlines.map(({ outline }, i) => (
+                <path key={`p${i}`} d={`${path(outline)} Z`} fill={PLATFORM_FILL_COLOR} stroke={PLATFORM_OUTLINE_COLOR} strokeWidth="1" />
+              ))}
+              {/* the superstructure carrying it */}
+              {p.sleeper.length > 0 && (
+                <path d={`${path(p.sleeper)} Z`} fill={PALETTE.sleeper} fillOpacity={cloudCount ? 0.45 : 1} stroke={PALETTE.sleeperEdge} strokeWidth="1" />
+              )}
+              {p.rails.map((r, i) => (
+                <path key={`r${i}`} d={`${path(r)} Z`} fill={PALETTE.rail} fillOpacity={cloudCount ? 0.35 : 1} stroke={PALETTE.textStrong} strokeWidth="1" />
+              ))}
+              {/* the running plane between the running circles */}
+              <line x1={X(p.runningCircles[0][0])} y1={Y(p.runningCircles[0][1])}
+                x2={X(p.runningCircles[1][0])} y2={Y(p.runningCircles[1][1])} stroke={PALETTE.textStrong} strokeWidth="2" />
+              {/* where the gauge is measured — as ticks, because at this scale
+                  the 32.5 mm between face and running circle is a hair's breadth */}
+              {p.ticks.map(([[y1, z1], [y2, z2]], i) => (
+                <line key={`f${i}`} x1={X(y1)} y1={Y(z1)} x2={X(y2)} y2={Y(z2)} stroke={PALETTE.textStrong} strokeWidth="1.5" />
+              ))}
+              {p.runningCircles.map(([y, z], i) => (
+                <circle key={`c${i}`} cx={X(y)} cy={Y(z)} r="3.5" fill={PALETTE.mapSelected} />
+              ))}
+            </g>
+          )
+        })}
+        {/* the first point of a pair being picked */}
+        {pending && zRef != null && (
+          <circle cx={X(pending.y * 1000)} cy={Y((pending.z - zRef) * 1000)} r="6" fill="none" strokeWidth="2"
+            stroke={pending.role === 'ref' ? PALETTE.sectionRefCloud : PALETTE.sectionFitCloud} />
+        )}
+        {/* heights: of every track's gradient under it, of every platform edge over it */}
+        {placed.map((p, n) => (
+          <text key={`l${p.track.id}|${p.station}`} x={X(p.axis[0])} y={Y(bottomOf(p)) + 14}
+            fontSize="11" textAnchor="middle" fill={p.level.assumed ? ASSUMED_COLOR : PALETTE.textDark}
+            fontStyle={p.level.assumed ? 'italic' : undefined}>
+            <tspan x={X(p.axis[0])}>{trackLabel(p, n === 0)}</tspan>
+            <tspan x={X(p.axis[0])} dy="13">{`u=${Math.round(Math.abs(p.state?.cant ?? 0))}`}</tspan>
+          </text>
+        ))}
+        {placed.flatMap(p => p.platformOutlines.map(({ platform, outline }, i) => {
+          const height = Number(platform.height)
+          if (p.level.assumed || !Number.isFinite(height)) return null
+          const ys = outline.map(q => q[0]), top = Math.max(...outline.map(q => q[1]))
+          return (
+            <text key={`b${p.track.id}|${i}`} x={X((Math.min(...ys) + Math.max(...ys)) / 2)} y={Y(top) - 5}
+              fontSize="11" textAnchor="middle" fill={PALETTE.textDark}>
+              {`BK ${fmt(p.z + height / 1000)} m`}
+            </text>
+          )
+        }))}
+        <text x={X(0)} y={Y(zMax) - 8} fontSize="11" fill={PALETTE.label} textAnchor="middle">
+          {`${t(gaugeProfileLabelKey(profile.id))} · ${LICHTRAUM_SOURCE}`}
+        </text>
+        <text x={MARGIN / 2} y={size.h - 8} fontSize="11" fill={terrainState.runs ? TERRAIN_COLOR : PALETTE.muted}>
+          {terrainState.text}
+        </text>
+        {cloudState && (
+          <text x={MARGIN / 2} y={16} fontSize="11" fill={CLOUD_COLOR}
+            stroke={PALETTE.white} strokeWidth="3" paintOrder="stroke" strokeLinejoin="round">
+            <tspan x={MARGIN / 2}>{cloudState.text}</tspan>
+            {cloudState.measured && (
+              <>
+                <tspan x={MARGIN / 2} dy="13" fill={cloudState.measured.color}>{cloudState.measured.text}</tspan>
+                {cloudState.measured.sub && (
+                  <tspan x={MARGIN / 2} dy="13" fill={cloudState.measured.color}>{cloudState.measured.sub}</tspan>
+                )}
+              </>
+            )}
+            {cloudState.check && (
+              <tspan x={MARGIN / 2} dy="13" fill={cloudState.check.color} fontWeight="600">{cloudState.check.text}</tspan>
+            )}
+            {cloudState.check && clearance && (
+              <tspan x={MARGIN / 2} dy="13" fill={PALETTE.muted}>
+                {fill('cross_section_clearance_band', { mm: String(BOTTOM_BAND) })}
+              </tspan>
+            )}
+            {cloudState.datum && <tspan x={MARGIN / 2} dy="13" fill={PALETTE.datumNote}>{cloudState.datum}</tspan>}
+          </text>
+        )}
+        {/* the rail heads found in the cloud and the axis point between them */}
+        {rails && !rails.reason && zRef != null && (
+          <g className="cross-section-rails" stroke={MEASURED_COLOR} fill="none" strokeWidth="1.5">
+            {[rails.left, rails.right].map((h, i) => (
+              <path key={i} d={`M${X(h.y * 1000) - 5},${Y((h.z - zRef) * 1000) - 9} l5,8 l5,-8 Z`} fill={MEASURED_COLOR} />
+            ))}
+            <line x1={X(rails.left.y * 1000)} y1={Y((rails.left.z - zRef) * 1000)}
+              x2={X(rails.right.y * 1000)} y2={Y((rails.right.z - zRef) * 1000)} strokeDasharray="3 3" />
+            <circle cx={X(rails.axis * 1000)} cy={Y(((rails.left.z + rails.right.z) / 2 - zRef) * 1000)} r="4"
+              fill={PALETTE.white} />
+          </g>
+        )}
+        {/* the point reaching deepest into the outline, or the nearest outside it */}
+        {clearance && zRef != null && [clearance.deepest ?? clearance.nearest].filter(Boolean).map(p => (
+          <g key="nearest" className="cross-section-nearest">
+            <circle cx={X(p.y * 1000)} cy={Y((p.z - zRef) * 1000)} r="6" fill="none"
+              stroke={clearance.inside ? INTRUSION_COLOR : CLEAR_COLOR} strokeWidth="1.5" />
+            <text x={X(p.y * 1000) + 9} y={Y((p.z - zRef) * 1000) - 6} fontSize="11"
+              fill={clearance.inside ? INTRUSION_COLOR : CLEAR_COLOR} stroke={PALETTE.white} strokeWidth="3" paintOrder="stroke">
+              {`${Math.round(p.distance)} mm`}
+            </text>
+          </g>
+        ))}
+      </svg>
+    )
+  }
+
+  // Near an end, the tracks that carry on there: one click takes the section
+  // onto one of them, at the end of it that is met (Gleiswechsel im Querprofil).
+  const onward = (endpoint) => tracksOnFrom(track.id, endpoint, tracks, switches)
+    .map(o => ({ ...o, track: tracks.find(tr => tr.id === o.trackId) }))
+    .filter(o => o.track)
+  const onwardAt = [
+    ...(station <= ON_REACH ? onward('BEGIN').map(o => ({ ...o, from: 'BEGIN' })) : []),
+    ...(station >= total - ON_REACH ? onward('END').map(o => ({ ...o, from: 'END' })) : []),
+  ]
+  const goOnto = (o) => onAtChange?.({
+    ...at, trackId: o.trackId,
+    station: o.endpoint === 'END' ? Math.round(trackLength(o.track) * 10) / 10 : 0,
+  })
+  // Stepping over an end goes on by itself where only one track carries on.
+  const soleOnward = (endpoint) => {
+    const here = onwardAt.filter(o => o.from === endpoint)
+    return here.length === 1 ? here[0] : null
+  }
+
+  // Along a route the slider spans the whole of it, and stepping goes over the
+  // joints between its tracks without asking.
+  const goRoute = (s) => {
+    const sr = clamp(s, 0, routeTotal)
+    const p = routeAt(onRoute, sr)
+    onAtChange?.({ ...at, routeId: route.id, routeStation: sr, trackId: p.trackId, station: p.station })
+  }
+
+  // One metre on or back, to the next whole metre — from 30.4 to 31 or 30 —
+  // so stepping walks the stations a surveyor would read off.
+  const stepTo = (dir) => {
+    if (onRoute) {
+      goRoute(dir > 0 ? Math.floor(routeS + 1e-6) + 1 : Math.ceil(routeS - 1e-6) - 1)
+      return
+    }
+    const atEnd = dir > 0 ? station >= total : station <= 0
+    const sole = atEnd ? soleOnward(dir > 0 ? 'END' : 'BEGIN') : null
+    if (sole) { goOnto(sole); return }
+    const next = dir > 0 ? Math.floor(station + 1e-6) + 1 : Math.ceil(station - 1e-6) - 1
+    onAtChange?.({ ...at, station: clamp(next, 0, total) })
+  }
+
+  const state = main.state
+  return (
+    <div className={`profile-overlay${detached ? ' detached' : ''}`} style={detached ? undefined : overlay.style}>
+      {!detached && <div className="profile-resize" onPointerDown={overlay.onResizeStart} />}
+      <div className="track-table-header cross-section-header">
+        <span className="track-table-title">{title}</span>
+        <div className="profile-controls">
+          <span className="profile-hint">
+            {`u=${Math.round(Math.abs(state?.cant ?? 0))} mm`}
+            {state?.radius != null ? ` · R ${Math.round(Math.abs(state.radius))} m` : ` · ${t('table_type_straight')}`}
+            {` · ${RAILS[main.rail]?.label ?? main.rail} · ${SLEEPERS[main.sleeper]?.label ?? main.sleeper}`}
+          </span>
+          {clouds.length > 0 && (
+            <>
+              <label className="profile-edit" title={t('cross_section_cloud_hint')}>
+                <input type="checkbox" checked={cloudOn} onChange={e => setCloudOn(e.target.checked)} />
+                {t('cross_section_cloud')}
+              </label>
+              {cloudOn && (
+                <>
+                  <label className="profile-edit" title={t('cross_section_cloud_thickness_hint')}>
+                    {t('cross_section_cloud_thickness')}
+                    <NumberInput className="track-table-input cross-section-reach" min={1} max={MAX_THICKNESS} step={2}
+                      value={thickness}
+                      onChange={e => setThickness(clamp(Number(e.target.value) || DEFAULT_THICKNESS, 1, MAX_THICKNESS))} />
+                    cm
+                  </label>
+                  {!reg && (
+                    <select className="cross-section-coloring" value={coloring} onChange={e => setColoring(e.target.value)}
+                      title={t('cross_section_cloud_coloring')}>
+                      {colorings.map(c => <option key={c} value={c}>{t(`cross_section_cloud_by_${c}`)}</option>)}
+                    </select>
+                  )}
+                  {onServer && (
+                    <>
+                      <select className="cross-section-coloring" value={cloudLevel} onChange={e => setCloudLevel(Number(e.target.value))}
+                        title={t('cross_section_cloud_level_hint')}>
+                        <option value={1}>{t('cross_section_cloud_level_1')}</option>
+                        <option value={0}>{t('cross_section_cloud_level_0')}</option>
+                      </select>
+                      <button className="track-table-save-btn" title={t('pointcloud_open_3d_hint')}
+                        onClick={() => openCloud3d({ projectId: project.id, variantId: currentVariantId() })}>
+                        {t('cross_section_open_3d')}
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
+          {reg && (
+            <>
+              <span className="profile-hint cross-section-reg">
+                <span style={{ color: PALETTE.sectionRefCloud }}>{`■ ${reg.refName}`}</span>
+                {' '}
+                <span style={{ color: PALETTE.sectionFitCloud }}>{`■ ${reg.adjName}`}</span>
+              </span>
+              <label className="profile-edit" title={t('cross_section_reg_pick_hint')}>
+                <input type="checkbox" checked={pairPick} disabled={!reg.matrix}
+                  onChange={e => { setPairPick(e.target.checked); setPendingPick(null); setPickNote(null) }} />
+                {t('cross_section_reg_pick')}
+              </label>
+              {pairPick && (
+                <span className="profile-hint">
+                  {pending ? fill('cross_section_reg_pending', { name: pending.role === 'ref' ? reg.adjName : reg.refName })
+                    : (pickNote ?? t('cross_section_reg_pick_first'))}
+                </span>
+              )}
+            </>
+          )}
+          <label className="profile-edit">
+            {t('terrain_source')}
+            <TerrainSourceSelect value={terrainSource} onChange={setTerrainSource} />
+          </label>
+          {(zoom !== 1 || center) && (
+            <button className="track-table-save-btn" onClick={onDoubleClick} title={t('cross_section_view_hint')}>
+              {t('cross_section_fit')}
+            </button>
+          )}
+          <label className="profile-edit" title={t('cross_section_reach_hint')}>
+            {t('cross_section_reach')}
+            <NumberInput className="track-table-input cross-section-reach" min={1} max={MAX_REACH} step={5}
+              value={reach}
+              onChange={e => setReach(clamp(Number(e.target.value) || DEFAULT_REACH, 1, MAX_REACH))} />
+            m
+          </label>
+          {detached ? (
+            onDock && (
+              <button type="button" className="track-table-close cross-section-detach" onClick={onDock}>
+                {t('cross_section_dock')}
+              </button>
+            )
+          ) : (
+            onDetach && (
+              <button type="button" className="track-table-close cross-section-detach" onClick={onDetach}
+                title={t('cross_section_detach')} aria-label={t('cross_section_detach')}>
+                <ExternalLinkIcon />
+              </button>
+            )
+          )}
+          <CloseButton onClick={onClose} />
+        </div>
+      </div>
+      <div className="profile-body" ref={bodyRef}>
+        <canvas ref={canvasRef} className="cross-section-cloud" data-slice-ms={slice ? slice.ms.toFixed(1) : ''}
+          data-cpu-ms={slice ? slice.parts.reduce((a, p) => a + (p.points.sliceMs ?? 0) + (p.points.decodeMs ?? 0), 0).toFixed(1) : ''}
+          style={size ? { width: size.w, height: size.h } : undefined} />
+        {drawing()}
+      </div>
+      {onRoute ? (
+        <div className="cross-section-slider">
+          <button className="cross-section-step" disabled={routeS <= 0} onClick={() => stepTo(-1)}
+            title={t('cross_section_step_back')} aria-label={t('cross_section_step_back')}>◀</button>
+          <input type="range" min={0} max={routeTotal} step={0.1} value={routeS}
+            onChange={e => goRoute(Number(e.target.value))} />
+          <button className="cross-section-step" disabled={routeS >= routeTotal} onClick={() => stepTo(1)}
+            title={t('cross_section_step_forward')} aria-label={t('cross_section_step_forward')}>▶</button>
+          <span className="cross-section-slider-label">{`${routeS.toFixed(1)} / ${routeTotal.toFixed(1)} m`}</span>
+          <span className="cross-section-onward" title={t(flip ? 'cross_section_route_against' : 'cross_section_route_along')}>
+            {fill('cross_section_route_on', { name: trackName, s: station.toFixed(1) })}{flip ? ' ⇄' : ''}
+          </span>
+        </div>
+      ) : (
+      <div className="cross-section-slider">
+        <button className="cross-section-step" disabled={station <= 0 && !soleOnward('BEGIN')} onClick={() => stepTo(-1)}
+          title={t('cross_section_step_back')} aria-label={t('cross_section_step_back')}>◀</button>
+        <input
+          type="range" min={0} max={total} step={0.1} value={station}
+          onChange={e => onAtChange?.({ ...at, station: Number(e.target.value) })}
+        />
+        <button className="cross-section-step" disabled={station >= total && !soleOnward('END')} onClick={() => stepTo(1)}
+          title={t('cross_section_step_forward')} aria-label={t('cross_section_step_forward')}>▶</button>
+        <span className="cross-section-slider-label">{`${station.toFixed(1)} / ${total.toFixed(1)} m`}</span>
+        {onwardAt.length > 0 && (
+          <span className="cross-section-onward">
+            {t('cross_section_onward')}
+            {onwardAt.map(o => (
+              <button key={`${o.from}|${o.trackId}|${o.endpoint}`} type="button" className="cross-section-onward-btn"
+                title={t(o.from === 'END' ? 'cross_section_onward_end' : 'cross_section_onward_begin')}
+                onClick={() => goOnto(o)}>
+                {`${o.from === 'END' ? '▶' : '◀'} ${o.track.name || o.trackId.slice(0, 8)}`}
+              </button>
+            ))}
+          </span>
+        )}
+      </div>
+      )}
+    </div>
+  )
+}

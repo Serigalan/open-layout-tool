@@ -1,5 +1,5 @@
-"""Writes src/test/fixtures/splice_answers.json: real answers of the splice
-construction for the app's own tests (src/utils/commands/splice.test.js), so
+"""Writes src/core/test/fixtures/splice_answers.json: real answers of the splice
+construction for the app's own tests (src/core/utils/commands/splice.test.js), so
 the app's half — stitching the answer into the merged track — is tested
 against what the service really says. Run again after changing splice.py:
 
@@ -93,6 +93,6 @@ cases = {
 out = {name: {"request": req, "answer": splice_payload(req)} for name, req in cases.items()}
 for name, case in out.items():
     assert "error" not in case["answer"], (name, case["answer"])
-path = pathlib.Path(__file__).resolve().parents[3] / "src" / "test" / "fixtures" / "splice_answers.json"
+path = pathlib.Path(__file__).resolve().parents[3] / "src" / "core" / "test" / "fixtures" / "splice_answers.json"
 path.write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
 print("wrote", path, {n: [e["elementType"] for e in c["answer"]["solutions"][0]["elements"]] for n, c in out.items()})

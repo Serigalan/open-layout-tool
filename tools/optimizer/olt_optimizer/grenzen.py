@@ -460,7 +460,7 @@ def transition_lengths(prev, nxt, r1=None, form="clothoid", speed=0.0, regelwerk
     decimetre, and every rule on the length with the bound it sets, the
     longest first, as {id, length, binding} — `binding` for those that set it.
     The same answer as the app's rules/transitionLength.js, which the shared
-    vectors (src/constraints/tests/transition_lengths.json) hold it to; a rule
+    vectors (src/core/constraints/tests/transition_lengths.json) hold it to; a rule
     that only a shorter transition keeps (LP.UB.08) is left to the check.
     """
     if not (speed and speed > 0):

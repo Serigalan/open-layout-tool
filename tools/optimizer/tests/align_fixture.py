@@ -1,5 +1,5 @@
-"""Writes src/test/fixtures/align_answer.json: a real answer of the alignment
-fit for the app's own tests (src/utils/alignmentFit.test.js), so the app's half
+"""Writes src/core/test/fixtures/align_answer.json: a real answer of the alignment
+fit for the app's own tests (src/core/utils/alignmentFit.test.js), so the app's half
 — the new track from the answer, the diagram, the report — is tested against
 what the service really says. Run again after changing alignment_fit.py:
 
@@ -37,7 +37,7 @@ u = np.interp(st, [0, 80, 110, 170, 200, 280], [0, 0, -60, -60, 0, 0]) + np.rand
 request = {"points": [[round(e, 4), round(n, 4), round(h, 4), round(c, 1)] for (e, n), h, c in zip(pts, z, u)],
            "station0": 35.5}
 answer = align_payload(request)
-out = pathlib.Path(__file__).resolve().parents[3] / "src" / "test" / "fixtures" / "align_answer.json"
+out = pathlib.Path(__file__).resolve().parents[3] / "src" / "core" / "test" / "fixtures" / "align_answer.json"
 out.write_text(json.dumps({"epsg": 5684, "request": request, "answer": answer}) + "\n", encoding="utf-8")
 print(f"{out}: {len(answer['elements'])} elements, curves {[(c['radius'], c['l1'], c['l2']) for c in answer['curves']]}, "
       f"gradient {[(h['station'], h['z'], h.get('rv')) for h in answer['gradient']['heights']]}, "

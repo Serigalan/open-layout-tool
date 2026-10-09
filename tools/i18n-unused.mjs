@@ -11,7 +11,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = new URL('..', import.meta.url).pathname
-const LOCALES = join(ROOT, 'src/locales')
+const LOCALES = join(ROOT, 'src/core/locales')
 const files = (dir) => readdirSync(dir).flatMap(n => {
   const p = join(dir, n)
   return statSync(p).isDirectory() ? files(p) : [p]

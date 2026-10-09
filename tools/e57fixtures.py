@@ -1,4 +1,4 @@
-"""Writes the E57 test files of src/test/fixtures/e57 with libE57Format (pye57),
+"""Writes the E57 test files of src/core/test/fixtures/e57 with libE57Format (pye57),
 the reference implementation, and what a reader has to get out of them.
 
     python tools/e57fixtures.py            # the small fixtures, kept in the repository

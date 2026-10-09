@@ -42,7 +42,7 @@ def ok(label, cond):
         FAILED.append(label)
 
 
-with open(os.path.join(HERE, "..", "..", "..", "src", "constraints", "db-ril-800-0130.json"), encoding="utf-8") as f:
+with open(os.path.join(HERE, "..", "..", "..", "src", "core", "constraints", "db-ril-800-0130.json"), encoding="utf-8") as f:
     PROFILE = next(p for p in json.load(f)["lichtraum"]["profile"] if p["id"] == "hauptgleis")["umriss"]
 MODEL = {"coeff": 6.5, "defCoeff": 11.8, "defMin": 60, "max": 160, "step": 5}
 E0, N0 = 500000.0, 5600000.0
