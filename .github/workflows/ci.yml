@@ -22,8 +22,11 @@ jobs:
       - run: npm run lint
       - run: npm run knip
       - run: npm run i18n:unused
+      - run: node tools/boundary.mjs --core
       - run: npm test
       - run: npx vite build --outDir /tmp/olt-dist
+      - run: npx vite build --mode standalone --outDir /tmp/olt-dist-local
+      - run: node tools/check-local-bundle.mjs /tmp/olt-dist-local
 
   optimizer:
     runs-on: ubuntu-24.04

@@ -55,7 +55,7 @@ export default defineConfig([
     // (core/extensions.js) that src/server/register.js fills.
     files: ['src/core/**/*.{js,jsx}'],
     rules: {
-      'no-restricted-imports': ['warn', {
+      'no-restricted-imports': ['error', {
         patterns: [{
           regex: '^(\\.\\./)+server(/|$)',
           message: 'src/core never imports from src/server (decision 277) — add an extension point to core/extensions.js instead.',
