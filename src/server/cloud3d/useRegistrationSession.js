@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { openChannel } from '../../server/cloud3d/channel'
+import { openChannel } from './channel'
 
 /**
  * The 3D window's re-referencing as a cross section sees it (AP 13.14): the

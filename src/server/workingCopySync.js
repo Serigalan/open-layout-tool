@@ -1,7 +1,6 @@
 import { api } from './api/client'
-import {
-  adoptWorkingCopy, clearUndo, currentWorkingCopy, loadWorkingCopy, markCheckedIn, openWorkingCopy,
-} from '../core/storage'
+import { clearUndo } from '../core/storage'
+import { adoptWorkingCopy, currentWorkingCopy, loadWorkingCopy, markCheckedIn, openWorkingCopy } from './workingCopies'
 import { diffEntries, diffProject, mergeProject } from '../core/utils/merge'
 
 /**

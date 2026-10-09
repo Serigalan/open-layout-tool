@@ -1,5 +1,5 @@
 import { api } from '../api/client'
-import { listWorkingCopies } from '../../core/storage'
+import { listWorkingCopies } from '../workingCopies'
 import { localChanges } from '../workingCopySync'
 
 /** Variants in tree order, each with its depth under the variant it was branched off. */

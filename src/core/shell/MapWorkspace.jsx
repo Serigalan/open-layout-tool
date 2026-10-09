@@ -4,7 +4,7 @@ import { MapContext } from '../map/MapContext'
 import useMapInstance, { ELEVATION_BASEMAPS } from '../map/useMapInstance'
 import TiltToggle from '../map/TiltToggle'
 import { renderTracksOnMap, updateMapColors } from '../map/trackLayers'
-import { currentProject, currentWorkingCopy, deleteKmLine, loadSwitches, loadTracks, redo, saveKmLine, undo } from '../storage'
+import { currentProject, deleteKmLine, loadSwitches, loadTracks, redo, saveKmLine, undo } from '../storage'
 import { useHiddenTracks, useProject } from '../hooks/useStore'
 import { FILTER_NONE } from '../map/pick'
 import { highlightTopology, zoomToTopologyTracks } from '../utils/topologyLayer'
@@ -22,12 +22,11 @@ import StepNotice from './StepNotice'
 import MapLegend from './MapLegend'
 import { START_REGION } from '../map/style'
 import usePanelWidth from './usePanelWidth'
-import useCloud3dChannel from './useCloud3dChannel'
+import { extensionsOf } from '../extensions'
 import RuleFieldsScope from '../components/form/RuleFieldsScope'
 import ConfirmModal from '../components/ConfirmModal'
 import ElevationLegend from '../components/ElevationLegend'
 import PopoutWindow from '../components/PopoutWindow'
-import WorkingCopyBar from '../../server/collab/WorkingCopyBar'
 
 // The overlays and dialogs are chunks of their own (R9.1), loaded when first shown.
 const TrackTableOverlay = lazy(() => import('../components/TrackTableOverlay'))
@@ -39,8 +38,6 @@ const BandsOverlay = lazy(() => import('../components/BandsOverlay'))
 const CrossSectionOverlay = lazy(() => import('../components/CrossSectionOverlay'))
 const TopologyGraphOverlay = lazy(() => import('../components/TopologyGraphOverlay'))
 const CompareOverlay = lazy(() => import('../components/collab/CompareOverlay'))
-const ConflictDialog = lazy(() => import('../../server/collab/ConflictDialog'))
-const CheckInDialog = lazy(() => import('../../server/collab/CheckInDialog'))
 import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 
@@ -49,11 +46,20 @@ const DEFAULT_COLOR = PALETTE.primaryDefault
 /**
  * The open project on the map (R2.3–R2.5): the sidebar and the panel made from
  * the panel register, the map drawing the store, the one overlay and popup
- * over it, and the working copy's bar and dialogs (`wc`, useWorkingCopy's).
- * `onHome` is called once the working copy is closed.
+ * over it.
+ *
+ * What the shell around it adds (Paket L) — the main build the working copy's
+ * bar and dialogs:
+ *   renderExtras({ mapVersion, setCompare })  drawn over the map
+ *   resetKey      a change puts another record in place of the open one: the
+ *                 element table's edits were made on the old one and go with it
+ *   beforeHome()  awaited on the way back to the start page (closing the
+ *                 project); `onHome` is called after it
+ * and every `workspaceAddons` entry is rendered with the project and the
+ * cross section shown (the 3D window's channel).
  */
-export default function MapWorkspace({ wc, onHome }) {
-  const { t, fill, language } = useI18n()
+export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderExtras }) {
+  const { t, language } = useI18n()
   const project = useProject()
   // The tracks hidden on the map — a redraw when that changes, like a write.
   const hidden = useHiddenTracks()
@@ -115,10 +121,10 @@ export default function MapWorkspace({ wc, onHome }) {
   const openOverlay = useCallback((o) => act({ type: 'open', overlay: o }), [act])
   const closeOverlay = useCallback((kind) => act({ type: 'close', kind }), [act])
 
-  // The 3D window of the point clouds (AP 13.10) follows the cross section
-  // shown, and a double click there shows the cross section here.
+  // What the add-ons follow: the cross section shown, over the map or in its
+  // own window (the 3D window of the point clouds, AP 13.10).
   const crossSectionAt = [overlay, detached].find(o => o?.kind === 'crossSection')?.at ?? null
-  useCloud3dChannel({ project, at: crossSectionAt, onShowCrossSection: (at) => openOverlay({ kind: 'crossSection', at }) })
+  const showCrossSection = useCallback((at) => openOverlay({ kind: 'crossSection', at }), [openOverlay])
 
   // The cross section in a window of its own: opened here, in the click, so
   // the browser lets it through. A blocked window leaves it over the map.
@@ -127,11 +133,11 @@ export default function MapWorkspace({ wc, onHome }) {
     if (win) dispatch({ type: 'detach', kind, win })
   }
 
-  // An update or a discard put another record in place of the working copy:
-  // the element table's edits were made on the old one and go with it.
+  // Another record in place of the open one (an update or a discard of the
+  // working copy): the element table's edits were made on the old one and go with it.
   useEffect(() => {
-    if (wc.replaced) dispatch({ type: 'close', kind: 'trackTable' })
-  }, [wc.replaced])
+    if (resetKey) dispatch({ type: 'close', kind: 'trackTable' })
+  }, [resetKey])
 
   // ── panels ──
   const panelSize = usePanelWidth()
@@ -157,7 +163,7 @@ export default function MapWorkspace({ wc, onHome }) {
 
   const goHome = () => act({ type: 'closeAll' }, async () => {
     setCompare(null)
-    await wc.close()
+    await beforeHome?.()
     onHome()
   })
 
@@ -336,18 +342,6 @@ export default function MapWorkspace({ wc, onHome }) {
         <div className="map-pane">
           <div className="map-container" ref={mapContainer} />
           <TiltToggle tilt={tilt} />
-          {wc.wc && (
-            <WorkingCopyBar projectTitle={wc.wc.project.title} variantName={wc.wc.variant.name} base={wc.base}
-              changes={wc.changes.length} serverNewer={wc.serverNewer} busy={wc.busy}
-              onCheckIn={wc.askCheckIn}
-              onUpdate={() => wc.startUpdate()}
-              onDiscard={wc.askDiscard}
-              onShowChanges={() => setCompare({
-                before: currentWorkingCopy().basePayload, after: currentWorkingCopy().project,
-                beforeLabel: `${wc.wc.variant.name} · ${t('wc_base')}`, afterLabel: t('wc_working_copy'),
-              })} />
-          )}
-          {wc.note && <button type="button" className="wc-note" onClick={wc.clearNote}>{wc.note}</button>}
           {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} />}
           <StepNotice />
           <MapLegend color={color} />
@@ -373,20 +367,10 @@ export default function MapWorkspace({ wc, onHome }) {
           {popup?.kind === 'regelwerk' && <RegelwerkOverlay regelwerkId={popup.regelwerkId} onClose={shell.closePopup} />}
 
           {compare && <CompareOverlay mapVersion={mapVersion} {...compare} onClose={() => setCompare(null)} />}
-          {wc.syncDialog?.kind === 'merge' && (
-            <ConflictDialog mapVersion={mapVersion} result={wc.syncDialog.prepared.result} busy={wc.busy}
-              title={t('wc_merge_title')} mineLabel={t('wc_working_copy')}
-              theirsLabel={`${t('wc_server')} (${wc.syncDialog.prepared.head.author.name})`}
-              onCancel={wc.cancelDialog} onApply={wc.applyMerge} />
-          )}
-          {wc.syncDialog?.kind === 'discard' && (
-            <ConfirmModal message={fill('wc_discard_ask', { n: wc.changes.length })} confirmLabel={t('wc_discard')}
-              busy={wc.busy} onConfirm={wc.discardChanges} onCancel={wc.cancelDialog} />
-          )}
-          {wc.syncDialog?.kind === 'checkin' && (
-            <CheckInDialog changes={wc.changes} errors={wc.syncDialog.errors} busy={wc.busy}
-              onCancel={wc.cancelDialog} onSubmit={wc.submitCheckIn} />
-          )}
+          {renderExtras?.({ mapVersion, setCompare })}
+          {extensionsOf('workspaceAddons').map((Addon, i) => (
+            <Addon key={i} project={project} crossSectionAt={crossSectionAt} onShowCrossSection={showCrossSection} />
+          ))}
           </Suspense>
           {/* The cross section in its own window, beside whatever overlay the
               map shows — under a boundary of its own, so an overlay loading

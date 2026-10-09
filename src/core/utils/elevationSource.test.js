@@ -1,44 +1,34 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import {
-  terrainSourceLabel, sampleHeightsWithSource, chosenTerrainSource, TERRAIN_SOURCES, DEFAULT_TERRAIN_SOURCE,
+  terrainSourceLabel, sampleHeightsWithSource, chosenTerrainSource, terrainSources, DEFAULT_TERRAIN_SOURCE,
 } from './elevationSource'
+import { extend, resetExtensions } from '../extensions'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => resetExtensions())
 
 describe('the terrain sources', () => {
   it('offers the automatic choice first, and falls back to it', () => {
-    expect(TERRAIN_SOURCES[0]).toBe('auto')
+    expect(terrainSources()).toEqual(['auto', 'dgm5', 'maptiler'])
     expect(DEFAULT_TERRAIN_SOURCE).toBe('auto')
     expect(chosenTerrainSource()).toBe('auto')   // no settings in this suite
   })
 
-  it('names every dataset the way a reader knows it', () => {
-    expect(terrainSourceLabel('dgm1-th 2020-2025')).toBe('DGM1 Thüringen 2020–2025')
-    expect(terrainSourceLabel('dgm1-by')).toBe('DGM1 Bayern')
-    expect(terrainSourceLabel('dgm1-nw')).toBe('DGM1 Nordrhein-Westfalen')
+  it('names the tile datasets the way a reader knows them', () => {
     expect(terrainSourceLabel('dgm5')).toBe('DGM5 (BKG)')
     expect(terrainSourceLabel('terrain')).toBe('MapTiler Terrain')
+    expect(terrainSourceLabel('other')).toBe('other')
   })
-})
 
-describe('reading from one chosen source', () => {
-  it('asks the service only for points in a Land it has DGM1 for', async () => {
-    const fetch = vi.fn(async (_url, { body }) => {
-      const { lnglat } = JSON.parse(body)
-      return { ok: true, json: async () => ({ heights: lnglat.map(() => 520.31), sources: lnglat.map(() => 'dgm1-by') }) }
+  it('puts a registered point source after the automatic choice, asks it first and names its datasets (Paket L)', async () => {
+    extend('terrainSources', {
+      id: 'pts',
+      sample: async (lngLats) => ({ heights: lngLats.map(() => 101.234), sources: lngLats.map(() => 'pts-a') }),
+      label: (id) => (id === 'pts-a' ? 'Points A' : null),
     })
-    vi.stubGlobal('fetch', fetch)
-    const hannover = [9.7417, 52.3766], muenchen = [11.5583, 48.1403]
-    const { heights, sources } = await sampleHeightsWithSource([hannover, muenchen], { source: 'dgm1' })
-    expect(fetch).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(fetch.mock.calls[0][1].body).lnglat).toEqual([muenchen])
-    expect(heights).toEqual([null, 520.31])
-    expect(sources).toEqual([null, 'dgm1-by'])
-  })
-
-  it('leaves a point without height where the chosen DGM1 has none — no other source stands in', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
-    const { heights } = await sampleHeightsWithSource([[11.5583, 48.1403]], { source: 'dgm1' })
-    expect(heights).toEqual([null])
+    expect(terrainSources()).toEqual(['auto', 'pts', 'dgm5', 'maptiler'])
+    const { heights, sources } = await sampleHeightsWithSource([[11, 48]], { source: 'pts' })
+    expect(heights).toEqual([101.23])
+    expect(sources).toEqual(['pts-a'])
+    expect(terrainSourceLabel('pts-a')).toBe('Points A')
   })
 })

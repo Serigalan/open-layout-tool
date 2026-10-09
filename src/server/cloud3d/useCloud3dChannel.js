@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { openChannel } from '../../server/cloud3d/channel'
+import { openChannel } from './channel'
 
 /** How long the project rests before the 3D window gets it again [ms]. */
 const SEND_AFTER = 400

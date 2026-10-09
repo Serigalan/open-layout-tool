@@ -6,7 +6,7 @@ import {
   loadPlanHeader, savePlanHeader, exportProjectsPayload,
   saveEndMark, loadEndMarks, deleteEndMark, deleteElement, deleteElements, reverseTrackDirection, deleteTrack,
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
-  openWorkingCopy, currentWorkingCopy, markCheckedIn, adoptWorkingCopy, closeWorkingCopy, currentProject,
+  openStoredProject, currentStoredProject, currentStoredMeta, closeStoredProject, flushPendingWrites, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
   setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms,
 } from './storage'
@@ -314,50 +314,41 @@ describe('deleting a track with a switch on it', () => {
   })
 })
 
-describe('the working copy of a variant (AP 10.6)', () => {
+describe('a project kept where its opener says (Paket L)', () => {
   const el = (length) => ({ elementType: 0, length, absLength: length, bearing: 90, startNode: [0, 0], endNode: [length, 0] })
-  const record = () => ({ id: 'wp', title: 'P', tracks: [{ id: 't', epsg: 25832, elements: [el(10), el(20)] }], switches: [] })
-  const base = { id: 7, number: 3 }
+  const record = () => ({ id: 'kp', title: 'K', tracks: [{ id: 't', epsg: 25832, elements: [el(10), el(20)] }], switches: [] })
 
-  it('is the one open project, rests on its base, and knows its own changes and splits', async () => {
-    await closeWorkingCopy()
-    openWorkingCopy({ variantId: 'v1', project: record(), base, basePayload: record() })
-    expect(currentProject().id).toBe("wp")
-    expect(canUndo()).toBe(false)
+  it('writes the record with its meta behind every change, and says what it keeps', async () => {
+    const saved = []
+    openStoredProject({ project: record(), meta: { projectId: 'kp', note: 1 }, save: (r) => { saved.push(r) } })
+    expect(currentStoredMeta()).toEqual({ projectId: 'kp', note: 1 })
     deleteElement('t', 1)
-    const wc = currentWorkingCopy()
-    expect(wc).toMatchObject({ variantId: 'v1', projectId: 'wp', base })
-    expect(wc.project.tracks.map(t => t.id)).not.toContain('t')
-    expect(wc.project.tracks[0].elements[0].geometry).toBeUndefined()   // dehydrated
-    expect(wc.idLog).toEqual([{ from: 't', to: [wc.project.tracks[0].id] }])
+    await flushPendingWrites()
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({ projectId: 'kp', note: 1 })
+    expect(saved[0].project.tracks[0].elements[0].geometry).toBeUndefined()   // dehydrated
+    expect(saved[0].updatedAt).toEqual(expect.any(String))
+    await closeStoredProject()
+    expect(currentStoredProject()).toBeNull()
   })
 
-  it('once checked in rests on the new revision, and its id log is spent', () => {
-    const wc = currentWorkingCopy()
-    markCheckedIn({ base: { id: 8, number: 4 }, basePayload: wc.project })
-    expect(currentWorkingCopy()).toMatchObject({ base: { id: 8 }, idLog: [] })
+  it('keeps a project opened in memory nowhere', () => {
+    openProject(record())
+    expect(currentStoredProject()).toBeNull()
+    expect(currentStoredMeta()).toBeNull()
   })
 
-  it('takes a merged record in place, without undo into the other side\'s changes', () => {
-    saveTrack({ id: 'x', elements: [] })
-    expect(canUndo()).toBe(true)
-    const merged = { ...record(), title: 'merged' }
-    adoptWorkingCopy({ project: merged, base: { id: 9, number: 5 }, basePayload: merged })
-    expect(currentProject().title).toBe('merged')
-    expect(currentWorkingCopy().base.id).toBe(9)
-    expect(canUndo()).toBe(false)
-  })
-
-  it('keeps the import reports per variant', () => {
-    saveImportReport({ source: 'mdb', lines: [] })
-    expect(localStorage.getItem('olt_reports_v1')).not.toBeNull()
-    expect(localStorage.getItem('olt_reports_wp')).toBeNull()
+  it('keeps the import reports under its key', async () => {
+    openStoredProject({ project: record(), key: 'slot-key' })
+    saveImportReport({ source: 'csv', lines: [] })
+    expect(localStorage.getItem('olt_reports_slot-key')).not.toBeNull()
+    await closeStoredProject()
   })
 })
 
 describe('the store works on the open project, immutably (R1.3)', () => {
   it('writes nothing and keeps no undo step while no project is open', async () => {
-    await closeWorkingCopy()
+    await closeStoredProject()
     expect(currentProject()).toBeNull()
     expect(saveTrack({ id: 'x', elements: [] })).toBe(false)
     expect(deleteElement('x', 0)).toBe(false)

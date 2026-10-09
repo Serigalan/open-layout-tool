@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { discardWorkingCopy, loadWorkingCopy } from '../../core/storage'
+import { discardWorkingCopy, loadWorkingCopy } from '../workingCopies'
 import { hasLocalChanges } from '../variantMerge'
 import { localChanges } from '../workingCopySync'
 import '../../core/components/collab/collab.css'

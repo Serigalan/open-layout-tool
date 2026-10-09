@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { closeWorkingCopy, currentWorkingCopy, loadIdLog, openWorkingCopy, saveTrack, undo } from '../core/storage'
+import { loadIdLog, saveTrack, undo } from '../core/storage'
+import { closeWorkingCopy, currentWorkingCopy, openWorkingCopy } from './workingCopies'
 import { checkIn, localChanges, prepareUpdate, revertToHead } from './workingCopySync'
 
 beforeAll(() => {

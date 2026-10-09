@@ -5,13 +5,14 @@ import { useRedoStep, useUndoStep } from '../hooks/useStore'
 import { describeStep } from '../utils/stepLabel'
 import { loadSettings, saveSettings } from '../utils/settings'
 import { PANELS } from './panels'
-import ServiceStatus from '../../server/ServiceStatus'
+import { extensionsOf } from '../extensions'
 
 /**
  * The sidebar of the map view, made from the panel register (R2.3): the work
  * steps in their order, a line between them, and their names beside the
  * symbols (R10.7), which can be folded away — remembered on this device.
- * At its foot, beside that button, whether the services are there (R10.12).
+ * At its foot, beside that button, what the server puts there
+ * (`sidebarFoot`): whether the services are there (R10.12).
  */
 export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
   const { t, fill } = useI18n()
@@ -56,7 +57,7 @@ export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
         {iconButton({ key: 'home', icon: HomeIcon, title: t('tooltip_home'), onClick: onHome })}
         {PANELS.filter(p => p.place === 'bottom').map(panelButton)}
         <div className="sidebar-foot">
-          <ServiceStatus />
+          {extensionsOf('sidebarFoot').map((Foot, i) => <Foot key={i} />)}
           <button type="button" className="sidebar-label-toggle" onClick={toggleLabels}
             aria-pressed={labels} title={t(labels ? 'sidebar_labels_hide' : 'sidebar_labels_show')}
             aria-label={t(labels ? 'sidebar_labels_hide' : 'sidebar_labels_show')}>

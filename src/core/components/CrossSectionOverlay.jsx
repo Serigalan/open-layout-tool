@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { loadTracks, loadPlatforms, loadSwitches, currentProject, currentVariantId } from '../storage'
-import { openCloud3d } from '../../server/cloud3d/channel'
+import { loadTracks, loadPlatforms, loadSwitches, currentProject } from '../storage'
 import { trackLength } from '../utils/heightUtils'
 import { tracksOnFrom } from '../utils/topology'
 import { resolveRoute, routeAt, routeStationOf } from '../utils/routes'
@@ -15,11 +14,11 @@ import {
   sectionNeighbours, sectionLinePoints, sectionLevels, sectionOrigin, PLANUM_EDGE, RAILS, SLEEPERS,
 } from '../utils/crossSectionUtils'
 import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/heightDatums'
-import { readableClouds, serverLevel } from '../utils/pointCloud/projectClouds'
+import { readableClouds } from '../utils/pointCloud/projectClouds'
 import { planeMapper } from '../utils/pointCloud/cloudCrs'
 import { applyMatrix, invertMatrix } from '../utils/pointCloud/registration'
-import { api } from '../../server/api/client'
-import useRegistrationSession from '../hooks/useRegistrationSession'
+import { registrationHook } from '../utils/pointCloud/cloudRegistration'
+import { extensionsOf } from '../extensions'
 import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
 import { paintCloudCanvas, coloringsFor, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
 import { checkClearance, BOTTOM_BAND } from '../utils/pointCloud/clearanceCheck'
@@ -271,43 +270,21 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   }, [terrainKey])
 
   // ── The point clouds of the project, sliced at the section plane ─────────
-  const registration = useRegistrationSession(project.id)
+  const useCloudRegistration = registrationHook()
+  const registration = useCloudRegistration(project.id, cloudLevel)
   const { cloudsVersion } = registration
   useEffect(() => {
     let live = true
     readableClouds(project.id, { level: cloudLevel }).then(c => { if (live) setClouds(c) }).catch(() => {})
     return () => { live = false }
   }, [project.id, cloudLevel, cloudsVersion])
-  const onServer = clouds.some(c => c.server)
 
   // While the 3D window re-references a cloud (AP 13.14), the section shows
   // the two clouds alone, each in its colour — the one being fitted where the
   // solution puts it — and pairs can be picked in it.
   const reg = registration.session
-  const regKey = reg
-    ? `${reg.refId}|${reg.adjId}|${reg.refPlane}|${(reg.matrix ?? []).map(v => v.toPrecision(10)).join(',')}|${cloudLevel}|${cloudsVersion}`
-    : null
-  const [regClouds, setRegClouds] = useState({ key: null, clouds: [] })
-  useEffect(() => {
-    if (!regKey) return undefined
-    let live = true
-    api.clouds(project.id).then(async ({ clouds: rows }) => {
-      const ref = rows.find(r => r.id === reg.refId), adj = rows.find(r => r.id === reg.adjId)
-      const out = []
-      if (ref) out.push({ ...(await serverLevel(project.id, ref, cloudLevel)), color: PALETTE.sectionRefCloud, role: 'ref' })
-      if (adj && reg.matrix) {
-        out.push({
-          ...(await serverLevel(project.id, adj, cloudLevel)), transform: { matrix: reg.matrix, crs: reg.refPlane },
-          color: PALETTE.sectionFitCloud, role: 'adj',
-        })
-      }
-      if (live) setRegClouds({ key: regKey, clouds: out })
-    }).catch(() => { if (live) setRegClouds({ key: regKey, clouds: [] }) })
-    return () => { live = false }
-    // the session is part of the key
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [regKey, project.id])
-  const sliceClouds = regKey ? (regClouds.key === regKey ? regClouds.clouds : []) : clouds
+  const regKey = registration.key
+  const sliceClouds = reg ? registration.clouds : clouds
 
   const cloudKey = track && cloudOn && sliceClouds.length
     ? `${track.id}|${station.toFixed(2)}|${flip}|${reach}|${thickness}|${sliceClouds.map(c => (c.server ? `${c.id}@${c.server.level}` : c.id)).join(',')}|${regKey ?? ''}`
@@ -804,19 +781,9 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
                       {colorings.map(c => <option key={c} value={c}>{t(`cross_section_cloud_by_${c}`)}</option>)}
                     </select>
                   )}
-                  {onServer && (
-                    <>
-                      <select className="cross-section-coloring" value={cloudLevel} onChange={e => setCloudLevel(Number(e.target.value))}
-                        title={t('cross_section_cloud_level_hint')}>
-                        <option value={1}>{t('cross_section_cloud_level_1')}</option>
-                        <option value={0}>{t('cross_section_cloud_level_0')}</option>
-                      </select>
-                      <button className="track-table-save-btn" title={t('pointcloud_open_3d_hint')}
-                        onClick={() => openCloud3d({ projectId: project.id, variantId: currentVariantId() })}>
-                        {t('cross_section_open_3d')}
-                      </button>
-                    </>
-                  )}
+                  {extensionsOf('crossSectionTools').map((Tools, i) => (
+                    <Tools key={i} projectId={project.id} clouds={clouds} level={cloudLevel} onLevel={setCloudLevel} />
+                  ))}
                 </>
               )}
             </>

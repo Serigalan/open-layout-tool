@@ -5,27 +5,29 @@ import { sliceHeights } from './utils/heightUtils'
 import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTrack, remapSwitches, reverseTrack } from './utils/trackModel'
 import { generateId } from './utils/identifierUtils'
 import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
-import * as idb from './utils/idbStorage'
 import { coupleSwitchGradients, coupleSwitchHeights } from './utils/switchChain'
 import { repairRoutes } from './utils/routes'
 import { lengthGovernedRadii } from './utils/gradientCheck'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
-// The project store: the one project that is open — the working copy of a
-// variant (phase 10) — held in memory as the single source of truth for every
-// synchronous caller, and written behind to IndexedDB (see persist/flush).
-// Where IndexedDB is unavailable the copy lives in memory only.
+// The project store: the one project that is open, held in memory as the
+// single source of truth for every synchronous caller, and written behind to
+// where its opener keeps it (see persist/flush) — the working copy of a
+// variant in the main build (server/workingCopies.js), a project of the list
+// in the local build (core/home/localProjects.js). Opened without a place to
+// keep it, it lives in memory only.
 //
 // The record is immutable (R1.3): every write makes a new project object, new
 // arrays for what it changes and shares everything else. That is what makes a
 // snapshot for undo a reference, and what lets React subscribe to it.
 let _project = null
-let _backend = 'idb'         // 'idb' | 'memory'
-let _opened = false
-// The open working copy: { variantId, projectId, base, basePayload } — the
-// revision it rests on (meta) and that revision's record.
-let _wc = null
+// Where the open project is kept (Paket L): { key, meta, save } — `meta` what
+// its opener keeps beside the record (the server's working copy: variant,
+// base revision and its record), `save(record)` writes { ...meta, project,
+// idLog, updatedAt }, `key` names the entries kept per record outside it
+// (the import reports). Null for a project opened in memory only.
+let _slot = null
 const MAX_UNDO = 20
 let _undoStack = []
 // What undo took back, newest last, for redo (R10.1); any new step empties it.
@@ -44,7 +46,7 @@ let _undoDepth = 0
 // carry the other side's references onto the new tracks.
 let _idLog = []
 
-// Write-behind state (idb backend)
+// Write-behind state
 let _dirty = false
 let _flushTimer = null
 let _flushChain = Promise.resolve()
@@ -61,27 +63,15 @@ function deepFreeze(value) {
 }
 
 /**
- * Open the store — await this once before rendering the app. Nothing is read
- * here: a working copy is loaded when its variant is opened.
+ * Ready the store — once before rendering the app. Nothing is read here: a
+ * project is loaded when it is opened; leaving the page writes what is still
+ * waiting.
  */
 export async function initStorage() {
-  if (_opened) return
-  _opened = true
-  try {
-    await idb.openDb()
-    registerLifecycleFlush()
-  } catch (err) {
-    console.error('IndexedDB unavailable – the working copy is kept in memory only', err)
-    _backend = 'memory'
-  }
+  registerLifecycleFlush()
 }
 
-function backend() {
-  if (!_opened) { _opened = true; _backend = 'memory' }
-  return _backend
-}
-
-/** The open project (the working copy's record, hydrated), or null. */
+/** The open project (hydrated), or null. */
 export function currentProject() {
   return _project
 }
@@ -133,16 +123,15 @@ function notify() {
   for (const listener of [..._listeners]) listener()
 }
 
-// ── the working copy (phase 10) ─────────────────────────────────────────────
+// ── the open project and where it is kept (Paket L) ─────────────────────────
 
 /**
- * Make a variant's working copy the open project: `project` its record
- * (dehydrated), `base` the revision it rests on and `basePayload` that
- * revision's record, `idLog` the splits and joins since. Undo starts empty.
+ * Make `project` (dehydrated) the open project, kept through `save` (see
+ * _slot) — or in memory only without. `idLog` the splits and joins since its
+ * base. Undo starts empty.
  */
-export function openWorkingCopy({ variantId, project, base, basePayload, idLog = [] }) {
-  backend()
-  _wc = { variantId, projectId: project.id, base, basePayload }
+export function openStoredProject({ project, meta = {}, key = project.id, save = null, idLog = [] }) {
+  _slot = { key, meta, save }
   _idLog = [...idLog]
   _undoStack = []
   _redoStack = []
@@ -152,12 +141,11 @@ export function openWorkingCopy({ variantId, project, base, basePayload, idLog =
 }
 
 /**
- * Open a project that is no variant's working copy — kept in memory only, with
- * an empty undo stack. What the tests and a throwaway preview use.
+ * Open a project that is kept nowhere — in memory only, with an empty undo
+ * stack. What the tests and a throwaway preview use.
  */
 export function openProject(project) {
-  backend()
-  _wc = null
+  _slot = null
   _idLog = []
   _undoStack = []
   _redoStack = []
@@ -166,61 +154,42 @@ export function openProject(project) {
   return _project
 }
 
-/** The variant whose working copy is open, or null — cheaper than currentWorkingCopy where only that is wanted. */
-export const currentVariantId = () => _wc?.variantId ?? null
+/** What the opener keeps beside the open project (its meta), or null. */
+export const currentStoredMeta = () => (_slot && _project ? _slot.meta : null)
 
-/** The open working copy: { variantId, projectId, base, basePayload, project (dehydrated), idLog }, or null. */
-export function currentWorkingCopy() {
-  if (!_wc || !_project) return null
-  return { ..._wc, project: dehydrateProjects([structuredClone(_project)])[0], idLog: loadIdLog() }
+/** The open project as it is kept: { ...meta, project (dehydrated), idLog }, or null for one in memory only. */
+export function currentStoredProject() {
+  if (!_slot || !_project) return null
+  return { ..._slot.meta, project: dehydrateProjects([structuredClone(_project)])[0], idLog: loadIdLog() }
 }
 
 /**
- * Put a merged record in place of the working copy, resting on `base` now.
- * Undo is emptied: a step back must not take back the other side's changes.
+ * Put another record in place of the open project, kept where it was, with
+ * `meta` now. Undo is emptied: a step back must not take back what came in.
  */
-export function adoptWorkingCopy({ project, base, basePayload, idLog }) {
-  if (!_wc) return null
-  const log = idLog ?? loadIdLog()
-  return openWorkingCopy({ variantId: _wc.variantId, project, base, basePayload, idLog: log })
+export function replaceStoredProject({ project, meta, idLog }) {
+  if (!_slot) return null
+  return openStoredProject({ ..._slot, project, meta: meta ?? _slot.meta, idLog: idLog ?? loadIdLog() })
 }
 
-/** The working copy was checked in as `base`: it rests on it now, and its id log is spent. */
-export function markCheckedIn({ base, basePayload }) {
-  if (!_wc) return
-  _wc = { ..._wc, base, basePayload }
-  setIdLog([])
+/** Keep `meta` beside the open project from now on; `clearIdLog` when its splits are spent (checked in). */
+export function setStoredMeta(meta, { clearIdLog = false } = {}) {
+  if (!_slot) return
+  _slot = { ..._slot, meta }
+  if (clearIdLog) setIdLog([])
   persist()
 }
 
-/** Close the open working copy (it stays in IndexedDB). */
-export async function closeWorkingCopy() {
+/** Close the open project — what is still waiting is written first. */
+export async function closeStoredProject() {
   await flushPendingWrites()
   _project = null
-  _wc = null
+  _slot = null
   _idLog = []
   _undoStack = []
   _redoStack = []
   _lastStep = null
   notify()
-}
-
-/** A variant's stored working copy, or null. */
-export async function loadWorkingCopy(variantId) {
-  if (backend() !== 'idb') return null
-  try { return await idb.getWorkingCopy(variantId) } catch { return null }
-}
-
-/** Every stored working copy (for the start page's status). */
-export async function listWorkingCopies() {
-  if (backend() !== 'idb') return []
-  try { return await idb.getAllWorkingCopies() } catch { return [] }
-}
-
-/** Throw a variant's working copy away. */
-export async function discardWorkingCopy(variantId) {
-  if (_wc?.variantId === variantId) await closeWorkingCopy()
-  if (backend() === 'idb') await idb.deleteWorkingCopy(variantId)
 }
 
 /** Empty the undo stack. */
@@ -352,23 +321,22 @@ function withPrunedMarks(project) {
   return kept === project.endMarks ? project : { ...project, endMarks: kept }
 }
 
-// Mark the working copy dirty and schedule the async flush. A project that is
-// not the open working copy (openProject) lives in memory only.
+// Mark the open project dirty and schedule the async flush. A project kept
+// nowhere (openProject) lives in memory only.
 function persist() {
-  if (backend() !== 'idb' || !_wc) return
+  if (!_slot?.save) return
   _dirty = true
   scheduleFlush()
 }
 
 // Writing behind dehydrates the whole project, so a burst of writes is
 // written once, when it has come to rest. Leaving the page flushes at once
-// (registerLifecycleFlush), as does closing the working copy.
+// (registerLifecycleFlush), as does closing the project.
 const FLUSH_DELAY = 300   // ms
 const FLUSH_MAX_WAIT = 2000   // …but a burst that never rests is written this often
 let _flushPendingSince = 0
 
 function scheduleFlush() {
-  if (_backend !== 'idb') return
   const now = Date.now()
   if (_flushTimer) clearTimeout(_flushTimer)
   else _flushPendingSince = now
@@ -376,18 +344,19 @@ function scheduleFlush() {
   _flushTimer = setTimeout(() => flushPendingWrites(), wait)
 }
 
-/** Start writing the working copy to IndexedDB; resolves when done. */
+/** Start writing the open project where it is kept; resolves when done. */
 export function flushPendingWrites() {
   if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null }
-  if (_backend !== 'idb' || !_dirty || !_wc) return _flushChain
+  if (!_dirty || !_slot?.save) return _flushChain
   _dirty = false
-  const wc = currentWorkingCopy()
-  if (!wc) return _flushChain
-  const record = { ...wc, updatedAt: new Date().toISOString() }
+  const stored = currentStoredProject()
+  if (!stored) return _flushChain
+  const record = { ...stored, updatedAt: new Date().toISOString() }
+  const { save } = _slot
   _flushChain = _flushChain
-    .then(() => idb.putWorkingCopy(record))
+    .then(() => save(record))
     .catch(err => {
-      console.error('Persisting to IndexedDB failed – retrying on next change', err)
+      console.error('Persisting the project failed – retrying on next change', err)
       _dirty = true
     })
   return _flushChain
@@ -485,9 +454,9 @@ export function updateProject(patch) {
 const REPORTS_KEPT = 8
 const REPORT_LINES = 4000
 
-// Per variant where a working copy is open (the variants of a project share
-// its id), else per project.
-const reportKey = () => REPORT_KEY_PREFIX + (_wc?.variantId ?? _project?.id ?? 'none')
+// Per record as its opener names it — per variant for a working copy (the
+// variants of a project share its id) — else per project.
+const reportKey = () => REPORT_KEY_PREFIX + (_slot?.key ?? _project?.id ?? 'none')
 
 export function loadImportReports() {
   try {

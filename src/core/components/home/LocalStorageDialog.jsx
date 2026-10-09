@@ -2,16 +2,18 @@ import { useCallback, useEffect, useState } from 'react'
 import { useI18n } from '../../locales/i18nContext'
 import { formatDate } from '../../locales/i18n'
 import {
-  bytesText, readLocalStore, deleteLocalCloud, deleteLocalFile, deleteLocalWorkingCopy, deleteLegacy, deleteEntry, deleteAllLocal,
+  bytesText, readLocalStore, deleteLocalCloud, deleteLocalFile, deleteEntry, deleteAllLocal,
 } from '../../localStore'
+import { extensionsOf } from '../../extensions'
 import Modal from '../Modal'
 
 /**
  * What the app keeps in this browser (localStore.js), each piece with its size
  * and a delete, and a delete of all of it. A delete asks once, in its own row;
- * a working copy with changes not checked in says how many go with it.
- * `projects` is the start page's list, to name projects and variants by.
- * `onClose(changed)` says whether anything was deleted.
+ * a working copy with changes not checked in says how many go with it. What
+ * IndexedDB holds comes as the sections of whoever keeps it there
+ * (`localStoreSections`). `projects` is the start page's list, to name
+ * projects and variants by. `onClose(changed)` says whether anything was deleted.
  */
 export default function LocalStorageDialog({ projects, onClose }) {
   const { t, fill, language } = useI18n()
@@ -89,7 +91,6 @@ export default function LocalStorageDialog({ projects, onClose }) {
     </section>
   )
 
-  const changesText = (n) => (n == null ? t('local_store_wc_unknown') : n ? fill('home_local_changes', { n }) : t('local_store_wc_clean'))
   const entryTitle = (e) => ({
     settings: t('local_store_settings'),
     reports: t('local_store_reports'),
@@ -97,9 +98,13 @@ export default function LocalStorageDialog({ projects, onClose }) {
   })[e.kind] ?? e.key
   const entryMeta = (e) => (e.kind === 'reports' ? refText(e.ref) : e.kind === 'hidden' ? projectTitle(e.ref) : null)
 
-  const empty = store && !store.clouds.length && !store.other.length && !store.workingCopies.length
-    && !store.legacy.records && !store.entries.length
-  const unsaved = store?.workingCopies.filter(wc => wc.changes).length ?? 0
+  // The sections of the extension point, as the dialog shows them.
+  const ctx = { t, fill, language, projects, row, size, variantText }
+  const extra = store ? extensionsOf('localStoreSections').map(s => ({ ...s.rows(store.sections[s.id] ?? [], ctx), id: s.id })) : []
+  const own = extra.filter(x => x.into !== 'other')
+  const intoOther = extra.filter(x => x.into === 'other').flatMap(x => x.rows)
+  const empty = store && !store.clouds.length && !store.other.length && !store.entries.length && !extra.some(x => x.rows.length)
+  const unsaved = store ? extensionsOf('localStoreSections').reduce((n, s) => n + (s.unsaved?.(store.sections[s.id] ?? []) ?? 0), 0) : 0
 
   return (
     <Modal className="collab-modal local-store" title={t('local_store_title')} onClose={() => onClose(changed)} busy={busy}
@@ -142,15 +147,7 @@ export default function LocalStorageDialog({ projects, onClose }) {
           onDelete: () => deleteLocalCloud(c),
         })), t('local_store_clouds_hint'))}
 
-        {section(t('local_store_working_copies'), store.workingCopies.map(wc => row({
-          key: `wc/${wc.variantId}`,
-          title: variantText(wc.variantId, wc.projectId),
-          meta: [formatDate(wc.updatedAt, language, { time: true }), wc.changes ? null : changesText(wc.changes)],
-          warn: wc.changes ? changesText(wc.changes) : null,
-          bytes: wc.bytes, estimated: true,
-          ask: wc.changes ? fill('local_store_delete_wc_ask', { n: wc.changes }) : null,
-          onDelete: () => deleteLocalWorkingCopy(wc.variantId),
-        })), t('local_store_working_copies_hint'))}
+        {own.map(x => <div key={x.id}>{section(x.title, x.rows, x.hint ?? null)}</div>)}
 
         {section(t('local_store_entries'), store.entries.map(e => row({
           key: `entry/${e.key}`,
@@ -161,13 +158,7 @@ export default function LocalStorageDialog({ projects, onClose }) {
         })))}
 
         {section(t('local_store_other'), [
-          ...(store.legacy.records ? [row({
-            key: 'legacy',
-            title: t('local_store_legacy'),
-            meta: [fill('local_store_legacy_line', { n: store.legacy.records })],
-            bytes: store.legacy.bytes, estimated: true,
-            onDelete: deleteLegacy,
-          })] : []),
+          ...intoOther,
           ...store.other.map(f => row({
             key: `file/${f.path.join('/')}`,
             title: f.path.join('/'),

@@ -1,26 +1,22 @@
-import { api } from '../../../server/api/client'
 import { cloudTilesFile } from './cloudStore'
-import { cacheGet, cachePut } from './cloudCache'
+import { extensionsOf } from '../../extensions'
 
 /**
- * One way to read a cloud's tile file (AP 13.6), whether it lies in this
- * browser or on the server: `read(offset, length)` and `readMany(ranges)`,
- * each giving bytes. cloudSection, cloudSlice and clearanceCheck read through
- * it and do not care which.
+ * One way to read a cloud's tile file (AP 13.6), wherever it lies:
+ * `read(offset, length)` and `readMany(ranges)`, each giving bytes.
+ * cloudSection, cloudSlice and clearanceCheck read through it and do not care
+ * where from.
  *
  * - **Local** (a cloud read in on this device): the OPFS file, ranges close
  *   together read in one go.
- * - **Server**: the cache first (cloudCache), the rest in collective requests
- *   of up to 64 ranges each — one per cross section mostly — and what came
- *   kept in the cache.
+ * - **Elsewhere**: a cloud a provider of the extension point `cloudProviders`
+ *   (Paket L) says is its own — `sourceKey(cloud)` a key, not null — is read
+ *   through its `reader(projectId, cloud)`: the server's clouds in the main
+ *   build (server/cloudsOnServer.js).
  */
 
 /** Segments closer together than this in a local tile file are read in one go [bytes]. */
 const MERGE_GAP = 256 * 1024
-/** Ranges a collective request may ask for (the server's MAX_RANGES). */
-const PER_REQUEST = 64
-/** Bytes a collective request asks for at most. */
-const BYTES_PER_REQUEST = 32 * 1024 * 1024
 
 function localSource(projectId, cloudId) {
   let file = null
@@ -45,76 +41,21 @@ function localSource(projectId, cloudId) {
   return { readMany, read: async (offset, length) => (await readMany([[offset, length]]))[0] }
 }
 
-function serverSource(projectId, cloudId, level) {
-  const keyOf = ([offset, length]) => `${cloudId}|L${level}|${offset}|${length}`
-  // Ranges asked for and not yet come: a second reader of the same segment
-  // (the rail search beside the section) waits for the first.
-  const inflight = new Map()   // key → Promise<Uint8Array>
-  const readMany = async (ranges) => {
-    const keys = ranges.map(keyOf)
-    const cached = await cacheGet(keys)
-    const waiting = []
-    const missing = []
-    ranges.forEach((r, k) => {
-      if (cached.has(keys[k])) return
-      if (inflight.has(keys[k])) waiting.push([k, inflight.get(keys[k])])
-      else missing.push(k)
-    })
-    const settle = new Map()
-    for (const k of missing) {
-      let done
-      inflight.set(keys[k], new Promise((resolve, reject) => { done = { resolve, reject } }))
-      inflight.get(keys[k]).catch(() => {})
-      settle.set(k, done)
-    }
-    const batches = []
-    let cur = [], bytes = 0
-    for (const k of missing) {
-      if (cur.length === PER_REQUEST || (cur.length && bytes + ranges[k][1] > BYTES_PER_REQUEST)) {
-        batches.push(cur); cur = []; bytes = 0
-      }
-      cur.push(k); bytes += ranges[k][1]
-    }
-    if (cur.length) batches.push(cur)
-    try {
-      await Promise.all(batches.map(async (ks) => {
-        const body = await api.cloudRanges(projectId, cloudId, level, ks.map(k => ranges[k]))
-        const items = []
-        let at = 0
-        for (const k of ks) {
-          const part = body.slice(at, at + ranges[k][1])
-          at += ranges[k][1]
-          cached.set(keys[k], part)
-          settle.get(k).resolve(part)
-          items.push([keys[k], part])
-        }
-        cachePut(items)
-      }))
-    } catch (err) {
-      for (const k of missing) settle.get(k).reject(err)
-      throw err
-    } finally {
-      for (const k of missing) inflight.delete(keys[k])
-    }
-    for (const [k, pending] of waiting) cached.set(keys[k], await pending)
-    return keys.map(k => cached.get(k))
-  }
-  return { readMany, read: async (offset, length) => (await readMany([[offset, length]]))[0] }
-}
-
 const sources = new Map()
 
 /**
  * The source of a cloud as cloudSection gets it — `cloud.source` where one is
- * given (tests), the server's for a cloud with `server` (`{ level }`), the
- * local file otherwise. One per cloud and level, kept.
+ * given (tests), its provider's for a cloud a provider says is its own (the
+ * server's for one with `server: { level }`), the local file otherwise. One
+ * per cloud (and level), kept. A provider's key starts with the cloud's id.
  */
 export function sourceOf(projectId, cloud) {
   if (cloud.source) return cloud.source
-  const key = cloud.server ? `${cloud.id}|L${cloud.server.level}` : `${projectId}|${cloud.id}`
+  const provider = extensionsOf('cloudProviders').find(p => p.sourceKey(cloud) != null)
+  const key = provider ? provider.sourceKey(cloud) : `${projectId}|${cloud.id}`
   let s = sources.get(key)
   if (!s) {
-    s = cloud.server ? serverSource(projectId, cloud.id, cloud.server.level) : localSource(projectId, cloud.id)
+    s = provider ? provider.reader(projectId, cloud) : localSource(projectId, cloud.id)
     sources.set(key, s)
   }
   return s

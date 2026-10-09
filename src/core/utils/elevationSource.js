@@ -1,17 +1,16 @@
 // Ground heights, independent of which basemap the map is showing. In the
 // automatic choice the best source that has a point answers it:
 //
-// 1. The Länder's DGM1 (1 m grid, laser scan) — Thüringen, Sachsen, Berlin,
-//    Brandenburg, Bayern, Baden-Württemberg and Nordrhein-Westfalen, the ones
-//    whose tiles can be had at a fixed URL. The Länder publish them as tiles a
-//    page cannot read (no CORS header, megabytes each), so the service reads
-//    them and answers points (terrainOnServer). Only points in those Länder
-//    are sent at all.
+// 1. The sources that answer points rather than tiles, in the order they were
+//    registered (extension point `terrainSources`, Paket L): the main build
+//    has the Länder's DGM1 there, read by the optimizer service
+//    (server/terrainDgm1.js); the local build has none. Each is
+//      { id, sample(lngLats, { chosen }) → { heights, sources }, label(id) → name | null }
 // 2. DGM5 (BKG, Germany, 5 m grid), served as terrain-RGB tiles up to zoom 15,
 //    about 3 m per pixel.
 // 3. The worldwide MapTiler terrain tiles (zoom 12, ~20 m per pixel).
 //
-// A source can also be chosen outright (TERRAIN_SOURCES); then only it is
+// A source can also be chosen outright (terrainSources()); then only it is
 // asked, and a point it has no height for stays without one.
 //
 // The two tile sources use the Mapbox encoding:
@@ -23,58 +22,18 @@
 // far less than any of these resolve against a track's gradient; the app
 // treats them all as the height system of its tracks.
 
-import { terrainOnServer } from '../../server/optimizerService'
 import { loadSettings } from './settings'
 import { MAPTILER_KEY } from './mapTiler'
+import { extensionsOf } from '../extensions'
 
-/** The choices of terrain source, the first the default. */
-export const TERRAIN_SOURCES = ['auto', 'dgm1', 'dgm5', 'maptiler']
+/** The choices of terrain source, the first the default: the automatic one, the point sources, the tiles. */
+export const terrainSources = () => ['auto', ...extensionsOf('terrainSources').map(s => s.id), 'dgm5', 'maptiler']
 export const DEFAULT_TERRAIN_SOURCE = 'auto'
 
 /** The terrain source the user chose (kept with the settings), or the automatic one. */
 export function chosenTerrainSource() {
   const s = loadSettings().terrainSource
-  return TERRAIN_SOURCES.includes(s) ? s : DEFAULT_TERRAIN_SOURCE
-}
-
-/**
- * The Länder the service has a DGM1 for, as a WGS84 box around each — a coarse
- * test so a point far away is not sent at all. The service answers null for a
- * point inside a box but outside the Land. Kept in step with SOURCES in
- * tools/optimizer/olt_optimizer/terrain.py.
- */
-const DGM1_LAENDER = {
-  th: { name: 'Thüringen',           box: [9.85, 50.17, 12.68, 51.68] },
-  sn: { name: 'Sachsen',             box: [11.85, 50.15, 15.05, 51.70] },
-  be: { name: 'Berlin',              box: [13.07, 52.33, 13.78, 52.68] },
-  bb: { name: 'Brandenburg',         box: [11.25, 51.35, 14.78, 53.57] },
-  by: { name: 'Bayern',              box: [8.95, 47.26, 13.85, 50.57] },
-  bw: { name: 'Baden-Württemberg',   box: [7.50, 47.53, 10.50, 49.80] },
-  nw: { name: 'Nordrhein-Westfalen', box: [5.85, 50.32, 9.47, 52.54] },
-}
-const DGM1_CHUNK = 5000
-// In the automatic choice DGM1 gets this long before DGM5 answers instead —
-// a Land's portal can be slow (Brandenburg's hands out 15 kB/s), and the
-// service goes on loading the tile, so the next request has it.
-const DGM1_WAIT_AUTO = 20000
-const DGM1_WAIT_CHOSEN = 180000
-
-const inDgm1 = ([lng, lat]) => Object.values(DGM1_LAENDER)
-  .some(({ box: [w, s, e, n] }) => lng >= w && lng <= e && lat >= s && lat <= n)
-
-async function sampleDgm1(lngLats, timeoutMs) {
-  const idx = lngLats.map((p, i) => (p && inDgm1(p) ? i : -1)).filter(i => i >= 0)
-  const heights = new Array(lngLats.length).fill(null)
-  const sources = new Array(lngLats.length).fill(null)
-  for (let i = 0; i < idx.length; i += DGM1_CHUNK) {
-    const part = idx.slice(i, i + DGM1_CHUNK)
-    const answer = await terrainOnServer(part.map(k => lngLats[k]), { timeoutMs })
-    part.forEach((k, j) => {
-      heights[k] = answer.heights[j] ?? null
-      sources[k] = heights[k] == null ? null : (answer.sources[j] ?? 'dgm1')
-    })
-  }
-  return { heights, sources }
+  return terrainSources().includes(s) ? s : DEFAULT_TERRAIN_SOURCE
 }
 
 const SOURCES = [
@@ -161,23 +120,25 @@ async function sampleFrom(source, lngLats) {
 
 /**
  * Ground height [m] for each WGS84 point, with the dataset that answered it.
- * `source` is one of TERRAIN_SOURCES: 'auto' asks the Länder's DGM1, then
- * DGM5, then the worldwide terrain tiles, each for what the one before had no
- * height for; the others ask only the source they name. Null for both where
- * none has a height. Heights come back rounded to the centimetre. `sources`
- * name the dataset — 'dgm1-th 2020-2025', 'dgm1-by' and the like from the
- * service, 'dgm5', 'terrain'.
+ * `source` is one of terrainSources(): 'auto' asks the point sources (the
+ * Länder's DGM1), then DGM5, then the worldwide terrain tiles, each for what
+ * the one before had no height for; the others ask only the source they name.
+ * Null for both where none has a height. Heights come back rounded to the
+ * centimetre. `sources` name the dataset — 'dgm1-th 2020-2025', 'dgm1-by' and
+ * the like from the service, 'dgm5', 'terrain'.
  */
 export async function sampleHeightsWithSource(lngLats, { source = DEFAULT_TERRAIN_SOURCE } = {}) {
-  const none = { heights: new Array(lngLats.length).fill(null), sources: new Array(lngLats.length).fill(null) }
-  const first = source === 'auto' || source === 'dgm1'
-    ? await sampleDgm1(lngLats, source === 'dgm1' ? DGM1_WAIT_CHOSEN : DGM1_WAIT_AUTO)
-    : none
-  let result = first.heights
-  const sources = [...first.sources]
+  let result = new Array(lngLats.length).fill(null)
+  const sources = new Array(lngLats.length).fill(null)
+  let pending = [...lngLats]
+  for (const pointSource of extensionsOf('terrainSources').filter(s => source === 'auto' || source === s.id)) {
+    if (!pending.some(Boolean)) break
+    const answer = await pointSource.sample(pending, { chosen: source === pointSource.id })
+    answer.heights.forEach((z, i) => { if (result[i] == null && z != null) { result[i] = z; sources[i] = answer.sources[i] } })
+    pending = pending.map((p, i) => (result[i] == null ? p : null))
+  }
   const tiles = source === 'auto' ? SOURCES
     : SOURCES.filter(s => (source === 'dgm5' ? s.id === 'dgm5' : source === 'maptiler' && s.id === 'terrain'))
-  let pending = lngLats.map((p, i) => (result[i] == null ? p : null))
   for (const tileSource of tiles) {
     if (!pending.some(Boolean)) break
     const zs = await sampleFrom(tileSource, pending)
@@ -189,16 +150,18 @@ export async function sampleHeightsWithSource(lngLats, { source = DEFAULT_TERRAI
 }
 
 /**
- * The dataset a source id names, as a reader knows it: 'dgm1-th 2020-2025' →
- * "DGM1 Thüringen 2020–2025". These are names, not words to translate.
+ * The dataset a source id names, as a reader knows it — 'dgm5' → "DGM5 (BKG)",
+ * a point source's own as it names them ('dgm1-th 2020-2025' → "DGM1 Thüringen
+ * 2020–2025"). These are names, not words to translate.
  */
 export function terrainSourceLabel(id) {
   if (id === 'dgm5') return 'DGM5 (BKG)'
   if (id === 'terrain') return 'MapTiler Terrain'
-  const m = /^dgm1-(\w+)(?: (\d{4})-(\d{4}))?$/.exec(id ?? '')
-  if (!m) return id ?? ''
-  const land = DGM1_LAENDER[m[1]]?.name ?? m[1].toUpperCase()
-  return `DGM1 ${land}${m[2] ? ` ${m[2]}–${m[3]}` : ''}`
+  for (const s of extensionsOf('terrainSources')) {
+    const label = s.label(id)
+    if (label) return label
+  }
+  return id ?? ''
 }
 
 /** Ground height [m] for each WGS84 point, null where no source has one (see sampleHeightsWithSource). */

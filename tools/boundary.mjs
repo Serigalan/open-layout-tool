@@ -55,12 +55,19 @@ export function resolveSpecifier(from, specifier) {
   return null
 }
 
+/**
+ * The entries of the two builds (src/main.jsx, src/main.local.jsx) belong to
+ * neither layer: a module that names one (a test reading its source) does not
+ * import what the entry imports.
+ */
+const isEntry = (path) => dirname(path) === SRC && /^main(\.\w+)?\.jsx$/.test(path.slice(SRC.length + 1))
+
 /** Module → the modules it imports, for every .js/.jsx under src/ (tests included). */
 export function importGraph() {
   const graph = new Map()
   for (const path of files(SRC).filter(p => /\.(js|jsx)$/.test(p))) {
     const deps = specifiersOf(readFileSync(path, 'utf8'))
-      .map(s => resolveSpecifier(path, s)).filter(p => p && /\.(js|jsx)$/.test(p))
+      .map(s => resolveSpecifier(path, s)).filter(p => p && /\.(js|jsx)$/.test(p) && !isEntry(p))
     graph.set(path, [...new Set(deps)])
   }
   return graph

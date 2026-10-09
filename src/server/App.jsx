@@ -18,6 +18,7 @@ const AdminPage = lazy(() => import('./collab/AdminPage'))
 const HistoryPage = lazy(() => import('./collab/HistoryPage'))
 const MapWorkspace = lazy(() => import('../core/shell/MapWorkspace'))
 const ViewerView = lazy(() => import('./ViewerView'))
+const WorkingCopyLayer = lazy(() => import('./WorkingCopyLayer'))
 
 /** While a page's chunk is on its way. */
 function Loading() {
@@ -73,7 +74,10 @@ function Shell() {
     return <ViewerView viewer={viewer} />
   }
   if (page === 'map' && project) {
-    return <MapWorkspace wc={wc} onHome={() => setPage('start')} />
+    return (
+      <MapWorkspace onHome={() => setPage('start')} beforeHome={wc.close} resetKey={wc.replaced}
+        renderExtras={(map) => <WorkingCopyLayer wc={wc} {...map} />} />
+    )
   }
 
   const openVariant = async (serverProject, variant) => {

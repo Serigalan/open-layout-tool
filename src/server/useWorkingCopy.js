@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { closeWorkingCopy, currentWorkingCopy } from '../core/storage'
+import { closeWorkingCopy, currentWorkingCopy } from './workingCopies'
 import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, revertToHead, serverHead } from './workingCopySync'
 import { useProject } from '../core/hooks/useStore'
 import { errorText } from './collab/errorText'

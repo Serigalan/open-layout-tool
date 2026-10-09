@@ -1,3 +1,5 @@
+import { storedBytes } from '../core/localStore'
+
 // Thin promise wrapper around IndexedDB for the working copies (phase 10).
 //
 // DB `olt`, version 2, one object store in use:
@@ -11,9 +13,9 @@
 // longer read: there is no taking over of local projects (decision 95). The
 // local storage dialog shows what they still hold and empties them on request.
 //
-// storage.js keeps the synchronous in-memory copy and calls these from its
-// write-behind flush, localStore.js for that dialog; nothing here is imported
-// by UI code.
+// core/storage.js keeps the synchronous in-memory copy and writes it through
+// workingCopies.js, which calls these; localStoreSections.js lists them in the
+// local storage dialog. Nothing here is imported by UI code.
 
 const DB_NAME = 'olt'
 const DB_VERSION = 2
@@ -104,21 +106,4 @@ export async function clearLegacyStores() {
   const tx = db.transaction(names, 'readwrite')
   for (const name of names) tx.objectStore(name).clear()
   await txDone(tx)
-}
-
-/**
- * About the bytes a record takes: its JSON at two bytes a character, as the
- * browser keeps strings, and any Blob in it at its own size.
- */
-export function storedBytes(value) {
-  let blobs = 0
-  try {
-    const text = JSON.stringify(value, (_key, v) => {
-      if (typeof Blob !== 'undefined' && v instanceof Blob) { blobs += v.size; return null }
-      return v
-    })
-    return 2 * (text?.length ?? 0) + blobs
-  } catch {
-    return blobs
-  }
 }

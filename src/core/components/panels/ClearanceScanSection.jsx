@@ -8,8 +8,8 @@ import { useI18n } from '../../locales/i18nContext'
 import { tOr, formatDate } from '../../locales/i18n'
 import { useProject } from '../../hooks/useStore'
 import { useMayEditClouds } from '../../hooks/useCurrentUser'
-import useServerRun, { runIsActive, runsOnServer } from '../../../server/useServerRun'
-import useRegistrationSession from '../../hooks/useRegistrationSession'
+import { runIsActive, runsOnServer, serverRunHook } from '../../utils/pointCloud/serverRuns'
+import { registrationHook } from '../../utils/pointCloud/cloudRegistration'
 import FormSection from '../form/FormSection'
 import ServerRunStatus from './pointCloud/ServerRunStatus'
 
@@ -33,7 +33,8 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
   const [result, setResult] = useState(null) // { trackId, stretches, checked, noGradient } | { error }
   const abortRef = useRef(null)
 
-  const { cloudsVersion } = useRegistrationSession(project.id)
+  const useCloudRegistration = registrationHook()
+  const { cloudsVersion } = useCloudRegistration(project.id)
   useEffect(() => {
     let live = true
     readableClouds(project.id).then(c => { if (live) setClouds(c) }).catch(() => {})
@@ -42,6 +43,7 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
   useEffect(() => () => abortRef.current?.abort(), [])
 
   const onServer = runsOnServer(clouds, mayEdit)
+  const useServerRun = serverRunHook()
   const server = useServerRun(project.id, 'clearance', { trackId: track?.id ?? '' }, clouds.some(c => c.server) && !!track)
 
   if (!clouds.length || !track) return null

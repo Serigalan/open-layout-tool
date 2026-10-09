@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import OptimizeTrackPanel from '../../../server/panels/OptimizeTrackPanel'
 import ShiftValuesPage from './shift/ShiftValuesPage'
 import GroupedTrackList from './GroupedTrackList'
 import {
-  PhysicsIcon, RegelwerkIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon, BandsIcon, ShiftValuesIcon,
+  PhysicsIcon, RegelwerkIcon, BandsIcon, ShiftValuesIcon,
 } from '../icons'
 import { useTracks } from '../../hooks/useStore'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
 import BackButton from './BackButton'
+import PanelToolButtons from './PanelTools'
+import { extensionsOf } from '../../extensions'
 
 /**
  * The bands of a track: pick one from the list or on the map, and its
@@ -38,7 +39,9 @@ function BandsPage({ trackId, onShow, onExit }) {
  * holds a track or an element to them, the one place it is offered; beside it
  * the alignment fit from a measured axis (AP 12.5). Last the bands of a track,
  * to read its alignment along it at one glance, and the shift values of a
- * track against a reference axis (Paket V).
+ * track against a reference axis (Paket V). The optimizer and the alignment
+ * fit run on the optimizer service: the server puts them in (`panelTools` of
+ * 'check', Paket L).
  */
 export default function CheckPanel({ onShowPhysics, onShowRegelwerk, bandsTrackId, onShowBands }) {
   const { t } = useI18n()
@@ -60,10 +63,11 @@ export default function CheckPanel({ onShowPhysics, onShowRegelwerk, bandsTrackI
       </>
     )
   }
-  if (page !== 'menu') {
-    return (
-      <OptimizeTrackPanel initialPage={page} onExit={() => setPage('menu')} onShowRegelwerk={onShowRegelwerk} />
-    )
+  const tools = extensionsOf('panelTools').filter(x => x.panel === 'check')
+  const tool = tools.find(x => x.id === page)
+  if (tool) {
+    const Tool = tool.Component
+    return <Tool onExit={() => setPage('menu')} onShowRegelwerk={onShowRegelwerk} />
   }
   return (
     <>
@@ -78,19 +82,7 @@ export default function CheckPanel({ onShowPhysics, onShowRegelwerk, bandsTrackI
           <RegelwerkIcon />
           {t('constraints_regelwerk')}
         </button>
-        <span className="create-element-section">{t('check_optimize')}</span>
-        <button className="create-element-btn" onClick={() => setPage('track')}>
-          <OptimizeTrackModeIcon />
-          {t('optimize_mode_track')}
-        </button>
-        <button className="create-element-btn" onClick={() => setPage('element')}>
-          <OptimizeElementModeIcon />
-          {t('optimize_mode_element')}
-        </button>
-        <button className="create-element-btn" onClick={() => setPage('axis')}>
-          <AxisFitModeIcon />
-          {t('optimize_mode_axis')}
-        </button>
+        <PanelToolButtons panel="check" onPick={setPage} />
         <span className="create-element-section">{t('check_bands')}</span>
         <button className="create-element-btn" onClick={() => setPage('bands')}>
           <BandsIcon />

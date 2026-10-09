@@ -80,7 +80,8 @@ function ImportProgress({ run }) {
  * Read in locally, the cloud is kept thinned to 2-cm voxels in the project's
  * plane, or on request every point as the file states it (Entscheidung 145);
  * uploaded, the server makes every level in the file's plane. `onUpload` gets
- * what an upload needs and runs it; `onMessage` reports how a local import
+ * what an upload needs and runs it — null where there is no server (Paket L),
+ * then a file is only read in here; `onMessage` reports how a local import
  * went, `onChanged` that the stored clouds changed, `onRunning` whether an
  * import runs.
  */
@@ -169,11 +170,14 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
   if (!pick) {
     return (
       <div className="pointcloud-actions">
-        <FilePickButton accept=".laz,.las,.e57" onFile={choose('upload')} className="panel-btn" title={t('pointcloud_upload_hint')}>
-          {t('pointcloud_upload')}
-        </FilePickButton>
+        {onUpload && (
+          <FilePickButton accept=".laz,.las,.e57" onFile={choose('upload')} className="panel-btn" title={t('pointcloud_upload_hint')}>
+            {t('pointcloud_upload')}
+          </FilePickButton>
+        )}
         {localAvailable && (
-          <FilePickButton accept=".laz,.las,.e57" onFile={choose('local')} className="modal-btn modal-btn-cancel" title={t('pointcloud_local_hint')}>
+          <FilePickButton accept=".laz,.las,.e57" onFile={choose('local')} className={onUpload ? 'modal-btn modal-btn-cancel' : 'panel-btn'}
+            title={t('pointcloud_local_hint')}>
             {t('pointcloud_import')}
           </FilePickButton>
         )}

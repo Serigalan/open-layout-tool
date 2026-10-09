@@ -1,8 +1,12 @@
+// The main build (Paket L): core and server. The server components dock onto
+// core first — before anything renders — through the extension points they fill.
+import './server/register'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './core/index.css'
 import App from './server/App.jsx'
 import { initStorage } from './core/storage'
+import { initWorkingCopies } from './server/workingCopies'
 import { loadNtv2Grid } from './core/utils/ntv2Grid'
 
 // The grid first, then the store — in that order, not side by side.
@@ -29,7 +33,7 @@ if (location.hash.startsWith('#/cloud3d')) {
     createRoot(document.getElementById('root')).render(<StrictMode><Cloud3dApp /></StrictMode>)
   })
 } else {
-  loadNtv2Grid().then(initStorage).then(() => {
+  loadNtv2Grid().then(initStorage).then(initWorkingCopies).then(() => {
     createRoot(document.getElementById('root')).render(
       <StrictMode>
         <App />

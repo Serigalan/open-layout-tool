@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { importLevels, importPointCloud } from './importPipeline'
-import { readLasHeader } from './lasReader'
-import { bytesSource, makeLas } from '../../test/pointCloudFixture'
+import { importLevels, importPointCloud } from '../core/utils/pointCloud/importPipeline'
+import { readLasHeader } from '../core/utils/pointCloud/lasReader'
+import { bytesSource, makeLas } from '../core/test/pointCloudFixture'
+import { extend } from '../core/extensions'
 
 // The server's tile files, as the mocked API serves them: "cloudId|level" → bytes.
 const served = new Map()
 const calls = []
-vi.mock('../../../server/api/client', () => ({
+vi.mock('./api/client', () => ({
   api: {
     cloudRanges: async (projectId, cloudId, level, ranges) => {
       calls.push(ranges.length)
@@ -19,9 +20,11 @@ vi.mock('../../../server/api/client', () => ({
   },
 }))
 
-const { sourceOf } = await import('./cloudSource')
-const { transformMatrix, applyMatrix, invertMatrix } = await import('./registration')
-const { cloudSectionPoints } = await import('./cloudSection')
+const { sourceOf } = await import('../core/utils/pointCloud/cloudSource')
+const { transformMatrix, applyMatrix, invertMatrix } = await import('../core/utils/pointCloud/registration')
+const { cloudSectionPoints } = await import('../core/utils/pointCloud/cloudSection')
+const { serverClouds } = await import('./cloudsOnServer')
+extend('cloudProviders', serverClouds)
 
 const memoryWriter = () => {
   const parts = []

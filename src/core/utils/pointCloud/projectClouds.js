@@ -1,46 +1,18 @@
-import { api } from '../../../server/api/client'
 import { listClouds } from './cloudStore'
+import { extensionsOf } from '../../extensions'
 
 /**
  * The clouds of a project as the cross section, the clearance check and the
- * rail trace read them (AP 13.6): those on the server that are ready and lie
- * in a known system — each one level of detail, its index fetched once — and
- * those read in on this device (Entscheidung 204). A server cloud carries
- * `server: { level }`, which tells cloudSource where to read it, and its
- * re-referencing in force as `transform` (AP 13.15), which every reader
- * applies (cloudCrs.cloudToPlane).
- */
-
-const indexes = new Map()   // "cloudId|level|readyAt" → Promise<index>
-
-/** The re-referencing of a cloud as the readers take it. */
-const transformOf = (row) => (row.transform ? { id: row.transform.id, matrix: row.transform.matrix, crs: row.transform.crs } : null)
-
-/** The index of one level of a server cloud (`row` as the API lists it), fetched once. */
-export function serverLevel(projectId, row, level) {
-  const key = `${row.id}|${level}|${row.readyAt}`
-  if (!indexes.has(key)) {
-    indexes.set(key, api.cloudIndex(projectId, row.id, level)
-      .catch((err) => { indexes.delete(key); throw err }))
-  }
-  return indexes.get(key).then(index => ({ ...index, id: row.id, server: { level }, transform: transformOf(row) }))
-}
-
-/**
- * A server cloud the cross section can read: ready, and in a system the
- * tracks can be put into — its own, or the one a re-referencing put it in.
- */
-export const readableOnServer = (row) => row.status === 'ready' && (row.crs != null || row.transform != null)
-
-/**
- * The server's clouds at `level` (1 the 2-cm voxel, 0 the original) and this
- * device's. A server that cannot be reached leaves the local ones.
+ * rail trace read them (AP 13.6): those the providers of the extension point
+ * `cloudProviders` list (Paket L: the server's in the main build) and those
+ * read in on this device (Entscheidung 204). A provider is
+ *   { id, list(projectId, { level }) → clouds, sourceKey(cloud), reader(projectId, cloud) }
+ * (see cloudSource). A provider that cannot be reached leaves the local ones.
  */
 export async function readableClouds(projectId, { level = 1 } = {}) {
-  const [local, rows] = await Promise.all([
+  const [local, ...remote] = await Promise.all([
     listClouds(projectId).catch(() => []),
-    api.clouds(projectId).then(r => r.clouds).catch(() => []),
+    ...extensionsOf('cloudProviders').map(p => p.list(projectId, { level }).catch(() => [])),
   ])
-  const remote = await Promise.all(rows.filter(readableOnServer).map(r => serverLevel(projectId, r, level).catch(() => null)))
-  return [...remote.filter(Boolean), ...local]
+  return [...remote.flat(), ...local]
 }

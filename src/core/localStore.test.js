@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { bytesText, classifyKey, groupFiles, walkFiles } from './localStore'
-import { storedBytes } from './utils/idbStorage'
+import { bytesText, classifyKey, groupFiles, storedBytes, walkFiles } from './localStore'
+
 
 /** A directory of the Origin Private File System, as far as walkFiles reads one. */
 function fakeDir(tree) {

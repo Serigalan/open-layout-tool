@@ -9,7 +9,7 @@ import { cloudRefsOf } from '../../../utils/pointCloud/surveyShift'
 import { generateId } from '../../../utils/identifierUtils'
 import { saveAxisSurvey } from '../../../storage'
 import { useMayEditClouds } from '../../../hooks/useCurrentUser'
-import useServerRun, { runIsActive, runsOnServer } from '../../../../server/useServerRun'
+import { runIsActive, runsOnServer, serverRunHook } from '../../../utils/pointCloud/serverRuns'
 import { useI18n } from '../../../locales/i18nContext'
 import { tOr, formatDate } from '../../../locales/i18n'
 import { useProject } from '../../../hooks/useStore'
@@ -99,6 +99,7 @@ export default function RailTraceSection({ clouds, paused = false, retrace = nul
     }
   }
   const onServer = runsOnServer(clouds, mayEdit)
+  const useServerRun = serverRunHook()
   const server = useServerRun(project.id, 'trace', null, clouds.some(c => c.server))
   const serverBusy = runIsActive(server.run)
 

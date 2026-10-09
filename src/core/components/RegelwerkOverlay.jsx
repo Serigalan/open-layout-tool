@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchRegelwerke, fetchRegelwerk } from '../../server/optimizerService'
+import { provided } from '../extensions'
 import { BUNDLED_KATALOG_VERSION, GRENZWERTE, optimizerLimitRows } from '../utils/constraintsView'
 import { WEICHEN_REGELWERK } from '../utils/weichenRegelwerk'
 import { CATALOG_ID } from '../utils/regelkatalog'
@@ -25,17 +25,20 @@ import CloseButton from './form/CloseButton'
  *
  * Bundled rulebooks come first and are always there; anything else the service
  * lists is appended, so a regelwerk added to the service later shows up here
- * without a change to this file.
+ * without a change to this file. Without the service (the local build: no
+ * `regelwerkService`, Paket L) the bundled rulebooks are all there is.
  */
 
 const BUNDLED_IDS = [CATALOG_ID, WEICHEN_REGELWERK.id, QUERSCHNITT_KATALOG.katalog.id]
 
 export default function RegelwerkOverlay({ regelwerkId, onClose }) {
   const { t, fill } = useI18n()
+  // The optimizer service's catalogues: { list() → { regelwerke, drift }, get(id) → regelwerk | null }.
+  const service = provided('regelwerkService', null)
   // null while the list is still being asked for, [] once the service has
   // answered with nothing — the two read the same in a table but not to the
   // reader, who is told either "loading" or "no server".
-  const [regelwerke, setRegelwerke] = useState(null)
+  const [regelwerke, setRegelwerke] = useState(service ? null : [])
   const [catalogDrift, setCatalogDrift] = useState(null)   // R0.1
   const [wanted, setWanted] = useState(regelwerkId ?? '')
   // Keyed by id, and only ever written from the fetch callback — never
@@ -45,14 +48,15 @@ export default function RegelwerkOverlay({ regelwerkId, onClose }) {
   const [status, setStatus] = useState(null)   // { id, regelwerk } | { id, failed: true }
 
   useEffect(() => {
+    if (!service) return undefined
     let cancelled = false
-    fetchRegelwerke().then(({ regelwerke: list, drift }) => {
+    service.list().then(({ regelwerke: list, drift }) => {
       if (cancelled) return
       setRegelwerke(list)
       setCatalogDrift(drift)
     })
     return () => { cancelled = true }
-  }, [])
+  }, [service])
 
   // The bundled rulebooks say their own name through the app, in whichever
   // language it is asked in (regelwerk_title_<id>) — the way every other name
@@ -72,12 +76,12 @@ export default function RegelwerkOverlay({ regelwerkId, onClose }) {
   useEffect(() => {
     if (!id || !served) return
     let cancelled = false
-    fetchRegelwerk(id).then(rw => {
+    service.get(id).then(rw => {
       if (cancelled) return
       setStatus(rw ? { id, regelwerk: rw } : { id, failed: true })
     })
     return () => { cancelled = true }
-  }, [id, served])
+  }, [id, served, service])
 
   const current = status?.id === id ? status : null
   const regelwerk = current?.regelwerk ?? null
@@ -115,7 +119,7 @@ export default function RegelwerkOverlay({ regelwerkId, onClose }) {
             shown: the bundled rules are still there and still true, and the
             reader has to know that the values half is missing rather than
             gone. */}
-        {regelwerke?.length === 0 && (
+        {service && regelwerke?.length === 0 && (
           <p className="constraints-error">{t('constraints_service_down')}</p>
         )}
         {catalogDrift && <p className="constraints-error">{t('optimizer_catalog_drift')}</p>}

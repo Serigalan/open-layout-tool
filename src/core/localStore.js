@@ -1,6 +1,5 @@
-import * as idb from './utils/idbStorage'
-import { localChanges } from '../server/workingCopySync'
-import { REPORT_KEY_PREFIX, HIDDEN_KEY_PREFIX, discardWorkingCopy, forgetHiddenTracks } from './storage'
+import { REPORT_KEY_PREFIX, HIDDEN_KEY_PREFIX, forgetHiddenTracks } from './storage'
+import { extensionsOf } from './extensions'
 import { SETTINGS_KEY } from './utils/settings'
 import { INDEX_FILE, opfsAvailable, storageEstimate, storagePersisted } from './utils/pointCloud/cloudStore'
 import { forgetAllClouds, forgetCloud } from './utils/pointCloud/cloudSection'
@@ -9,21 +8,27 @@ import { formatNum } from './locales/i18n'
 
 /**
  * What this browser keeps for the app, and taking it away again — the local
- * storage dialog of the start page. Three places hold it:
+ * storage dialog of the start page. Two places hold it here:
  *
  *   files          the Origin Private File System: the point clouds under
  *                  pointclouds/<projectId>/<cloudId>/, each one entry; an
  *                  import that never finished is one too, without a name;
  *                  anything else at the top of the tree one entry each
- *   working copies IndexedDB, one per variant opened here, with the changes
- *                  not checked in yet; and what the stores of version 1 still
- *                  hold (idbStorage.js)
  *   entries        localStorage: the settings, the import reports and the
  *                  hidden tracks — small, but each its own entry
  *
- * Sizes are what the browser says for files and an estimate for the rest
- * (idb.storedBytes). Nothing here asks the server; the dialog names projects
- * and variants from the list it already has.
+ * and IndexedDB a third, as whoever keeps projects there says: the working
+ * copies of the variants (server/localStoreSections.js) or the projects of the
+ * local build (core/home/localProjects.js), each a section of its own
+ * (extension point `localStoreSections`):
+ *
+ *   { id, read(): Promise<items>, deleteAll(), unsaved?(items): number,
+ *     rows(items, ctx): { title, hint?, into?: 'other', rows: [row] } }
+ *
+ * `ctx` is { t, fill, language, projects, row, size } — `row` makes one line of
+ * the dialog. Sizes are what the browser says for files and an estimate for
+ * the rest (storedBytes). Nothing here asks the server; the dialog names
+ * projects and variants from the list it already has.
  */
 
 const CLOUD_ROOT = 'pointclouds'
@@ -118,18 +123,27 @@ async function readFiles() {
   return { clouds, other }
 }
 
-async function readWorkingCopies() {
-  let copies = []
-  try { copies = await idb.getAllWorkingCopies() } catch { return [] }
-  return copies.map(wc => {
-    let changes = null
-    try { changes = localChanges(wc).length } catch { /* a record this version cannot read */ }
-    return { variantId: wc.variantId, projectId: wc.projectId, updatedAt: wc.updatedAt ?? null, changes, bytes: idb.storedBytes(wc) }
-  }).sort((a, b) => b.bytes - a.bytes)
+/**
+ * About the bytes a record takes: its JSON at two bytes a character, as the
+ * browser keeps strings, and any Blob in it at its own size.
+ */
+export function storedBytes(value) {
+  let blobs = 0
+  try {
+    const text = JSON.stringify(value, (_key, v) => {
+      if (typeof Blob !== 'undefined' && v instanceof Blob) { blobs += v.size; return null }
+      return v
+    })
+    return 2 * (text?.length ?? 0) + blobs
+  } catch {
+    return blobs
+  }
 }
 
-async function readLegacy() {
-  try { return await idb.legacyContents() } catch { return { records: 0, bytes: 0 } }
+/** What each section of the extension point holds: { [id]: items }, a section that cannot be read empty. */
+async function readSections() {
+  const all = await Promise.all(extensionsOf('localStoreSections').map(s => s.read().catch(() => [])))
+  return Object.fromEntries(extensionsOf('localStoreSections').map((s, k) => [s.id, all[k]]))
 }
 
 function readEntries() {
@@ -147,11 +161,11 @@ function readEntries() {
 
 /** Everything the dialog lists, and how much of the browser's room the app takes. */
 export async function readLocalStore() {
-  const [files, workingCopies, legacy, estimate, persisted] = await Promise.all([
+  const [files, sections, estimate, persisted] = await Promise.all([
     readFiles().catch(() => ({ clouds: [], other: [] })),
-    readWorkingCopies(), readLegacy(), storageEstimate(), storagePersisted(),
+    readSections(), storageEstimate(), storagePersisted(),
   ])
-  return { ...files, workingCopies, legacy, entries: readEntries(), estimate, persisted }
+  return { ...files, sections, entries: readEntries(), estimate, persisted }
 }
 
 async function removePath(path) {
@@ -178,20 +192,16 @@ export async function deleteLocalFile(entry) {
   if (entry.path[0] === 'cloudcache') forgetCache()
 }
 
-export const deleteLocalWorkingCopy = (variantId) => discardWorkingCopy(variantId)
-
-export const deleteLegacy = () => idb.clearLegacyStores()
-
 export function deleteEntry(key) {
   localStorage.removeItem(key)
   if (classifyKey(key).kind === 'hidden') forgetHiddenTracks()
 }
 
 /**
- * Delete all of it: every file, every working copy with what was not checked
- * in, the stores of version 1 and every entry — settings included, so the app
- * starts as on a new device. Each place is tried even when another fails; the
- * first failure is thrown at the end.
+ * Delete all of it: every file, what every section keeps — the working copies
+ * with what was not checked in, the projects of the local build — and every
+ * entry, settings included, so the app starts as on a new device. Each place
+ * is tried even when another fails; the first failure is thrown at the end.
  */
 export async function deleteAllLocal() {
   const failures = []
@@ -203,10 +213,7 @@ export async function deleteAllLocal() {
     for await (const name of root.keys()) names.push(name)
     for (const name of names) await root.removeEntry(name, { recursive: true })
   })
-  await attempt(async () => {
-    for (const wc of await idb.getAllWorkingCopies()) await discardWorkingCopy(wc.variantId)
-  })
-  await attempt(() => idb.clearLegacyStores())
+  for (const section of extensionsOf('localStoreSections')) await attempt(() => section.deleteAll())
   await attempt(() => { localStorage.clear(); forgetHiddenTracks() })
   forgetAllClouds()
   forgetCache()

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api/client'
+import { runIsActive } from '../core/utils/pointCloud/serverRuns'
 
 /**
  * Long runs over a project's clouds on the server (AP 13.7) as the panels
@@ -10,16 +11,6 @@ import { api } from './api/client'
 
 /** How often a run on the server is asked for [ms]. */
 const POLL = 2000
-
-const ACTIVE = new Set(['queued', 'running'])
-export const runIsActive = (run) => ACTIVE.has(run?.status)
-
-/**
- * Whether a long run goes to the server (decision 237): when the user may
- * start one (decision 203) and every cloud it reads lies there. A cloud only
- * on this device, or a user without the right, keeps it in the browser.
- */
-export const runsOnServer = (clouds, mayEdit) => Boolean(mayEdit) && clouds.length > 0 && clouds.every(c => c.server)
 
 /**
  * The latest run of `kind` on the server whose subject has the fields of
