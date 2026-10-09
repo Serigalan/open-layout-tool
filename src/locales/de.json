@@ -1098,7 +1098,7 @@
   "crossover_err_no_range": "Der Bereich muss vor und hinter der Weichenverbindung mindestens 1 m lang sein.",
   "crossover_err_cant_not_on_arc": "Die Weichenverbindung liegt nicht in einem Kreisbogen — die Überhöhung lässt sich hier nicht setzen.",
   "elevation_switch_no_lds": "Weiche {name} ({label}): ldS nicht im Weichenkatalog – nicht gekoppelt, Weichenbereich bis WE",
-  "elevation_couple_hint": "{n} Weichen sind noch nicht gekoppelt: ihre Höhenpunkte zwischen WA und ldS liegen noch nicht paarweise auf den Schwellen. Das geschieht bei der nächsten Änderung an einem ihrer Gleise oder hier.",
+  "elevation_couple_hint": "{n} Weichen sind noch nicht gekoppelt: WA und ldS liegen noch nicht auf der Geraden durch die Punkte davor und dahinter, die Punkte im Weichenbereich nicht paarweise auf den Schwellen oder der Punkt hinter der ldS nicht auf der Fortführung. Das geschieht bei der nächsten Änderung an einem ihrer Gleise oder hier – Höhen können sich dabei ändern.",
   "elevation_couple_all": "Weichen jetzt koppeln ({n})",
   "elevation_rules_none": "Ohne Gradiente gibt es nichts zu prüfen.",
   "elevation_rules_unchecked": "{n} Neigungswechsel ohne Entwurfsgeschwindigkeit: Länge und Halbmesser dort nicht geprüft.",

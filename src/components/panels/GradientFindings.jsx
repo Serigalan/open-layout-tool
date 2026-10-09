@@ -1,6 +1,7 @@
 import { useProject } from '../../hooks/useStore'
 import { checkVertical, verticalFindings } from '../../utils/gradientCheck'
-import { couplingOf, pairedHeights, planeDeviations, switchLds } from '../../utils/switchGradient'
+import { couplingOf, planeDeviations, switchLds } from '../../utils/switchGradient'
+import { pendingTurnouts } from '../../utils/switchChain'
 import { isLinkSwitch, portsOf } from '../../utils/switchModel'
 import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
 import { useI18n } from '../../locales/i18nContext'
@@ -21,15 +22,18 @@ export default function GradientFindings({ trackId }) {
   if (!track) return <p className="selecting-hint">{t('elevation_rules_pick')}</p>
   const turnouts = (project.switches ?? []).filter(sw => !isLinkSwitch(sw)
     && portsOf(sw).some(p => sw[p.trackKey] === track.id))
+  // What coupling would still change (Paket WK): the pairs, the lines through
+  // toe and ldS, the continuation behind it.
+  const pendingIds = new Set(pendingTurnouts(project).map(sw => sw.switchId))
   const switchLines = turnouts.map(sw => {
     const c = couplingOf(project.tracks, project.switches, sw)
     const name = sw.name ?? sw.label ?? ''
     if (c) {
       const station = (c.main.track.id === track.id ? c.ldsMain : c.branch.track.id === track.id ? c.ldsBranch : null)
       if (station == null) return null
-      // Coupled where its points already lie in pairs on the sleepers — else
-      // they will with the next write that reaches the turnout, or the button.
-      const pending = pairedHeights(c, 'main')
+      // Coupled where nothing would change any more — else it will be with
+      // the next write that reaches the turnout, or the button.
+      const pending = pendingIds.has(sw.switchId)
       const key = pending ? 'elevation_switch_pending' : 'elevation_switch_coupled'
       const line = fill(key, { name, label: sw.label ?? '', station: station.toFixed(2) })
       // Where the two tracks no longer lie in the turnout's plane.
