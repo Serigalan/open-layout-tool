@@ -561,6 +561,12 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
     chain1: c.chain1, chain2: c.chain2, branch1, branch2, bearing2A: c.bearing2A,
     stemR1: stemRadius(frame.stem1, frame.s1),
     stemR2: stemRadius(frame.stem2, c.s2),
+    // The track under each turnout's through route, from its toe the way it
+    // opens: on a transition a piece of clothoid, which the through route has
+    // to follow to end on the track — the radius at the toe carried on would
+    // put the switch end beside it.
+    stemRoute1: stemUnder(frame.stem1, frame.s1, throughLength),
+    stemRoute2: stemUnder(reverseStem(frame.stem2), -c.s2, throughLength),
     cant1Start: c.cant1Start, cant1End: c.cant1End,
     cant2Start: c.cant2Start, cant2End: c.cant2End, cantMid: c.cantMid,
     cantLds1: c.cantLds1, cantLds2: c.cantLds2,

@@ -3,8 +3,12 @@ import { SWITCH_TYPES } from '../switchConnectionUtils'
 import { stems, solveConnection, computeShiftBounds, settleConnection, connectionRemnants, connectionPick, buildSCurve, shiftStops, preferredShift, waOffset } from './sCurve'
 import { minElementLength } from '../rules/elementLength'
 import { hasPekBestand, loadPekBestand } from '../../test/pekFixture'
-import { hydrateProjects } from '../persistenceUtils'
-import { expectNodesJoin, expectSwitchRoutesCarved } from '../../test/chainInvariants'
+import { hydrateProjects, dehydrateProjects } from '../persistenceUtils'
+import { expectNodesJoin, expectSwitchRoutesCarved, expectTangentsContinuous } from '../../test/chainInvariants'
+import { utmEndRoute } from '../switch/route'
+import { computeClothoidUtm, transitionPointAtUtm } from '../clothoidUtils'
+import { switchStraightLength } from '../switch/catalogue'
+import { checkTrack } from '../trassierungCheck'
 
 const EPSG  = 25832
 const P     = (e, n) => ({ easting: e, northing: n, zone: EPSG })
@@ -303,5 +307,67 @@ describe.skipIf(!hasPekBestand)('minimum element length on the PEK Bestand', () 
     const pieces = commit.addTracks.slice(0, -1).flatMap(tr => tr.elements)
       .filter(el => !el.switchId && !before.has(el.length.toFixed(3)))
     for (const el of pieces) expect(el.length, `piece of ${el.length} m`).toBeGreaterThan(1)
+  })
+})
+
+describe('a turnout of the connection laid into a transition curve', () => {
+  // Track 1 straight east; track 2 4.5 m to its left, straight for 150 m and
+  // then a clothoid into a left-hand R 600 over 100 m. The second turnout's toe
+  // falls into the clothoid, and its through route runs back along it.
+  const R = -600
+  const S = P(500000, 5600000)
+  const straight = (start, bearing, length) => {
+    const end = utmEndRoute(start, bearing, length, null)
+    return { elementType: 0, startNode: [start.easting, start.northing], endNode: [end.easting, end.northing],
+      bearing, length, absLength: length, speed: 80 }
+  }
+  const S2 = P(500000, 5600004.5)
+  const T2 = utmEndRoute(S2, 90, 150, null)
+  const c = computeClothoidUtm(T2, 90, 100, null, R)
+  const project = hydrateProjects(JSON.parse(JSON.stringify(dehydrateProjects([{ id: 'p', switches: [], tracks: [
+    { id: 't1', name: 'line.001', epsg: EPSG, elements: [straight(S, 90, 400)] },
+    { id: 't2', name: 'line.002', epsg: EPSG, elements: [straight(S2, 90, 150), {
+      elementType: 2, transitionType: 'clothoid', r1: null, r2: R,
+      startNode: [T2.easting, T2.northing], endNode: [c.endUtm.easting, c.endUtm.northing],
+      bearing: 90, endBearing: c.endBearing, length: 100, absLength: 100, speed: 80,
+    }] },
+  ] }]))))[0]
+  const picks = [connectionPick(project.tracks[0], 0, 60), connectionPick(project.tracks[1], 1, 60)]
+  const speed = 60
+  const bounds = computeShiftBounds({ picks, speed })
+  const res = solveConnection({ picks, speed, shift: (bounds.min + bounds.max) / 2 })
+  const commit = buildSCurve({ result: res, picks, tracks: project.tracks, switches: [], speed })
+  // Track 2 as the commit parts it, in its own order.
+  const line2 = commit.remap.find(r => r.oldId === 't2').newId.map(id => commit.addTracks.find(tr => tr.id === id))
+  const transitions = line2.flatMap(tr => tr.elements.filter(el => el.elementType === 2))
+
+  it('parts the clothoid at the toe into clothoids of its own, radii running on', () => {
+    expect(res.valid).toBe(true)
+    expect(commit.carveError).toBeUndefined()
+    // Before WE, under the turnout, behind WA: three pieces of the one clothoid.
+    expect(transitions).toHaveLength(3)
+    expect(transitions[0].r1).toBeNull()
+    expect(transitions[2].r2).toBe(R)
+    for (const [a, b] of [[transitions[0], transitions[1]], [transitions[1], transitions[2]]]) {
+      expect(a.r2).toBeCloseTo(b.r1, 6)
+    }
+    expect(transitions.reduce((sum, el) => sum + el.length, 0)).toBeCloseTo(100, 6)
+    for (const tr of line2) {
+      expectNodesJoin(tr.elements)
+      expectTangentsContinuous(tr.elements, tr.epsg)
+      expect(checkTrack(tr.elements).perElement.flatMap(e => e.results).filter(r => r.severity === 'error')).toEqual([])
+    }
+  })
+
+  it('ends the through route on the clothoid, not on the radius at the toe carried on', () => {
+    const route = transitions[1]
+    expect(route.switchId).toBeTruthy()
+    expect(route.length).toBeCloseTo(switchStraightLength(res.switchType), 6)
+    // WE: where the piece under the turnout begins, on the clothoid as it was.
+    const at = transitionPointAtUtm(T2, 90, 100, null, R, 'clothoid', transitions[0].length)
+    expect(Math.hypot(route.startNode[0] - at.easting, route.startNode[1] - at.northing)).toBeLessThan(1e-3)
+    // The record still states the radius at the toe.
+    const sw = commit.addSwitches.find(s => s.switchId === route.switchId)
+    expect(Math.abs(sw.mainRadius)).toBeCloseTo(Math.abs(transitions[1].r2), 3)
   })
 })

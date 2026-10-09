@@ -1,7 +1,7 @@
 import { generateId, switchDesignation, nextSwitchNumber } from '../identifierUtils'
 import { nextTrackName, rebuildCoords, recalcAbsLengths, trackLabel } from '../trackModel'
 import { nodeUtm } from '../elementUtils'
-import { switchElementRoute } from '../switch/route'
+import { switchElementRoute, switchRouteVaries } from '../switch/route'
 import { transitionCantEnds } from '../clothoidUtils'
 import { computeSwitchGeometryUtm } from '../switch/symbol'
 import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../coordinateUtils'
@@ -117,15 +117,22 @@ const JOINT_TOL = 1e-3
 
 // Part a track at a toe `station` along its element `elIdx`. On one of the
 // element's nodes that is the joint itself — cut there, the element would
-// leave a piece of no length behind.
+// leave a piece of no length behind. A transition is cut at the station, as
+// the clothoid it is: its pieces run from its radii to the one at the toe.
 function splitAtToe(track, elIdx, station, junction, bearing, existingNames) {
   const n = track.elements.length
   const j = station <= JOINT_TOL ? elIdx
     : station >= track.elements[elIdx].length - JOINT_TOL ? elIdx + 1 : null
+  const cut = track.elements[elIdx].elementType === 2 ? { ...junction, station } : junction
   return j != null && j > 0 && j < n
     ? splitTrackAtJoint(track, j, bearing, existingNames)
-    : splitElementAt(track, elIdx, junction, bearing, existingNames)
+    : splitElementAt(track, elIdx, cut, bearing, existingNames)
 }
+
+// What a turnout is bent onto: the radius at its toe, or on a transition the
+// piece of clothoid under its through route ({ r1, r2 } from the toe), so its
+// switch end and its symbol lie on the track.
+const bentOnto = (route, atToe) => (route && switchRouteVaries(route) ? { r1: route.r1, r2: route.r2 } : atToe)
 
 // A plane point expressed in another CRS plane (as it is when already there).
 function toPlane(p, crs) {
@@ -529,7 +536,7 @@ export function buildSCurve({ result, picks, tracks, switches, speed }) {
   const j1 = buildJunctionSwitch({
     jWgs: res.tp1Wgs, jNode: [res.TP1.easting, res.TP1.northing], zone,
     tangentBearing: b1, side, sw: swType, speed, switchNumber: no1, identity: id1,
-    stemR: res.stemR1, branchStraight: straight(res.chain1),
+    stemR: bentOnto(res.stemRoute1, res.stemR1), branchStraight: straight(res.chain1),
     behind: { trackId: s1.behind.id, endpoint: s1.behindEndpoint },
     ahead:  { trackId: s1.ahead.id,  endpoint: s1.aheadEndpoint },
     conn:   { trackId: connId, endpoint: 'BEGIN' },
@@ -539,7 +546,7 @@ export function buildSCurve({ result, picks, tracks, switches, speed }) {
     tangentBearing: res.bearing2, side, sw: swType, speed, switchNumber: no2, identity: id2,
     // Turnout 2 opens against the direction the connection runs, so its stem
     // turns the other way under it.
-    stemR: res.stemR2 == null ? null : -res.stemR2, branchStraight: straight(res.chain2),
+    stemR: bentOnto(res.stemRoute2, res.stemR2 == null ? null : -res.stemR2), branchStraight: straight(res.chain2),
     behind: { trackId: s2.behind.id, endpoint: s2.behindEndpoint },
     ahead:  { trackId: s2.ahead.id,  endpoint: s2.aheadEndpoint },
     conn:   { trackId: connId, endpoint: 'END' },
