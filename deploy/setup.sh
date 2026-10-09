@@ -84,9 +84,9 @@ done
 # The service user only reads the checkout; the build is done as root. A
 # checkout under a closed directory (/root, mode 0700) gets the user through
 # with an ACL that allows passing, not listing — for this user only.
-d=$OLT_REPO
-while [ "$d" != / ]; do
-  d=$(dirname "$d")
+dirs=() d=$OLT_REPO
+while [ "$d" != / ]; do d=$(dirname "$d"); dirs=("$d" "${dirs[@]}"); done
+for d in "${dirs[@]}"; do   # from / inwards: an inner one may be closed only by an outer one
   if ! as_user test -x "$d"; then
     setfacl -m "u:$OLT_USER:--x" "$d"
     echo "ACL: $OLT_USER may pass through $d"
