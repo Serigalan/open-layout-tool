@@ -50,14 +50,15 @@ if [ "$build" = 1 ]; then
     (cd tools/server && npm ci --omit=dev --no-audit --no-fund)
     mark_done npm-server tools/server/package-lock.json
   fi
-  if changed pip tools/optimizer/pyproject.toml || [ ! -x "$OLT_VENV/bin/olt-optimizer-serve" ]; then
+  if changed pip tools/optimizer/pyproject.toml tools/optimizer/requirements.lock || [ ! -x "$OLT_VENV/bin/olt-optimizer-serve" ]; then
     step "pip install (optimizer, editable)"
     # Editable: the service reads src/constraints through the symlink
     # olt_optimizer/constraints, so app and service always read the same
-    # catalogue files (the app compares their hash, R0.1).
+    # catalogue files (the app compares their hash, R0.1). The versions come
+    # from requirements.lock, the same on every server and in CI.
     "$OLT_VENV/bin/pip" install -q --upgrade pip
-    "$OLT_VENV/bin/pip" install -q -e 'tools/optimizer[terrain]'
-    mark_done pip tools/optimizer/pyproject.toml
+    "$OLT_VENV/bin/pip" install -q -c tools/optimizer/requirements.lock -e 'tools/optimizer[terrain]'
+    mark_done pip tools/optimizer/pyproject.toml tools/optimizer/requirements.lock
   fi
 
   step "Build"

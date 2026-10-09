@@ -31,10 +31,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          # The servers' Python (Ubuntu 22.04), with the versions they run.
+          python-version: '3.10'
           cache: pip
-          cache-dependency-path: tools/optimizer/pyproject.toml
-      - run: pip install -e 'tools/optimizer[terrain]'
+          cache-dependency-path: |
+            tools/optimizer/pyproject.toml
+            tools/optimizer/requirements.lock
+      - run: pip install -c tools/optimizer/requirements.lock -e 'tools/optimizer[terrain]'
       - run: python tests/vectors.py
         working-directory: tools/optimizer
       - run: python tests/verify_service.py

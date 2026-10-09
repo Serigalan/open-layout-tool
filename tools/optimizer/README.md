@@ -12,10 +12,11 @@ gegen die damals erzeugten Referenzwerte.
 ## Setup
 
 ```bash
-cd tools/optimizer
-python3 -m venv .venv
-.venv/bin/pip install -e .
+python3 -m venv .venv          # im Wurzelverzeichnis des Repos
+.venv/bin/pip install -c tools/optimizer/requirements.lock -e 'tools/optimizer[terrain]'
 ```
+
+`requirements.lock` hält die Versionen fest, mit denen die Server rechnen.
 
 ## Workflow
 
@@ -115,7 +116,7 @@ verlangen (Entscheidung 185; beim Bogen neben einem Bogen in der Hand, die er
 ohne Übergangsbögen hätte, sonst als Gegenbogen). Zwei Bögen werden immer auch auf die andere Art verbunden (direkt über
 einen Übergangsbogen bzw. über eine Zwischengerade); passt nur diese, sagt
 `requested`, warum die gewünschte nicht passt. Prüfung:
-`WEBSITE/.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
+`.venv/bin/python tools/optimizer/tests/verify_splice.py`; die
 Antworten, gegen die die App testet, schreibt `tests/splice_fixture.py`.
 Dazu der Prüfstand `tests/verify_splice_props.py` (Paket S): zufällige
 Geometrien in allen Fällen, jede in beiden Klickreihenfolgen und beiden
@@ -176,5 +177,5 @@ beginnt oder endet mit der Überhöhung, die die Punkte dort haben
 
 Läuft wie ein Optimiererlauf in einem eigenen Prozess unter der Frist und den
 Plätzen; rund 2 s je km mit fünf Bögen. Prüfung:
-`WEBSITE/.venv/bin/python tools/optimizer/tests/verify_align.py`; die Antwort,
+`.venv/bin/python tools/optimizer/tests/verify_align.py`; die Antwort,
 gegen die die App testet, schreibt `tests/align_fixture.py`.

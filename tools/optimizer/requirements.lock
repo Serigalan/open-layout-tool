@@ -1,0 +1,10 @@
+# Exact versions of the optimizer's dependencies, as they run on the servers
+# (taken from the test server's venv on 2026-10-09). deploy.sh, CI and a local
+# venv install with `-c` on this file, so every environment computes with the
+# same numpy and scipy. To update: bump here, run npm run check, deploy to test.
+numpy==2.2.6
+scipy==1.15.3
+pyproj==3.7.1
+tifffile==2025.5.10
+imagecodecs==2025.3.30
+certifi==2026.7.22
