@@ -1,0 +1,10 @@
+# Rendered by deploy/monitor.sh --install from deploy/templates/olt-monitor.service — edit the template, not this file.
+[Unit]
+Description=Open Layout Tool — watch every instance on this machine
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=@OLT_MONITOR_EXEC@
+# Optional: a command that gets the findings on stdin, e.g. a mail or chat sender.
+#Environment="OLT_MONITOR_NOTIFY=mail -s 'Open Layout Tool' admin@example.org"

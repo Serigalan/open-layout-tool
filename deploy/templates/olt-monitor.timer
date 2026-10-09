@@ -1,0 +1,10 @@
+# Rendered by deploy/monitor.sh --install from deploy/templates/olt-monitor.timer — edit the template, not this file.
+[Unit]
+Description=Open Layout Tool — watch every instance on this machine, every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

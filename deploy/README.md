@@ -11,6 +11,7 @@ je Instanz, siehe *Mehrere Instanzen*.
 | `setup.sh` | einmalige Einrichtung (darf wiederholt werden) |
 | `deploy.sh` | nach jedem Update: Abhängigkeiten, Build, Sicherung der DB, Neustart, Health-Check |
 | `release.sh` | gibt einen Stand für die Produktion frei: Tag `prod-JJJJ-MM-TT`, nur bei grüner CI |
+| `monitor.sh` | Überwachung aller Instanzen der Maschine (Timer `olt-monitor.timer`) |
 | `templates/` | systemd-Units, Caddy-Site; `@OLT_…@` wird aus der Konfiguration gefüllt |
 
 ## Aufbau
@@ -136,6 +137,30 @@ Wiederherstellen (bei einer Instanz mit Namen: `olt-<name>-…` und deren `OLT_D
 `systemctl stop olt-server olt-cloudjobs`, Sicherung über `olt.sqlite` kopieren
 (die `-wal`/`-shm`-Dateien daneben löschen, Eigentümer der Dienstnutzer),
 `systemctl start olt-server olt-cloudjobs`.
+
+## Überwachung, Firewall, Logs
+
+`deploy/monitor.sh <olt.env> …` prüft je Instanz: laufen die Dienste und der
+Sicherungs-Timer, antworten Projektserver und Optimierer, antwortet
+`https://<domain>/api/health` von außen durch Caddy, ist das Zertifikat noch
+mindestens 14 Tage gültig, sind mindestens 20 GB frei. Einmal eingerichtet mit
+
+```bash
+deploy/monitor.sh --install /etc/open-layout-tool/olt.env /root/open-layout-tool-prod/olt.env
+```
+
+läuft es alle 5 Minuten (`olt-monitor.timer`, Skript nach
+`/usr/local/lib/open-layout-tool/` kopiert — nach Änderungen `--install` wiederholen).
+Ein Fehler macht `olt-monitor.service` *failed*: `systemctl --failed`,
+`journalctl -u olt-monitor`. Benachrichtigen kann es, sobald in der Unit
+`OLT_MONITOR_NOTIFY` steht (ein Befehl, der die Befunde auf stdin bekommt).
+
+**Firewall** (auf dieser Maschine seit 2026-10-09, `ufw`): eingehend nur 22/tcp,
+80/tcp, 443/tcp und 443/udp, dazu alles aus den Docker-Netzen `172.16.0.0/12`
+(so erreicht `osrd-caddy` die Dienste an `172.18.0.1`). Die Dienste binden ohnehin
+nie an `0.0.0.0`; die Firewall fängt einen Fehler darin ab.
+
+**Journal** begrenzt auf 1 GB (`/etc/systemd/journald.conf.d/olt.conf`).
 
 ## Punktwolken (Phase 13)
 
