@@ -1,0 +1,43 @@
+name: Release local version
+
+# The local version as a GitHub release (Paket L, decision 291): pushing a tag
+# local-YYYY-MM-DD[.n] builds the local build — core alone, checked for server
+# parts — packs it with its small server, start scripts and README
+# (tools/local/pack.mjs) and attaches the zip to a release of that tag.
+
+on:
+  push:
+    tags: ['local-*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:local
+      - name: Pack
+        run: |
+          version="${GITHUB_REF_NAME#local-}"
+          node tools/local/pack.mjs "open-layout-tool-local-${version}.zip"
+          {
+            echo "Open Layout Tool, local version ${version} — runs in the browser alone, without a server and without signing in."
+            echo
+            echo "Download \`open-layout-tool-local-${version}.zip\`, unpack it and start \`start.cmd\` (Windows) or \`start.sh\` (Linux, macOS); Node.js 18 or later is needed. Then open http://localhost:8080/."
+            echo
+            sed '1,2d' tools/local/README.md
+          } > release-notes.md
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#local-}"
+          gh release create "$GITHUB_REF_NAME" "open-layout-tool-local-${version}.zip" \
+            --title "Local version ${version}" --notes-file release-notes.md --verify-tag
