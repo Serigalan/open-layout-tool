@@ -16,6 +16,29 @@ Then open **http://localhost:8080/** in Chrome, Edge or Firefox. Another port: `
 Opening `app/index.html` straight from the disk does not work — workers, the browser's file system and
 ES modules need a web server.
 
+## On a web server (shared hosting)
+
+The folder `app/` is nothing but static files: any web server serves it — no Node.js, PHP or database
+on the server. Upload **the contents of `app/`** (including the hidden file `.htaccess`) into a folder
+of the web space, the root or a subfolder such as `/olt/`, and open its address.
+
+- **https is required.** The browser gives the app its storage and its project ids only on a secure
+  page (`https://…`, or `http://localhost`). Switch on the host's certificate (Let's Encrypt).
+- **Byte ranges** must work for `data/km_linie.pmtiles` (Apache does by default; the `.htaccess` keeps
+  it from compressing the file). Check: `curl -I -r 0-9 https://<your address>/data/km_linie.pmtiles`
+  answers `206 Partial Content`.
+- **About 2400 files, 200 MB.** Uploading them one by one over FTP takes long; where the host's file
+  manager or SSH can unpack a zip, upload a zip of `app/` and unpack it there.
+- The `.htaccess` sets file types, caching and keeps the km tiles uncompressed; on nginx or other
+  servers, `.wasm` must be served as `application/wasm`.
+- **Every visitor has their own projects, in their own browser.** Nothing is stored on the web server
+  and nobody sees anyone else's projects; to hand a project on, export it as a file. Projects belong
+  to the address: under another domain or folder a browser shows other (or no) projects.
+- **The km data is public there.** Whoever knows the address can load it, as everything else in
+  `app/`. Where it must not be, protect the folder with the host's password protection (HTTP basic
+  authentication); the app works behind it unchanged.
+- With https the two WMS layers of Sachsen-Anhalt and Schleswig-Holstein show too.
+
 ## Where the projects are
 
 In the browser's storage (IndexedDB) on this computer, and nowhere else. The start page lists them —

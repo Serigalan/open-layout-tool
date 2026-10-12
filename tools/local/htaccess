@@ -1,0 +1,37 @@
+# The Open Layout Tool, local version, on an Apache web server (shared hosting).
+# Lies in the app's folder as .htaccess; every rule only takes effect where the
+# host allows it (AllowOverride), and nothing breaks where it does not.
+
+Options -Indexes
+
+# File types the app loads that not every server knows.
+AddType application/wasm .wasm
+AddType text/javascript .js .mjs
+AddType application/octet-stream .pmtiles
+AddType image/tiff .tif
+
+# The km line tiles are read in byte ranges (PMTiles): a compressed answer
+# would lose them. Text (scripts, JSON) may be compressed.
+<IfModule mod_deflate.c>
+  SetEnvIfNoCase Request_URI "\.(pmtiles|tif|webp|png|wasm|pdf)$" no-gzip
+</IfModule>
+
+# The page itself is asked for again each time, so an update shows at once; the
+# scripts and styles carry their hash in the name and may be kept.
+<IfModule mod_headers.c>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "-[A-Za-z0-9_-]{8}\.(js|css|wasm)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+# The app needs https (see README). Where the host does not redirect by itself,
+# take out the # of the next four lines — but not behind a proxy that ends TLS
+# in front of Apache, where HTTPS reads "off" and this would loop.
+#<IfModule mod_rewrite.c>
+#  RewriteEngine On
+#  RewriteCond %{HTTPS} !=on
+#  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+#</IfModule>

@@ -7,7 +7,7 @@ let _uicFetchPromise = null
 function loadUicStations() {
   if (_uicStations) return Promise.resolve(_uicStations)
   if (_uicFetchPromise) return _uicFetchPromise
-  _uicFetchPromise = fetch('/uic_station_numbers.json')
+  _uicFetchPromise = fetch('./uic_station_numbers.json')
     .then((r) => r.json())
     .then((data) => {
       _uicStations = data.map((s) => ({ ...s, nameLower: s.name.toLowerCase() }))

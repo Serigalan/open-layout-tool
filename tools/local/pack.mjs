@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// The local version as one zip (Paket L, AP L.7): the local build under app/,
-// the small server that serves it (serve.mjs), start scripts and the README.
+// The local version as one zip (Paket L, AP L.7): the local build under app/
+// (with an .htaccess for Apache web servers), the small server that serves it
+// on this computer (serve.mjs), start scripts and the README.
 // Run after `npm run build:local`:
 //
 //   node tools/local/pack.mjs [out.zip]     default open-layout-tool-local-<date>.zip
@@ -32,6 +33,7 @@ const add = (name, path, mode) => {
   entries[`${TOP}/${name}`] = [readFileSync(path), { level: STORED.test(path) ? 0 : 6, ...(mode ? { os: 3, attrs: mode << 16 } : {}) }]
 }
 for (const path of files(DIST)) add(`app/${relative(DIST, path)}`, path)
+add('app/.htaccess', join(HERE, 'htaccess'))
 add('serve.mjs', join(HERE, 'serve.mjs'))
 add('README.md', join(HERE, 'README.md'))
 add('start.sh', join(HERE, 'start.sh'), 0o100755)

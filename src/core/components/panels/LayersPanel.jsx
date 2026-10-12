@@ -5,13 +5,13 @@ import { OverlayThumbnail } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 
 const THUMBNAIL = {
-  liberty:    '/liberty.webp',
-  positron:   '/positron.webp',
-  elevation:  '/dem.webp',
-  satellite:  '/satellite.webp',
-  'ign-ortho': '/satellite.webp',
-  basemapde:  '/basemap.webp',
-  dgm5:       '/dem.webp',
+  liberty:    './liberty.webp',
+  positron:   './positron.webp',
+  elevation:  './dem.webp',
+  satellite:  './satellite.webp',
+  'ign-ortho': './satellite.webp',
+  basemapde:  './basemap.webp',
+  dgm5:       './dem.webp',
 }
 
 const GROUPS = ['worldwide', 'france', 'germany']
@@ -57,7 +57,7 @@ export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays
                   onClick={() => setLvExpanded((v) => !v)}
                   title={t('basemap_landesvermessung')}
                 >
-                  <img src="/satellite.webp" alt={t('basemap_landesvermessung')} className="basemap-thumbnail" />
+                  <img src="./satellite.webp" alt={t('basemap_landesvermessung')} className="basemap-thumbnail" />
                   <span className="basemap-label">{t('basemap_landesvermessung')}</span>
                 </button>
               )}
