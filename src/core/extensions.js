@@ -5,8 +5,9 @@
  * core never imports from src/server. Where a server part has to appear — a
  * tool in a panel, a terrain source, the clouds on the server — core asks
  * here, and src/server/register.js puts it in before the first render. The
- * local build never runs register.js: every list is empty, every provided
- * value its fallback, and core runs complete on its own.
+ * local build never runs register.js: it puts in only its own few simplified
+ * tools (src/local/register.js, decision 293), every other list is empty,
+ * every provided value its fallback, and core runs complete on its own.
  *
  * Two kinds:
  *

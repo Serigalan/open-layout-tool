@@ -72,7 +72,8 @@ export const PANELS = [
   { id: 'places', group: 'design', icon: PlaceIcon, titleKey: 'create_element', place: 'top', Component: CreatePanel },
   {
     id: 'splice', group: 'design', icon: SpliceElementIcon, place: 'top', Component: SpliceConnectPanel,
-    // Splicing is the server's (Paket L); without it the panel only connects, and says so.
+    // Splicing comes from the server, or simplified from the local build (Paket L, decision 293);
+    // without either the panel only connects, and says so.
     get titleKey() { return extensionsOf('panelTools').some(x => x.panel === 'splice') ? 'splice_element' : 'connect_element' },
   },
   { id: 'connect_switch', group: 'design', icon: ConnectSwitchIcon, titleKey: 'connect_switch', place: 'top', Component: ConnectSwitchPanel },

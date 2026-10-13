@@ -55,6 +55,9 @@ jobs:
         working-directory: tools/optimizer
       - run: python tests/verify_splice_props.py
         working-directory: tools/optimizer
+      # The local build's simplified splice is held against these answers (decision 293).
+      - run: python tests/local_splice_fixture.py --check
+        working-directory: tools/optimizer
       - run: python tests/verify.py
         working-directory: tools/optimizer
 

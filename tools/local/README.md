@@ -55,6 +55,9 @@ or another port, sees other storage: always open the same address.
 Everything that computes in the browser:
 
 - create, connect (straight, curve, transition curves) and edit tracks; the element table
+- join two tracks, simplified: an arc between two straights, a straight between two arcs, a new arc
+  between an arc and a straight — without transition curves, track spacing and rule check (check the
+  joined track afterwards in the check panel)
 - switches, crossings, switch connections, track links; heights in turnouts
 - heights and the elevation profile, platforms, routes, cross sections, the rule check
 - point clouds read in on this computer (LAS, LAZ, E57): cross section, clearance check, rail detection
@@ -67,8 +70,8 @@ Everything that computes in the browser:
 These need the project server or the optimizer service and are only in the online version:
 
 - projects with variants, revisions, checking in, merging, several users
-- optimizing a track or an element, joining two tracks, reconnecting existing elements, fitting an
-  alignment to axis points
+- optimizing a track or an element, joining two tracks with transition curves, track spacing and
+  rule check, reconnecting existing elements, fitting an alignment to axis points
 - the MDB import, the Länder's DGM1 heights
 - point clouds on a server, long runs there, their 3D view and re-referencing
 

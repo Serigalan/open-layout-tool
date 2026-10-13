@@ -14,8 +14,9 @@ import { transformPlanePoint } from '../coordinateUtils'
 // the splice, the request the service builds the construction from, and the
 // commit that merges the two tracks around the chain it answers with. The
 // construction itself lives in the optimizer service (olt_optimizer/splice.py)
-// and nowhere else; what is here is pure, so the dialog only collects the
-// settings and the tests call the same functions.
+// — the local build answers in its form with a simplified copy
+// (src/local/splice/localSplice.js, decision 293); what is here is pure, so
+// the dialog only collects the settings and the tests call the same functions.
 
 const lengthOf = (els) => els.reduce((sum, el) => sum + (el.length ?? 0), 0)
 

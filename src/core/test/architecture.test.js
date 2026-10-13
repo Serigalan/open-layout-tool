@@ -48,20 +48,32 @@ describe('architecture', () => {
       const offenders = [...reach.keys()].filter(p => p.startsWith(SRC + '/')).map(p => relative(ROOT, p))
       expect(offenders).toEqual([])
     })
-    it('the local entry imports nothing of src/server', () => {
+    // Everything an entry imports, directly or through another module.
+    const reached = (entry) => {
       const seen = new Set()
       const walk = (path) => {
         if (seen.has(path)) return
         seen.add(path)
         for (const d of graph.get(path) ?? []) walk(d)
       }
-      for (const d of graph.get(join(ROOT, 'src/main.local.jsx'))) walk(d)
+      for (const d of graph.get(join(ROOT, entry))) walk(d)
+      return seen
+    }
+    const firstImport = (entry) => readFileSync(join(ROOT, entry), 'utf8').split('\n').find(line => line.startsWith('import '))
+    it('the local entry imports nothing of src/server', () => {
+      const seen = reached('src/main.local.jsx')
       expect([...seen].filter(p => p.includes('/src/server/')).map(p => relative(ROOT, p))).toEqual([])
       expect(seen.has(join(SRC, 'home/LocalApp.jsx'))).toBe(true)
     })
     it('the main entry docks the server on before anything else', () => {
-      const first = readFileSync(join(ROOT, 'src/main.jsx'), 'utf8').split('\n').find(line => line.startsWith('import '))
-      expect(first).toBe("import './server/register'")
+      expect(firstImport('src/main.jsx')).toBe("import './server/register'")
+    })
+    // Decision 293: what only the local build has, its own simplified tools.
+    it('the local entry docks its own tools on first, and nothing else reaches them', () => {
+      expect(firstImport('src/main.local.jsx')).toBe("import './local/register'")
+      expect([...reached('src/main.jsx')].filter(p => p.includes('/src/local/')).map(p => relative(ROOT, p))).toEqual([])
+      const intoLocal = [...graph].filter(([from, deps]) => from.startsWith(SRC + '/') && deps.some(d => d.includes('/src/local/')))
+      expect(intoLocal.map(([from]) => relative(ROOT, from))).toEqual([])
     })
   })
 })

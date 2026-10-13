@@ -16,7 +16,8 @@ import { extensionsOf } from '../../extensions'
  * what keeps their click handlers from meeting. Optimizing is in the check panel.
  *
  * Splicing and reconnecting run on the optimizer service: the server puts
- * them in (`panelTools` of 'splice', Paket L). Without it the panel connects.
+ * them in (`panelTools` of 'splice', Paket L); the local build puts in its
+ * simplified splice (decision 293). Without either the panel connects.
  */
 export default function SpliceConnectPanel() {
   const { t } = useI18n()
