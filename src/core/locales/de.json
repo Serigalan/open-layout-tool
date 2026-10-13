@@ -530,6 +530,8 @@
   "shift_col_station": "Station [m]",
   "shift_col_q": "Quer [mm]",
   "shift_col_z": "Höhe [mm]",
+  "shift_hover": "Station {station} m · quer {q} mm{z}",
+  "shift_hover_z": " · Höhe {z} mm",
   "shift_csv": "Verschiebewerte als CSV",
   "data_exchange_provi": "ProVI Import",
   "data_exchange_provi_desc": "Zip-Archiv aus ProVI: je Achse (A…) ein Gleis mit Überhöhung, Gradiente (T…) und Weichen. Die Koordinaten bleiben im Lagesystem, das die Achse angibt.",

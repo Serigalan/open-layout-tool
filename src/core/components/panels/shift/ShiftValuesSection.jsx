@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import maplibregl from 'maplibre-gl'
 import {
   heightsComparable, nearestAxis, shiftSummary, shiftValues, shiftValuesCsv,
 } from '../../../utils/shiftValues'
@@ -8,6 +9,8 @@ import { utmToWgs84 } from '../../../utils/coordinateUtils'
 import { useReferenceAxes } from '../../../hooks/useStore'
 import { useI18n } from '../../../locales/i18nContext'
 import usePreview from '../../../map/usePreview'
+import { useMap } from '../../../map/MapContext'
+import { mapIsLive } from '../../../map/pick'
 import useReferenceAxesOnMap from '../../../map/useReferenceAxesOnMap'
 import { PALETTE } from '../../../styles/palette'
 import NumberInput from '../../form/NumberInput'
@@ -37,7 +40,48 @@ const layersFor = (id) => [{
     id: `${id}-beyond-layer`, type: 'circle',
     paint: { 'circle-radius': 4, 'circle-color': PALETTE.invalid, 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 1 },
   },
+}, {
+  // The station under the cursor in the bands or the table, as the Höhenplan
+  // shows its own: the shift from the reference axis to the line, and a dot.
+  sourceId: `${id}-cursor-shift`,
+  layer: {
+    id: `${id}-cursor-shift-layer`, type: 'line',
+    paint: { 'line-color': PALETTE.mapHover, 'line-width': 3 },
+  },
+}, {
+  sourceId: `${id}-cursor`,
+  layer: {
+    id: `${id}-cursor-layer`, type: 'circle',
+    paint: { 'circle-radius': 6, 'circle-color': PALETTE.mapHover, 'circle-stroke-color': PALETTE.white, 'circle-stroke-width': 2 },
+  },
 }]
+
+/** The row nearest the station `s` — null beyond a step of the raster from every row. */
+function rowNear(rows, s, every) {
+  let best = null
+  for (const r of rows) if (!best || Math.abs(r.station - s) < Math.abs(best.station - s)) best = r
+  return best && Math.abs(best.station - s) <= every ? best : null
+}
+
+/** A tooltip on the map at `lngLat` [lng, lat] saying `text` — none while either is null. */
+function useMapTooltip(lngLat, text) {
+  const mapRef = useMap()
+  const popupRef = useRef(null)
+  useEffect(() => {
+    const m = mapRef?.current
+    if (!m) return
+    if (!lngLat || !text) { popupRef.current?.remove(); return }
+    if (!popupRef.current) {
+      popupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'preview-tooltip', offset: 12, anchor: 'bottom', maxWidth: 'none' })
+    }
+    popupRef.current.setLngLat(lngLat).setText(text)
+    if (!popupRef.current.isOpen()) popupRef.current.addTo(m)
+  }, [mapRef, lngLat, text])
+  useEffect(() => () => {
+    if (mapIsLive(mapRef, mapRef?.current)) popupRef.current?.remove()
+    popupRef.current = null
+  }, [mapRef])
+}
 
 /**
  * Shift values against a reference axis (Paket V, Entscheidung 200): of
@@ -63,6 +107,10 @@ export default function ShiftValuesSection({ id, line, epsg, heightEpsg = null, 
     [axis, line, s.every, withHeights])
   const limitQ = (Number(s.limitQ) || 0) / 1000, limitZ = (Number(s.limitZ) || 0) / 1000
   const sum = useMemo(() => shiftSummary(rows, { limitQ, limitZ }), [rows, limitQ, limitZ])
+  const every = Number(s.every) || 5
+  const [hoverStation, setHoverStation] = useState(null)
+  const hoverRow = hoverStation != null ? rows.find(r => r.station === hoverStation) ?? null : null
+  const onCursor = (st) => setHoverStation(st == null ? null : rowNear(rows, st, every)?.station ?? null)
 
   useReferenceAxesOnMap(`${id}-axis`, axis ? [axis] : [])
   const layers = useMemo(() => layersFor(id), [id])
@@ -75,9 +123,28 @@ export default function ShiftValuesSection({ id, line, epsg, heightEpsg = null, 
       })),
     } : null)
   }, [preview, id, rows, axis, limitQ, limitZ])
+  const hoverAt = useMemo(() => (hoverRow && axis ? utmToWgs84(hoverRow.at[0], hoverRow.at[1], axis.epsg) : null), [hoverRow, axis])
+  useEffect(() => {
+    if (!hoverRow || !hoverAt) {
+      preview.set(`${id}-cursor`, null)
+      preview.set(`${id}-cursor-shift`, null)
+      return
+    }
+    preview.set(`${id}-cursor`, { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: hoverAt } })
+    preview.set(`${id}-cursor-shift`, {
+      type: 'Feature', properties: {},
+      geometry: { type: 'LineString', coordinates: [hoverAt, utmToWgs84(hoverRow.hit[0], hoverRow.hit[1], axis.epsg)] },
+    })
+  }, [preview, id, hoverRow, hoverAt, axis])
+  const mmOf = (v) => (v == null ? '–' : Math.round(v * 1000) === 0 ? '0' : `${v > 0 ? '+' : ''}${num(v * 1000, { digits: 0 })}`)
+  useMapTooltip(hoverAt, hoverRow && fill('shift_hover', {
+    station: num(hoverRow.station, { digits: 1 }),
+    q: mmOf(hoverRow.dq),
+    z: hoverRow.dz != null ? fill('shift_hover_z', { z: mmOf(hoverRow.dz) }) : '',
+  }))
 
   if (!axes.length) return null
-  const mm = (v) => (v == null ? '–' : Math.round(v * 1000) === 0 ? '0' : `${v > 0 ? '+' : ''}${num(v * 1000, { digits: 0 })}`)
+  const mm = mmOf
   const st = (r) => num(r.station, { digits: 1 })
   const beyond = sum.beyondQ + sum.beyondZ > 0
   const head = !axis ? t('shift_no_axis')
@@ -136,20 +203,23 @@ export default function ShiftValuesSection({ id, line, epsg, heightEpsg = null, 
           {sum.beyondQ > 0 && <p className="msg-warn msg-small">{fill('shift_beyond_q', { n: String(sum.beyondQ), limit: num(Number(s.limitQ), { digits: 0 }) })}</p>}
           {sum.beyondZ > 0 && <p className="msg-warn msg-small">{fill('shift_beyond_z', { n: String(sum.beyondZ), limit: num(Number(s.limitZ), { digits: 0 }) })}</p>}
           <span className="create-element-section">{t('shift_band_q')}</span>
-          <DeviationBand band={rows.map(r => [r.station, r.dq])} tolerance={limitQ} label={t('shift_band_q')} />
+          <DeviationBand band={rows.map(r => [r.station, r.dq])} tolerance={limitQ} label={t('shift_band_q')}
+            cursor={hoverStation} onCursor={onCursor} />
           {sum.heights && (
             <>
               <span className="create-element-section">{t('shift_band_z')}</span>
-              <DeviationBand band={rows.filter(r => r.dz != null).map(r => [r.station, r.dz])} tolerance={limitZ} label={t('shift_band_z')} />
+              <DeviationBand band={rows.filter(r => r.dz != null).map(r => [r.station, r.dz])} tolerance={limitZ} label={t('shift_band_z')}
+                cursor={hoverStation} onCursor={onCursor} />
             </>
           )}
           <details className="mt-4">
             <summary>{fill('shift_table', { n: String(rows.length) })}</summary>
-            <table className="shift-table">
+            <table className="shift-table" onPointerLeave={() => setHoverStation(null)}>
               <thead><tr><th>{t('shift_col_station')}</th><th>{t('shift_col_q')}</th><th>{t('shift_col_z')}</th></tr></thead>
               <tbody>
                 {rows.map(r => (
-                  <tr key={r.station}>
+                  <tr key={r.station} className={r.station === hoverStation ? 'hovered' : undefined}
+                    onPointerEnter={() => setHoverStation(r.station)}>
                     <td>{num(r.station, { digits: 2 })}</td>
                     <td className={Math.abs(r.dq) > limitQ ? 'msg-warn' : undefined}>{mm(r.dq)}</td>
                     <td className={r.dz != null && Math.abs(r.dz) > limitZ ? 'msg-warn' : undefined}>{mm(r.dz)}</td>

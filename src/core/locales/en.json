@@ -530,6 +530,8 @@
   "shift_col_station": "Station [m]",
   "shift_col_q": "Across [mm]",
   "shift_col_z": "Height [mm]",
+  "shift_hover": "Station {station} m · across {q} mm{z}",
+  "shift_hover_z": " · height {z} mm",
   "shift_csv": "Shift values as CSV",
   "data_exchange_provi": "ProVI Import",
   "data_exchange_provi_desc": "Zip archive from ProVI: one track per axis (A…) with cant, gradient (T…) and switches. The coordinates stay in the Lagesystem the axis states.",
