@@ -53,8 +53,6 @@ export const PALETTE = Object.freeze({
   view3dPlane: '#4f8cff',
   // The clearance outline, in the section plane and carried along in the track view: orange, apart from the red rails.
   view3dOutline: '#ff9800',
-  // The rails as bodies of their profile where the clearance outline is carried along: steel, shaded by the light.
-  view3dRailBody: '#b4bcc8',
   view3dPick: '#ff2bd6',
   // Re-referencing (AP 13.13–13.14): the reference cloud and the one fitted to it.
   view3dPairRef: '#36c5f0',

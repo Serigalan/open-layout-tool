@@ -373,10 +373,10 @@ export class Viewer {
    * CLEARANCE_LENGTH into the direction looked — with the stations, or
    * against them once turned round — beginning CLEARANCE_AHEAD in front of
    * where the walk stands. The rails are drawn there too, as bodies of their
-   * profile in `railColor`.
+   * profile in `railColors` — [left, right], the colours of the rails' lines.
    */
-  setWalkClearance(ring, color, railColor = color) {
-    this.clearance = ring?.length ? { ring, color, railColor } : null
+  setWalkClearance(ring, color, railColors = [color, color]) {
+    this.clearance = ring?.length ? { ring, color, railColors } : null
     this.clearanceAt = undefined
     this.drawClearance()
   }
@@ -398,7 +398,7 @@ export class Viewer {
       this.fatLine(rings[0], c.color, 2.5),
       this.fatLine(rings[rings.length - 1], c.color, 2.5),
       ...along.map(pts => this.line(pts, c.color, { opacity: 0.45 })),
-      ...rails.map(r => this.solid(r.rings, r.profile, c.railColor)),
+      ...rails.map((r, k) => this.solid(r.rings, r.profile, c.railColors[k])),
     ])
   }
 

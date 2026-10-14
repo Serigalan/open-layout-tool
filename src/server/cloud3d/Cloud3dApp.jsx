@@ -35,7 +35,7 @@ const MAIN_TIMEOUT = 7000
 
 const LOOK = {
   survey: PALETTE.view3dSurvey,
-  plane: PALETTE.view3dPlane, outline: PALETTE.view3dOutline, railBody: PALETTE.view3dRailBody, pick: PALETTE.view3dPick,
+  plane: PALETTE.view3dPlane, outline: PALETTE.view3dOutline, pick: PALETTE.view3dPick,
   pairRef: PALETTE.view3dPairRef, pairSrc: PALETTE.view3dPairSrc,
 }
 
@@ -373,14 +373,15 @@ function Cloud3dPage() {
 
   // The clearance envelope carried along while walking: the profile chosen
   // here, else the project's. The choice is this view's only — the project
-  // keeps its own.
+  // keeps its own. The rails within it in the colours of their lines.
   const projectProfileId = gaugeProfile(project?.data?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE).id
   const clearanceId = clearanceChoice || projectProfileId
   useEffect(() => {
     const viewer = viewerRef.current
     if (!viewer) return
-    viewer.setWalkClearance(clearanceOn ? gaugeProfileRing(gaugeProfile(clearanceId).points) : null, LOOK.outline, LOOK.railBody)
-  }, [clearanceOn, clearanceId, state.phase])
+    viewer.setWalkClearance(clearanceOn ? gaugeProfileRing(gaugeProfile(clearanceId).points) : null, LOOK.outline,
+      [trackLook.left, trackLook.right])
+  }, [clearanceOn, clearanceId, state.phase, trackLook.left, trackLook.right])
 
   // ── the cross section of the main window as a plane ───────────────────────
   useEffect(() => {
