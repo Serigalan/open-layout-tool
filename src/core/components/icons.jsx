@@ -1,4 +1,7 @@
 import { PALETTE } from '../styles/palette'
+import {
+  MARK_BRANCHES, MARK_INNER, MARK_LINE, MARK_POINT, MARK_RAIL, MARK_SIZE, MARK_SQUARE, MARK_SWITCHES, MARK_YELLOW,
+} from '../utils/logoMark'
 // ── Panel menu icons ────────────────────────────────────────────────────────
 //
 // One rule for every icon a panel button carries (AP 4.3): 16 × 16, currentColor,
@@ -523,15 +526,17 @@ export const DataExchangeIcon = () => (
   </SidebarIcon>
 )
 
+// The app's mark (utils/logoMark): O, L and T branching off one line, each by a switch.
 export const LogoIcon = ({ className }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" xmlSpace="preserve" viewBox="0 0 135.65 136.98" className={className} aria-hidden="true">
-    <defs>
-      <clipPath id="b"><path d="M-1347.3 1737.07h1920V-923.35h-1920Z"/></clipPath>
-      <filter id="a" width="1.06" height="1.06" x="-.03" y="-.03" colorInterpolationFilters="sRGB"><feGaussianBlur stdDeviation="1.593"/></filter>
-    </defs>
-    <rect width="128" height="128" x="3.824" y="5.157" filter="url(#a)" opacity=".187" ry="16.444"/>
-    <path fill={PALETTE.white} d="M0 0h78.915l19.771-26.296 3.25-19.276v-45.82l-47.735-34.352H-.169l-23.64 28.814v52.564z" clipPath="url(#b)" transform="matrix(1.0179 0 0 -1.0179 28.06 0)"/>
-    <path fill="currentColor" d="M46.824 93.076c-2.117 9.151-3.23 18.972-3.23 29.574v5.357h18.492c-3.231-14.731-8.801-26.115-15.262-34.931zM3.823 64.172V86.38a70.557 70.557 0 0 1 10.583 5.134c9.47 5.803 16.71 14.061 21.612 24.328V81.246c-3.788-3.348-7.687-6.138-11.474-8.37-7.241-4.24-14.37-6.919-20.72-8.704zm39.659 13.726C48.272 65.4 55.29 54.462 64.648 45.2V.002H43.482zm5.904 6.25c5.904 6.92 11.251 15.4 15.262 26.003V56.36c-6.684 8.035-11.809 17.298-15.262 27.788zM116.003.002H72.112v38.502c13.145-10.49 27.515-16.182 39.658-19.307 2.005-.558 4.122.67 4.567 2.678.557 2.009-.668 4.018-2.673 4.576-12.7 3.236-28.184 9.597-41.441 21.985v35.489c3.23-7.031 7.464-13.057 12.7-18.303 10.471-10.378 23.394-15.735 33.977-18.525 2.005-.558 4.121.67 4.567 2.678.557 2.009-.668 4.018-2.674 4.576-5.235 1.339-11.251 3.46-17.044 6.696C82.583 72.542 72.334 92.74 72.334 122.65v5.357h43.78c8.69 0 15.708-7.031 15.708-15.736V15.737c-.111-8.705-7.13-15.735-15.819-15.735zM28.331 66.515c2.451 1.451 5.013 3.125 7.576 5.134V.002H19.53c-8.69 0-15.708 7.03-15.708 15.735V56.36c7.353 1.785 15.93 4.91 24.508 10.155zM9.839 97.652c-2.005-1.228-4.01-2.232-6.016-3.125v17.744c0 8.705 7.019 15.736 15.708 15.736h12.922c-4.01-13.615-11.585-23.883-22.614-30.355z"/>
+  <svg viewBox={`0 0 ${MARK_SIZE} ${MARK_SIZE}`} className={className} aria-hidden="true">
+    <path d={MARK_SQUARE} fill="currentColor" />
+    <g fill="none" strokeLinejoin="round">
+      <path d={MARK_LINE} stroke={PALETTE.white} strokeWidth={MARK_RAIL} />
+      <path d={MARK_BRANCHES} stroke={PALETTE.white} strokeWidth={MARK_RAIL} strokeLinecap="round" />
+      <path d={MARK_LINE} stroke="currentColor" strokeWidth={MARK_INNER} />
+      <path d={MARK_BRANCHES} stroke="currentColor" strokeWidth={MARK_INNER} strokeLinecap="round" />
+    </g>
+    {MARK_SWITCHES.map(([cx, cy]) => <circle key={cx} cx={cx} cy={cy} r={MARK_POINT} fill={MARK_YELLOW} />)}
   </svg>
 )
 

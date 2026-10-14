@@ -184,18 +184,46 @@ describe('simple title block', () => {
     ]))
   })
 
+  /** The corners [x, y] of a path item's commands. */
+  const pointsOf = (item) => item.d.filter(c => c[0] !== 'Z').flatMap(c => {
+    const out = []
+    for (let k = 1; k < c.length; k += 2) out.push([c[k], c[k + 1]])
+    return out
+  })
+  const widthOf = (item) => {
+    const xs = pointsOf(item).map(([x]) => x)
+    return Math.max(...xs) - Math.min(...xs)
+  }
+  /** The letters: the long blue path of the capitals, the black one of the rest. */
+  const lettersOf = (items) => items.filter(i => i.type === 'path' && i.stroke === null
+    && (i.fill === '#1f0f96' && widthOf(i) > 20 || i.fill === '#000000' && i.d.length > 50))
+
   it('carries the wordmark as filled vector paths inside its top row', () => {
-    const marks = build(simple).filter(i => i.type === 'path' && i.fill === '#1f0f96' || i.type === 'path' && i.fill === '#000000' && i.stroke === null && i.d.length > 50)
+    const marks = lettersOf(build(simple))
     expect(marks).toHaveLength(2)
     const y0 = 297 - 5 - 52
     for (const m of marks) {
-      for (const c of m.d.filter(c => c[0] !== 'Z')) {
-        for (let k = 2; k < c.length; k += 2) {
-          expect(c[k]).toBeGreaterThan(y0)
-          expect(c[k]).toBeLessThan(y0 + 11)
-        }
+      for (const [, y] of pointsOf(m)) {
+        expect(y).toBeGreaterThan(y0)
+        expect(y).toBeLessThan(y0 + 11)
       }
     }
+  })
+
+  it('sets the mark before the letters: a blue square, rails and a yellow point per switch', () => {
+    const items = build(simple)
+    const lettersLeft = Math.min(...lettersOf(items).flatMap(i => pointsOf(i).map(([x]) => x)))
+    const side = 19.6 * 25.4 / 96
+    const square = items.find(i => i.type === 'path' && i.fill === '#1f0f96' && i.stroke === null
+      && Math.abs(widthOf(i) - side) < 1e-6)
+    const ys = pointsOf(square).map(([, y]) => y)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(side, 6)
+    expect(Math.max(...pointsOf(square).map(([x]) => x))).toBeLessThan(lettersLeft)
+    const y0 = 297 - 5 - 52
+    expect(Math.min(...ys)).toBeGreaterThan(y0)
+    expect(Math.max(...ys)).toBeLessThan(y0 + 11)
+    expect(items.filter(i => i.type === 'path' && i.fill === '#F2B33D')).toHaveLength(3)
+    expect(items.filter(i => i.type === 'path' && i.stroke === '#ffffff' && i.fill === null)).toHaveLength(1)
   })
 })
 
