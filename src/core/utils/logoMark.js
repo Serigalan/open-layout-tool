@@ -12,6 +12,7 @@
  * public/favicon.svg is the whole mark on a square ground, drawn simple:
  * every line of it, each a single stroke of the same width without the inner
  * rail, white in the letters and MARK_LINK_BLUE between them.
+ * .github/logo.svg is the mark as drawn here, on MARK_BLUE, for the README.
  */
 
 import { PALETTE } from '../styles/palette'

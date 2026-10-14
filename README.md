@@ -1,4 +1,4 @@
-# Open Layout Tool
+# <img src=".github/logo.svg" alt="" height="44" align="top"> Open Layout Tool
 
 An interactive web application for designing railway track layouts on a map — running at
 [open-layout-tool.org](https://open-layout-tool.org/).
