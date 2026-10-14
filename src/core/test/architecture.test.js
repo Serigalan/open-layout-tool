@@ -68,12 +68,5 @@ describe('architecture', () => {
     it('the main entry docks the server on before anything else', () => {
       expect(firstImport('src/main.jsx')).toBe("import './server/register'")
     })
-    // Decision 293: what only the local build has, its own simplified tools.
-    it('the local entry docks its own tools on first, and nothing else reaches them', () => {
-      expect(firstImport('src/main.local.jsx')).toBe("import './local/register'")
-      expect([...reached('src/main.jsx')].filter(p => p.includes('/src/local/')).map(p => relative(ROOT, p))).toEqual([])
-      const intoLocal = [...graph].filter(([from, deps]) => from.startsWith(SRC + '/') && deps.some(d => d.includes('/src/local/')))
-      expect(intoLocal.map(([from]) => relative(ROOT, from))).toEqual([])
-    })
   })
 })

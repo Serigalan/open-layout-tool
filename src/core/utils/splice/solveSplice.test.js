@@ -1,68 +1,93 @@
 import { describe, it, expect } from 'vitest'
-import { localSplice } from './localSplice'
-import { buildSplice, spliceFromAnswer, splicePick, spliceRequest } from '../../core/utils/commands/splice'
-import { straightElement, straightFrom, arcFrom, transitionElement } from '../../core/utils/elementFactory'
-import { bearingAfterUtm, endPointCurvedUtm, endPointStraightUtm } from '../../core/utils/elementUtils'
-import { recalcAbsLengths, rebuildCoords } from '../../core/utils/trackModel'
-import { expectValidTrack } from '../../core/test/chainInvariants'
+import { solveSplice } from './solveSplice'
+import { buildSplice, spliceFromAnswer, splicePick, spliceRequest } from '../commands/splice'
+import { straightElement, straightFrom, arcFrom, transitionElement } from '../elementFactory'
+import { bearingAfterUtm, endPointCurvedUtm, endPointStraightUtm } from '../elementUtils'
+import { recalcAbsLengths, rebuildCoords } from '../trackModel'
+import { expectValidTrack } from '../../test/chainInvariants'
 import serviceAnswers from './serviceAnswers.json'
-import coreAnswers from '../../core/test/fixtures/splice_answers.json'
+import coreAnswers from '../../test/fixtures/splice_answers.json'
 
-// The local splice is the service's construction without transitions
-// (decision 293). It is held against what the service answers for the very
-// same requests — random geometries asked in every way a user can ask them,
-// written by tools/optimizer/tests/local_splice_fixture.py — and the merged
-// track it leads to is checked like any other.
+// The splice is computed in the browser (decision 294), ported from the
+// optimizer service's splice.py. It is held against what the service answers
+// for the very same requests — random geometries asked in every way a user
+// can ask them, with and without transitions, at the Regellänge — written by
+// tools/optimizer/tests/splice_answers_fixture.py; the merged track it leads
+// to is checked like any other.
 
 const NODE_TOL = 1e-6   // m
+
+const sideOf = (l) => ({ mode: l.mode, length: l.length, regular: l.regular ?? null, minimum: l.minimum ?? null })
+const closeTo = (got, want, digits) => (want == null ? expect(got ?? null).toBeNull() : expect(got).toBeCloseTo(want, digits))
+
+function expectSameSides(got, want) {
+  expect(got.length).toBe(want.length)
+  want.forEach((w, k) => {
+    const g = sideOf(got[k])
+    expect(g.mode).toBe(w.mode)
+    closeTo(g.length, w.length, 6)
+    closeTo(g.regular, w.regular, 6)
+    closeTo(g.minimum, w.minimum, 6)
+  })
+}
 
 function expectSameAnswer(local, service) {
   if (service.error) {
     expect(local.error).toBe(service.error)
-    for (const k of ['rMax', 'rMin']) {
+    for (const [k, tol] of [['rMax', 1], ['rMin', 1], ['lMax', 0.1]]) {
       if (service.params[k] == null) expect(local.params[k]).toBeUndefined()
-      else expect(Math.abs(local.params[k] - service.params[k])).toBeLessThanOrEqual(1)
+      else expect(Math.abs(local.params[k] - service.params[k])).toBeLessThanOrEqual(tol + 1e-9)
     }
+    if (service.lengths) expectSameSides(local.lengths, service.lengths)
     return
   }
   expect(local.error).toBeUndefined()
-  expect(local.solutions.length).toBe(service.solutions.length)
+  expect(local.solutions.map(s => [s.ends.join(), s.alternative, s.arcJoin ?? null]))
+    .toEqual(service.solutions.map(s => [s.ends.join(), s.alternative, s.arcJoin ?? null]))
+  if (service.requested) expect(local.requested?.error).toBe(service.requested.error)
+  else expect(local.requested).toBeUndefined()
   service.solutions.forEach((want, i) => {
     const got = local.solutions[i]
-    expect(got).toMatchObject({ ends: want.ends, depPick: want.depPick, reverseDep: want.reverseDep, reverseArr: want.reverseArr })
+    expect(got).toMatchObject({ depPick: want.depPick, reverseDep: want.reverseDep, reverseArr: want.reverseArr })
     expect(got.rebuilt).toBeCloseTo(want.rebuilt, 4)
+    expect(got.findings.map(f => [f.at, f.id, f.severity])).toEqual(want.findings)
+    expect([got.worst, got.judged]).toEqual([want.worst, want.judged])
+    if (want.lengths) expectSameSides(got.lengths, want.lengths)
     expect(got.elements.map(el => [el.elementType, el.role])).toEqual(want.elements.map(el => [el.elementType, el.role]))
     got.elements.forEach((el, k) => {
       const w = want.elements[k]
       for (const node of ['startNode', 'endNode']) {
         expect(Math.hypot(el[node][0] - w[node][0], el[node][1] - w[node][1])).toBeLessThan(NODE_TOL)
       }
-      if (w.radius != null) expect(el.radius).toBeCloseTo(w.radius, 6)
+      for (const r of ['radius', 'r1', 'r2']) if (w[r] != null) expect(el[r]).toBeCloseTo(w[r], 6)
+      if (w.length != null) expect(el.length).toBeCloseTo(w.length, 6)
     })
   })
 }
 
-describe('the local splice finds what the service finds', () => {
+describe('the splice finds what the service finds', () => {
   it.each(serviceAnswers.map(c => [c.name, c]))('%s', (_name, c) => {
-    expectSameAnswer(localSplice(c.request), c.answer)
+    expectSameAnswer(solveSplice(c.request), c.answer)
   })
 
-  it.each(['corner', 'cornerPickedTheOtherWay', 'startToStart', 'arcOnToStraight'])('the app\'s case %s', (name) => {
+  it.each(Object.keys(coreAnswers))('the app\'s case %s', (name) => {
     const { request, answer } = coreAnswers[name]
-    const local = localSplice(request)
-    expectSameAnswer(local, { solutions: answer.solutions.filter(s => !s.alternative) })
+    const local = solveSplice(request)
+    expect(local.solutions.map(s => [s.ends.join(), s.alternative, s.arcJoin ?? null, s.worst]))
+      .toEqual(answer.solutions.map(s => [s.ends.join(), s.alternative, s.arcJoin ?? null, s.worst]))
+    answer.solutions.forEach((want, i) => {
+      const got = local.solutions[i]
+      expect(got.elements.map(el => el.elementType)).toEqual(want.elements.map(el => el.elementType))
+      got.elements.forEach((el, k) => {
+        expect(Math.hypot(el.endNode[0] - want.elements[k].endNode[0], el.endNode[1] - want.elements[k].endNode[1])).toBeLessThan(NODE_TOL)
+      })
+      expect(got.findings).toEqual(want.findings)
+      expectSameSides(got.lengths, want.lengths)
+    })
   })
 
-  it('builds on from a transition at its track\'s end (AP S.7)', () => {
-    const { request, answer } = coreAnswers.transitionEnd
-    const [want] = answer.solutions
-    const [got] = localSplice(request).solutions
-    expect(got).toMatchObject({ ends: want.ends, depPick: want.depPick, reverseDep: want.reverseDep, reverseArr: want.reverseArr })
-    expect(got.elements.map(el => [el.elementType, el.role])).toEqual(want.elements.map(el => [el.elementType, el.role]))
-  })
-
-  it('answers in the service\'s form: no transitions, nothing judged', () => {
-    const [sol] = localSplice(coreAnswers.corner.request).solutions
+  it('answers in the service\'s form', () => {
+    const [sol] = solveSplice(coreAnswers.corner.request).solutions
     expect(sol).toMatchObject({
       lengths: [{ mode: 'fixed', length: 0 }, { mode: 'fixed', length: 0 }], findings: [], worst: 'ok', judged: false, alternative: false,
     })
@@ -70,9 +95,9 @@ describe('the local splice finds what the service finds', () => {
 
   it('refuses parallel straights and two straights without a radius', () => {
     const dep = { start: [0, 0], end: [100, 0], bearing: 90, radius: null }
-    expect(localSplice({ dep, arr: { start: [200, 10], end: [300, 10], bearing: 90, radius: null }, radius: 300 }).error)
+    expect(solveSplice({ dep, arr: { start: [200, 10], end: [300, 10], bearing: 90, radius: null }, radius: 300 }).error)
       .toBe('splice_error_parallel')
-    expect(localSplice({ dep, arr: { start: [400, 100], end: [400, 700], bearing: 0, radius: null }, radius: 0 }).error)
+    expect(solveSplice({ dep, arr: { start: [400, 100], end: [400, 700], bearing: 0, radius: null }, radius: 0 }).error)
       .toBe('splice_error_parallel')
   })
 })
@@ -86,7 +111,7 @@ describe('the merged track', () => {
     return { id, name: id, epsg: EPSG, elements: els, coordinates: rebuildCoords(els) }
   }
   const merge = (tracks, picks, settings) => {
-    const sol = spliceFromAnswer(localSplice(spliceRequest(picks[0], picks[1], settings)), picks).solutions[0]
+    const sol = spliceFromAnswer(solveSplice(spliceRequest(picks[0], picks[1], settings)), picks).solutions[0]
     return buildSplice({ tracks, solution: sol, speed: settings.speed, cant: settings.cant, newId: () => 'm' }).addTracks[0]
   }
 

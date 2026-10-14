@@ -5,9 +5,8 @@
  * core never imports from src/server. Where a server part has to appear — a
  * tool in a panel, a terrain source, the clouds on the server — core asks
  * here, and src/server/register.js puts it in before the first render. The
- * local build never runs register.js: it puts in only its own few simplified
- * tools (src/local/register.js, decision 293), every other list is empty,
- * every provided value its fallback, and core runs complete on its own.
+ * local build never runs register.js: every list is empty, every provided
+ * value its fallback, and core runs complete on its own.
  *
  * Two kinds:
  *
@@ -31,6 +30,7 @@
  *   useServerRun            long runs over the clouds on the server
  *   useCloudRegistration    a re-referencing the 3D window runs, seen in the section
  *   regelwerkService        the rule catalogues as the optimizer service has them
+ *   spliceWithClearance     a splice held to a spacing to another track, (request, { signal }) → answer
  */
 
 const EMPTY = Object.freeze([])

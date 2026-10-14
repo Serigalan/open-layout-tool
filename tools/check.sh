@@ -36,7 +36,7 @@ echo "== optimizer: alignment fit";  "$py" tests/verify_align.py | tail -1
 echo "== optimizer: reconnect";      "$py" tests/verify_reconnect.py | tail -1
 echo "== optimizer: clearance";      "$py" tests/verify_clearance.py | tail -1
 echo "== optimizer: splice props";   "$py" tests/verify_splice_props.py | tail -1
-echo "== optimizer: local splice";   "$py" tests/local_splice_fixture.py --check
+echo "== optimizer: app splice";     "$py" tests/splice_answers_fixture.py --check
 if [ "$quick" = 0 ]; then
   echo "== optimizer: kernel and runs"; "$py" tests/verify.py | tail -1
 fi

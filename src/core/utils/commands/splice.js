@@ -11,12 +11,13 @@ import { sectionAtStation } from '../crossSectionUtils'
 import { transformPlanePoint } from '../coordinateUtils'
 
 // Splicing two tracks into one (R5.5, AP 12.4): what a picked element offers
-// the splice, the request the service builds the construction from, and the
-// commit that merges the two tracks around the chain it answers with. The
-// construction itself lives in the optimizer service (olt_optimizer/splice.py)
-// — the local build answers in its form with a simplified copy
-// (src/local/splice/localSplice.js, decision 293); what is here is pure, so
-// the dialog only collects the settings and the tests call the same functions.
+// the splice, the request the construction is built from, and the commit that
+// merges the two tracks around the chain it answers with. The construction
+// itself is utils/splice/solveSplice (decision 294), or with a spacing to
+// another track the optimizer service's splice.py, which it was ported from
+// and which answers in the same form (decision 295); what is here
+// is pure, so the dialog only collects the settings and the tests call the
+// same functions.
 
 const lengthOf = (els) => els.reduce((sum, el) => sum + (el.length ?? 0), 0)
 

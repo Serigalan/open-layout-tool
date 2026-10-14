@@ -1,28 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadTracks, commitSwitchConnection, currentProject } from '../../core/storage'
-import { computeAutoC } from '../../core/utils/rules/cant'
+import { loadTracks, commitSwitchConnection, currentProject } from '../../../storage'
+import { computeAutoC } from '../../../utils/rules/cant'
 import {
   buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer, splicePick, spliceRequest,
-} from '../../core/utils/commands/splice'
-import { gaugeProfile } from '../../core/utils/gaugeProfiles'
-import { utmToWgs84 } from '../../core/utils/coordinateUtils'
-import { trackLabel } from '../../core/utils/trackModel'
-import { spliceOnServer } from '../optimizerService'
-import { ZOOM_LINE_WIDTH } from '../../core/map/style'
-import { TRACKS_HOVER_LAYER } from '../../core/map/layerIds'
-import usePreview from '../../core/map/usePreview'
-import useMapPick from '../../core/map/useMapPick'
-import useDerivedField from '../../core/hooks/useDerivedField'
-import { useI18n } from '../../core/locales/i18nContext'
-import { PALETTE } from '../../core/styles/palette'
-import CommitBar from '../../core/components/form/CommitBar'
-import SpliceFindings from './splice/SpliceFindings'
-import { severityRank } from '../../core/utils/regelkatalog'
-import SpliceSettings from './splice/SpliceSettings'
-import CancelButton from '../../core/components/form/CancelButton'
-import { spacingMessage } from './splice/spacingMessage'
-import ShiftValuesSection from '../../core/components/panels/shift/ShiftValuesSection'
-import { comparedLine } from '../../core/utils/shiftValues'
+} from '../../../utils/commands/splice'
+import { gaugeProfile } from '../../../utils/gaugeProfiles'
+import { utmToWgs84 } from '../../../utils/coordinateUtils'
+import { trackLabel } from '../../../utils/trackModel'
+import { solveSpliceInWorker } from '../../../utils/splice/spliceJob'
+import { provided } from '../../../extensions'
+import { ZOOM_LINE_WIDTH } from '../../../map/style'
+import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
+import usePreview from '../../../map/usePreview'
+import useMapPick from '../../../map/useMapPick'
+import useDerivedField from '../../../hooks/useDerivedField'
+import { useI18n } from '../../../locales/i18nContext'
+import { PALETTE } from '../../../styles/palette'
+import CommitBar from '../../form/CommitBar'
+import SpliceFindings from './SpliceFindings'
+import { severityRank } from '../../../utils/regelkatalog'
+import SpliceSettings from './SpliceSettings'
+import ClearanceFields from './ClearanceFields'
+import SolutionSwitch from './SolutionSwitch'
+import { SPLICE_DEFAULTS, adoptedSettings, solutionKey, spliceErrorText, spliceMessage } from './spliceText'
+import CancelButton from '../../form/CancelButton'
+import { spacingMessage } from './spacingMessage'
+import ShiftValuesSection from '../shift/ShiftValuesSection'
+import { comparedLine } from '../../../utils/shiftValues'
 
 const SPLICE_PREVIEW_SOURCE = 'splice-preview-source'
 // The tightest place to the track the splice keeps its distance to: a line
@@ -42,7 +46,7 @@ const SPLICE_PREVIEW_LAYERS = [{
   },
 }]
 
-/** How long the settings must rest before the service is asked [ms]. */
+/** How long the settings must rest before the splice is computed again [ms]. */
 const SPLICE_DEBOUNCE = 150
 
 const line = (coordinates) => ({
@@ -50,113 +54,23 @@ const line = (coordinates) => ({
   features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } }],
 })
 
-const DEFAULTS = {
-  // The speed is the faster pick's once both are picked (Entscheidung 181).
-  radius: 500, speed: '',
-  // The transition beside each pick, in the order they were clicked: switched
-  // on or not — one side alone is fine — and its shape ('clothoid' | 'bloss').
-  transitionOn: [false, false], transitionTypes: ['clothoid', 'clothoid'],
-  // The shape of a single transition from arc to arc.
-  transitionType: 'clothoid',
-  // Two arcs can be joined either by a straight between them or by a single
-  // transition curve straight from one to the other (AP 4.1).
-  arcJoin: 'straight',                                  // 'straight' | 'transition'
-  // The transition beside each pick, in the order they were clicked: switched
-  // on, the Regellänge the service names is set once ('regular', Entscheidung
-  // 185), from then on the length here as it is ('fixed').
-  transitions: [60, 60], modes: ['regular', 'regular'],
-  // Keeping a spacing to another track (Entscheidung 167): checked at the
-  // radius given, or the largest radius that keeps it searched.
-  clearanceOn: false, clearanceDMin: 4.0, clearanceMax: false,
-}
-
-/**
- * A splice that does not fit, as a sentence: the error, and what would fit
- * (AP S.5) — the largest radius below the one asked for, the smallest above
- * it, the longest transitions.
- */
-function errorText(t, fill, error, params = {}) {
-  // The keys are the service's (splice.py); one this bundle does not know yet reads as no fit.
-  const known = error.startsWith('splice_error_') || error === 'splice_service_unavailable'
-  const text = t(known ? error : 'splice_error_no_fit')
-  const hints = [
-    params.rMax != null && fill('splice_r_max', { r: String(params.rMax) }),
-    params.rMin != null && fill('splice_r_min', { r: String(params.rMin) }),
-    params.lMax != null && fill('splice_l_max', { l: String(params.lMax).replace('.', ',') }),
-  ].filter(Boolean)
-  // The error texts end with or without a full stop; each hint is a sentence of its own.
-  return hints.length ? `${text}${/[.!?]$/.test(text) ? '' : '.'} ${hints.join(' ')}` : text
-}
-
-/** What the dialog says about a splice: its error, or the solution shown. */
-function spliceMessage(t, fill, splice, solution) {
-  if (splice.error) return { msg: errorText(t, fill, splice.error, splice.params), error: true }
-  const { result, dep, arr } = solution
-  // Departure first, as the solution runs.
-  const side = (k) => result.lengths[k]?.length ?? 0
-  const [Ld, La] = [side(result.depPick), side(1 - result.depPick)]
-  const tr = (Ld > 0 || La > 0) ? ` | ${t('transition_curve')}: ${Ld.toFixed(1)}+${La.toFixed(1)} m` : ''
-  // Two arcs, or an arc and a straight: re-shaped elements and a solved
-  // construction rather than an arc rounding a corner.
-  const arcMode = dep.signedR != null || arr.signedR != null
-  if (result.transitionLength != null) {
-    return { msg: `${t(result.compound ? 'splice_compound' : 'splice_reverse')}: ${t('transition_curve')} ~${result.transitionLength.toFixed(1)} m`, error: false }
-  }
-  if (result.straightLength != null) {
-    return { msg: `${t('splice_arrival')} ↔ ${t('splice_departure')}: ~${result.straightLength.toFixed(1)} m${tr}`, error: false }
-  }
-  const len = `${t('splice_arc_length')}: ~${result.arcLength.toFixed(1)} m${tr}`
-  return { msg: arcMode ? len : `${len} | ${t(result.signedR < 0 ? 'splice_left' : 'splice_right')}`, error: false }
-}
+// The settings, and the spacing to another track (Entscheidung 167): checked
+// at the radius given, or the largest radius that keeps it searched.
+const DEFAULTS = { ...SPLICE_DEFAULTS, clearanceOn: false, clearanceDMin: 4.0, clearanceMax: false }
 
 /** How a dialog names the neighbour: its name, else its line and track number. */
 const trackName = (track) => (track ? track.name || trackLabel(track) : '')
 
-/** Which solution is chosen: by the ends it joins and, for two arcs, how. */
-const solutionKey = (sol) => `${sol.result.ends.join()}|${sol.result.arcJoin ?? ''}`
-
 /**
- * Choosing among several solutions (Entscheidung 180): the one shown, which
- * ends it joins, how two arcs are joined, how much it rebuilds — stepping to
- * the next, and where the one shown joins two arcs the other way than asked
- * for, taking that way over (`onAdopt`).
- */
-function SolutionSwitch({ solutions, solution, picks, onChoose, onAdopt }) {
-  const { t, fill, num } = useI18n()
-  const i = Math.max(0, solutions.indexOf(solution))
-  const { ends, rebuilt, arcJoin, alternative } = solution.result
-  const end = (k) => fill(ends[k] === 'end' ? 'splice_at_end' : 'splice_at_start', { track: picks[k].label })
-  const several = solutions.length > 1
-  return (
-    <div className="splice-solutions">
-      {several && (
-        <button type="button" className="panel-btn" aria-label={t('splice_solution_prev')}
-          onClick={() => onChoose(solutions[(i + solutions.length - 1) % solutions.length])}>◀</button>
-      )}
-      <span>
-        {fill('splice_solution', { i: String(i + 1), n: String(solutions.length) })}: {end(0)} ↔ {end(1)}
-        {arcJoin && ` · ${t(`splice_arc_join_${arcJoin}`)}`}
-        {' · '}{fill('splice_rebuilt', { l: num(rebuilt, { digits: 0, unit: 'm' }) })}
-      </span>
-      {several && (
-        <button type="button" className="panel-btn" aria-label={t('splice_solution_next')}
-          onClick={() => onChoose(solutions[(i + 1) % solutions.length])}>▶</button>
-      )}
-      {alternative && arcJoin && (
-        <button type="button" className="panel-btn secondary" onClick={() => onAdopt(solution)}>{t('splice_adopt')}</button>
-      )}
-    </div>
-  )
-}
-
-/**
- * Splice two tracks into one (R5.5, AP 12.4: the construction is the service's,
- * the commit in utils/commands/splice). Two elements are picked, in either
- * order; the service finds which ends meet and which one departs (AP S.2)
- * and joins them by an arc, re-shaped arcs or a transition — where several
- * ways fit, the best is shown and the others can be stepped through. The
- * merged track is one commit. Every change of the settings asks the service
- * again, once they rest; without the service there is no splice.
+ * Splice two tracks into one (R5.5; the construction in utils/splice, computed
+ * in the browser for both builds since decision 294 — before that on the
+ * optimizer service —, the commit in utils/commands/splice). Two elements are
+ * picked, in either order; the splice finds which ends meet and which one
+ * departs (AP S.2) and joins them by an arc, re-shaped arcs or a transition —
+ * where several ways fit, the best is shown and the others can be stepped
+ * through. The merged track is one commit. Every change of the settings
+ * computes the splice again in a worker, once they rest — held to a spacing
+ * to another track, which only the server offers, on the optimizer service.
  */
 export default function SpliceElementPanel() {
   const { t, fill } = useI18n()
@@ -170,14 +84,18 @@ export default function SpliceElementPanel() {
   const [pickStatus, setPickStatus] = useState(null)   // { msg, error }
   const configuring = picks.length === 2
   const bothArcs = configuring && picks[0].signedR != null && picks[1].signedR != null
+  // The spacing to another track is the optimizer service's (decision 295):
+  // where the server provides it, a splice held to one is asked there as a
+  // whole; without it (the local build) there is no spacing to keep.
+  const withClearance = provided('spliceWithClearance', null)
   // The track the splice keeps its distance to, and whether it is being picked.
   const [refTrackId, setRefTrackId] = useState(null)
   const [pickingRef, setPickingRef] = useState(false)
-  const keeping = configuring && s.clearanceOn && refTrackId != null
+  const keeping = !!withClearance && configuring && s.clearanceOn && refTrackId != null
   // Two arcs have no radius of their own to choose: their spacing is only checked.
   const maximize = keeping && s.clearanceMax && !bothArcs
 
-  // The answer the service gave last — with the search, the radius it found
+  // The answer given last — with the search, the radius it found
   // stands in for the one typed, and the cant follows it.
   const [answer, setAnswer] = useState(null)   // { key, splice }
   const answered = answer?.splice?.solutions ?? null
@@ -185,7 +103,7 @@ export default function SpliceElementPanel() {
   const found = maximize ? shown?.result?.clearance?.radius ?? null : null
   const radius = found ?? s.radius
   const [typedCant, setCant] = useDerivedField(`${s.speed}|${radius}`, Math.abs(computeAutoC(s.speed, Math.abs(Number(radius)))))
-  // With the search, the cant is the one the service solved the radius found
+  // With the search, the cant is the one the radius found was solved
   // with — its transitions and findings are that cant's (AP S.6).
   const searchedCant = maximize ? shown?.result?.clearance?.cant ?? null : null
   const cant = searchedCant ?? typedCant
@@ -208,7 +126,7 @@ export default function SpliceElementPanel() {
         if (why === 'same') return
         if (why) { setPickStatus({ msg: t(why), error: true }); return }
       }
-      // Which one departs is the service's to find, not the order of the clicks.
+      // Which one departs is the splice's to find, not the order of the clicks.
       setPicks(picks.length === 1 ? [picks[0], pick] : [pick])
       // The faster of the two, the rules judging the stricter case (Entscheidung 181).
       if (picks.length === 1) set('speed', Math.max(picks[0].speed ?? 0, pick.speed ?? 0) || '')
@@ -228,7 +146,7 @@ export default function SpliceElementPanel() {
   // The preview and the commit read the same answer, so they cannot disagree.
   // An answer counts only for the request it was given to. The key names the
   // neighbour instead of carrying its axis; with the search, neither the
-  // radius typed nor the cant takes part — the service chooses both.
+  // radius typed nor the cant takes part — the search chooses both.
   const clearance = keeping && axis ? clearanceRequest({
     axis: null, dMin: s.clearanceDMin, profile: gaugeProfile(currentProject()?.gaugeProfile).points,
     maximize, speed: s.speed, cant: maximize ? 0 : cant,
@@ -246,14 +164,18 @@ export default function SpliceElementPanel() {
       try {
         const { neighbour: _n, ...req } = JSON.parse(requestKey)
         if (req.clearance) req.clearance.ref = axis
-        const a = await spliceOnServer(req, { signal: ctl.signal })
+        const a = req.clearance
+          ? await withClearance(req, { signal: ctl.signal })
+          : await solveSpliceInWorker(req, { signal: ctl.signal })
         const read = spliceFromAnswer(a, picks)
         setAnswer({ key: requestKey, splice: read })
         // Transitions just switched on take the Regellänge named, once.
         const sol = read.solutions?.find(x => solutionKey(x) === chosen) ?? read.solutions?.[0]
         setS(prev => settleLengths(prev, sol?.result?.lengths ?? read.lengths))
       } catch (err) {
-        if (err?.name !== 'AbortError') setAnswer({ key: requestKey, splice: { error: 'splice_service_unavailable' } })
+        if (err?.name === 'AbortError') return
+        const { neighbour } = JSON.parse(requestKey)
+        setAnswer({ key: requestKey, splice: { error: neighbour ? 'splice_clearance_unavailable' : 'splice_error_failed' } })
       }
     }, SPLICE_DEBOUNCE)
     return () => { clearTimeout(timer); ctl.abort() }
@@ -292,7 +214,7 @@ export default function SpliceElementPanel() {
     }
   }, [solution, s.speed, cant])
 
-  // The transition beside each pick, by pick, as the service set it in the
+  // The transition beside each pick, by pick, as the splice set it in the
   // chain it solved: its mode, its length and the rules on it (AP S.3) — and
   // where nothing fits, the rules' lengths all the same.
   const transitionRules = s.transitionOn.some(Boolean) ? solution?.result?.lengths ?? splice?.lengths ?? null : null
@@ -304,17 +226,8 @@ export default function SpliceElementPanel() {
   // Two arcs joined the other way than asked for: that way taken over as the
   // setting — over a straight with the transitions the solution has.
   const adopt = (sol) => {
-    const { arcJoin, lengths } = sol.result
-    setChosen(`${sol.result.ends.join()}|${arcJoin}`)
-    set('arcJoin', arcJoin)
-    if (arcJoin === 'straight') {
-      const on = lengths.map(l => l.length > 0)
-      set('transitionOn', on)
-      if (on.some(Boolean)) {
-        set('modes', ['fixed', 'fixed'])
-        set('transitions', lengths.map(l => l.length || DEFAULTS.transitions[0]))
-      }
-    }
+    setChosen(solutionKey(sol))
+    setS(prev => ({ ...prev, ...adoptedSettings(sol) }))
   }
 
   const handleCommit = () => {
@@ -326,7 +239,7 @@ export default function SpliceElementPanel() {
 
   if (configuring) {
     const departure = solution?.dep ?? picks[0]
-    // What the service found on the stretch the solution writes: any error
+    // What the catalogue found on the stretch the solution writes: any error
     // there holds the commit back (Entscheidung 52, 177).
     const ruleError = (solution?.result?.findings ?? []).some(f => severityRank(f.severity) >= severityRank('error'))
     const status = splice ? spliceMessage(t, fill, splice, solution) : { msg: t('splice_solving'), error: false }
@@ -338,8 +251,21 @@ export default function SpliceElementPanel() {
       <>
         <h2>{t('splice_element')}</h2>
         <SpliceSettings picks={picks} departure={departure} s={s} set={set} cant={cant} setCant={setCant}
-          transitionLength={solution?.result?.transitionLength} transitionRules={transitionRules}
-          clearance={{ refName, pickingRef, onPickRef: () => setPickingRef(p => !p), maximize, found }} />
+          transitionLength={solution?.result?.transitionLength} transitionRules={transitionRules} maximize={maximize} found={found}>
+          {withClearance && (
+            <ClearanceFields on={s.clearanceOn} onToggle={v => set('clearanceOn', v)} refName={refName}
+              picking={pickingRef} onPick={() => setPickingRef(p => !p)} dMin={s.clearanceDMin} onDMin={v => set('clearanceDMin', v)}>
+              {!bothArcs ? (
+                <label className="transition-curve-row">
+                  <input type="checkbox" checked={s.clearanceMax} onChange={e => set('clearanceMax', e.target.checked)} />
+                  <span>{t('splice_clearance_max')}</span>
+                </label>
+              ) : (
+                <p className="msg-hint">{t('splice_clearance_arcs')}</p>
+              )}
+            </ClearanceFields>
+          )}
+        </SpliceSettings>
         {solution && (solutions.length > 1 || solution.result.alternative) && (
           <SolutionSwitch solutions={solutions} solution={solution} picks={picks}
             onChoose={sol => setChosen(solutionKey(sol))} onAdopt={adopt} />
@@ -347,7 +273,7 @@ export default function SpliceElementPanel() {
         {splice?.requested && (
           <p className="msg-hint">
             {fill('splice_requested_failed', { join: t(`splice_arc_join_${s.arcJoin}`) })}{' '}
-            {errorText(t, fill, splice.requested.error, splice.requested.params)}
+            {spliceErrorText(t, fill, splice.requested.error, splice.requested.params)}
           </p>
         )}
         {status && <p className={status.error ? 'msg-error' : 'msg-info'}>{status.msg}</p>}

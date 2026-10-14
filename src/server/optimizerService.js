@@ -98,12 +98,12 @@ export async function optimizeOnServer(payload, { signal } = {}) {
 }
 
 /**
- * "Elemente verbinden" (AP 12.4): the chain between two picked elements, built
- * by the service — the only place the construction lives. Resolves with
- * { elements, reverseArr, info }, or { error, params } where the splice does
- * not fit (an answer, not a failure: `error` is the key the panel translates,
- * `params.rMax` the largest radius that would). Throws an OptimizerError where
- * the service cannot be asked.
+ * "Zwei Gleise zusammenfügen" held to a spacing to another track (Entscheidung
+ * 167): the whole splice built by the service, which alone keeps the spacing
+ * (decision 295) — without it the app computes the splice itself
+ * (core/utils/splice). Resolves with the answer in the form solveSplice gives,
+ * each solution's info with its `clearance`, or { error, params } where the
+ * splice does not fit. Throws an OptimizerError where the service cannot be asked.
  */
 export async function spliceOnServer(payload, { signal } = {}) {
   return postJson('/splice', payload, { signal })

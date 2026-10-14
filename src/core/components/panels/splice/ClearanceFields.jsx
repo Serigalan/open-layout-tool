@@ -1,7 +1,7 @@
-import { useI18n } from '../../../core/locales/i18nContext'
-import FormSection from '../../../core/components/form/FormSection'
-import NumberInput from '../../../core/components/form/NumberInput'
-import { QUERSCHNITT_KATALOG } from '../../../core/utils/gaugeProfiles'
+import { useI18n } from '../../../locales/i18nContext'
+import FormSection from '../../../components/form/FormSection'
+import NumberInput from '../../../components/form/NumberInput'
+import { QUERSCHNITT_KATALOG } from '../../../utils/gaugeProfiles'
 
 // The Regelgleisabstände of Ril 800.0130, as a hint beside the minimum spacing.
 const REGEL_ABSTAENDE = [...new Set(QUERSCHNITT_KATALOG.streckenquerschnitte.rows.map(r => r.gleisabstand))]

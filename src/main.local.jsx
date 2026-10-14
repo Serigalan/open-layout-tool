@@ -1,9 +1,7 @@
 // The local build (Paket L): core alone — no project server, no Python
 // service, no sign-in. Nothing of src/server is imported here, so nothing of
-// it is in the bundle; the extension points of core hold only what the local
-// build adds itself (src/local/register.js, decision 293) and the projects of
-// this browser in its storage dialog.
-import './local/register'
+// it is in the bundle; every extension point of core stays empty but the
+// projects of this browser in its storage dialog.
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './core/index.css'

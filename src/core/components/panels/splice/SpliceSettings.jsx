@@ -1,12 +1,11 @@
-import { MAX_CANT, computeCantDef } from '../../../core/utils/rules/cant'
-import { useI18n } from '../../../core/locales/i18nContext'
-import CantField from '../../../core/components/panels/CantField'
-import ReadOnlyField from '../../../core/components/form/ReadOnlyField'
-import AdvancedInfo from '../../../core/components/form/AdvancedInfo'
-import FieldRule from '../../../core/components/form/FieldRule'
-import NumberInput from '../../../core/components/form/NumberInput'
-import TransitionLengthButtons from '../../../core/components/panels/TransitionLengthButtons'
-import ClearanceFields from './ClearanceFields'
+import { MAX_CANT, computeCantDef } from '../../../utils/rules/cant'
+import { useI18n } from '../../../locales/i18nContext'
+import CantField from '../CantField'
+import ReadOnlyField from '../../form/ReadOnlyField'
+import AdvancedInfo from '../../form/AdvancedInfo'
+import FieldRule from '../../form/FieldRule'
+import NumberInput from '../../form/NumberInput'
+import TransitionLengthButtons from '../TransitionLengthButtons'
 
 
 /**
@@ -14,23 +13,22 @@ import ClearanceFields from './ClearanceFields'
  * between straights with its speed and cant, and the transitions either side
  * — each switched on on its own (one side alone is fine), with its own shape,
  * clothoid or Bloss, and how long it is unless the construction solves it.
- * Switched on, a side gets the Regellänge the service names once (mode
+ * Switched on, a side gets the Regellänge the answer names once (mode
  * 'regular', Entscheidung 185); from then on its length is as typed or as a
  * button sets it — the Regel- or Mindestlänge where it stands now (mode
- * 'fixed'). `transitionRules` [first, second] is what the service answered
+ * 'fixed'). `transitionRules` [first, second] is what the splice answered
  * for each: its length and the rules on it, also where nothing fits. Both belong
  * to the two `picks` in the order they were clicked; they are listed
  * departure first, as the solution shown runs (`departure`). `s` holds the
  * settings, `set(key, value)` changes one.
  *
- * Below them the spacing to another track (Entscheidung 167): the track,
- * picked on the map (`clearance.onPickRef`), the minimum spacing and — where
- * the case has a radius to choose — whether the largest radius that keeps it
- * is searched. Searched, the radius and its cant are the service's answer
- * (`clearance.found`), shown rather than typed.
+ * Below them stands what the dialog adds (`children`): the spacing to another
+ * track (Entscheidung 167). Where it searches the largest radius
+ * that keeps it (`maximize`), the radius and its cant are the search's answer
+ * (`found`), shown rather than typed.
  */
 export default function SpliceSettings({
-  picks, departure, s, set, cant, setCant, transitionLength, transitionRules = null, clearance = {},
+  picks, departure, s, set, cant, setCant, transitionLength, transitionRules = null, maximize = false, found = null, children,
 }) {
   const { t } = useI18n()
   const bothArcs = picks[0]?.signedR != null && picks[1]?.signedR != null
@@ -48,7 +46,7 @@ export default function SpliceSettings({
       <option value="bloss">{t('transition_type_bloss')}</option>
     </select>
   )
-  // What a side shows: the Regellänge the service set, until it is taken over, or the length.
+  // What a side shows: the Regellänge the splice set, until it is taken over, or the length.
   const shown = (k) => (s.modes[k] !== 'fixed' && transitionRules?.[k]?.length ? transitionRules[k].length : s.transitions[k])
   // Joined straight from one arc to the other, the transition's length is the
   // answer rather than an input — there is nothing to type and nothing to switch on.
@@ -67,7 +65,7 @@ export default function SpliceSettings({
             <option value="transition">{t('splice_arc_join_transition')}</option>
           </select>
         </div>
-      ) : clearance.maximize ? null : (
+      ) : maximize ? null : (
         <div className="form-field"><label>{t('field_radius')}</label>{number('radius', { min: 1 })}  <FieldRule name="radius" />
 </div>
       )}
@@ -76,7 +74,7 @@ export default function SpliceSettings({
       {!(Number(s.speed) > 0) && <p className="selecting-hint">{t('splice_no_speed')}</p>}
       {/* The radius field here is a magnitude, so the cant is one too — it is
           signed by the fitted arc when the element is written. */}
-      {!bothArcs && !clearance.maximize && (
+      {!bothArcs && !maximize && (
         <CantField value={cant} onChange={setCant} min={0} max={MAX_CANT} speed={s.speed} radius={Math.abs(Number(s.radius))} />
       )}
       {directTransition ? (
@@ -108,28 +106,18 @@ export default function SpliceSettings({
           )}
         </div>
       ))}
-      <ClearanceFields on={s.clearanceOn} onToggle={v => set('clearanceOn', v)} refName={clearance.refName}
-        picking={clearance.pickingRef} onPick={clearance.onPickRef} dMin={s.clearanceDMin} onDMin={v => set('clearanceDMin', v)}>
-        {!bothArcs ? (
-          <label className="transition-curve-row">
-            <input type="checkbox" checked={s.clearanceMax} onChange={e => set('clearanceMax', e.target.checked)} />
-            <span>{t('splice_clearance_max')}</span>
-          </label>
-        ) : (
-          <p className="msg-hint">{t('splice_clearance_arcs')}</p>
-        )}
-      </ClearanceFields>
+      {children}
       <AdvancedInfo>
         {order.map(k => <ReadOnlyField key={k} label={role(k)} value={picks[k]?.label ?? ''} />)}
-        {!bothArcs && clearance.maximize && (
+        {!bothArcs && maximize && (
           <>
-            <ReadOnlyField label={t('field_radius')} value={clearance.found != null ? `${clearance.found} m` : '…'} />
-            <ReadOnlyField label={t('cant')} value={clearance.found != null ? `${cant} mm` : '…'} />
+            <ReadOnlyField label={t('field_radius')} value={found != null ? `${found} m` : '…'} />
+            <ReadOnlyField label={t('cant')} value={found != null ? `${cant} mm` : '…'} />
           </>
         )}
-        {!bothArcs && (!clearance.maximize || clearance.found != null) && (
+        {!bothArcs && (!maximize || found != null) && (
           <ReadOnlyField type="number" label={t('cant_def')}
-            value={computeCantDef(s.speed, clearance.maximize ? clearance.found : s.radius, cant)} />
+            value={computeCantDef(s.speed, maximize ? found : s.radius, cant)} />
         )}
         {directTransition && (
           <ReadOnlyField label={`${t('transition_curve')} – ${t('field_length')}`}

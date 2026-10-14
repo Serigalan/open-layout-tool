@@ -59,28 +59,7 @@ export default defineConfig([
         patterns: [{
           regex: '^(\\.\\./)+server(/|$)',
           message: 'src/core never imports from src/server (decision 277) — add an extension point to core/extensions.js instead.',
-        }, {
-          regex: '^(\\.\\./)+local(/|$)',
-          message: 'src/core never imports from src/local (decision 293) — src/local/register.js fills an extension point instead.',
         }],
-      }],
-    },
-  },
-  {
-    // What only the local build has (decision 293) builds on core alone, and
-    // the server's components know nothing of it.
-    files: ['src/local/**/*.{js,jsx}'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [{ regex: '^(\\.\\./)+server(/|$)', message: 'src/local never imports from src/server (decision 293).' }],
-      }],
-    },
-  },
-  {
-    files: ['src/server/**/*.{js,jsx}'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [{ regex: '^(\\.\\./)+local(/|$)', message: 'src/server never imports from src/local (decision 293).' }],
       }],
     },
   },

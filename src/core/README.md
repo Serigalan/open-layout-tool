@@ -7,6 +7,4 @@ ships nothing else.
 
 **`core` never imports from `src/server`** (decision 277). Where a server part
 has to appear in the app, `core` offers an extension point (`core/extensions.js`)
-and `src/server/register.js` fills it. The same points take what only the local
-build has — its simplified splice, `src/local/register.js` (decision 293); `core`
-never imports from `src/local` either.
+and `src/server/register.js` fills it.

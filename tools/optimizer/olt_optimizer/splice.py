@@ -1,12 +1,13 @@
 """Splicing two elements into one chain — the construction of "Elemente verbinden".
 
-Since AP 12.4 this is the implementation: the panel asks the service
-(`POST /splice`), and the alignment fit from measured axis points (phase 12)
-builds its arcs with the same functions. It replaces the app's former
-src/core/utils/spliceUtils.js. The local build, which has no service, carries
-a simplified copy without transitions, spacing and rule check
-(src/local/splice/localSplice.js, decision 293), held against this one by
-tests/local_splice_fixture.py --check.
+Reconnecting existing elements (reconnect.py, Paket N) and the alignment fit
+from measured axis points (phase 12) build their arcs with these functions;
+`POST /splice` answers with them — what the app's dialog "Zwei Gleise
+zusammenfügen" asks here only for a splice held to a spacing to another track
+(decision 295). Without one the dialog computes the same construction in the
+browser since decision 294 (src/core/utils/splice/solveSplice.js, ported from
+here); tests/splice_answers_fixture.py --check holds the two alike — a change
+here is followed there.
 
 The two picked elements come in the plane of their track (one CRS for both):
 each with its two ends, the bearing at its end in the element's own direction

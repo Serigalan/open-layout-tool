@@ -1,15 +1,15 @@
 import { useContext, useEffect } from 'react'
-import { fieldFindings } from '../../../core/utils/ruleFields'
-import { RuleFieldsContext } from '../../../core/components/form/ruleFieldsContext'
-import { ruleById, severityLabelKey } from '../../../core/utils/regelkatalog'
-import { useI18n } from '../../../core/locales/i18nContext'
+import { fieldFindings } from '../../../utils/ruleFields'
+import { RuleFieldsContext } from '../../../components/form/ruleFieldsContext'
+import { ruleById, severityLabelKey } from '../../../utils/regelkatalog'
+import { useI18n } from '../../../locales/i18nContext'
 
 const TYPE_KEY = { 0: 'table_type_straight', 1: 'table_type_arc', 2: 'transition_curve' }
 const ROLE_KEY = { dep: 'splice_departure', arr: 'splice_arrival', new: 'splice_inserted' }
 
 /**
  * What the rule catalogue finds on the stretch a splice writes (AP S.4) — as
- * the service judged it, the rest of the departure, what is inserted, the
+ * it was judged, the rest of the departure, what is inserted, the
  * rest of the arrival and the joints between them — one line per finding,
  * by the element or joint it is about, in chain order. The findings on the
  * inserted arc are also shown at the dialog's fields (R10.4), which ask for
