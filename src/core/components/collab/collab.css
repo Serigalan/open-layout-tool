@@ -243,7 +243,7 @@
 
 .collab-brand { display: flex; align-items: center; gap: 10px; }
 .collab-brand h1 { margin: 0; font-size: 20px; font-weight: 700; color: var(--collab-fg); }
-.collab-logo { width: 49px; height: 34px; flex-shrink: 0; }
+.collab-logo { width: 49px; height: 34px; color: var(--color-primary); flex-shrink: 0; }
 
 .collab-muted { margin: 0; color: var(--collab-muted); font-size: 13px; line-height: 1.45; }
 .collab-hint { margin: 0; color: var(--collab-muted); font-size: 12px; }

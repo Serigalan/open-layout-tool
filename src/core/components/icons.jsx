@@ -1,6 +1,6 @@
 import { PALETTE } from '../styles/palette'
 import {
-  MARK_BLUE, MARK_GROUND, MARK_HEIGHT, MARK_INNER, MARK_LETTERS, MARK_LINK_BLUE, MARK_LINKS, MARK_RAIL, MARK_WIDTH,
+  MARK_GROUND, MARK_HEIGHT, MARK_INNER, MARK_LETTERS, MARK_LINK_OPACITY, MARK_LINKS, MARK_RAIL, MARK_WIDTH,
 } from '../utils/logoMark'
 // ── Panel menu icons ────────────────────────────────────────────────────────
 //
@@ -526,14 +526,15 @@ export const DataExchangeIcon = () => (
   </SidebarIcon>
 )
 
-// The app's mark (utils/logoMark): one track writing O, L and T, drawn as a pair of rails.
+// The app's mark (utils/logoMark): one track writing O, L and T, drawn as a
+// pair of rails, on the ground in currentColor — the primary colour.
 export const LogoIcon = ({ className }) => (
   <svg viewBox={`0 0 ${MARK_WIDTH} ${MARK_HEIGHT}`} className={className} aria-hidden="true">
-    <path d={MARK_GROUND} fill={MARK_BLUE} />
+    <path d={MARK_GROUND} fill="currentColor" />
     <g fill="none">
-      <path d={MARK_LINKS} stroke={MARK_LINK_BLUE} strokeWidth={MARK_RAIL} />
+      <path d={MARK_LINKS} stroke={PALETTE.white} strokeOpacity={MARK_LINK_OPACITY} strokeWidth={MARK_RAIL} />
       <path d={MARK_LETTERS} stroke={PALETTE.white} strokeWidth={MARK_RAIL} />
-      <path d={`${MARK_LINKS} ${MARK_LETTERS}`} stroke={MARK_BLUE} strokeWidth={MARK_INNER} />
+      <path d={`${MARK_LINKS} ${MARK_LETTERS}`} stroke="currentColor" strokeWidth={MARK_INNER} />
     </g>
   </svg>
 )
