@@ -3,7 +3,8 @@ import { transitionCantEnds } from './clothoidUtils'
 import { tangentLength } from './heightUtils'
 import { heightDatumLabel } from './heightDatums'
 import { lagesystemForEpsg } from './mdbImport'
-import { trackLabel } from './trackModel'
+import { reverseTrack, trackLabel } from './trackModel'
+import { routeProfile } from './routeProfile'
 
 /**
  * Verm.ESN files of the project's tracks — the counterpart of vermEsnImport,
@@ -23,6 +24,9 @@ import { trackLabel } from './trackModel'
  *
  * Neither file says which plane or height datum it is in, so the archive
  * carries a short text naming them for each track.
+ *
+ * A route goes out the same way, as one axis (routeAsTrack): its tracks one
+ * after the other in its direction, stationed from 0 at its begin.
  */
 
 const RECORD_SIZE = 78
@@ -144,6 +148,60 @@ export function graBytes(track) {
   return bytes
 }
 
+/** Two bearings closer than this [°] are the same direction. */
+const SAME_BEARING = 1e-6
+
+/**
+ * A route as a track of its own, for the export: { track, problem }. The track
+ * has the elements of all parts in the route's direction — a part run
+ * backwards turned round, its radii and cants with it — and the heights of
+ * the route's profile, the point two parts share at their joint once
+ * (routeProfile). `track.route` names the tracks it runs and, where the route
+ * has no gradient, why.
+ *
+ * No track where the route is broken (`problem` 'gaps'), has no element
+ * ('empty') or runs over tracks in different planes ('planes'). It has no
+ * heights where one of its tracks has none or they are in different height
+ * datums — a gradient over part of the route would not be the route's.
+ */
+export function routeAsTrack(resolved) {
+  const { route, parts = [] } = resolved ?? {}
+  const name = String(route?.name ?? '').trim() || 'Route'
+  if (!parts.length) return { track: null, problem: 'empty', name }
+  if (resolved.gaps?.length) return { track: null, problem: 'gaps', name }
+  const epsgs = new Set(parts.map(p => Number(p.track.epsg) || null))
+  if (epsgs.size > 1) return { track: null, problem: 'planes', name }
+  // Where a straight ends a part and the next part leaves in another
+  // direction, that is a kink, written as one (traRecords, type 5).
+  const elements = []
+  for (const part of parts) {
+    const els = (part.reversed ? reverseTrack(part.track) : part.track).elements ?? []
+    const at = elements.findLastIndex(el => (el.length ?? 0) > 0)
+    const last = elements[at]
+    const first = els.find(el => (el.length ?? 0) > 0)
+    if (last && first && !last.radius && last.elementType !== 2
+      && Math.abs(((((first.bearing - (last.endBearing ?? last.bearing)) + 540) % 360) - 180)) > SAME_BEARING) {
+      elements[at] = { ...last, endBearing: first.bearing }
+    }
+    elements.push(...els)
+  }
+  if (!elements.some(el => (el.length ?? 0) > 0)) return { track: null, problem: 'empty', name }
+  const heightEpsgs = new Set(parts.map(p => Number(p.track.heightEpsg) || null))
+  const noGradient = parts.some(p => (p.track.heights?.length ?? 0) < 2) ? 'heights'
+    : heightEpsgs.size > 1 ? 'datums' : null
+  const heights = noGradient ? undefined : routeProfile(resolved).points.map(p => ({
+    station: p.station, z: p.z, ...(p.rv != null ? { rv: p.rv } : {}),
+  }))
+  return {
+    problem: null, name,
+    track: {
+      id: route?.id, name, epsg: parts[0].track.epsg, elements,
+      ...(heights ? { heights, heightEpsg: parts[0].track.heightEpsg } : {}),
+      route: { tracks: parts.map(p => nameOf(p.track)), noGradient },
+    },
+  }
+}
+
 /** What a track is called in the export: its own name, which tells the pieces of a line apart, else its label. */
 const nameOf = (track) => String(track.name ?? '').trim() || trackLabel(track)
 
@@ -155,20 +213,29 @@ const fileBase = (track) => nameOf(track)
   .replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^[_.]+|[_.]+$/g, '') || 'Gleis'
 
 /**
- * The Verm.ESN files of the given tracks, as one zip: per track a TRA, a GRA
- * where it has heights, named after the track and its Lagesystem
- * (`807B.002_DR0.TRA`), and a text naming what the files themselves do not.
+ * The Verm.ESN files of the given tracks and routes (resolved, see
+ * resolveRoute), as one zip: per track and per route a TRA, a GRA where it has
+ * heights, named after it and its Lagesystem (`807B.002_DR0.TRA`), and a text
+ * naming what the files themselves do not.
  *
- * Returns { zip, files, skipped } — `files` the tracks written, as { name,
- * tra, gra, elements, length, epsg, heightEpsg }; `skipped` the names of
- * tracks without any element.
+ * Returns { zip, files, skipped, routesSkipped } — `files` what was written,
+ * as { name, route, tra, gra, elements, length, epsg, heightEpsg }; `skipped`
+ * the names of tracks without any element; `routesSkipped` the routes not
+ * written, as { name, problem } (routeAsTrack).
  */
-export function exportVermEsn(tracks, { title = '' } = {}) {
+export function exportVermEsn(tracks, { title = '', routes = [] } = {}) {
   const entries = {}
   const files = []
   const skipped = []
+  const routesSkipped = []
   const used = new Set()
-  for (const track of tracks) {
+  const routeTracks = []
+  for (const resolved of routes) {
+    const { track, problem, name } = routeAsTrack(resolved)
+    if (track) routeTracks.push(track)
+    else routesSkipped.push({ name, problem })
+  }
+  for (const track of [...tracks, ...routeTracks]) {
     const tra = traBytes(track)
     if (!tra) { skipped.push(nameOf(track)); continue }
     const lsys = lagesystemForEpsg(track.epsg)
@@ -181,31 +248,44 @@ export function exportVermEsn(tracks, { title = '' } = {}) {
     if (gra) entries[`${base}.GRA`] = gra
     const records = traRecords(track)
     files.push({
-      name: nameOf(track), tra: `${base}.TRA`, gra: gra ? `${base}.GRA` : null,
+      name: nameOf(track), route: track.route ?? null, tra: `${base}.TRA`, gra: gra ? `${base}.GRA` : null,
       elements: records.length - 1, length: records[records.length - 1].station,
       epsg: Number(track.epsg) || null, lsys,
       heightEpsg: gra ? Number(track.heightEpsg) || null : null, heights: gra ? track.heights.length : 0,
     })
   }
-  entries['Verm.ESN-Export.txt'] = strToU8(exportNote(files, skipped, title))
-  return { zip: zipSync(entries), files, skipped }
+  entries['Verm.ESN-Export.txt'] = strToU8(exportNote(files, skipped, routesSkipped, title))
+  return { zip: zipSync(entries), files, skipped, routesSkipped }
 }
 
-/** The text in the archive: per file the track, the plane and the height datum it is in. */
-function exportNote(files, skipped, title) {
+const ROUTE_PROBLEM = {
+  gaps: 'unterbrochen', empty: 'ohne Elemente', planes: 'Gleise in verschiedenen Lagesystemen',
+}
+const NO_GRADIENT = {
+  heights: 'nicht jedes Gleis hat Höhen', datums: 'Höhen in verschiedenen Höhensystemen',
+}
+
+/** The text in the archive: per file the track or route, the plane and the height datum it is in. */
+function exportNote(files, skipped, routesSkipped, title) {
   const lines = [
     `Verm.ESN-Export${title ? ` – ${title}` : ''}`,
     `Erstellt ${new Date().toISOString().slice(0, 10)} mit dem Open Layout Tool.`,
     '',
-    'Stationierung je Gleis ab 0 m; TRA und GRA eines Gleises sind gleich stationiert.',
+    'Stationierung je Gleis und je Route ab 0 m; TRA und GRA eines Gleises oder einer Route sind gleich stationiert.',
+    'Eine Route ist eine Achse über ihre Gleise in Routenrichtung; gegen ihre Richtung befahrene Gleise sind umgedreht.',
     'Koordinaten im Lagesystem des Gleises, nicht umgerechnet. Überhöhung als Betrag in mm.',
     '',
   ]
   for (const f of files) {
-    lines.push(`${f.tra}  Gleis ${f.name}, ${f.elements} Elemente, ${f.length.toFixed(3)} m, `
+    const what = f.route ? `Route „${f.name}“ über ${f.route.tracks.join(' → ')}` : `Gleis ${f.name}`
+    lines.push(`${f.tra}  ${what}, ${f.elements} Elemente, ${f.length.toFixed(3)} m, `
       + `EPSG ${f.epsg ?? '?'}${f.lsys ? ` (${f.lsys})` : ''}`)
     if (f.gra) lines.push(`${f.gra}  ${f.heights} Höhenpunkte, ${heightDatumLabel(f.heightEpsg ?? undefined)}`)
+    else if (f.route?.noGradient) lines.push(`  ohne GRA: ${NO_GRADIENT[f.route.noGradient]}`)
   }
   if (skipped.length) lines.push('', `Ohne Elemente, nicht exportiert: ${skipped.join(', ')}`)
+  if (routesSkipped.length) {
+    lines.push('', `Nicht exportierte Routen: ${routesSkipped.map(r => `${r.name} (${ROUTE_PROBLEM[r.problem]})`).join(', ')}`)
+  }
   return lines.join('\r\n') + '\r\n'
 }

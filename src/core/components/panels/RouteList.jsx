@@ -7,9 +7,10 @@ import { useI18n } from '../../locales/i18nContext'
  * The project's routes (Paket RT) above a track list: one button each, with
  * its length and number of tracks and a mark where it has gaps — what the
  * height profile and the cross section offer besides single tracks. Nothing
- * where the project has none.
+ * where the project has none. `activeIds` (a Set) marks several at once,
+ * where routes are picked to go together.
  */
-export default function RouteList({ activeId, onPick }) {
+export default function RouteList({ activeId, activeIds, onPick }) {
   const { t, fill, num } = useI18n()
   const routes = useRoutes()
   const tracks = useTracks()
@@ -22,7 +23,7 @@ export default function RouteList({ activeId, onPick }) {
     <div className="route-list">
       <span className="create-element-section">{t('routes')}</span>
       {resolved.map(({ route, res }) => {
-        const on = route.id === activeId
+        const on = activeIds ? activeIds.has(route.id) : route.id === activeId
         return (
           <button key={route.id} type="button" disabled={!res.parts.length}
             className={`create-element-btn track-group-item route-item${on ? ' active' : ''}`}

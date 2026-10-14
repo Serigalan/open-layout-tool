@@ -4,9 +4,11 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { unzipSync, strFromU8 } from 'fflate'
 import { parseRecords, buildElements, parseGradient } from './vermEsnImport'
-import { traBytes, graBytes, traRecords, exportVermEsn } from './vermEsnExport'
+import { traBytes, graBytes, traRecords, exportVermEsn, routeAsTrack } from './vermEsnExport'
 import { lagesystemForEpsg, epsgForLagesystem } from './mdbImport'
-import { recalcAbsLengths } from './trackModel'
+import { recalcAbsLengths, reverseTrack } from './trackModel'
+import { arcFrom, straightFrom } from './elementFactory'
+import { resolveRoute } from './routes'
 import { tangentLength } from './heightUtils'
 import { hasPekBestand, loadPekBestand } from '../test/pekFixture'
 
@@ -159,6 +161,63 @@ describe('exportVermEsn', () => {
   })
 })
 
+describe('routes', () => {
+  const Z = 25832
+  const at = (e, n = 5_500_000) => ({ easting: 500_000 + e, northing: n, zone: Z })
+  // A runs east 0→100; B goes on from there in a right-hand curve with cant,
+  // but is stored the other way round; K leaves A's end 10° further south.
+  const A = { id: 'A', name: 'A', epsg: Z, heightEpsg: 7837, elements: [straightFrom(at(0), 90, 100)],
+    heights: [{ station: 0, z: 100 }, { station: 100, z: 101 }] }
+  const arc = arcFrom(at(100), 90, 50, 1000, { cant: 60 })
+  const B = reverseTrack({ id: 'B', name: 'B', epsg: Z, heightEpsg: 7837, elements: [arc],
+    heights: [{ station: 0, z: 101 }, { station: 50, z: 101.5 }] })
+  const K = { id: 'K', name: 'K', epsg: Z, elements: [straightFrom(at(100), 100, 30)] }
+  // A joint has one free end on either side: B and K are never in the project together.
+  const resolve = (trackIds) => resolveRoute({ id: trackIds.join(''), name: `R ${trackIds.join('')}`, trackIds },
+    [A, ...(trackIds.includes('K') ? [K] : [B])], [])
+
+  it('writes a route as one axis in its direction, the track run backwards turned round', () => {
+    const { track } = routeAsTrack(resolve(['A', 'B']))
+    const recs = traRecords(track)
+    expect(recs.map(r => [r.type, Math.round(r.station)])).toEqual([[0, 0], [1, 100], [0, 150]])
+    expect(recs[1].radiusB).toBe(1000)
+    expect(recs[1].cantB).toBe(60)
+    expect(recs[1].easting).toBeCloseTo(500_100, 6)
+    expect(recs[1].bearing).toBeCloseTo(Math.PI / 2, 9)
+    expect(track.heights.map(h => [Math.round(h.station), h.z])).toEqual([[0, 100], [100, 101], [150, 101.5]])
+    expect(track.route.tracks).toEqual(['A', 'B'])
+  })
+
+  it('writes a change of direction where two tracks meet as a kink', () => {
+    const recs = traRecords(routeAsTrack(resolve(['A', 'K'])).track)
+    expect(recs[0].type).toBe(5)
+    expect(recs[0].radiusB).toBeCloseTo(200 + 10 / 0.9, 6)
+  })
+
+  it('leaves out the gradient where a track has no heights, and the route where it is broken', () => {
+    const { track } = routeAsTrack(resolve(['A', 'K']))
+    expect(track.heights).toBeUndefined()
+    expect(track.route.noGradient).toBe('heights')
+    expect(routeAsTrack(resolve(['K', 'B']))).toMatchObject({ track: null, problem: 'gaps' })
+    // Tracks in two planes meet over a link only; the route over it is not one axis.
+    const ok = resolve(['A', 'B'])
+    const mixed = { ...ok, parts: [ok.parts[0], { ...ok.parts[1], track: { ...B, epsg: 5684 } }] }
+    expect(routeAsTrack(mixed)).toMatchObject({ track: null, problem: 'planes' })
+  })
+
+  it('puts routes into the archive next to the tracks and names them in the note', () => {
+    const { zip, files, routesSkipped } = exportVermEsn([A], { routes: [resolve(['A', 'B']), resolve(['K', 'B'])] })
+    const entries = unzipSync(zip)
+    expect(Object.keys(entries).sort()).toEqual(['A.GRA', 'A.TRA', 'R_AB.GRA', 'R_AB.TRA', 'Verm.ESN-Export.txt'])
+    expect(files.map(f => f.route?.tracks ?? null)).toEqual([null, ['A', 'B']])
+    expect(routesSkipped).toEqual([{ name: 'R KB', problem: 'gaps' }])
+    const note = strFromU8(entries['Verm.ESN-Export.txt'])
+    expect(note).toContain('Route „R AB“ über A → B')
+    expect(note).toContain('R KB (unterbrochen)')
+    expect(parseGradient(bufferOf(entries['R_AB.GRA'])).map(p => Math.round(p.station))).toEqual([0, 100, 150])
+  })
+})
+
 const TESTDATA = join(homedir(), '.claude/projects/-root-open-layout-tool/memory/testdata')
 const realFiles = ['5550L000_EA0_VR.TRA', '5550R000_EA0_VR.TRA'].map(f => join(TESTDATA, f)).filter(existsSync)
 
@@ -197,6 +256,39 @@ describe.skipIf(!hasPekBestand)('PEK Bestand', () => {
       const own = track.elements.filter(el => el.length > 0)
       worst = Math.max(worst, maxDeviation(own, back.elements))
     }
+    expect(worst).toBeLessThan(1e-4)
+  })
+
+  it('a route over three tracks reads back to its own chain, each run in the route\'s direction', () => {
+    const { tracks, switches } = loadPekBestand()
+    // From every track, both ways, the longest run of three that can be had.
+    let checked = 0, reversed = 0, worst = 0
+    for (const first of tracks.filter(t => t.elements?.length)) {
+      for (const exit of ['END', 'BEGIN']) {
+        let ids = [first.id]
+        for (let k = 0; k < 2; k++) {
+          const last = ids[ids.length - 1]
+          const next = tracks.find(t => t.id !== last && !ids.includes(t.id)
+            && resolveRoute({ trackIds: [...ids, t.id] }, tracks, switches).ok
+            && (ids.length > 1 || resolveRoute({ trackIds: [first.id, t.id] }, tracks, switches).parts[0].reversed === (exit === 'BEGIN')))
+          if (!next) break
+          ids = [...ids, next.id]
+        }
+        if (ids.length < 3) continue
+        const resolved = resolveRoute({ name: 'R', trackIds: ids }, tracks, switches)
+        const { track } = routeAsTrack(resolved)
+        if (!track) continue
+        checked++
+        if (resolved.parts.some(p => p.reversed)) reversed++
+        const own = track.elements.filter(el => el.length > 0)
+        worst = Math.max(worst, maxDeviation(own, readBack(track).elements))
+        if (track.heights) expect(parseGradient(bufferOf(graBytes(track))).length).toBe(track.heights.length)
+        if (checked >= 40) break
+      }
+      if (checked >= 40) break
+    }
+    expect(checked).toBeGreaterThan(5)
+    expect(reversed).toBeGreaterThan(0)
     expect(worst).toBeLessThan(1e-4)
   })
 })
