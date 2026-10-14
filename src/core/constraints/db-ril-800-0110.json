@@ -634,19 +634,23 @@
       "applies_to": { "scope": "element", "element_types": ["transition_curve"], "forms": ["clothoid", "bloss"] },
       "inputs": {
         "delta_u": { "from": "physics.delta_u", "unit": "mm" },
-        "m": { "from": "physics.ramp_slope", "unit": "-", "symbol_by_form": { "clothoid": "m", "bloss": "m_M" } }
+        "m": { "from": "physics.ramp_slope", "unit": "-", "symbol_by_form": { "clothoid": "m", "bloss": "m_M" } },
+        "form": { "from": "element.transition_form", "unit": "enum" }
       },
       "condition": "delta_u > 0",
       "thresholds": {
-        "reg": { "expr": "600", "unit": "-" },
-        "discretion": { "expr": "400", "unit": "-" }
+        "reg": { "expr": "600 * if(form == 'bloss', 3 / 2, 1)", "unit": "-" },
+        "discretion": { "expr": "400 * if(form == 'bloss', 3 / 2, 1)", "unit": "-" }
       },
       "evaluation": [
         { "if": "m >= reg", "severity": "ok" },
         { "if": "m >= discretion", "severity": "warning" },
         { "else": "error" }
       ],
-      "notes": ["Maßgebend ist die mittlere Neigung."],
+      "notes": [
+        "Maßgebend ist die mittlere Neigung.",
+        "Beim Blossbogen ist die Rampe in der Mitte steiler als im Mittel: gegen 1:600 bzw. 1:400 wird 2/3 · m_M gehalten, d. h. m_M ≥ 900 (Regelwert) bzw. m_M ≥ 600 (Ermessensgrenze)."
+      ],
       "source": { "ref": "RIL_800_0110", "section": null },
       "status": "confirmed"
     },

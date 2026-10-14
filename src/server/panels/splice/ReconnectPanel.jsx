@@ -163,7 +163,7 @@ export default function ReconnectPanel() {
           : null
         const req = reconnectRequest(picks, points, { ...s, radius }, clearance)
         const a = await reconnectOnServer(req, { signal: ctl.signal })
-        setAnswer({ key: requestKey, read: reconnectFromAnswer(a, picks) })
+        setAnswer({ key: requestKey, read: reconnectFromAnswer(a, picks, req) })
         setChosen(0)
       } catch (err) {
         if (err?.name !== 'AbortError') setAnswer({ key: requestKey, read: { error: 'splice_service_unavailable' } })

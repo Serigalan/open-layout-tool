@@ -167,7 +167,7 @@ export default function SpliceElementPanel() {
         const a = req.clearance
           ? await withClearance(req, { signal: ctl.signal })
           : await solveSpliceInWorker(req, { signal: ctl.signal })
-        const read = spliceFromAnswer(a, picks)
+        const read = spliceFromAnswer(a, picks, req)
         setAnswer({ key: requestKey, splice: read })
         // Transitions just switched on take the Regellänge named, once.
         const sol = read.solutions?.find(x => solutionKey(x) === chosen) ?? read.solutions?.[0]

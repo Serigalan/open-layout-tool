@@ -175,11 +175,11 @@ export function reconnectRequest(picks, points, { tolerance, speed, transitionTy
  * The service's answer as the panel reads it: the splice solutions
  * (commands/splice spliceFromAnswer), each with what the search says of it
  * (`reconnect`: variant, radius, cant, within, max, rms, worstAt,
- * worstStation, band) — or { error }.
+ * worstStation, band) — or { error }. `request` the one it was given to.
  */
-export function reconnectFromAnswer(answer, picks) {
+export function reconnectFromAnswer(answer, picks, request = null) {
   if (!answer?.solutions?.length) return { error: answer?.error ?? 'reconnect_error_no_fit' }
-  const read = spliceFromAnswer(answer, picks)
+  const read = spliceFromAnswer(answer, picks, request)
   return {
     tolerance: answer.tolerance,
     solutions: read.solutions.map((sol, i) => ({ ...sol, reconnect: answer.solutions[i].reconnect })),

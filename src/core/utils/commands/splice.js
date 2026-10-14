@@ -210,12 +210,22 @@ export function clearanceRequest({ axis, dMin, profile, maximize, speed, cant })
   }
 }
 
-/** A transition's lengths as the service gives them, each rule on them with its formula (rules/transitionLength). */
-const withFormulas = (l) => ({
+/**
+ * A transition's lengths as the service gives them, each rule on them with its
+ * formula (rules/transitionLength) for the transition's `form` — the service's
+ * `lengths` stand by pick, in the order of the request's transitionDep/-Arr.
+ */
+const withFormulas = (forms) => (l, k) => ({
   ...l,
-  regularBy: (l.regularBy ?? []).map(b => ({ ...b, formula: lengthRuleFormula(b.id, 'ok') })),
-  minimumBy: (l.minimumBy ?? []).map(b => ({ ...b, formula: lengthRuleFormula(b.id, 'warning') })),
+  regularBy: (l.regularBy ?? []).map(b => ({ ...b, formula: lengthRuleFormula(b.id, 'ok', forms[k]) })),
+  minimumBy: (l.minimumBy ?? []).map(b => ({ ...b, formula: lengthRuleFormula(b.id, 'warning', forms[k]) })),
 })
+
+/** The form of the transition beside each pick, as the service reads the request. */
+const requestForms = (request) => [
+  request?.transitionDep || request?.transition || 'clothoid',
+  request?.transitionArr || request?.transition || 'clothoid',
+]
 
 /**
  * The service's answer as the dialog and the commit read it: { solutions },
@@ -229,14 +239,16 @@ const withFormulas = (l) => ({
  * severity } by element of `elements`, `worst`, `judged`) and what the service
  * says about it (arcLength, straightLength, transitionLength, …) — or { error,
  * params, lengths } for a splice that does not fit, `lengths` the transitions
- * beside each pick as the rules would have them all the same.
+ * beside each pick as the rules would have them all the same. `request` is the
+ * one the answer was given to: the formulas name the bound for its transitions' form.
  */
-export function spliceFromAnswer(answer, picks) {
+export function spliceFromAnswer(answer, picks, request = null) {
+  const formulas = withFormulas(requestForms(request))
   if (!answer || answer.error || !answer.solutions?.length) {
     return {
       error: answer?.error ?? 'splice_error_parallel', params: answer?.params ?? {},
       // The transitions as the rules would have them, though nothing fits.
-      lengths: answer?.lengths ? answer.lengths.map(withFormulas) : null,
+      lengths: answer?.lengths ? answer.lengths.map(formulas) : null,
     }
   }
   const epsg = picks[0].epsg
@@ -256,7 +268,7 @@ export function spliceFromAnswer(answer, picks) {
           depPick: sol.depPick, reverseDep: !!sol.reverseDep, reverseArr: !!sol.reverseArr, ends: sol.ends,
           rebuilt: sol.rebuilt, findings: sol.findings ?? [], worst: sol.worst ?? 'ok', judged: !!sol.judged,
           arcJoin: sol.arcJoin ?? null, alternative: !!sol.alternative,
-          lengths: (sol.lengths ?? []).map(withFormulas),
+          lengths: (sol.lengths ?? []).map(formulas),
         },
       }
     }),

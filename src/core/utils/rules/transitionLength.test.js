@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { transitionChain, transitionCheck, transitionLengths } from './transitionLength'
+import { lengthRuleFormula, transitionChain, transitionCheck, transitionLengths } from './transitionLength'
 
 const straight = { elementType: 0, cant: 0, speed: 120 }
 const arc = (radius, cant, speed = 120) => ({ elementType: 1, radius, cant, speed })
@@ -54,6 +54,13 @@ describe('the length of a transition by the rules', () => {
       { id: 'LP.UB.03', formula: '10·v·Δu/1000', length: 12 },
       { id: 'LP.UB.07', formula: '600·Δu/1000', length: 12 },
     ])
+    // A Bloss curve's ramp is steeper in its middle than on average: 2/3·m_M
+    // is held to 1:600 (1:400), so m_M to 900 (600). At 60 km/h and 20 mm
+    // that is 18 m (12 m) and sets the length over 8·v·Δu (6·v·Δu).
+    const bloss = transitionLengths({ prev: { ...straight, speed: 60 }, next: arc(3000, 20, 60), type: 'bloss', speed: 60 })
+    expect(setBy(bloss.regularBy)).toEqual([{ id: 'LP.UB.07', formula: '900·Δu/1000', length: 18 }])
+    expect(setBy(bloss.minimumBy)).toEqual([{ id: 'LP.UB.07', formula: '600·Δu/1000', length: 12 }])
+    expect(lengthRuleFormula('LP.UB.07', 'ok', 'clothoid')).toBe('600·Δu/1000')
     // A table has no formula: the minimum element length at 60 km/h, 6 m.
     expect(setBy(transitionLengths({ prev: { ...straight, speed: 60 }, next: arc(5000, 0, 60), speed: 60 }).regularBy))
       .toEqual([{ id: 'LP.EL.01', formula: null, length: 6 }])

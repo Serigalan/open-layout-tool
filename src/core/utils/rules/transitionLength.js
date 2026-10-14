@@ -1,4 +1,5 @@
 import { ruleById, severityRank } from '../regelkatalog'
+import { evalExpr } from '../ruleExpr'
 import { checkTrack } from '../trassierungCheck'
 
 // A length set by the rules is rounded up to a full decimetre.
@@ -38,21 +39,37 @@ function boundName(rule, worst) {
 
 const isSlope = (rule) => Object.values(rule?.inputs ?? {}).some(input => input.from === 'physics.ramp_slope')
 
+// A threshold that varies with the transition's form alone (LP.UB.07, held
+// tighter for a Bloss curve) as its value for `form`; null for any other.
+function valueForForm(rule, expr, form) {
+  const names = Object.entries(rule.inputs ?? {})
+    .filter(([, input]) => input.from === 'element.transition_form').map(([name]) => name)
+  if (!form || !names.length) return null
+  try {
+    const value = evalExpr(expr, Object.fromEntries(names.map(name => [name, form])))
+    return Number.isFinite(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * How a rule on a transition's length writes the bound it sets at `worst`
  * ('ok' — the Regelwert, 'warning' — down to the Ermessensgrenze), in the
  * Ril's symbols: its threshold's formula, a slope 1:m as m·Δu/1000, null for
- * a table looked up — which has no formula to show, only its value. Also for
- * lengths found elsewhere (the splice service), which name the rule and the
- * bound but not the formula.
+ * a table looked up — which has no formula to show, only its value; a bound
+ * that depends on the transition's `form` alone with its value for that form
+ * (LP.UB.07: 900·Δu/1000 for a Bloss curve). Also for lengths found elsewhere
+ * (the splice service), which name the rule and the bound but not the formula.
  */
-export function lengthRuleFormula(id, worst) {
+export function lengthRuleFormula(id, worst, form = null) {
   const rule = ruleById(id)
   const name = boundName(rule, worst)
   if (!name) return null
   const expr = rule.thresholds[name].expr
-  if (isSlope(rule)) return `${pretty(expr)}·Δu/1000`
-  return /lookup\(/.test(expr) ? null : pretty(expr)
+  const shown = valueForForm(rule, expr, form) ?? expr
+  if (isSlope(rule)) return `${pretty(shown)}·Δu/1000`
+  return /lookup\(/.test(expr) ? null : pretty(shown)
 }
 
 /**
@@ -61,11 +78,11 @@ export function lengthRuleFormula(id, worst) {
  * 'ok', the Ermessensgrenze for 'warning' where it has one — as { id, formula,
  * length } [m]. A rule on the ramp's slope 1:m bounds the length at m·Δu/1000.
  */
-function basis(rule, result, worst) {
+function basis(rule, result, worst, form) {
   const value = result?.values?.[boundName(rule, worst)]
   if (!Number.isFinite(value)) return { id: rule?.id, formula: null, length: null }
   const length = isSlope(rule) ? value * (result.values['physics.delta_u'] ?? 0) / 1000 : value
-  return { id: rule.id, formula: lengthRuleFormula(rule.id, worst), length }
+  return { id: rule.id, formula: lengthRuleFormula(rule.id, worst, form), length }
 }
 
 // A rule a longer transition can satisfy: it reads the length or the ramp it
@@ -78,9 +95,10 @@ const readsLength = (rule) => Object.values(rule?.inputs ?? {})
  * transitionChain), rounded up to a full decimetre:
  *
  * - `regular` — the Regellänge: every rule on the length at its Regelwert
- *   (LP.EL.01, LP.UB.03/04 and 05/06, LP.UB.07 at 1:600);
+ *   (LP.EL.01, LP.UB.03/04 and 05/06, LP.UB.07 at 1:600 — for a Bloss
+ *   curve 2/3·m_M, i.e. m_M at 900);
  * - `minimum` — the Mindestlänge: down to the Ermessensgrenze where a rule has
- *   one (LP.UB.03/04 at 8·v / 6·v, LP.UB.07 at 1:400), the Regelwert where it
+ *   one (LP.UB.03/04 at 8·v / 6·v, LP.UB.07 at 1:400 — m_M at 600), the Regelwert where it
  *   has none — anything shorter needs an approval or is an error.
  *
  * Read from the catalogue rather than restated: the length is searched for
@@ -120,7 +138,7 @@ export function transitionLengths({ prev, next, r1 = null, type = 'clothoid', sp
     // it marked: the rules a hair shorter would break.
     const sets = new Set(failing(lo))
     const by = resultsAt(length).filter(r => binding.has(r.id))
-      .map(r => ({ ...basis(ruleById(r.id), r, worst), binding: sets.has(r.id) }))
+      .map(r => ({ ...basis(ruleById(r.id), r, worst, type), binding: sets.has(r.id) }))
       .sort((a, b) => (b.length ?? 0) - (a.length ?? 0))
     return { length, by }
   }

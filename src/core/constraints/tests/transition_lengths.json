@@ -197,7 +197,7 @@
     ],
     [
      "LP.UB.07",
-     60,
+     90,
      false
     ],
     [
@@ -219,7 +219,7 @@
     ],
     [
      "LP.UB.07",
-     40,
+     60,
      false
     ],
     [
@@ -655,17 +655,17 @@
    "r1": 500,
    "type": "bloss",
    "speed": 90,
-   "regular": 43.2,
-   "minimum": 32.4,
+   "regular": 54,
+   "minimum": 36,
    "regularBy": [
     [
-     "LP.UB.04",
-     43.2,
+     "LP.UB.07",
+     54,
      true
     ],
     [
-     "LP.UB.07",
-     36,
+     "LP.UB.04",
+     43.2,
      false
     ],
     [
@@ -681,13 +681,13 @@
    ],
    "minimumBy": [
     [
-     "LP.UB.04",
-     32.4,
+     "LP.UB.07",
+     36,
      true
     ],
     [
-     "LP.UB.07",
-     24,
+     "LP.UB.04",
+     32.4,
      false
     ],
     [
