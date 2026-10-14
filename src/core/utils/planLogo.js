@@ -3,12 +3,13 @@
  * from the DB-style template: the capitals in blue, the rest of the letters
  * in black. Path data in the template's units (1/96 in), with the block's top
  * left corner at BLOCK_ORIGIN. The mark before the letters (utils/logoMark)
- * fills the square LOGO_ICON_BOX, [x, y, side] in the same units.
+ * fills LOGO_ICON_BOX, [x, y, width] in the same units — as high as its own
+ * proportions make it, centred on the capitals.
  */
-export const LOGO_BLUE = '#1f0f96'
+const LOGO_BLUE = '#1f0f96'
 export const BLOCK_ORIGIN = [4535.4, 907.06]
 export const MM_PER_UNIT = 25.4 / 96
-export const LOGO_ICON_BOX = [4549.2, 919.2, 19.6]
+export const LOGO_ICON_BOX = [4544.6, 916.8, 30]
 
 export const LOGO_PATHS = [
   { fill: LOGO_BLUE, d: 'M4750.074 922.41h-4.844v12.51h-4v-12.51h-4.844v-3h13.688zm-89.532 12.51h-11.187v-15.51h4v12.51h7.187zm-65.812-7.75q0 3.708-2.125 5.896-2.125 2.177-5.875 2.177-3.74 0-5.865-2.177-2.125-2.188-2.125-5.896 0-3.74 2.125-5.906 2.125-2.177 5.865-2.177 3.73 0 5.865 2.177 2.135 2.167 2.135 5.906m-5.302 3.927q.583-.708.865-1.666.28-.97.28-2.271 0-1.396-.322-2.375-.323-.98-.844-1.584-.531-.625-1.23-.906-.687-.281-1.437-.281-.76 0-1.437.27-.667.272-1.23.897-.52.583-.853 1.614-.323 1.021-.323 2.375 0 1.386.312 2.365.323.968.844 1.583t1.219.906q.698.292 1.468.292.771 0 1.47-.292.697-.302 1.218-.927' },

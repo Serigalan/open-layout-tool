@@ -1,6 +1,6 @@
 import { PALETTE } from '../styles/palette'
 import {
-  MARK_BRANCHES, MARK_INNER, MARK_LINE, MARK_POINT, MARK_RAIL, MARK_SIZE, MARK_SQUARE, MARK_SWITCHES, MARK_YELLOW,
+  MARK_BLUE, MARK_GROUND, MARK_HEIGHT, MARK_INNER, MARK_LETTERS, MARK_LINK_BLUE, MARK_LINKS, MARK_RAIL, MARK_WIDTH,
 } from '../utils/logoMark'
 // ── Panel menu icons ────────────────────────────────────────────────────────
 //
@@ -526,17 +526,15 @@ export const DataExchangeIcon = () => (
   </SidebarIcon>
 )
 
-// The app's mark (utils/logoMark): O, L and T branching off one line, each by a switch.
+// The app's mark (utils/logoMark): one track writing O, L and T, drawn as a pair of rails.
 export const LogoIcon = ({ className }) => (
-  <svg viewBox={`0 0 ${MARK_SIZE} ${MARK_SIZE}`} className={className} aria-hidden="true">
-    <path d={MARK_SQUARE} fill="currentColor" />
-    <g fill="none" strokeLinejoin="round">
-      <path d={MARK_LINE} stroke={PALETTE.white} strokeWidth={MARK_RAIL} />
-      <path d={MARK_BRANCHES} stroke={PALETTE.white} strokeWidth={MARK_RAIL} strokeLinecap="round" />
-      <path d={MARK_LINE} stroke="currentColor" strokeWidth={MARK_INNER} />
-      <path d={MARK_BRANCHES} stroke="currentColor" strokeWidth={MARK_INNER} strokeLinecap="round" />
+  <svg viewBox={`0 0 ${MARK_WIDTH} ${MARK_HEIGHT}`} className={className} aria-hidden="true">
+    <path d={MARK_GROUND} fill={MARK_BLUE} />
+    <g fill="none">
+      <path d={MARK_LINKS} stroke={MARK_LINK_BLUE} strokeWidth={MARK_RAIL} />
+      <path d={MARK_LETTERS} stroke={PALETTE.white} strokeWidth={MARK_RAIL} />
+      <path d={`${MARK_LINKS} ${MARK_LETTERS}`} stroke={MARK_BLUE} strokeWidth={MARK_INNER} />
     </g>
-    {MARK_SWITCHES.map(([cx, cy]) => <circle key={cx} cx={cx} cy={cy} r={MARK_POINT} fill={MARK_YELLOW} />)}
   </svg>
 )
 

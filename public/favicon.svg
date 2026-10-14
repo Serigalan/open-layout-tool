@@ -1,5 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#303383"/>
-  <path d="M0 17 H64" stroke="#ffffff" stroke-width="5.5" fill="none"/>
-  <path d="M14 17 A8 8 0 0 1 22 25 V39 A8 8 0 0 1 14 47 A8 8 0 0 1 6 39 V29 M29 17 A6 6 0 0 1 35 23 V41 A6 6 0 0 0 41 47 M48 17 A6 6 0 0 1 54 23 V47" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="28 -11 180 180">
+  <rect x="28" y="-11" width="180" height="180" rx="38" fill="#303383"/>
+  <g fill="none">
+    <path d="M85 60.5 A18.5 18.5 0 0 1 103.5 42 H147.5 M103.5 42 H107 A18.5 18.5 0 0 1 125.5 60.5" stroke="#8d8fbb" stroke-width="12"/>
+    <path d="M44 116 H66.5 A18.5 18.5 0 0 0 85 97.5 V60.5 A18.5 18.5 0 0 0 66.5 42 H62.5 A18.5 18.5 0 0 0 44 60.5 V99 M125.5 60.5 V97.5 A18.5 18.5 0 0 0 144 116 H156 M147.5 42 H198 M154 42 A18.5 18.5 0 0 1 172.5 60.5 V120" stroke="#ffffff" stroke-width="12"/>
+    <path d="M85 60.5 A18.5 18.5 0 0 1 103.5 42 H147.5 M103.5 42 H107 A18.5 18.5 0 0 1 125.5 60.5 M44 116 H66.5 A18.5 18.5 0 0 0 85 97.5 V60.5 A18.5 18.5 0 0 0 66.5 42 H62.5 A18.5 18.5 0 0 0 44 60.5 V99 M125.5 60.5 V97.5 A18.5 18.5 0 0 0 144 116 H156 M147.5 42 H198 M154 42 A18.5 18.5 0 0 1 172.5 60.5 V120" stroke="#303383" stroke-width="3"/>
+  </g>
 </svg>

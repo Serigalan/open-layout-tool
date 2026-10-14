@@ -1,41 +1,40 @@
 /**
- * The Open Layout Tool mark, in a 64 × 64 box: a line running across the top
- * of a rounded square, and three branches leaving it, each by a switch taken
- * facing from the left, that write O, L and T. The tracks are drawn as a pair
- * of rails — a wide white stroke with a thin one in the square's colour on
- * it — and each switch is marked by a yellow point. public/favicon.svg is
- * the mark drawn small: plain white tracks, no inner rail, no points.
+ * The Open Layout Tool mark, in a 228 × 158 box: one track that writes O, L
+ * and T on a blue ground with rounded corners. It comes in along the
+ * baseline, runs round the O and ends inside it, leaves the O's top by a
+ * switch into the line along the top, branches off that into the L and runs
+ * on as the T's bar, the T's stem branching off it in turn. The track is
+ * drawn as a pair of rails — a wide stroke with a thin one in the ground's
+ * colour on it — white in the letters, a lighter blue between them. Lines end
+ * square (butt caps), as both plan backends draw them. public/favicon.svg is
+ * the mark cut to a square: without the track coming in and going out, and
+ * with heavier lines.
  */
 
-export const MARK_SIZE = 64
-const MARK_RADIUS = 14
-export const MARK_YELLOW = '#F2B33D'
+export const MARK_WIDTH = 228
+export const MARK_HEIGHT = 158
+const MARK_RADIUS = 24
+export const MARK_BLUE = '#303383'
+/** The track between the letters: the ground's blue lightened. */
+export const MARK_LINK_BLUE = '#8d8fbb'
+/** Stroke width of the track, and of the inner rail drawn on it. */
+export const MARK_RAIL = 8
+export const MARK_INNER = 2.4
 
-/** The line along the top; it runs from edge to edge, so its ends are cut square. */
-export const MARK_LINE = 'M0 17 H64'
-/** The branches: an O open at its top left, an L and a T, ending on one baseline. */
-export const MARK_BRANCHES =
-  'M14 17 A8 8 0 0 1 22 25 V39 A8 8 0 0 1 14 47 A8 8 0 0 1 6 39 V29 '
-  + 'M29 17 A6 6 0 0 1 35 23 V41 A6 6 0 0 0 41 47 '
-  + 'M48 17 A6 6 0 0 1 54 23 V47'
-/** Where the branches end free — rounded off where the drawing has no round caps. */
-export const MARK_ENDS = [[6, 29], [41, 47], [54, 47]]
-/** The switches: where each branch leaves the line. */
-export const MARK_SWITCHES = [[14, 17], [29, 17], [48, 17]]
+/** The letters: the O, open at its lower left, the L and the T. */
+export const MARK_LETTERS =
+  'M44 116 H66.5 A18.5 18.5 0 0 0 85 97.5 V60.5 A18.5 18.5 0 0 0 66.5 42 H62.5 A18.5 18.5 0 0 0 44 60.5 V99 '
+  + 'M125.5 60.5 V97.5 A18.5 18.5 0 0 0 144 116 H156 '
+  + 'M147.5 42 H198 M154 42 A18.5 18.5 0 0 1 172.5 60.5 V120'
+/** The track between them: in to the O, from the O to the line along the top and into the L, and out past the T. */
+export const MARK_LINKS =
+  'M17 116 H44 M85 60.5 A18.5 18.5 0 0 1 103.5 42 H147.5 M103.5 42 H107 A18.5 18.5 0 0 1 125.5 60.5 M198 42 H210.5'
 
-/** Stroke width of the white rails, of the inner rail, and the switch points' radius. */
-export const MARK_RAIL = 6
-export const MARK_INNER = 1.8
-export const MARK_POINT = 2.4
-
-/** The rounded square as path data. */
-export const MARK_SQUARE = (() => {
-  const s = MARK_SIZE
+/** The ground, a rectangle with rounded corners, as path data. */
+export const MARK_GROUND = (() => {
+  const w = MARK_WIDTH
+  const h = MARK_HEIGHT
   const r = MARK_RADIUS
-  return `M${r} 0 H${s - r} A${r} ${r} 0 0 1 ${s} ${r} V${s - r} A${r} ${r} 0 0 1 ${s - r} ${s} `
-    + `H${r} A${r} ${r} 0 0 1 0 ${s - r} V${r} A${r} ${r} 0 0 1 ${r} 0 Z`
+  return `M${r} 0 H${w - r} A${r} ${r} 0 0 1 ${w} ${r} V${h - r} A${r} ${r} 0 0 1 ${w - r} ${h} `
+    + `H${r} A${r} ${r} 0 0 1 0 ${h - r} V${r} A${r} ${r} 0 0 1 ${r} 0 Z`
 })()
-
-/** A filled circle as path data, for backends that only know paths. */
-export const circlePath = ([cx, cy], r) =>
-  `M${cx - r} ${cy} A${r} ${r} 0 1 0 ${cx + r} ${cy} A${r} ${r} 0 1 0 ${cx - r} ${cy} Z`

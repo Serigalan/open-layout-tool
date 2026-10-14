@@ -1,8 +1,7 @@
 import { FRAME, FRAME_WIDTH, TITLE_COLUMN_MM } from './planExport'
-import { BLOCK_ORIGIN, LOGO_BLUE, LOGO_ICON_BOX, LOGO_PATHS, MM_PER_UNIT } from './planLogo'
+import { BLOCK_ORIGIN, LOGO_ICON_BOX, LOGO_PATHS, MM_PER_UNIT } from './planLogo'
 import {
-  MARK_BRANCHES, MARK_ENDS, MARK_INNER, MARK_LINE, MARK_POINT, MARK_RAIL, MARK_SIZE, MARK_SQUARE, MARK_SWITCHES,
-  MARK_YELLOW, circlePath,
+  MARK_BLUE, MARK_GROUND, MARK_INNER, MARK_LETTERS, MARK_LINK_BLUE, MARK_LINKS, MARK_RAIL, MARK_WIDTH,
 } from './logoMark'
 import { parseSvgPath } from './svgPath'
 import { PALETTE } from '../styles/palette'
@@ -47,25 +46,18 @@ function wordmarkItems(ox, oy) {
   ]
 }
 
-/**
- * The mark in its square of the wordmark. The plan backends cap lines square,
- * so the free branch ends get their round caps as discs of the rails' widths.
- */
+/** The mark in its box of the wordmark, before the letters. */
 function markItems(toPage) {
-  const [ix, iy, side] = LOGO_ICON_BOX
-  const k = side / MARK_SIZE
+  const [ix, iy, width] = LOGO_ICON_BOX
+  const k = width / MARK_WIDTH
   const toMark = (x, y) => toPage(ix + x * k, iy + y * k)
   const shape = d => mapPath(parseSvgPath(d), toMark)
   const mm = w => w * k * MM_PER_UNIT
-  const white = PALETTE.white
-  const rails = `${MARK_LINE} ${MARK_BRANCHES}`
   return [
-    path(shape(MARK_SQUARE), { stroke: null, fill: LOGO_BLUE }),
-    path(shape(rails), { stroke: white, width: mm(MARK_RAIL) }),
-    ...MARK_ENDS.map(p => path(shape(circlePath(p, MARK_RAIL / 2)), { stroke: null, fill: white })),
-    path(shape(rails), { stroke: LOGO_BLUE, width: mm(MARK_INNER) }),
-    ...MARK_ENDS.map(p => path(shape(circlePath(p, MARK_INNER / 2)), { stroke: null, fill: LOGO_BLUE })),
-    ...MARK_SWITCHES.map(p => path(shape(circlePath(p, MARK_POINT)), { stroke: null, fill: MARK_YELLOW })),
+    path(shape(MARK_GROUND), { stroke: null, fill: MARK_BLUE }),
+    path(shape(MARK_LINKS), { stroke: MARK_LINK_BLUE, width: mm(MARK_RAIL) }),
+    path(shape(MARK_LETTERS), { stroke: PALETTE.white, width: mm(MARK_RAIL) }),
+    path(shape(`${MARK_LINKS} ${MARK_LETTERS}`), { stroke: MARK_BLUE, width: mm(MARK_INNER) }),
   ]
 }
 

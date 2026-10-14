@@ -210,20 +210,21 @@ describe('simple title block', () => {
     }
   })
 
-  it('sets the mark before the letters: a blue square, rails and a yellow point per switch', () => {
+  it('sets the mark before the letters: a blue ground, the letters white, the track between them light blue, an inner rail on both', () => {
     const items = build(simple)
     const lettersLeft = Math.min(...lettersOf(items).flatMap(i => pointsOf(i).map(([x]) => x)))
-    const side = 19.6 * 25.4 / 96
-    const square = items.find(i => i.type === 'path' && i.fill === '#1f0f96' && i.stroke === null
-      && Math.abs(widthOf(i) - side) < 1e-6)
-    const ys = pointsOf(square).map(([, y]) => y)
-    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(side, 6)
-    expect(Math.max(...pointsOf(square).map(([x]) => x))).toBeLessThan(lettersLeft)
+    const width = 30 * 25.4 / 96
+    const ground = items.find(i => i.type === 'path' && i.fill === '#303383' && i.stroke === null)
+    expect(widthOf(ground)).toBeCloseTo(width, 6)
+    const ys = pointsOf(ground).map(([, y]) => y)
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(width * 158 / 228, 6)
+    expect(Math.max(...pointsOf(ground).map(([x]) => x))).toBeLessThan(lettersLeft)
     const y0 = 297 - 5 - 52
     expect(Math.min(...ys)).toBeGreaterThan(y0)
     expect(Math.max(...ys)).toBeLessThan(y0 + 11)
-    expect(items.filter(i => i.type === 'path' && i.fill === '#F2B33D')).toHaveLength(3)
     expect(items.filter(i => i.type === 'path' && i.stroke === '#ffffff' && i.fill === null)).toHaveLength(1)
+    expect(items.filter(i => i.type === 'path' && i.stroke === '#8d8fbb' && i.fill === null)).toHaveLength(1)
+    expect(items.filter(i => i.type === 'path' && i.stroke === '#303383' && i.fill === null)).toHaveLength(1)
   })
 })
 
