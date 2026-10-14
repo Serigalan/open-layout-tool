@@ -51,12 +51,16 @@ function walkFrom(q) {
   }
 }
 
-/** The address of the 3D window — at a track view where `walk` is given. */
-export function cloud3dUrl({ projectId, variantId, cloudId, walk = null }) {
+/**
+ * The address of the 3D window — at a track view where `walk` is given, in
+ * the language `lang` where one is (else in the one the opener last chose).
+ */
+export function cloud3dUrl({ projectId, variantId, cloudId, walk = null, lang = null }) {
   const q = new URLSearchParams({ project: projectId })
   if (variantId) q.set('variant', variantId)
   if (cloudId) q.set('cloud', cloudId)
   for (const [k, v] of Object.entries(walkParams(walk))) q.set(k, v)
+  if (lang) q.set('lang', lang)
   return `${location.origin}${location.pathname}#/cloud3d?${q}`
 }
 
@@ -67,9 +71,14 @@ export function openCloud3d(params) {
   return win
 }
 
-/** The address a read-only share link opens: the 3D window under the link's token — at a track view where `walk` is given. */
-export function cloud3dShareUrl(token, walk = null) {
+/**
+ * The address a read-only share link opens: the 3D window under the link's
+ * token — at a track view where `walk` is given, in the language `lang` where
+ * one is.
+ */
+export function cloud3dShareUrl(token, walk = null, lang = null) {
   const q = new URLSearchParams({ share: token, ...walkParams(walk) })
+  if (lang) q.set('lang', lang)
   return `${location.origin}${location.pathname}#/cloud3d?${q}`
 }
 
@@ -82,5 +91,5 @@ export function cloud3dParams(hash = location.hash) {
   const m = /^#\/cloud3d\?(.*)$/.exec(hash)
   if (!m) return null
   const q = new URLSearchParams(m[1])
-  return { projectId: q.get('project'), variantId: q.get('variant'), cloudId: q.get('cloud'), share: q.get('share'), walk: walkFrom(q) }
+  return { projectId: q.get('project'), variantId: q.get('variant'), cloudId: q.get('cloud'), share: q.get('share'), walk: walkFrom(q), lang: q.get('lang') }
 }

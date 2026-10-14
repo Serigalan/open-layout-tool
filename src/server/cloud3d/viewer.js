@@ -7,7 +7,7 @@ import { buildTree, selectNodes } from './lod'
 import { pointMaterial, pickLowMaterial, setLook, edlPass } from './shaders'
 import { sourceOf } from '../../core/utils/pointCloud/cloudSource'
 import { modelMatrix } from './placement'
-import { clearanceEnvelope, CLEARANCE_AHEAD } from './trackGeometry'
+import { clearanceEnvelope, railBodies, CLEARANCE_AHEAD } from './trackGeometry'
 
 /**
  * The 3D view of a project's point clouds (AP 13.8–13.11), plain three.js on
@@ -41,6 +41,15 @@ const SELECT_EVERY = 120
 const PICK_RADIUS = 8
 /** Speed of the walk along a track [m/s], four times that with Shift. */
 const WALK_SPEED = 6
+/**
+ * How low the walk may go [m over SO] — under the rail head, to see the
+ * rails' profile from the side — and how far it may look up or down [rad],
+ * short of straight up or down, where the heading would be lost.
+ */
+const WALK_LOWEST = -1
+const WALK_PITCH = 1.55
+/** Where the light on a body comes from: the south-west, high up. */
+const LIGHT = new THREE.Vector3(-0.4, -0.5, 0.77).normalize()
 
 /** Whether two placements put the points into the same pre plane about the same origin. */
 const samePre = (a, b) => !!a && !!b && a.preCrs === b.preCrs && a.preOrigin.every((v, i) => v === b.preOrigin[i])
@@ -325,7 +334,7 @@ export class Viewer {
     window.addEventListener('pointermove', (e) => {
       if (!drag || !this.walk) return
       this.walk.yaw -= (e.clientX - drag.x) * 0.004
-      this.walk.pitch = Math.max(-1.4, Math.min(1.4, this.walk.pitch - (e.clientY - drag.y) * 0.004))
+      this.walk.pitch = Math.max(-WALK_PITCH, Math.min(WALK_PITCH, this.walk.pitch - (e.clientY - drag.y) * 0.004))
       drag = { x: e.clientX, y: e.clientY }
       this.placeWalker()
     })
@@ -363,10 +372,11 @@ export class Viewer {
    * outline [mm] (gaugeProfileRing), null for none. It reaches
    * CLEARANCE_LENGTH into the direction looked — with the stations, or
    * against them once turned round — beginning CLEARANCE_AHEAD in front of
-   * where the walk stands.
+   * where the walk stands. The rails are drawn there too, as bodies of their
+   * profile in `railColor`.
    */
-  setWalkClearance(ring, color) {
-    this.clearance = ring?.length ? { ring, color } : null
+  setWalkClearance(ring, color, railColor = color) {
+    this.clearance = ring?.length ? { ring, color, railColor } : null
     this.clearanceAt = undefined
     this.drawClearance()
   }
@@ -382,11 +392,13 @@ export class Viewer {
     if (rings.length < 2) { this.setOverlay('clearance', []); return }
     // The walls see-through, the outline at both ends, and its corners drawn along.
     const along = rings[0].map((_, j) => rings.map(r => r[j]))
+    const rails = railBodies(w.samples, w.s, { dir, ahead: CLEARANCE_AHEAD })
     this.setOverlay('clearance', [
       this.tube(rings, c.color, 0.1),
       this.fatLine(rings[0], c.color, 2.5),
       this.fatLine(rings[rings.length - 1], c.color, 2.5),
       ...along.map(pts => this.line(pts, c.color, { opacity: 0.45 })),
+      ...rails.map(r => this.solid(r.rings, r.profile, c.railColor)),
     ])
   }
 
@@ -406,9 +418,9 @@ export class Viewer {
     const w = this.walk
     if (!w) return
     if (Number.isFinite(across)) w.across = across
-    if (Number.isFinite(height)) w.height = height
+    if (Number.isFinite(height)) w.height = Math.max(WALK_LOWEST, height)
     if (Number.isFinite(yaw)) w.yaw = yaw
-    if (Number.isFinite(pitch)) w.pitch = Math.max(-1.4, Math.min(1.4, pitch))
+    if (Number.isFinite(pitch)) w.pitch = Math.max(-WALK_PITCH, Math.min(WALK_PITCH, pitch))
     this.placeWalker()
   }
 
@@ -422,7 +434,7 @@ export class Viewer {
     if (k.has('d')) w.across += v * 0.5
     if (k.has('a')) w.across -= v * 0.5
     if (k.has('r')) w.height += v * 0.5
-    if (k.has('f')) w.height = Math.max(0.3, w.height - v * 0.5)
+    if (k.has('f')) w.height = Math.max(WALK_LOWEST, w.height - v * 0.5)
     this.placeWalker()
   }
 
@@ -482,6 +494,50 @@ export class Viewer {
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
     const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false })
+    return new THREE.Mesh(g, m)
+  }
+
+  /**
+   * A closed body along rings of `[e, n, z]` (each closed implicitly, all
+   * with the same number of points), its ends filled after `profile` — the
+   * ring's outline in a plane of its own, [y, z] in any unit — and each face
+   * shaded by how it turns to the light, so the profile shows without lights
+   * in the scene. Pushed back a little in depth: a line drawn on its surface
+   * (a running circle on a rail head) stays in front.
+   */
+  solid(rings, profile, color) {
+    const [oe, on, oz] = this.origin
+    const base = new THREE.Color(color)
+    const pos = [], col = []
+    const ab = new THREE.Vector3(), ac = new THREE.Vector3(), normal = new THREE.Vector3()
+    const tri = (a, b, c) => {
+      const [p, q, r] = [a, b, c].map(([e, n, z]) => new THREE.Vector3(e - oe, n - on, z - oz))
+      normal.crossVectors(ab.subVectors(q, p), ac.subVectors(r, p)).normalize()
+      const shade = 0.35 + 0.65 * Math.abs(normal.dot(LIGHT))
+      for (const v of [p, q, r]) {
+        pos.push(v.x, v.y, v.z)
+        col.push(base.r * shade, base.g * shade, base.b * shade)
+      }
+    }
+    const n = rings[0].length
+    for (let i = 0; i + 1 < rings.length; i++) {
+      const a = rings[i], b = rings[i + 1]
+      for (let j = 0; j < n; j++) {
+        const k = (j + 1) % n
+        tri(a[j], b[j], b[k])
+        tri(a[j], b[k], a[k])
+      }
+    }
+    const caps = THREE.ShapeUtils.triangulateShape(profile.map(([y, z]) => new THREE.Vector2(y, z)), [])
+    for (const ring of [rings[0], rings[rings.length - 1]]) {
+      for (const [a, b, c] of caps) tri(ring[a], ring[b], ring[c])
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3))
+    const m = new THREE.MeshBasicMaterial({
+      vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+    })
     return new THREE.Mesh(g, m)
   }
 

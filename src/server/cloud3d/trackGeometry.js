@@ -1,5 +1,5 @@
 import { elementStations, pointOnElement } from '../../core/utils/platformUtils'
-import { sectionAtStation, crossSection, RUNNING_CIRCLE_DISTANCE } from '../../core/utils/crossSectionUtils'
+import { sectionAtStation, crossSection, superstructureAt, RUNNING_CIRCLE_DISTANCE } from '../../core/utils/crossSectionUtils'
 import { trackHeightAt } from '../../core/utils/switchGradient'
 
 /**
@@ -16,8 +16,8 @@ const SAMPLE_STEP = 0.5
 const HALF_RUNNING = RUNNING_CIRCLE_DISTANCE / 2000
 
 /**
- * The samples of a track: `[{ s, e, n, z, bearing, cant }]` — z null where the
- * track has no gradient there. `toView(e, n)` carries a point of the track's
+ * The samples of a track: `[{ s, e, n, z, bearing, cant, rail }]` — z null
+ * where the track has no gradient there, `rail` the profile laid there. `toView(e, n)` carries a point of the track's
  * plane into the view's.
  */
 export function trackSamples(track, { tracks = [], switches = [], toView = (e, n) => [e, n], step = SAMPLE_STEP } = {}) {
@@ -34,7 +34,10 @@ export function trackSamples(track, { tracks = [], switches = [], toView = (e, n
       const { utm, bearing } = pointOnElement(row.el, track.epsg, ds)
       const [e, nn] = toView(utm.easting, utm.northing)
       const z = trackHeightAt(tracks, switches, track, s)
-      out.push({ s, e, n: nn, z: Number.isFinite(z) ? z : null, bearing, cant: sectionAtStation(track, s)?.cant ?? 0 })
+      out.push({
+        s, e, n: nn, z: Number.isFinite(z) ? z : null, bearing,
+        cant: sectionAtStation(track, s)?.cant ?? 0, rail: superstructureAt(track, s).rail,
+      })
     }
   }
   return out
@@ -119,7 +122,7 @@ export function nearestOnTracks(tracks, e, n, reach = 50) {
   return best
 }
 
-/** The track at a station, interpolated between the samples either side: `{ s, e, n, z, bearing, cant }`. */
+/** The track at a station, interpolated between the samples either side: `{ s, e, n, z, bearing, cant, rail }`. */
 function sampleAt(samples, station) {
   let i = samples.findIndex(p => p.s >= station)
   if (i < 0) i = samples.length - 1
@@ -128,7 +131,7 @@ function sampleAt(samples, station) {
   return {
     s: a.s + u * (b.s - a.s), e: a.e + u * (b.e - a.e), n: a.n + u * (b.n - a.n),
     z: a.z != null && b.z != null ? a.z + u * (b.z - a.z) : (b.z ?? a.z),
-    bearing: b.bearing, cant: a.cant + u * (b.cant - a.cant),
+    bearing: b.bearing, cant: a.cant + u * (b.cant - a.cant), rail: b.rail,
   }
 }
 
@@ -168,27 +171,60 @@ export const CLEARANCE_LENGTH = 10
 export const CLEARANCE_AHEAD = 5
 
 /**
- * The clearance envelope while walking along a track: the outline `ring`
- * [mm], turned by the cant, `ahead` metres from `station` and at every sample
- * from there `length` metres on, in direction `dir` (+1 with the stations,
- * −1 against) —
- * a list of rings of `[e, n, z]` in the order of the stations, each with the
- * same number of points. Cut off at the track's ends and where it has no
- * gradient.
+ * The stretch the clearance envelope covers while walking: `ahead` metres
+ * from `station` and every sample from there `length` metres on, in direction
+ * `dir` (+1 with the stations, −1 against) — the samples there in the order of
+ * the stations, cut off at the track's ends and where it has no gradient.
  */
-export function clearanceEnvelope(samples, station, { ring = [], length = CLEARANCE_LENGTH, ahead = 0, dir = 1 } = {}) {
-  if (samples.length < 2 || !ring.length) return []
+function envelopeSamples(samples, station, { length = CLEARANCE_LENGTH, ahead = 0, dir = 1 } = {}) {
+  if (samples.length < 2) return []
   const first = samples[0].s, last = samples[samples.length - 1].s
   const clamp = (s) => Math.max(first, Math.min(last, s))
   const a = clamp(station + dir * ahead), b = clamp(station + dir * (ahead + length))
   const lo = Math.min(a, b), hi = Math.max(a, b)
   if (!(hi - lo > 1e-6)) return []
   const stations = [lo, ...samples.filter(p => p.s > lo + 1e-6 && p.s < hi - 1e-6).map(p => p.s), hi]
-  const rings = []
+  const out = []
   for (const s of stations) {
     const p = sampleAt(samples, s)
     if (p.z == null) break
-    rings.push(outlineAt(p, ring))
+    out.push(p)
   }
-  return rings
+  return out
+}
+
+/**
+ * The clearance envelope while walking along a track: the outline `ring`
+ * [mm], turned by the cant, over the stretch envelopeSamples gives — a list of
+ * rings of `[e, n, z]` in the order of the stations, each with the same
+ * number of points.
+ */
+export function clearanceEnvelope(samples, station, { ring = [], ...stretch } = {}) {
+  if (!ring.length) return []
+  return envelopeSamples(samples, station, stretch).map(p => outlineAt(p, ring))
+}
+
+/**
+ * The two rails as bodies over the same stretch as the clearance envelope:
+ * per rail `{ rings, profile }` — `rings` the rail's outline (crossSection,
+ * turned by the cant) at each station as `[e, n, z]`, closed implicitly,
+ * `profile` that outline [mm] in the track's frame at the first, for the end
+ * faces. Where the rail profile changes within the stretch, the bodies end
+ * there: rings of different profiles do not join.
+ */
+export function railBodies(samples, station, stretch = {}) {
+  const run = envelopeSamples(samples, station, stretch)
+  const cut = run.findIndex(p => p.rail !== run[0].rail)
+  const same = cut < 0 ? run : run.slice(0, cut)
+  if (same.length < 2) return []
+  // The outline's closing point dropped: the bodies close each ring themselves.
+  const outlines = (p) => crossSection({ cant: p.cant, rail: p.rail }).rails.map(r => r.slice(0, -1))
+  const profiles = outlines(same[0])
+  return profiles.map((profile, k) => ({
+    profile,
+    rings: same.map(p => {
+      const at = across(p)
+      return outlines(p)[k].map(([y, z]) => at(y / 1000, z / 1000))
+    }),
+  }))
 }

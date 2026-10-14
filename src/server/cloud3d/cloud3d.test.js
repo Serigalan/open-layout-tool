@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildTree, selectNodes } from './lod'
-import { trackSamples, trackLines, nearestOnTracks, sectionPlane, clearanceEnvelope } from './trackGeometry'
+import { trackSamples, trackLines, nearestOnTracks, sectionPlane, clearanceEnvelope, railBodies } from './trackGeometry'
 
 // A cloud of 256 × 64 m, its levels as indexes: every tile holds points.
 function levels() {
@@ -113,6 +113,31 @@ describe('the tracks in 3D (AP 13.10, 13.11)', () => {
     expect(lead[0][0][1]).toBeCloseTo(5700035, 6)
     expect(lead[lead.length - 1][0][1]).toBeCloseTo(5700045, 6)
   })
+
+  it('draws both rails as bodies of their profile over the same stretch, the left one lifted by the cant', () => {
+    const samples = trackSamples(track, { tracks: [track] })
+    const [left, right] = railBodies(samples, 30, { ahead: 5 })
+    expect(left.rings).toHaveLength(21)
+    expect(left.profile).toHaveLength(12)              // the outline without its closing point
+    expect(left.rings.every(r => r.length === 12)).toBe(true)
+    expect(left.rings[0][0][1]).toBeCloseTo(5700035, 6)
+    const xs = (body) => body.rings[0].map(p => p[0])
+    // Heading north: the left rail west of the axis, the right one east, both near the running circles 0.75 m out.
+    expect(Math.max(...xs(left))).toBeLessThan(500000 - 0.65)
+    expect(Math.min(...xs(right))).toBeGreaterThan(500000 + 0.65)
+    const top = (body) => Math.max(...body.rings[0].map(p => p[2]))
+    expect(top(left) - top(right)).toBeGreaterThan(0.09)
+    // Without cant a 54 E4 stands 154 mm high, its head on SO; a 60 E2 172 mm.
+    const flat = (rail) => [0, 20].map(n => ({ s: n, e: 0, n, z: 0, bearing: 0, cant: 0, rail }))
+    const zs = (rail) => railBodies(flat(rail), 0, { length: 10 })[0].rings[0].map(p => p[2])
+    expect(Math.max(...zs('54E4'))).toBeCloseTo(0, 6)
+    expect(Math.min(...zs('54E4'))).toBeCloseTo(-0.154, 6)
+    expect(Math.min(...zs('60E2'))).toBeCloseTo(-0.172, 6)
+    // Where the profile changes, the bodies end.
+    const changed = { ...track, rails: [{ type: '60E2', from: 38 }] }
+    const cut = railBodies(trackSamples(changed, { tracks: [changed] }), 30, { ahead: 5 })
+    expect(cut[0].rings).toHaveLength(6)               // 35 to 37.5
+  })
 })
 
 describe('measuring (AP 13.11)', async () => {
@@ -178,6 +203,9 @@ describe('a track view in the address', () => {
     const t = cloud3dParams(`#/cloud3d?share=tok&${new URLSearchParams(walkParams({ key: 'abc', station: 10 }))}`)
     expect(t).toMatchObject({ share: 'tok', walk: { key: 'abc', station: 10 } })
     expect(cloud3dParams('#/cloud3d?project=p&walk=nonsense&at=1').walk).toBeNull()
+    // The language the link was made in.
+    expect(cloud3dParams('#/cloud3d?share=tok&lang=de').lang).toBe('de')
+    expect(cloud3dParams('#/cloud3d?share=tok').lang).toBeNull()
     expect(walkParams(null)).toEqual({})
   })
 })

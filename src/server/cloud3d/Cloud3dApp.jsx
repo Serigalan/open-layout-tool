@@ -23,6 +23,7 @@ import { cloudPlacement } from './placement'
 import useRegistration from './useRegistration'
 import RegistrationPanel from './RegistrationPanel'
 import SharePanel from './SharePanel'
+import LinkLanguage from './LinkLanguage'
 import { originalPoint, between, measurementsCsv } from './measure'
 import { PALETTE } from '../../core/styles/palette'
 import './cloud3d.css'
@@ -34,7 +35,7 @@ const MAIN_TIMEOUT = 7000
 
 const LOOK = {
   survey: PALETTE.view3dSurvey,
-  plane: PALETTE.view3dPlane, outline: PALETTE.view3dOutline, pick: PALETTE.view3dPick,
+  plane: PALETTE.view3dPlane, outline: PALETTE.view3dOutline, railBody: PALETTE.view3dRailBody, pick: PALETTE.view3dPick,
   pairRef: PALETTE.view3dPairRef, pairSrc: PALETTE.view3dPairSrc,
 }
 
@@ -61,7 +62,8 @@ function saveTrackLook(look) {
 }
 
 export default function Cloud3dApp() {
-  return <I18nProvider><Cloud3dPage /></I18nProvider>
+  // A link made in a language opens in it.
+  return <I18nProvider initial={cloud3dParams()?.lang}><Cloud3dPage /></I18nProvider>
 }
 
 /**
@@ -90,7 +92,7 @@ function Cloud3dPage() {
   const [walkTrack, setWalkTrack] = useState('')
   const [walking, setWalking] = useState(null)    // { station, across } while walking
   const [trackLook, setTrackLook] = useState(loadTrackLook)
-  const [clearanceOn, setClearanceOn] = useState(false)
+  const [clearanceOn, setClearanceOn] = useState(true)
   const [clearanceChoice, setClearanceChoice] = useState('')   // a profile of the catalogue; '' the project's
   const [tracksSampled, setTracksSampled] = useState([])   // geometryRef's tracks, as state for the drawing
   const [routesSampled, setRoutesSampled] = useState([])   // geometryRef's routes (Paket RT): { id, label, resolved, samples }
@@ -98,6 +100,7 @@ function Cloud3dPage() {
   const [measured, setMeasured] = useState([])
   const [note, setNote] = useState(null)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [linkLang, setLinkLang] = useState(language)   // the language links copied here open in
   const linkApplied = useRef(false)                // the track view the address names, taken once
   const canvasRef = useRef(null)
   const viewerRef = useRef(null)
@@ -376,7 +379,7 @@ function Cloud3dPage() {
   useEffect(() => {
     const viewer = viewerRef.current
     if (!viewer) return
-    viewer.setWalkClearance(clearanceOn ? gaugeProfileRing(gaugeProfile(clearanceId).points) : null, LOOK.outline)
+    viewer.setWalkClearance(clearanceOn ? gaugeProfileRing(gaugeProfile(clearanceId).points) : null, LOOK.outline, LOOK.railBody)
   }, [clearanceOn, clearanceId, state.phase])
 
   // ── the cross section of the main window as a plane ───────────────────────
@@ -584,8 +587,8 @@ function Cloud3dPage() {
   const copyWalkLink = async () => {
     const walk = walkNow()
     if (!walk) return
-    const url = shared ? cloud3dShareUrl(params.share, walk)
-      : cloud3dUrl({ projectId: params.projectId, variantId: params.variantId, walk })
+    const url = shared ? cloud3dShareUrl(params.share, walk, linkLang)
+      : cloud3dUrl({ projectId: params.projectId, variantId: params.variantId, walk, lang: linkLang })
     try {
       await navigator.clipboard.writeText(url)
       setLinkCopied(true)
@@ -782,6 +785,7 @@ function Cloud3dPage() {
               {walking && <p className="cloud3d-hint">{t('cloud3d_walk_keys')}</p>}
               {walking && (
                 <>
+                  <LinkLanguage value={linkLang} onChange={setLinkLang} />
                   <div className="cloud3d-buttons">
                     <button type="button" onClick={copyWalkLink}>{t(linkCopied ? 'cloud3d_share_copied' : 'cloud3d_walk_link')}</button>
                   </div>
@@ -837,7 +841,7 @@ function Cloud3dPage() {
             <RegistrationPanel reg={reg} rows={allRows} mayEdit={mayEdit} userName={user?.name ?? ''}
               projectTitle={project?.data?.title ?? ''} heightName={heightName} />
             {state.phase === 'ready' && <SharePanel projectId={params.projectId} variantId={params.variantId} rows={allRows}
-              walking={!!walking} walkNow={walkNow} />}
+              walking={!!walking} walkNow={walkNow} linkLang={linkLang} setLinkLang={setLinkLang} />}
           </>
         )}
       </aside>

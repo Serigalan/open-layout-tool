@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useI18n } from '../../core/locales/i18nContext'
 import { cloud3dShareUrl } from './channel'
+import LinkLanguage from './LinkLanguage'
 
 /** The expiries a link can be given [days]; '' for none. */
 const EXPIRIES = ['7', '30', '90', '365', '']
@@ -13,9 +14,9 @@ const DEFAULT_EXPIRY = '30'
  * as they are checked in, without signing in, and changes nothing. A link
  * runs out at the expiry chosen, or holds until revoked; with every cloud
  * ticked it also shows the clouds added later. Nobody else sees this section
- * — the server refuses them the list.
+ * — the server refuses them the list. A copied link opens in `linkLang`.
  */
-export default function SharePanel({ projectId, variantId, rows, walking = false, walkNow = () => null }) {
+export default function SharePanel({ projectId, variantId, rows, walking = false, walkNow = () => null, linkLang = null, setLinkLang = () => {} }) {
   const { t, fill, language } = useI18n()
   const [shares, setShares] = useState(null)      // null while unknown or not allowed
   const [label, setLabel] = useState('')
@@ -42,7 +43,7 @@ export default function SharePanel({ projectId, variantId, rows, walking = false
   const date = (iso) => new Date(iso).toLocaleDateString(language === 'de' ? 'de-DE' : 'en-GB')
 
   const copy = async (share) => {
-    const url = cloud3dShareUrl(share.token, walking && atWalk ? walkNow() : null)
+    const url = cloud3dShareUrl(share.token, walking && atWalk ? walkNow() : null, linkLang)
     try {
       await navigator.clipboard.writeText(url)
       setCopied(share.id)
@@ -116,6 +117,7 @@ export default function SharePanel({ projectId, variantId, rows, walking = false
           <span>{t('cloud3d_share_at_walk')}</span>
         </label>
       )}
+      {linkLang && <LinkLanguage value={linkLang} onChange={setLinkLang} />}
       {shares.length > 0 && (
         <ul className="cloud3d-shares">
           {shares.map(s => (
