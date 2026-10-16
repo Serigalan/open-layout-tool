@@ -20,7 +20,7 @@ import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import CommitBar from '../../form/CommitBar'
 import CancelButton from '../../form/CancelButton'
-import DirectionToggle from '../../form/DirectionToggle'
+import SwitchOrientationPicker from '../../form/SwitchOrientationPicker'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import AdvancedInfo from '../../form/AdvancedInfo'
 import FormSection from '../../form/FormSection'
@@ -198,20 +198,12 @@ export default function SwitchConnectForm({ onCommitted }) {
   const set = (next) => { setCommitError(null); setChoice({ ...combo, ...next }) }
   return (
     <>
-      <DirectionToggle value={combo?.reversed ?? false} onChange={v => set({ reversed: v })}
-        left={t('switch_on_track_along')} right={t('switch_on_track_against')} />
+      <SwitchOrientationPicker reversed={combo?.reversed ?? false} side={combo?.side ?? 'left'} onChange={next => set(next)} />
 
       <FormSection title={t('section_geometry')}>
         <SwitchFormField value={switchTypeIdx} onChange={i => {
           setCommitError(null); setTypeIdx(i); setSpeed(SWITCH_PICK_TYPES[i].speed)
         }} />
-        <div className="form-field">
-          <label>{t('switch_side')}</label>
-          <select value={combo?.side ?? 'left'} onChange={e => set({ side: e.target.value })}>
-            <option value="left">{t('switch_side_left')}</option>
-            <option value="right">{t('switch_side_right')}</option>
-          </select>
-        </div>
         <div className="form-field">
           <label>{splitUnit(t('field_speed')).text}</label>
           <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />

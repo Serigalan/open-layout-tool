@@ -5,7 +5,9 @@ import { wgs84ToUTM } from '../../../utils/coordinateUtils'
 import { SWITCH_TYPES, CONNECTION_SPEEDS, computeSwitchConnections } from '../../../utils/switchConnectionUtils'
 import { ZOOM_LINE_WIDTH } from '../../../map/style'
 import { useI18n } from '../../../locales/i18nContext'
-import { REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, isUsableStem, preferredShift, settleConnection, shiftStops, stems, waOffset } from '../../../utils/commands/sCurve'
+import { REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, isUsableStem, preferredShift, settleConnection, shiftSnaps, stems, waOffset } from '../../../utils/commands/sCurve'
+import StationSlider from '../../form/StationSlider'
+import { splitUnit } from '../../../locales/i18n'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
@@ -147,28 +149,30 @@ export default function SCurveForm({ onCommitted }) {
   })
 
   // ── Where the slider may stand: both turnouts on the elements they were
-  // picked on. It stops on whole metres of WA from the element change behind
-  // it, on the exact ends of the range and where WA 2 lies on its element
-  // change; untouched it stands where WA lies on an element change.
+  // picked on, the connection valid throughout. It is stated as WA's station
+  // from the begin of track 1 and snaps where WA or WE of either turnout fall
+  // on an element change (Entscheidungen 309–310); untouched it stands where
+  // WA lies on an element change (Entscheidung 170).
   const slider = useMemo(() => {
     if (phase !== 'config' || !picks[0] || !picks[1] || !speed) return null
     const bounds = computeShiftBounds({ picks, speed, mids: solvedMids })
+    const track1 = loadTracks().find(tr => tr.id === picks[0].trackId)
+    const elStart = track1 ? elementStations(track1)[picks[0].elIdx]?.start ?? 0 : 0
+    const dir1 = stems(picks).g1.dir ?? 1
     return {
-      stops: shiftStops({ picks, speed, mids: solvedMids }, bounds),
+      bounds,
+      snaps: shiftSnaps({ picks, speed, mids: solvedMids }, bounds),
       preferred: preferredShift({ picks, speed, mids: solvedMids }, bounds),
       offset: waOffset(picks),
+      toStation: (sh) => elStart + picks[0].along + dir1 * sh,
+      toShift: (st) => (st - elStart - picks[0].along) * dir1,
     }
   }, [phase, picks, speed, solvedMids])
 
-  // The slider's own value: the stop nearest to the one asked for.
-  const stopIdx = useMemo(() => {
-    if (!slider) return 0
-    const want = shiftRaw ?? slider.preferred
-    let best = 0
-    slider.stops.forEach((s, i) => { if (Math.abs(s - want) < Math.abs(slider.stops[best] - want)) best = i })
-    return best
-  }, [slider, shiftRaw])
-  const shift = slider?.stops[stopIdx] ?? 0
+  // The shift asked for, held inside the range the connection stands over.
+  const shift = slider
+    ? Math.min(slider.bounds.max, Math.max(slider.bounds.min, shiftRaw ?? slider.preferred))
+    : 0
 
   // Which speeds these two tracks can be connected with where the slider stands
   // — the dropdown's disabled state. It follows from the picks and the shift, so
@@ -250,12 +254,23 @@ export default function SCurveForm({ onCommitted }) {
             </select>
           </div>
 
-          <div className="form-field">
-            <label>{t('scurve_shift')}: {settled && settled.shift !== shift
-              ? `${wa(shift)} → ${wa(settled.shift)}` : wa(shift)} m</label>
-            <input type="range" min={0} max={(slider?.stops.length ?? 1) - 1} step="1" value={stopIdx}
-              onChange={e => { setCarveError(null); setShift(slider?.stops[Number(e.target.value)] ?? null) }} />
-          </div>
+          {slider && (() => {
+            const ends = [slider.toStation(slider.bounds.min), slider.toStation(slider.bounds.max)].sort((a, b) => a - b)
+            const moved = settled && Math.abs(settled.shift - shift) > 1e-6
+            return (
+              <StationSlider label={splitUnit(t('scurve_station')).text}
+                value={String(Math.round(slider.toStation(shift) * 1e4) / 1e4)}
+                onChange={text => {
+                  const st = Number(text)
+                  if (text === '' || !Number.isFinite(st)) return
+                  setCarveError(null)
+                  setShift(slider.toShift(st))
+                }}
+                intervals={ends[1] > ends[0] ? [ends] : []}
+                snaps={slider.snaps.map(slider.toStation)}
+                hint={fill('scurve_wa_after_joint', { d: moved ? `${wa(shift)} → ${wa(settled.shift)}` : wa(shift) })} />
+            )
+          })()}
 
           <MidChainFields mids={mids} onChange={(next) => { setCarveError(null); setMids(next) }}
             solved={result?.midPieces?.map(p => p.route)

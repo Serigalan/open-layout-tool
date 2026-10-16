@@ -1054,3 +1054,31 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 .mid-chain-remove:hover { color: var(--color-text); }
 .mid-chain-solved { margin: 2px 0 4px; }
 .mid-chain-add { margin: 6px 0 2px; }
+
+/* Position slider of the switch dialogs (Entscheidungen 309–311). */
+.station-slider-track { position: relative; margin-top: 6px; padding: 0 8px; }
+.station-slider-track input[type=range] { width: 100%; box-sizing: border-box; margin: 0; display: block; }
+/* The snap points under the slider, inset by the thumb's half width so a mark
+   stands under the thumb that sits on it. */
+.station-slider-ticks { position: relative; height: 6px; margin: 1px 8px 0; }
+.station-slider-ticks span {
+  position: absolute; top: 0; width: 2px; height: 6px; margin-left: -1px;
+  background: var(--color-primary); opacity: 0.55; border-radius: 1px;
+}
+.station-slider-hint { font-size: var(--fs-s); color: var(--color-muted); margin-top: 2px; }
+
+/* Direction and side of a turnout as four tiles (Entscheidung 312). */
+.switch-orientation {
+  display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px; align-items: center; padding: 6px 0 10px;
+}
+.switch-orientation-head { text-align: center; font-size: var(--fs-s); color: var(--color-muted); }
+.switch-orientation-row { font-size: var(--fs-s); color: var(--color-muted); max-width: 88px; line-height: 1.2; }
+.switch-orientation-tile {
+  display: flex; align-items: center; justify-content: center; height: 44px;
+  border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface);
+  color: var(--color-faint); cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.switch-orientation-tile:hover { color: var(--color-primary); border-color: var(--color-primary); }
+.switch-orientation-tile.active {
+  color: var(--color-primary); border-color: var(--color-primary); border-width: 2px; background: color-mix(in srgb, var(--color-primary) 8%, #fff);
+}

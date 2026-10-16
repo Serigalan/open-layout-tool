@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { SWITCH_TYPES } from '../switchConnectionUtils'
-import { stems, solveConnection, computeShiftBounds, settleConnection, connectionRemnants, connectionPick, buildSCurve, shiftStops, preferredShift, waOffset } from './sCurve'
+import { stems, solveConnection, computeShiftBounds, settleConnection, connectionRemnants, connectionPick, buildSCurve, shiftSnaps, preferredShift, waOffset } from './sCurve'
 import { minElementLength } from '../rules/elementLength'
 import { hasPekBestand, loadPekBestand } from '../../test/pekFixture'
 import { hydrateProjects, dehydrateProjects } from '../persistenceUtils'
@@ -77,26 +77,26 @@ describe('where the slider may stand', () => {
     expect(solveConnection({ picks, speed: SPEED_60, shift: min }).valid).toBe(true)
   })
 
-  it('reaches the element change exactly and stops on whole metres from it', () => {
+  it('reaches the element change exactly and snaps WA and WE onto it (Entscheidung 310)', () => {
     const picks = [bare(P(500000, 5600000), 0, 400, 100.4), bare(P(499995.5, 5599700), 0, 2000, 460)]
     const bounds = computeShiftBounds({ picks, speed: SPEED_60 })
     expect(bounds.min).toBe(-100.4)
-    const stops = shiftStops({ picks, speed: SPEED_60 }, bounds)
-    expect(stops[0]).toBe(-100.4)
-    expect(stops.at(-1)).toBe(bounds.max)
+    const snaps = shiftSnaps({ picks, speed: SPEED_60 }, bounds)
+    expect(snaps[0]).toBe(-100.4)
     expect(waOffset(picks)).toBe(100.4)
-    expect(stops[1] + 100.4).toBeCloseTo(1, 9)
-    const res = solveConnection({ picks, speed: SPEED_60, shift: stops[0] })
+    const res = solveConnection({ picks, speed: SPEED_60, shift: snaps[0] })
     expect(res.TP1.northing).toBeCloseTo(5600000, 9)
+    // WE of turnout 1 on the element's start would put WA before it: not a snap.
+    expect(snaps.every(s => s >= bounds.min && s <= bounds.max)).toBe(true)
   })
 
-  it('stops where the second toe lies on its element change', () => {
+  it('snaps where the second toe lies on its element change', () => {
     // The connection runs north; the second turnout opens back south, so the
     // element change behind its WA is its element's end, at northing 5600230.
     const picks = [bare(P(500000, 5600000), 0, 400, 100), bare(P(499995.5, 5599700), 0, 530, 490)]
     const bounds = computeShiftBounds({ picks, speed: SPEED_60 })
-    const stops = shiftStops({ picks, speed: SPEED_60 }, bounds)
-    const onNode = stops.map(s => solveConnection({ picks, speed: SPEED_60, shift: s }))
+    const snaps = shiftSnaps({ picks, speed: SPEED_60 }, bounds)
+    const onNode = snaps.map(s => solveConnection({ picks, speed: SPEED_60, shift: s }))
       .filter(r => r?.valid && Math.abs(r.TP2.northing - 5600230) < 1e-4)
     expect(onNode).toHaveLength(1)
   })
@@ -296,7 +296,7 @@ describe.skipIf(!hasPekBestand)('minimum element length on the PEK Bestand', () 
     const bounds = computeShiftBounds({ picks, speed })
     const shift = preferredShift({ picks, speed }, bounds)
     expect(shift).toBe(-10.4)
-    expect(shiftStops({ picks, speed }, bounds)[0]).toBe(-10.4)
+    expect(shiftSnaps({ picks, speed }, bounds)[0]).toBe(-10.4)
     const out = settleConnection({ picks, speed, shift })
     expect(out.result.valid).toBe(true)
     expect(out.remnants.find(r => r.track === 0 && r.side === 'before').length).toBeCloseTo(0, 9)

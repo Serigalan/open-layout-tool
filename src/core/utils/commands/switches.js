@@ -13,6 +13,7 @@ import { cantExceptionFields, worstCantOf } from '../rules/cant'
 import { placeSwitchOnTrack } from '../switchPlacement'
 import { elementAtStation, trackLength } from '../heightUtils'
 import { minElementLength } from '../rules/elementLength'
+import { uniqueStations, validIntervals } from '../stationSlider'
 import { utmToWgs84 } from '../coordinateUtils'
 import { arcElement, straightElement } from '../elementFactory'
 
@@ -107,16 +108,6 @@ export function switchOnTrackRouteEnd({ track, reversed, sw, side, straightLen }
 const NODE_TOL = 1e-3
 
 /**
- * Where element `elIdx` of `track` runs along the track [m], and its node
- * behind a turnout opening with the track (its start) or against it (its end).
- */
-function elementSpan(track, elIdx, reversed) {
-  const start = track.elements.slice(0, elIdx).reduce((sum, e) => sum + (e.length ?? 0), 0)
-  const end   = start + (track.elements[elIdx]?.length ?? 0)
-  return { start, end, behind: reversed ? end : start }
-}
-
-/**
  * The pieces of its element a turnout at `toeStation` leaves on either side of
  * its toe (WA): `length` between the toe and the element's node on the side
  * away from the turnout, `ahead` between the toe and the node it opens towards,
@@ -146,7 +137,7 @@ export function switchOnTrackRemnant(track, toeStation, reversed, speed) {
 
 /**
  * May the toe stand at `toeStation`: the turnout lies there and leaves no
- * piece too short on either side of it? `args` are switchOnTrackStops'.
+ * piece too short on either side of it? `args` are switchOnTrackSlider's.
  */
 export function switchOnTrackToeValid(args, toeStation) {
   if (placeOnTrack({ ...args, toeStation }).error) return false
@@ -154,45 +145,32 @@ export function switchOnTrackToeValid(args, toeStation) {
   return !remnant?.short && !remnant?.shortAhead
 }
 
-/** The stations of element `elIdx` a stop may fall on: its nodes and the whole metres from the node behind. */
-function elementStops(track, elIdx, reversed, lMin) {
-  const { start, end, behind } = elementSpan(track, elIdx, reversed)
-  const len = end - start
-  const dir = reversed ? -1 : 1
-  const ds = [0, len]
-  for (let d = Math.max(1, Math.ceil(lMin - NODE_TOL)); d < len - NODE_TOL; d++) ds.push(d)
-  // Stated to a tenth of a millimetre: the station field shows it as it is.
-  return { stations: ds.map(d => Math.round((behind + dir * d) * 1e4) / 1e4), behind }
+/** The stations of the track's element changes, its two ends included. */
+function nodeStations(track) {
+  let at = 0
+  const out = [0]
+  for (const el of track.elements ?? []) { at += el.length ?? 0; out.push(at) }
+  return out
 }
 
 /**
- * The stations the dialog's slider can stand on, ascending: on every element
- * of the track (Entscheidung 300) — or only on element `elIdx` where one is
- * given — both of its nodes and every whole metre from the node behind the
- * toe, from l_min on; each only where the turnout lies and leaves no piece of
- * its element shorter than l_min on either side of the toe (Entscheidungen
- * 217, 301). `behind` is, for one element, the station of that node.
+ * What the position slider of "Weiche auf Gleis" runs over (Entscheidungen
+ * 309–310): the stretches of the track where the toe may stand — the turnout
+ * lies there and leaves no piece shorter than l_min on either side of the toe
+ * (Entscheidungen 217, 301) — and the stations it snaps to: the toe (WA) or
+ * the switch end (WE) on an element change.
  *
  * `args` are switchOnTrackPlacement's, without the station, and `speed`, the
- * diverging track's.
+ * diverging track's. Returns { intervals, snaps }.
  */
-export function switchOnTrackStops(args, elIdx) {
-  const { track, reversed } = args
-  const n = track?.elements?.length ?? 0
-  if (elIdx != null && !track?.elements?.[elIdx]) return { stops: [], behind: 0 }
-  const lMin = minElementLength(args.speed || null) ?? 0
-  const indices = elIdx != null ? [elIdx] : [...Array(n).keys()]
-  const all = indices.map(i => elementStops(track, i, reversed, lMin))
-  const stops = [...new Set(all.flatMap(e => e.stations))]
-    .filter(s => switchOnTrackToeValid(args, s)).sort((a, b) => a - b)
-  return { stops, behind: all[0]?.behind ?? 0 }
-}
-
-/** The stop of `stops` nearest to `station` — or null where there is none. */
-export function nearestStop(stops, station) {
-  let best = null
-  for (const s of stops) if (best == null || Math.abs(s - station) < Math.abs(best - station)) best = s
-  return best
+export function switchOnTrackSlider(args) {
+  const { track, reversed, straightLen } = args
+  if (!track?.elements?.length) return { intervals: [], snaps: [] }
+  const nodes = nodeStations(track)
+  const intervals = validIntervals(s => switchOnTrackToeValid(args, s), 0, trackLength(track), 1)
+  // WE lies the through length ahead of WA, in the direction the turnout opens.
+  const snaps = uniqueStations([...nodes, ...nodes.map(n => (reversed ? n + straightLen : n - straightLen))])
+  return { intervals, snaps }
 }
 
 /** Branch element from a piece of the branch with one radius (or none). */
@@ -636,4 +614,19 @@ export function crossingOnTrackPort({ track, pointStation, endDist, form, crossA
   const crossBearing = (ahead.bearing + crossAngle + 360) % 360
   const [from, r] = port === 'B' ? [(crossBearing + 180) % 360, negR(legR)] : [crossBearing, legR]
   return { utm: utmEndRoute(ahead.toeUtm, from, endDist, r), bearing: bearingAfterUtm(from, endDist, r) }
+}
+
+/**
+ * What the position slider of "Kreuzung auf Gleis" runs over (Entscheidung
+ * 309): the stretches where the crossing point may lie, and the stations
+ * where an end of its main route (A or C) falls on an element change.
+ */
+export function crossingOnTrackSlider({ track, endDist, form, crossAngle }) {
+  if (!track?.elements?.length) return { intervals: [], snaps: [] }
+  const nodes = nodeStations(track)
+  const valid = (s) => crossingOnTrackPort({ track, pointStation: s, endDist, form, crossAngle }, 'D') != null
+  return {
+    intervals: validIntervals(valid, 0, trackLength(track), 1),
+    snaps: uniqueStations(nodes.flatMap(n => [n - endDist, n + endDist])),
+  }
 }

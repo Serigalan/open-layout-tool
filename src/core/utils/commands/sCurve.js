@@ -9,6 +9,7 @@ import { newSwitchFields, switchElementMark } from '../switchModel'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
 import { solveSwitchConnection, buildConnectionElements, orientStemToward } from '../switchConnectionUtils'
 import { minElementLength } from '../rules/elementLength'
+import { uniqueStations } from '../stationSlider'
 
 // The S-curve between two line tracks (SCurveForm): solving the connection
 // for a shift, the range of shifts it stands over, and the commit.
@@ -447,18 +448,65 @@ function secondToeOnNode({ picks, speed, mids }, bounds) {
 }
 
 /**
- * The shifts the slider can stand on, ascending: the first toe on whole metres
- * from the element change behind it, the exact ends of `bounds`, and the shift
- * that puts the second toe onto its element change.
+ * The shifts the second toe crosses each station of `targets` at, within
+ * [lo, hi]: one pass over the range, each crossing then halved down — the
+ * second toe goes wherever the construction puts it, so it is found, not
+ * computed.
  */
-export function shiftStops({ picks, speed, mids = null }, bounds) {
-  const d0 = waOffset(picks)
-  const stops = [bounds.min, bounds.max]
-  for (let d = Math.ceil(bounds.min + d0); d <= bounds.max + d0; d++) stops.push(d - d0)
-  const s2 = secondToeOnNode({ picks, speed, mids }, bounds)
-  if (s2 != null) stops.push(s2)
-  stops.sort((a, b) => a - b)
-  return stops.filter((s, i) => i === 0 || s - stops[i - 1] > 1e-6)
+function secondToeCrossings({ picks, speed, mids }, targets, lo, hi) {
+  const toe = (s) => {
+    const res = solveConnection({ picks, speed, shift: s, mids })
+    return res?.valid ? turnoutSpan(picks, 1, s, res).toe : null
+  }
+  const span = hi - lo
+  if (!(span > 0)) return []
+  const n = Math.ceil(span / Math.max(0.5, span / 200))
+  const out = []
+  let prevS = null, prevT = null
+  for (let i = 0; i <= n; i++) {
+    const s = lo + span * i / n
+    const t = toe(s)
+    if (t != null && prevT != null) {
+      for (const target of targets) {
+        if ((prevT - target <= 0) === (t - target <= 0)) continue
+        let a = prevS, b = s, fa = prevT - target
+        for (let it = 0; it < 60 && b - a > 1e-7; it++) {
+          const m = (a + b) / 2, tm = toe(m)
+          if (tm == null) break
+          if ((fa <= 0) === (tm - target <= 0)) { a = m; fa = tm - target } else b = m
+        }
+        out.push((a + b) / 2)
+      }
+    }
+    prevS = s
+    prevT = t
+  }
+  return out
+}
+
+/**
+ * The shifts the position slider snaps to (Entscheidung 310), within
+ * `bounds`, ascending: where the toe (WA) or the switch end (WE) of either
+ * turnout falls on a node of the element it is laid into.
+ */
+export function shiftSnaps({ picks, speed, mids = null }, bounds) {
+  if (!(bounds.max > bounds.min)) return []
+  const atMin = solveConnection({ picks, speed, shift: bounds.min, mids })
+  const res = atMin?.valid ? atMin : solveConnection({ picks, speed, shift: bounds.max, mids })
+  if (!res?.valid) return []
+  const through = res.throughLength
+  const [p1, p2] = picks
+  const dir1 = stems(picks).g1.dir ?? 1
+  const dir2 = res.flipped2 ? -1 : 1
+  const out = []
+  // Turnout 1 opens with the connection: WE lies the through length ahead of WA.
+  for (const node of [0, p1.route.length]) {
+    out.push((node - p1.along) * dir1, (node - dir1 * through - p1.along) * dir1)
+  }
+  // Turnout 2 opens against it: its WE lies the through length behind its WA.
+  const targets = [0, p2.route.length].flatMap(node => [node, node + dir2 * through])
+  out.push(...secondToeCrossings({ picks, speed, mids }, targets, bounds.min, bounds.max))
+  return uniqueStations(out).filter(s => s >= bounds.min - 1e-9 && s <= bounds.max + 1e-9)
 }
 
 /**

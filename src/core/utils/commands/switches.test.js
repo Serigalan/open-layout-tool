@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { trackOf } from './tracks'
 import {
-  nearestStop, switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackRouteEnd, switchOnTrackStops, switchOnTrackToeValid,
+  switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackRouteEnd, switchOnTrackSlider, switchOnTrackToeValid,
 } from './switches'
 import { arcFrom, straightFrom } from '../elementFactory'
 import { SWITCH_TYPES, switchStraightLength } from '../switch/catalogue'
@@ -58,60 +58,39 @@ describe('switch on track — the piece before the toe (LP.EL.01)', () => {
   })
 })
 
-describe('switch on track — where the slider stands', () => {
+describe('switch on track — what the slider runs over', () => {
   const track = twoStraights(100)
+  const room = 200 - switchStraightLength(FORM)
 
-  it('on the node behind the toe and every whole metre from l_min on, where the turnout lies', () => {
-    const { stops, behind } = switchOnTrackStops(argsOf(track), 1)
-    expect(behind).toBe(100)
-    expect(stops[0]).toBe(100)
-    expect(stops[1]).toBe(115)
-    expect(stops.some(s => s > 100 && s < 115)).toBe(false)
-    // The turnout needs its through length of track ahead of the toe.
-    const room = 200 - switchStraightLength(FORM)
-    expect(stops[stops.length - 1]).toBeLessThanOrEqual(room)
-    expect(stops.every(s => switchOnTrackToeValid(argsOf(track), s))).toBe(true)
+  it('the stretches where the turnout lies and keeps l_min on both sides of WA (Entscheidungen 301, 309)', () => {
+    const { intervals } = switchOnTrackSlider(argsOf(track))
+    expect(intervals).toHaveLength(3)
+    const [a, node, b] = intervals
+    expect(a[0]).toBeCloseTo(15, 2)
+    expect(a[1]).toBeCloseTo(85, 2)
+    // The element change itself: no piece on either side.
+    expect(node[0]).toBeCloseTo(100, 2)
+    expect(node[1]).toBeCloseTo(100, 2)
+    expect(b[0]).toBeCloseTo(115, 2)
+    expect(b[1]).toBeLessThanOrEqual(room + 1e-2)
+    for (const [x, y] of intervals) {
+      expect(switchOnTrackToeValid(argsOf(track), x)).toBe(true)
+      expect(switchOnTrackToeValid(argsOf(track), y)).toBe(true)
+    }
   })
 
-  it('never on the track\'s open end', () => {
-    const { stops } = switchOnTrackStops(argsOf(track), 0)
-    expect(stops[0]).toBe(15)
-    expect(stops).toContain(100)
+  it('every stretch where the diverging track has no speed to check', () => {
+    const { intervals } = switchOnTrackSlider(argsOf(track, false, 30))
+    expect(intervals).toHaveLength(1)
+    expect(intervals[0][0]).toBeLessThan(1)
   })
 
-  it('opening against the track, measured from the element\'s end', () => {
-    const { stops, behind } = switchOnTrackStops(argsOf(track, true), 0)
-    expect(behind).toBe(100)
-    expect(stops).toContain(100)
-    expect(stops).toContain(85)
-    expect(stops.some(s => s > 85 && s < 100)).toBe(false)
-  })
-
-  it('every whole metre where the diverging track has no speed to check', () => {
-    const { stops } = switchOnTrackStops(argsOf(track, false, 30), 1)
-    expect(stops.slice(0, 3)).toEqual([100, 101, 102])
-  })
-
-  it('stops short of l_min before the element end as well (Entscheidung 301)', () => {
-    const { stops } = switchOnTrackStops(argsOf(track), 0)
-    expect(stops).toContain(85)
-    expect(stops.some(s => s > 85 && s < 100)).toBe(false)
-  })
-
-  it('without an element, runs over the whole track (Entscheidung 300)', () => {
-    const { stops } = switchOnTrackStops(argsOf(track))
-    expect(stops).toEqual([...new Set([
-      ...switchOnTrackStops(argsOf(track), 0).stops, ...switchOnTrackStops(argsOf(track), 1).stops,
-    ])].sort((a, b) => a - b))
-    expect(stops).toContain(15)
-    expect(stops).toContain(100)
-    expect(stops).toContain(115)
-  })
-
-  it('snaps a station to the nearest stop', () => {
-    expect(nearestStop([100, 115, 116], 104)).toBe(100)
-    expect(nearestStop([100, 115, 116], 110)).toBe(115)
-    expect(nearestStop([], 110)).toBeNull()
+  it('snaps where WA or WE fall on an element change (Entscheidung 310)', () => {
+    const L = switchStraightLength(FORM)
+    const { snaps } = switchOnTrackSlider(argsOf(track))
+    for (const s of [0, 100, 200, 100 - L, 200 - L]) expect(snaps).toContain(Math.round(s * 1e4) / 1e4)
+    // Opening against the track, WE lies behind WA in the track's direction.
+    expect(switchOnTrackSlider(argsOf(track, true)).snaps).toContain(Math.round((100 + L) * 1e4) / 1e4)
   })
 })
 

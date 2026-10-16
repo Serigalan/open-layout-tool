@@ -4,14 +4,15 @@ import { wgs84ToUTM } from '../../../utils/coordinateUtils'
 import { CROSSING_TYPES } from '../../../utils/switch/catalogue'
 import { crossingAngle, crossingEndDistance, crossingLegRadius } from '../../../utils/switch/crossing'
 import { clickStation } from '../../../utils/switchPlacement'
-import { trackLength } from '../../../utils/heightUtils'
 import { elementPath } from '../../../utils/lineLookup'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import TrackFields from '../TrackFields'
 import SwitchNumberField from '../SwitchNumberField'
-import HeightDatumField from '../HeightDatumField'
+import StationSlider from '../../form/StationSlider'
+import { settleStation } from '../../../utils/stationSlider'
+import { DEFAULT_HEIGHT_EPSG, heightDatumLabel } from '../../../utils/heightDatums'
 import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildCrossingPreview } from '../../../map/switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
@@ -19,7 +20,7 @@ import { useProject } from '../../../hooks/useStore'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
-import { buildCrossingOnTrack, crossingOnTrackPlacement } from '../../../utils/commands/switches'
+import { buildCrossingOnTrack, crossingOnTrackPlacement, crossingOnTrackSlider } from '../../../utils/commands/switches'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import AdvancedInfo from '../../form/AdvancedInfo'
@@ -28,7 +29,6 @@ import useFormPhase from '../../form/useFormPhase'
 import CancelButton from '../../form/CancelButton'
 import { firstReason } from '../../form/firstReason'
 import MessageList from '../../form/MessageList'
-import NumberInput from '../../form/NumberInput'
 
 /**
  * A crossing or crossing switch laid INTO an existing track (AP 3.3) — the
@@ -91,15 +91,23 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       setErrors([])
       // The click is projected onto the element in the track's own plane and
       // stated as a station along the whole track — the crossing point.
+      // It snaps as the slider does (Entscheidung 309); the cross route lies
+      // at the height datum of the track it crosses (Entscheidung 311).
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
+      const clicked = Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000
+      const at = settleStation(clicked, { ...crossingOnTrackSlider({ track, endDist, form, crossAngle }), tol: 1 })
       begin({ trackId })
-      setStation(String(Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000))
+      setField('heightEpsg', String(track.heightEpsg ?? DEFAULT_HEIGHT_EPSG))
+      setStation(String(at == null ? clicked : Math.round(at * 1e4) / 1e4))
     },
   })
 
   // ── Derived geometry for the current settings ─────────────────────────────
   const track = pick ? loadTracks().find(tr => tr.id === pick.trackId) : null
   const pointStation = Number(station)
+  // Where the crossing point may lie, and where A or C fall on an element change.
+  const slider = useMemo(() => (track ? crossingOnTrackSlider({ track, endDist, form, crossAngle })
+    : { intervals: [], snaps: [] }), [track, endDist, form, crossAngle])
 
   // Where the crossing lies and the geometry it produces — derived, so the
   // preview and the commit always agree. Both halves of the main route are a
@@ -188,11 +196,8 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
   return (
     <>
       <FormSection title={t('section_geometry')}>
-        <div className="form-field">
-          <label>{t('crossing_on_track_station')}</label>
-          <NumberInput step="0.001" min="0" max={track ? trackLength(track) : 0} value={station}
-            onChange={e => setStation(e.target.value)} />
-        </div>
+        <StationSlider label={t('crossing_on_track_station')} value={station} onChange={setStation}
+          intervals={slider.intervals} snaps={slider.snaps} />
         <div className="form-field">
           <label>{t('crossing_form')}</label>
           <select value={formIdx} onChange={e => setFormIdx(Number(e.target.value))}>
@@ -207,8 +212,8 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
             <option value="left">{t('switch_side_left')}</option>
           </select>
         </div>
-        <HeightDatumField value={fields.heightEpsg} onChange={v => setField('heightEpsg', v)} />
         <AdvancedInfo>
+          <ReadOnlyField label={t('height_datum')} value={heightDatumLabel(Number(fields.heightEpsg) || DEFAULT_HEIGHT_EPSG)} />
           <ReadOnlyField label={t('crossing_on_track_elements')} value={elementsText} />
           {ahead && (
             <ReadOnlyField label={t('bearing')} value={ahead.bearing.toFixed(3)} />
