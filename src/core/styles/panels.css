@@ -287,11 +287,11 @@
 .layer-caret.open { transform: rotate(90deg); }
 
 /* The options under a row that opens (the states, the kilometrage): small
-   tiles with a checkbox, two to a line, so the sixteen states stay short. */
-.layer-option-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
+   tiles with a checkbox, one below the other. */
+.layer-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   margin: 0 0 4px 12px;
 }
 
@@ -300,11 +300,11 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  padding: 5px 6px;
+  padding: 4px 8px;
   border: 1px solid #ddd;
   border-radius: 5px;
   font-family: var(--font-ui);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-s);
   line-height: 1.25;
   color: #333;
   cursor: pointer;
@@ -331,9 +331,8 @@
   cursor: inherit;
 }
 
-/* Long names break at their hyphen (Mecklenburg-/Vorpommern), inside a word
-   by the language's hyphenation (the grid carries `lang`) where one alone is
-   wider than the tile. */
+/* A name wider than the tile breaks at its hyphen, inside a word by the
+   language's hyphenation (the list carries `lang`). */
 .layer-option span {
   min-width: 0;
   overflow-wrap: break-word;

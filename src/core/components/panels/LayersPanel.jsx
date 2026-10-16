@@ -36,7 +36,7 @@ function FoldRow({ id, thumbnail, label, sublabel, active, open, onToggle, lang,
         </span>
         <span className={`layer-caret${open ? ' open' : ''}`} aria-hidden="true">▸</span>
       </button>
-      {open && <div id={id} className="layer-option-grid" lang={lang}>{children}</div>}
+      {open && <div id={id} className="layer-option-list" lang={lang}>{children}</div>}
     </>
   )
 }
