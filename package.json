@@ -21,6 +21,7 @@
     "knip": "knip --no-progress",
     "boundary": "node tools/boundary.mjs",
     "modules": "node tools/modules.mjs",
+    "docs": "node tools/docs.mjs",
     "i18n:unused": "node tools/i18n-unused.mjs"
   },
   "dependencies": {

@@ -1,0 +1,186 @@
+# switch — turnouts, crossings, switch connections
+
+`src/core/utils/switch/` · needs `geometry`, `track`, `rules`
+
+The geometry of switches: the forms of DB Ril 800.0120, how a turnout lies on a track (straight, arc or
+clothoid), the routes it adds, the drawn symbol, crossings and crossing switches, the switch connection
+(Gleisverbindung) between two tracks, connecting a turnout or crossing to an open track end, the position
+slider of the dialogs, and what remains of the tracks when a switch is deleted. The record itself — kinds,
+ports, element marks — is in the `track` module; what the dialogs commit is in `commands`.
+
+## Files
+
+| File | What it does |
+|---|---|
+| `catalogue.js` | The forms of `src/core/constraints/db-ril-800-0120.json` as the geometry reads them: turnout tables, crossing tables, fallback stages for connections, branch radius of a bent turnout, bauform, Weichenmarke distance |
+| `route.js` | A switch route `{ length, r1, r2 }` and chains of them: points, bearings and slices along a route, the branch of a turnout laid on a given stem |
+| `symbol.js` | The drawn switch: routes as polylines, the filled body between them, the LCS line, the label; `rebuildSwitchSymbol` derives all of it from the tracks on load |
+| `crossing.js` | Crossings and crossing switches (incl. Bogenkreuzungsweiche): angle, legs, end distances, connecting curves, geometry |
+| `switchPlacement.js` | Where a turnout lies on a track: the toe at a station, the through route over as many elements as it covers; why it cannot lie somewhere |
+| `switchConnectionUtils.js` | The switch connection: two turnouts facing each other on two tracks and the element(s) between them |
+| `midChain.js` | One to three elements between the two branches of a switch connection, two of their values sought |
+| `connectToTrack.js` | Connecting a turnout's branch or a crossing's leg to an open track end by refitting the element there |
+| `stationSlider.js` | The valid stretches and snap points of the position slider |
+| `switchDelete.js` | Which routes stay as ordinary track when a switch is deleted, and the plan for doing it |
+| `weichenRegelwerk.js` | The form tables grouped for the rulebook viewer |
+
+## Forms
+
+A form *is* its catalogue entry in `db-ril-800-0120.json` — not a copy shaped for the drawing code — so a
+measure changed in the file is changed wherever the form is drawn, listed or exported. What the geometry
+reads: `R` and `ratio` (1:n) make the body; `branch` lists the sections of a branch that is more than one
+arc (e.g. an arc followed by a straight end piece); `symmetric` marks a form without a through route
+(215 – 1:4,8); `dLcs` is the Weichenmarke; `lds` the distance from the switch end (WE) to the last through
+sleeper (ldS), used for heights; `minl` the shortest intermediate element a connection needs; `verbindung`
+the fallback stage and rank a form has in a connection (the tool's own choice, marked as such in the
+catalogue).
+
+Turnouts are offered in the Ril's two groups: Regelformen (A01) first, Sonderbauformen (A02) after them.
+The default is `300 – 1:9`, found by name, not position.
+
+The Weichenmarke is the table's `dLcs`. Only a form without one would use the construction
+`d = 2.272·n − (l_t + g)` with `l_t = R·tan(w/2)`, `w = atan(1/n)`, rounded onto the grid `0.30 + k·0.60 m`.
+
+## A turnout on a track
+
+The turnout's through route is the track itself — one piece per element it covers, cut where the turnout
+begins (toe, WA) and ends (WE). It may reach over several elements and lie on straights, arcs and
+clothoids; not on a Bloss curve (its pieces are no Bloss curves), not over another switch, not on a kinked
+straight, and the track must run through tangentially under it (`switchPlacement.js`).
+
+**Bending.** Laying a turnout into a curve moves no sleeper, so at every station the branch's curvature is
+the stem's plus the form's:
+
+```
+κ_branch(s) = κ_stem(s) + κ_form          (κ = 1/R, signed)
+```
+
+On a stem of constant curvature that is one radius (`branchRadius`); on a clothoid stem the sum still runs
+linearly in s, so the branch is a clothoid of the stem's own parameter (`switchBranchRoute`). The result
+is the bauform: `plain` (straight stem), `ibw` (inner-bent: branch and stem turn the same way), `abw`
+(outer-bent) or `abw_straight` — the limiting case where the branch comes out straight. That case is built
+as the plain form with its routes swapped (`swapped: true`, see `track`): the curved line is the branch,
+the straight the through route.
+
+**Symbol.** The body is the area between the branch and the through route from the toe to the switch end,
+plus the LCS line (Weichenmarke) and the label, placed from the centre of area of the body so the same
+distance means the same gap for a 1:7 and a 1:26,5. All of it is derived from the tracks on every load and
+never stored.
+
+## Crossings and crossing switches
+
+A crossing is two routes that cross: `main` A–C and `cross` B–D, stated from the crossing point. Its body is
+the rhombus A → D → C → B; the legs are its diagonals. It is stored as four leg tracks (one straight each,
+marked `main`/`cross`) plus a track for each slip curve (marked `slip1`/`slip2`) — slip curves hang on no
+port and are found by their mark.
+
+The distance of each end from the crossing point is the form's tangent `lt` (the measured value; the end
+measure `c = 2·l_t·sin(α/2)` follows from it). A crossing switch with straight legs ends at the tangent
+points of its connecting curves, `R·tan(α/2)` along each leg. The Bogenkreuzungsweiche has curved legs of
+radius `Rk` and length `lb` each (`l_KW = 2·l_b`); its connecting routes are a straight on the convex side
+and, in the double slip, a tighter arc `Ri` on the concave side. A crossing needs straight track on both
+sides of the crossing point.
+
+## Switch connection (Gleisverbindung)
+
+Two turnouts of one form facing each other, each laid into its own track, and the element(s) between their
+branches. Each branch leaves its track at the form's own angle `w = atan(1/n)` at every station, bent or
+not — neither angle nor form radius is free; a solver that bent them would produce a curve no turnout can
+build.
+
+**The construction** (`switchConnectionUtils.js`). The unknowns are the toe stations s₁ (on track 1, given by
+the slider) and s₂ (on track 2, sought). Branch 1 is the form laid on the stem it covers at s₁. The middle
+element is *defined* as the arc leaving branch 1's end on its tangent and turning by `Δ = t₂ − t₁`, so it
+meets branch 2 tangentially for any s₂ — tangent continuity by construction at both ends. An arc of given
+turn reaches, as its length grows, along the ray bisecting that turn, so the one condition left is that
+branch 2's end lies on that ray:
+
+```
+r(s₂) = (B2_A − B1_E) · n̂(t₁ + Δ/2)  →  0
+```
+
+a signed distance, smooth in s₂ and linear wherever track 2 is straight, so a secant iteration lands on the
+straight case's exact answer in one step (a scan takes over where it fails). Tolerance 10⁻⁸ m: the residual
+appears as a tangent step of about `r/Lg` at the joint, and must stay under the chain checker's 10⁻⁶°. On
+two parallel straights this is the classical intermediate straight; on converging tracks an intermediate arc
+of radius `Lg/δ`; in curves and on transitions the same construction.
+
+**Forms per speed.** For a design speed the forms of that speed are tried through the catalogue's three
+fallback stages, flatter before sharper. A form fails when the intermediate element is shorter than `minl`,
+when a curve or bent branch exceeds the permitted cant deficiency, or when the cant at the two ends of the
+middle element differs — the middle element carries one value, a step would be a ramp of no length.
+
+**Up to three intermediate elements** (`midChain.js`). Instead of one arc the dialog may ask for one to
+three elements, each a straight, an arc or a transition, each with length (and an arc's radius) given or
+left open. Exactly two values are sought; the third unknown is s₂. Transitions run between the curvatures
+of their neighbours. The default — one arc with length and radius open — is the closed construction above.
+
+**Checks.** All intermediate elements carry the cant of the middle (the rounded mean of both tracks' cant
+at the ldS — the two tracks must carry the same cant there, not at the toe); every arc and transition end
+is held to the permitted cant deficiency; one element must be at least the form's `minl`, two or three
+their sum and each `l_min` (LP.EL.01 at the connection's speed, from 40 km/h). The pieces of track left
+before the toe and behind the switch end, on both tracks, must be zero or at least `l_min`; the toe is put
+on the element change behind it where it can be.
+
+## Connecting to an open track end
+
+"Weiche/Kreuzung an Gleis anschließen" (`connectToTrack.js`): a turnout (or crossing) is laid into a host
+track, and its branch (or one end of its cross route) is joined to an open end of another track. The
+element at that end — the *connecting element* — keeps its other node and the tangent there and takes a
+new length and radius so that its open end lands on the port tangentially. The port moves with the
+turnout, which slides along the host: one station x. For any x the element is fixed by position alone (an
+arc from a point and a tangent to a point is one arc; a transition is fitted by a small Newton method), so
+what remains is the direction miss at the port as a function of x. That function is scanned along the
+whole host for roots; each opening direction gives its solutions and the one nearest the click is taken.
+The branch and the connected track become one track (`joinRouteIntoTrack`), which keeps the connected
+track's name, data and direction.
+
+Refused: an end that is not open, a connecting element inside a switch or a Bloss curve, no root, a
+length ≤ 0, a toe without room, leftover pieces under `l_min`, and any rule error on the refitted track.
+Where the rules reject it, the dialog offers remedies (lower speed, a transition before the arc; see
+`commands`) — not a larger radius, which follows from the position.
+
+## Position slider
+
+The dialogs state a turnout's position as a station from the track's BEGIN — a field that takes any value
+and a slider beneath it (`stationSlider.js`). The slider runs finely only over the stretches where the
+turnout may lie (`validIntervals`: sampled every metre, each edge then bisected to 0.1 mm and rounded
+inwards to the millimetre) and skips the rest; it snaps where the toe or switch end falls on an element
+change (within 1 m or one slider pixel). It reaches 50 m either side of the click. The validity test is the
+placement plus `l_min` before and after the toe.
+
+## Deleting a switch
+
+A switch owns elements: its branch (a track of its own) and its through route, carved into the line it was
+laid into. Deleting only the record would leave marked elements of a switch that no longer exists;
+deleting everything would tear a hole in a running line. One rule decides (`keptRoutes`): **a route stays
+as ordinary track when both its ports carry track beyond the switch, unless a route before it in the kind's
+order has already claimed one of those ports.** For a turnout that is the table
+
+| Occupied ports | What stays |
+|---|---|
+| A and B2 | the through route — a line runs over it |
+| A and B1, not B2 | the branch — the through route is a stub |
+| anything else | nothing of the switch carries a line |
+
+A crossing's routes share no port, so both may stay; a slip curve shares its ports with both through routes
+and stays only where neither does. On a swapped turnout the branch claims the toe first. Kept routes are
+unmarked and joined back with their neighbours into one track; what does not stay is removed.
+
+## Decisions
+
+- **The catalogue file is the form.** No form table in the code.
+- **One construction for every stem.** Straight, arc and clothoid stems are read as routes
+  `{ length, r1, r2 }`, so a connection between a straight and a curve, two curves or a transition is the
+  same code.
+- **Form angle and radius are never free variables** in a connection; only positions are.
+- **A switch connection needs equal cant at the ldS**, not at the toe; one cant on the middle element.
+- **Bloss curves carry no turnout**, crossings need straight track.
+- **Deleting follows one rule for all kinds** instead of a table per kind.
+
+## Tests
+
+`switch.test.js`, `crossingUtils.test.js`, `connectToTrack.test.js`, `stationSlider.test.js`,
+`switchConnectionUtils.test.js`, `switchDelete.test.js` … next to the files; `src/core/test/formChains.test.js`,
+`swappedTurnout.test.js` and `switchEnds.test.js`; every construction holds the chain invariants
+(`expectValidTrack`, `expectSwitchRoutesCarved`, `expectSwitchCantAdmissible`).

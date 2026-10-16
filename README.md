@@ -23,6 +23,11 @@ An interactive web application for designing railway track layouts on a map — 
 - **Project management** — projects with variants and revisions on a project server, users with sign-in;
   or, in the local version, projects in the browser alone
 
+## Documentation
+
+[`docs/`](docs/README.md) describes the architecture, the project data format (oltjson-1.0) and every module of
+the app — what it does, how it computes and why it is built that way.
+
 ## Getting Started
 
 ```bash

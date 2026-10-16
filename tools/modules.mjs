@@ -2,7 +2,7 @@
 // The modules of src/core/utils and the rules between them (docs/architecture.md).
 //
 // Each directory under src/core/utils is a module: geometry, track, switch, …
-// Its index.js is its public face. Three rules hold them apart:
+// Its index.js is its public face. The rules:
 //
 //   1. Code outside a module imports from its index.js and nowhere else.
 //      Tests may reach inside (they test the parts), and a module's own files
@@ -13,6 +13,7 @@
 //      app's interface (components, map, shell, hooks, the store) — only the
 //      extension points, the translations, the palette, the basemaps and the
 //      rulebooks.
+//   4. Every module has its page in docs/modules/.
 //
 //   node tools/modules.mjs           check, exit 1 on a breach
 //   node tools/modules.mjs --order   the modules in dependency order, with what each needs
@@ -45,7 +46,7 @@ function sources() {
     .filter(p => /\.(js|jsx|mjs)$/.test(p))
 }
 
-/** The breaches of rules 1–3, as lines of text, and the module graph. */
+/** The breaches of rules 1–4, as lines of text, and the module graph. */
 export function checkModules() {
   const breaches = []
   const needs = new Map(MODULES.map(m => [m, new Set()]))
@@ -78,9 +79,10 @@ export function checkModules() {
     }
     for (const m of ready) { order.push(m); left.delete(m) }
   }
-  // And each has its index.
+  // Rule 4, and the index itself.
   for (const m of MODULES) {
     if (!existsSync(join(UTILS, m, 'index.js'))) breaches.push(`src/core/utils/${m} has no index.js`)
+    if (!existsSync(join(ROOT, 'docs/modules', `${m}.md`))) breaches.push(`src/core/utils/${m} has no page docs/modules/${m}.md`)
   }
   return { breaches, order, needs }
 }

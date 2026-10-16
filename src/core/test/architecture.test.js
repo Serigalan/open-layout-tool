@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { importGraph, serverReach } from '../../../tools/boundary.mjs'
 import { checkModules } from '../../../tools/modules.mjs'
+import { checkDocs } from '../../../tools/docs.mjs'
 
 // Rules about who may import whom (Roadmap rework). Checked on the sources,
 // so a new import that breaks one fails here and not in review.
@@ -44,6 +45,9 @@ describe('architecture', () => {
   // The modules of src/core/utils (docs/architecture.md, tools/modules.mjs).
   it('imports a module through its index, and the modules need each other without a cycle and no interface', () => {
     expect(checkModules().breaches).toEqual([])
+  })
+  it('documents nothing the repository does not have (docs/)', () => {
+    expect(checkDocs()).toEqual([])
   })
 
   // Paket L, decision 277: two layers, one direction.

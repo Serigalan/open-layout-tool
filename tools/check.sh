@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Everything CI runs (.github/workflows/ci.yml), locally: lint, dead code (knip), the boundary
-# between core and server, the modules of src/core/utils, the unit and server tests, both
-# builds — the main one and the local one, checked for server parts (Paket L) — and, where a Python environment with the optimizer
-# is found (OLT_PYTHON, else .venv/), the shared vectors and the optimizer's acceptance tests.
+# between core and server, the modules of src/core/utils, the docs, the unit and server tests,
+# both builds — the main one and the local one, checked for server parts (Paket L) — and, where
+# a Python environment with the optimizer is found (OLT_PYTHON, else .venv/), the shared vectors
+# and the optimizer's acceptance tests.
 #
 #   npm run check            all of it
 #   npm run check -- --quick without tools/optimizer/tests/verify.py (≈ 1 min)
@@ -16,7 +17,8 @@ echo "== lint";  npm run -s lint
 echo "== dead code"; npm run -s knip
 echo "== unused translations"; npm run -s i18n:unused
 echo "== boundary (core never imports from server)"; node tools/boundary.mjs --core
-echo "== modules (through their index, no cycle)"; node tools/modules.mjs
+echo "== modules (through their index, no cycle, documented)"; node tools/modules.mjs
+echo "== docs (links and file names)"; node tools/docs.mjs
 echo "== tests"; npx vitest run
 echo "== build (catches imports of names that are gone)"; npx vite build --outDir "$(mktemp -d)" --logLevel error
 local_dist=$(mktemp -d)
