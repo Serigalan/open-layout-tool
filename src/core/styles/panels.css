@@ -1060,11 +1060,17 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 .station-slider-track input[type=range] { width: 100%; box-sizing: border-box; margin: 0; display: block; }
 /* The snap points under the slider, inset by the thumb's half width so a mark
    stands under the thumb that sits on it. */
-.station-slider-ticks { position: relative; height: 6px; margin: 1px 8px 0; }
-.station-slider-ticks span {
-  position: absolute; top: 0; width: 2px; height: 6px; margin-left: -1px;
+.station-slider-ticks { position: relative; height: 12px; margin: 0 8px; }
+/* Each mark a button wider than it looks, so it is easy to hit. */
+.station-slider-tick {
+  position: absolute; top: 0; width: 12px; height: 12px; margin-left: -6px; padding: 0;
+  border: 0; background: none; cursor: pointer;
+}
+.station-slider-tick::before {
+  content: ''; position: absolute; left: 5px; top: 1px; width: 2px; height: 7px;
   background: var(--color-primary); opacity: 0.55; border-radius: 1px;
 }
+.station-slider-tick:hover::before, .station-slider-tick:focus-visible::before { opacity: 1; width: 4px; left: 4px; }
 .station-slider-hint { font-size: var(--fs-s); color: var(--color-muted); margin-top: 2px; }
 
 /* Direction and side of a turnout as four tiles (Entscheidung 312). */

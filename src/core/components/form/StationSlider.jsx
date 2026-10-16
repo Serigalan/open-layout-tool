@@ -1,5 +1,7 @@
 import NumberInput from './NumberInput'
 import { settleStation } from '../../utils/stationSlider'
+import { formatNum } from '../../locales/i18n'
+import { useI18n } from '../../locales/i18nContext'
 
 const round = (s) => String(Math.round(s * 1e4) / 1e4)
 
@@ -10,10 +12,12 @@ const round = (s) => String(Math.round(s * 1e4) / 1e4)
  * centimetre over the stretches where it may lie (`intervals`), skips the rest
  * and snaps onto the stations in `snaps` (an end of it on an element change)
  * within a metre, or within what a pixel of the slider is worth on a long
- * track. The snap points stand as small marks under the slider. `hint` is a line
+ * track. The snap points stand as small marks under the slider; a click on
+ * one puts the station there. `hint` is a line
  * under it.
  */
 export default function StationSlider({ label, value, onChange, intervals, snaps = [], hint = null }) {
+  const { language } = useI18n()
   const has = intervals.length > 0
   // On the centimetre grid, so a dragged value is a whole centimetre; what
   // lies outside the stretches is settled back into them.
@@ -35,8 +39,13 @@ export default function StationSlider({ label, value, onChange, intervals, snaps
             if (s != null) onChange(round(s))
           }} />
         {max > min && (
-          <div className="station-slider-ticks" aria-hidden="true">
-            {ticks.map(p => <span key={p} style={{ left: `${(p - min) / (max - min) * 100}%` }} />)}
+          <div className="station-slider-ticks">
+            {ticks.map(p => (
+              <button key={p} type="button" className="station-slider-tick"
+                style={{ left: `${(p - min) / (max - min) * 100}%` }}
+                title={`${formatNum(round(p), language)} m`} aria-label={`${label}: ${formatNum(round(p), language)} m`}
+                onClick={() => onChange(round(p))} />
+            ))}
           </div>
         )}
       </div>
