@@ -1,5 +1,5 @@
 import { PARTIES, STAFF, todayIso } from './planHeader'
-import { BASEMAPS } from '../basemaps'
+import { findBasemap } from '../basemaps'
 import { DEFAULT_HEIGHT_EPSG, heightDatumLabel } from './heightDatums'
 import { PAPER_FORMATS, SCALES, TITLE_COLUMN_MM } from './planExport'
 import { planSheets } from './planLayout'
@@ -164,7 +164,7 @@ export async function assembleSite(project, o, { t, language, onProgress, onBase
   const zone = tracks.find(tr => tr.epsg)?.epsg ?? null
   const basemaps = []
   if (backdrop.basemap && zone) {
-    const style = BASEMAPS.find(b => b.id === backdrop.basemap)?.style
+    const style = findBasemap(backdrop.basemap)?.style
     for (const [i, sheet] of layout.sheets.entries()) {
       onProgress?.(i, layout.sheets.length)
       try {

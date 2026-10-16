@@ -424,29 +424,19 @@ export const PointCloudIcon = () => (
   </MenuIcon>
 )
 
-// A layer preview, not a menu icon: it shows an overlay in the colours it is
-// drawn in on the map, so it carries those colours instead of currentColor and
-// its own frame. `kind` picks the overlay — 'db' the DB network with its
-// hectometre points and a kilometrage jump, 'other' the dashed lines beyond it.
-// It lives here for the same reason as every other drawing — the panels
-// compose, they do not draw.
-export const OverlayThumbnail = ({ kind, kmColor, kmOtherColor, kmJumpColor }) => (
+// A layer preview, not a menu icon: it shows the overlays in the colours
+// they are drawn in on the map, so it carries those colours instead of
+// currentColor and its own frame. It lives here for the same reason as every
+// other drawing — the panels compose, they do not draw.
+export const OverlayThumbnail = ({ kmColor, kmOtherColor, kmJumpColor }) => (
   <svg className="layer-thumbnail" viewBox="0 0 60 45" aria-hidden="true">
     <rect width="60" height="45" fill={PALETTE.iconBackground} />
-    {kind === 'other' ? (
-      <>
-        <line x1="5" y1="34" x2="55" y2="14" stroke={kmOtherColor ?? PALETTE.kmLineOther} strokeWidth="1.6" strokeDasharray="3 2" />
-        <line x1="5" y1="42" x2="38" y2="29" stroke={kmOtherColor ?? PALETTE.kmLineOther} strokeWidth="1.4" strokeDasharray="3 2" />
-      </>
-    ) : (
-      <>
-        <line x1="5" y1="34" x2="55" y2="14" stroke={kmColor ?? PALETTE.kmLine} strokeWidth="1.6" />
-        {[[5, 34], [17.5, 29], [42.5, 19], [55, 14]].map(([x, y]) => (
-          <circle key={x} cx={x} cy={y} r="1.9" fill={kmColor ?? PALETTE.kmLine} stroke={PALETTE.white} strokeWidth="0.7" />
-        ))}
-        <circle cx="30" cy="24" r="2.4" fill={kmJumpColor ?? PALETTE.kmJump} stroke={PALETTE.white} strokeWidth="0.8" />
-      </>
-    )}
+    <line x1="5" y1="41" x2="55" y2="23" stroke={kmOtherColor ?? PALETTE.kmLineOther} strokeWidth="1.4" strokeDasharray="3 2" />
+    <line x1="5" y1="29" x2="55" y2="9" stroke={kmColor ?? PALETTE.kmLine} strokeWidth="1.6" />
+    {[[5, 29], [17.5, 24], [42.5, 14], [55, 9]].map(([x, y]) => (
+      <circle key={x} cx={x} cy={y} r="1.9" fill={kmColor ?? PALETTE.kmLine} stroke={PALETTE.white} strokeWidth="0.7" />
+    ))}
+    <circle cx="30" cy="19" r="2.4" fill={kmJumpColor ?? PALETTE.kmJump} stroke={PALETTE.white} strokeWidth="0.8" />
   </svg>
 )
 

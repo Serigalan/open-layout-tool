@@ -118,32 +118,44 @@ function refitElevationRange(map) {
   _rangeListener?.([lo, hi])
 }
 
-function buildWmsStyle(sourceId, wmsUrl, layer, attribution, wmsVersion = '1.1.1') {
+/**
+ * A state's WMS as a MapLibre raster source. `transparent` asks for PNG with
+ * the area outside the state left clear — needed once several states lie on
+ * top of each other, since a JPEG fills it white and would cover the
+ * neighbour; alone, a state keeps the JPEG, about a seventh of the bytes.
+ * `bounds` keeps tiles beyond the state's box from being asked for at all.
+ */
+function wmsSource({ wmsUrl, layer, attribution, version: wmsVersion = '1.1.1', bounds }, { transparent }) {
   const base = (wmsUrl.endsWith('?') || wmsUrl.endsWith('&')) ? wmsUrl : wmsUrl + '?'
   const srsParam = wmsVersion === '1.3.0' ? 'CRS' : 'SRS'
   return {
+    type: 'raster',
+    tiles: [
+      base +
+      `SERVICE=WMS&VERSION=${wmsVersion}&REQUEST=GetMap` +
+      // A layer name may carry a comma (Bremen serves the city and
+      // Bremerhaven as two sheets) or a space, so it is encoded.
+      `&LAYERS=${encodeURIComponent(layer)}&STYLES=` +
+      (transparent ? '&FORMAT=image/png&TRANSPARENT=TRUE' : '&FORMAT=image/jpeg') +
+      `&${srsParam}=EPSG:3857` +
+      '&WIDTH=256&HEIGHT=256' +
+      '&BBOX={bbox-epsg-3857}',
+    ],
+    tileSize: 256,
+    ...(bounds ? { bounds } : {}),
+    // The state surveys publish under dl-de/by-2-0, which requires the
+    // source to be named wherever the imagery is shown.
+    attribution,
+  }
+}
+
+/** The style showing the given states' orthophotos together, one raster layer each. */
+function buildLvStyle(states) {
+  const transparent = states.length > 1
+  return {
     version: 8,
-    sources: {
-      [sourceId]: {
-        type: 'raster',
-        tiles: [
-          base +
-          `SERVICE=WMS&VERSION=${wmsVersion}&REQUEST=GetMap` +
-          // A layer name may carry a comma (Bremen serves the city and
-          // Bremerhaven as two sheets) or a space, so it is encoded.
-          `&LAYERS=${encodeURIComponent(layer)}&STYLES=` +
-          '&FORMAT=image/jpeg' +
-          `&${srsParam}=EPSG:3857` +
-          '&WIDTH=256&HEIGHT=256' +
-          '&BBOX={bbox-epsg-3857}',
-        ],
-        tileSize: 256,
-        // The state surveys publish under dl-de/by-2-0, which requires the
-        // source to be named wherever the imagery is shown.
-        attribution,
-      },
-    },
-    layers: [{ id: 'wms-layer', type: 'raster', source: sourceId }],
+    sources: Object.fromEntries(states.map((s) => [s.id, wmsSource(s, { transparent })])),
+    layers: states.map((s) => ({ id: `wms-${s.id}`, type: 'raster', source: s.id })),
   }
 }
 
@@ -151,28 +163,31 @@ function buildWmsStyle(sourceId, wmsUrl, layer, attribution, wmsVersion = '1.1.1
  * Digital orthophotos (DOP, 20 cm) from the sixteen state survey authorities.
  * Each state runs its own WMS — there is no national one — so the list is the
  * only place their endpoints are recorded. All of them serve EPSG:3857 with
- * CORS enabled, which is what MapLibre needs to draw them as raster tiles.
+ * CORS enabled, which is what MapLibre needs to draw them as raster tiles, and
+ * a transparent PNG outside their state (checked 2026-10-16). `bounds` is the
+ * layer's box from the service's capabilities (lng/lat), widened where those
+ * leave out part of the state (Bremerhaven, Neuwerk).
  */
 export const LANDESVERMESSUNG_STATES = [
-  { id: 'lv-bw', name: 'Baden-Württemberg',      wmsUrl: 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C?', layer: 'IMAGES_DOP_20_RGB', attribution: '© LGL Baden-Württemberg (dl-de/by-2-0)' },
-  { id: 'lv-by', name: 'Bayern',                  wmsUrl: 'https://geoservices.bayern.de/od/wms/dop/v1/dop20', layer: 'by_dop20c', attribution: '© Bayerische Vermessungsverwaltung (dl-de/by-2-0)' },
-  { id: 'lv-be', name: 'Berlin',                  wmsUrl: 'https://gdi.berlin.de/services/wms/truedop_2024', layer: 'truedop_2024', attribution: '© Geoportal Berlin / TrueDOP 2024 (dl-de/by-2-0)' },
-  { id: 'lv-bb', name: 'Brandenburg',             wmsUrl: 'https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms?', layer: 'bebb_dop20c', attribution: '© GeoBasis-DE/LGB (dl-de/by-2-0)' },
+  { id: 'lv-bw', name: 'Baden-Württemberg',      wmsUrl: 'https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C?', layer: 'IMAGES_DOP_20_RGB', attribution: '© LGL Baden-Württemberg (dl-de/by-2-0)', bounds: [7.45, 47.50, 10.55, 49.82] },
+  { id: 'lv-by', name: 'Bayern',                  wmsUrl: 'https://geoservices.bayern.de/od/wms/dop/v1/dop20', layer: 'by_dop20c', attribution: '© Bayerische Vermessungsverwaltung (dl-de/by-2-0)', bounds: [8.96, 47.16, 14.03, 50.59] },
+  { id: 'lv-be', name: 'Berlin',                  wmsUrl: 'https://gdi.berlin.de/services/wms/truedop_2024', layer: 'truedop_2024', attribution: '© Geoportal Berlin / TrueDOP 2024 (dl-de/by-2-0)', bounds: [13.05, 52.32, 13.77, 52.69] },
+  { id: 'lv-bb', name: 'Brandenburg',             wmsUrl: 'https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms?', layer: 'bebb_dop20c', attribution: '© GeoBasis-DE/LGB (dl-de/by-2-0)', bounds: [11.23, 51.31, 14.77, 53.57] },
   // Bremen serves the city and Bremerhaven as two separate sheets; both are
   // requested at once so the exclave is not missing from the map.
-  { id: 'lv-hb', name: 'Bremen',                  wmsUrl: 'https://geodienste.bremen.de/wms_dop10_2023?', layer: 'DOP10_2023_HB,DOP10_2023_BHV', attribution: '© Landesamt GeoInformation Bremen (dl-de/by-2-0)' },
+  { id: 'lv-hb', name: 'Bremen',                  wmsUrl: 'https://geodienste.bremen.de/wms_dop10_2023?', layer: 'DOP10_2023_HB,DOP10_2023_BHV', attribution: '© Landesamt GeoInformation Bremen (dl-de/by-2-0)', bounds: [8.46, 53.01, 9.01, 53.61] },
   // Time series; the service's own default is the most recent year.
-  { id: 'lv-hh', name: 'Hamburg',                 wmsUrl: 'https://geodienste.hamburg.de/wms_dop_zeitreihe_belaubt?', layer: 'dop_zeitreihe_belaubt', attribution: '© Freie und Hansestadt Hamburg, LGV (dl-de/by-2-0)' },
-  { id: 'lv-he', name: 'Hessen',                  wmsUrl: 'https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows?', layer: 'he_dop20_rgb', attribution: '© HVBG Hessen (dl-de/by-2-0)' },
-  { id: 'lv-mv', name: 'Mecklenburg-Vorpommern',  wmsUrl: 'https://www.geodaten-mv.de/dienste/adv_dop?', layer: 'mv_dop', attribution: '© GeoBasis-DE/M-V (dl-de/by-2-0)' },
-  { id: 'lv-ni', name: 'Niedersachsen',           wmsUrl: 'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms?', layer: 'ni_dop20', attribution: '© LGLN Niedersachsen (dl-de/by-2-0)' },
-  { id: 'lv-nw', name: 'Nordrhein-Westfalen',     wmsUrl: 'https://www.wms.nrw.de/geobasis/wms_nw_dop?', layer: 'nw_dop_rgb', attribution: '© GeoBasis-DE/NRW (dl-de/by-2-0)' },
-  { id: 'lv-rp', name: 'Rheinland-Pfalz',         wmsUrl: 'https://geo4.service24.rlp.de/wms/rp_dop20.fcgi?', layer: 'rp_dop20', attribution: '© GeoBasis-DE/LVermGeoRP (dl-de/by-2-0)' },
-  { id: 'lv-sl', name: 'Saarland',                wmsUrl: 'https://geoportal.saarland.de/freewms/dop2021?', layer: 'sl_dop2021', attribution: '© LVGL Saarland (dl-de/by-2-0)' },
-  { id: 'lv-sn', name: 'Sachsen',                 wmsUrl: 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest?', layer: 'sn_dop_020', attribution: '© GeoSN (dl-de/by-2-0)' },
-  { id: 'lv-st', name: 'Sachsen-Anhalt',          wmsUrl: 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest?', layer: 'lsa_lvermgeo_dop20_2', attribution: '© LVermGeo Sachsen-Anhalt (dl-de/by-2-0)' },
-  { id: 'lv-sh', name: 'Schleswig-Holstein',      wmsUrl: 'https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD?', layer: 'sh_dop20_rgb', attribution: '© LVermGeo Schleswig-Holstein (dl-de/by-2-0)' },
-  { id: 'lv-th', name: 'Thüringen',               wmsUrl: 'https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP20', layer: 'th_dop', attribution: '© GDI-Th, TLBG (dl-de/by-2-0)' },
+  { id: 'lv-hh', name: 'Hamburg',                 wmsUrl: 'https://geodienste.hamburg.de/wms_dop_zeitreihe_belaubt?', layer: 'dop_zeitreihe_belaubt', attribution: '© Freie und Hansestadt Hamburg, LGV (dl-de/by-2-0)', bounds: [8.40, 53.39, 10.35, 53.97] },
+  { id: 'lv-he', name: 'Hessen',                  wmsUrl: 'https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows?', layer: 'he_dop20_rgb', attribution: '© HVBG Hessen (dl-de/by-2-0)', bounds: [7.70, 49.38, 10.27, 51.67] },
+  { id: 'lv-mv', name: 'Mecklenburg-Vorpommern',  wmsUrl: 'https://www.geodaten-mv.de/dienste/adv_dop?', layer: 'mv_dop', attribution: '© GeoBasis-DE/M-V (dl-de/by-2-0)', bounds: [10.34, 53.04, 14.48, 54.82] },
+  { id: 'lv-ni', name: 'Niedersachsen',           wmsUrl: 'https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms?', layer: 'ni_dop20', attribution: '© LGLN Niedersachsen (dl-de/by-2-0)', bounds: [6.51, 51.15, 11.75, 54.15] },
+  { id: 'lv-nw', name: 'Nordrhein-Westfalen',     wmsUrl: 'https://www.wms.nrw.de/geobasis/wms_nw_dop?', layer: 'nw_dop_rgb', attribution: '© GeoBasis-DE/NRW (dl-de/by-2-0)', bounds: [5.59, 50.06, 9.74, 52.80] },
+  { id: 'lv-rp', name: 'Rheinland-Pfalz',         wmsUrl: 'https://geo4.service24.rlp.de/wms/rp_dop20.fcgi?', layer: 'rp_dop20', attribution: '© GeoBasis-DE/LVermGeoRP (dl-de/by-2-0)', bounds: [6.04, 48.90, 8.62, 51.00] },
+  { id: 'lv-sl', name: 'Saarland',                wmsUrl: 'https://geoportal.saarland.de/freewms/dop2021?', layer: 'sl_dop2021', attribution: '© LVGL Saarland (dl-de/by-2-0)', bounds: [6.34, 49.08, 7.44, 49.66] },
+  { id: 'lv-sn', name: 'Sachsen',                 wmsUrl: 'https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest?', layer: 'sn_dop_020', attribution: '© GeoSN (dl-de/by-2-0)', bounds: [11.79, 50.15, 15.09, 51.72] },
+  { id: 'lv-st', name: 'Sachsen-Anhalt',          wmsUrl: 'https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_DOP_WMS_OpenData/guest?', layer: 'lsa_lvermgeo_dop20_2', attribution: '© LVermGeo Sachsen-Anhalt (dl-de/by-2-0)', bounds: [10.51, 50.89, 13.32, 53.08] },
+  { id: 'lv-sh', name: 'Schleswig-Holstein',      wmsUrl: 'https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD?', layer: 'sh_dop20_rgb', attribution: '© LVermGeo Schleswig-Holstein (dl-de/by-2-0)', bounds: [7.82, 53.30, 11.42, 55.15] },
+  { id: 'lv-th', name: 'Thüringen',               wmsUrl: 'https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP20', layer: 'th_dop', attribution: '© GDI-Th, TLBG (dl-de/by-2-0)', bounds: [9.85, 50.15, 12.71, 51.66] },
 ]
 
 /** The one preview all states share in the layers panel — a cut of Bavaria's DOP 20. */
@@ -270,7 +285,8 @@ const ELEVATION_STYLE = {
 // Each entry's `thumbnail` is the preview in the layers panel, a 200 × 150 px
 // cut of the map itself (public/), so no two look alike: the orthophotos show
 // different places, DGM5 a river valley at the zoom its 5 m grid is made for.
-// The state orthophotos share one preview (`LANDESVERMESSUNG_THUMBNAIL`).
+// The state orthophotos are not listed here: any choice of states is a
+// basemap of its own, made by `findBasemap` from LANDESVERMESSUNG_STATES.
 export const BASEMAPS = [
   {
     id: 'liberty',
@@ -321,16 +337,32 @@ export const BASEMAPS = [
     group: 'germany',
     get style() { return JSON.parse(JSON.stringify(DGM5_STYLE)) },
   },
-  // Rendered by LayersPanel from LANDESVERMESSUNG_STATES, not from the group
-  // grid, so these carry the state's own name instead of a translation key.
-  ...LANDESVERMESSUNG_STATES
-    .filter((s) => s.wmsUrl)
-    .map((s) => {
-      const entry = { id: s.id, name: s.name, group: 'landesvermessung' }
-      Object.defineProperty(entry, 'style', {
-        get: () => buildWmsStyle(s.id, s.wmsUrl, s.layer, s.attribution, s.version),
-        enumerable: true,
-      })
-      return entry
-    }),
 ]
+
+export const DEFAULT_BASEMAP = 'liberty'
+
+/**
+ * Several states' orthophotos are one basemap, its id their ids joined by `+`
+ * in the list's order — 'lv-by+lv-sn' — so the active basemap stays a single
+ * string everywhere it is kept (topology's restore, the panel). One state is
+ * still 'lv-by', as before.
+ */
+export function lvBasemapId(stateIds) {
+  return LANDESVERMESSUNG_STATES.filter((s) => stateIds.includes(s.id)).map((s) => s.id).join('+')
+}
+
+/** The states a basemap id shows — empty for any basemap but the state orthophotos. */
+export function lvStatesOf(basemapId) {
+  const ids = String(basemapId ?? '').split('+')
+  const states = ids.map((id) => LANDESVERMESSUNG_STATES.find((s) => s.id === id && s.wmsUrl))
+  return states.every(Boolean) ? states : []
+}
+
+/** The basemap with this id, the state orthophotos in any combination included. */
+export function findBasemap(basemapId) {
+  const fixed = BASEMAPS.find((b) => b.id === basemapId)
+  if (fixed) return fixed
+  const states = lvStatesOf(basemapId)
+  if (!states.length) return undefined
+  return { id: basemapId, group: 'landesvermessung', get style() { return buildLvStyle(states) } }
+}

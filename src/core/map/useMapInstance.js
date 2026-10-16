@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { BASEMAPS, updateElevationRange, onElevationRange } from '../basemaps'
+import { DEFAULT_BASEMAP, findBasemap, updateElevationRange, onElevationRange } from '../basemaps'
 import { updateLabels } from '../utils/labelUtils'
 import { loadSettings, saveSettings } from '../utils/settings'
 
-const DEFAULT_BASEMAP = 'liberty'
 // Basemaps whose colours mean elevation: their terrain is reset on leaving
 // them, and they get a legend.
 export const ELEVATION_BASEMAPS = new Set(['elevation', 'dgm5'])
@@ -69,7 +68,7 @@ export default function useMapInstance({ onStyleLoad }) {
     if (map.current) return
     const m = new maplibregl.Map({
       container: node,
-      style: BASEMAPS.find(b => b.id === DEFAULT_BASEMAP).style,
+      style: findBasemap(DEFAULT_BASEMAP).style,
       center: [10.0, 51.0],
       zoom: 5,
       maxPitch: tiltRef.current ? MAX_PITCH : 0,
@@ -107,7 +106,7 @@ export default function useMapInstance({ onStyleLoad }) {
   const setBasemap = useCallback((basemapId) => {
     const m = map.current
     if (!m || basemapId === activeBasemap) return
-    const basemap = BASEMAPS.find((b) => b.id === basemapId)
+    const basemap = findBasemap(basemapId)
     if (!basemap) { console.warn('[map] Unknown basemap:', basemapId); return }
     if (ELEVATION_BASEMAPS.has(activeBasemap)) {
       try { m.setTerrain(null) } catch (err) { console.warn('[map] Failed to reset terrain:', err) }

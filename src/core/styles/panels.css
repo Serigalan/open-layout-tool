@@ -268,6 +268,9 @@
 /* Under the Landesvermessung row: the state in use, or the ask to pick one. */
 .layer-sublabel {
   display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: var(--fs-xs);
   font-weight: 400;
   color: var(--color-muted);
@@ -283,43 +286,58 @@
 
 .layer-caret.open { transform: rotate(90deg); }
 
-.layer-row input[type="checkbox"] {
-  flex-shrink: 0;
-  margin: 0;
-  cursor: pointer;
+/* The options under a row that opens (the states, the kilometrage): small
+   tiles with a checkbox, two to a line, so the sixteen states stay short. */
+.layer-option-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 0 0 4px 12px;
 }
 
-/* The sixteen states, indented under their row and kept tight so the
-   overlays below stay within reach. */
-.layer-state-list {
+.layer-option {
   display: flex;
-  flex-direction: column;
-  margin: 0 0 4px 64px;
-}
-
-.layer-state {
-  background: none;
-  border: none;
-  border-left: 2px solid #ddd;
-  padding: 3px 8px;
-  text-align: left;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
   font-family: var(--font-ui);
-  font-size: var(--fs-s);
+  font-size: var(--fs-xs);
+  line-height: 1.25;
   color: #333;
   cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s, background 0.1s;
 }
 
-.layer-state:hover:not(:disabled) { background: #f0f0f4; }
+.layer-option:hover { background: #f0f0f4; }
 
-.layer-state.active {
-  border-left-color: var(--color-primary);
+/* Not bold: the name would widen and break anew on every tick. */
+.layer-option.active {
+  border-color: var(--color-primary);
   color: var(--color-primary);
-  font-weight: 600;
 }
 
-.layer-state:disabled {
+.layer-option.disabled {
   color: #bbb;
   cursor: default;
+}
+
+.layer-option input {
+  flex-shrink: 0;
+  margin: 0;
+  cursor: inherit;
+}
+
+/* Long names break at their hyphen (Mecklenburg-/Vorpommern), inside a word
+   by the language's hyphenation (the grid carries `lang`) where one alone is
+   wider than the tile. */
+.layer-option span {
+  min-width: 0;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 /* Back button */
