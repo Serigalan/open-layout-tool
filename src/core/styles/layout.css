@@ -69,6 +69,19 @@
 .sidebar-primary.with-labels .sidebar-bottom { align-items: stretch; padding: 0 8px; }
 .sidebar-primary.with-labels .sidebar-icon-btn { width: auto; justify-content: flex-start; gap: 10px; padding: 0 8px; }
 .sidebar-primary.with-labels .sidebar-divider { width: auto; }
+.sidebar-brand {
+  width: 38px; height: 38px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #fff; border: 0; border-radius: 8px; padding: 0 6px; margin-bottom: 8px;
+  cursor: pointer; color: var(--color-primary);
+}
+.sidebar-brand:hover { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45); }
+.sidebar-brand-logo { width: 28px; height: auto; flex-shrink: 0; }
+.sidebar-brand-name {
+  font-weight: 700; font-size: var(--fs-m); color: var(--color-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sidebar-primary.with-labels .sidebar-brand { width: auto; justify-content: flex-start; padding: 0 10px; }
 .sidebar-label {
   color: #fff;
   font-size: var(--fs-m);

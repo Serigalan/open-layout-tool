@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useI18n } from '../locales/i18nContext'
-import { HomeIcon, RedoIcon, UndoIcon } from '../components/icons'
+import { HomeIcon, LogoIcon, RedoIcon, UndoIcon } from '../components/icons'
 import { useRedoStep, useUndoStep } from '../hooks/useStore'
 import { describeStep } from '../utils/stepLabel'
 import { loadSettings, saveSettings } from '../utils/settings'
@@ -49,6 +49,13 @@ export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
   return (
     <aside className={`sidebar-primary${labels ? ' with-labels' : ''}`}>
       <div className="sidebar-top">
+        {/* The app's mark on white, its name beside it while the names show —
+            a way back to the start page. */}
+        <button type="button" className="sidebar-brand" onClick={onHome}
+          title={t('tooltip_home')} aria-label={t('tooltip_home')}>
+          <LogoIcon className="sidebar-brand-logo" />
+          {labels && <span className="sidebar-brand-name">Open Layout Tool</span>}
+        </button>
         {withDividers(PANELS.filter(p => p.place === 'top'))}
       </div>
       <div className="sidebar-bottom">

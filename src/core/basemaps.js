@@ -296,18 +296,18 @@ export const BASEMAPS = [
     style: 'https://tiles.openfreemap.org/styles/liberty',
   },
   {
-    id: 'elevation',
-    thumbnail: './dem.webp',
-    labelKey: 'basemap_elevation',
-    group: 'worldwide',
-    get style() { return JSON.parse(JSON.stringify(ELEVATION_STYLE)) },
-  },
-  {
     id: 'positron',
     thumbnail: './positron.webp',
     labelKey: 'basemap_positron',
     group: 'worldwide',
     style: 'https://tiles.openfreemap.org/styles/positron',
+  },
+  {
+    id: 'elevation',
+    thumbnail: './dem.webp',
+    labelKey: 'basemap_elevation',
+    group: 'worldwide',
+    get style() { return JSON.parse(JSON.stringify(ELEVATION_STYLE)) },
   },
   {
     id: 'satellite',
