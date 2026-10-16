@@ -184,6 +184,13 @@ describe('the track built from the answer', () => {
     expect(merged.heights).toEqual([{ station: 0, z: 100 }, { station: 100, z: 101 }])
   })
 
+  it('carries a speed the dialog lowered on what is left of the picks', () => {
+    const slower = (p) => ({ ...p, speed: 65, speedBefore: p.speed })
+    const splice = best(answers.corner.answer, [slower(dep), slower(arr)])
+    const [merged] = buildSplice({ tracks: [a, b], solution: splice, speed: 60, cant: 40, newId }).addTracks
+    expect(merged.elements.map(e => e.speed)).toEqual([65, 60, 65])
+  })
+
   it('puts transitions either side when asked', () => {
     const splice = best(answers.cornerTransitions.answer, [dep, arr])
     const commit = buildSplice({ tracks: [a, b], solution: splice, speed: 60, cant: 40, newId })

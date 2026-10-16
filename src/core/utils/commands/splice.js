@@ -367,8 +367,9 @@ function spliceHeights({ depTrack, arrTrack, dep, arr, chain, reverseDep, revers
  * what stays of the arrival track. A track run against its own direction —
  * the departure where it departs from its start, the arrival where it is met
  * at its end — comes in reversed. The chain's re-shaped ends keep what their
- * elements carried — speed, a re-signed cant — while what the splice inserts
- * takes the dialog's speed, and an inserted arc its cant.
+ * elements carried — speed (unless the dialog lowered a pick's), a re-signed
+ * cant — while what the splice inserts takes the dialog's speed, and an
+ * inserted arc its cant.
  */
 function mergedChain({ dep, arr, result }, depTrack, arrTrack, { speed, cant }) {
   const { elements: chain, reverseDep, reverseArr } = result
@@ -382,6 +383,9 @@ function mergedChain({ dep, arr, result }, depTrack, arrTrack, { speed, cant }) 
   const plane = ({ role: _role, speed: _speed, cant: _cant, ...el }) => el
   const keepCant = (el, orig) => (orig?.cant != null && el.radius != null
     ? { cant: cantSign(el.radius) * Math.abs(orig.cant) } : {})
+  // A pick whose speed the dialog lowered (`speedBefore`, a remedy for a
+  // curvature jump) carries the lower one on what stays of it.
+  const lowered = (pick) => (pick.speedBefore != null ? { speed: pick.speed } : {})
   // What is built on from a transition picked at its track's end is new, with
   // that transition's speed and the cant of its curvature (AP S.7).
   const builtOn = (el, pick) => ({
@@ -389,8 +393,8 @@ function mergedChain({ dep, arr, result }, depTrack, arrTrack, { speed, cant }) 
     ...(el.elementType === 1 ? { cant: cantSign(el.radius) * Math.abs(pick.cant ?? 0) } : {}),
   })
   const mid = chain.map(el => {
-    if (el.role === 'dep') return dep.virtual ? builtOn(el, dep) : { ...depBase, ...plane(el), ...keepCant(el, depOrig) }
-    if (el.role === 'arr') return arr.virtual ? builtOn(el, arr) : { ...arrBase, ...plane(el), ...keepCant(el, arrOrig) }
+    if (el.role === 'dep') return dep.virtual ? builtOn(el, dep) : { ...depBase, ...plane(el), ...keepCant(el, depOrig), ...lowered(dep) }
+    if (el.role === 'arr') return arr.virtual ? builtOn(el, arr) : { ...arrBase, ...plane(el), ...keepCant(el, arrOrig), ...lowered(arr) }
     const inserted = { ...plane(el), speed }
     return el.elementType === 1 ? { ...inserted, cant: cantSign(el.radius) * Math.abs(cant) } : inserted
   })

@@ -22,6 +22,8 @@ import { severityRank } from '../../../utils/regelkatalog'
 import SpliceSettings from './SpliceSettings'
 import ClearanceFields from './ClearanceFields'
 import SolutionSwitch from './SolutionSwitch'
+import SpliceRemedies from './SpliceRemedies'
+import { hasJumpError, spliceRemedies } from '../../../utils/splice/spliceRemedies'
 import { SPLICE_DEFAULTS, adoptedSettings, solutionKey, spliceErrorText, spliceMessage } from './spliceText'
 import CancelButton from '../../form/CancelButton'
 import { spacingMessage } from './spacingMessage'
@@ -157,16 +159,18 @@ export default function SpliceElementPanel() {
       neighbour: clearance ? refTrackId : undefined,
     })
     : null
+  // A request as the key carries it, solved: held to a spacing on the
+  // service, with the neighbour's axis put in; else in the worker.
+  const solveRequest = (req, signal) => (req.clearance
+    ? withClearance({ ...req, clearance: { ...req.clearance, ref: axis } }, { signal })
+    : solveSpliceInWorker(req, { signal }))
   useEffect(() => {
     if (!requestKey) return undefined
     const ctl = new AbortController()
     const timer = setTimeout(async () => {
       try {
         const { neighbour: _n, ...req } = JSON.parse(requestKey)
-        if (req.clearance) req.clearance.ref = axis
-        const a = req.clearance
-          ? await withClearance(req, { signal: ctl.signal })
-          : await solveSpliceInWorker(req, { signal: ctl.signal })
+        const a = await solveRequest(req, ctl.signal)
         const read = spliceFromAnswer(a, picks, req)
         setAnswer({ key: requestKey, splice: read })
         // Transitions just switched on take the Regellänge named, once.
@@ -223,6 +227,41 @@ export default function SpliceElementPanel() {
     preview.clear(); setPicks([]); setChosen(null); setPickStatus(null); setRefTrackId(null); setPickingRef(false)
   }
 
+  // Ways out of a curvature jump the rules reject, searched once asked for
+  // and only for the request they were searched for.
+  const [remedies, setRemedies] = useState(null)   // { key, busy } | { key, list }
+  const remedyState = remedies?.key === requestKey ? remedies : null
+  const askRemedies = async () => {
+    const key = requestKey
+    setRemedies({ key, busy: true })
+    try {
+      const { neighbour: _n, ...request } = JSON.parse(key)
+      const list = await spliceRemedies({
+        request, key: solutionKey(solution), elements: solution.result.elements, findings: solution.result.findings,
+        solve: (req) => solveRequest(req),
+      })
+      setRemedies(prev => (prev?.key === key ? { key, list } : prev))
+    } catch {
+      setRemedies(prev => (prev?.key === key ? null : prev))
+    }
+  }
+  // A proposal taken over: the cant stays what it was solved with, though
+  // speed or radius — the inputs it follows — change with it.
+  const adoptRemedy = (r) => {
+    if (r.kind === 'speed') {
+      setPicks(prev => prev.map(p => ((p.speed ?? 0) > r.speed
+        ? { ...p, speed: r.speed, speedBefore: p.speedBefore ?? p.speed } : p)))
+      const speed = Number(s.speed) > r.speed ? r.speed : s.speed
+      set('speed', speed)
+      setCant(cant, `${speed}|${radius}`)
+    } else if (r.kind === 'radius') {
+      set('radius', r.radius)
+      setCant(cant, `${s.speed}|${r.radius}`)
+    } else {
+      setS(prev => ({ ...prev, transitionOn: [true, true], modes: ['regular', 'regular'], transitions: SPLICE_DEFAULTS.transitions }))
+    }
+  }
+
   // Two arcs joined the other way than asked for: that way taken over as the
   // setting — over a straight with the transitions the solution has.
   const adopt = (sol) => {
@@ -244,6 +283,7 @@ export default function SpliceElementPanel() {
     const ruleError = (solution?.result?.findings ?? []).some(f => severityRank(f.severity) >= severityRank('error'))
     const status = splice ? spliceMessage(t, fill, splice, solution) : { msg: t('splice_solving'), error: false }
     const refName = refTrackId ? trackName(loadTracks().find(tr => tr.id === refTrackId)) : null
+    const pickNames = picks.map(p => trackName(loadTracks().find(tr => tr.id === p.trackId)) || p.label)
     const spacingMsg = keeping && solution ? spacingMessage(t, fill, spacing, refName) : null
     // Asked for, a spacing not kept — or not yet known — holds the commit back.
     const spacingHolds = !s.clearanceOn || (keeping && spacing?.kept === true)
@@ -279,6 +319,16 @@ export default function SpliceElementPanel() {
         {status && <p className={status.error ? 'msg-error' : 'msg-info'}>{status.msg}</p>}
         {spacingMsg && <p className={spacingMsg.error ? 'msg-error' : 'msg-info'}>{spacingMsg.msg}</p>}
         {solution && <SpliceFindings result={solution.result} />}
+        {solution && !maximize && hasJumpError(solution.result.findings) && (
+          <SpliceRemedies state={remedyState} picks={picks} names={pickNames} onAsk={askRemedies} onAdopt={adoptRemedy} />
+        )}
+        {picks.some(p => p.speedBefore != null) && (
+          <p className="msg-info">
+            {fill('splice_speed_lowered', {
+              list: picks.map((p, k) => p.speedBefore != null && `${pickNames[k]} ${p.speedBefore} → ${p.speed} km/h`).filter(Boolean).join(', '),
+            })}
+          </p>
+        )}
         {merged && (
           <ShiftValuesSection id="shift-splice" line={merged.line} epsg={merged.track.epsg} heightEpsg={merged.track.heightEpsg}
             heightNote={!merged.track.heights?.length ? t('shift_no_heights_track') : null} name={merged.track.name ?? ''} />

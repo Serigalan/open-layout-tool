@@ -7,13 +7,14 @@ import { useState } from 'react'
  *
  * Derived while rendering rather than pushed by an effect, so the field can
  * never show a value computed from inputs that have already changed.
- * Returns [value, override, clear].
+ * Returns [value, override, clear] — `override(value, forKey)` may name the
+ * inputs it counts for, where they change along with it.
  */
 export default function useDerivedField(key, computed) {
   const [edit, setEdit] = useState(null)   // { key, value }
   return [
     edit?.key === key ? edit.value : computed,
-    (value) => setEdit({ key, value }),
+    (value, forKey = key) => setEdit({ key: forKey, value }),
     () => setEdit(null),
   ]
 }
