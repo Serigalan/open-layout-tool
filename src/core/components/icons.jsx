@@ -1,7 +1,7 @@
 import { PALETTE } from '../styles/palette'
 import {
   MARK_GROUND, MARK_HEIGHT, MARK_INNER, MARK_LETTERS, MARK_LINK_OPACITY, MARK_LINKS, MARK_RAIL, MARK_WIDTH,
-} from '../utils/logoMark'
+} from '../utils/common/logoMark'
 // ── Panel menu icons ────────────────────────────────────────────────────────
 //
 // One rule for every icon a panel button carries (AP 4.3): 16 × 16, currentColor,
@@ -527,7 +527,7 @@ export const DataExchangeIcon = () => (
   </SidebarIcon>
 )
 
-// The app's mark (utils/logoMark): one track writing O, L and T, drawn as a
+// The app's mark (utils/common/logoMark): one track writing O, L and T, drawn as a
 // pair of rails, on the ground in currentColor — the primary colour.
 export const LogoIcon = ({ className }) => (
   <svg viewBox={`0 0 ${MARK_WIDTH} ${MARK_HEIGHT}`} className={className} aria-hidden="true">

@@ -1,7 +1,7 @@
 // The ids of the sources and layers the project is drawn with
 // (map/trackLayers.js) — the ones more than one module reads, writes a filter
 // on or asks for hits. A panel's own preview layers keep their ids beside the
-// panel; the topology view's live in utils/topologyLayer.
+// panel; the topology view's live in core/map/topologyLayer.
 
 export const TRACKS_SOURCE         = 'tracks-source'
 /** One line per element: properties { trackId, elementIndex, switchBranch, switchId }. */

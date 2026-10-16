@@ -1,14 +1,14 @@
-import { hydrateProjects, dehydrateProjects, projectsPayload } from './utils/persistenceUtils'
-import { elementBelongsToSwitch, portsOf, unmarkSwitchElement, portTrack, portEnd } from './utils/switchModel'
+import { hydrateProjects, dehydrateProjects, projectsPayload } from './utils/project/persistenceUtils'
+import { elementBelongsToSwitch, portsOf, unmarkSwitchElement, portTrack, portEnd } from './utils/track/switchModel'
 import { rebuildSwitchSymbol } from './utils/switch/symbol'
-import { sliceHeights } from './utils/heightUtils'
-import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTrack, remapSwitches, reverseTrack } from './utils/trackModel'
-import { generateId } from './utils/identifierUtils'
-import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trackEndMarks'
-import { coupleSwitchGradients, coupleSwitchHeights } from './utils/switchChain'
-import { repairRoutes } from './utils/routes'
-import { lengthGovernedRadii } from './utils/gradientCheck'
-import { moveTracksToPlane, withImportSystem } from './utils/projectSettings'
+import { sliceHeights } from './utils/track/heightUtils'
+import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTrack, remapSwitches, reverseTrack } from './utils/track/trackModel'
+import { generateId } from './utils/track/identifierUtils'
+import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/track/trackEndMarks'
+import { coupleSwitchGradients, coupleSwitchHeights } from './utils/elevation/switchChain'
+import { repairRoutes } from './utils/track/routes'
+import { lengthGovernedRadii } from './utils/elevation/gradientCheck'
+import { moveTracksToPlane, withImportSystem } from './utils/project/projectSettings'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -1027,7 +1027,7 @@ export function deleteReferenceAxis(axisId) {
 
 // ── routes (Paket RT) ───────────────────────────────────────────────────────
 
-// (read through useRoutes, hooks/useStore; resolved through utils/routes)
+// (read through useRoutes, hooks/useStore; resolved through utils/track/routes)
 
 /** Add a route, or replace the one with its id. One undo step. */
 export function saveRoute(route) {

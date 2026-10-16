@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { comparisonRadiusText, lengthText, radiusText } from './rowText'
-import { boundaryScope } from '../../utils/trassierungCheck'
+import { boundaryScope } from '../../utils/rules/trassierungCheck'
 
 describe('what the element table shows', () => {
   it('rounds lengths and radii to three decimals', () => {

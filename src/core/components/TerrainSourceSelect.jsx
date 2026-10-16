@@ -1,5 +1,5 @@
-import { saveSettings } from '../utils/settings'
-import { terrainSources } from '../utils/elevationSource'
+import { saveSettings } from '../utils/common/settings'
+import { terrainSources } from '../utils/elevation/elevationSource'
 import { useI18n } from '../locales/i18nContext'
 
 /**

@@ -1,7 +1,7 @@
-import { arcCenter } from '../elementUtils'
+import { arcCenter } from '../geometry/elementUtils'
 import { transitionLengths } from '../rules/transitionLength'
-import { checkTrack } from '../trassierungCheck'
-import { severityRank, worstSeverity } from '../regelkatalog'
+import { checkTrack } from '../rules/trassierungCheck'
+import { severityRank, worstSeverity } from '../rules/regelkatalog'
 
 // Splicing two tracks into one — the construction of "Zwei Gleise
 // zusammenfügen", in the browser for both builds (decision 294). Ported from

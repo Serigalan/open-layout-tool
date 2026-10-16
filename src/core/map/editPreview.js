@@ -1,5 +1,5 @@
 // Map preview of the element edit: the edited elements and their end markers.
-import { resolveEndBearing, displayCoords } from '../utils/elementUtils'
+import { resolveEndBearing, displayCoords } from '../utils/geometry/elementUtils'
 
 export const EDIT_MARKER_SOURCE = 'edit-length-markers-source'
 export const EDIT_MARKER_LAYER  = 'edit-length-markers-layer'

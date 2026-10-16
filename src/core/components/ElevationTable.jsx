@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { GIVEN_MODES, pointGrades, solveHeightPoint, tangentLength } from '../utils/heightUtils'
+import { GIVEN_MODES, pointGrades, solveHeightPoint, tangentLength } from '../utils/track/heightUtils'
 import { useI18n } from '../locales/i18nContext'
 import NumberInput from './form/NumberInput'
 

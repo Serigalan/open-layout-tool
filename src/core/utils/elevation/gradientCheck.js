@@ -1,0 +1,379 @@
+/**
+ * The rule catalogue applied to a track's vertical alignment — the Höhenplan
+ * half of DB Ril 800.0110 (HP.*), as trassierungCheck.js is the Lageplan half.
+ *
+ * The catalogue speaks about two kinds of object here, and so does this:
+ *
+ * - the **stretch** between two height points (scope `gradient`): its
+ *   gradient, measured on the tangent polygon the points span — the rounded
+ *   gradient only departs from it inside a vertical curve, and there it is the
+ *   curve that is judged;
+ * - the **gradient change** at an inner height point (scope `vertical_curve`):
+ *   whether it is rounded at all, and the length and radius of the curve.
+ *
+ * What a rule needs that is not in the heights comes from the track: whether
+ * it is a line or a station track, a main track or a siding, the line
+ * category it runs on (its own or the project's), and from the elements under
+ * a curve their design speed and whether it lies in a switch, a track
+ * connection or a cant ramp.
+ */
+
+import { catalogLimit, evaluateRules, rulesForScope, severityRank, worstSeverity } from '../rules/regelkatalog'
+import { tangentLength } from '../track/heightUtils'
+import { trackKind } from '../track/trackGroups'
+import { portsOf, portTrack, portEnd } from '../track/switchModel'
+import { transitionCantEnds } from '../geometry/clothoidUtils'
+import { LINE_CATEGORIES } from '../track/identifierUtils'
+import { switchBodySpans } from './switchGradient'
+
+const DEFAULT_LINE_CATEGORY = 'main'
+
+// The catalogue's context for each category.
+const CONTEXT_OF_CATEGORY = { main: 'main_line', secondary: 'secondary_line', s_bahn: 's_bahn' }
+
+const known = (category) => (LINE_CATEGORIES.includes(category) ? category : null)
+
+/** The line category a track is judged by: its own, else the project's, else a main line. */
+export const lineCategoryOf = (track, project) =>
+  known(track?.lineCategory) ?? known(project?.lineCategory) ?? DEFAULT_LINE_CATEGORY
+
+/** The project's own line category, which a track without one of its own takes. */
+export const projectLineCategory = (project) => known(project?.lineCategory) ?? DEFAULT_LINE_CATEGORY
+
+/** Main track or siding — every track is a main track unless it says otherwise. */
+const trackUseOf = (track) => (track?.trackUse === 'siding' ? 'siding' : 'main')
+
+// A gradient and a gradient change are judged to 0.01 ‰, a curve length to the
+// centimetre (the catalogue's derived_inputs say so): what is left beyond that
+// is floating point, and a stretch drawn at exactly 12.5 ‰ must not warn.
+const round2 = (x) => Math.round(x * 100) / 100
+
+const STATION_EPS = 1e-6
+
+/** The signed gradient [‰] of every stretch: from point i−1 to point i, by i. */
+function stretchGrades(heights) {
+  const grades = []
+  for (let i = 1; i < heights.length; i++) {
+    const a = heights[i - 1], b = heights[i]
+    const run = b.station - a.station
+    grades[i] = run > 0 ? 1000 * (b.z - a.z) / run : null
+  }
+  return grades
+}
+
+/**
+ * Where each element begins and ends along the track, with its design speed
+ * and whether it is a cant ramp — a transition
+ * the cant changes over (the app ramps the cant on the transition and nowhere
+ * else, see trassierungCheck's rampScope).
+ */
+function elementSpans(elements) {
+  let start = 0
+  return (elements ?? []).map((el, i) => {
+    const ends = el.elementType === 2 ? transitionCantEnds(elements, i) : null
+    const span = {
+      from: start,
+      to: start + (el.length ?? 0),
+      speed: el.speed ?? 0,
+      ramp: !!ends && Math.abs((ends.end ?? 0) - (ends.start ?? 0)) > 0,
+    }
+    start = span.to
+    return span
+  })
+}
+
+/**
+ * The elements a curve from `from` to `to` lies on, by the catalogue's rule
+ * for areas: a curve of some length lies in what it overlaps on a length
+ * > 0, a gradient change without one (a point) in what it touches — an
+ * element boundary included.
+ */
+const overlapping = (spans, from, to) => (to - from > STATION_EPS
+  ? spans.filter(s => s.to > from + STATION_EPS && s.from < to - STATION_EPS)
+  : spans.filter(s => s.to >= from - STATION_EPS && s.from <= to + STATION_EPS))
+
+// The longest track between two switches that still makes them one connection.
+const MAX_CONNECTION_LENGTH = 20
+
+/**
+ * Is the track a track connection of its own — running into a switch at both
+ * its ends, and no longer than 20 m between them? Between them: a crossover's
+ * connecting track carries both turnouts' branches as its own elements
+ * (commands/sCurve), and those are the switches, not the track between them.
+ * A longer track between two switches is a track like any other.
+ */
+function isConnectionTrack(track, switches) {
+  const at = (end) => (switches ?? []).find(sw =>
+    portsOf(sw).some(p => portTrack(sw, p.port) === track.id && portEnd(sw, p.port) === end))
+  const first = at('BEGIN'), last = at('END')
+  if (!first || !last) return false
+  const ids = new Set([first.switchId, last.switchId].filter(id => id != null))
+  const between = (track.elements ?? [])
+    .filter(el => el.switchId == null || !ids.has(el.switchId))
+    .reduce((sum, el) => sum + (el.length ?? 0), 0)
+  return between <= MAX_CONNECTION_LENGTH + STATION_EPS
+}
+
+/** A rule that needs the design speed — not to be applied where it is unknown. */
+const readsSpeed = (rule) => Object.values(rule.inputs ?? {}).some(input => input.from === 'point.design_speed')
+
+/**
+ * Every Höhenplan rule of the catalogue applied to one track.
+ *
+ * `project` gives the line category a track without one of its own runs on,
+ * `switches` say which tracks are connections between two of them and where
+ * a turnout's body lies (WA to ldS, switchGradient), for which `tracks` are
+ * needed too — the project's unless stated. `formOf` looks a switch form up
+ * (the catalogue's, unless a test states one).
+ *
+ * Returns `stretches` [{ index, from, to, grade, results, severity }] with
+ * `index` the point the stretch ends at and `grade` signed in ‰, `curves`
+ * [{ index, station, gradeChange, length, radius, crest, speed, unchecked,
+ * results, severity }] for every inner point, and the worst severity of all.
+ * A curve whose design speed is unknown is `unchecked` for the rules that
+ * need one — the same as an element in the element table — and judged by
+ * the rest.
+ */
+export function checkVertical(track, { project = null, switches = [], tracks = project?.tracks ?? [], formOf } = {}) {
+  const heights = track?.heights ?? []
+  const category = lineCategoryOf(track, project)
+  const kind = trackKind(track) === 'station' ? 'station_track' : 'open_line'
+  const trackContexts = new Set([kind, CONTEXT_OF_CATEGORY[category], trackUseOf(track) === 'siding' ? 'siding' : 'main_track'])
+  const grades = stretchGrades(heights)
+
+  const stretches = []
+  const gradientRules = rulesForScope('gradient')
+  for (let i = 1; i < heights.length; i++) {
+    if (grades[i] == null) continue
+    const scope = {
+      'physics.gradient': round2(Math.abs(grades[i])),
+      // No tunnel can be stated yet (OP.12): HP.LN.03 stays silent.
+      'model.tunnel_length': null,
+    }
+    stretches.push({
+      index: i,
+      from: heights[i - 1].station,
+      to: heights[i].station,
+      grade: grades[i],
+      ...evaluateRules(gradientRules, scope, { inContext: (id) => trackContexts.has(id) }),
+    })
+  }
+
+  const spans = elementSpans(track?.elements)
+  const connection = isConnectionTrack(track ?? {}, switches)
+  const bodies = track ? switchBodySpans(tracks, switches, track, { formOf }) : []
+  const curveRules = rulesForScope('vertical_curve')
+  const tangent = (i) => tangentLength(heights, i) ?? 0
+  const curves = []
+  for (let i = 1; i < heights.length - 1; i++) {
+    const before = grades[i], after = grades[i + 1]
+    if (before == null || after == null) continue
+    const p = heights[i]
+    const radius = p.rv > 0 ? p.rv : 0
+    const t = tangent(i)
+    // The curve has to lie between its neighbours, and leave room for theirs.
+    const fits = t + tangent(i - 1) <= p.station - heights[i - 1].station + STATION_EPS
+      && t + tangent(i + 1) <= heights[i + 1].station - p.station + STATION_EPS
+    const under = overlapping(spans, p.station - t, p.station + t)
+    // The fastest element under the curve decides; an unknown speed (0) is no speed.
+    const speed = Math.max(0, ...under.map(s => s.speed))
+    // Between WA and ldS: the point strictly inside, or its curve over a length.
+    const inBody = bodies.some(b => (t > STATION_EPS
+      ? Math.min(b.to, p.station + t) - Math.max(b.from, p.station - t) > STATION_EPS
+      : p.station > b.from + STATION_EPS && p.station < b.to - STATION_EPS))
+    const areas = new Set([
+      ...(inBody ? ['switch_body'] : []),
+      // A reason given at the point (decision 261).
+      ...(typeof p.reason === 'string' && p.reason.trim() ? ['justified'] : []),
+      // A connection is a track of its own between two switches; a turnout
+      // in a main track does not make that track one.
+      ...(connection ? ['track_connection'] : []),
+      ...(under.some(s => s.ramp) ? ['cant_ramp'] : []),
+    ])
+    const scope = {
+      'physics.gradient_change': round2(Math.abs(after - before)),
+      'physics.vertical_curve_length': round2(radius * Math.abs(after - before) / 1000),
+      'point.vertical_radius': radius,
+      'point.design_speed': speed,
+      'model.crest': after < before,
+      'model.vertical_curve_fits': fits,
+    }
+    const rules = speed > 0 ? curveRules : curveRules.filter(rule => !readsSpeed(rule))
+    curves.push({
+      index: i,
+      station: p.station,
+      gradeChange: after - before,
+      length: scope['physics.vertical_curve_length'],
+      radius,
+      crest: after < before,
+      speed,
+      unchecked: !(speed > 0),
+      ...evaluateRules(rules, scope, {
+        inContext: (id) => trackContexts.has(id) || areas.has(id),
+      }),
+    })
+  }
+
+  return {
+    lineCategory: category,
+    stretches,
+    curves,
+    severity: worstSeverity([...stretches, ...curves].map(entry => entry.severity)),
+  }
+}
+
+// A radius set by the rules is rounded up to a full 100 m.
+const RADIUS_STEP = 100
+
+/**
+ * The radius for the gradient change `exact` [‰] at `station`, as the rules
+ * set it: the Regelwert of Tabelle 12 at the design speed (HP.AR.03), larger
+ * where the curve would otherwise stay shorter than `length` (null: the 20 m
+ * of HP.AR.02),
+ * up to the Höchstwert, rounded up to a full 100 m. The speed is the fastest
+ * element's under the curve, found again for the length the new curve has,
+ * since a longer one may reach onto a faster element.
+ *
+ * Returns { rv, length, speed, byLength } — byLength where the length, not the
+ * Regelwert, sets the radius — or { noSpeed: true } where no design speed is
+ * known under the curve. `anySpeed` takes the length alone there instead.
+ */
+function radiusByRules(spans, station, exact, crest, length, { anySpeed = false } = {}) {
+  const ds = round2(exact)
+  const radiusFor = (v) => {
+    const scope = {
+      'physics.gradient_change': ds, 'point.vertical_radius': 1, 'point.design_speed': v,
+      'physics.vertical_curve_length': 0, 'model.crest': crest,
+    }
+    const reg = v > 0 ? catalogLimit('HP.AR.03', 'reg', scope) : 0
+    const min = length ?? catalogLimit('HP.AR.02', 'reg', scope)
+    const byLength = 1000 * min / exact
+    // Rounded up, but not for the floating point a height leaves in Δs.
+    const rv = Math.ceil(Math.max(reg, byLength) / RADIUS_STEP - 1e-6) * RADIUS_STEP
+    return { rv: Math.min(rv, catalogLimit('HP.AR.03', 'max', scope)), length: min, byLength: byLength > reg }
+  }
+  let speed = 0, found = null
+  // The speed only grows with the curve, and the curve with the speed: a few
+  // rounds settle it.
+  for (let k = 0; k < 5; k++) {
+    const t = found ? found.rv * exact / 2000 : 0
+    const v = Math.max(0, ...overlapping(spans, station - t, station + t).map(s => s.speed))
+    if (!(v > 0) && !anySpeed) return { noSpeed: true }
+    if (found && v === speed) break
+    speed = v
+    found = radiusFor(v)
+  }
+  return { ...found, speed }
+}
+
+/** The gradient change at inner point `index` [‰, unsigned, exact] and whether it is a crest, or null. */
+function changeAt(heights, index) {
+  if (!(index > 0 && index < heights.length - 1)) return null
+  const grades = stretchGrades(heights)
+  const before = grades[index], after = grades[index + 1]
+  if (before == null || after == null) return null
+  return { exact: Math.abs(after - before), crest: after < before }
+}
+
+/**
+ * The vertical curve the rules ask for at the inner height point `index`, by
+ * the design speed there: the Regelwert of Tabelle 12 (HP.AR.03), longer
+ * where the curve would otherwise stay short of 20 m (HP.AR.02), up to the
+ * Höchstwert, and rounded up to a full 100 m. A change the Ril wants without
+ * a curve (HP.AR.01: ≤ 1 ‰, ≤ 4.5 ‰ on a siding or a track connection) gets
+ * none.
+ *
+ * Returns { rv, la, speed } with rv in m and la the length that set it where
+ * it was the length rather than the Regelwert (decision 266) — the point
+ * keeps it as `la`, and its radius follows the gradients from then on
+ * (lengthGovernedRadii). { rv: null } where no curve is wanted, { noSpeed:
+ * true } where one is but no design speed is known, and null for a point
+ * without a gradient change on this track (an end, or a stretch of no length).
+ */
+export function regularVerticalRadius(track, index, { switches = [] } = {}) {
+  const heights = track?.heights ?? []
+  const change = changeAt(heights, index)
+  if (!change) return null
+  // Judged to 0.01 ‰ as the check does; the curve's length is the exact one's.
+  const ds = round2(change.exact)
+  const contexts = new Set([
+    ...(trackUseOf(track) === 'siding' ? ['siding'] : []),
+    ...(isConnectionTrack(track, switches) ? ['track_connection'] : []),
+  ])
+  const free = catalogLimit('HP.AR.01', 'ds_free', { 'physics.gradient_change': ds, 'point.vertical_radius': 0 },
+    { inContext: (id) => contexts.has(id) })
+  if (ds <= free) return { rv: null }
+  const r = radiusByRules(elementSpans(track.elements), heights[index].station, change.exact, change.crest, null)
+  if (r.noSpeed) return r
+  return { rv: r.rv, la: r.byLength ? r.length : null, speed: r.speed }
+}
+
+/**
+ * The radius of a curve whose length is what counts (`la` on its point,
+ * decision 266): the smallest that keeps it at least `la` long at the
+ * gradient change the point has now, and not under the Regelwert where the
+ * design speed is known — rounded up to a full 100 m as the rules round it,
+ * up to the Höchstwert. Null where the point has no gradient change.
+ */
+export function lengthGovernedRadius(track, index, la) {
+  const heights = track?.heights ?? []
+  const change = changeAt(heights, index)
+  if (!change || !(change.exact > 1e-6) || !(la > 0)) return null
+  return radiusByRules(elementSpans(track.elements), heights[index].station, change.exact, change.crest, la,
+    { anySpeed: true }).rv
+}
+
+/**
+ * The tracks with the radius of every curve whose length counts worked out
+ * again (lengthGovernedRadius) — on the tracks whose heights or elements
+ * changed against `before`, since a gradient either side of the point, or
+ * the speed under it, is what the radius follows. The same array where
+ * nothing moved.
+ */
+export function lengthGovernedRadii(before, tracks) {
+  const was = new Map((before ?? []).map(t => [t.id, t]))
+  let changed = false
+  const out = (tracks ?? []).map(track => {
+    const old = was.get(track.id)
+    const heights = track.heights
+    if (!heights?.some(p => p.la > 0)) return track
+    if (old && old.heights === heights && old.elements === track.elements) return track
+    let next = heights
+    heights.forEach((p, i) => {
+      if (!(p.la > 0)) return
+      const rv = lengthGovernedRadius(track, i, p.la)
+      if (rv == null || rv === p.rv) return
+      if (next === heights) next = [...heights]
+      next[i] = { ...p, rv }
+    })
+    if (next === heights) return track
+    changed = true
+    return { ...track, heights: next }
+  })
+  return changed ? out : tracks
+}
+
+/**
+ * The findings of a check gathered per rule and step, with the number of
+ * places each was found and the first of them — what a list shows, so a
+ * terrain gradient with sixty unrounded changes says so once. A rule that
+ * answers with two steps (HP.AR.01: a missing curve, a curve too many) is
+ * listed once for each; the worst come first.
+ */
+export function verticalFindings(check) {
+  const found = new Map()
+  for (const entry of [...(check?.stretches ?? []), ...(check?.curves ?? [])]) {
+    for (const result of entry.results) {
+      if (result.severity === 'ok') continue
+      const key = `${result.id}|${result.severity}`
+      const seen = found.get(key)
+      found.set(key, {
+        id: result.id,
+        severity: result.severity,
+        places: (seen?.places ?? 0) + 1,
+        first: seen?.first ?? entry,
+      })
+    }
+  }
+  return [...found.values()].sort((a, b) => severityRank(b.severity) - severityRank(a.severity))
+}

@@ -1,0 +1,109 @@
+import { sampleHeights } from './elevationSource'
+import {
+  heightStations, trackSamplePoints, trackLength, jointGroup, jointHeightUpdates,
+} from '../track/heightUtils'
+
+const STATION_TOL = 0.001   // m
+
+/**
+ * Keep the joints between the freshly read tracks (`written`) and their
+ * neighbours at one height. Terrain gives two track ends meeting at a joint
+ * the same value anyway — they are the same spot — so this only matters where
+ * a re-read track meets one that was not re-read: there the standing height
+ * wins, and an edited joint survives the reload of its neighbour. Joints that
+ * already agree are left alone.
+ */
+function unifyJoints(tracks, switches, written) {
+  const heightOf = (p) => tracks.find(t => t.id === p.trackId)?.heights?.[p.index]
+  const entries = [], seen = new Set()
+  for (const trackId of written) {
+    const heights = tracks.find(t => t.id === trackId)?.heights
+    if (!heights?.length) continue
+    for (const index of [0, heights.length - 1]) {
+      const group = jointGroup(tracks, switches, { trackId, index })
+      const key = group.map(p => `${p.trackId}|${p.index}`).sort().join(' ')
+      if (group.length < 2 || seen.has(key)) continue
+      seen.add(key)
+      const zs = group.map(p => heightOf(p).z)
+      if (zs.every(z => z === zs[0])) continue
+      const standing = group.find(p => !written.has(p.trackId)) ?? group[0]
+      entries.push({ ...standing, z: heightOf(standing).z })
+    }
+  }
+  return entries.length ? jointHeightUpdates(tracks, switches, entries) : new Map()
+}
+
+/**
+ * The stations of a track the terrain still has to be read for: all of them
+ * for a track without a vertical alignment, the stretch past its last point
+ * for a track that has grown — an element appended to it — and the stretch
+ * before its first point where an imported gradient begins behind the track's
+ * begin. A point the user deleted is not read again; only track without
+ * heights is.
+ */
+export function stationsToRead(track, force = false) {
+  const length = trackLength(track)
+  if (!(length > 0)) return []
+  const heights = track.heights
+  if (force || !(heights?.length >= 2)) return heightStations(length)
+  const first = heights[0].station
+  const last = heights[heights.length - 1].station
+  // The stretch before the first point, where an imported gradient begins
+  // behind the track's begin, its own end left to the point already there…
+  const before = first > STATION_TOL ? heightStations(first).slice(0, -1) : []
+  // …and the grown stretch, stationed from the last point on, its own start
+  // left to the point that is already there.
+  const after = length - last > STATION_TOL ? heightStations(length - last).slice(1).map(s => last + s) : []
+  return [...before, ...after]
+}
+
+/**
+ * Give tracks their height points from the terrain — only ever on request (the
+ * profile's button, the elevation panel), never on its own. Without `force`
+ * only tracks that have none yet, and stretches added to a track since, are
+ * read, so edited heights are left alone; with `force` the whole track (or
+ * project) is read again and overwritten.
+ *
+ * `readProject` answers the current project record ({ tracks, switches }); it
+ * is asked again after the terrain has answered, and a track whose length
+ * changed meanwhile is skipped: the points would belong to the old geometry.
+ *
+ * Nothing is written here. Resolves to { heights, updated, missing } —
+ * `heights` the trackId → height points to store (the joints to neighbours
+ * already kept level), `updated` the tracks read, `missing` the tracks the
+ * terrain sources had no data for.
+ */
+export async function fillHeights(readProject, { force = false, trackId = null, source } = {}) {
+  const jobs = []
+  for (const track of readProject()?.tracks ?? []) {
+    if (trackId && track.id !== trackId) continue
+    if (!track.epsg) continue
+    const stations = stationsToRead(track, force)
+    if (stations.length) {
+      jobs.push({ trackId: track.id, length: trackLength(track), points: trackSamplePoints(track, stations) })
+    }
+  }
+  if (!jobs.length) return { heights: new Map(), updated: 0, missing: 0 }
+
+  const zs = await sampleHeights(jobs.flatMap(j => j.points.map(p => p.lngLat)), { source })
+  let k = 0, updated = 0, missing = 0
+  const byTrack = new Map()
+  const now = readProject() ?? {}
+  const tracksNow = now.tracks ?? []
+  for (const job of jobs) {
+    const fresh = job.points.map(p => ({ station: p.station, z: zs[k++] }))
+    if (fresh.some(h => h.z == null)) { missing++; continue }
+    const track = tracksNow.find(t => t.id === job.trackId)
+    if (!track || Math.abs(trackLength(track) - job.length) > STATION_TOL) continue
+    const kept = force ? [] : (track.heights ?? [])
+    if (!force && kept.length && stationsToRead(track, false).length !== job.points.length) continue
+    byTrack.set(job.trackId, [...kept, ...fresh].sort((a, b) => a.station - b.station))
+    updated++
+  }
+  // The joints are levelled on the tracks as they will be once these are written.
+  const after = tracksNow.map(t => (byTrack.has(t.id) ? { ...t, heights: byTrack.get(t.id) } : t))
+  const joints = unifyJoints(after, now.switches ?? [], new Set(byTrack.keys()))
+  const heights = new Map(byTrack)
+  for (const [id, h] of joints) heights.set(id, h)
+  return { heights, updated, missing }
+}

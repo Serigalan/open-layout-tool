@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { useMap } from './MapContext'
 import usePreview from './usePreview'
-import { getColor } from '../utils/mapRenderUtils'
+import { getColor } from './mapRenderUtils'
 
 const LINE_SOURCE   = 'draw-preview-line-source'
 const LINE_LAYER    = 'draw-preview-line-layer'

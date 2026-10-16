@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { nearbyLineNumbers } from '../utils/kmLineLayer'
+import { nearbyLineNumbers } from '../map/kmLineLayer'
 import { mapIsLive } from '../map/pick'
 
 /**

@@ -2,8 +2,8 @@ import {
   MAX_SWITCH_CANT as RW_MAX_SWITCH_CANT,
   MAX_SWITCH_CANT_DEF as RW_MAX_SWITCH_CANT_DEF,
   CANT_DEFICIENCY_COEFF as RW_CANT_DEFICIENCY_COEFF,
-} from '../regelwerkDefaults'
-import { catalogLimit, catalogSpeedRange, IN_SWITCH_AREA } from '../regelkatalog'
+} from './regelwerkDefaults'
+import { catalogLimit, catalogSpeedRange, IN_SWITCH_AREA } from './regelkatalog'
 
 // Cant, cant deficiency and the speeds they allow — the dialogs' rules (LP.KB).
 

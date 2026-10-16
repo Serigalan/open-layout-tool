@@ -1,6 +1,6 @@
-import { generateId, buildTypeFields } from '../identifierUtils'
-import { rebuildCoords } from '../trackModel'
-import { arcElement, arcFrom, straightElement, straightFrom, transitionElement } from '../elementFactory'
+import { generateId, buildTypeFields } from '../track/identifierUtils'
+import { rebuildCoords } from '../track/trackModel'
+import { arcElement, arcFrom, straightElement, straightFrom, transitionElement } from '../geometry/elementFactory'
 import { cantSign } from '../rules/cant'
 
 // What the create and connect dialogs commit (R4.2), as pure functions: the

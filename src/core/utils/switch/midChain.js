@@ -1,4 +1,4 @@
-import { curvatureOf, radiusOfCurvature } from '../clothoidUtils'
+import { curvatureOf, radiusOfCurvature } from '../geometry/clothoidUtils'
 import { switchChainBearingAt, switchChainPointUtm } from './route'
 import { STRAIGHT_CURVATURE } from './catalogue'
 

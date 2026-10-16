@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { loadSettings, saveSettings } from '../utils/settings'
-import { clamp } from '../utils/format'
+import { loadSettings, saveSettings } from '../utils/common/settings'
+import { clamp } from '../utils/common/format'
 
 /** How wide the panel may be dragged [px]. */
 const MIN = 260

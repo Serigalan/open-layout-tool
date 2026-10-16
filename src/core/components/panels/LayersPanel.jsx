@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   BASEMAPS, DEFAULT_BASEMAP, LANDESVERMESSUNG_STATES, LANDESVERMESSUNG_THUMBNAIL, lvBasemapId, lvStatesOf,
 } from '../../basemaps'
-import { KM_COLOR, KM_OTHER_COLOR, KM_JUMP_COLOR } from '../../utils/kmLineLayer'
+import { KM_COLOR, KM_OTHER_COLOR, KM_JUMP_COLOR } from '../../map/kmLineLayer'
 import { OverlayThumbnail } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 

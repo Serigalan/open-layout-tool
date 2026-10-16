@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { surveyFromTrace, surveyPoints } from '../axisSurvey'
+import { surveyFromTrace, surveyPoints } from '../survey/axisSurvey'
 import { cloudToPlane } from './cloudCrs'
 import { transformMatrix } from './registration'
 import { cloudRefsOf, surveyChanges, shiftSurvey } from './surveyShift'

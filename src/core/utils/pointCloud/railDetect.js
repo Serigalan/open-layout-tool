@@ -1,4 +1,4 @@
-import { RAILS, TRACK_GAUGE } from '../crossSectionUtils'
+import { RAILS, TRACK_GAUGE } from '../crossSection/crossSectionUtils'
 
 /**
  * The two rail heads of a track in one slice of a point cloud (phase 12,

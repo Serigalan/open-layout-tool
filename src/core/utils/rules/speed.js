@@ -1,4 +1,4 @@
-import { transitionCantEnds } from '../clothoidUtils'
+import { transitionCantEnds } from '../geometry/clothoidUtils'
 import { maxSpeedFor } from './cant'
 
 // Speed is designed in 5 km/h steps, like cant is in 5 mm ones.

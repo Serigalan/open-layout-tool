@@ -1,4 +1,4 @@
-import { dehydrateProjects } from '../persistenceUtils'
+import { dehydrateProjects } from '../project/persistenceUtils'
 import {
   COLLECTION_NAMES, fieldsOf, indexCollection, objectLabel, projectFields, sameValue,
 } from './collections'

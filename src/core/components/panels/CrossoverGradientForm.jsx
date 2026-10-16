@@ -4,13 +4,13 @@ import { useProject } from '../../hooks/useStore'
 import {
   findCrossovers, crossoverFrame, crossoverCant, crossoverRanges, lineCoordinates, rangeEndFromClick,
   lineTrackAt, planCrossoverGradient,
-} from '../../utils/crossoverGradient'
-import { stationFromClick } from '../../utils/platformUtils'
-import { utmToWgs84, wgs84ToUTM } from '../../utils/coordinateUtils'
-import { trackLabel } from '../../utils/trackModel'
+} from '../../utils/elevation/crossoverGradient'
+import { stationFromClick } from '../../utils/track/platformUtils'
+import { utmToWgs84, wgs84ToUTM } from '../../utils/geometry/coordinateUtils'
+import { trackLabel } from '../../utils/track/trackModel'
 import { ZOOM_LINE_WIDTH } from '../../map/style'
 import { useMap } from '../../map/MapContext'
-import { fitToTracks } from '../../utils/mapRenderUtils'
+import { fitToTracks } from '../../map/mapRenderUtils'
 import usePreview from '../../map/usePreview'
 import useMapPick from '../../map/useMapPick'
 import { PALETTE } from '../../styles/palette'

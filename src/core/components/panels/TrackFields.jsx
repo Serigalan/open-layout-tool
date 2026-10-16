@@ -1,4 +1,4 @@
-import { TYPE_CODES, SIDE_CODES, TRACK_USES } from '../../utils/identifierUtils'
+import { TYPE_CODES, SIDE_CODES, TRACK_USES } from '../../utils/track/identifierUtils'
 import StationNameInput from './StationNameInput'
 import useLineNameSuggestion from '../../hooks/useLineNameSuggestion'
 import { useI18n } from '../../locales/i18nContext'

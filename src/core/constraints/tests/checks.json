@@ -1,5 +1,5 @@
 {
- "about": "Element chains and the findings the rule catalogue makes on them — read by src/core/utils/trassierungCheck.vectors.test.js and tools/optimizer/tests/vectors.py, so the app check and its Python port cannot drift apart unnoticed. Findings: [where, rule id, severity], where \"#i\" is an element and \"#i|#j\" the boundary between two. Rebuild only on purpose, when a catalogue change moves them.",
+ "about": "Element chains and the findings the rule catalogue makes on them — read by src/core/utils/rules/trassierungCheck.vectors.test.js and tools/optimizer/tests/vectors.py, so the app check and its Python port cannot drift apart unnoticed. Findings: [where, rule id, severity], where \"#i\" is an element and \"#i|#j\" the boundary between two. Rebuild only on purpose, when a catalogue change moves them.",
  "catalogue": "db-ril-800-0110",
  "chains": [
   {

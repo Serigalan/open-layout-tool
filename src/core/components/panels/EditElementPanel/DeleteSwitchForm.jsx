@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { commitSwitchDeletion, loadSwitches, loadTracks } from '../../../storage'
-import { planSwitchDeletion } from '../../../utils/switchDelete'
+import { planSwitchDeletion } from '../../../utils/switch/switchDelete'
 import { useI18n } from '../../../locales/i18nContext'
 import CommitBar from '../../form/CommitBar'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'

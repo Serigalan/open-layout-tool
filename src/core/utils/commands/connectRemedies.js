@@ -1,5 +1,5 @@
-import { checkTrack } from '../trassierungCheck'
-import { severityRank } from '../regelkatalog'
+import { checkTrack } from '../rules/trassierungCheck'
+import { severityRank } from '../rules/regelkatalog'
 import { transitionLengths } from '../rules/transitionLength'
 import { SPEED_STEP } from '../rules/speed'
 

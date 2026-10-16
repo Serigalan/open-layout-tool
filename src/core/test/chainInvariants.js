@@ -1,11 +1,11 @@
 import { expect } from 'vitest'
-import { wgs84ToUTM } from '../utils/coordinateUtils'
+import { wgs84ToUTM } from '../utils/geometry/coordinateUtils'
 import {
   JOINT_TOL, BEARING_TOL, epsgMismatches, nodeGaps, tangentBreaks, untrueLengths,
-} from '../utils/chainChecks'
-import { SAGITTA_ELEMENT } from '../utils/geometryPrecision'
+} from '../utils/geometry/chainChecks'
+import { SAGITTA_ELEMENT } from '../utils/geometry/geometryPrecision'
 import { cantExceptionOf, cantLimit, worstCantOf } from '../utils/rules/cant'
-import { switchParts } from '../utils/switchDelete'
+import { switchParts } from '../utils/switch/switchDelete'
 
 /**
  * The invariants an element chain has to hold however it was built — the

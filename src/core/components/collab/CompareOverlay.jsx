@@ -3,7 +3,7 @@ import { diffEntries, diffProject, primary } from '../../utils/merge'
 import {
   COMPARE_COLORS, clearFeatures, comparisonFeatures, comparisonTopology, drawable, showFeaturesSoon,
   trackStylesOf, zoomToFeatures,
-} from '../../utils/compareLayer'
+} from '../../utils/merge/compareLayer'
 import TopologyGraphOverlay from '../TopologyGraphOverlay'
 import { entryText } from './mergeText'
 import './collab.css'

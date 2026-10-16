@@ -1,5 +1,5 @@
 import { axisPointsCsv } from '../../../utils/pointCloud/railTrace'
-import { downloadText } from '../../../utils/fileUtils'
+import { downloadText } from '../../../utils/common/fileUtils'
 
 /** What the top of rail of an exported point is (Entscheidung 130). */
 export const SO_REFERENCES = ['lower', 'axis', 'left', 'right']

@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { trackOf } from './tracks'
-import { straightFrom } from '../elementFactory'
+import { straightFrom } from '../geometry/elementFactory'
 import { CROSSING_TYPES } from '../switch/catalogue'
-import { connectionAnchor } from '../connectToTrack'
+import { connectionAnchor } from '../switch/connectToTrack'
 import { crossingOnTrackPlacement, crossingOnTrackPort } from './switches'
 import { buildCrossingConnect, crossAngleOf, crossingConnectOutcome, crossingConnectSolutions } from './connectCrossing'
 import { crossingEndDistance } from '../switch/crossing'
 import { expectValidTrack, expectNodesJoin } from '../../test/chainInvariants'
-import { resolveEndBearing } from '../elementUtils'
-import { portTrack, portEnd } from '../switchModel'
+import { resolveEndBearing } from '../geometry/elementUtils'
+import { portTrack, portEnd } from '../track/switchModel'
 
 const EPSG = 25832
 const O = { easting: 500000, northing: 5600000, zone: EPSG }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { checkClearance, INSIDE, ALLOWED } from './clearanceCheck'
-import { gaugeProfile, gaugeProfileRing, gaugeProfileAreas } from '../gaugeProfiles'
-import { crossSection } from '../crossSectionUtils'
+import { gaugeProfile, gaugeProfileRing, gaugeProfileAreas } from '../crossSection/gaugeProfiles'
+import { crossSection } from '../crossSection/crossSectionUtils'
 
 const profile = gaugeProfile('hauptgleis')
 const ring = gaugeProfileRing(profile.points)

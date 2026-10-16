@@ -1,5 +1,5 @@
 import { exportProjectsPayload } from '../../../storage'
-import { downloadJSON } from '../../../utils/fileUtils'
+import { downloadJSON } from '../../../utils/common/fileUtils'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject, useTracks } from '../../../hooks/useStore'
 import ExchangeSection from './ExchangeSection'

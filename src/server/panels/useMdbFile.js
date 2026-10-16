@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import { parseMdbPayload, listMdbStrecken } from '../../core/utils/mdbImport'
+import { parseMdbPayload, listMdbStrecken } from '../../core/utils/exchange/mdbImport'
 import { convertMdbOnServer, OptimizerError } from '../optimizerService'
-import { ALL_STRECKEN } from '../../core/utils/import/mdbPipeline'
+import { ALL_STRECKEN } from '../../core/utils/exchange/mdbPipeline'
 import { useI18n } from '../../core/locales/i18nContext'
 
 /**

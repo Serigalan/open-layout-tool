@@ -1,4 +1,4 @@
-import { PROJECT_IMAGES, fileToProjectImage, projectImageUrl } from '../../utils/projectImages'
+import { PROJECT_IMAGES, fileToProjectImage, projectImageUrl } from '../../utils/common/projectImages'
 import './collab.css'
 import { useI18n } from '../../locales/i18nContext'
 

@@ -47,7 +47,7 @@ def _catalogues():
 def catalog_hash():
     """SHA-256 over every catalogue file the package ships, in name order:
     for each file its name, a NUL, its bytes, a NUL. The app hashes its own
-    bundled copies the same way (src/core/utils/catalogHash.js) and says so when
+    bundled copies the same way (src/core/utils/rules/catalogHash.js) and says so when
     the two differ — then the service is running against other rules than the
     app shows."""
     digest = hashlib.sha256()

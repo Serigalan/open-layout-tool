@@ -1,8 +1,8 @@
-import { utmToWgs84 } from '../coordinateUtils'
-import { reverseElement, projectOnArcUtm } from '../elementUtils'
-import { projectOnTransitionUtm } from '../clothoidUtils'
-import { elementBelongsToSwitch, isLinkSwitch, portTrack, portEnd } from '../switchModel'
-import { linkSymbol } from '../trackLinkUtils'
+import { utmToWgs84 } from '../geometry/coordinateUtils'
+import { reverseElement, projectOnArcUtm } from '../geometry/elementUtils'
+import { projectOnTransitionUtm } from '../geometry/clothoidUtils'
+import { elementBelongsToSwitch, isLinkSwitch, portTrack, portEnd } from '../track/switchModel'
+import { linkSymbol } from '../track/trackLinkUtils'
 import {
   SWITCH_CHAIN_TOL, chainGeometry, clothoidRoutePoints, negR, switchBranchChain,
   switchChainBauform, switchChainBearingAt, switchChainPointUtm, switchChainSegmentsUtm,

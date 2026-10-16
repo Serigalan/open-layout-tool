@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { sampleHeightsWithSource, terrainSourceLabel, terrainSources } from '../core/utils/elevationSource'
+import { sampleHeightsWithSource, terrainSourceLabel, terrainSources } from '../core/utils/elevation/elevationSource'
 import { extend, resetExtensions } from '../core/extensions'
 import { dgm1Source } from './terrainDgm1'
 

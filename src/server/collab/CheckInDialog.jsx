@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { COMPARE_COLORS } from '../../core/utils/compareLayer'
+import { COMPARE_COLORS } from '../../core/utils/merge/compareLayer'
 import { entryText, findingText } from '../../core/components/collab/mergeText'
 import '../../core/components/collab/collab.css'
 import { useI18n } from '../../core/locales/i18nContext'

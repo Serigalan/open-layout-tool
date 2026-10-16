@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useMap } from './MapContext'
-import { GEOJSON_MAXZOOM } from '../utils/geometryPrecision'
+import { GEOJSON_MAXZOOM } from '../utils/geometry/geometryPrecision'
 import { FILTER_NONE, mapIsLive } from './pick'
 import { EMPTY_FC, asGeoJSON } from './geojson'
-import { highlightColors, resolveHighlight } from '../utils/mapColors'
-import { getColor } from '../utils/mapRenderUtils'
+import { highlightColors, resolveHighlight } from './mapColors'
+import { getColor } from './mapRenderUtils'
 
 // Which preview sources hold something now (R10.10): what the map legend reads.
 const _shown = new Set()

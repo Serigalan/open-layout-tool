@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadTracks, updateTrack } from '../../core/storage'
-import { trackLabel } from '../../core/utils/trackModel'
+import { trackLabel } from '../../core/utils/track/trackModel'
 import {
   optimizeOnServer, optimizerReachable, fetchRegelwerke, OptimizerError,
 } from '../optimizerService'
-import { reconstructElements } from '../../core/utils/elementReconstruct'
+import { reconstructElements } from '../../core/utils/geometry/elementReconstruct'
 import { ZOOM_LINE_WIDTH } from '../../core/map/style'
-import { optimizeRequest, optimizedTrack, optimizeErrorText } from '../../core/utils/optimizeApply'
+import { optimizeRequest, optimizedTrack, optimizeErrorText } from '../../core/utils/commands/optimizeApply'
 import { OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon } from '../../core/components/icons'
 import { useI18n } from '../../core/locales/i18nContext'
 import { useMap } from '../../core/map/MapContext'

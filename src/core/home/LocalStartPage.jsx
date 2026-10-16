@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { PayloadError } from '../utils/persistenceUtils'
-import { downloadJSON } from '../utils/fileUtils'
+import { PayloadError } from '../utils/project/persistenceUtils'
+import { downloadJSON } from '../utils/common/fileUtils'
 import { persistStorage } from '../utils/pointCloud/cloudStore'
 import { useI18n } from '../locales/i18nContext'
 import { formatDate } from '../locales/i18n'

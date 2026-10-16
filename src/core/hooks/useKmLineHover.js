@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
-import { kmAt } from '../utils/kmLineLayer'
-import { formatKm } from '../utils/kmLineMath'
+import { kmAt } from '../map/kmLineLayer'
+import { formatKm } from '../utils/km/kmLineMath'
 import { mapIsLive } from '../map/pick'
 
 /**

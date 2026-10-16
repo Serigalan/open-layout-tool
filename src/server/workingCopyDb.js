@@ -1,5 +1,5 @@
 import { storedBytes } from '../core/localStore'
-import { FORMAT_NAME } from '../core/utils/persistenceUtils'
+import { FORMAT_NAME } from '../core/utils/project/persistenceUtils'
 
 // Thin promise wrapper around IndexedDB for the working copies (phase 10).
 //

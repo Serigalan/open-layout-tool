@@ -1,5 +1,5 @@
 import NumberInput from './NumberInput'
-import { settleStation } from '../../utils/stationSlider'
+import { settleStation } from '../../utils/switch/stationSlider'
 import { formatNum } from '../../locales/i18n'
 import { useI18n } from '../../locales/i18nContext'
 

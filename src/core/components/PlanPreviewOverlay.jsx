@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { renderSvg } from '../utils/planSvg'
-import { renderPdf } from '../utils/planPdf'
-import { downloadBlob, downloadText } from '../utils/fileUtils'
+import { renderSvg } from '../utils/plan/planSvg'
+import { renderPdf } from '../utils/plan/planPdf'
+import { downloadBlob, downloadText } from '../utils/common/fileUtils'
 import { useI18n } from '../locales/i18nContext'
 
 /**

@@ -1,5 +1,5 @@
 {
- "about": "Cases of the rule expression language (expression_language in the catalogues) — read by src/core/utils/ruleExpr.vectors.test.js and tools/optimizer/tests/vectors.py, so the JavaScript and Python implementations answer alike. Functions available: min, max, abs, round_to (half up). A case is {src, scope?, value} or {src, scope?, error: true}.",
+ "about": "Cases of the rule expression language (expression_language in the catalogues) — read by src/core/utils/rules/ruleExpr.vectors.test.js and tools/optimizer/tests/vectors.py, so the JavaScript and Python implementations answer alike. Functions available: min, max, abs, round_to (half up). A case is {src, scope?, value} or {src, scope?, error: true}.",
  "cases": [
   {
    "src": "42",

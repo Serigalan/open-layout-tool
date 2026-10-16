@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { currentProject } from '../../storage'
-import { DEFAULT_CORRIDOR } from '../../utils/planSchematic'
-import { assembleSchematic, assembleSite, planFileBase } from '../../utils/planAssemble'
-import { renderPdf } from '../../utils/planPdf'
-import { downloadBlob } from '../../utils/fileUtils'
+import { DEFAULT_CORRIDOR } from '../../utils/plan/planSchematic'
+import { assembleSchematic, assembleSite, planFileBase } from '../../utils/plan/planAssemble'
+import { renderPdf } from '../../utils/plan/planPdf'
+import { downloadBlob } from '../../utils/common/fileUtils'
 import { useI18n } from '../../locales/i18nContext'
 import { useProject } from '../../hooks/useStore'
 import FormSection from '../form/FormSection'
@@ -32,7 +32,7 @@ const DEFAULTS = {
 
 /**
  * The plan of the project as a PDF (R5.5: the sheet settings, the content and
- * the title block are sections of their own; utils/planAssemble turns them
+ * the title block are sections of their own; utils/plan/planAssemble turns them
  * into the plan model).
  */
 export default function PlanExportPanel({ onShowPlanPreview }) {

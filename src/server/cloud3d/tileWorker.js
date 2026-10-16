@@ -8,8 +8,8 @@
 // bytes; or { type: 'error', id, message }.
 import { decodeCloudSegment, segmentPlacement } from '../../core/utils/pointCloud/tiles'
 import { planeMapper } from '../../core/utils/pointCloud/cloudCrs'
-import { loadNtv2Grid, loadGridsFor } from '../../core/utils/ntv2Grid'
-import { crsDatum } from '../../core/utils/coordinateUtils'
+import { loadNtv2Grid, loadGridsFor } from '../../core/utils/geometry/ntv2Grid'
+import { crsDatum } from '../../core/utils/geometry/coordinateUtils'
 
 let ready = Promise.resolve()
 const mappers = new Map()

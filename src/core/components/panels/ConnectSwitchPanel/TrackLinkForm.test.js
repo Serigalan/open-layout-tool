@@ -2,14 +2,14 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { openProject } from '../../../storage'
-import { endPointStraightUtm } from '../../../utils/elementUtils'
+import { endPointStraightUtm } from '../../../utils/geometry/elementUtils'
 import {
   transformPlanePoint, transformGridBearing, utmToWgs84,
-} from '../../../utils/coordinateUtils'
-import { findTrackJoints, linkRecord } from '../../../utils/trackLinkUtils'
+} from '../../../utils/geometry/coordinateUtils'
+import { findTrackJoints, linkRecord } from '../../../utils/track/trackLinkUtils'
 import { inGerman } from '../../../test/i18n'
 import TrackLinkForm from './TrackLinkForm'
-import { withPort } from '../../../utils/switchModel'
+import { withPort } from '../../../utils/track/switchModel'
 
 /**
  * What the link form says before it writes anything. The static renderer runs

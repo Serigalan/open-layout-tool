@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadPlanHeader, savePlanHeader } from '../../../storage'
-import { normalizeHeader } from '../../../utils/planHeader'
+import { normalizeHeader } from '../../../utils/plan/planHeader'
 
 /** Pause in typing after which the title block is saved to the project [ms]. */
 const HEADER_SAVE_DELAY = 500

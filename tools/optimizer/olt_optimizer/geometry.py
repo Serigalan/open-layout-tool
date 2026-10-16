@@ -1,6 +1,6 @@
 """The geometry kernel of the optimizer.
 
-Originally a port of the app's own (src/core/utils/clothoidUtils.js and the since
+Originally a port of the app's own (src/core/utils/geometry/clothoidUtils.js and the since
 removed optimizeUtils.js); since AP 7.1 this is the only implementation, and
 the reference values in tests/verify.py are what keeps it honest.
 

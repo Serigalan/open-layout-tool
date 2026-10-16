@@ -4,7 +4,7 @@ import {
   intensityShift, tileOf, originalGrid, segmentPlacement,
 } from './tiles'
 import { planeMapper } from './cloudCrs'
-import { transformPlanePoint } from '../coordinateUtils'
+import { transformPlanePoint } from '../geometry/coordinateUtils'
 
 const columns = (pts) => ({
   count: pts.length,

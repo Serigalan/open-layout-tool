@@ -1,6 +1,6 @@
-import { elementStations, pointOnElement } from '../../core/utils/platformUtils'
-import { sectionAtStation, crossSection, superstructureAt, RUNNING_CIRCLE_DISTANCE } from '../../core/utils/crossSectionUtils'
-import { trackHeightAt } from '../../core/utils/switchGradient'
+import { elementStations, pointOnElement } from '../../core/utils/track/platformUtils'
+import { sectionAtStation, crossSection, superstructureAt, RUNNING_CIRCLE_DISTANCE } from '../../core/utils/crossSection/crossSectionUtils'
+import { trackHeightAt } from '../../core/utils/elevation/switchGradient'
 
 /**
  * The planned tracks in the 3D view (AP 13.10): each a run of samples along

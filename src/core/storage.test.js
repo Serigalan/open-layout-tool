@@ -10,8 +10,8 @@ import {
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
   setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms, commitImport, historySteps, travelHistory,
 } from './storage'
-import { newBufferStop, newBoundary } from './utils/trackEndMarks'
-import { endPointCurvedUtm, endPointStraightUtm } from './utils/elementUtils'
+import { newBufferStop, newBoundary } from './utils/track/trackEndMarks'
+import { endPointCurvedUtm, endPointStraightUtm } from './utils/geometry/elementUtils'
 
 // Outside the browser the store keeps its project in memory; the import
 // reports and the settings still go to localStorage — a stub is all the node

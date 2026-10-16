@@ -1,4 +1,4 @@
-import { catalogSpeedRange } from '../../utils/regelkatalog'
+import { catalogSpeedRange } from '../../utils/rules/regelkatalog'
 import { cantDefLimit, MAX_SWITCH_CANT_DEF } from '../../utils/rules/cant'
 import { SPEED_STEP } from '../../utils/rules/speed'
 import { useI18n } from '../../locales/i18nContext'

@@ -1,9 +1,9 @@
-import { crsLabel } from '../../utils/coordinateUtils'
+import { crsLabel } from '../../utils/geometry/coordinateUtils'
 import { cantDefLevel, computeCantDefSigned, maxSpeedFor, CANT_STEP } from '../../utils/rules/cant'
 import { governing } from '../../utils/rules/speed'
 import { useI18n } from '../../locales/i18nContext'
 import { EditCell, TextCell } from './cells'
-import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
+import { ruleById, severityLabelKey } from '../../utils/rules/regelkatalog'
 import {
   isTransition, typeLabel, switchNote, hintNote, cantNote, cantClass, defClass, defNote,
   ruleClass, ruleText, ruleNote, degText, lengthText, radiusText, comparisonRadiusText,

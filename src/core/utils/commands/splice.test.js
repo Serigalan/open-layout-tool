@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer, spliceKeptCant, splicePick, spliceRequest,
 } from './splice'
-import { straightElement, arcElement, transitionElement } from '../elementFactory'
-import { rebuildCoords } from '../trackModel'
+import { straightElement, arcElement, transitionElement } from '../geometry/elementFactory'
+import { rebuildCoords } from '../track/trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
 import answers from '../../test/fixtures/splice_answers.json'
 

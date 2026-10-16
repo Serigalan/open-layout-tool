@@ -1,5 +1,5 @@
-import { switchKindLabelKey, switchRouteLabelKey } from '../../utils/switchModel'
-import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
+import { switchKindLabelKey, switchRouteLabelKey } from '../../utils/track/switchModel'
+import { ruleById, severityLabelKey } from '../../utils/rules/regelkatalog'
 import { cantExceedsLimit, cantExceptionOf, cantLimit, limitCantDef } from '../../utils/rules/cant'
 import { formatNum } from '../../locales/i18n'
 

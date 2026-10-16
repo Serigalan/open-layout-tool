@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { saveAxisSurvey } from '../../../storage'
-import { withoutPoints } from '../../../utils/axisSurvey'
+import { withoutPoints } from '../../../utils/survey/axisSurvey'
 import useMapEvents from '../../../map/useMapEvents'
 import usePreview from '../../../map/usePreview'
 import { HIT_TOLERANCE } from '../../../map/pick'

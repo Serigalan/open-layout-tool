@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, splitDataUrl } from '../api/client'
-import { parseProjectsPayload, PayloadError } from '../../core/utils/persistenceUtils'
+import { parseProjectsPayload, PayloadError } from '../../core/utils/project/persistenceUtils'
 import { loadHome } from '../collab/homeModel'
 import { LogoIcon, UserIcon } from '../../core/components/icons'
 import PasswordForm from '../collab/PasswordForm'
@@ -21,7 +21,7 @@ import PairDialog from './PairDialog'
 import ProjectCard from './ProjectCard'
 import RenameProjectDialog from './RenameProjectDialog'
 import VariantDialog from './VariantDialog'
-import { withImportSystem } from '../../core/utils/projectSettings'
+import { withImportSystem } from '../../core/utils/project/projectSettings'
 
 /**
  * The start page (decision 96, AP 10.7): the projects on the server, each

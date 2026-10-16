@@ -1,9 +1,9 @@
 import { useProject } from '../../hooks/useStore'
-import { checkVertical, verticalFindings } from '../../utils/gradientCheck'
-import { couplingOf, planeDeviations, switchLds } from '../../utils/switchGradient'
-import { pendingTurnouts } from '../../utils/switchChain'
-import { isLinkSwitch, portsOf, portTrack } from '../../utils/switchModel'
-import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
+import { checkVertical, verticalFindings } from '../../utils/elevation/gradientCheck'
+import { couplingOf, planeDeviations, switchLds } from '../../utils/elevation/switchGradient'
+import { pendingTurnouts } from '../../utils/elevation/switchChain'
+import { isLinkSwitch, portsOf, portTrack } from '../../utils/track/switchModel'
+import { ruleById, severityLabelKey } from '../../utils/rules/regelkatalog'
 import { useI18n } from '../../locales/i18nContext'
 
 /**

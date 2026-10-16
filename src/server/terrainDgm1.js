@@ -1,7 +1,7 @@
 import { terrainOnServer } from './optimizerService'
 
 /**
- * The Länder's DGM1 as a source of ground heights (core/utils/elevationSource.js,
+ * The Länder's DGM1 as a source of ground heights (core/utils/elevation/elevationSource.js,
  * extension point `terrainSources`): 1 m grid, laser scan — Thüringen,
  * Sachsen, Berlin, Brandenburg, Bayern, Baden-Württemberg and
  * Nordrhein-Westfalen, the ones whose tiles can be had at a fixed URL. The

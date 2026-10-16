@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useElementSize } from './useChartViewport'
-import { niceStep, ticks } from '../../utils/chartAxes'
+import { niceStep, ticks } from '../../utils/common/chartAxes'
 import { useI18n } from '../../locales/i18nContext'
 import { PALETTE } from '../../styles/palette'
 

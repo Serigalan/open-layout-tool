@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { rebuildCoords } from '../utils/trackModel'
-import { computeStraightValuesUtm, endPointStraightUtm, resolveEndBearing, nodeUtm } from '../utils/elementUtils'
-import { utmToWgs84 } from '../utils/coordinateUtils'
+import { rebuildCoords } from '../utils/track/trackModel'
+import { computeStraightValuesUtm, endPointStraightUtm, resolveEndBearing, nodeUtm } from '../utils/geometry/elementUtils'
+import { utmToWgs84 } from '../utils/geometry/coordinateUtils'
 import { SWITCH_TYPES } from '../utils/switch/catalogue'
-import { switchEndAnchorRefusal } from '../utils/switchPlacement'
-import { carveSwitchRoute } from '../utils/trackSplitUtils'
-import { planSwitchDeletion } from '../utils/switchDelete'
+import { switchEndAnchorRefusal } from '../utils/switch/switchPlacement'
+import { carveSwitchRoute } from '../utils/track/trackSplitUtils'
+import { planSwitchDeletion } from '../utils/switch/switchDelete'
 import {
   expectValidTrack, expectSwitchRoutesCarved, expectNodesJoin,
 } from './chainInvariants'

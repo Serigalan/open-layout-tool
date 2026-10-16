@@ -1,5 +1,5 @@
 import { cloudToPlane, planeToCloud } from './cloudCrs'
-import { surveyPoints } from '../axisSurvey'
+import { surveyPoints } from '../survey/axisSurvey'
 
 /**
  * Measured axes and the re-referencing of the clouds they were traced in

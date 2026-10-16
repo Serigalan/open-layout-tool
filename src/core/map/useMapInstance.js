@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { DEFAULT_BASEMAP, findBasemap, updateElevationRange, onElevationRange } from '../basemaps'
-import { updateLabels } from '../utils/labelUtils'
-import { loadSettings, saveSettings } from '../utils/settings'
+import { updateLabels } from './labelUtils'
+import { loadSettings, saveSettings } from '../utils/common/settings'
 
 // Basemaps whose colours mean elevation: their terrain is reset on leaving
 // them, and they get a legend.

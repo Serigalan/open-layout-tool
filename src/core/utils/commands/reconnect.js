@@ -1,9 +1,9 @@
-import { rebuildCoords, trackLabel } from '../trackModel'
-import { resolveEndBearing, nodeUtm, endPointCurvedUtm, endPointStraightUtm } from '../elementUtils'
-import { sampleTransitionUtm } from '../clothoidUtils'
+import { rebuildCoords, trackLabel } from '../track/trackModel'
+import { resolveEndBearing, nodeUtm, endPointCurvedUtm, endPointStraightUtm } from '../geometry/elementUtils'
+import { sampleTransitionUtm } from '../geometry/clothoidUtils'
 import { cantSign, AUTO_CANT_MODEL } from '../rules/cant'
 import { minElementLength } from '../rules/elementLength'
-import { heightAt } from '../heightUtils'
+import { heightAt } from '../track/heightUtils'
 import { spliceFromAnswer } from './splice'
 
 // Reconnecting existing elements (Paket N): a stretch of one track is taken
@@ -86,7 +86,7 @@ export function reconnectPick(track, idx, joinAt, fixed) {
  * Points along one element in equal steps of at most `step` from its start
  * — n = ⌈length / step⌉ of them, the k-th at k·length/n — its end included:
  * [[e, n], …] in the plane. Also what a reference axis is sampled from
- * (utils/referenceAxis).
+ * (utils/survey/referenceAxis).
  */
 export function elementPoints(el, epsg, step) {
   const len = el.length ?? 0

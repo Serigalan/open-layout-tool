@@ -1,14 +1,14 @@
 import { useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitImport } from '../../storage'
-import { generateId } from '../../utils/identifierUtils'
-import { rebuildCoords, nextTrackName } from '../../utils/trackModel'
+import { generateId } from '../../utils/track/identifierUtils'
+import { rebuildCoords, nextTrackName } from '../../utils/track/trackModel'
 import {
   readProviArchive, listProviAxes, buildProviTracks, proviPlaceableUnits, proviHeights,
   proviSwitchCandidates, proviProject, PROVI_FRAMES,
-} from '../../utils/proviImport'
-import { placeMdbSwitches } from '../../utils/mdbSwitchPlacement'
-import { linkAllJoints } from '../../utils/trackLinkUtils'
-import { fitToTracks } from '../../utils/mapRenderUtils'
+} from '../../utils/exchange/proviImport'
+import { placeMdbSwitches } from '../../utils/exchange/mdbSwitchPlacement'
+import { linkAllJoints } from '../../utils/track/trackLinkUtils'
+import { fitToTracks } from '../../map/mapRenderUtils'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'

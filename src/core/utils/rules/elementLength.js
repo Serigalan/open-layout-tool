@@ -1,4 +1,4 @@
-import { catalogLimit } from '../regelkatalog'
+import { catalogLimit } from './regelkatalog'
 
 /**
  * l_min of LP.EL.01 for an element of design speed `v` [m] — or null where the

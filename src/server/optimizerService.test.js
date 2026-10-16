@@ -2,8 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   optimizeOnServer, optimizerReachable, fetchRegelwerke, fetchRegelwerk, OptimizerError, alignOnServer,
 } from './optimizerService'
-import { bundledCatalogHash } from '../core/utils/catalogHash'
-import { reconstructElements } from '../core/utils/elementReconstruct'
+import { bundledCatalogHash } from '../core/utils/rules/catalogHash'
+import { reconstructElements } from '../core/utils/geometry/elementReconstruct'
 
 import { expectValidTrack } from '../core/test/chainInvariants'
 import korbbogen from '../core/test/fixtures/optimizer_service_korbbogen.json'

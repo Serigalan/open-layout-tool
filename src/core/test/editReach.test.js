@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { rebuildCoords } from '../utils/trackModel'
+import { rebuildCoords } from '../utils/track/trackModel'
 import {
   computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
   endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm,
-} from '../utils/elementUtils'
-import { utmToWgs84 } from '../utils/coordinateUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../utils/geometryPrecision'
-import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../utils/editGeometry'
-import { newSwitchFields, switchElementMark } from '../utils/switchModel'
-import { planElementChange, mergeElementEdits } from '../utils/editGeometry'
+} from '../utils/geometry/elementUtils'
+import { utmToWgs84 } from '../utils/geometry/coordinateUtils'
+import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../utils/geometry/geometryPrecision'
+import { MAX_EDIT_SWITCHES, MAX_EDIT_TRACKS } from '../utils/commands/editGeometry'
+import { newSwitchFields, switchElementMark } from '../utils/track/switchModel'
+import { planElementChange, mergeElementEdits } from '../utils/commands/editGeometry'
 import { expectValidTrack } from './chainInvariants'
-import { transitionElement } from '../utils/elementFactory'
+import { transitionElement } from '../utils/geometry/elementFactory'
 
 /**
  * AP 5.1 — how far one change in the track editor reaches.

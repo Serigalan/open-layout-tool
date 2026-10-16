@@ -4,8 +4,8 @@ import useNearbyLines from '../../../hooks/useNearbyLines'
 import useLineNameSuggestion from '../../../hooks/useLineNameSuggestion'
 import {
   assignTracks, assignmentFields, groupTitle, groupTracks, plannedNames, trackGroupKey, trackListLabel,
-} from '../../../utils/trackGroups'
-import { elementsPath, identifyTrackLine } from '../../../utils/lineLookup'
+} from '../../../utils/track/trackGroups'
+import { elementsPath, identifyTrackLine } from '../../../utils/km/lineLookup'
 import { FILTER_NONE, mapIsLive } from '../../../map/pick'
 import GroupedTrackList from '../GroupedTrackList'
 import StationNameInput from '../StationNameInput'

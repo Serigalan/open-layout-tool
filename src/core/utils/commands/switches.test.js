@@ -3,7 +3,7 @@ import { trackOf } from './tracks'
 import {
   switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackRouteEnd, switchOnTrackSlider, switchOnTrackToeValid,
 } from './switches'
-import { arcFrom, straightFrom } from '../elementFactory'
+import { arcFrom, straightFrom } from '../geometry/elementFactory'
 import { SWITCH_TYPES, switchStraightLength } from '../switch/catalogue'
 
 const EPSG = 25832

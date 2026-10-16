@@ -1,14 +1,14 @@
-import { generateId } from '../identifierUtils'
-import { rebuildCoords, trackLabel } from '../trackModel'
-import { resolveEndBearing, reverseElement, nodeUtm } from '../elementUtils'
-import { reconstructElements } from '../elementReconstruct'
+import { generateId } from '../track/identifierUtils'
+import { rebuildCoords, trackLabel } from '../track/trackModel'
+import { resolveEndBearing, reverseElement, nodeUtm } from '../geometry/elementUtils'
+import { reconstructElements } from '../geometry/elementReconstruct'
 import { cantSign, AUTO_CANT_MODEL } from '../rules/cant'
 import { lengthRuleFormula } from '../rules/transitionLength'
 import { minElementLength } from '../rules/elementLength'
-import { reverseHeights, splitHeights, trackLength } from '../heightUtils'
-import { elementStations, pointOnElement } from '../platformUtils'
-import { sectionAtStation } from '../crossSectionUtils'
-import { transformPlanePoint } from '../coordinateUtils'
+import { reverseHeights, splitHeights, trackLength } from '../track/heightUtils'
+import { elementStations, pointOnElement } from '../track/platformUtils'
+import { sectionAtStation } from '../crossSection/crossSectionUtils'
+import { transformPlanePoint } from '../geometry/coordinateUtils'
 
 // Splicing two tracks into one (R5.5, AP 12.4): what a picked element offers
 // the splice, the request the construction is built from, and the commit that

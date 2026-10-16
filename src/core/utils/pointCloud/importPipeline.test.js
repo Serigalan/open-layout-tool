@@ -3,7 +3,7 @@ import { importPointCloud } from './importPipeline'
 import { readLasHeader, readLasPoints } from './lasReader'
 import { decodeSegment, decodeCloudSegment, segmentPlacement, TILE_SIZE } from './tiles'
 import { probeExtent, projectPlane } from './cloudProbe'
-import { utmToWgs84 } from '../coordinateUtils'
+import { utmToWgs84 } from '../geometry/coordinateUtils'
 import { hasLaz, LAZ_PATH, nodeFileSource, nodeLazPerf, bytesSource, makeLas } from '../../test/pointCloudFixture'
 
 const memoryWriter = () => {

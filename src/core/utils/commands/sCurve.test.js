@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { SWITCH_TYPES } from '../switchConnectionUtils'
+import { SWITCH_TYPES } from '../switch/switchConnectionUtils'
 import { stems, solveConnection, computeShiftBounds, settleConnection, connectionRemnants, connectionPick, buildSCurve, shiftSnaps, preferredShift, waOffset } from './sCurve'
 import { minElementLength } from '../rules/elementLength'
 import { hasPekBestand, loadPekBestand } from '../../test/pekFixture'
-import { hydrateProjects, dehydrateProjects } from '../persistenceUtils'
+import { hydrateProjects, dehydrateProjects } from '../project/persistenceUtils'
 import { expectNodesJoin, expectSwitchRoutesCarved, expectTangentsContinuous } from '../../test/chainInvariants'
 import { utmEndRoute } from '../switch/route'
-import { computeClothoidUtm, transitionPointAtUtm } from '../clothoidUtils'
+import { computeClothoidUtm, transitionPointAtUtm } from '../geometry/clothoidUtils'
 import { switchStraightLength } from '../switch/catalogue'
-import { checkTrack } from '../trassierungCheck'
+import { checkTrack } from '../rules/trassierungCheck'
 
 const EPSG  = 25832
 const P     = (e, n) => ({ easting: e, northing: n, zone: EPSG })

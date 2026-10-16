@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
-import { axisOutline } from '../utils/referenceAxis'
-import { utmToWgs84 } from '../utils/coordinateUtils'
+import { axisOutline } from '../utils/survey/referenceAxis'
+import { utmToWgs84 } from '../utils/geometry/coordinateUtils'
 import { PALETTE } from '../styles/palette'
 import usePreview from './usePreview'
 

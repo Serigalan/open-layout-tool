@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { DEFAULT_LANGUAGE, I18nContext, i18nValue } from './i18nContext'
 import { translations } from './i18n'
-import { loadSettings, saveSettings } from '../utils/settings'
+import { loadSettings, saveSettings } from '../utils/common/settings'
 
 /**
  * Holds the interface language, starting from `initial` where it is one (a

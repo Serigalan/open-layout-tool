@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { previewShown, subscribePreviews } from '../map/usePreview'
-import { highlightColors } from '../utils/mapColors'
+import { highlightColors } from '../map/mapColors'
 import { useI18n } from '../locales/i18nContext'
 
 /**

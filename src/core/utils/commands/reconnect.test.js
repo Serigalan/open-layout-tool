@@ -3,8 +3,8 @@ import {
   AXIS_SPACING, axisPoints, buildReconnect, reconnectFromAnswer, reconnectPick, reconnectRange, reconnectRequest,
   replacedSpan, stationMap, stretchDefaults,
 } from './reconnect'
-import { reconstructElements } from '../elementReconstruct'
-import { rebuildCoords } from '../trackModel'
+import { reconstructElements } from '../geometry/elementReconstruct'
+import { rebuildCoords } from '../track/trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
 import fixture from '../../test/fixtures/reconnect_answers.json'
 

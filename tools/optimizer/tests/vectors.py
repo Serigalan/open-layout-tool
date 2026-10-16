@@ -4,8 +4,8 @@ The app (ruleExpr.js, trassierungCheck.js, rules/transitionLength.js) and this
 package (ruleexpr.py, olt_optimizer/pruefung.py, grenzen.transition_lengths)
 implement the same expression language, the same catalogue check and the same
 shortest transition lengths twice. The vectors are one set of cases both have
-to answer alike; the app's half is src/core/utils/ruleExpr.vectors.test.js,
-src/core/utils/trassierungCheck.vectors.test.js and
+to answer alike; the app's half is src/core/utils/rules/ruleExpr.vectors.test.js,
+src/core/utils/rules/trassierungCheck.vectors.test.js and
 src/core/utils/rules/transitionLength.vectors.test.js.
 
     python tests/vectors.py        (exit code 1 on the first difference)

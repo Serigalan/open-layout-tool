@@ -1,6 +1,6 @@
-import { ruleById, severityRank } from '../regelkatalog'
-import { evalExpr } from '../ruleExpr'
-import { checkTrack } from '../trassierungCheck'
+import { ruleById, severityRank } from './regelkatalog'
+import { evalExpr } from './ruleExpr'
+import { checkTrack } from './trassierungCheck'
 
 // A length set by the rules is rounded up to a full decimetre.
 const STEPS_PER_M = 10

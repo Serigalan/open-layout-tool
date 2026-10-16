@@ -1,21 +1,21 @@
-import { generateId, buildTypeFields } from '../identifierUtils'
+import { generateId, buildTypeFields } from '../track/identifierUtils'
 
-import { bearingAfterUtm, computeCurvedValuesUtm, computeStraightValuesUtm } from '../elementUtils'
-import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
+import { bearingAfterUtm, computeCurvedValuesUtm, computeStraightValuesUtm } from '../geometry/elementUtils'
+import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../track/trackSplitUtils'
 import {
   computeCrossingGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius,
 } from '../switch/crossing'
 import { computeSwitchGeometryUtm } from '../switch/symbol'
 import { switchBranchLength, switchFormChain } from '../switch/catalogue'
 import { switchBranchChain, switchChainBearingAt, switchChainPointUtm, switchChainTo, switchRouteVaries, utmEndRoute, negR } from '../switch/route'
-import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../switchModel'
+import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../track/switchModel'
 import { cantExceptionFields, worstCantOf } from '../rules/cant'
-import { placeSwitchOnTrack } from '../switchPlacement'
-import { elementAtStation, trackLength } from '../heightUtils'
+import { placeSwitchOnTrack } from '../switch/switchPlacement'
+import { elementAtStation, trackLength } from '../track/heightUtils'
 import { minElementLength } from '../rules/elementLength'
-import { uniqueStations, validIntervals } from '../stationSlider'
-import { utmToWgs84 } from '../coordinateUtils'
-import { arcElement, straightElement } from '../elementFactory'
+import { uniqueStations, validIntervals } from '../switch/stationSlider'
+import { utmToWgs84 } from '../geometry/coordinateUtils'
+import { arcElement, straightElement } from '../geometry/elementFactory'
 
 // What the switch dialogs commit (R4.2), as pure functions of their inputs —
 // each the argument for commitSwitchConnection, one undo step. The dialog

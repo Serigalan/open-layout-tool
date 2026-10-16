@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { rebuildCoords } from '../utils/trackModel'
+import { rebuildCoords } from '../utils/track/trackModel'
 import { buildConnectCurved, buildConnectStraight, buildCurvedLineTrack, buildLineTrack, cantAtTrackEnd, trackOf } from '../utils/commands/tracks'
 import { buildSwitchOnTrack, switchOnTrackPlacement } from '../utils/commands/switches'
-import { arcFrom, straightFrom, transitionElement } from '../utils/elementFactory'
-import { endPointStraightUtm, endPointCurvedUtm } from '../utils/elementUtils'
+import { arcFrom, straightFrom, transitionElement } from '../utils/geometry/elementFactory'
+import { endPointStraightUtm, endPointCurvedUtm } from '../utils/geometry/elementUtils'
 import { SWITCH_TYPES, switchStraightLength } from '../utils/switch/catalogue'
-import { dehydrateProjects, hydrateProjects } from '../utils/persistenceUtils'
-import { hasRuleError } from '../utils/trassierungCheck'
+import { dehydrateProjects, hydrateProjects } from '../utils/project/persistenceUtils'
+import { hasRuleError } from '../utils/rules/trassierungCheck'
 import {
   expectValidTrack, expectNodesJoin, expectTangentsContinuous, expectSwitchCantAdmissible, expectSwitchRoutesCarved,
 } from './chainInvariants'

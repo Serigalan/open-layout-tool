@@ -6,7 +6,7 @@
  * on R 500 to the left (north). WA–WE is 30 m on either track, and the form
  * TEST puts its ldS 10 m behind WE — 40 m from WA on the main route.
  */
-import { endPointCurvedUtm, endPointStraightUtm } from '../utils/elementUtils'
+import { endPointCurvedUtm, endPointStraightUtm } from '../utils/geometry/elementUtils'
 
 export const R = 500
 const START = { easting: 1000, northing: 1000, zone: 5684 }

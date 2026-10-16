@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api, splitDataUrl } from '../api/client'
-import { PROJECT_IMAGES, projectImagePicture } from '../../core/utils/projectImages'
+import { PROJECT_IMAGES, projectImagePicture } from '../../core/utils/common/projectImages'
 import ProjectImagePicker from '../../core/components/collab/ProjectImagePicker'
 import { useI18n } from '../../core/locales/i18nContext'
 import FormDialog from '../../core/components/home/FormDialog'

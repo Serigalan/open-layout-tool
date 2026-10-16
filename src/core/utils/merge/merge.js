@@ -4,7 +4,7 @@ import {
 } from './collections'
 import { primary } from './diff'
 import { carryReferences, remapKind } from './remap'
-import { newFindings, validateProject } from '../validateProject'
+import { newFindings, validateProject } from '../project/validateProject'
 
 /**
  * Three-way merge of two states of a project against the state both came from

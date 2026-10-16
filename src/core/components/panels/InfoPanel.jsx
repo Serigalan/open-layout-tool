@@ -3,7 +3,7 @@ import {
   EditElementIcon, ElevationIcon, CrossSectionIcon, DataExchangeIcon,
   PlanExportIcon, ExternalLinkIcon, CheckIcon,
 } from '../icons'
-import { OSRD_URL } from '../../utils/osrdExport'
+import { OSRD_URL } from '../../utils/exchange/osrdExport'
 import { useI18n } from '../../locales/i18nContext'
 import { useProject } from '../../hooks/useStore'
 import FirstSteps from './FirstSteps'

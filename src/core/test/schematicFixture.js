@@ -1,6 +1,6 @@
 // The network the schematic tests draw: two tracks, a crossover, a siding.
-import { endPointStraightUtm } from '../utils/elementUtils'
-import { utmToWgs84 } from '../utils/coordinateUtils'
+import { endPointStraightUtm } from '../utils/geometry/elementUtils'
+import { utmToWgs84 } from '../utils/geometry/coordinateUtils'
 
 const EPSG = 25832
 const E0 = 500000, N0 = 5600000

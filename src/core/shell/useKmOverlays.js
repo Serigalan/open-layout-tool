@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
-import { showKmOverlays } from '../utils/kmLineLayer'
-import { loadSettings, saveSettings } from '../utils/settings'
+import { showKmOverlays } from '../map/kmLineLayer'
+import { loadSettings, saveSettings } from '../utils/common/settings'
 import { PLATFORMS_FILL_LAYER } from '../map/layerIds'
 
 /**

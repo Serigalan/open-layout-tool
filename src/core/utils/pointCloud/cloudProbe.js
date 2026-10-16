@@ -1,5 +1,5 @@
-import { utmToWgs84 } from '../coordinateUtils'
-import { projectBox } from '../kmLineSource'
+import { utmToWgs84 } from '../geometry/coordinateUtils'
+import { projectBox } from '../km/kmLineSource'
 
 // Before an import, on the page: which plane the tiles go into, and whether
 // the chosen system puts the file anywhere near the project.

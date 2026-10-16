@@ -1,5 +1,5 @@
-import { catalogLimit, severityRank } from '../regelkatalog'
-import { CANT_DEFICIENCY_COEFF } from '../regelwerkDefaults'
+import { catalogLimit, severityRank } from '../rules/regelkatalog'
+import { CANT_DEFICIENCY_COEFF } from '../rules/regelwerkDefaults'
 import { SPEED_STEP } from '../rules/speed'
 import { computeAutoC } from '../rules/cant'
 

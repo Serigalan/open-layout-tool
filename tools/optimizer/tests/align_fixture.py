@@ -1,5 +1,5 @@
 """Writes src/core/test/fixtures/align_answer.json: a real answer of the alignment
-fit for the app's own tests (src/core/utils/alignmentFit.test.js), so the app's half
+fit for the app's own tests (src/core/utils/survey/alignmentFit.test.js), so the app's half
 — the new track from the answer, the diagram, the report — is tested against
 what the service really says. Run again after changing alignment_fit.py:
 
