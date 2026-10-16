@@ -8,14 +8,12 @@ import DeleteForm from './DeleteForm'
 import DeleteTrackForm from './DeleteTrackForm'
 import DeleteSwitchForm from './DeleteSwitchForm'
 import SwitchStatusForm from './SwitchStatusForm'
-import AssignTracksForm from './AssignTracksForm'
-import TrackVisibilityForm from './TrackVisibilityForm'
 import RoutesForm from './RoutesForm'
 import BufferStopForm from '../CreateElementPanel/BufferStopForm'
 import {
   EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
-  ChangeDirectionIcon, AssignTracksIcon, DeleteTrackIcon, DeleteSwitchIcon,
-  BufferStopIcon, TrackVisibilityIcon, RouteIcon,
+  ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon,
+  BufferStopIcon, RouteIcon,
 } from '../../icons'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick from '../../../map/useMapPick'
@@ -62,14 +60,6 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
     </>
   )
 
-  if (page === 'assign_tracks') return (
-    <>
-      {backButton()}
-      <h2>{t('edit_assign_tracks')}</h2>
-      <AssignTracksForm onCommitted={() => setPage('menu')} />
-    </>
-  )
-
   if (page === 'delete') return (
     <>
       {backButton()}
@@ -91,14 +81,6 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
       </>
     )
   }
-
-  if (page === 'track_visibility') return (
-    <>
-      {backButton()}
-      <h2>{t('track_visibility')}</h2>
-      <TrackVisibilityForm />
-    </>
-  )
 
   if (page === 'routes') return (
     <>
@@ -174,17 +156,9 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
           <EditPropertiesIcon />
           {t('edit_track_properties')}
         </button>
-        <button className="create-element-btn" onClick={() => goto('assign_tracks')}>
-          <AssignTracksIcon />
-          {t('edit_assign_tracks')}
-        </button>
         <button className="create-element-btn" onClick={() => goto('change_direction')}>
           <ChangeDirectionIcon />
           {t('edit_change_direction')}
-        </button>
-        <button className="create-element-btn" onClick={() => goto('track_visibility')}>
-          <TrackVisibilityIcon />
-          {t('track_visibility')}
         </button>
         <button className="create-element-btn" onClick={() => goto('delete_track')}>
           <DeleteTrackIcon />

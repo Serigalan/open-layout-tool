@@ -4,9 +4,9 @@ import GroupedTrackList from '../GroupedTrackList'
 import { useI18n } from '../../../locales/i18nContext'
 
 /**
- * Which tracks the map shows (Bearbeiten → Gleise ein-/ausblenden): a tick a
- * track, a group's at once from its header, all of them with the buttons. It
- * is kept on this device per project (storage.hiddenTracks) and changes
+ * Which tracks the map shows (Projekteinstellungen → Gleise ein-/ausblenden,
+ * decision 327): a tick a track, a group's at once from its header, all of
+ * them with the buttons. It is kept on this device per project (storage.hiddenTracks) and changes
  * nothing about the tracks — the checks, the plan and the exchange file have
  * them all the same.
  */
