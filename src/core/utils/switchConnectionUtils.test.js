@@ -505,3 +505,102 @@ describe('a connection built from a form with a straight end piece', () => {
     expect(tight.switchType.label).toBe('190 – 1:7.5')
   })
 })
+
+// ── up to three elements between the branches (Entscheidung 305) ────────────
+
+describe('a connection with a chain of elements between the branches', () => {
+  const asTrack = (res) => {
+    const { branch1, midEls, branch2 } = buildConnectionElements(res, SPEED)
+    return { id: 't', epsg: EPSG, elements: recalcAbsLengths([...branch1, ...midEls, ...branch2]) }
+  }
+  const g1 = stem(ORIGIN, 0, null)
+  const parallel = stem(P(ORIGIN.easting - 6, ORIGIN.northing), 0, null)
+
+  it('one arc with both values open is the connection as it always was', () => {
+    const a = solveSwitchConnection(g1, parallel, SPEED, 0)
+    const b = solveSwitchConnection(g1, parallel, SPEED, 0, [{ type: 'arc', length: null, radius: null }])
+    expect(b.s2).toBe(a.s2)
+    expect(b.Lg).toBe(a.Lg)
+    expect(b.midPieces).toBeNull()
+  })
+
+  it('arc – straight – arc between parallel tracks: an S of the given radius, its arcs found', () => {
+    const mids = [
+      { type: 'arc', length: null, radius: 2000 },
+      { type: 'straight', length: 10, radius: null },
+      { type: 'arc', length: null, radius: 2000 },
+    ]
+    const res = solveSwitchConnection(g1, parallel, SPEED, 0, mids)
+    expect(res.valid).toBe(true)
+    expect(res.midPieces).toHaveLength(3)
+    const [a, s, b] = res.midPieces.map(p => p.route)
+    expect(Math.abs(a.r1)).toBeCloseTo(2000, 6)
+    expect(a.r1).toBeCloseTo(-b.r1, 6)
+    expect(a.length).toBeCloseTo(b.length, 4)
+    expect(s.length).toBeCloseTo(10, 9)
+    const track = asTrack(res)
+    expectValidTrack(track)
+  })
+
+  it('straight – arc – straight between converging tracks: the arc turns by what the tracks differ', () => {
+    const skew = stem(P(ORIGIN.easting - 30, ORIGIN.northing), 4, null)
+    const mids = [
+      { type: 'straight', length: null, radius: null },
+      { type: 'arc', length: 80, radius: null },
+      { type: 'straight', length: 8, radius: null },
+    ]
+    const res = solveSwitchConnection(g1, skew, SPEED, 0, mids)
+    expect(res.reason).toBeNull()
+    const [s1, arc, s2] = res.midPieces.map(p => p.route)
+    expect(arc.length).toBeCloseTo(80, 9)
+    // 4° less the two branches' angles, over 80 m.
+    expect(Math.abs(arc.r1)).toBeGreaterThan(500)
+    expect(s1.length).toBeGreaterThan(0)
+    expect(s2.length).toBeCloseTo(8, 9)
+    expectValidTrack(asTrack(res))
+  })
+
+  it('transitions take their neighbours\' curvatures', () => {
+    const skew = stem(P(ORIGIN.easting - 30, ORIGIN.northing), 4, null)
+    const mids = [
+      { type: 'straight', length: null, radius: null },
+      { type: 'transition', length: 15, radius: null },
+      { type: 'arc', length: null, radius: 1200 },
+    ]
+    const res = solveSwitchConnection(g1, skew, SPEED, 0, mids)
+    expect(res.reason).toBeNull()
+    const [straight, transition, arc] = res.midPieces.map(p => p.route)
+    expect(straight.r1).toBeNull()
+    expect(transition.r1).toBeNull()
+    expect(transition.r2).toBeCloseTo(arc.r1, 6)
+    expectValidTrack(asTrack(res))
+  })
+
+  it('wants exactly two values open', () => {
+    const res = solveSwitchConnection(g1, parallel, SPEED, 0, [
+      { type: 'arc', length: null, radius: null }, { type: 'straight', length: null, radius: null },
+    ])
+    expect(res.valid).toBe(false)
+    expect(res.reason).toBe('mid_unknowns')
+  })
+
+  it('says so where no chain of that kind closes', () => {
+    // Two straights cannot turn: between tracks that do not run parallel nothing closes.
+    const skew = stem(P(ORIGIN.easting - 30, ORIGIN.northing), 4, null)
+    const res = solveSwitchConnection(g1, skew, SPEED, 0, [
+      { type: 'straight', length: null, radius: null }, { type: 'straight', length: null, radius: null },
+    ])
+    expect(res.valid).toBe(false)
+    expect(res.reason).toBe('mid_no_solution')
+  })
+
+  it('holds every element of a chain to l_min (Entscheidung 306)', () => {
+    const mids = [
+      { type: 'arc', length: null, radius: 2000 },
+      { type: 'straight', length: 1, radius: null },
+      { type: 'arc', length: null, radius: 2000 },
+    ]
+    const res = solveSwitchConnection(g1, parallel, SPEED, 0, mids)
+    expect(res.reason).toBe('mid_element_short')
+  })
+})

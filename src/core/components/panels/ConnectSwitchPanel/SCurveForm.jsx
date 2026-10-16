@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitSwitchConnection } from '../../../storage'
 import { elementStations, stationFromClick } from '../../../utils/platformUtils'
 import { wgs84ToUTM } from '../../../utils/coordinateUtils'
@@ -14,6 +14,8 @@ import ReadOnlyField from '../../form/ReadOnlyField'
 import AdvancedInfo from '../../form/AdvancedInfo'
 import CommitBar from '../../form/CommitBar'
 import CancelButton from '../../form/CancelButton'
+import MidChainFields from './MidChainFields'
+import { DEFAULT_MIDS } from '../../../utils/switch/midChain'
 
 // ── Preview layers (managed by usePreview) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'
@@ -92,6 +94,11 @@ export default function SCurveForm({ onCommitted }) {
   // Straight the turnouts' through routes need beside the junction [m], set
   // when the commit found too little of it (see carveThrough).
   const [carveError, setCarveError] = useState(null)
+  // The elements between the two branches (Entscheidung 305).
+  const [mids, setMids] = useState(DEFAULT_MIDS)
+  // A chain is solved by iteration over the whole slider range: typing goes on
+  // while it runs, and the solution follows the last value typed.
+  const solvedMids = useDeferredValue(mids)
 
   const picksRef = useRef(picks)
   const speed    = CONNECTION_SPEEDS[speedIdx] ?? 0
@@ -145,13 +152,13 @@ export default function SCurveForm({ onCommitted }) {
   // change; untouched it stands where WA lies on an element change.
   const slider = useMemo(() => {
     if (phase !== 'config' || !picks[0] || !picks[1] || !speed) return null
-    const bounds = computeShiftBounds({ picks, speed })
+    const bounds = computeShiftBounds({ picks, speed, mids: solvedMids })
     return {
-      stops: shiftStops({ picks, speed }, bounds),
-      preferred: preferredShift({ picks, speed }, bounds),
+      stops: shiftStops({ picks, speed, mids: solvedMids }, bounds),
+      preferred: preferredShift({ picks, speed, mids: solvedMids }, bounds),
       offset: waOffset(picks),
     }
-  }, [phase, picks, speed])
+  }, [phase, picks, speed, solvedMids])
 
   // The slider's own value: the stop nearest to the one asked for.
   const stopIdx = useMemo(() => {
@@ -169,8 +176,8 @@ export default function SCurveForm({ onCommitted }) {
   const connections = useMemo(() => {
     if (!picks[0] || !picks[1]) return []
     const { g1, g2 } = stems(picks)
-    return computeSwitchConnections(g1, g2, shift)
-  }, [picks, shift])
+    return computeSwitchConnections(g1, g2, shift, solvedMids)
+  }, [picks, shift, solvedMids])
 
   // ── The connection itself ─────────────────────────────────────────────────
   // Closed-form and pure, so it is derived from the picks, the speed and the
@@ -179,9 +186,9 @@ export default function SCurveForm({ onCommitted }) {
   // element's node (settleConnection, LP.EL.01).
   const settled = useMemo(() => (
     phase === 'config' && picks[0] && picks[1] && speed
-      ? settleConnection({ picks, speed, shift })
+      ? settleConnection({ picks, speed, shift, mids: solvedMids })
       : null
-  ), [phase, picks, speed, shift])
+  ), [phase, picks, speed, shift, solvedMids])
   const result = settled?.result ?? null
 
   // ── Preview (the map is the only thing outside React here) ────────────────
@@ -205,6 +212,7 @@ export default function SCurveForm({ onCommitted }) {
     setShift(null)
     setPickStatus(null)
     setCarveError(null)
+    setMids(DEFAULT_MIDS)
   }
   const handleCancel = () => { reset(); onCommitted?.() }
 
@@ -249,6 +257,10 @@ export default function SCurveForm({ onCommitted }) {
               onChange={e => { setCarveError(null); setShift(slider?.stops[Number(e.target.value)] ?? null) }} />
           </div>
 
+          <MidChainFields mids={mids} onChange={(next) => { setCarveError(null); setMids(next) }}
+            solved={result?.midPieces?.map(p => p.route)
+              ?? (result?.valid ? [{ length: result.Lg, r1: result.signedRg, r2: result.signedRg }] : null)} />
+
           <AdvancedInfo>
             <ReadOnlyField label={t('scurve_line1')} value={picks[0]?.name ?? ''} />
             <ReadOnlyField label={t('scurve_line2')} value={picks[1]?.name ?? ''} />
@@ -258,9 +270,11 @@ export default function SCurveForm({ onCommitted }) {
             <ReadOnlyField label={t('scurve_angle')} value={`1:${result.switchType.ratio}  (${deg(result.w)}°)`} />
             <ReadOnlyField label={t('scurve_delta')} value={`${deg(result.delta)}°`} />
             <ReadOnlyField label={t('scurve_zgl')} value={`${result.Lg.toFixed(2)} m`} />
-            <ReadOnlyField label={t('scurve_mid_radius')} value={result.signedRg
+            {!result.midPieces && (
+              <ReadOnlyField label={t('scurve_mid_radius')} value={result.signedRg
                 ? `${Math.abs(result.signedRg).toFixed(0)} m`
                 : t('scurve_mid_straight')} />
+            )}
             {/* A branch bent straight is built as the plain form with its
                 routes swapped: the running track is then its branch, on the form's radius. */}
             <ReadOnlyField label={t('scurve_branch_radius')} value={[result.signedR1, result.signedR2]
@@ -278,6 +292,10 @@ export default function SCurveForm({ onCommitted }) {
         <p className={result?.valid ? 'msg-info' : 'msg-error'}>
           {result?.valid ? t('scurve_valid')
             : result?.reason === 'cant_mismatch' ? fill('scurve_cant_mismatch', ldsCants(result))
+              : result?.reason === 'mid_element_short' && result.midShort ? fill('scurve_mid_element_short_at', {
+                n: String(result.midShort.index + 1), l: result.midShort.length.toFixed(2),
+                lmin: result.midShort.lMin.toFixed(2), v: String(speed),
+              })
               : t(REASON_MSG[result?.reason] ?? 'scurve_invalid')}
         </p>
         {settled?.moved.length > 0 && (

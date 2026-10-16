@@ -10,6 +10,8 @@ import {
 } from './switch/route'
 import { computeClothoidUtm } from './clothoidUtils'
 import { arcElement, straightElement, transitionElement } from './elementFactory'
+import { MID_OPEN, endCurvature, isDefaultMids, midUnknowns, solveMidChain } from './switch/midChain'
+import { minElementLength } from './rules/elementLength'
 
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI
@@ -269,7 +271,7 @@ const SOLVE_STEPS = 40
  * (branchRadius). The middle element turns by whatever is left between the two
  * branch ends; its length follows from where they are.
  */
-function buildConnection(sw, frame, speed) {
+function buildConnection(sw, frame, speed, mids = null) {
   const { toe1, psiToe1, stem1, stem2, s1, side } = frame
   const w   = Math.atan(1 / sw.ratio)
   const Lb  = switchBranchLength(sw)              // the form's branch, bent or not
@@ -324,21 +326,48 @@ function buildConnection(sw, frame, speed) {
 
   // The search stays on the element the second turnout was picked on: outside it
   // there is no stem to lay a turnout in, and the shift bounds refuse it anyway.
-  const s2 = solveStation(at, Lb, stem2.route.length + 2 * Lb)
+  const closed = solveStation(at, Lb, stem2.route.length + 2 * Lb)
+  const single = isDefaultMids(mids)
+  const unsolved = (reason) => ({ sw, valid: false, reason, Lg: NaN, s2: null })
+  if (!single && midUnknowns(mids).length !== MID_OPEN) return unsolved('mid_unknowns')
+
+  // Up to three elements between the branches (Entscheidung 305): solved by
+  // iteration from the one-arc answer, which is where the user expects the
+  // second turnout.
+  let chainSol = null
+  if (!single) {
+    const first = closed == null ? null : at(closed)
+    const endAt = (x) => {
+      const h = at(x)
+      if (!h.B2A) return null
+      return { utm: h.B2A, bearing: bearingOf(h.t2), k: -endCurvature(h.chain2own) }
+    }
+    chainSol = solveMidChain({
+      mids, endAt,
+      start: { utm: B1E, bearing: bearingOf(t1), k: endCurvature(chain1) },
+      s2Start: closed ?? 0,
+      lgStart: first && Number.isFinite(first.Lg) ? first.Lg : Math.hypot(b1E - stemPoint(stem2, 0).easting, b1N - stemPoint(stem2, 0).northing),
+      deltaStart: first?.delta ?? 0,
+    })
+    if (!chainSol) return unsolved('mid_no_solution')
+  }
+  const s2 = single ? closed : chainSol.s2
   const hit = s2 == null ? null : at(s2)
 
-  if (!hit || !Number.isFinite(hit.Lg)) {
-    return { sw, valid: false, reason: 'no_solution', Lg: NaN, s2: null }
-  }
+  if (!hit || (single && !Number.isFinite(hit.Lg))) return unsolved('no_solution')
 
-  const { TP2, B2A, t2, delta, Lg, chain2own, bearOwn } = hit
+  const { TP2, B2A, t2, chain2own, bearOwn } = hit
+  const delta = hit.delta
+  const mid = chainSol?.pieces ?? null
+  const Lg = mid ? mid.reduce((sum, piece) => sum + piece.length, 0) : hit.Lg
 
   // Middle radius, signed the project's way: a left turn (δ > 0) runs on a
   // negative radius. Below the project's straight threshold it is a straight —
   // beyond ~1e7 m the radius is numerical noise anyway, and over a middle
-  // element that curvature stays under a tenth of a millimetre.
+  // element that curvature stays under a tenth of a millimetre. A chain of
+  // several elements states its radii piece by piece.
   const curvature = Lg > 0 ? delta / Lg : 0
-  const signedRg = Math.abs(curvature) < STRAIGHT_CURVATURE ? null : -1 / curvature
+  const signedRg = mid || Math.abs(curvature) < STRAIGHT_CURVATURE ? null : -1 / curvature
 
   // Branch 2 as the connection runs it, B2A → TP2: the same chain backwards.
   const chain2 = [...chain2own].reverse()
@@ -371,7 +400,15 @@ function buildConnection(sw, frame, speed) {
     const r = worst(piece.r1, piece.r2)
     return r ? computeCantDefSigned(speed, r, worst(uA, uB)) : 0
   }))
-  const defMid = signedRg ? computeCantDefSigned(speed, signedRg, cantMid) : 0
+  const defMid = mid
+    ? Math.max(0, ...mid.flatMap(piece => [piece.r1, piece.r2].map(r => (r ? computeCantDefSigned(speed, r, cantMid) : 0))))
+    : signedRg ? computeCantDefSigned(speed, signedRg, cantMid) : 0
+  // With several elements each has to be one (LP.EL.01 at the connection's
+  // speed); one alone keeps the form's minimum (Entscheidung 306).
+  const lMin = mid && mid.length > 1 ? minElementLength(speed) : null
+  const shortAt = lMin == null ? -1 : mid.findIndex(piece => piece.length < lMin - 1e-3)
+  const shortPiece = shortAt >= 0
+  const midShort = shortPiece ? { index: shortAt, length: mid[shortAt].length, lMin } : null
   const defB1  = defOf(chain1, cant1Start, cant1End)
   const defB2  = defOf(chain2, cant2Start, cant2End)
   const worstCant = Math.max(
@@ -380,6 +417,7 @@ function buildConnection(sw, frame, speed) {
   const reason =
     !Number.isFinite(Lg)                                  ? 'no_solution'
       : Lg < sw.minl                                      ? 'too_short'
+        : shortPiece                                      ? 'mid_element_short'
         : Math.abs(cantLds1 - cantLds2) > CANT_TOL        ? 'cant_mismatch'
           : worstCant > MAX_SWITCH_CANT                   ? 'cant_over'
             : Math.max(defB1, defB2) > MAX_SWITCH_CANT_DEF ? 'branch_too_sharp'
@@ -389,7 +427,7 @@ function buildConnection(sw, frame, speed) {
   return {
     sw, R: sw.R, w, side, delta, s2,
     TP1: toe1, B1E, B2A, TP2,
-    Lg, signedRg,
+    Lg, signedRg, mid, midShort,
     chain1, chain2,
     // The branch radius each turnout is built with: the form's own arc, which
     // is the piece at the toe. A straight end piece says nothing about the form.
@@ -467,11 +505,11 @@ export const CONNECTION_SPEEDS = [...new Set(SWITCH_CONNECTION_STAGES[0].map(typ
  * drives the dropdown's disabled state. A speed counts as available when any
  * form in its fallback chain builds a valid connection.
  */
-export function computeSwitchConnections(g1, g2, s = 0) {
+export function computeSwitchConnections(g1, g2, s = 0, mids = null) {
   const frame = connectionFrame(g1, g2, s)
   return CONNECTION_SPEEDS.map(speed => ({
     speed,
-    valid: fallbackChain(speed).some(sw => buildConnection(sw, frame, speed).valid),
+    valid: fallbackChain(speed).some(sw => buildConnection(sw, frame, speed, mids).valid),
   }))
 }
 
@@ -487,15 +525,16 @@ export function computeSwitchConnections(g1, g2, s = 0) {
  *
  * @param {number} speed selected design speed [km/h]
  * @param {number} s     shift of the first toe along track 1 [m]
+ * @param {object[]} [mids] the elements between the branches (switch/midChain); one arc by default
  */
-export function solveSwitchConnection(g1, g2, speed, s = 0) {
+export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null) {
   const zone  = g1.startUtm.zone
   const frame = connectionFrame(g1, g2, s)
 
   const chain = fallbackChain(speed)
   let c = null
   for (const sw of chain) {
-    c = buildConnection(sw, frame, speed)
+    c = buildConnection(sw, frame, speed, mids)
     if (c.valid) break
   }
   if (!c) return null
@@ -536,13 +575,20 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
   const arc2CoordsRender = c.valid ? joinCoords(branch2.map(p => p.renderCoords)) : null
 
   // The middle element's polyline: its two ends when straight, an arc otherwise.
-  // Both keep the neighbours' own WGS84 points, so the joins stay exact.
+  // Both keep the neighbours' own WGS84 points, so the joins stay exact. A
+  // chain of elements is placed piece by piece, from the first branch's end.
   const midArc = (sagitta) => {
     const a = arcCoordsFromRadiusUtm(B1E, B2A, signedRg, sagitta)
     return a ? [b1eWgs, ...a.slice(1, -1), b2aWgs] : [b1eWgs, b2aWgs]
   }
-  const midCoords       = c.valid && signedRg ? midArc(SAGITTA_ELEMENT) : [b1eWgs, b2aWgs]
-  const midCoordsRender = c.valid && signedRg ? midArc(SAGITTA_TRACK)   : [b1eWgs, b2aWgs]
+  const placed = c.mid ? chainPieces(B1E, switchChainBearingAt(c.bearing1, c.chain1), c.mid, zone, b1eWgs, b2aWgs) : null
+  // The chain closes on the second branch to the solver's tolerance; its last
+  // node is that branch's start, exactly, so the joint is shared.
+  const midPieces = placed && placed.map((p, i) => (i === placed.length - 1 ? { ...p, endUtm: B2A } : p))
+  const midCoords = midPieces ? joinCoords(midPieces.map(p => p.coords))
+    : c.valid && signedRg ? midArc(SAGITTA_ELEMENT) : [b1eWgs, b2aWgs]
+  const midCoordsRender = midPieces ? joinCoords(midPieces.map(p => p.renderCoords))
+    : c.valid && signedRg ? midArc(SAGITTA_TRACK) : [b1eWgs, b2aWgs]
 
   const allCoords = [...(arc1Coords ?? []), ...midCoords.slice(1), ...((arc2Coords ?? []).slice(1))]
   const valid = c.valid && !!arc1Coords && !!arc2Coords
@@ -557,7 +603,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0) {
     tp1Wgs, b1eWgs, b2aWgs, tp2Wgs,
     delta: c.delta, s1: frame.s1, s2: c.s2, flipped2: frame.flipped2, side: c.side,
     R: c.R, w: c.w, L1: c.L1, L2: c.L2, Lg: c.Lg,
-    signedR1, signedR2, signedRg,
+    signedR1, signedR2, signedRg, midPieces, midShort: c.midShort,
     chain1: c.chain1, chain2: c.chain2, branch1, branch2, bearing2A: c.bearing2A,
     stemR1: stemRadius(frame.stem1, frame.s1),
     stemR2: stemRadius(frame.stem2, c.s2),
@@ -664,7 +710,7 @@ function connectionElement(a, b, bearing, route, speed, cantA, cantB, coords, re
  * its own two ends.
  */
 export function buildConnectionElements(result, speed) {
-  const { B1E, B2A, signedRg, branch1, branch2, midCoords, midCoordsRender,
+  const { B1E, B2A, signedRg, branch1, branch2, midCoords, midCoordsRender, midPieces,
           cant1Start, cant1End, cant2Start, cant2End, cantMid } = result
   const mid = { length: 0, r1: signedRg, r2: signedRg }
 
@@ -676,10 +722,16 @@ export function buildConnectionElements(result, speed) {
       cantAt(p.s0), cantAt(p.s0 + p.route.length), p.coords, p.renderCoords))
   }
 
+  // Between the branches one element, or the chain of them (Entscheidung
+  // 305), every one on the middle's cant (Entscheidung 306).
+  const midEls = midPieces
+    ? midPieces.map(p => connectionElement(p.startUtm, p.endUtm, p.bearing, p.route, speed,
+      cantMid, cantMid, p.coords, p.renderCoords))
+    : [connectionElement(B1E, B2A, null, mid, speed, cantMid, cantMid, midCoords, midCoordsRender)]
   return {
     branch1: branchEls(branch1, cant1Start, cant1End),
-    midEl:   connectionElement(B1E, B2A, null, mid, speed,
-      cantMid, cantMid, midCoords, midCoordsRender),
+    midEl:   midEls[0],
+    midEls,
     branch2: branchEls(branch2, cant2Start, cant2End),
   }
 }
