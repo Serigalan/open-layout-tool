@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION, SWITCH_KINDS, SWITCH_ROUTES, SWITCH_PORTS,
-  elementBelongsToSwitch, isModelledSwitch, newSwitchFields, switchElementMark,
-  switchPorts, portsOf, switchRoutes, switchRoutePorts,
-  switchKindLabelKey, switchRouteLabelKey, LINK_KIND, isLinkSwitch,
+  DEFAULT_SWITCH_KIND, SWITCH_FORM_VERSION, SWITCH_KINDS, SWITCH_ROUTES, SWITCH_PORTS, elementBelongsToSwitch, isModelledSwitch, newSwitchFields, switchElementMark, switchPorts, portsOf, switchRoutes, switchRoutePorts, switchKindLabelKey, switchRouteLabelKey, LINK_KIND, isLinkSwitch, portTrack, portEnd, withPort,
 } from './switchModel'
 
 describe('the model’s vocabulary', () => {
@@ -58,11 +55,11 @@ describe('isModelledSwitch', () => {
 })
 
 describe('switchElementMark', () => {
-  it('carries the id, the route and the labels, and omits what the record has not got', () => {
+  it('carries the id and the route — the name and label stay on the switch (oltjson-1.0)', () => {
     expect(switchElementMark({ switchId: 'a', name: 'switch.001', label: '300 – 1:9' }, 'branch'))
       .toEqual({
         switchBranch: true, switchRoute: 'branch',
-        switchId: 'a', switchName: 'switch.001', switchLabel: '300 – 1:9',
+        switchId: 'a',
       })
     expect(switchElementMark({ switchId: 'a' }, 'main'))
       .toEqual({ switchBranch: true, switchRoute: 'main', switchId: 'a' })
@@ -89,13 +86,15 @@ describe('the ports and routes each kind has', () => {
     }
   })
 
-  it('pairs every port with the two field names a record carries it in', () => {
-    for (const kind of SWITCH_KINDS) {
-      for (const { port, trackKey, endKey } of switchPorts(kind)) {
-        expect(trackKey).toBe(`port${port}_trackId`)
-        expect(endKey).toBe(`port${port}_endpoint`)
-      }
-    }
+  it('reads and writes a port as { trackId, endpoint } under `ports` (oltjson-1.0)', () => {
+    const sw = { kind: 'turnout', ports: { A: { trackId: 'a', endpoint: 'END' } } }
+    expect(portTrack(sw, 'A')).toBe('a')
+    expect(portEnd(sw, 'A')).toBe('END')
+    expect(portTrack(sw, 'B1')).toBeNull()
+    const moved = withPort(sw, 'B1', { trackId: 'b', endpoint: 'BEGIN' })
+    expect(moved.ports).toEqual({ A: { trackId: 'a', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' } })
+    expect(withPort(moved, 'A', { endpoint: 'BEGIN' }).ports.A).toEqual({ trackId: 'a', endpoint: 'BEGIN' })
+    expect(sw.ports.B1).toBeUndefined()   // the record itself is left as it was
   })
 
   it('reads the ports off the record’s own kind', () => {

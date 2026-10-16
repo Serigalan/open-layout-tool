@@ -14,7 +14,7 @@ import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
 // `renderCoords` (coarse, SAGITTA_TRACK) — the same as reconstructElements
 // derives on load, so a fresh element and a reloaded one look alike.
 //
-// `extra` is merged in last: speed, cant, switch marks, absLength …
+// `extra` is merged in last: speed, cant, switch marks …
 
 const wgs = (p) => utmToWgs84(p.easting, p.northing, p.zone)
 const line = (coordinates) => ({ type: 'LineString', coordinates })

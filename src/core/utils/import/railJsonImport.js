@@ -1,5 +1,5 @@
 import { generateId } from '../identifierUtils'
-import { nextTrackName, rebuildCoords, recalcAbsLengths } from '../trackModel'
+import { nextTrackName, rebuildCoords } from '../trackModel'
 
 /**
  * What a parsed RailJSON or alignment exchange file (osrdImport) adds to a
@@ -17,7 +17,7 @@ export function planRailJsonImport({ tracks, switches = [], endMarks = [], infra
   const names = new Set(existingTracks.map(tr => tr.name).filter(Boolean))
   const idMap = {}
   const addTracks = tracks.map(tr => {
-    const elements = recalcAbsLengths(tr.elements)
+    const elements = tr.elements
     const name = tr.name && !names.has(tr.name)
       ? tr.name
       : nextTrackName(tr.name?.split('.')[0] || 'track', names)
@@ -33,9 +33,8 @@ export function planRailJsonImport({ tracks, switches = [], endMarks = [], infra
   // the passthrough copy is dropped there by id.
   const addSwitches = switches.map(sw => ({
     ...sw,
-    portA_trackId:  sw.portA_trackId  ? remapId(sw.portA_trackId)  : sw.portA_trackId,
-    portB1_trackId: sw.portB1_trackId ? remapId(sw.portB1_trackId) : sw.portB1_trackId,
-    portB2_trackId: sw.portB2_trackId ? remapId(sw.portB2_trackId) : sw.portB2_trackId,
+    ports: Object.fromEntries(Object.entries(sw.ports ?? {})
+      .map(([port, p]) => [port, p?.trackId ? { ...p, trackId: remapId(p.trackId) } : p])),
   }))
 
   // Buffer stops stand on the imported track ends; one whose id the project

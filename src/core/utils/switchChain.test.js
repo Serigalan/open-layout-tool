@@ -58,8 +58,11 @@ function single(heights) {
     ],
     switches: [{
       switchId: 's1', kind: 'turnout', label: 'TEST',
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'm', portB2_endpoint: 'BEGIN',
+      ports: {
+        A: { trackId: 'a', endpoint: 'END' },
+        B1: { trackId: 'b', endpoint: 'BEGIN' },
+        B2: { trackId: 'm', endpoint: 'BEGIN' },
+      },
     }],
   }
 }
@@ -182,8 +185,11 @@ describe('a turnout whose branch runs into the toe of the next (decision 271)', 
       ],
       switches: [...p.switches, {
         switchId: 's2', kind: 'turnout', label: 'TEST',
-        portA_trackId: 'b', portA_endpoint: 'END',
-        portB1_trackId: 'b2', portB1_endpoint: 'BEGIN', portB2_trackId: 'm2', portB2_endpoint: 'BEGIN',
+        ports: {
+          A: { trackId: 'b', endpoint: 'END' },
+          B1: { trackId: 'b2', endpoint: 'BEGIN' },
+          B2: { trackId: 'm2', endpoint: 'BEGIN' },
+        },
       }],
     }
   }
@@ -227,11 +233,9 @@ describe('a crossover (decision 272)', () => {
         track('m2', [m2, straight(endOf(m2), 270, 70)], [{ station: 0, z: h2[0] }, { station: 100, z: h2[1] }]),
       ],
       switches: [
-        { switchId: 's1', kind: 'turnout', label: 'TEST', portA_trackId: 'a1', portA_endpoint: 'END',
-          portB1_trackId: 'x', portB1_endpoint: 'BEGIN', portB2_trackId: 'm1', portB2_endpoint: 'BEGIN' },
+        { switchId: 's1', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a1', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'BEGIN' }, B2: { trackId: 'm1', endpoint: 'BEGIN' } }},
         // Seen from its toe, s2's branch turns the other way: to the left of its main route, too.
-        { switchId: 's2', kind: 'turnout', label: 'TEST', portA_trackId: 'a2', portA_endpoint: 'END',
-          portB1_trackId: 'x', portB1_endpoint: 'END', portB2_trackId: 'm2', portB2_endpoint: 'BEGIN' },
+        { switchId: 's2', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a2', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'END' }, B2: { trackId: 'm2', endpoint: 'BEGIN' } }},
       ],
     }
   }
@@ -308,10 +312,8 @@ describe('who leads a crossover: the track the write changed (decisions 275, 276
         track('m2', [m2, straight(endOf(m2), 270, 70)], [{ station: 0, z: 100.4 }, { station: 100, z: 100.1 }]),
       ],
       switches: [
-        { switchId: 's1', kind: 'turnout', label: 'TEST', portA_trackId: 'a1', portA_endpoint: 'END',
-          portB1_trackId: 'x', portB1_endpoint: 'BEGIN', portB2_trackId: 'm1', portB2_endpoint: 'BEGIN' },
-        { switchId: 's2', kind: 'turnout', label: 'TEST', portA_trackId: 'a2', portA_endpoint: 'END',
-          portB1_trackId: 'x', portB1_endpoint: 'END', portB2_trackId: 'm2', portB2_endpoint: 'BEGIN' },
+        { switchId: 's1', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a1', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'BEGIN' }, B2: { trackId: 'm1', endpoint: 'BEGIN' } }},
+        { switchId: 's2', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a2', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'END' }, B2: { trackId: 'm2', endpoint: 'BEGIN' } }},
       ],
     }
   }
@@ -366,8 +368,8 @@ describe.skipIf(!hasPek)('the crossovers of PEK Halle–Könnern (decisions 275,
     expect(coupleSwitchGradients(p)).toBe(p)
     const roles = heightRoles(p)
     const turnouts = p.switches.filter(s => switchCoupling(p.tracks, s))
-    const branchOf = (s) => (s.portB1_trackId && p.tracks.find(x => x.id === s.portB1_trackId)?.elements.some(el => el.switchRoute === 'branch' && el.switchId === s.switchId)
-      ? { id: s.portB1_trackId, end: s.portB1_endpoint } : { id: s.portB2_trackId, end: s.portB2_endpoint })
+    const branchOf = (s) => (s.ports?.B1?.trackId && p.tracks.find(x => x.id === s.ports?.B1?.trackId)?.elements.some(el => el.switchRoute === 'branch' && el.switchId === s.switchId)
+      ? { id: s.ports?.B1?.trackId, end: s.ports?.B1?.endpoint } : { id: s.ports?.B2?.trackId, end: s.ports?.B2?.endpoint })
     let checked = 0
     for (const s of turnouts) {
       const b = branchOf(s)
@@ -376,8 +378,8 @@ describe.skipIf(!hasPek)('the crossovers of PEK Halle–Könnern (decisions 275,
       const gap = Math.abs(switchCoupling(p.tracks, o).ldsBranch - switchCoupling(p.tracks, s).ldsBranch)
       if (gap > CROSSOVER_SPAN) continue
       // The free point next to the toe on the approach.
-      const a = p.tracks.find(x => x.id === s.portA_trackId)
-      const index = s.portA_endpoint === 'END' ? a.heights.length - 2 : 1
+      const a = p.tracks.find(x => x.id === s.ports?.A?.trackId)
+      const index = s.ports?.A?.endpoint === 'END' ? a.heights.length - 2 : 1
       if (roles.get(a.id)?.has(index)) continue
       const edited = { ...p, tracks: p.tracks.map(x => (x === a
         ? { ...x, heights: x.heights.map((q, i) => (i === index ? { ...q, z: q.z + 0.5 } : q)) } : x)) }

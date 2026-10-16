@@ -7,7 +7,7 @@ import { planSwitchDeletion } from './switchDelete'
 import { buildInfra } from './exchangeExport'
 import { parseOsrdRailJson } from './osrdImport'
 import { switchesToPorts } from './alignmentCodec'
-import { newSwitchFields, LINK_KIND } from './switchModel'
+import { newSwitchFields, LINK_KIND, withPort } from './switchModel'
 import { endPointStraightUtm } from './elementUtils'
 import { transformPlanePoint, transformGridBearing, utmToWgs84 } from './coordinateUtils'
 
@@ -32,7 +32,6 @@ function straight(id, epsg, easting, northing, bearing, length, name = id) {
       elementType: 0, length, bearing, endBearing: bearing,
       startNode: [start.easting, start.northing],
       endNode:   [end.easting, end.northing],
-      absLength: length,
       geometry: { type: 'LineString', coordinates: [
         utmToWgs84(start.easting, start.northing, epsg),
         utmToWgs84(end.easting, end.northing, epsg),
@@ -99,9 +98,11 @@ describe('where a link belongs', () => {
     const tracks = acrossThePlanes()
     const sw = {
       ...newSwitchFields(), name: 'W 1',
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB1_trackId: 'b', portB1_endpoint: 'BEGIN',
-      portB2_trackId: null, portB2_endpoint: null,
+      ports: {
+        A: { trackId: 'a', endpoint: 'END' },
+        B1: { trackId: 'b', endpoint: 'BEGIN' },
+        B2: { trackId: null, endpoint: null },
+      },
     }
     expect(claimedEnds([sw])).toEqual(new Set(['a|END', 'b|BEGIN']))
     expect(findTrackJoints(tracks, [sw]).joints).toHaveLength(0)
@@ -125,7 +126,7 @@ describe('where a link belongs', () => {
       ...a.elements[0],
       startNode: a.elements[0].endNode,
       endNode: a.elements[0].startNode,
-      bearing: 180, endBearing: 180, absLength: 200,
+      bearing: 180, endBearing: 180,
     })
     expect(findTrackJoints([a], []).joints).toHaveLength(0)
   })
@@ -178,12 +179,12 @@ describe('the record a joint becomes', () => {
     expect(rec.kind).toBe(LINK_KIND)
     expect(rec.name).toBe('link.001')
     expect(rec.formVersion).not.toBe(undefined)
-    expect(rec.portA_trackId).toBe(joint.a.trackId)
-    expect(rec.portA_endpoint).toBe(joint.a.endpoint)
-    expect(rec.portB_trackId).toBe(joint.b.trackId)
-    expect(rec.portB_endpoint).toBe(joint.b.endpoint)
+    expect(rec.ports?.A?.trackId).toBe(joint.a.trackId)
+    expect(rec.ports?.A?.endpoint).toBe(joint.a.endpoint)
+    expect(rec.ports?.B?.trackId).toBe(joint.b.trackId)
+    expect(rec.ports?.B?.endpoint).toBe(joint.b.endpoint)
     // It owns no track geometry at all.
-    expect(rec.portB1_trackId).toBe(undefined)
+    expect(rec.ports?.B1?.trackId).toBe(undefined)
   })
 
   it('draws a closed body on the node so the node can be picked at all', () => {
@@ -192,7 +193,7 @@ describe('the record a joint becomes', () => {
     expect(rec.fillCoords[0]).toEqual(rec.fillCoords[rec.fillCoords.length - 1])
     expect(rec.fillCoords).toHaveLength(5)
     const [lng, lat] = rec.bodyCentre
-    const end = trackEndAt(byId[rec.portA_trackId], rec.portA_endpoint)
+    const end = trackEndAt(byId[rec.ports?.A?.trackId], rec.ports?.A?.endpoint)
     expect([lng, lat]).toEqual(utmToWgs84(end.easting, end.northing, end.epsg))
     // Every corner is within the symbol's own reach of the node.
     for (const [cLng, cLat] of rec.fillCoords) {
@@ -229,10 +230,10 @@ describe('a link on the way to OSRD and back', () => {
     const back = switches[0]
     expect(back.kind).toBe(LINK_KIND)
     expect(back.name).toBe('link.001')
-    expect(back.portA_trackId).toBe(joint.a.trackId)
-    expect(back.portA_endpoint).toBe(joint.a.endpoint)
-    expect(back.portB_trackId).toBe(joint.b.trackId)
-    expect(back.portB_endpoint).toBe(joint.b.endpoint)
+    expect(back.ports?.A?.trackId).toBe(joint.a.trackId)
+    expect(back.ports?.A?.endpoint).toBe(joint.a.endpoint)
+    expect(back.ports?.B?.trackId).toBe(joint.b.trackId)
+    expect(back.ports?.B?.endpoint).toBe(joint.b.endpoint)
   })
 
   it('is dropped where the file brings no track for one of its ports', () => {
@@ -271,7 +272,7 @@ describe('the links a project already has', () => {
 
   it('says nothing about a link whose track is gone, and says it first', () => {
     const wide = linkRecord(joint, 'wide')
-    const broken = { ...linkRecord(joint, 'broken'), portA_trackId: 'no-such-track' }
+    const broken = withPort(linkRecord(joint, 'broken'), 'A', { trackId: 'no-such-track' })
     const links = existingLinks([wide, broken], [a, b])
     expect(links.map(l => l.sw.name)).toEqual(['broken', 'wide'])
     expect(links[0].gap).toBe(null)
@@ -287,7 +288,7 @@ describe('the links a project already has', () => {
   })
 
   it('leaves everything that is not a link out of the list', () => {
-    const turnout = { ...newSwitchFields(), name: 'W 1', portA_trackId: 'a', portA_endpoint: 'END' }
+    const turnout = { ...newSwitchFields(), name: 'W 1', ports: { A: { trackId: 'a', endpoint: 'END' } }}
     expect(existingLinks([turnout], [a, b])).toEqual([])
   })
 })
@@ -309,8 +310,7 @@ describe('writing the links of a whole import', () => {
     const [a, b] = acrossThePlanes()
     const sw = {
       ...newSwitchFields(), name: 'W 1',
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB1_trackId: 'b', portB1_endpoint: 'BEGIN',
+      ports: { A: { trackId: 'a', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' } },
     }
     expect(linkAllJoints([a, b], [sw]).links).toEqual([])
   })

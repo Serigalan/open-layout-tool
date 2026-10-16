@@ -12,7 +12,7 @@ beforeAll(() => {
 
 const straight = (id, y) => ({
   id, name: id, epsg: 25832,
-  elements: [{ elementType: 0, bearing: 90, length: 100, absLength: 100, startNode: [500000, 5700000 + y], endNode: [500100, 5700000 + y] }],
+  elements: [{ elementType: 0, bearing: 90, length: 100, startNode: [500000, 5700000 + y], endNode: [500100, 5700000 + y] }],
 })
 
 let ctx, user

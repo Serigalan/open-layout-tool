@@ -141,16 +141,15 @@ const newSwitchId = () => crypto.randomUUID()
 
 /**
  * What an element of a switch's route carries so it can be found again: the
- * switch's id and which of its routes this is, plus the name and form label the
- * map and the plan write along it.
+ * switch's id and which of its routes this is. Its name and form label are the
+ * switch's own and are read there (oltjson-1.0, decision 333) — an element
+ * keeps no copy of them.
  */
 export function switchElementMark(sw, route) {
   return {
     switchBranch: true,
     switchRoute:  route,
     ...(sw.switchId ? { switchId: sw.switchId } : {}),
-    ...(sw.name     ? { switchName: sw.name }   : {}),
-    ...(sw.label    ? { switchLabel: sw.label } : {}),
   }
 }
 
@@ -176,11 +175,11 @@ export function isModelledSwitch(sw) {
 }
 
 /**
- * The ports of each kind: the track each names, which end of that track the
- * switch sits at, and which of the switch's routes carries the elements marked
- * there. A port is a pair of fields on the record rather than a record of its
- * own — that is the shape the store, the exchange format and the OSRD codec all
- * read, and the one place that pairs the two field names is here.
+ * The ports of each kind: which of the switch's routes carries the elements
+ * marked there. What a port joins stands on the record under `ports` (oltjson-
+ * 1.0, decision 333): `ports.A = { trackId, endpoint }` — the track it names
+ * and which end of that track ('BEGIN' | 'END') the switch sits at. portTrack and
+ * portEnd read it, withPort writes it.
  *
  * A turnout has three, and port A is its toe: the switch owns no elements there
  * — the toe is a node, not a stretch — so `route` says which route *would* run
@@ -192,15 +191,15 @@ export function isModelledSwitch(sw) {
  */
 const PORTS_BY_KIND = {
   turnout: [
-    { port: 'A',  trackKey: 'portA_trackId',  endKey: 'portA_endpoint',  route: 'main' },
-    { port: 'B1', trackKey: 'portB1_trackId', endKey: 'portB1_endpoint', route: 'branch' },
-    { port: 'B2', trackKey: 'portB2_trackId', endKey: 'portB2_endpoint', route: 'main' },
+    { port: 'A', route: 'main' },
+    { port: 'B1', route: 'branch' },
+    { port: 'B2', route: 'main' },
   ],
   crossing: [
-    { port: 'A', trackKey: 'portA_trackId', endKey: 'portA_endpoint', route: 'main' },
-    { port: 'B', trackKey: 'portB_trackId', endKey: 'portB_endpoint', route: 'cross' },
-    { port: 'C', trackKey: 'portC_trackId', endKey: 'portC_endpoint', route: 'main' },
-    { port: 'D', trackKey: 'portD_trackId', endKey: 'portD_endpoint', route: 'cross' },
+    { port: 'A', route: 'main' },
+    { port: 'B', route: 'cross' },
+    { port: 'C', route: 'main' },
+    { port: 'D', route: 'cross' },
   ],
 }
 PORTS_BY_KIND.single_slip = PORTS_BY_KIND.crossing
@@ -209,11 +208,11 @@ PORTS_BY_KIND.double_slip = PORTS_BY_KIND.crossing
 // from opposite sides. `route: null` is not a gap in the table — it says there
 // is no route to look for, which is how switchParts finds none.
 PORTS_BY_KIND.link = [
-  { port: 'A', trackKey: 'portA_trackId', endKey: 'portA_endpoint', route: null },
-  { port: 'B', trackKey: 'portB_trackId', endKey: 'portB_endpoint', route: null },
+  { port: 'A', route: null },
+  { port: 'B', route: null },
 ]
 
-/** The ports of a kind, as the field pairs a record carries them in. */
+/** The ports of a kind. */
 export const switchPorts = (kind) => PORTS_BY_KIND[kind] ?? PORTS_BY_KIND[DEFAULT_SWITCH_KIND]
 
 /** The ports of this record, by its own kind. */
@@ -221,6 +220,17 @@ export const portsOf = (sw) => switchPorts(sw?.kind)
 
 /** The ports of a turnout — what every record built so far carries. */
 export const SWITCH_PORTS = switchPorts(DEFAULT_SWITCH_KIND)
+
+/** The track `port` of `sw` joins, or null. */
+export const portTrack = (sw, port) => sw?.ports?.[port]?.trackId ?? null
+
+/** Which end of its track `port` of `sw` sits at ('BEGIN' | 'END'), or null. */
+export const portEnd = (sw, port) => sw?.ports?.[port]?.endpoint ?? null
+
+/** `sw` with `patch` ({ trackId?, endpoint? }) written over its `port`. */
+export const withPort = (sw, port, patch) => ({
+  ...sw, ports: { ...sw.ports, [port]: { ...sw.ports?.[port], ...patch } },
+})
 
 /** Does this element carry `sw`'s mark for `route`? */
 export const elementOnSwitchRoute = (el, sw, route) => Boolean(el?.switchBranch)
@@ -236,7 +246,7 @@ export const elementOnSwitchRoute = (el, sw, route) => Boolean(el?.switchBranch)
  */
 export function unmarkSwitchElement(el) {
   const {
-    switchBranch: _b, switchRoute: _r, switchId: _i, switchName: _n, switchLabel: _l,
+    switchBranch: _b, switchRoute: _r, switchId: _i,
     cantException: _c, ...rest
   } = el
   return rest

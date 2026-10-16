@@ -12,7 +12,7 @@ import { wgs84ToUTM, utmToWgs84 } from './coordinateUtils'
 import {
   computeStraightValuesUtm, computeCurvedValuesUtm, endPointStraightUtm, endPointCurvedUtm,
 } from './elementUtils'
-import { recalcAbsLengths, rebuildCoords } from './trackModel'
+import { rebuildCoords } from './trackModel'
 import { placeSwitchOnTrack } from './switchPlacement'
 import { expectValidTrack } from '../test/chainInvariants'
 import { buildCrossingOnTrack, crossingOnTrackPlacement } from './commands/switches'
@@ -199,7 +199,7 @@ describe('crossingRoutesFromTracks — the legs read back', () => {
       const v = computeStraightValuesUtm(fromUtm, toUtm)
       return {
         elementType: 0, startNode: v.startNode, endNode: v.endNode,
-        bearing: v.bearing, length: v.length, absLength: v.length,
+        bearing: v.bearing, length: v.length,
         ...switchElementMark(identity, route),
       }
     }
@@ -209,10 +209,12 @@ describe('crossingRoutesFromTracks — the legs read back', () => {
     const legD = { id: 'd', epsg: EPSG, elements: [straight(g.centreUtm, g.portD_utm, 'cross')] }
     const sw = {
       ...identity,
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB_trackId: 'b', portB_endpoint: 'END',
-      portC_trackId: 'c', portC_endpoint: 'BEGIN',
-      portD_trackId: 'd', portD_endpoint: 'BEGIN',
+      ports: {
+        A: { trackId: 'a', endpoint: 'END' },
+        B: { trackId: 'b', endpoint: 'END' },
+        C: { trackId: 'c', endpoint: 'BEGIN' },
+        D: { trackId: 'd', endpoint: 'BEGIN' },
+      },
     }
     const byId = { a: legA, b: legB, c: legC, d: legD }
     const routes = crossingRoutesFromTracks(sw, byId)
@@ -231,15 +233,17 @@ describe('crossingRoutesFromTracks — the legs read back', () => {
     const identity = { ...newSwitchFields('crossing'), label: 'Kr 1:9' }
     const els = (e) => [{
       elementType: 0, startNode: [e, 0], endNode: [e, 100],
-      bearing: 0, length: 100, absLength: 100,
+      bearing: 0, length: 100,
       ...switchElementMark(identity, 'main'),
     }]
     const sw = {
       ...identity,
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB_trackId: 'b', portB_endpoint: 'END',
-      portC_trackId: 'c', portC_endpoint: 'BEGIN',
-      portD_trackId: 'd', portD_endpoint: 'BEGIN',
+      ports: {
+        A: { trackId: 'a', endpoint: 'END' },
+        B: { trackId: 'b', endpoint: 'END' },
+        C: { trackId: 'c', endpoint: 'BEGIN' },
+        D: { trackId: 'd', endpoint: 'BEGIN' },
+      },
     }
     expect(crossingRoutesFromTracks(sw, {
       a: { id: 'a', epsg: EPSG, elements: els(0) },
@@ -259,7 +263,7 @@ describe('rebuildSwitchSymbol — the wedges come back', () => {
       const v = computeStraightValuesUtm(fromUtm, toUtm)
       return {
         elementType: 0, startNode: v.startNode, endNode: v.endNode,
-        bearing: v.bearing, length: v.length, absLength: v.length,
+        bearing: v.bearing, length: v.length,
         ...switchElementMark(identity, route),
       }
     }
@@ -269,10 +273,12 @@ describe('rebuildSwitchSymbol — the wedges come back', () => {
     const legD = { id: 'd', epsg: EPSG, elements: [straight(g.centreUtm, g.portD_utm, 'cross')] }
     const sw = {
       ...identity,
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB_trackId: 'b', portB_endpoint: 'END',
-      portC_trackId: 'c', portC_endpoint: 'BEGIN',
-      portD_trackId: 'd', portD_endpoint: 'BEGIN',
+      ports: {
+        A: { trackId: 'a', endpoint: 'END' },
+        B: { trackId: 'b', endpoint: 'END' },
+        C: { trackId: 'c', endpoint: 'BEGIN' },
+        D: { trackId: 'd', endpoint: 'BEGIN' },
+      },
     }
     const rebuilt = rebuildSwitchSymbol(sw, { a: legA, b: legB, c: legC, d: legD })
     expect(rebuilt.fillCoords).toHaveLength(2)
@@ -297,16 +303,18 @@ describe('planSwitchDeletion — the crossing kinds', () => {
       { easting: 0, northing: 0, zone: EPSG }, { easting: 0, northing: 16.727, zone: EPSG })
     return [{
       elementType: 0, startNode: v.startNode, endNode: v.endNode,
-      bearing: 0, length: v.length, absLength: v.length,
+      bearing: 0, length: v.length,
       ...switchElementMark(identity, route),
     }]
   }
   const sw = {
     ...identity, switchId: identity.switchId,
-    portA_trackId: 'a', portA_endpoint: 'END',
-    portB_trackId: 'b', portB_endpoint: 'END',
-    portC_trackId: 'c', portC_endpoint: 'BEGIN',
-    portD_trackId: 'd', portD_endpoint: 'BEGIN',
+    ports: {
+      A: { trackId: 'a', endpoint: 'END' },
+      B: { trackId: 'b', endpoint: 'END' },
+      C: { trackId: 'c', endpoint: 'BEGIN' },
+      D: { trackId: 'd', endpoint: 'BEGIN' },
+    },
   }
   const legs = () => ({
     a: { id: 'a', name: 'a', epsg: EPSG, elements: legEls('main') },
@@ -361,7 +369,7 @@ describe('planSwitchDeletion — the crossing kinds', () => {
         { easting: 0, northing: 0, zone: EPSG }, { easting: 0, northing: 16.727, zone: EPSG })
       return {
         elementType: 0, startNode: v.startNode, endNode: v.endNode,
-        bearing: 0, length: v.length, absLength: v.length,
+        bearing: 0, length: v.length,
         ...switchElementMark(slipIdentity, route),
       }
     }
@@ -430,10 +438,12 @@ describe('the OSRD export of a crossing', () => {
   it('names the ports and the type the OSRD node types do', () => {
     const sw = {
       ...newSwitchFields('double_slip'), name: 'crossing.001', number: 1,
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB_trackId: 'b', portB_endpoint: 'END',
-      portC_trackId: 'c', portC_endpoint: 'BEGIN',
-      portD_trackId: 'd', portD_endpoint: 'BEGIN',
+      ports: {
+        A: { trackId: 'a', endpoint: 'END' },
+        B: { trackId: 'b', endpoint: 'END' },
+        C: { trackId: 'c', endpoint: 'BEGIN' },
+        D: { trackId: 'd', endpoint: 'BEGIN' },
+      },
     }
     const [out] = switchesToPorts([sw], { a: {}, b: {}, c: {}, d: {} })
     expect(out.id).toBe(sw.switchId)
@@ -477,7 +487,7 @@ function straightElement(startUtm, bearing, length) {
   return {
     elementType: 0,
     startNode: v.startNode, endNode: v.endNode,
-    bearing: v.bearing, length: v.length, absLength: v.length,
+    bearing: v.bearing, length: v.length,
     geometry: { type: 'LineString', coordinates: [toWgs(startUtm), toWgs(endUtm)] },
   }
 }
@@ -489,13 +499,13 @@ function arcElement(startUtm, bearing, signedR, length) {
     elementType: 1,
     startNode: v.startNode, endNode: v.endNode,
     bearing: v.bearing, endBearing: v.endBearing,
-    length: v.length, absLength: v.length, radius: signedR,
+    length: v.length, radius: signedR,
     geometry: { type: 'LineString', coordinates: [toWgs(startUtm), toWgs(endUtm)] },
   }
 }
 
 const trackOf = (id, elements) => {
-  const els = recalcAbsLengths(elements)
+  const els = elements
   return { id, epsg: EPSG, elements: els, coordinates: rebuildCoords(els) }
 }
 
@@ -528,12 +538,12 @@ function commitCrossingOnTrack(host, station, type, crossAngleDeg, crossBeyond =
   // Ordinary track past the cross legs' ports — the line a deletion decides by.
   const tracks = commit.addTracks.map(tr => {
     if (!crossBeyond) return tr
-    if (tr.id === sw.portB_trackId) {
+    if (tr.id === sw.ports?.B?.trackId) {
       return trackOf(tr.id, [straightElement(
         endPointStraightUtm(g.portB_utm, (g.crossBearing + 180) % 360, crossBeyond),
         g.crossBearing, crossBeyond), ...tr.elements])
     }
-    if (tr.id === sw.portD_trackId) {
+    if (tr.id === sw.ports?.D?.trackId) {
       return trackOf(tr.id, [...tr.elements, straightElement(g.portD_utm, g.crossBearing, crossBeyond)])
     }
     return tr
@@ -604,7 +614,7 @@ describe('the crossing laid into a track (AP 3.3)', () => {
     expect(plan.removeTrackIds).toEqual([])
     expect(plan.removedElements).toBe(0)
     expect(plan.updateTracks.map(tr => tr.id).sort())
-      .toEqual([sw.portA_trackId, sw.portB_trackId, sw.portC_trackId, sw.portD_trackId].sort())
+      .toEqual([sw.ports?.A?.trackId, sw.ports?.B?.trackId, sw.ports?.C?.trackId, sw.ports?.D?.trackId].sort())
     for (const tr of plan.updateTracks) {
       expect(tr.elements.some(el => el.switchBranch)).toBe(false)
     }
@@ -614,10 +624,10 @@ describe('the crossing laid into a track (AP 3.3)', () => {
     const { sw, tracks } = commitCrossingOnTrack(hostTrack(), 50, kr9, alpha)
     const plan = planSwitchDeletion(sw, tracks)
     expect(plan.reason).toBe('crossing_one')
-    expect(plan.removeTrackIds.sort()).toEqual([sw.portB_trackId, sw.portD_trackId].sort())
+    expect(plan.removeTrackIds.sort()).toEqual([sw.ports?.B?.trackId, sw.ports?.D?.trackId].sort())
     // The main legs stay as ordinary track — the line runs on through the point.
     expect(plan.updateTracks.map(tr => tr.id).sort())
-      .toEqual([sw.portA_trackId, sw.portC_trackId].sort())
+      .toEqual([sw.ports?.A?.trackId, sw.ports?.C?.trackId].sort())
     for (const tr of plan.updateTracks) {
       expect(tr.elements.some(el => el.switchBranch)).toBe(false)
     }
@@ -759,10 +769,12 @@ describe('the Bogenkreuzungsweichen (AP 3.4)', () => {
     }
     const sw = {
       ...id,
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB_trackId: 'b', portB_endpoint: 'END',
-      portC_trackId: 'c', portC_endpoint: 'BEGIN',
-      portD_trackId: 'd', portD_endpoint: 'BEGIN',
+      ports: {
+        A: { trackId: 'a', endpoint: 'END' },
+        B: { trackId: 'b', endpoint: 'END' },
+        C: { trackId: 'c', endpoint: 'BEGIN' },
+        D: { trackId: 'd', endpoint: 'BEGIN' },
+      },
     }
     const routes = crossingRoutesFromTracks(sw, legs)
     expect(routes.type).toBe(dbkw)
@@ -783,7 +795,7 @@ describe('the Bogenkreuzungsweichen (AP 3.4)', () => {
     // A record whose tracks carry no leg behind the point mirrors the one
     // ahead — which on an arc is the same arc, so the same corners.
     const mirrored = crossingBodyUtm(crossingRoutesFromTracks(
-      { ...sw, portA_trackId: 'none', portB_trackId: 'none' }, legs))
+      { ...sw, ports: { ...sw.ports, A: { ...sw.ports?.A, trackId: 'none' }, B: { ...sw.ports?.B, trackId: 'none' } }}, legs))
     expect(dist(mirrored[0][0], g.portA)).toBeLessThan(1e-6)
     expect(dist(mirrored[0][1], g.portB)).toBeLessThan(1e-6)
   })

@@ -6,6 +6,7 @@ import { splitTrackAtJoint } from '../trackSplitUtils'
 import { joinTracks } from '../trackModel'
 import { diffProject, diffSize, mergeProject, resolve } from './index'
 import { primary } from './diff'
+import { portTrack, portEnd, withPort } from '../switchModel'
 
 const SWITCH_1 = '00000000-0000-4000-8000-000000000001'
 const A = 'a9f56232-878c-4eef-ab79-09131c7c1212'     // 6050.001, switch.001's toe at its END
@@ -20,10 +21,10 @@ function split(p, id, j) {
   const { tracks: [b, c] } = splitTrackAtJoint(old, j, old.elements[j].bearing, new Set())
   p.tracks = p.tracks.flatMap(t => (t.id === id ? [primary({ tracks: [b] }).tracks[0], primary({ tracks: [c] }).tracks[0]] : [t]))
   p.switches = p.switches.map(sw => {
-    const out = { ...sw }
+    let out = sw
     for (const k of ['A', 'B1', 'B2']) {
-      if (sw[`port${k}_trackId`] !== id) continue
-      out[`port${k}_trackId`] = sw[`port${k}_endpoint`] === 'BEGIN' ? b.id : c.id
+      if (portTrack(sw, k) !== id) continue
+      out = withPort(out, k, { trackId: portEnd(sw, k) === 'BEGIN' ? b.id : c.id })
     }
     return out
   })
@@ -45,7 +46,7 @@ describe.skipIf(!hasPek)('mergeProject — PEK Halle–Könnern', () => {
     other.title = 'Neu'
     trackOf(other, A).name = 'x'
     other.platforms.pop()
-    other.switches[0].portA_endpoint = 'BEGIN'
+    other.switches[0].ports.A.endpoint = 'BEGIN'
     const d = diffProject(base, other)
     expect(d.project.changed).toEqual(['title'])
     expect(d.tracks.changed).toEqual([expect.objectContaining({ id: A, fields: ['name'] })])
@@ -88,8 +89,8 @@ describe.skipIf(!hasPek)('mergeProject — PEK Halle–Könnern', () => {
 
   it('the ports of a switch are merged as one field', () => {
     const base = loadPek(), mine = loadPek(), theirs = loadPek()
-    switchOf(mine, SWITCH_1).portA_endpoint = 'BEGIN'
-    switchOf(theirs, SWITCH_1).portB1_endpoint = 'END'
+    switchOf(mine, SWITCH_1).ports.A.endpoint = 'BEGIN'
+    switchOf(theirs, SWITCH_1).ports.B1.endpoint = 'END'
     const { conflicts } = mergeProject({ base, mine, theirs })
     expect(conflicts.map(c => c.id)).toEqual([`switches:${SWITCH_1}:ports`])
   })
@@ -132,7 +133,7 @@ describe.skipIf(!hasPek)('mergeProject — PEK Halle–Könnern', () => {
   it('rule 5: a switch and a platform the other side put on a split track follow it to the right piece', () => {
     const base = loadPek(), mine = loadPek(), theirs = loadPek()
     const { b, c, log } = split(mine, A, 30)
-    expect(switchOf(mine, SWITCH_1).portA_trackId).toBe(c.id)
+    expect(switchOf(mine, SWITCH_1).ports?.A?.trackId).toBe(c.id)
 
     const tA = trackOf(theirs, A)
     const L = len(tA), lb = len(b)
@@ -149,7 +150,7 @@ describe.skipIf(!hasPek)('mergeProject — PEK Halle–Könnern', () => {
     expect(pf.endStation).toBeCloseTo(L - 150 - lb, 2)
     expect(merged.platforms.find(p => p.id === 'pf-front')).toMatchObject({ trackId: b.id, startStation: 100, endStation: 200 })
     expect(merged.endMarks).toEqual([expect.objectContaining({ trackId: b.id, endpoint: 'BEGIN' })])
-    expect(switchOf(merged, SWITCH_1)).toMatchObject({ portA_trackId: c.id, portA_endpoint: 'END', speed: 40 })
+    expect(switchOf(merged, SWITCH_1)).toMatchObject({ ports: { A: { trackId: c.id, endpoint: 'END' } }, speed: 40 })
     // The platform the data set already had on A is carried too: the split
     // left it naming A on mine as well.
     const existing = base.platforms.find(p => p.trackId === A).id
@@ -160,16 +161,16 @@ describe.skipIf(!hasPek)('mergeProject — PEK Halle–Könnern', () => {
     const base = loadPek(), mine = loadPek(), theirs = loadPek()
     const { b, log } = split(mine, A, 30)
     // Theirs repoints switch.001's toe from A.END to A.BEGIN.
-    switchOf(theirs, SWITCH_1).portA_endpoint = 'BEGIN'
+    switchOf(theirs, SWITCH_1).ports.A.endpoint = 'BEGIN'
     // Mine left that switch alone apart from the split's own repoint, so its
     // ports changed on both sides — as they did.
     const { conflicts } = mergeProject({ base, mine, theirs, remapsMine: log })
     expect(conflicts.map(c => c.field)).toEqual(['ports'])
     // A new switch theirs added at A.BEGIN goes to b.BEGIN.
     const t2 = loadPek()
-    t2.switches.push({ ...switchOf(t2, SWITCH_1), switchId: 'sw-new', portA_trackId: A, portA_endpoint: 'BEGIN' })
+    t2.switches.push({ ...withPort(switchOf(t2, SWITCH_1), 'A', { trackId: A, endpoint: 'BEGIN' }), switchId: 'sw-new' })
     const r = mergeProject({ base, mine, theirs: t2, remapsMine: log })
-    expect(switchOf(r.merged, 'sw-new')).toMatchObject({ portA_trackId: b.id, portA_endpoint: 'BEGIN' })
+    expect(switchOf(r.merged, 'sw-new')).toMatchObject({ ports: { A: { trackId: b.id, endpoint: 'BEGIN' } } })
   })
 
   it('rule 5: a platform across the cut cannot be carried and keeps its old track', () => {
@@ -195,7 +196,7 @@ describe.skipIf(!hasPek)('mergeProject — PEK Halle–Könnern', () => {
     const mine = structuredClone(base), theirs = structuredClone(base)
     const joined = primary({ tracks: [joinTracks(trackOf(mine, b.id), trackOf(mine, c.id))] }).tracks[0]
     mine.tracks = mine.tracks.filter(t => t.id !== c.id).map(t => (t.id === b.id ? joined : t))
-    switchOf(mine, SWITCH_1).portA_trackId = b.id
+    switchOf(mine, SWITCH_1).ports.A.trackId = b.id
     const log = [{ from: c.id, to: [b.id] }]
 
     const lb = len(b)

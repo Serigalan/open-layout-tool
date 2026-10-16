@@ -1,5 +1,5 @@
 import { generateId } from './identifierUtils'
-import { recalcAbsLengths, rebuildCoords } from './trackModel'
+import { rebuildCoords } from './trackModel'
 import { reconstructElements } from './elementReconstruct'
 import { crsName } from './coordinateUtils'
 import { surveyPoints } from './axisSurvey'
@@ -187,7 +187,7 @@ export function trackFromFit(answer, { name, epsg, newId = generateId }) {
     }
   }
   const rebuilt = reconstructElements(answer.elements.map((el, i) => ({ ...el, epsg: plane, speed: 0, ...cantOf(i) })), plane)
-  const elements = recalcAbsLengths(rebuilt)
+  const elements = rebuilt
   const heights = answer.gradient?.heights?.map(({ station, z, rv }) => ({ station, z, ...(rv && { rv }) }))
   return {
     id: newId(), epsg: plane, name, status: 'existing',

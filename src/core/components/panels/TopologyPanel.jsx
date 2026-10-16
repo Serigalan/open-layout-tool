@@ -3,7 +3,7 @@ import { loadTracks, loadSwitches, loadEndMarks } from '../../storage'
 import { topologySelectionAt } from '../../utils/topologyLayer'
 import { classifyTrackEnds } from '../../utils/topology'
 import { selectionHighlight } from '../../utils/topologyGraph'
-import { portsOf, switchKindLabelKey } from '../../utils/switchModel'
+import { portsOf, switchKindLabelKey, portTrack, portEnd } from '../../utils/switchModel'
 import TopologyEndsList from './TopologyEndsList'
 import { useI18n } from '../../locales/i18nContext'
 import { useProject } from '../../hooks/useStore'
@@ -49,8 +49,8 @@ export default function TopologyPanel({ selection, onSelect, graphOpen, onShowGr
       return {
         kind: 'switch', sw, colors,
         ports: portsOf(sw)
-          .filter(p => sw[p.trackKey])
-          .map(p => ({ port: p.port, trackId: sw[p.trackKey], track: byId.get(sw[p.trackKey]), endpoint: sw[p.endKey] })),
+          .filter(p => portTrack(sw, p.port))
+          .map(p => ({ port: p.port, trackId: portTrack(sw, p.port), track: byId.get(portTrack(sw, p.port)), endpoint: portEnd(sw, p.port) })),
       }
     }
     const track = byId.get(selection.id)
@@ -59,8 +59,8 @@ export default function TopologyPanel({ selection, onSelect, graphOpen, onShowGr
     return {
       kind: 'track', track,
       ends: ['BEGIN', 'END'].map(endpoint => {
-        const sw = switches.find(s => portsOf(s).some(p => s[p.trackKey] === track.id && s[p.endKey] === endpoint))
-        const port = sw && portsOf(sw).find(p => sw[p.trackKey] === track.id && sw[p.endKey] === endpoint).port
+        const sw = switches.find(s => portsOf(s).some(p => portTrack(s, p.port) === track.id && portEnd(s, p.port) === endpoint))
+        const port = sw && portsOf(sw).find(p => portTrack(sw, p.port) === track.id && portEnd(sw, p.port) === endpoint).port
         const state = ends.find(e => e.endpoint === endpoint)?.state
         return { endpoint, sw, port, state }
       }),

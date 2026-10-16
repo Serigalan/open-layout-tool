@@ -38,7 +38,7 @@
 import { gradientAt, roundHeight } from './heightUtils'
 import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from './crossSectionUtils'
 import { mainRouteLength, routeFrom, sleeperOffsets, sleeperThrough, switchLds, turnoutSleepers } from './switchSleepers'
-import { turnoutLinePort } from './switchModel'
+import { turnoutLinePort, portTrack } from './switchModel'
 
 export { switchLds }
 
@@ -192,7 +192,7 @@ export function couplingOf(tracks, switches, sw, opts) {
   // Only turnouts on its two tracks can share a stretch with it.
   const ids = new Set([own.main.track.id, own.branch.track.id])
   const near = (switches ?? []).filter(s => s.switchId === sw.switchId
-    || [s.portB1_trackId, s.portB2_trackId].some(id => ids.has(id)))
+    || [portTrack(s, 'B1'), portTrack(s, 'B2')].some(id => ids.has(id)))
   return couplingsOf(tracks, near, opts).find(c => c.sw.switchId === sw.switchId) ?? null
 }
 
@@ -358,8 +358,8 @@ export function touchedTurnouts(before, after) {
   for (const sw of after?.switches ?? []) {
     if (!isTurnout(sw)) continue
     if (wasSw.get(sw.switchId) !== sw
-      || changedTrack.has(sw.portA_trackId) || changedTrack.has(sw.portB1_trackId)
-      || changedTrack.has(sw.portB2_trackId)) ids.add(sw.switchId)
+      || changedTrack.has(portTrack(sw, 'A')) || changedTrack.has(portTrack(sw, 'B1'))
+      || changedTrack.has(portTrack(sw, 'B2'))) ids.add(sw.switchId)
   }
   return ids
 }

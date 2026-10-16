@@ -1,4 +1,4 @@
-import { portsOf } from './switchModel'
+import { portsOf, portTrack, portEnd } from './switchModel'
 
 /**
  * What a track end says about itself when nothing is connected to it: a
@@ -116,8 +116,9 @@ export function flipEndMarks(marks, trackId) {
 function portEnds(switches) {
   const held = new Set()
   for (const sw of switches ?? []) {
-    for (const { trackKey, endKey: ek } of portsOf(sw)) {
-      if (sw[trackKey] && sw[ek]) held.add(endKey(sw[trackKey], sw[ek]))
+    for (const { port } of portsOf(sw)) {
+      const trackId = portTrack(sw, port), end = portEnd(sw, port)
+      if (trackId && end) held.add(endKey(trackId, end))
     }
   }
   return held

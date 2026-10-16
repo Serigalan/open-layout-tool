@@ -1,5 +1,5 @@
 import { utmToWgs84, crsName } from './coordinateUtils'
-import { portsOf, isLinkSwitch, switchRoutePorts } from './switchModel'
+import { portsOf, isLinkSwitch, switchRoutePorts, portTrack, portEnd } from './switchModel'
 import { trackEndAt } from './trackLinkUtils'
 import { endKey, BUFFER_STOP, BOUNDARY } from './trackEndMarks'
 
@@ -49,9 +49,9 @@ export function switchNodes(tracks, switches) {
   const nodes = []
   for (const sw of switches ?? []) {
     const points = []
-    for (const { trackKey, endKey: ek } of portsOf(sw)) {
-      const track = byId.get(sw[trackKey])
-      const end = track && crsName(track.epsg) != null && trackEndAt(track, sw[ek])
+    for (const { port } of portsOf(sw)) {
+      const track = byId.get(portTrack(sw, port))
+      const end = track && crsName(track.epsg) != null && trackEndAt(track, portEnd(sw, port))
       if (end) points.push(utmToWgs84(end.easting, end.northing, end.epsg))
     }
     if (!points.length) continue
@@ -76,8 +76,9 @@ export function switchNodes(tracks, switches) {
 export function classifyTrackEnds(tracks, switches, endMarks = []) {
   const portHeld = new Map()   // endKey → link?
   for (const sw of switches ?? []) {
-    for (const { trackKey, endKey: ek } of portsOf(sw)) {
-      if (sw[trackKey] && sw[ek]) portHeld.set(endKey(sw[trackKey], sw[ek]), isLinkSwitch(sw))
+    for (const { port } of portsOf(sw)) {
+      const trackId = portTrack(sw, port), end = portEnd(sw, port)
+      if (trackId && end) portHeld.set(endKey(trackId, end), isLinkSwitch(sw))
     }
   }
   const marks = new Map((endMarks ?? []).map(m => [endKey(m.trackId, m.endpoint), m]))
@@ -162,7 +163,7 @@ export function tracksOnFrom(trackId, endpoint, tracks, switches) {
   let held = false
   for (const sw of switches ?? []) {
     const ports = portsOf(sw)
-    const mine = ports.filter(p => sw[p.trackKey] === trackId && sw[p.endKey] === endpoint)
+    const mine = ports.filter(p => portTrack(sw, p.port) === trackId && portEnd(sw, p.port) === endpoint)
     if (!mine.length) continue
     held = true
     const routes = Object.values(switchRoutePorts(sw.kind))
@@ -173,7 +174,7 @@ export function tracksOnFrom(trackId, endpoint, tracks, switches) {
         : routes.filter(r => r.includes(port)).map(r => r[0] === port ? r[1] : r[0])
       for (const other of others) {
         const p = ports.find(q => q.port === other)
-        if (p) add(sw[p.trackKey], sw[p.endKey])
+        if (p) add(portTrack(sw, p.port), portEnd(sw, p.port))
       }
     }
   }
@@ -184,8 +185,9 @@ export function tracksOnFrom(trackId, endpoint, tracks, switches) {
   if (!here) return found
   const claimed = new Set()
   for (const sw of switches ?? []) {
-    for (const { trackKey, endKey: ek } of portsOf(sw)) {
-      if (sw[trackKey] && sw[ek]) claimed.add(endKey(sw[trackKey], sw[ek]))
+    for (const { port } of portsOf(sw)) {
+      const trackId = portTrack(sw, port), end = portEnd(sw, port)
+      if (trackId && end) claimed.add(endKey(trackId, end))
     }
   }
   const partners = []

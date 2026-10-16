@@ -1391,7 +1391,6 @@
   "valid_end_held_twice": "port {port}: track end {track} {endpoint} is already held by {other}",
   "valid_element_switch_missing": "an element belongs to a switch that does not exist",
   "valid_chain_gap": "gap of {gap} m after element {index}",
-  "valid_chain_abs_length": "running length of element {index} is wrong",
   "valid_chain_length": "length of element {index} does not match its nodes",
   "valid_chain_epsg": "element {index} lies in another CRS than its track",
   "valid_height_out_of_range": "height point at {station} m lies outside the track",

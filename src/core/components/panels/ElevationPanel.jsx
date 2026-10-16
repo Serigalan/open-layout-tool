@@ -14,7 +14,7 @@ import useRouteOnMap from '../../map/useRouteOnMap'
 import GradientFindings from './GradientFindings'
 import CrossoverGradientForm from './CrossoverGradientForm'
 import { findCrossovers } from '../../utils/crossoverGradient'
-import { turnoutLinePort } from '../../utils/switchModel'
+import { turnoutLinePort, portTrack } from '../../utils/switchModel'
 import FormSection from '../form/FormSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
@@ -99,8 +99,8 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
 
   // The project's crossovers, those on the track on show first.
   const crossovers = project ? findCrossovers(project.tracks, project.switches) : []
-  const linePortTrack = (sw) => sw[`port${turnoutLinePort(sw)}_trackId`]
-  const onShown = (c) => [c.w1.portA_trackId, linePortTrack(c.w1), c.w2.portA_trackId, linePortTrack(c.w2), c.conn.id]
+  const linePortTrack = (sw) => portTrack(sw, turnoutLinePort(sw))
+  const onShown = (c) => [portTrack(c.w1, 'A'), linePortTrack(c.w1), portTrack(c.w2, 'A'), linePortTrack(c.w2), c.conn.id]
     .includes(profileTrackId)
   crossovers.sort((a, b) => Number(onShown(b)) - Number(onShown(a)))
 

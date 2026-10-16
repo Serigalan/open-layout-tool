@@ -2,7 +2,7 @@ import {
   transformPlanePoint, transformGridBearing, utmToWgs84, crsName,
 } from './coordinateUtils'
 import { resolveEndBearing } from './elementUtils'
-import { portsOf, newSwitchFields, isLinkSwitch, LINK_KIND } from './switchModel'
+import { portsOf, newSwitchFields, isLinkSwitch, LINK_KIND, portTrack, portEnd } from './switchModel'
 
 /**
  * Links — the node where one track ends and the next begins.
@@ -84,8 +84,9 @@ const allTrackEnds = (tracks) => (tracks ?? [])
 export function claimedEnds(switches) {
   const claimed = new Set()
   for (const sw of switches ?? []) {
-    for (const { trackKey, endKey } of portsOf(sw)) {
-      if (sw[trackKey] && sw[endKey]) claimed.add(`${sw[trackKey]}|${sw[endKey]}`)
+    for (const { port } of portsOf(sw)) {
+      const trackId = portTrack(sw, port), end = portEnd(sw, port)
+      if (trackId && end) claimed.add(`${trackId}|${end}`)
     }
   }
   return claimed
@@ -216,8 +217,8 @@ export function existingLinks(switches, tracks) {
     return crsName(track?.epsg) == null ? null : trackEndAt(track, endpoint)
   }
   return (switches ?? []).filter(isLinkSwitch).map((sw) => {
-    const a = endOf(sw.portA_trackId, sw.portA_endpoint)
-    const b = endOf(sw.portB_trackId, sw.portB_endpoint)
+    const a = endOf(portTrack(sw, 'A'), portEnd(sw, 'A'))
+    const b = endOf(portTrack(sw, 'B'), portEnd(sw, 'B'))
     if (!a || !b) return { sw, a, b, gap: null, bearingOff: null, crsChange: false }
     return { sw, a, b, ...jointFit(a, b), crsChange: a.epsg !== b.epsg }
   // Widest first: a link is only worth looking at where its two ends disagree,
@@ -234,8 +235,10 @@ export function linkRecord(joint, name) {
   return {
     ...newSwitchFields(LINK_KIND),
     ...(name ? { name } : {}),
-    portA_trackId: joint.a.trackId, portA_endpoint: joint.a.endpoint,
-    portB_trackId: joint.b.trackId, portB_endpoint: joint.b.endpoint,
+    ports: {
+      A: { trackId: joint.a.trackId, endpoint: joint.a.endpoint },
+      B: { trackId: joint.b.trackId, endpoint: joint.b.endpoint },
+    },
   }
 }
 
@@ -288,8 +291,8 @@ export function linkAllJoints(tracks, switches, takenNames = []) {
  * where the ports name no track that has elements.
  */
 export function linkSymbol(sw, trackById) {
-  const track = trackById?.[sw?.portA_trackId]
-  const end   = track ? trackEndAt(track, sw.portA_endpoint) : null
+  const track = trackById?.[sw?.ports?.A?.trackId]
+  const end   = track ? trackEndAt(track, portEnd(sw, 'A')) : null
   if (!end) return sw
   const rad = end.outward * Math.PI / 180
   const along = [Math.sin(rad), Math.cos(rad)]

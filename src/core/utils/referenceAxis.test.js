@@ -7,7 +7,7 @@ import {
 } from './referenceAxis'
 import { straightElement, arcFrom, transitionElement } from './elementFactory'
 import { endPointStraightUtm } from './elementUtils'
-import { recalcAbsLengths } from './trackModel'
+
 import { pointOnElement } from './platformUtils'
 import { gradientAt } from './heightUtils'
 import { buildElements, parseGradient, parseRecords } from './vermEsnImport'
@@ -21,7 +21,7 @@ const chain = () => {
   const t = transitionElement(P(100, 0), 90, 60, null, 500).element
   const end = { easting: t.endNode[0], northing: t.endNode[1], zone: EPSG }
   const a = arcFrom(end, t.endBearing, 200, 500)
-  return recalcAbsLengths([s, t, a])
+  return [s, t, a]
 }
 // The point at a station of the chain, from the app's own geometry.
 const pointAt = (els, s, epsg = EPSG) => {
@@ -133,7 +133,7 @@ describe.skipIf(!existsSync(TRA) || !existsSync(GRA))('a real Verm.ESN axis', ()
     expect(axis.points.de.length).toBe(200001)
     const { e, n, z } = referencePoints(axis)
     // Station 1000 m along the track is point (1000 − 500) / 0,01 of the axis.
-    const p = pointAt(recalcAbsLengths(elements).map(el => ({ ...el })), 1000, 5684)
+    const p = pointAt(elements.map(el => ({ ...el })), 1000, 5684)
     expect(Math.hypot(e[50000] - p.easting, n[50000] - p.northing)).toBeLessThan(0.001)
     expect(z.every(Number.isFinite)).toBe(true)
   })

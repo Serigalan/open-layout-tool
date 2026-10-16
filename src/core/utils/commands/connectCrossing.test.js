@@ -8,6 +8,7 @@ import { buildCrossingConnect, crossAngleOf, crossingConnectOutcome, crossingCon
 import { crossingEndDistance } from '../switch/crossing'
 import { expectValidTrack, expectNodesJoin } from '../../test/chainInvariants'
 import { resolveEndBearing } from '../elementUtils'
+import { portTrack, portEnd } from '../switchModel'
 
 const EPSG = 25832
 const O = { easting: 500000, northing: 5600000, zone: EPSG }
@@ -70,17 +71,17 @@ describe('a crossing connected to the end of another track', () => {
         track, target: tgt, anchor, solution: preferred, tracks: [track, tgt], form, switchName: 'Kr 1', switchNumber: 1,
       })
       const record = commit.addSwitches[0]
-      expect(record[`port${preferred.port}_trackId`]).toBe('target')
-      expect(record[`port${preferred.port}_endpoint`]).toBe('END')
+      expect(portTrack(record, preferred.port)).toBe('target')
+      expect(portEnd(record, preferred.port)).toBe('END')
       const joined = commit.addTracks.find(tr => tr.id === 'target')
       expectValidTrack(joined)
       expectNodesJoin(joined.elements)
       commit.addTracks.forEach(expectValidTrack)
       // Every port names a track that exists.
       for (const p of ['A', 'B', 'C', 'D']) {
-        expect(commit.addTracks.some(tr => tr.id === record[`port${p}_trackId`])).toBe(true)
+        expect(commit.addTracks.some(tr => tr.id === portTrack(record, p))).toBe(true)
       }
-      const other = commit.addTracks.find(tr => tr.id === record[`port${preferred.port === 'B' ? 'D' : 'B'}_trackId`])
+      const other = commit.addTracks.find(tr => tr.id === portTrack(record, preferred.port === 'B' ? 'D' : 'B'))
       expect(other.owner).toBe('DB')
       expect(other.name).toBe('target.002')
     }

@@ -28,7 +28,9 @@
 import { switchTypeByLabel } from './switch/catalogue'
 import { elementAtStation, pointAtStationUtm, trackLength } from './heightUtils'
 import { elementStations, pointOnElement } from './platformUtils'
-import { elementBelongsToSwitch, turnoutDivergingPort, turnoutLinePort, turnoutLineRoute } from './switchModel'
+import {
+  elementBelongsToSwitch, turnoutDivergingPort, turnoutLinePort, turnoutLineRoute, portTrack, portEnd,
+} from './switchModel'
 
 /** Where the first sleeper lies behind WA, and how far apart they are [m]. */
 export const FIRST_SLEEPER = 0.3
@@ -74,10 +76,10 @@ function tangentAt(track, station, length = trackLength(track)) {
 
 /** A track as seen from the switch toe: station ↔ distance from WA. */
 export function routeFrom(tracks, sw, port) {
-  const track = tracks.find(t => t.id === sw[`port${port}_trackId`])
+  const track = tracks.find(t => t.id === portTrack(sw, port))
   if (!track) return null
   const length = trackLength(track)
-  const fromBegin = sw[`port${port}_endpoint`] !== 'END'
+  const fromBegin = portEnd(sw, port) !== 'END'
   return {
     track,
     length,

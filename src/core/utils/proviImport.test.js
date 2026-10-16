@@ -277,8 +277,8 @@ describe('the fixture archive, whole', () => {
     }
     const byId = Object.fromEntries(placed.tracks.map(t => [t.id, t]))
     const sw = placed.switches.find(s => s.name === '0603')
-    expect(byId[sw.portA_trackId].name).toMatch(/^63402L/)
-    expect(byId[sw.portB1_trackId].name).toMatch(/^623B/)
+    expect(byId[sw.ports?.A?.trackId].name).toMatch(/^63402L/)
+    expect(byId[sw.ports?.B1?.trackId].name).toMatch(/^623B/)
   })
 
   it('gives every piece the stretch of its gradient, and leaves the marker behind', () => {

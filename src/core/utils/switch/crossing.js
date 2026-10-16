@@ -305,7 +305,7 @@ export function crossingElements(g, identity) {
     const el = signedR ? arcElement(fromUtm, toUtm, signedR, extra) : straightElement(fromUtm, toUtm, extra)
     // A crossing's legs are drawn by its body; they carry no coarse polyline of their own.
     const { renderCoords: _r, ...rest } = el
-    return { ...rest, absLength: el.length }
+    return { ...rest }
   }
   return {
     A: piece(g.portA_utm, g.centreUtm, g.mainLegR, g.legCoords.A, 'main'),

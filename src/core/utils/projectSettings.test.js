@@ -131,9 +131,9 @@ describe('the line category of a track', () => {
 
 describe('the tracks that share a plane', () => {
   const switches = [
-    { switchId: 's1', kind: 'turnout', portA_trackId: 'a', portA_endpoint: 'END', portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'c', portB2_endpoint: 'BEGIN' },
-    { switchId: 's2', kind: 'turnout', portA_trackId: 'c', portA_endpoint: 'END', portB1_trackId: 'd', portB1_endpoint: 'BEGIN', portB2_trackId: 'e', portB2_endpoint: 'BEGIN' },
-    { switchId: 'l1', kind: 'link', portA_trackId: 'e', portA_endpoint: 'END', portB_trackId: 'f', portB_endpoint: 'BEGIN' },
+    { switchId: 's1', kind: 'turnout', ports: { A: { trackId: 'a', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' }, B2: { trackId: 'c', endpoint: 'BEGIN' } }},
+    { switchId: 's2', kind: 'turnout', ports: { A: { trackId: 'c', endpoint: 'END' }, B1: { trackId: 'd', endpoint: 'BEGIN' }, B2: { trackId: 'e', endpoint: 'BEGIN' } }},
+    { switchId: 'l1', kind: 'link', ports: { A: { trackId: 'e', endpoint: 'END' }, B: { trackId: 'f', endpoint: 'BEGIN' } }},
   ]
 
   it('are the ones a turnout joins, transitively', () => {

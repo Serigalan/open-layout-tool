@@ -21,7 +21,7 @@
 import { catalogLimit, evaluateRules, rulesForScope, severityRank, worstSeverity } from './regelkatalog'
 import { tangentLength } from './heightUtils'
 import { trackKind } from './trackGroups'
-import { portsOf } from './switchModel'
+import { portsOf, portTrack, portEnd } from './switchModel'
 import { transitionCantEnds } from './clothoidUtils'
 import { LINE_CATEGORIES } from './identifierUtils'
 import { switchBodySpans } from './switchGradient'
@@ -104,7 +104,7 @@ const MAX_CONNECTION_LENGTH = 20
  */
 function isConnectionTrack(track, switches) {
   const at = (end) => (switches ?? []).find(sw =>
-    portsOf(sw).some(p => sw[p.trackKey] === track.id && sw[p.endKey] === end))
+    portsOf(sw).some(p => portTrack(sw, p.port) === track.id && portEnd(sw, p.port) === end))
   const first = at('BEGIN'), last = at('END')
   if (!first || !last) return false
   const ids = new Set([first.switchId, last.switchId].filter(id => id != null))

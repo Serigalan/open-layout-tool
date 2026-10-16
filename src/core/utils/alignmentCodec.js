@@ -5,7 +5,7 @@
 // what surrounds it. The import (osrdImport) reads either.
 
 import { transitionCantEnds } from './clothoidUtils'
-import { portsOf } from './switchModel'
+import { portsOf, portTrack, portEnd } from './switchModel'
 import {
   BUFFER_STOP, BUFFER_STOP_LENGTH, BUFFER_STOP_TYPES, DEFAULT_BUFFER_STOP_TYPE, bufferStopStations,
 } from './trackEndMarks'
@@ -252,8 +252,8 @@ export function switchesToPorts(switches, trackMap, foreign = []) {
   const out = switches.map((sw, i) => {
     const names = OSRD_PORT_NAMES[sw.kind] ?? OSRD_PORT_NAMES.turnout
     const ports = {}
-    for (const { port, trackKey, endKey } of portsOf(sw)) {
-      const trackId = sw[trackKey], endpoint = sw[endKey]
+    for (const { port } of portsOf(sw)) {
+      const trackId = portTrack(sw, port), endpoint = portEnd(sw, port)
       if (trackId && endpoint && trackMap[trackId]) ports[names[port]] = { track: trackId, endpoint }
     }
 

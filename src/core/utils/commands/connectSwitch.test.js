@@ -71,8 +71,8 @@ describe('a turnout connected to the end of another track', () => {
     expectValidTrack(joined)
     expectNodesJoin(joined.elements)
     const record = commit.addSwitches[0]
-    expect(record.portB1_trackId).toBe('target')
-    expect(record.portB1_endpoint).toBe('END')
+    expect(record.ports?.B1?.trackId).toBe('target')
+    expect(record.ports?.B1?.endpoint).toBe('END')
     commit.addTracks.forEach(expectValidTrack)
     expectSwitchRoutesCarved(record, commit.addTracks)
     // Only the host's halves and the joined track: no track of its own for the branch.
@@ -94,7 +94,7 @@ describe('a turnout connected to the end of another track', () => {
     })
     const joined = commit.addTracks.find(tr => tr.id === 'target')
     expectValidTrack(joined)
-    expect(commit.addSwitches[0].portB1_endpoint).toBe('BEGIN')
+    expect(commit.addSwitches[0].ports?.B1?.endpoint).toBe('BEGIN')
     const [{ shift }] = commit.restation
     expect(trackLength(joined)).toBeCloseTo(trackLength(tgt) + shift, 6)
     expect(joined.heights.at(-1).station).toBeCloseTo(100 + shift, 6)

@@ -98,7 +98,6 @@ export function buildElements(records, epsg) {
         : undefined
       elements.push({
         ...sv,
-        absLength:   sv.length,   // recalcAbsLengths will overwrite
         speed:       0,
         ...(rec.cantB ? { cant: rec.cantB } : {}),
         ...(kinkEndBearing !== undefined ? { endBearing: kinkEndBearing } : {}),
@@ -110,7 +109,6 @@ export function buildElements(records, epsg) {
       const arc = arcFrom(start, bearingDeg, rec.length, signedR)
       elements.push({
         ...arc,
-        absLength:   arc.length,
         speed:       0,
         // Arcs carry a constant cant (cantB == cantE). The file stores it as a
         // magnitude, so the sign comes from the curve direction.
@@ -127,7 +125,7 @@ export function buildElements(records, epsg) {
       const r1 = rec.radiusB !== 0 ? rec.radiusB : null
       const r2 = rec.radiusE !== 0 ? rec.radiusE : null
       elements.push(transitionElement(start, bearingDeg, rec.length, r1, r2, {
-        transitionType, length: r3(rec.length), absLength: r3(rec.length), speed: 0,
+        transitionType, length: r3(rec.length), speed: 0,
       }).element)
     }
   }

@@ -37,9 +37,11 @@ function segment(id, [e1, n1], [e2, n2]) {
 
 const turnout = (name, a, b1, b2) => ({
   ...newSwitchFields(), name,
-  portA_trackId: a[0], portA_endpoint: a[1],
-  portB1_trackId: b1[0], portB1_endpoint: b1[1],
-  portB2_trackId: b2[0], portB2_endpoint: b2[1],
+  ports: {
+    A: { trackId: a[0], endpoint: a[1] },
+    B1: { trackId: b1[0], endpoint: b1[1] },
+    B2: { trackId: b2[0], endpoint: b2[1] },
+  },
 })
 
 const layoutOf = (tracks, switches) => {

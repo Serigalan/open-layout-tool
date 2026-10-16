@@ -363,16 +363,14 @@ function placeCrossingUnit(found, unit, type, tracks, makeId) {
     remaps.push({ oldId: track.id, newId: [pieces[0].id, pieces[1].id] })
 
     const [behindPort, aheadPort] = portNames[i]
-    ports[`port${behindPort}_trackId`] = carvedBehind.id
-    ports[`port${behindPort}_endpoint`] = split.behindEndpoint
-    ports[`port${aheadPort}_trackId`] = carvedAhead.id
-    ports[`port${aheadPort}_endpoint`] = split.aheadEndpoint
+    ports[behindPort] = { trackId: carvedBehind.id, endpoint: split.behindEndpoint }
+    ports[aheadPort] = { trackId: carvedAhead.id, endpoint: split.aheadEndpoint }
   }
 
   return {
     tracks: current,
     remaps,
-    record: { ...identity, kind: unit.kind, pad: unit.pad, ...ports },
+    record: { ...identity, kind: unit.kind, pad: unit.pad, ports },
   }
 }
 
@@ -625,9 +623,11 @@ function placeAtToe(found, unit, type, tracks) {
       trailing: false, speed: type.speed,
       kind: unit.kind,
       pad: unit.pad,
-      portA_trackId: approach.track.id, portA_endpoint: approach.endpoint,
-      portB1_trackId: branchCarved.id, portB1_endpoint: branch.endpoint,
-      portB2_trackId: stemCarved.id, portB2_endpoint: stem.endpoint,
+      ports: {
+        A: { trackId: approach.track.id, endpoint: approach.endpoint },
+        B1: { trackId: branchCarved.id, endpoint: branch.endpoint },
+        B2: { trackId: stemCarved.id, endpoint: stem.endpoint },
+      },
     },
   }
 }
@@ -690,9 +690,11 @@ function placeOne(found, unit, type, tracks, makeId, project = projectOnTrack) {
       trailing: reversed, speed: type.speed,
       kind: unit.kind,
       pad: unit.pad,
-      portA_trackId: split.behind.id, portA_endpoint: split.behindEndpoint,
-      portB1_trackId: branchCarved.id, portB1_endpoint: branch.endpoint,
-      portB2_trackId: split.ahead.id, portB2_endpoint: split.aheadEndpoint,
+      ports: {
+        A: { trackId: split.behind.id, endpoint: split.behindEndpoint },
+        B1: { trackId: branchCarved.id, endpoint: branch.endpoint },
+        B2: { trackId: split.ahead.id, endpoint: split.aheadEndpoint },
+      },
     },
   }
 }

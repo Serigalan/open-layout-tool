@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { carveSwitchRoute, splitElementAt, splitTrackAtJoint } from './trackSplitUtils'
 import { arcFrom, straightFrom, transitionElement } from './elementFactory'
-import { recalcAbsLengths, rebuildCoords } from './trackModel'
+import { rebuildCoords } from './trackModel'
 import { expectValidTrack } from '../test/chainInvariants'
 
 const EPSG = 25832
@@ -10,7 +10,7 @@ const at = (node) => ({ easting: node[0], northing: node[1], zone: EPSG })
 const lengths = (track) => track.elements.map(e => Math.round(e.length * 1000) / 1000)
 
 function makeTrack(elements, extra = {}) {
-  const els = recalcAbsLengths(elements.map(e => ({ ...e, speed: 80 })))
+  const els = elements.map(e => ({ ...e, speed: 80 }))
   return { id: 'src', name: '6340.001', epsg: EPSG, lineNumber: '6340', elements: els, coordinates: rebuildCoords(els), ...extra }
 }
 
@@ -105,14 +105,14 @@ describe('splitting a track at a joint', () => {
 })
 
 describe('carving a switch route', () => {
-  const mark = { switchBranch: 'main', switchName: 'W 1' }
+  const mark = { switchBranch: true, switchRoute: 'main', switchId: 'w1' }
 
   it('cuts the terminal element where the route ends, without a route length', () => {
     const track = straightAndArc()
     const out = carveSwitchRoute(track, 'BEGIN', { easting: O.easting + 30, northing: O.northing }, mark)
     expect(lengths(out)).toEqual([30, 70, 100])
     expect(out.elements[0]).toMatchObject(mark)
-    expect(out.elements[1].switchName).toBeUndefined()
+    expect(out.elements[1].switchId).toBeUndefined()
     expectValidTrack(out)
   })
 
@@ -121,7 +121,7 @@ describe('carving a switch route', () => {
     const cut = at(arcFrom(at(track.elements[0].endNode), 90, 30, 500).endNode)
     const out = carveSwitchRoute(track, 'BEGIN', cut, mark, 130)
     expect(lengths(out)).toEqual([100, 30, 70])
-    expect(out.elements.map(e => e.switchName ?? null)).toEqual(['W 1', 'W 1', null])
+    expect(out.elements.map(e => e.switchId ?? null)).toEqual(['w1', 'w1', null])
     expectValidTrack(out)
   })
 

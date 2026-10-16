@@ -55,7 +55,7 @@ describe('deleting a whole network', () => {
   it('takes its tracks and their switches in one undo step', () => {
     openProject({ id: 'net2', tracks: [], switches: [] })
     for (const id of ['a', 'b', 'c', 'far']) saveTrack({ id, elements: [] })
-    saveSwitch({ switchId: 'w', portA_trackId: 'a', portA_endpoint: 'END', portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'c', portB2_endpoint: 'BEGIN' })
+    saveSwitch({ switchId: 'w', ports: { A: { trackId: 'a', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' }, B2: { trackId: 'c', endpoint: 'BEGIN' } } })
 
     deleteTracks(['a', 'b', 'c'])
     expect(loadTracks().map(t => t.id)).toEqual(['far'])
@@ -213,7 +213,7 @@ describe('buffer stops and boundaries in the store', () => {
     setup('em4')
     commitSwitchConnection({
       removeTrackIds: [], addTracks: [], remap: [],
-      addSwitches: [{ switchId: 's', kind: 'link', portA_trackId: 't', portA_endpoint: 'END', portB_trackId: 'x', portB_endpoint: 'BEGIN' }],
+      addSwitches: [{ switchId: 's', kind: 'link', ports: { A: { trackId: 't', endpoint: 'END' }, B: { trackId: 'x', endpoint: 'BEGIN' } }}],
     })
     expect(where('em4')).toEqual([['buffer_stop', 't', 'BEGIN']])
     deleteTrack('t')
@@ -309,7 +309,7 @@ describe('deleting several elements at once', () => {
       ],
       platforms: [{ id: 'pl', trackId: 't', startStation: 220, endStation: 280 }, { id: 'p2', trackId: 't', startStation: 50, endStation: 150 }],
     })
-    saveSwitch({ switchId: 'w', kind: 'turnout', portA_trackId: 't', portA_endpoint: 'END', portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'x', portB2_endpoint: 'BEGIN' })
+    saveSwitch({ switchId: 'w', kind: 'turnout', ports: { A: { trackId: 't', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' }, B2: { trackId: 'x', endpoint: 'BEGIN' } } })
     deleteElements([{ trackId: 't', elementIndex: 1 }])
     expect(loadSwitches()).toHaveLength(1)
     deleteElements([{ trackId: loadTracks().find(t => t.elements[0].startNode[0] === 200).id, elementIndex: 0 }])
@@ -348,7 +348,7 @@ describe('deleting a track with a switch on it', () => {
       { id: 'b', elements: [el({ switchBranch: true, switchId: 'w', switchRoute: 'branch' })] },
       { id: 'c', elements: [el({ switchBranch: true, switchId: 'w', switchRoute: 'main' }), el()] },
     ], switches: [] })
-    saveSwitch({ switchId: 'w', kind: 'turnout', portA_trackId: 'a', portA_endpoint: 'END', portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'c', portB2_endpoint: 'BEGIN' })
+    saveSwitch({ switchId: 'w', kind: 'turnout', ports: { A: { trackId: 'a', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' }, B2: { trackId: 'c', endpoint: 'BEGIN' } } })
     deleteTrack('a')
     expect(loadSwitches()).toEqual([])
     // b was nothing but the switch's own geometry and goes with it; c stays, unmarked.
@@ -358,7 +358,7 @@ describe('deleting a track with a switch on it', () => {
 })
 
 describe('a project kept where its opener says (Paket L)', () => {
-  const el = (length) => ({ elementType: 0, length, absLength: length, bearing: 90, startNode: [0, 0], endNode: [length, 0] })
+  const el = (length) => ({ elementType: 0, length, bearing: 90, startNode: [0, 0], endNode: [length, 0] })
   const record = () => ({ id: 'kp', title: 'K', tracks: [{ id: 't', epsg: 25832, elements: [el(10), el(20)] }], switches: [] })
 
   it('writes the record with its meta behind every change, and says what it keeps', async () => {
@@ -407,7 +407,7 @@ describe('the store works on the open project, immutably (R1.3)', () => {
     expect(after).not.toBe(before)
     expect(before.tracks[0].elements).toHaveLength(1)
     expect(after.tracks[0].elements).toHaveLength(2)
-    expect(after.tracks[0].elements[1].absLength).toBe(20)
+    expect(after.tracks[0].elements[1]).not.toHaveProperty('absLength')   // stations are summed, not kept (oltjson-1.0)
     // What a caller is handed cannot be changed behind the store's back.
     expect(() => { after.tracks[0].elements.push(el) }).toThrow(TypeError)
   })
@@ -520,7 +520,7 @@ describe('the gradient of a turnout is coupled', () => {
     ],
     switches: [{
       switchId: 's1', kind: 'turnout', label: '500 – 1:12',
-      portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'm', portB2_endpoint: 'BEGIN',
+      ports: { B1: { trackId: 'b', endpoint: 'BEGIN' }, B2: { trackId: 'm', endpoint: 'BEGIN' } },
     }],
   })
   const branch = () => loadTracks().find(t => t.id === 'b').heights

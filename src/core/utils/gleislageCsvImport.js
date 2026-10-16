@@ -215,7 +215,7 @@ function buildElement(rec, crs) {
   if (rec.typ === TYPE_ARC) {
     const signedR = rec.p2 || rec.p3
     const arc = arcFrom(start, bearing, rec.length, signedR, { speed: 0 })
-    return { ...arc, absLength: arc.length }
+    return { ...arc }
   }
 
   if (rec.typ === TYPE_CLOTHOID || rec.typ === TYPE_BLOSS) {
@@ -223,7 +223,7 @@ function buildElement(rec, crs) {
     const r1 = rec.p2 || null
     const r2 = rec.p3 || null
     const transitionType = rec.typ === TYPE_BLOSS ? 'bloss' : 'clothoid'
-    return transitionElement(start, bearing, rec.length, r1, r2, { transitionType, absLength: rec.length, speed: 0 }).element
+    return transitionElement(start, bearing, rec.length, r1, r2, { transitionType, speed: 0 }).element
   }
 
   // Straight — the kink variant carries its end bearing in PARAM2 as gon
@@ -232,7 +232,6 @@ function buildElement(rec, crs) {
   const kink = rec.typ === TYPE_KINK ? (rec.p2 - 200) * GON2DEG : 0
   return {
     ...sv,
-    absLength: sv.length,
     ...(kink ? { endBearing: (((sv.bearing + kink) % 360) + 360) % 360 } : {}),
   }
 }

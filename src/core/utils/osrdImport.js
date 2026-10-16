@@ -124,10 +124,12 @@ function rebuildCrossing(sw, trackById) {
 
   return {
     ...identity,
-    portA_trackId: ports.A1.track,  portA_endpoint: ports.A1.endpoint,
-    portB_trackId: ports.A2.track,  portB_endpoint: ports.A2.endpoint,
-    portC_trackId: ports.B1.track,  portC_endpoint: ports.B1.endpoint,
-    portD_trackId: ports.B2.track,  portD_endpoint: ports.B2.endpoint,
+    ports: {
+      A: { trackId: ports.A1.track, endpoint: ports.A1.endpoint },
+      B: { trackId: ports.A2.track, endpoint: ports.A2.endpoint },
+      C: { trackId: ports.B1.track, endpoint: ports.B1.endpoint },
+      D: { trackId: ports.B2.track, endpoint: ports.B2.endpoint },
+    },
     fillCoords: g.fillCoords,
   }
 }
@@ -170,8 +172,10 @@ function rebuildLink(sw, trackById) {
   return {
     ...newSwitchFields(LINK_KIND),
     name: sw.extensions?.sncf?.label ?? sw.id,
-    portA_trackId: A.track, portA_endpoint: A.endpoint,
-    portB_trackId: B.track, portB_endpoint: B.endpoint,
+    ports: {
+      A: { trackId: A.track, endpoint: A.endpoint },
+      B: { trackId: B.track, endpoint: B.endpoint },
+    },
   }
 }
 
@@ -277,9 +281,11 @@ function rebuildSwitch(sw, trackById) {
   return {
     ...identity,
     ...(arcEl.speed ? { speed: arcEl.speed } : {}),
-    portA_trackId:  ports.A?.track     ?? null, portA_endpoint:  ports.A?.endpoint  ?? null,
-    portB1_trackId: ports.B1.track,             portB1_endpoint: ports.B1.endpoint,
-    portB2_trackId: ports.B2?.track    ?? null, portB2_endpoint: ports.B2?.endpoint ?? null,
+    ports: {
+      A: { trackId: ports.A?.track     ?? null, endpoint: ports.A?.endpoint  ?? null },
+      B1: { trackId: ports.B1.track, endpoint: ports.B1.endpoint },
+      B2: { trackId: ports.B2?.track    ?? null, endpoint: ports.B2?.endpoint ?? null },
+    },
     fillCoords: switchFillRing(stemCoords, branchCoords),
     ...switchLabelGeometry(nodeUtm, arcEl.bearing,
       { length: straightLen, radius: stemR }, branchChain, epsg),
@@ -319,7 +325,7 @@ function rebuildSwitch(sw, trackById) {
  * so nothing is stored twice.
  *
  * Returns { tracks, errors, infra, switches } with tracks in the app's element
- * shape (display geometry included, absLength left to recalcAbsLengths) and
+ * shape (display geometry included) and
  * switches as app records, rebuilt so they are drawn as switch bodies again
  * (see rebuildSwitch).
  */
@@ -372,7 +378,7 @@ export function parseOsrdRailJson(data) {
       if (item.type === 'curve') {
         const radius = Number(item.radius_m)
         const arc = arcFrom(cursor, bearing, length, radius, { speed, cant: Number(item.cant_start_mm) || 0 })
-        elements.push({ ...arc, absLength: arc.length })
+        elements.push({ ...arc })
         cursor = { easting: arc.endNode[0], northing: arc.endNode[1], zone: cursor.zone }
         bearing = arc.endBearing
 
@@ -380,7 +386,7 @@ export function parseOsrdRailJson(data) {
         // null radius = the transition runs into a straight on that side
         const r1 = item.radius_start_m == null ? null : Number(item.radius_start_m)
         const r2 = item.radius_end_m   == null ? null : Number(item.radius_end_m)
-        const t = transitionElement(cursor, bearing, length, r1, r2, { transitionType: item.type, absLength: length, speed })
+        const t = transitionElement(cursor, bearing, length, r1, r2, { transitionType: item.type, speed })
         elements.push(t.element)
         cursor = t.endUtm
         bearing = t.endBearing
@@ -393,7 +399,6 @@ export function parseOsrdRailJson(data) {
         const kinked = kink ? (((sv.bearing + kink) % 360) + 360) % 360 : null
         elements.push({
           ...sv,
-          absLength: sv.length,
           ...(kinked != null ? { endBearing: kinked } : {}),
           ...(Number(item.cant_start_mm) ? { cant: Number(item.cant_start_mm) } : {}),
         })

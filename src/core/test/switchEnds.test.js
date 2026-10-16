@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { recalcAbsLengths, rebuildCoords } from '../utils/trackModel'
+import { rebuildCoords } from '../utils/trackModel'
 import { computeStraightValuesUtm, endPointStraightUtm, resolveEndBearing, nodeUtm } from '../utils/elementUtils'
 import { utmToWgs84 } from '../utils/coordinateUtils'
 import { SWITCH_TYPES } from '../utils/switch/catalogue'
@@ -38,13 +38,13 @@ function straightElement(startUtm, bearing, length) {
   return {
     elementType: 0,
     startNode: v.startNode, endNode: v.endNode,
-    bearing: v.bearing, length: v.length, absLength: v.length, speed: 100,
+    bearing: v.bearing, length: v.length, speed: 100,
     geometry: { type: 'LineString', coordinates: [toWgs(startUtm), toWgs(endUtm)] },
   }
 }
 
 const trackOf = (id, name, elements) => {
-  const els = recalcAbsLengths(elements)
+  const els = elements
   return { id, name, epsg: EPSG, elements: els, coordinates: rebuildCoords(els) }
 }
 

@@ -9,7 +9,7 @@ import {
 import { arcCoordsFromRadiusUtm, computeCurvedValuesUtm, endPointCurvedUtm } from './elementUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
 import { planSwitchDeletion } from './switchDelete'
-import { recalcAbsLengths } from './trackModel'
+
 import { expectValidTrack, expectSwitchRoutesCarved } from '../test/chainInvariants'
 import { buildSCurve } from './commands/sCurve'
 
@@ -251,7 +251,7 @@ describe('one straight track and one curved', () => {
 describe('the three elements of a connection', () => {
   const asTrack = (res) => {
     const { branch1, midEl, branch2 } = buildConnectionElements(res, SPEED)
-    const elements = recalcAbsLengths([...branch1, midEl, ...branch2])
+    const elements = [...branch1, midEl, ...branch2]
     return { id: 't', epsg: EPSG, elements }
   }
 
@@ -312,7 +312,7 @@ describe('committing a connection in a curve', () => {
       elementType: 1,
       startNode: v.startNode, endNode: v.endNode,
       bearing: v.bearing, endBearing: v.endBearing,
-      length: v.length, absLength: v.length,
+      length: v.length,
       radius, cant, speed: SPEED,
       geometry: { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(start, end, radius, SAGITTA_ELEMENT) },
       renderCoords: arcCoordsFromRadiusUtm(start, end, radius, SAGITTA_TRACK),
@@ -406,7 +406,7 @@ describe('the two tracks need not be the same kind of element', () => {
     expect(branch1[0].transitionType).toBe('clothoid')
     expect(midEl.elementType).toBeLessThan(2)
     expect(branch2[branch2.length - 1].elementType).toBe(1)
-    expectValidTrack({ id: 't', epsg: EPSG, elements: recalcAbsLengths([...branch1, midEl, ...branch2]) })
+    expectValidTrack({ id: 't', epsg: EPSG, elements: [...branch1, midEl, ...branch2] })
   })
 
   it('…and refuses one whose cant ramps across the connection', () => {
@@ -495,7 +495,7 @@ describe('a connection built from a form with a straight end piece', () => {
 
   it('gives a chain that joins, runs tangentially and adds up', () => {
     const { branch1, midEl, branch2 } = buildConnectionElements(res, 40)
-    const elements = recalcAbsLengths([...branch1, midEl, ...branch2])
+    const elements = [...branch1, midEl, ...branch2]
     expectValidTrack({ id: 'conn', epsg: EPSG, elements })
     expect(elements).toHaveLength(5)
   })
@@ -511,7 +511,7 @@ describe('a connection built from a form with a straight end piece', () => {
 describe('a connection with a chain of elements between the branches', () => {
   const asTrack = (res) => {
     const { branch1, midEls, branch2 } = buildConnectionElements(res, SPEED)
-    return { id: 't', epsg: EPSG, elements: recalcAbsLengths([...branch1, ...midEls, ...branch2]) }
+    return { id: 't', epsg: EPSG, elements: [...branch1, ...midEls, ...branch2] }
   }
   const g1 = stem(ORIGIN, 0, null)
   const parallel = stem(P(ORIGIN.easting - 6, ORIGIN.northing), 0, null)

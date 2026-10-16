@@ -1,5 +1,5 @@
 import { resolveEndBearing, reverseElement } from './elementUtils'
-import { portsOf } from './switchModel'
+import { portsOf, portTrack, portEnd, withPort } from './switchModel'
 import { joinHeights, reverseHeights, trackLength } from './heightUtils'
 import { generateId } from './identifierUtils'
 
@@ -12,8 +12,8 @@ import { generateId } from './identifierUtils'
 // axis that OSRD's track_section arrow and all length offsets refer to. How
 // many ports a record has is its kind's business (switchModel.portsOf), so
 // everything here walks the record rather than a fixed three.
-export const portTracks    = (sw) => portsOf(sw).map(p => sw[p.trackKey]).filter(Boolean)
-export const referencesTrack = (sw, trackId) => portsOf(sw).some(p => sw[p.trackKey] === trackId)
+export const portTracks    = (sw) => portsOf(sw).map(p => portTrack(sw, p.port)).filter(Boolean)
+export const referencesTrack = (sw, trackId) => portsOf(sw).some(p => portTrack(sw, p.port) === trackId)
 
 const flipEndpoint = (e) => (e === 'BEGIN' ? 'END' : e === 'END' ? 'BEGIN' : e)
 
@@ -23,15 +23,15 @@ export function remapSwitches(switches, remap) {
   //     endpoint decides which half it stays on,
   //   flip – the track was folded into the new one backwards, so BEGIN/END swap.
   return (switches ?? []).map(sw => {
-    const updated = { ...sw }
-    portsOf(sw).forEach(({ trackKey, endKey }) => {
-      const entry = remap.find(r => r.oldId === sw[trackKey])
+    let updated = sw
+    portsOf(sw).forEach(({ port }) => {
+      const entry = remap.find(r => r.oldId === portTrack(sw, port))
       if (!entry) return
+      const end = portEnd(sw, port)
       if (Array.isArray(entry.newId)) {
-        updated[trackKey] = sw[endKey] === 'BEGIN' ? entry.newId[0] : entry.newId[1]
+        updated = withPort(updated, port, { trackId: end === 'BEGIN' ? entry.newId[0] : entry.newId[1] })
       } else {
-        updated[trackKey] = entry.newId
-        if (entry.flip) updated[endKey] = flipEndpoint(sw[endKey])
+        updated = withPort(updated, port, { trackId: entry.newId, ...(entry.flip ? { endpoint: flipEndpoint(end) } : {}) })
       }
     })
     return updated
@@ -42,9 +42,9 @@ export function remapSwitches(switches, remap) {
 export function flipSwitchEndpoints(switches, trackId) {
   return (switches ?? []).map(sw => {
     if (!referencesTrack(sw, trackId)) return sw
-    const updated = { ...sw }
-    portsOf(sw).forEach(({ trackKey, endKey }) => {
-      if (sw[trackKey] === trackId) updated[endKey] = flipEndpoint(sw[endKey])
+    let updated = sw
+    portsOf(sw).forEach(({ port }) => {
+      if (portTrack(sw, port) === trackId) updated = withPort(updated, port, { endpoint: flipEndpoint(portEnd(sw, port)) })
     })
     return updated
   })
@@ -57,14 +57,6 @@ export function rebuildCoords(elements) {
   }, [])
 }
 
-export function recalcAbsLengths(elements) {
-  let running = 0
-  return elements.map((el) => {
-    running += el.length
-    return { ...el, absLength: running }
-  })
-}
-
 export function nextTrackName(prefix, existingNames) {
   const set = new Set(existingNames)
   for (let i = 1; i <= 999; i++) {
@@ -75,7 +67,7 @@ export function nextTrackName(prefix, existingNames) {
 }
 
 export function makeTrack(base, elements, id, heights) {
-  const elems = recalcAbsLengths(elements)
+  const elems = elements
   const { elements: _e, coordinates: _c, id: _id, heights: _h, ...rest } = base
   return {
     ...rest,
@@ -94,7 +86,7 @@ export function makeTrack(base, elements, id, heights) {
  * flipSwitchEndpoints. Pure: nothing is written here.
  */
 export function reverseTrack(track) {
-  const elements = recalcAbsLengths([...(track.elements ?? [])].reverse().map(reverseElement))
+  const elements = [...(track.elements ?? [])].reverse().map(reverseElement)
   const heights  = reverseHeights(track.heights, trackLength(track))
   return {
     ...track,
@@ -124,7 +116,7 @@ export function reverseTrack(track) {
  * `head`'s length and the point they share at the joint is kept once.
  */
 export function joinTracks(head, tail) {
-  const elements = recalcAbsLengths([...(head.elements ?? []), ...(tail.elements ?? [])])
+  const elements = [...(head.elements ?? []), ...(tail.elements ?? [])]
   const heights  = joinHeights(head.heights, tail.heights, trackLength(head))
   const { heights: _h, ...rest } = head
   return {

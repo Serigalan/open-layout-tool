@@ -1,4 +1,4 @@
-import { recalcAbsLengths, rebuildCoords } from './trackModel'
+import { rebuildCoords } from './trackModel'
 import { truncateHeights } from './heightUtils'
 
 // What the optimize dialog sends and keeps (R5.5): the request for a run, and
@@ -35,7 +35,7 @@ export function reshapedHeights(track, elements) {
  * without them a design a few years old is not reproducible.
  */
 export function optimizedTrack(track, result) {
-  const elements = recalcAbsLengths(result.elements)
+  const elements = result.elements
   return {
     ...track, elements, coordinates: rebuildCoords(elements),
     heights: reshapedHeights(track, elements),

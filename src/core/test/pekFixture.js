@@ -8,9 +8,10 @@ import { join } from 'node:path'
  * look for it under OLT_PEK_FIXTURE or the project notes and are skipped where
  * it is not there.
  *
- * The file is schema version 1; it is brought to version 2 the way an import
- * would need it: every switch a `switchId`, `kind` and `formVersion`, every
- * switch element the id of the switch its `switchName` names.
+ * The file is from before this tool's own format; it is brought to the
+ * oltjson-1.0 record the way an import would need it: every switch a
+ * `switchId`, `kind`, `formVersion` and its `ports`, every switch element the
+ * id of the switch its `switchName` names — and no name of its own after that.
  */
 const CANDIDATES = [
   process.env.OLT_PEK_FIXTURE,
@@ -36,10 +37,21 @@ export function loadPek() {
       sw.kind = sw.kind ?? 'turnout'
       sw.formVersion = sw.formVersion ?? 1
       ids.set(sw.name, sw.switchId)
+      const ports = {}
+      for (const key of Object.keys(sw)) {
+        const m = key.match(/^port(A|B1|B2|B|C|D)_(trackId|endpoint)$/)
+        if (!m) continue
+        ports[m[1]] = { ...ports[m[1]], [m[2]]: sw[key] }
+        delete sw[key]
+      }
+      sw.ports = ports
     }
     for (const track of project.tracks ?? []) {
       for (const el of track.elements ?? []) {
         if (el.switchBranch && !el.switchId) el.switchId = ids.get(el.switchName)
+        delete el.switchName
+        delete el.switchLabel
+        delete el.absLength
       }
     }
     cached = JSON.stringify(project)
@@ -49,8 +61,8 @@ export function loadPek() {
 
 /**
  * The same line as it stands, at larger scale (113 tracks, 69 switches, two
- * double-track networks with crossovers) — schema version 2 already, as the
- * app exported it. Looked for under OLT_PEK_BESTAND_FIXTURE or the project
+ * double-track networks with crossovers) — an oltjson-1.0 file, as the app
+ * exports it. Looked for under OLT_PEK_BESTAND_FIXTURE or the project
  * notes; tests that need it are skipped where it is not there.
  */
 const BESTAND_PATH = [

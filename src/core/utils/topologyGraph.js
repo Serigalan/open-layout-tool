@@ -1,5 +1,5 @@
 import { classifyTrackEnds } from './topology'
-import { portsOf, isLinkSwitch, DEFAULT_SWITCH_KIND, turnoutLinePort } from './switchModel'
+import { portsOf, isLinkSwitch, DEFAULT_SWITCH_KIND, turnoutLinePort, portTrack, portEnd } from './switchModel'
 import { endKey } from './trackEndMarks'
 
 /**
@@ -34,10 +34,11 @@ export function buildTopologyGraph(tracks, switches, endMarks = []) {
   // Switch and link nodes: one per record, at the mean of its port ends.
   for (const sw of switches ?? []) {
     const id = `sw:${sw.switchId}`
-    for (const { trackKey, endKey: ek, port } of portsOf(sw)) {
-      if (!sw[trackKey] || !sw[ek]) continue
-      nodeOfEnd.set(endKey(sw[trackKey], sw[ek]), id)
-      portOfEnd.set(endKey(sw[trackKey], sw[ek]), port)
+    for (const { port } of portsOf(sw)) {
+      const trackId = portTrack(sw, port), end = portEnd(sw, port)
+      if (!trackId || !end) continue
+      nodeOfEnd.set(endKey(trackId, end), id)
+      portOfEnd.set(endKey(trackId, end), port)
     }
   }
   const at = new Map()
@@ -163,5 +164,5 @@ export function selectionHighlight(selection, switches) {
 
 /** The tracks a switch's ports name — what clicking the switch highlights. */
 export function switchTrackIds(sw) {
-  return portsOf(sw).map(p => sw?.[p.trackKey]).filter(Boolean)
+  return portsOf(sw).map(p => portTrack(sw, p.port)).filter(Boolean)
 }

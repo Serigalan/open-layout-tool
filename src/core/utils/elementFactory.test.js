@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { arcElement, arcFrom, straightElement, straightFrom, transitionElement } from './elementFactory'
 import { reconstructElements } from './elementReconstruct'
 import { expectValidTrack } from '../test/chainInvariants'
-import { recalcAbsLengths } from './trackModel'
+
 
 const EPSG = 25832
 const A = { easting: 500000, northing: 5600000, zone: EPSG }
@@ -29,7 +29,7 @@ describe('the element factory (R4.1)', () => {
     const end = { easting: s.endNode[0], northing: s.endNode[1], zone: EPSG }
     const t = transitionElement(end, 90, 60, null, 800)
     const a = arcFrom(t.endUtm, t.endBearing, 150, 800)
-    const track = { id: 't', epsg: EPSG, elements: recalcAbsLengths([s, t.element, a].map(e => ({ ...e, speed: 80 }))) }
+    const track = { id: 't', epsg: EPSG, elements: [s, t.element, a].map(e => ({ ...e, speed: 80 })) }
     expectValidTrack(track)
   })
 

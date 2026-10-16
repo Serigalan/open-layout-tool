@@ -27,7 +27,7 @@ const geometryLabel = (t, el) => (isTransition(el)
 export function typeLabel(t, el, sw) {
   if (!el.switchBranch) return geometryLabel(t, el)
   const kind = t(switchKindLabelKey(sw?.kind))
-  const form = sw?.label ?? el.switchLabel
+  const form = sw?.label
   return form ? `${kind} ${form}` : kind
 }
 
@@ -35,7 +35,7 @@ export function typeLabel(t, el, sw) {
 export function switchNote(t, el, sw) {
   if (!el.switchBranch) return undefined
   const routeKey = switchRouteLabelKey(sw?.kind, el.switchRoute)
-  return [sw?.name || el.switchName, routeKey && t(routeKey), geometryLabel(t, el)].filter(Boolean).join(' · ')
+  return [sw?.name, routeKey && t(routeKey), geometryLabel(t, el)].filter(Boolean).join(' · ')
 }
 
 /**

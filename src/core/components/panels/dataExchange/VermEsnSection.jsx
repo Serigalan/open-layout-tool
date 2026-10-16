@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { commitImport, saveReferenceAxis } from '../../../storage'
 import { generateId } from '../../../utils/identifierUtils'
-import { recalcAbsLengths, rebuildCoords } from '../../../utils/trackModel'
+import { rebuildCoords } from '../../../utils/trackModel'
 import { parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode } from '../../../utils/vermEsnImport'
 import { readFileBuffer } from '../../../utils/fileUtils'
 import { REFERENCE_MAX_LENGTH, buildReferenceAxis } from '../../../utils/referenceAxis'
@@ -133,7 +133,7 @@ export default function VermEsnSection() {
     const { elements, errors: errs, startStation } = buildElements(tra.records, Number(epsg))
     setErrors(errs)
     if (errs.length || !elements.length) return
-    const recalced = recalcAbsLengths(elements)
+    const recalced = elements
     const length = recalced.reduce((sum, el) => sum + (el.length ?? 0), 0)
     const { heights, notes: hNotes } = gra ? gradientHeights(gra.points, startStation, length) : { heights: null, notes: [] }
     setNotes(hNotes)

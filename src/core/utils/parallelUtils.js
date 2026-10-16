@@ -51,7 +51,7 @@ export function offsetTrackElements(elements, dist, epsg) {
       // or flipped to the opposite side of the original curve.
       if ((el.radius >= 0 ? 1 : -1) * signedR < 0.5) return null
       const arc = arcElement(start, end, signedR, { speed: el.speed, cant: el.cant })
-      out.push({ ...arc, absLength: arc.length })
+      out.push({ ...arc })
     } else if (el.elementType === 2) {
       // ── Clothoid → re-fitted clothoid, endpoints snapped to the parallel ──
       const r1 = el.r1 != null ? el.r1 - dist : null
@@ -61,13 +61,12 @@ export function offsetTrackElements(elements, dist, epsg) {
       const kSum2 = kappa(r1) + kappa(r2)
       const length = Math.abs(kSum2) < 1e-12 ? el.length : el.length * kSum / kSum2
       out.push(transitionElement(start, sB, length, r1, r2, {
-        transitionType: el.transitionType, endUtm: end, endBearing: eB,
-        absLength: length, speed: el.speed, cant: el.cant,
+        transitionType: el.transitionType, endUtm: end, endBearing: eB, speed: el.speed, cant: el.cant,
       }).element)
     } else {
       // ── Straight → parallel straight ──
       const straight = straightElement(start, end, { speed: el.speed, cant: el.cant })
-      out.push({ ...straight, absLength: straight.length })
+      out.push({ ...straight })
     }
   }
   return out

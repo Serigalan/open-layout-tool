@@ -4,6 +4,7 @@ import { connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitTrackEn
 import { crossingAngle, crossingEndDistance } from '../switch/crossing'
 import { trackLength } from '../heightUtils'
 import { nextTrackName, reverseTrack } from '../trackModel'
+import { portTrack, withPort } from '../switchModel'
 
 // "Kreuzung(-sweiche) an Gleis anschließen" (Entscheidung 307): a crossing or
 // crossing switch laid into the host track, one end of its cross route — B or
@@ -97,7 +98,7 @@ export function buildCrossingConnect({ track, target, anchor, solution, tracks, 
   })
   if (laid.noRoom) return laid
   const record = laid.addSwitches[0]
-  const legId = record[`port${solution.port}_trackId`]
+  const legId = portTrack(record, solution.port)
   const leg = laid.addTracks.find(tr => tr.id === legId)
   // Leg B runs from its port in to the crossing point, leg D out from it; the
   // join wants the route from the crossing point out.
@@ -109,7 +110,7 @@ export function buildCrossingConnect({ track, target, anchor, solution, tracks, 
   const own = describe(target)
   // The other leg is the cross route's line on the far side: it is named after
   // the connected track, as the next free number of the same stem.
-  const otherId = record[`port${solution.port === 'B' ? 'D' : 'B'}_trackId`]
+  const otherId = portTrack(record, solution.port === 'B' ? 'D' : 'B')
   const names = [...tracks.map(tr => tr.name), ...laid.addTracks.map(tr => tr.name)].filter(Boolean)
   const stem = (target.name ?? '').replace(/\.\d+$/, '') || 'track'
   const otherName = nextTrackName(stem, names)
@@ -118,7 +119,7 @@ export function buildCrossingConnect({ track, target, anchor, solution, tracks, 
   return {
     removeTrackIds: [...laid.removeTrackIds, target.id],
     addTracks: [...laid.addTracks.filter(tr => tr.id !== legId).map(described), joined],
-    addSwitches: [{ ...record, [`port${solution.port}_trackId`]: target.id, [`port${solution.port}_endpoint`]: anchor.endpoint }],
+    addSwitches: [withPort(record, solution.port, { trackId: target.id, endpoint: anchor.endpoint })],
     remap: laid.remap,
     restation: moved ? [{ trackId: target.id, shift: moved }] : [],
   }

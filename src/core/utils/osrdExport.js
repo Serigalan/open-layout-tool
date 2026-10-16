@@ -54,12 +54,12 @@ export function exportToOsrd(project) {
   // ── track_sections ──────────────────────────────────────────────────────
   const trackSections = tracks.map(track => {
     const curves = []
-    ;(track.elements ?? []).forEach((el, i) => {
-      if (el.elementType === 1) {
-        const begin = i > 0 ? (track.elements[i - 1].absLength ?? 0) : 0
-        curves.push({ end: round3(el.absLength ?? 0), begin: round3(begin), radius: Math.abs(el.radius) })
-      }
-    })
+    let station = 0
+    for (const el of track.elements ?? []) {
+      const begin = station
+      station += el.length
+      if (el.elementType === 1) curves.push({ end: round3(station), begin: round3(begin), radius: Math.abs(el.radius) })
+    }
 
     // Anything carried over from an import (loading gauge, foreign extensions)
     // sits underneath; the regenerated fields win.

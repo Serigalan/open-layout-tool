@@ -1,5 +1,5 @@
 import { generateId } from '../identifierUtils'
-import { rebuildCoords, recalcAbsLengths, trackLabel } from '../trackModel'
+import { rebuildCoords, trackLabel } from '../trackModel'
 import { resolveEndBearing, reverseElement, nodeUtm } from '../elementUtils'
 import { reconstructElements } from '../elementReconstruct'
 import { cantSign, AUTO_CANT_MODEL } from '../rules/cant'
@@ -441,7 +441,7 @@ export function buildSplice({ tracks, solution, speed, cant, newId = generateId 
   const elements = mergedChain(solution, depTrack, arrTrack, { speed, cant })
   const before = (reverseDep ? towardEnd(depTrack, dep) : towardStart(depTrack, dep)).length
   const id = newId()
-  const merged = recalcAbsLengths(elements)
+  const merged = elements
   const heights = spliceHeights({
     depTrack, arrTrack, dep, arr, chain, reverseDep, reverseArr, mergedLength: lengthOf(merged),
   })

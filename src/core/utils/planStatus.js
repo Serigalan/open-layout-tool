@@ -1,4 +1,4 @@
-import { DEFAULT_SWITCH_KIND, portsOf } from './switchModel'
+import { DEFAULT_SWITCH_KIND, portsOf, portTrack } from './switchModel'
 
 /**
  * What a planning drawing says about each object: it stays (Bestand), it is
@@ -23,7 +23,7 @@ export function switchStatus(sw, trackById) {
   if (own) return own
   const turnout = (sw.kind ?? DEFAULT_SWITCH_KIND) === 'turnout'
   const ports = portsOf(sw).filter(p => !turnout || p.port === 'B1')
-  const found = ports.map(p => trackStatus(trackById.get(sw[p.trackKey])))
+  const found = ports.map(p => trackStatus(trackById.get(portTrack(sw, p.port))))
   if (found.includes('new')) return 'new'
   if (found.includes('removal')) return 'removal'
   return 'existing'

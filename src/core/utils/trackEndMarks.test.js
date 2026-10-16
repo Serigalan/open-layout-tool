@@ -27,7 +27,6 @@ function straight(id, easting, northing, bearing, length, epsg = UTM) {
       elementType: 0, length, bearing, endBearing: bearing,
       startNode: [start.easting, start.northing],
       endNode:   [end.easting, end.northing],
-      absLength: length,
       geometry: { type: 'LineString', coordinates: [
         utmToWgs84(start.easting, start.northing, epsg),
         utmToWgs84(end.easting, end.northing, epsg),
@@ -38,9 +37,11 @@ function straight(id, easting, northing, bearing, length, epsg = UTM) {
 
 const turnout = (a, b1, b2) => ({
   ...newSwitchFields(), name: 'W1',
-  portA_trackId: a[0], portA_endpoint: a[1],
-  portB1_trackId: b1[0], portB1_endpoint: b1[1],
-  portB2_trackId: b2[0], portB2_endpoint: b2[1],
+  ports: {
+    A: { trackId: a[0], endpoint: a[1] },
+    B1: { trackId: b1[0], endpoint: b1[1] },
+    B2: { trackId: b2[0], endpoint: b2[1] },
+  },
 })
 
 describe('buffer stop stations', () => {
@@ -211,7 +212,7 @@ describe('topology', () => {
   })
 
   it('sets a turnout on its toe and tells a link apart', () => {
-    const link = { ...newSwitchFields(LINK_KIND), portA_trackId: 'b2', portA_endpoint: 'END', portB_trackId: 'c', portB_endpoint: 'BEGIN' }
+    const link = { ...newSwitchFields(LINK_KIND), ports: { A: { trackId: 'b2', endpoint: 'END' }, B: { trackId: 'c', endpoint: 'BEGIN' } }}
     const nodes = switchNodes([a, b1, b2, c], [sw, link])
     const toe = utmToWgs84(toeE, toeN, UTM)
     expect(nodes[0].lngLat[0]).toBeCloseTo(toe[0], 9)
@@ -311,7 +312,7 @@ describe('the topology view', () => {
     const [lE, lN] = b2.elements[0].endNode
     const c  = straight('c', lE, lN, 90, 40)
     const sw = turnout(['a', 'END'], ['b1', 'BEGIN'], ['b2', 'BEGIN'])
-    const link = { ...newSwitchFields(LINK_KIND), portA_trackId: 'b2', portA_endpoint: 'END', portB_trackId: 'c', portB_endpoint: 'BEGIN' }
+    const link = { ...newSwitchFields(LINK_KIND), ports: { A: { trackId: 'b2', endpoint: 'END' }, B: { trackId: 'c', endpoint: 'BEGIN' } }}
     const { nodes, ends } = topologyGeoJSON([a, b1, b2, c], [sw, link],
       [newBufferStop('c', 'END', 4), newBoundary('a', 'BEGIN')])
     expect(nodes.features.map(f => f.properties.link)).toEqual([false, true])

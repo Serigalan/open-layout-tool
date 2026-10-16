@@ -27,7 +27,7 @@ import { utmToWgs84 } from '../utils/coordinateUtils'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { clamp } from '../utils/format'
-import { turnoutDivergingPort, turnoutLinePort } from '../utils/switchModel'
+import { turnoutDivergingPort, turnoutLinePort, portTrack } from '../utils/switchModel'
 import { niceStep, stepDecimals, ticks } from '../utils/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
@@ -326,7 +326,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   }
   const pairedNote = ({ sw, side, sleeper, also = [] }) => [fill(side === 'main' ? 'elevation_paired_main' : 'elevation_paired_branch', {
     name: swName(sw), sleeper: sleeperLabel(sleeper),
-    other: trackName(sw[`port${side === 'main' ? turnoutDivergingPort(sw) : turnoutLinePort(sw)}_trackId`]),
+    other: trackName(portTrack(sw, side === 'main' ? turnoutDivergingPort(sw) : turnoutLinePort(sw))),
   }), also.length > 0 && fill('elevation_paired_shared', { names: also.map(swName).join(', ') })].filter(Boolean).join(' ')
   const planeNote = (info) => (info?.dz != null ? fill('elevation_plane_off', { dz: (info.dz * 1000).toFixed(0) }) : null)
   const pointNote = (i) => [roleNote(roles.get(i)), paired.has(i) && !roles.has(i) ? pairedNote(paired.get(i)) : null,

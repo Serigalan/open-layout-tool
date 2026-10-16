@@ -1,5 +1,5 @@
 import { generateId, switchDesignation, nextSwitchNumber } from '../identifierUtils'
-import { nextTrackName, rebuildCoords, recalcAbsLengths, trackLabel } from '../trackModel'
+import { nextTrackName, rebuildCoords, trackLabel } from '../trackModel'
 import { nodeUtm } from '../elementUtils'
 import { switchElementRoute, switchRouteVaries } from '../switch/route'
 import { transitionCantEnds } from '../clothoidUtils'
@@ -54,9 +54,11 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, side, sw, spee
       // The stem radius at the toe, so a reload can rebuild a bent symbol even
       // where the marked elements cannot be read back.
       ...(swapped ? { swapped: true } : geom.stemAtToe ? { mainRadius: geom.stemAtToe } : {}),
-      portA_trackId:  behind.trackId, portA_endpoint:  behind.endpoint,
-      portB1_trackId: b1.trackId,     portB1_endpoint: b1.endpoint,
-      portB2_trackId: b2.trackId,     portB2_endpoint: b2.endpoint,
+      ports: {
+        A: { trackId: behind.trackId, endpoint: behind.endpoint },
+        B1: { trackId: b1.trackId, endpoint: b1.endpoint },
+        B2: { trackId: b2.trackId, endpoint: b2.endpoint },
+      },
       fillCoords: shown.fillCoords, lcsCoords: shown.lcsCoords,
       labelCoords: shown.labelCoords, bauform: shown.bauform,
     },
@@ -610,11 +612,11 @@ export function buildSCurve({ result, picks, tracks, switches, speed }) {
   // several elements of its host track. A swapped turnout's piece here is its
   // through route.
   const { branch1, midEls, branch2 } = buildConnectionElements(res, speed)
-  const connElements = recalcAbsLengths([
+  const connElements = [
     ...branch1.map(el => ({ ...el, ...switchElementMark(id1, j1.connRoute) })),
     ...midEls,
     ...branch2.map(el => ({ ...el, ...switchElementMark(id2, j2.connRoute) })),
-  ])
+  ]
   const connTrack = {
     id:          connId,
     name:        nextTrackName('connection', existingNames),

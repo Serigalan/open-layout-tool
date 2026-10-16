@@ -1,7 +1,7 @@
 import { expect } from 'vitest'
 import { wgs84ToUTM } from '../utils/coordinateUtils'
 import {
-  JOINT_TOL, BEARING_TOL, absLengthErrors, epsgMismatches, nodeGaps, tangentBreaks, untrueLengths,
+  JOINT_TOL, BEARING_TOL, epsgMismatches, nodeGaps, tangentBreaks, untrueLengths,
 } from '../utils/chainChecks'
 import { SAGITTA_ELEMENT } from '../utils/geometryPrecision'
 import { cantExceptionOf, cantLimit, worstCantOf } from '../utils/rules/cant'
@@ -30,13 +30,6 @@ export function expectNodesJoin(elements, tol = JOINT_TOL) {
 export function expectTangentsContinuous(elements, epsg, tol = BEARING_TOL) {
   for (const { index, delta } of tangentBreaks(elements, epsg, tol)) {
     expect(delta, `element ${index} end bearing to element ${index + 1} bearing`).toBeLessThan(tol)
-  }
-}
-
-/** absLength is the running sum of the lengths before it, inclusive. */
-export function expectAbsLengthsRunning(elements, tol = 1e-6) {
-  for (const { index, absLength, expected } of absLengthErrors(elements, tol)) {
-    expect(absLength, `absLength of element ${index}`).toBeCloseTo(expected, -Math.log10(tol))
   }
 }
 
@@ -168,7 +161,6 @@ export function expectValidTrack(track) {
   expectEpsgThroughout(track)
   expectNodesJoin(elements)
   expectTangentsContinuous(elements, track.epsg)
-  expectAbsLengthsRunning(elements)
   expectLengthsTrue(elements)
   expectRenderCoordsConsistent(elements, track.epsg)
   expectSwitchCantAdmissible(elements)

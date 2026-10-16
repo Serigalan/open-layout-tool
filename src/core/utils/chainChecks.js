@@ -37,17 +37,6 @@ export function tangentBreaks(elements, epsg, tol = BEARING_TOL) {
   return out
 }
 
-/** Where absLength is not the running sum of the lengths: [{ index, absLength, expected }]. */
-export function absLengthErrors(elements, tol = 1e-6) {
-  const out = []
-  let running = 0
-  ;(elements ?? []).forEach((el, i) => {
-    running += el.length
-    if (!(Math.abs(el.absLength - running) < tol)) out.push({ index: i, absLength: el.absLength, expected: running })
-  })
-  return out
-}
-
 /**
  * Where the stated length is not the length the element's own geometry has:
  * the arc length for an arc, the distance between the nodes for a straight. A

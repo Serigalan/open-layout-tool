@@ -4,7 +4,7 @@ import {
   replacedSpan, stationMap, stretchDefaults,
 } from './reconnect'
 import { reconstructElements } from '../elementReconstruct'
-import { recalcAbsLengths, rebuildCoords } from '../trackModel'
+import { rebuildCoords } from '../trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
 import fixture from '../../test/fixtures/reconnect_answers.json'
 
@@ -16,7 +16,7 @@ import fixture from '../../test/fixtures/reconnect_answers.json'
 
 const EPSG = 25832
 const makeTrack = (elements, extra = {}) => {
-  const els = recalcAbsLengths(reconstructElements(elements.map(el => ({ ...el })), EPSG))
+  const els = reconstructElements(elements.map(el => ({ ...el })), EPSG)
   return { id: 't', name: 't', epsg: EPSG, elements: els, coordinates: rebuildCoords(els), ...extra }
 }
 const lengthOf = (els) => els.reduce((s, el) => s + el.length, 0)

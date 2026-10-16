@@ -4,7 +4,7 @@ import {
   listMdbStrecken, buildTracksFromMdb, mdbSwitchInventory, epsgForLagesystem,
 } from './mdbImport'
 import { expectValidTrack } from '../test/chainInvariants'
-import { recalcAbsLengths } from './trackModel'
+
 import fixture from '../test/fixtures/mdb_ausschnitt.json'
 
 /**
@@ -119,7 +119,7 @@ describe('buildTracksFromMdb', () => {
     expect(tracks[0].elements).toHaveLength(4)
     // Same contract as the CSV path: the running station is the caller's, and
     // every caller in the app sets it with `recalcAbsLengths`.
-    expectValidTrack({ ...tracks[0], elements: recalcAbsLengths(tracks[0].elements) })
+    expectValidTrack({ ...tracks[0], elements: tracks[0].elements })
   })
 
   it('keeps the plane the elements were surveyed in', () => {

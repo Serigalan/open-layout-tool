@@ -6,6 +6,7 @@ import { elementAtStation, trackLength } from '../heightUtils'
 import { reverseElement } from '../elementUtils'
 import { checkTrack } from '../trassierungCheck'
 import { severityRank } from '../regelkatalog'
+import { portTrack, withPort } from '../switchModel'
 
 // "Weiche an Gleis anschließen" (Entscheidungen 302–304): a turnout laid into
 // the host track whose new route ends on an open end of another track. The
@@ -178,11 +179,11 @@ export function buildSwitchConnect({
   // At the track's start its old stations move by the route and by the change
   // of length of the refitted end.
   const moved = shift ? shift + trackLength(refitted) - trackLength(target) : 0
-  const portKey = ['B1', 'B2'].find(p => record[`port${p}_trackId`] === routeId)
+  const portKey = ['B1', 'B2'].find(p => portTrack(record, p) === routeId)
   return {
     removeTrackIds: [...laid.removeTrackIds, target.id],
     addTracks: [...laid.addTracks.filter(tr => tr.id !== routeId), joined],
-    addSwitches: [{ ...record, [`port${portKey}_trackId`]: target.id, [`port${portKey}_endpoint`]: anchor.endpoint }],
+    addSwitches: [withPort(record, portKey, { trackId: target.id, endpoint: anchor.endpoint })],
     remap: laid.remap,
     restation: moved ? [{ trackId: target.id, shift: moved }] : [],
   }

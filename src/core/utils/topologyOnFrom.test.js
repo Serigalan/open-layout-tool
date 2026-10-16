@@ -22,7 +22,6 @@ function straight(id, easting, northing, bearing, length, epsg = UTM) {
       elementType: 0, length, bearing, endBearing: bearing,
       startNode: [start.easting, start.northing],
       endNode:   [end.easting, end.northing],
-      absLength: length,
       geometry: { type: 'LineString', coordinates: [
         utmToWgs84(start.easting, start.northing, epsg),
         utmToWgs84(end.easting, end.northing, epsg),
@@ -33,9 +32,11 @@ function straight(id, easting, northing, bearing, length, epsg = UTM) {
 
 const turnout = (a, b1, b2) => ({
   ...newSwitchFields(), name: 'W1',
-  portA_trackId: a[0], portA_endpoint: a[1],
-  portB1_trackId: b1[0], portB1_endpoint: b1[1],
-  portB2_trackId: b2[0], portB2_endpoint: b2[1],
+  ports: {
+    A: { trackId: a[0], endpoint: a[1] },
+    B1: { trackId: b1[0], endpoint: b1[1] },
+    B2: { trackId: b2[0], endpoint: b2[1] },
+  },
 })
 
 describe('tracksOnFrom', () => {
@@ -78,18 +79,18 @@ describe('tracksOnFrom', () => {
     const b = straight('b', E0 + 100, N0, 90, 50, 25833)
     const link = {
       ...newSwitchFields(LINK_KIND), name: 'L1',
-      portA_trackId: 'a', portA_endpoint: 'END', portB_trackId: 'b', portB_endpoint: 'BEGIN',
+      ports: { A: { trackId: 'a', endpoint: 'END' }, B: { trackId: 'b', endpoint: 'BEGIN' } },
     }
     expect(tracksOnFrom('a', 'END', [a, b], [link])).toEqual([{ trackId: 'b', endpoint: 'BEGIN' }])
   })
 
   it.skipIf(!hasPek)('finds every turnout toe of the Bestand leading into two tracks', () => {
     const { tracks, switches } = loadPekBestand()
-    const turnouts = switches.filter(sw => sw.kind === 'turnout' && sw.portA_trackId)
+    const turnouts = switches.filter(sw => sw.kind === 'turnout' && sw.ports?.A?.trackId)
     expect(turnouts.length).toBeGreaterThan(0)
     for (const sw of turnouts) {
-      const on = tracksOnFrom(sw.portA_trackId, sw.portA_endpoint, tracks, switches)
-      expect(on.map(o => o.trackId).sort()).toEqual([sw.portB1_trackId, sw.portB2_trackId].sort())
+      const on = tracksOnFrom(sw.ports?.A?.trackId, sw.ports?.A?.endpoint, tracks, switches)
+      expect(on.map(o => o.trackId).sort()).toEqual([sw.ports?.B1?.trackId, sw.ports?.B2?.trackId].sort())
     }
   })
 })

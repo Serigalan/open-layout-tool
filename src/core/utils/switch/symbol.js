@@ -1,7 +1,7 @@
 import { utmToWgs84 } from '../coordinateUtils'
 import { reverseElement, projectOnArcUtm } from '../elementUtils'
 import { projectOnTransitionUtm } from '../clothoidUtils'
-import { elementBelongsToSwitch, isLinkSwitch } from '../switchModel'
+import { elementBelongsToSwitch, isLinkSwitch, portTrack, portEnd } from '../switchModel'
 import { linkSymbol } from '../trackLinkUtils'
 import {
   SWITCH_CHAIN_TOL, chainGeometry, clothoidRoutePoints, negR, switchBranchChain,
@@ -224,8 +224,8 @@ export function lcsLine(portA, portB1, portB2, dLcs, zone) {
  * a branch track begins with its branch however old the record is.
  */
 function routeElements(sw, trackById, port, route, length, { first = false } = {}) {
-  const track    = trackById[sw[`port${port}_trackId`]]
-  const endpoint = sw[`port${port}_endpoint`]
+  const track    = trackById[portTrack(sw, port)]
+  const endpoint = portEnd(sw, port)
   const els      = track?.elements ?? []
   if (!els.length || (endpoint !== 'BEGIN' && endpoint !== 'END')) return []
   const ordered = endpoint === 'END' ? [...els].reverse() : els
@@ -279,7 +279,7 @@ export function crossingRoutesFromTracks(sw, trackById) {
   if (!mainFirst || !crossFirst || !mainFirst.startNode || !crossFirst.startNode) return null
   // Both legs begin at the crossing point; a record whose tracks disagree
   // there by more than a joint is not one the geometry can be read back from.
-  const epsg = trackById[sw.portC_trackId]?.epsg
+  const epsg = trackById[portTrack(sw, 'C')]?.epsg
   if (epsg == null) return null
   if (Math.hypot(mainFirst.startNode[0] - crossFirst.startNode[0],
     mainFirst.startNode[1] - crossFirst.startNode[1]) > SWITCH_CHAIN_TOL) return null
@@ -349,7 +349,7 @@ export function crossingBodyUtm(routes) {
  * resolved.
  */
 export function switchRoutesFromTracks(sw, trackById) {
-  const branchTrack = trackById[sw.portB1_trackId]
+  const branchTrack = trackById[portTrack(sw, 'B1')]
   const type = switchTypeByLabel(sw.label)
   const branchEls = routeElements(sw, trackById, 'B1', 'branch',
     type ? switchBranchLength(type) : null, { first: true })

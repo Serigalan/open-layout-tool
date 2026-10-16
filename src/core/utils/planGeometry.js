@@ -9,7 +9,7 @@ import {
 import { crossingEndDistance } from './switch/crossing'
 import { switchChainPointUtm, switchChainBearingAt, switchChainBauform } from './switch/route'
 import { switchNumberOf } from './identifierUtils'
-import { isLinkSwitch } from './switchModel'
+import { isLinkSwitch, portTrack, portEnd } from './switchModel'
 
 /**
  * Everything a plan needs to draw, in the track's own projected plane — paths,
@@ -275,7 +275,7 @@ export function switchSymbolUtm(sw, trackById) {
     number: switchNumberOf(sw),
     // Where the toe sits along the branch track — the start of it, unless the
     // switch hangs on that track's far end.
-    station: sw.portB1_endpoint === 'END' ? trackLength(trackById[sw.portB1_trackId]) : 0,
+    station: portEnd(sw, 'B1') === 'END' ? trackLength(trackById[portTrack(sw, 'B1')]) : 0,
     mid: [mid.easting, mid.northing],
     midBearing: switchChainBearingAt(bearing, stem, midS),
     // Which way the branch leaves: its body lies on that side, so a label has

@@ -16,7 +16,7 @@ beforeAll(() => {
 })
 
 describe('the working copy of a variant (AP 10.6)', () => {
-  const el = (length) => ({ elementType: 0, length, absLength: length, bearing: 90, startNode: [0, 0], endNode: [length, 0] })
+  const el = (length) => ({ elementType: 0, length, bearing: 90, startNode: [0, 0], endNode: [length, 0] })
   const record = () => ({ id: 'wp', title: 'P', tracks: [{ id: 't', epsg: 25832, elements: [el(10), el(20)] }], switches: [] })
   const base = { id: 7, number: 3 }
 

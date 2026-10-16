@@ -54,11 +54,17 @@ function layout({ z1 = 100, z2 = 100, cant = 60, grade = 0 } = {}) {
   ]
   const switches = [
     { switchId: 'w1', kind: 'turnout', label: '500 – 1:12',
-      portA_trackId: 't1a', portA_endpoint: 'END', portB2_trackId: 't1b', portB2_endpoint: 'BEGIN',
-      portB1_trackId: 'c', portB1_endpoint: 'BEGIN' },
+      ports: {
+        A: { trackId: 't1a', endpoint: 'END' },
+        B2: { trackId: 't1b', endpoint: 'BEGIN' },
+        B1: { trackId: 'c', endpoint: 'BEGIN' },
+      }},
     { switchId: 'w2', kind: 'turnout', label: '500 – 1:12',
-      portA_trackId: 't2b', portA_endpoint: 'BEGIN', portB2_trackId: 't2a', portB2_endpoint: 'END',
-      portB1_trackId: 'c', portB1_endpoint: 'END' },
+      ports: {
+        A: { trackId: 't2b', endpoint: 'BEGIN' },
+        B2: { trackId: 't2a', endpoint: 'END' },
+        B1: { trackId: 'c', endpoint: 'END' },
+      }},
   ]
   return { tracks, switches }
 }

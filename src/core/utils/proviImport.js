@@ -165,16 +165,16 @@ const bearingOfDir = (dir) => norm360(90 - dir * RAD2DEG)
 
 function straight(start, bearing, length) {
   const el = straightFrom(start, bearing, length, { speed: 0 })
-  return { ...el, absLength: el.length }
+  return { ...el }
 }
 
 function arc(start, bearing, length, radius) {
   const el = arcFrom(start, bearing, length, radius, { speed: 0 })
-  return { ...el, absLength: el.length }
+  return { ...el }
 }
 
 function transition(start, bearing, length, r1, r2, transitionType) {
-  return transitionElement(start, bearing, length, r1 || null, r2 || null, { transitionType, absLength: length, speed: 0 }).element
+  return transitionElement(start, bearing, length, r1 || null, r2 || null, { transitionType, speed: 0 }).element
 }
 
 /** A stretch of constant curvature: an arc, or a straight where the radius is 0. */

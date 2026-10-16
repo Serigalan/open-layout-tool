@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitImport } from '../../storage'
 import { generateId } from '../../utils/identifierUtils'
-import { recalcAbsLengths, rebuildCoords, nextTrackName } from '../../utils/trackModel'
+import { rebuildCoords, nextTrackName } from '../../utils/trackModel'
 import {
   readProviArchive, listProviAxes, buildProviTracks, proviPlaceableUnits, proviHeights,
   proviSwitchCandidates, proviProject, PROVI_FRAMES,
@@ -94,7 +94,7 @@ export default function ProviImportSection({ onReport }) {
 
         const taken = new Set(loadTracks().map(tr => tr.name).filter(Boolean))
         const addTracks = withHeights.tracks.map((tr) => {
-          const elements = recalcAbsLengths(tr.elements)
+          const elements = tr.elements
           const name = !tr.name || taken.has(tr.name)
             ? nextTrackName((tr.name ?? 'provi').split('.')[0], taken)
             : tr.name

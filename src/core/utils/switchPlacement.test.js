@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { clickStation, placeSwitchOnTrack, switchEndAnchorRefusal } from './switchPlacement'
 import { arcFrom, straightFrom, transitionElement } from './elementFactory'
-import { recalcAbsLengths } from './trackModel'
+
 
 const EPSG = 25832
 const O = { easting: 500000, northing: 5700000, zone: EPSG }
 const at = (node) => ({ easting: node[0], northing: node[1], zone: EPSG })
-const track = (elements) => ({ id: 't', epsg: EPSG, elements: recalcAbsLengths(elements) })
+const track = (elements) => ({ id: 't', epsg: EPSG, elements: elements })
 
 // 100 m straight due east, 100 m of arc R 500 to the right with 40 mm cant.
 function straightAndArc() {

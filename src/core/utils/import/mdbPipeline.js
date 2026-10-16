@@ -1,5 +1,5 @@
 import { generateId } from '../identifierUtils'
-import { nextTrackName, rebuildCoords, recalcAbsLengths } from '../trackModel'
+import { nextTrackName, rebuildCoords } from '../trackModel'
 import { crsDatum, crsLabel } from '../coordinateUtils'
 import {
   buildAllTracksFromMdb, buildTracksFromMdb, mdbSwitchInventory, mdbBufferStops, matchMdbBufferStops,
@@ -97,7 +97,7 @@ export async function runMdbImport({
 
   const names = new Set(existingTracks.map(tr => tr.name).filter(Boolean))
   let addTracks = placed.tracks.map(tr => {
-    const elements = recalcAbsLengths(tr.elements)
+    const elements = tr.elements
     const name = !tr.name || names.has(tr.name)
       ? nextTrackName((tr.name ?? 'mdb').split('.')[0], names)
       : tr.name

@@ -1,5 +1,5 @@
 import { pointAtStation, stationOnTrack } from '../platformUtils'
-import { portsOf } from '../switchModel'
+import { portsOf, portTrack, portEnd, withPort } from '../switchModel'
 import { repairRoute } from '../routes'
 
 /**
@@ -126,15 +126,15 @@ export function carryReferences(project, logs, oldTracks) {
 
   const switches = (project.switches ?? []).map(sw => {
     let out = sw
-    for (const { trackKey, endKey } of portsOf(sw)) {
-      const id = sw[trackKey]
+    for (const { port } of portsOf(sw)) {
+      const id = portTrack(sw, port)
       if (!id || present.has(id)) continue
       const old = oldTrack(id)
       const cands = candidatesFor(id)
       if (!old || !cands.length) continue
-      const hit = mapEnd(old, sw[endKey], cands)
+      const hit = mapEnd(old, portEnd(sw, port), cands)
       if (!hit) continue
-      out = { ...out, [trackKey]: hit.trackId, [endKey]: hit.endpoint }
+      out = withPort(out, port, { trackId: hit.trackId, endpoint: hit.endpoint })
       carried.push({ collection: 'switches', id: sw.switchId, from: id, to: hit.trackId })
     }
     return out

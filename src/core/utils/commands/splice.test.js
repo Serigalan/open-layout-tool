@@ -3,7 +3,7 @@ import {
   buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer, spliceKeptCant, splicePick, spliceRequest,
 } from './splice'
 import { straightElement, arcElement, transitionElement } from '../elementFactory'
-import { recalcAbsLengths, rebuildCoords } from '../trackModel'
+import { rebuildCoords } from '../trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
 import answers from '../../test/fixtures/splice_answers.json'
 
@@ -16,7 +16,7 @@ const EPSG = 25832
 const P = (x, y, zone = EPSG) => ({ easting: 500000 + x, northing: 5700000 + y, zone })
 const at = ([e, n]) => ({ easting: e, northing: n, zone: EPSG })
 const track = (id, elements, extra = {}) => {
-  const els = recalcAbsLengths(elements)
+  const els = elements
   return { id, name: id, epsg: EPSG, elements: els, coordinates: rebuildCoords(els), ...extra }
 }
 const settings = { radius: 300, transitionOn: [false, false], transitions: [60, 60], transitionType: 'clothoid', arcJoin: 'straight' }

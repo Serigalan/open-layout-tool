@@ -4,7 +4,7 @@ import {
 } from './optimizerService'
 import { bundledCatalogHash } from '../core/utils/catalogHash'
 import { reconstructElements } from '../core/utils/elementReconstruct'
-import { recalcAbsLengths } from '../core/utils/trackModel'
+
 import { expectValidTrack } from '../core/test/chainInvariants'
 import korbbogen from '../core/test/fixtures/optimizer_service_korbbogen.json'
 
@@ -164,7 +164,7 @@ describe('an optimized compound curve coming back from the service', () => {
   const optimized = korbbogen.response
 
   it('rebuilds into a valid element chain', () => {
-    const elements = recalcAbsLengths(reconstructElements(optimized.elements, track.epsg))
+    const elements = reconstructElements(optimized.elements, track.epsg)
     expectValidTrack({ ...track, elements })
   })
 

@@ -1,5 +1,5 @@
 // Geometry of an element edit: plan, apply and merge length/bearing/radius changes.
-import { rebuildCoords, recalcAbsLengths } from './trackModel'
+import { rebuildCoords } from './trackModel'
 import { nodeUtm } from './elementUtils'
 import { truncateHeights } from './heightUtils'
 import { switchParts } from './switchDelete'
@@ -94,7 +94,7 @@ function propagate(tracks, epsg, oldNode, fromEl, touched) {
 }
 
 const finish = (tracks) => tracks.map(t => {
-  const elems = recalcAbsLengths(t.elements ?? [])
+  const elems = t.elements ?? []
   return { ...t, elements: elems, coordinates: rebuildCoords(elems) }
 })
 

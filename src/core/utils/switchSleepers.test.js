@@ -59,7 +59,7 @@ describe('the sleepers of a turnout', () => {
   })
 
   it('are the same on a branch whose stations run toward the toe', () => {
-    const turned = turnoutSleepers([mainTrack(), reverseTrack(branchTrack())], turnout({ portB1_endpoint: 'END' }), { formOf })
+    const turned = turnoutSleepers([mainTrack(), reverseTrack(branchTrack())], turnout({ ports: { B1: { endpoint: 'END' } } }), { formOf })
     const a = frame.sleepers[40], b = turned.sleepers[40]
     expect(b.main).toBeCloseTo(a.main, 6)
     expect(b.branch).toBeCloseTo(60 - a.branch, 4)

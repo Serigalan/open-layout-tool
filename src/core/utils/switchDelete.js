@@ -1,7 +1,6 @@
-import { joinTracks, rebuildCoords, recalcAbsLengths, reverseTrack } from './trackModel'
+import { joinTracks, rebuildCoords, reverseTrack } from './trackModel'
 import {
-  portsOf, switchRoutePorts, elementBelongsToSwitch, elementOnSwitchRoute, unmarkSwitchElement,
-  isLinkSwitch,
+  portsOf, switchRoutePorts, elementBelongsToSwitch, elementOnSwitchRoute, unmarkSwitchElement, isLinkSwitch, portTrack, portEnd,
 } from './switchModel'
 import {
   computeCurvedValuesUtm, computeStraightValuesUtm, resolveEndBearing,
@@ -93,7 +92,7 @@ const bearingDelta = (a, b) => Math.abs(((a - b + 540) % 360) - 180)
  * out because they are compared by their own rule below.
  */
 const PLACEMENT_KEYS = new Set([
-  'startNode', 'endNode', 'bearing', 'endBearing', 'length', 'absLength',
+  'startNode', 'endNode', 'bearing', 'endBearing', 'length',
   'geometry', 'renderCoords', 'epsg', 'radius', 'r1', 'r2', 'cantStart', 'cantEnd',
 ])
 
@@ -176,7 +175,7 @@ function mergeRun(els, epsg) {
   const last  = els[els.length - 1]
   const startUtm = { easting: first.startNode[0], northing: first.startNode[1], zone: epsg }
   const endUtm   = { easting: last.endNode[0],    northing: last.endNode[1],    zone: epsg }
-  const { endBearing: _eb, absLength: _al, geometry: _g, renderCoords: _rc, ...base } = first
+  const { endBearing: _eb, geometry: _g, renderCoords: _rc, ...base } = first
 
   let merged
   if (first.elementType === 2) {
@@ -228,7 +227,7 @@ export function mergeChain(elements, epsg) {
     }
     i = j
   }
-  return { elements: recalcAbsLengths(out), mergedFrom, mergedInto }
+  return { elements: out, mergedFrom, mergedInto }
 }
 
 /**
@@ -247,9 +246,9 @@ export function mergeChain(elements, epsg) {
  */
 export function switchParts(sw, tracks) {
   const byId = tracks instanceof Map ? tracks : new Map((tracks ?? []).map(t => [t.id, t]))
-  const ports = portsOf(sw).map(({ port, trackKey, endKey, route }) => {
-    const trackId  = sw?.[trackKey] ?? null
-    const endpoint = sw?.[endKey] ?? null
+  const ports = portsOf(sw).map(({ port, route }) => {
+    const trackId  = portTrack(sw, port)
+    const endpoint = portEnd(sw, port)
     const track    = trackId ? byId.get(trackId) ?? null : null
     const els      = track?.elements ?? []
     const atEnd    = endpoint === 'END'
@@ -278,7 +277,7 @@ function trimTrack(track, endpoint, drop) {
   const heights = endpoint === 'END'
     ? splitHeights(track.heights, Math.max(0, trackLength(track) - cut))[0]
     : splitHeights(track.heights, cut)[1]
-  const elements = recalcAbsLengths(keep)
+  const elements = keep
   const { heights: _h, ...rest } = track
   return {
     ...rest,

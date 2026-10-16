@@ -1,5 +1,5 @@
 import { generateId } from './identifierUtils'
-import { nextTrackName, rebuildCoords, recalcAbsLengths } from './trackModel'
+import { nextTrackName, rebuildCoords } from './trackModel'
 import { computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm, nodeUtm } from './elementUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
@@ -12,7 +12,7 @@ const DEG2RAD = Math.PI / 180
 
 /** Clone a source track keeping its metadata but with fresh id/name/elements. */
 function makeSplitTrack(srcTrack, elements, id, name, heights) {
-  const elems = recalcAbsLengths(elements)
+  const elems = elements
   const { elements: _e, coordinates: _c, id: _id, name: _n, heights: _h, ...rest } = srcTrack
   return {
     ...rest, id, name,
@@ -86,7 +86,7 @@ function splitElement(el, epsg, cut, ramp = null) {
     return {
       ...elRest,
       startNode: sv.startNode, endNode: sv.endNode,
-      bearing: sv.bearing, length: sv.length, absLength: sv.length,
+      bearing: sv.bearing, length: sv.length,
       ...(radius ? { endBearing: sv.endBearing } : {}),
       geometry: { type: 'LineString', coordinates: c }, renderCoords: undefined,
     }
@@ -143,7 +143,7 @@ function splitClothoid(el, epsg, cut, ramp) {
       ...elRest,
       r1: ra, r2: rb,
       startNode: [from.easting, from.northing], endNode: toNode,
-      bearing, endBearing, length, absLength: length,
+      bearing, endBearing, length,
       ...(ramp ? { cantStart: ua, cantEnd: ub } : {}),
       geometry: { type: 'LineString', coordinates: line(SAGITTA_ELEMENT) },
       renderCoords: line(SAGITTA_TRACK),
@@ -225,8 +225,8 @@ export function carveSwitchRoute(track, endpoint, cut, mark, routeLength = null,
         ? [{ ...el, ...mark }]
         : endpoint === 'BEGIN' ? [{ ...route, ...mark }, rest] : [rest, { ...route, ...mark }]
     }
-    const elements = recalcAbsLengths(els.flatMap((e, i) => (
-      i === idx ? replacement : covered.has(i) ? [{ ...e, ...mark }] : [e])))
+    const elements = els.flatMap((e, i) => (
+      i === idx ? replacement : covered.has(i) ? [{ ...e, ...mark }] : [e]))
     return { ...track, elements, coordinates: rebuildCoords(elements) }
   }
   return null
@@ -248,7 +248,7 @@ function carveTerminal(track, endpoint, cut, mark) {
     ? [{ ...el, ...mark }]
     : endpoint === 'BEGIN' ? [{ ...route, ...mark }, rest] : [rest, { ...route, ...mark }]
 
-  const elements = recalcAbsLengths([...els.slice(0, idx), ...halves, ...els.slice(idx + 1)])
+  const elements = [...els.slice(0, idx), ...halves, ...els.slice(idx + 1)]
   return { ...track, elements, coordinates: rebuildCoords(elements) }
 }
 

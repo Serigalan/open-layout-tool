@@ -41,7 +41,7 @@ import { heightAt, gradientAt, jointGroup, roundHeight } from './heightUtils'
 import {
   carried, couplingOf, isTurnout, ldsPlaneHeight, ldsPlaneTerms, pairedHeights, roundMm, STATION_TOL, switchCouplings, touchedTurnouts, Z_TOL,
 } from './switchGradient'
-import { turnoutDivergingPort, turnoutLinePort } from './switchModel'
+import { turnoutDivergingPort, turnoutLinePort, portTrack, portEnd } from './switchModel'
 
 /** Between two ldS of a crossover, more than this carries a point of its own [m] (decision 272). */
 export const CROSSOVER_SPAN = 20
@@ -57,8 +57,8 @@ const MAX_STEPS = 400
  */
 function entryOf(c, order) {
   const sw = c.sw
-  const port = (p) => (sw[`port${p}_trackId`]
-    ? { trackId: sw[`port${p}_trackId`], endpoint: sw[`port${p}_endpoint`] === 'END' ? 'END' : 'BEGIN' }
+  const port = (p) => (portTrack(sw, p)
+    ? { trackId: portTrack(sw, p), endpoint: portEnd(sw, p) === 'END' ? 'END' : 'BEGIN' }
     : null)
   return {
     sw, order,
@@ -587,7 +587,7 @@ function leaderOf(wasTrack, c) {
   return branchEdited && mainBefore === c.main.track ? 'branch' : 'main'
 }
 
-const touches = (sw, ids) => [sw.portA_trackId, sw.portB1_trackId, sw.portB2_trackId].some(id => ids.has(id))
+const touches = (sw, ids) => [portTrack(sw, 'A'), portTrack(sw, 'B1'), portTrack(sw, 'B2')].some(id => ids.has(id))
 
 /** The project with one turnout's pairs written, the track `leader` names leading. */
 function withPairs(project, sw, leader, opts) {

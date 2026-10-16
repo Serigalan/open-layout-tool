@@ -54,7 +54,7 @@ describe('the tree of the levels (AP 13.9)', () => {
 
 const track = {
   id: 't', epsg: 25832,
-  elements: [{ elementType: 0, bearing: 0, length: 100, absLength: 100, startNode: [500000, 5700000], endNode: [500000, 5700100], cant: 100 }],
+  elements: [{ elementType: 0, bearing: 0, length: 100, startNode: [500000, 5700000], endNode: [500000, 5700100], cant: 100 }],
   heights: [{ station: 0, z: 100 }, { station: 100, z: 110 }],
 }
 

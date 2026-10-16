@@ -7,7 +7,7 @@ function straightTrack(id, { x = 0, y = 0, n = 2, len = 50, epsg = 25832 } = {})
   const elements = []
   for (let i = 0; i < n; i++) {
     elements.push({
-      elementType: 0, bearing: 90, length: len, absLength: len * (i + 1),
+      elementType: 0, bearing: 90, length: len,
       startNode: [x + i * len, y], endNode: [x + (i + 1) * len, y],
     })
   }
@@ -16,9 +16,11 @@ function straightTrack(id, { x = 0, y = 0, n = 2, len = 50, epsg = 25832 } = {})
 
 const turnout = (switchId, a, b1, b2) => ({
   switchId, kind: 'turnout', formVersion: 1, name: switchId,
-  portA_trackId: a[0], portA_endpoint: a[1],
-  portB1_trackId: b1[0], portB1_endpoint: b1[1],
-  portB2_trackId: b2[0], portB2_endpoint: b2[1],
+  ports: {
+    A: { trackId: a[0], endpoint: a[1] },
+    B1: { trackId: b1[0], endpoint: b1[1] },
+    B2: { trackId: b2[0], endpoint: b2[1] },
+  },
 })
 
 function project() {
@@ -40,7 +42,7 @@ describe('validateProject', () => {
 
   it('a port on a track that is not there', () => {
     const p = project()
-    p.switches[0].portB1_trackId = 'gone'
+    p.switches[0].ports.B1.trackId = 'gone'
     expect(validateProject(p).errors).toEqual([expect.objectContaining({
       code: 'port_track_missing', collection: 'switches', id: 'w1', params: { port: 'B1', trackId: 'gone' },
     })])
@@ -48,7 +50,7 @@ describe('validateProject', () => {
 
   it('a port without a valid end', () => {
     const p = project()
-    p.switches[0].portA_endpoint = 'MIDDLE'
+    p.switches[0].ports.A.endpoint = 'MIDDLE'
     expect(codes(validateProject(p))).toEqual(['port_endpoint_invalid'])
   })
 
@@ -107,12 +109,6 @@ describe('validateProject', () => {
     expect(codes(validateProject(p))).toEqual(['chain_gap'])
   })
 
-  it('absLength that is not the running length', () => {
-    const p = project()
-    p.tracks[0].elements[1].absLength = 90
-    expect(codes(validateProject(p))).toEqual(['chain_abs_length'])
-  })
-
   it('an element in another plane than its track', () => {
     const p = project()
     p.tracks[0].elements[0].epsg = 5684
@@ -155,7 +151,7 @@ describe('overlappingTracks — tracks parting from a common end', () => {
     const curve = { id: 'b', name: 'b', epsg: 25832, elements: [] }
     const R = 300, L = 150
     const end = [R * Math.sin(L / R), R - R * Math.cos(L / R)]
-    curve.elements.push({ elementType: 1, bearing: 90, radius: -R, length: L, absLength: L, startNode: [0, 0], endNode: [end[0], end[1]] })
+    curve.elements.push({ elementType: 1, bearing: 90, radius: -R, length: L, startNode: [0, 0], endNode: [end[0], end[1]] })
     expect(overlappingTracks([straightA, curve], [])).toEqual([])
     // A copy of `a` from the same node is a track drawn twice.
     expect(overlappingTracks([straightA, { ...straightTrack('a2', { n: 4, len: 50 }) }], [])).toHaveLength(1)

@@ -1,5 +1,5 @@
 import { nodeUtm, endPointStraightUtm, endPointCurvedUtm } from './elementUtils'
-import { portsOf } from './switchModel'
+import { portsOf, portTrack, portEnd } from './switchModel'
 import { transitionPointAtUtm } from './clothoidUtils'
 import { utmToWgs84 } from './coordinateUtils'
 import { HEIGHT_POINT_SPACING, HEIGHT_SPLIT_MIN } from './heightDatums'
@@ -331,10 +331,10 @@ export function adjacentTracks(tracks, switches, track, end) {
   }
   for (const sw of switches ?? []) {
     const ports = portsOf(sw)
-    const here = ports.some(p => sw[p.trackKey] === track.id && sw[p.endKey] === end)
+    const here = ports.some(p => portTrack(sw, p.port) === track.id && portEnd(sw, p.port) === end)
     if (!here) continue
     for (const p of ports) {
-      if (sw[p.trackKey] && sw[p.trackKey] !== track.id) add(sw[p.trackKey], sw[p.endKey])
+      if (portTrack(sw, p.port) && portTrack(sw, p.port) !== track.id) add(portTrack(sw, p.port), portEnd(sw, p.port))
     }
   }
   const els = track.elements ?? []

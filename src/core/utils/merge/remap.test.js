@@ -26,7 +26,7 @@ describe('carrying references across a split', () => {
   const pieces = [track('a1', 0, 100), track('a2', 100, 200)]
   const project = {
     tracks: pieces,
-    switches: [{ kind: 'turnout', switchId: 'w1', portA_trackId: 'a', portA_endpoint: 'END' }],
+    switches: [{ kind: 'turnout', switchId: 'w1', ports: { A: { trackId: 'a', endpoint: 'END' } }}],
     endMarks: [{ id: 'm1', kind: 'buffer_stop', trackId: 'a', endpoint: 'BEGIN' }],
     platforms: [
       { id: 'p1', trackId: 'a', startStation: 20, endStation: 60, side: 'left' },
@@ -36,7 +36,7 @@ describe('carrying references across a split', () => {
 
   it('moves switch ports and end marks to the piece whose end lies there', () => {
     const { project: out, carried } = carryReferences(project, [splitLog], oldTracks)
-    expect(out.switches[0]).toMatchObject({ portA_trackId: 'a2', portA_endpoint: 'END' })
+    expect(out.switches[0]).toMatchObject({ ports: { A: { trackId: 'a2', endpoint: 'END' } } })
     expect(out.endMarks[0]).toMatchObject({ trackId: 'a1', endpoint: 'BEGIN' })
     expect(carried).toContainEqual({ collection: 'switches', id: 'w1', from: 'a', to: 'a2' })
     expect(carried).toContainEqual({ collection: 'endMarks', id: 'm1', from: 'a', to: 'a1' })
@@ -66,20 +66,20 @@ describe('what it cannot carry', () => {
   it('follows the log through several steps, from both sides', () => {
     const project = {
       tracks: [track('a1', 0, 100), track('b', 100, 200)],
-      switches: [{ kind: 'turnout', switchId: 'w1', portA_trackId: 'a', portA_endpoint: 'END' }],
+      switches: [{ kind: 'turnout', switchId: 'w1', ports: { A: { trackId: 'a', endpoint: 'END' } }}],
     }
     const theirs = [{ from: 'a2', to: ['b'] }]
     const { project: out } = carryReferences(project, [splitLog, theirs], oldTracks)
-    expect(out.switches[0].portA_trackId).toBe('b')
+    expect(out.switches[0].ports?.A?.trackId).toBe('b')
   })
 
   it('leaves a reference when two pieces end at the same point', () => {
     const project = {
       tracks: [track('a1', 0, 200), track('a2', 200, 300)],
-      switches: [{ kind: 'turnout', switchId: 'w1', portA_trackId: 'a', portA_endpoint: 'END' }],
+      switches: [{ kind: 'turnout', switchId: 'w1', ports: { A: { trackId: 'a', endpoint: 'END' } }}],
     }
     const { project: out, carried } = carryReferences(project, [splitLog], oldTracks)
-    expect(out.switches[0].portA_trackId).toBe('a')
+    expect(out.switches[0].ports?.A?.trackId).toBe('a')
     expect(carried).toEqual([])
   })
 

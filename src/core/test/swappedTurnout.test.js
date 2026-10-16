@@ -12,7 +12,7 @@ import { switchElementRoute } from '../utils/switch/route'
 import { planSwitchDeletion } from '../utils/switchDelete'
 import { findCrossovers, crossoverFrame } from '../utils/crossoverGradient'
 import { ldsFromToe } from '../utils/switchGradient'
-import { recalcAbsLengths } from '../utils/trackModel'
+
 import { expectValidTrack } from './chainInvariants'
 
 /**
@@ -33,7 +33,7 @@ function element(start, bearing, length, radius = null, cant = 0) {
   return {
     elementType: radius ? 1 : 0,
     startNode: [start.easting, start.northing], endNode: [end.easting, end.northing],
-    bearing, length, absLength: length, speed: 60,
+    bearing, length, speed: 60,
     ...(radius ? { radius, endBearing: bearingAfterUtm(bearing, length, radius), cant } : {}),
   }
 }
@@ -85,8 +85,8 @@ describe('a turnout laid into the curve', () => {
 
   it('makes the curved line its branch and the new straight its through route', () => {
     expect(rec.swapped).toBe(true)
-    expect(byId[rec.portB2_trackId].name).toBe('leaving')
-    expect(byId[rec.portB1_trackId].name).not.toBe('leaving')
+    expect(byId[rec.ports?.B2?.trackId].name).toBe('leaving')
+    expect(byId[rec.ports?.B1?.trackId].name).not.toBe('leaving')
     after.tracks.forEach(t => expectValidTrack(t))
   })
 
@@ -120,7 +120,7 @@ describe('a turnout at the end of a curved track', () => {
   const source = () => ({ id: 'src', name: 'src', epsg: EPSG, elements: [element({ ...START, easting: START.easting - 100 }, 90, 100)] })
   const reload = (commit) => {
     const src = source()
-    src.elements = recalcAbsLengths([...src.elements, ...(commit.append[0]?.elements ?? [])])
+    src.elements = [...src.elements, ...(commit.append[0]?.elements ?? [])]
     return load({ id: 'p', tracks: [src, ...commit.addTracks], switches: commit.addSwitches })
   }
 
@@ -130,8 +130,8 @@ describe('a turnout at the end of a curved track', () => {
     const p = reload(commit)
     const byId = byIdOf(p.tracks)
     expect(rec.swapped).toBe(true)
-    expect(byId[rec.portB1_trackId].name).toBe('curve')
-    expect(byId[rec.portB2_trackId].name).toBe('leaving')
+    expect(byId[rec.ports?.B1?.trackId].name).toBe('curve')
+    expect(byId[rec.ports?.B2?.trackId].name).toBe('leaving')
     expect(p.switches[0].bauform).toBe('plain')
   })
 
@@ -141,8 +141,8 @@ describe('a turnout at the end of a curved track', () => {
     const p = reload(commit)
     const byId = byIdOf(p.tracks)
     expect(rec.swapped).toBe(true)
-    expect(rec.portB1_trackId).toBe('src')
-    expect(byId[rec.portB2_trackId].name).toBe('leaving')
+    expect(rec.ports?.B1?.trackId).toBe('src')
+    expect(byId[rec.ports?.B2?.trackId].name).toBe('leaving')
     const appended = commit.append[0].elements[0]
     expect(appended.startNode).toEqual([START.easting, START.northing])
     expect(appended.length).toBeCloseTo(switchBranchLength(FORM), 6)

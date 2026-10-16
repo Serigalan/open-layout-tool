@@ -4,7 +4,7 @@ import {
 } from './shiftValues'
 import { buildReferenceAxis } from './referenceAxis'
 import { straightElement, arcFrom } from './elementFactory'
-import { recalcAbsLengths } from './trackModel'
+
 
 const EPSG = 25832
 const P = (x, y) => ({ easting: 500000 + x, northing: 5700000 + y, zone: EPSG })
@@ -31,7 +31,7 @@ describe('shift values', () => {
     // From the axis at x = 100, an arc of R 1000 to the left: y = x²/2000 roughly.
     const s = straightElement(P(0, 0), P(100, 0))
     const a = arcFrom(P(100, 0), 90, 150, -1000)
-    const line = comparedLine(recalcAbsLengths([s, a]), EPSG)
+    const line = comparedLine([s, a], EPSG)
     const rows = shiftValues(refAxis, line, { every: 1 })
     const at = (st) => rows.find(r => r.station === st)
     expect(at(1050).dq).toBeCloseTo(0, 6)

@@ -686,8 +686,7 @@ function connectionElement(a, b, bearing, route, speed, cantA, cantB, coords, re
   const geometry = { type: 'LineString', coordinates: coords }
   if (switchRouteVaries(route)) {
     return transitionElement(a, bearing, route.length, route.r1, route.r2, {
-      endUtm: b, endBearing: switchRouteBearingAt(bearing, route),
-      absLength: route.length, speed,
+      endUtm: b, endBearing: switchRouteBearingAt(bearing, route), speed,
       ...(cantA || cantB ? { cantStart: cantA, cantEnd: cantB } : {}),
       geometry, renderCoords,
     }).element
@@ -695,7 +694,7 @@ function connectionElement(a, b, bearing, route, speed, cantA, cantB, coords, re
   const signedR = route.r1
   const extra = { speed, ...(cantA ? { cant: cantA } : {}), geometry }
   const el = signedR ? arcElement(a, b, signedR, { ...extra, renderCoords }) : straightElement(a, b, extra)
-  return { ...el, absLength: el.length }
+  return { ...el }
 }
 
 /**

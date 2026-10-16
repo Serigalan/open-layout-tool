@@ -263,7 +263,7 @@ def _straight_element(frm, to, epsg, speed=0, cant=None):
         "elementType": 0, "epsg": epsg,
         "startNode": [frm[0], frm[1]], "endNode": [to[0], to[1]],
         "bearing": (math.atan2(to[0] - frm[0], to[1] - frm[1]) * RAD2DEG) % 360.0,
-        "length": length, "absLength": length, "speed": speed,
+        "length": length, "speed": speed,
     }
     if cant is not None:
         el["cant"] = cant
@@ -276,7 +276,7 @@ def _transition_element(start, bearing, length, r1, r2, profile, epsg, speed):
         "elementType": 2, "transitionType": profile, "r1": r1, "r2": r2, "epsg": epsg,
         "startNode": [start[0], start[1]], "endNode": [e_e, e_n],
         "bearing": bearing, "endBearing": end_bearing,
-        "length": length, "absLength": length, "speed": speed,
+        "length": length, "speed": speed,
     }
 
 
@@ -289,7 +289,7 @@ def _arc_element_seg(seg, epsg, speed, cant):
         "elementType": 1, "epsg": epsg, "radius": seg["signed_r"],
         "startNode": [s[0], s[1]], "endNode": [e[0], e[1]],
         "bearing": seg["bearing"], "endBearing": seg["end_bearing"],
-        "length": length, "absLength": length, "speed": speed, "cant": signed_cant,
+        "length": length, "speed": speed, "cant": signed_cant,
     }
 
 
@@ -355,8 +355,4 @@ def build_elements(track, groups, solutions, shifts):
                 out.append(_arc_element_seg(seg, epsg, speed, sol["us"][arc_no]))
                 arc_no += 1
 
-    running = 0.0
-    for el in out:
-        running += el["length"]
-        el["absLength"] = running
     return out

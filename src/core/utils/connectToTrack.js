@@ -5,7 +5,7 @@ import { curvatureOf, radiusOfCurvature } from './clothoidUtils'
 import { switchChainBearingAt, switchChainPointUtm, switchRouteBearingAt, switchRoutePointUtm } from './switch/route'
 import { STRAIGHT_CURVATURE } from './switch/catalogue'
 import { arcElement, straightElement, transitionElement } from './elementFactory'
-import { joinTracks, recalcAbsLengths, rebuildCoords, reverseTrack } from './trackModel'
+import { joinTracks, rebuildCoords, reverseTrack } from './trackModel'
 import { trackLength } from './heightUtils'
 
 // Connecting a turnout's branch, or a crossing's cross leg, to an open track
@@ -250,7 +250,7 @@ export function connectionRoots(anchor, portAt, { from, to, step = 0.5, near = (
 
 /** The fields of an element that say where it lies; everything else it keeps when refitted. */
 const SHAPE_FIELDS = new Set([
-  'elementType', 'startNode', 'endNode', 'bearing', 'endBearing', 'length', 'absLength', 'radius',
+  'elementType', 'startNode', 'endNode', 'bearing', 'endBearing', 'length', 'radius',
   'r1', 'r2', 'transitionType', 'geometry', 'renderCoords',
 ])
 
@@ -304,8 +304,8 @@ function refittedElements(track, anchor, fit, port) {
 export function refitTrackEnd(track, anchor, fit, port, { speedLimit = null } = {}) {
   const cap = (el) => (speedLimit > 0 && (el.speed ?? 0) > speedLimit ? { ...el, speed: speedLimit } : el)
   const made = refittedElements(track, anchor, fit, port).map(cap)
-  const elements = recalcAbsLengths(track.elements.flatMap((e, i) => (
-    i === anchor.elIdx ? made : i === anchor.neighbourIdx ? [cap(e)] : [e])))
+  const elements = track.elements.flatMap((e, i) => (
+    i === anchor.elIdx ? made : i === anchor.neighbourIdx ? [cap(e)] : [e]))
   const delta = made.reduce((sum, e) => sum + e.length, 0) - anchor.oldLength
   const total = trackLength(track) + delta
   const heights = (track.heights ?? [])

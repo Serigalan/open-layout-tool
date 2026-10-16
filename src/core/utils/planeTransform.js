@@ -1,6 +1,6 @@
 import { transformPlanePoint } from './coordinateUtils'
 import { reconstructElements } from './elementReconstruct'
-import { recalcAbsLengths } from './trackModel'
+
 
 /**
  * Carrying an alignment from one projected plane into another.
@@ -175,7 +175,7 @@ export function transformTrackToPlane(track, toCrs) {
     }
   }
 
-  const elements = reconstructElements(recalcAbsLengths(moved), target)
+  const elements = reconstructElements(moved, target)
   const scale = { min: Number.isFinite(min) ? min : 1, max: Number.isFinite(max) ? max : 1 }
   const heights = scaleHeights(track.heights, moved, source)
   return {

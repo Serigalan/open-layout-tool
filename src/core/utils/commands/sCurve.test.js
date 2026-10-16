@@ -319,7 +319,7 @@ describe('a turnout of the connection laid into a transition curve', () => {
   const straight = (start, bearing, length) => {
     const end = utmEndRoute(start, bearing, length, null)
     return { elementType: 0, startNode: [start.easting, start.northing], endNode: [end.easting, end.northing],
-      bearing, length, absLength: length, speed: 80 }
+      bearing, length, speed: 80 }
   }
   const S2 = P(500000, 5600004.5)
   const T2 = utmEndRoute(S2, 90, 150, null)
@@ -329,7 +329,7 @@ describe('a turnout of the connection laid into a transition curve', () => {
     { id: 't2', name: 'line.002', epsg: EPSG, elements: [straight(S2, 90, 150), {
       elementType: 2, transitionType: 'clothoid', r1: null, r2: R,
       startNode: [T2.easting, T2.northing], endNode: [c.endUtm.easting, c.endUtm.northing],
-      bearing: 90, endBearing: c.endBearing, length: 100, absLength: 100, speed: 80,
+      bearing: 90, endBearing: c.endBearing, length: 100, speed: 80,
     }] },
   ] }]))))[0]
   const picks = [connectionPick(project.tracks[0], 0, 60), connectionPick(project.tracks[1], 1, 60)]

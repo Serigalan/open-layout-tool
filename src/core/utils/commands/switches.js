@@ -1,5 +1,5 @@
 import { generateId, buildTypeFields } from '../identifierUtils'
-import { recalcAbsLengths } from '../trackModel'
+
 import { bearingAfterUtm, computeCurvedValuesUtm, computeStraightValuesUtm } from '../elementUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
 import {
@@ -195,7 +195,7 @@ function constantBranchElement(seg, cant) {
     elementType: r ? 1 : 0,
     startNode: bv.startNode, endNode: bv.endNode,
     bearing: bv.bearing,
-    length: bv.length, absLength: bv.length,
+    length: bv.length,
     ...(r ? { endBearing: bv.endBearing, radius: r } : {}),
     cant,
   }
@@ -265,7 +265,7 @@ export function buildSwitchOnTrack({
   const branchId = generateId()
   const newRoute = swapped ? 'main' : 'branch'
   const newSegments = swapped ? swapped.stemSegments : g.branchSegments
-  const branchEls = recalcAbsLengths(newSegments.map((seg, i) => {
+  const branchEls = newSegments.map((seg, i) => {
     const base = switchRouteVaries(seg)
       ? {
           elementType: 2, transitionType: 'clothoid', r1: seg.r1, r2: seg.r2,
@@ -281,7 +281,7 @@ export function buildSwitchOnTrack({
       ...switchElementMark(identity, newRoute),
       geometry: { type: 'LineString', coordinates: seg.coords },
     })
-  }))
+  })
   const branchTrack = {
     id: branchId,
     name,
@@ -301,9 +301,11 @@ export function buildSwitchOnTrack({
     ...identity,
     number: switchNumber, trailing: false, speed,
     ...(swapped ? { swapped: true } : {}),
-    portA_trackId:  split.behind.id, portA_endpoint:  split.behindEndpoint,
-    portB1_trackId: b1.trackId,      portB1_endpoint: b1.endpoint,
-    portB2_trackId: b2.trackId,      portB2_endpoint: b2.endpoint,
+    ports: {
+      A: { trackId: split.behind.id, endpoint: split.behindEndpoint },
+      B1: { trackId: b1.trackId, endpoint: b1.endpoint },
+      B2: { trackId: b2.trackId, endpoint: b2.endpoint },
+    },
     fillCoords: shown.fillCoords, lcsCoords: shown.lcsCoords,
     labelCoords: shown.labelCoords, bauform: shown.bauform,
   }
@@ -321,7 +323,7 @@ function routeElement(from, to, signedR, coords, extra) {
   const base = { ...extra, geometry: { type: 'LineString', coordinates: coords } }
   const el = signedR ? arcElement(from, to, signedR, base) : straightElement(from, to, base)
   const { renderCoords: _r, ...rest } = el
-  return { ...rest, absLength: el.length }
+  return { ...rest }
 }
 
 /**
@@ -391,12 +393,11 @@ export function buildSwitchAtTrackEnd({
       // Node position: the toe (facing) resp. the far end of the appended
       // straight (trailing). The source track ends there; both new branch
       // tracks start there.
-      portA_trackId: trailing ? null : sourceTrackId,
-      portA_endpoint: trailing ? null : 'END',
-      portB1_trackId: curvedTrack.id,
-      portB1_endpoint: 'BEGIN',
-      portB2_trackId: trailing ? sourceTrackId : straightTrack.id,
-      portB2_endpoint: trailing ? 'END' : 'BEGIN',
+      ports: {
+        A: { trackId: trailing ? null : sourceTrackId, endpoint: trailing ? null : 'END' },
+        B1: { trackId: curvedTrack.id, endpoint: 'BEGIN' },
+        B2: { trackId: trailing ? sourceTrackId : straightTrack.id, endpoint: trailing ? 'END' : 'BEGIN' },
+      },
       fillCoords,
       labelCoords,
       bauform: geom.bauform,
@@ -455,12 +456,11 @@ function buildSwappedAtTrackEnd({
       trailing,
       speed,
       swapped: true,
-      portA_trackId: trailing ? null : sourceTrackId,
-      portA_endpoint: trailing ? null : 'END',
-      portB1_trackId: trailing ? sourceTrackId : branchTrack.id,
-      portB1_endpoint: trailing ? 'END' : 'BEGIN',
-      portB2_trackId: throughTrack.id,
-      portB2_endpoint: 'BEGIN',
+      ports: {
+        A: { trackId: trailing ? null : sourceTrackId, endpoint: trailing ? null : 'END' },
+        B1: { trackId: trailing ? sourceTrackId : branchTrack.id, endpoint: trailing ? 'END' : 'BEGIN' },
+        B2: { trackId: throughTrack.id, endpoint: 'BEGIN' },
+      },
       fillCoords: geom.fillCoords,
       labelCoords: geom.labelCoords,
       bauform: geom.bauform,
@@ -501,7 +501,7 @@ export function buildCrossingOnTrack({ g, ahead, track, tracks, form, endDist, s
   const els = crossingElements(g, identity)
   const tracksOf = (el, trackName = null) => ({
     id: generateId(), name: trackName, owner: fields.owner, ...buildTypeFields(fields),
-    epsg: track.epsg, coordinates: el.geometry.coordinates, elements: recalcAbsLengths([el]),
+    epsg: track.epsg, coordinates: el.geometry.coordinates, elements: [el],
   })
   const legB = tracksOf(els.B)
   const legD = tracksOf(els.D, name)
@@ -514,10 +514,12 @@ export function buildCrossingOnTrack({ g, ahead, track, tracks, form, endDist, s
   const switchRecord = {
     ...identity,
     number: switchNumber,
-    portA_trackId: carvedBehind.id, portA_endpoint: split.behindEndpoint,
-    portB_trackId: legB.id, portB_endpoint: 'END',
-    portC_trackId: carvedAhead.id, portC_endpoint: split.aheadEndpoint,
-    portD_trackId: legD.id, portD_endpoint: 'BEGIN',
+    ports: {
+      A: { trackId: carvedBehind.id, endpoint: split.behindEndpoint },
+      B: { trackId: legB.id, endpoint: 'END' },
+      C: { trackId: carvedAhead.id, endpoint: split.aheadEndpoint },
+      D: { trackId: legD.id, endpoint: 'BEGIN' },
+    },
     fillCoords: g.fillCoords,
   }
 

@@ -96,11 +96,8 @@ describe('switches as RailJSON nodes', () => {
 
   it('names a turnout\'s ports A/B1/B2 and a crossing\'s A1/A2/B1/B2', () => {
     const [turnout, crossing] = switchesToPorts([
-      { kind: 'turnout', switchId: 'w1', name: 'W 1', portA_trackId: 'a', portA_endpoint: 'END',
-        portB1_trackId: 'b', portB1_endpoint: 'BEGIN', portB2_trackId: 'c', portB2_endpoint: 'BEGIN' },
-      { kind: 'crossing', switchId: 'k1', status: 'planned', portA_trackId: 'a', portA_endpoint: 'BEGIN',
-        portB_trackId: 'b', portB_endpoint: 'END', portC_trackId: 'c', portC_endpoint: 'END',
-        portD_trackId: 'd', portD_endpoint: 'BEGIN' },
+      { kind: 'turnout', switchId: 'w1', name: 'W 1', ports: { A: { trackId: 'a', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' }, B2: { trackId: 'c', endpoint: 'BEGIN' } }},
+      { kind: 'crossing', switchId: 'k1', status: 'planned', ports: { A: { trackId: 'a', endpoint: 'BEGIN' }, B: { trackId: 'b', endpoint: 'END' }, C: { trackId: 'c', endpoint: 'END' }, D: { trackId: 'd', endpoint: 'BEGIN' } }},
     ], trackMap)
     expect(turnout.ports).toEqual({
       A: { track: 'a', endpoint: 'END' }, B1: { track: 'b', endpoint: 'BEGIN' }, B2: { track: 'c', endpoint: 'BEGIN' },
@@ -112,8 +109,7 @@ describe('switches as RailJSON nodes', () => {
   })
 
   it('leaves out ports on tracks that are not exported', () => {
-    const [sw] = switchesToPorts([{ kind: 'turnout', switchId: 'w', portA_trackId: 'gone', portA_endpoint: 'END',
-      portB1_trackId: 'b', portB1_endpoint: 'BEGIN' }], trackMap)
+    const [sw] = switchesToPorts([{ kind: 'turnout', switchId: 'w', ports: { A: { trackId: 'gone', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' } }}], trackMap)
     expect(sw.ports).toEqual({ B1: { track: 'b', endpoint: 'BEGIN' } })
   })
 

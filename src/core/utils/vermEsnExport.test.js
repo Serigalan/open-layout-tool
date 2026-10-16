@@ -6,7 +6,7 @@ import { unzipSync, strFromU8 } from 'fflate'
 import { parseRecords, buildElements, parseGradient } from './vermEsnImport'
 import { traBytes, graBytes, traRecords, exportVermEsn, routeAsTrack } from './vermEsnExport'
 import { lagesystemForEpsg, epsgForLagesystem } from './mdbImport'
-import { recalcAbsLengths, reverseTrack } from './trackModel'
+import { reverseTrack } from './trackModel'
 import { arcFrom, straightFrom } from './elementFactory'
 import { resolveRoute } from './routes'
 import { tangentLength } from './heightUtils'
@@ -73,7 +73,7 @@ describe('traBytes', () => {
   })
   write(rows.length + 1, [0, 0, 0, 0, 0, 0])
   const { elements } = buildElements(parseRecords(source.buffer), EPSG)
-  const track = { epsg: EPSG, elements: recalcAbsLengths(elements) }
+  const track = { epsg: EPSG, elements: elements }
 
   it('writes a header counting the elements, the elements and a closing record', () => {
     const bytes = traBytes(track)
@@ -226,7 +226,7 @@ describe.skipIf(!realFiles.length)('the Verm.ESN files of line 5550 (memory/test
     const bytes = readFileSync(path)
     const source = parseRecords(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
     const { elements } = buildElements(source, 5684)
-    const track = { epsg: 5684, elements: recalcAbsLengths(elements) }
+    const track = { epsg: 5684, elements: elements }
     const out = parseRecords(bufferOf(traBytes(track)))
     // Records of no length are not elements of the model and are not written back.
     // The import keeps radii and transition lengths to the millimetre, so

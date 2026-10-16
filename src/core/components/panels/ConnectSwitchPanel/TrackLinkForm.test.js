@@ -9,6 +9,7 @@ import {
 import { findTrackJoints, linkRecord } from '../../../utils/trackLinkUtils'
 import { inGerman } from '../../../test/i18n'
 import TrackLinkForm from './TrackLinkForm'
+import { withPort } from '../../../utils/switchModel'
 
 /**
  * What the link form says before it writes anything. The static renderer runs
@@ -36,7 +37,7 @@ function straight(id, epsg, easting, northing, bearing, length, name) {
   return {
     id, name, epsg,
     elements: [{
-      elementType: 0, length, bearing, endBearing: bearing, absLength: length,
+      elementType: 0, length, bearing, endBearing: bearing,
       startNode: [start.easting, start.northing],
       endNode:   [end.easting, end.northing],
       geometry: { type: 'LineString', coordinates: [
@@ -92,8 +93,7 @@ describe('the link form before it writes anything', () => {
     const tracks = acrossThePlanes()
     const sw = {
       switchId: 'sw1', kind: 'turnout', formVersion: 1, name: 'W 1',
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB1_trackId: 'b', portB1_endpoint: 'BEGIN',
+      ports: { A: { trackId: 'a', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' } },
     }
     const { text } = render(tracks, [sw])
     expect(text).toContain('Keine offenen Gleisenden gefunden')
@@ -123,7 +123,7 @@ describe('the link form before it writes anything', () => {
   it('says so where a link points at a track that is gone', () => {
     const tracks = acrossThePlanes()
     const joint = findTrackJoints(tracks, []).joints[0]
-    const broken = { ...linkRecord(joint, 'link.009'), portA_trackId: 'weg' }
+    const broken = withPort(linkRecord(joint, 'link.009'), 'A', { trackId: 'weg' })
     const { text } = render(tracks, [broken])
     expect(text).toContain('(Gleis fehlt)')
     expect(text).toContain('Abstand unbekannt')

@@ -1,4 +1,4 @@
-import { recalcAbsLengths, rebuildCoords, trackLabel } from '../trackModel'
+import { rebuildCoords, trackLabel } from '../trackModel'
 import { resolveEndBearing, nodeUtm, endPointCurvedUtm, endPointStraightUtm } from '../elementUtils'
 import { sampleTransitionUtm } from '../clothoidUtils'
 import { cantSign, AUTO_CANT_MODEL } from '../rules/cant'
@@ -241,14 +241,14 @@ export function buildReconnect({ track, range, solution, speed }) {
   })
   // The neighbours' own marks and data stay on what is left of them; a
   // switch's mark never travels to what is built on from it.
-  const own = ({ switchId: _a, switchBranch: _b, switchRoute: _c, switchName: _d, switchLabel: _e, ...el }) => el
+  const own = ({ switchId: _a, switchBranch: _b, switchRoute: _c, ...el }) => el
   const mid = chain.map(el => {
     if (el.role === 'dep') return range.dep.fixed ? builtOn(el, depOrig) : { ...own(depOrig), ...plane(el), ...keepCant(el, depOrig) }
     if (el.role === 'arr') return range.arr.fixed ? builtOn(el, arrOrig) : { ...own(arrOrig), ...plane(el), ...keepCant(el, arrOrig) }
     const inserted = { ...plane(el), speed: Number(speed) || 0 }
     return el.elementType === 1 ? { ...inserted, cant: cantSign(el.radius) * cant } : inserted
   })
-  const elements = recalcAbsLengths([...els.slice(0, first).map(el => ({ ...el })), ...mid, ...els.slice(last + 1).map(el => ({ ...el }))])
+  const elements = [...els.slice(0, first).map(el => ({ ...el })), ...mid, ...els.slice(last + 1).map(el => ({ ...el }))]
   const s0 = lengthOf(els.slice(0, first))
   const map = stationMap(s0, lengthOf(els.slice(first, last + 1)), lengthOf(mid))
   const length = lengthOf(elements)

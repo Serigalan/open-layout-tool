@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { recalcAbsLengths, rebuildCoords, joinTracks, reverseTrack, remapSwitches } from './trackModel'
+import { rebuildCoords, joinTracks, reverseTrack, remapSwitches } from './trackModel'
 import {
   computeCurvedValuesUtm, computeStraightValuesUtm, arcCoordsFromRadiusUtm,
   endPointCurvedUtm, endPointStraightUtm, bearingAfterUtm,
@@ -17,7 +17,7 @@ import {
   switchParts, planSwitchDeletion, keptRoutes, mergeableRun, mergeChain,
 } from './switchDelete'
 import {
-  expectValidTrack, expectNodesJoin, expectAbsLengthsRunning, expectLengthsTrue,
+  expectValidTrack, expectNodesJoin, expectLengthsTrue,
   expectSwitchRoutesCarved,
 } from '../test/chainInvariants'
 
@@ -42,7 +42,7 @@ function arcElement(startUtm, bearing, length, radius, extra = {}) {
     elementType: 1,
     startNode: v.startNode, endNode: v.endNode,
     bearing: v.bearing, endBearing: v.endBearing,
-    length: v.length, absLength: v.length,
+    length: v.length,
     radius, cant: 20, speed: 100, ...extra,
     geometry: { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(startUtm, endUtm, radius, SAGITTA_ELEMENT) },
     renderCoords: arcCoordsFromRadiusUtm(startUtm, endUtm, radius, SAGITTA_TRACK),
@@ -56,13 +56,13 @@ function straightElement(startUtm, bearing, length, extra = {}) {
   return {
     elementType: 0,
     startNode: v.startNode, endNode: v.endNode,
-    bearing: v.bearing, length: v.length, absLength: v.length, speed: 100, ...extra,
+    bearing: v.bearing, length: v.length, speed: 100, ...extra,
     geometry: { type: 'LineString', coordinates: [toWgs(startUtm), toWgs(endUtm)] },
   }
 }
 
 const trackOf = (id, name, elements, extra = {}) => {
-  const els = recalcAbsLengths(elements)
+  const els = elements
   return { id, name, epsg: EPSG, elements: els, coordinates: rebuildCoords(els), ...extra }
 }
 
@@ -91,9 +91,12 @@ function layout({ radius = 950, toe = 200, tail = 300, branchElements = null } =
 
   const record = {
     ...sw, number: 1, trailing: false, speed: 100,
-    portA_trackId:  split.behind.id, portA_endpoint:  split.behindEndpoint,
-    portB1_trackId: branch.id,       portB1_endpoint: 'BEGIN',
-    portB2_trackId: split.ahead.id,  portB2_endpoint: split.aheadEndpoint,
+    ports: {
+      ...sw.ports,
+      A: { trackId: split.behind.id, endpoint: split.behindEndpoint },
+      B1: { trackId: branch.id, endpoint: 'BEGIN' },
+      B2: { trackId: split.ahead.id, endpoint: split.aheadEndpoint },
+    },
   }
   const tracks = [...split.tracks.map(tr => (tr.id === carved.id ? carved : tr)), branch]
   return { host, record, tracks, split, toeUtm, toeBearing, radius }
@@ -165,7 +168,7 @@ describe('which route survives', () => {
     const { record, tracks } = layout({ tail: 0 })   // B2 is the route alone, B1 the branch alone
     const plan = planSwitchDeletion(record, tracks)
     expect(plan.reason).toBe('all')
-    expect(new Set(plan.removeTrackIds)).toEqual(new Set(['t-branch', record.portB2_trackId]))
+    expect(new Set(plan.removeTrackIds)).toEqual(new Set(['t-branch', record.ports?.B2?.trackId]))
   })
 
   it('B1 and B2 occupied but not A: still nothing to keep', () => {
@@ -176,7 +179,7 @@ describe('which route survives', () => {
       arcElement(branchEnd, bearingAfterUtm(toeBearing, ROUTE_LEN, BRANCH_R), 150, BRANCH_R),
     ])))
     // Nothing behind the toe.
-    const noA = grown.map(t => (t.id === record.portA_trackId ? { ...t, elements: [] } : t))
+    const noA = grown.map(t => (t.id === record.ports?.A?.trackId ? { ...t, elements: [] } : t))
     const plan = planSwitchDeletion(record, noA)
     expect(plan.reason).toBe('all')
     expect(plan.joined).toBe(false)
@@ -233,10 +236,10 @@ describe('deleting the switch undoes the carve', () => {
     // The same layout with both ports meeting the toe at their BEGIN: one of the
     // two has to be turned round, and the line behind the toe is not the one.
     const { host, record, tracks } = layout()
-    const behindId = record.portA_trackId
+    const behindId = record.ports?.A?.trackId
     const behind   = tracks.find(t => t.id === behindId)
     const turned   = reverseTrack(behind)
-    const flipped  = { ...record, portA_endpoint: 'BEGIN' }
+    const flipped  = { ...record, ports: { ...record.ports, A: { ...record.ports?.A, endpoint: 'BEGIN' } }}
     const plan = planSwitchDeletion(flipped,
       tracks.map(t => (t.id === behindId ? turned : t)))
     const [joined] = apply(tracks.map(t => (t.id === behindId ? turned : t)), plan)
@@ -249,8 +252,8 @@ describe('deleting the switch undoes the carve', () => {
     // The through route's track turned round: now both halves end at the toe,
     // so the switch's own piece is the one that gets reversed.
     const { host, record, tracks } = layout()
-    const turned = tracks.map(t => (t.id === record.portB2_trackId ? reverseTrack(t) : t))
-    const flipped = { ...record, portB2_endpoint: 'END' }
+    const turned = tracks.map(t => (t.id === record.ports?.B2?.trackId ? reverseTrack(t) : t))
+    const flipped = { ...record, ports: { ...record.ports, B2: { ...record.ports?.B2, endpoint: 'END' } }}
     const plan = planSwitchDeletion(flipped, turned)
     expect(plan.reason).toBe('through')
     const [joined] = apply(turned, plan)
@@ -277,9 +280,7 @@ describe('deleting the switch undoes the carve', () => {
       [{ ...arcElement(toeUtm, 24, ROUTE_LEN, BRANCH_R), ...switchElementMark(sw, 'branch') }])
     const tracks = [...split.tracks.map(tr => (tr.id === carved.id ? carved : tr)), branch]
     const record = {
-      ...sw, portA_trackId: split.behind.id, portA_endpoint: split.behindEndpoint,
-      portB1_trackId: branch.id, portB1_endpoint: 'BEGIN',
-      portB2_trackId: split.ahead.id, portB2_endpoint: split.aheadEndpoint,
+      ...sw, ports: { ...sw.ports, A: { trackId: split.behind.id, endpoint: split.behindEndpoint }, B1: { trackId: branch.id, endpoint: 'BEGIN' }, B2: { trackId: split.ahead.id, endpoint: split.aheadEndpoint } },
     }
 
     const plan = planSwitchDeletion(record, tracks)
@@ -290,7 +291,6 @@ describe('deleting the switch undoes the carve', () => {
     // Not expectValidTrack: the kink is deliberate, so tangent continuity is
     // not this chain's invariant — everything else about it is.
     expectNodesJoin(joined.elements)
-    expectAbsLengthsRunning(joined.elements)
     expectLengthsTrue(joined.elements)
   })
 
@@ -301,7 +301,7 @@ describe('deleting the switch undoes the carve', () => {
       elementType: 2, transitionType: 'clothoid', r1: null, r2: R,
       startNode: [START.easting, START.northing],
       endNode: [cl.endUtm.easting, cl.endUtm.northing],
-      bearing: 20, endBearing: cl.endBearing, length: L, absLength: L, speed: 100,
+      bearing: 20, endBearing: cl.endBearing, length: L, speed: 100,
       geometry: { type: 'LineString', coordinates: cl.coords },
       renderCoords: computeClothoidUtm(START, 20, L, null, R, SAGITTA_TRACK).coords,
     }
@@ -335,7 +335,7 @@ describe('deleting the switch undoes the carve', () => {
       elementType: 2, transitionType: 'clothoid', r1: null, r2: R,
       startNode: [START.easting, START.northing],
       endNode: [cl.endUtm.easting, cl.endUtm.northing],
-      bearing: 20, endBearing: cl.endBearing, length: L, absLength: L, speed: 100,
+      bearing: 20, endBearing: cl.endBearing, length: L, speed: 100,
       geometry: { type: 'LineString', coordinates: cl.coords },
     }
     expect(mergeChain([el], EPSG).mergedFrom).toBe(0)
@@ -470,17 +470,10 @@ describe('a switch further along the same track', () => {
     const two = mk(one.carved, 1, 400, 'W2')
 
     const rec1 = {
-      ...one.sw, portA_trackId: one.split.behind.id, portA_endpoint: one.split.behindEndpoint,
-      portB1_trackId: one.branch.id, portB1_endpoint: 'BEGIN',
-      // W1's through route stayed on the half of W1's ahead track that holds its
-      // BEGIN — which the second split has just made a track of its own.
-      portB2_trackId: one.split.aheadEndpoint === 'BEGIN' ? two.split.tracks[0].id : two.split.tracks[1].id,
-      portB2_endpoint: one.split.aheadEndpoint,
+      ...one.sw, ports: { A: { trackId: one.split.behind.id, endpoint: one.split.behindEndpoint }, B1: { trackId: one.branch.id, endpoint: 'BEGIN' }, B2: { trackId: one.split.aheadEndpoint === 'BEGIN' ? two.split.tracks[0].id : two.split.tracks[1].id, endpoint: one.split.aheadEndpoint } },
     }
     const rec2 = {
-      ...two.sw, portA_trackId: two.split.behind.id, portA_endpoint: two.split.behindEndpoint,
-      portB1_trackId: two.branch.id, portB1_endpoint: 'BEGIN',
-      portB2_trackId: two.split.ahead.id, portB2_endpoint: two.split.aheadEndpoint,
+      ...two.sw, ports: { A: { trackId: two.split.behind.id, endpoint: two.split.behindEndpoint }, B1: { trackId: two.branch.id, endpoint: 'BEGIN' }, B2: { trackId: two.split.ahead.id, endpoint: two.split.aheadEndpoint } },
     }
     const tracks = [
       one.split.behind,
@@ -498,12 +491,12 @@ describe('a switch further along the same track', () => {
     const after     = apply(tracks, plan)
     // The join really did swallow a track W2 was standing on.
     expect(plan.remap.length).toBeGreaterThan(0)
-    expect(plan.remap.map(r => r.oldId)).toContain(rec2.portA_trackId)
+    expect(plan.remap.map(r => r.oldId)).toContain(rec2.ports?.A?.trackId)
     const [moved] = remapSwitches([rec2], plan.remap)
-    expect(moved.portA_trackId).not.toBe(rec2.portA_trackId)
-    expect(after.find(t => t.id === moved.portA_trackId)).toBeDefined()
-    expect(after.find(t => t.id === moved.portB1_trackId)).toBeDefined()
-    expect(after.find(t => t.id === moved.portB2_trackId)).toBeDefined()
+    expect(moved.ports?.A?.trackId).not.toBe(rec2.ports?.A?.trackId)
+    expect(after.find(t => t.id === moved.ports?.A?.trackId)).toBeDefined()
+    expect(after.find(t => t.id === moved.ports?.B1?.trackId)).toBeDefined()
+    expect(after.find(t => t.id === moved.ports?.B2?.trackId)).toBeDefined()
 
     // W2 still finds its own elements on its own ports.
     const { byPort } = switchParts(moved, after)

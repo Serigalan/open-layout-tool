@@ -3,7 +3,7 @@ import { solveSplice } from './solveSplice'
 import { buildSplice, spliceFromAnswer, splicePick, spliceRequest } from '../commands/splice'
 import { straightElement, straightFrom, arcFrom, transitionElement } from '../elementFactory'
 import { bearingAfterUtm, endPointCurvedUtm, endPointStraightUtm } from '../elementUtils'
-import { recalcAbsLengths, rebuildCoords } from '../trackModel'
+import { rebuildCoords } from '../trackModel'
 import { expectValidTrack } from '../../test/chainInvariants'
 import serviceAnswers from './serviceAnswers.json'
 import coreAnswers from '../../test/fixtures/splice_answers.json'
@@ -107,7 +107,7 @@ describe('the merged track', () => {
   const P = (x, y) => ({ easting: 500000 + x, northing: 5700000 + y, zone: EPSG })
   const at = ([e, n]) => ({ easting: e, northing: n, zone: EPSG })
   const track = (id, elements) => {
-    const els = recalcAbsLengths(elements)
+    const els = elements
     return { id, name: id, epsg: EPSG, elements: els, coordinates: rebuildCoords(els) }
   }
   const merge = (tracks, picks, settings) => {

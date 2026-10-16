@@ -125,9 +125,11 @@ function switchProject(identity = { switchId: 'sw-1', kind: DEFAULT_SWITCH_KIND,
     ],
     switches: [{
       ...identity, name: 'switch.001', label: FORM.label, trailing: false,
-      portA_trackId: null,       portA_endpoint:  null,
-      portB1_trackId: 'branch',  portB1_endpoint: 'BEGIN',
-      portB2_trackId: 'through', portB2_endpoint: 'BEGIN',
+      ports: {
+        A: { trackId: null, endpoint: null },
+        B1: { trackId: 'branch', endpoint: 'BEGIN' },
+        B2: { trackId: 'through', endpoint: 'BEGIN' },
+      },
     }],
   }]
 }

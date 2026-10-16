@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { parseMdbPayload, buildTracksFromMdb, mdbSwitchInventory, buildAllTracksFromMdb } from './mdbImport'
 import { placeMdbSwitches, locateMdbSwitches, switchTypeFor } from './mdbSwitchPlacement'
 import { switchRoutesFromTracks, rebuildSwitchSymbol, crossingRoutesFromTracks } from './switch/symbol'
-import { elementBelongsToSwitch, switchPorts, isModelledSwitch } from './switchModel'
+import { elementBelongsToSwitch, switchPorts, isModelledSwitch, portTrack } from './switchModel'
 import {
-  expectEpsgThroughout, expectNodesJoin, expectAbsLengthsRunning,
+  expectEpsgThroughout, expectNodesJoin,
   expectLengthsTrue, expectRenderCoordsConsistent, expectSwitchRoutesCarved,
 } from '../test/chainInvariants'
 import { resolveEndBearing } from './elementUtils'
-import { recalcAbsLengths } from './trackModel'
+
 import fixture from '../test/fixtures/mdb_weiche.json'
 import crossingFixture from '../test/fixtures/mdb_kreuzungsweiche.json'
 import bogenFixture from '../test/fixtures/mdb_bogenkreuzungsweiche.json'
@@ -79,8 +79,8 @@ describe('placeMdbSwitches', () => {
   it('gives every port a track that is actually there', () => {
     const ids = new Set(placed.tracks.map(t => t.id))
     const sw = placed.switches[0]
-    for (const key of ['portA_trackId', 'portB1_trackId', 'portB2_trackId']) {
-      expect(ids.has(sw[key]), `${key} → ${sw[key]}`).toBe(true)
+    for (const port of ['A', 'B1', 'B2']) {
+      expect(ids.has(portTrack(sw, port)), `${port} → ${portTrack(sw, port)}`).toBe(true)
     }
   })
 
@@ -102,10 +102,9 @@ describe('placeMdbSwitches', () => {
     // (4.3° at the worst joint of the delivered file). The claim below is the
     // one that belongs to this module instead.
     for (const t of placed.tracks) {
-      const elements = recalcAbsLengths(t.elements)
+      const elements = t.elements
       expectEpsgThroughout({ ...t, elements })
       expectNodesJoin(elements)
-      expectAbsLengthsRunning(elements)
       expectLengthsTrue(elements)
       expectRenderCoordsConsistent(elements, t.epsg)
     }
@@ -202,7 +201,7 @@ describe('placeMdbSwitches — die Kreuzungsbauarten', () => {
     const ids = new Set(placed2.tracks.map(t => t.id))
     const ports = switchPorts(sw.kind)
     expect(ports).toHaveLength(4)
-    for (const { trackKey } of ports) expect(ids.has(sw[trackKey]), trackKey).toBe(true)
+    for (const { port } of ports) expect(ids.has(portTrack(sw, port)), port).toBe(true)
   })
 
   it('marks one route main and the other cross', () => {
@@ -220,7 +219,7 @@ describe('placeMdbSwitches — die Kreuzungsbauarten', () => {
 
   it('leaves the tracks joined after parting both routes', () => {
     for (const t of placed2.tracks) {
-      expectNodesJoin(recalcAbsLengths(t.elements))
+      expectNodesJoin(t.elements)
     }
   })
 })
@@ -275,7 +274,7 @@ describe('placeMdbSwitches — die Bogenkreuzungsweiche (AP 3.4)', () => {
   })
 
   it('leaves the tracks joined after parting both roads', () => {
-    for (const t of placed3.tracks) expectNodesJoin(recalcAbsLengths(t.elements))
+    for (const t of placed3.tracks) expectNodesJoin(t.elements)
   })
 })
 

@@ -511,7 +511,7 @@ function oneStrecke({ rows, cantRows, vertical }, strecke, opts = {}) {
  * collisions). The full Bauform text is too strict the other way: the four nodes
  * of a Kreuzungsweiche do not always spell their form identically.
  *
- * The result is an inventory, not records — a switch without `portA_trackId`
+ * The result is an inventory, not records — a switch without a track at port A
  * and without carved routes is none in the model's sense. It becomes one when
  * the alignment is there and it can be placed on a track.
  */

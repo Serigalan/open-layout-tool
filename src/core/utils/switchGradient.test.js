@@ -75,7 +75,7 @@ describe('coupling a branch to its main route', () => {
 
   it('works the same on a branch whose stations run toward the toe', () => {
     const reversed = reverseTrack(branchTrack())
-    const sw = turnout({ portB1_endpoint: 'END' })
+    const sw = turnout({ ports: { B1: { endpoint: 'END' } } })
     const c = coupling([mainTrack(50), reversed], sw, opts)
     expect(c.offset).toBeCloseTo(OFFSET, 4)
     expect(c.ldsBranch).toBeCloseTo(60 - ALONG, 3)
@@ -291,7 +291,7 @@ describe('two turnouts reaching into one track from its two ends', () => {
     const m = mainTrack(0)
     return { ...m, elements: m.elements.map((el, i) => (i === 1 ? { ...el, switchId: 's2', switchRoute: 'main' } : el)) }
   })()
-  const sw2 = turnout({ switchId: 's2', portB1_trackId: 'c', portB1_endpoint: 'BEGIN', portB2_trackId: 'm', portB2_endpoint: 'END' })
+  const sw2 = turnout({ switchId: 's2', ports: { B1: { trackId: 'c', endpoint: 'BEGIN' }, B2: { trackId: 'm', endpoint: 'END' } } })
   const project = { tracks: [main, branchTrack(), second], switches: [turnout(), sw2] }
 
   it('lays each turnout\'s own sleepers up to the middle and couples every sleeper there to all three tracks', () => {

@@ -1,5 +1,5 @@
 import { generateId, buildTypeFields } from '../identifierUtils'
-import { rebuildCoords, recalcAbsLengths } from '../trackModel'
+import { rebuildCoords } from '../trackModel'
 import { arcElement, arcFrom, straightElement, straightFrom, transitionElement } from '../elementFactory'
 import { cantSign } from '../rules/cant'
 
@@ -15,7 +15,7 @@ export function trackMeta(fields, name) {
 
 /** A track of `elements` in plane `epsg`, stations and polyline derived. */
 export function trackOf(elements, epsg, meta = {}, id = generateId()) {
-  const els = recalcAbsLengths(elements)
+  const els = elements
   return { id, ...meta, coordinates: rebuildCoords(els), epsg, elements: els }
 }
 

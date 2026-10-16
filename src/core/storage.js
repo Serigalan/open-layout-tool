@@ -1,5 +1,5 @@
 import { SCHEMA_VERSION, hydrateProjects, dehydrateProjects } from './utils/persistenceUtils'
-import { elementBelongsToSwitch, portsOf, unmarkSwitchElement } from './utils/switchModel'
+import { elementBelongsToSwitch, portsOf, unmarkSwitchElement, portTrack, portEnd } from './utils/switchModel'
 import { rebuildSwitchSymbol } from './utils/switch/symbol'
 import { sliceHeights } from './utils/heightUtils'
 import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTrack, remapSwitches, reverseTrack } from './utils/trackModel'
@@ -803,7 +803,7 @@ function withoutElements(project, picks) {
 
   // The switches standing at a deleted end go, as deleteTrack lets them.
   const dead = new Set(deadEnds.map(e => `${e.trackId}|${e.endpoint}`))
-  const doomed = (project.switches ?? []).filter(sw => portsOf(sw).some(pt => dead.has(`${sw[pt.trackKey]}|${sw[pt.endKey]}`)))
+  const doomed = (project.switches ?? []).filter(sw => portsOf(sw).some(pt => dead.has(`${portTrack(sw, pt.port)}|${portEnd(sw, pt.port)}`)))
   let next = {
     ...project,
     tracks: (project.tracks ?? []).flatMap(t => replaced.get(t.id) ?? [t]),
@@ -832,19 +832,16 @@ export function addElementsToTrack(trackId, elements) {
   })
 }
 
-/** `track` with `elements` appended at its end, stations and polyline carried on. */
+/** `track` with `elements` appended at its end, its polyline carried on. */
 function withAppended(track, elements) {
   let els = track.elements ?? []
   let coords = track.coordinates ?? []
   for (const element of elements) {
-    const last = els[els.length - 1]
-    const prevAbsLength = last ? (last.absLength ?? last.length) : 0
-    const withAbs = { ...element, absLength: prevAbsLength + element.length }
-    els = [...els, withAbs]
+    els = [...els, element]
     // The same polyline rebuildCoords and the reload take, which is the coarse one
     // wherever the element carries it: appending the fine one instead left the
     // track drawn at one density until a reload replaced it with the other.
-    const c = withAbs.renderCoords ?? withAbs.geometry?.coordinates
+    const c = element.renderCoords ?? element.geometry?.coordinates
     if (c?.length) coords = [...coords, ...c.slice(1)]
   }
   return { ...track, elements: els, coordinates: coords }
@@ -857,8 +854,7 @@ export function addElementToTrack(trackId, element) {
 /**
  * Reverse a track's direction. The element order and every element flip, so the
  * track's BEGIN/END swap — switch ports referencing it are flipped with it, all
- * under a single undo step. Length offsets (absLength, and the OSRD `curves`
- * derived from it) follow automatically from the new element order; the height
+ * under a single undo step. Stations follow from the new element order; the height
  * points are stationed along the track, so they mirror about its length.
  */
 export function reverseTrackDirection(trackId) {

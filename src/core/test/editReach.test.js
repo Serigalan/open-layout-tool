@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { recalcAbsLengths, rebuildCoords } from '../utils/trackModel'
+import { rebuildCoords } from '../utils/trackModel'
 import {
   computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
   endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm,
@@ -32,7 +32,7 @@ function straight(startUtm, bearing, length, extra = {}) {
   return {
     elementType: 0,
     startNode: v.startNode, endNode: v.endNode,
-    bearing: v.bearing, length: v.length, absLength: v.length, speed: 100, ...extra,
+    bearing: v.bearing, length: v.length, speed: 100, ...extra,
     geometry: { type: 'LineString', coordinates: [toWgs(startUtm), toWgs(endUtm)] },
   }
 }
@@ -44,14 +44,14 @@ function arc(startUtm, bearing, length, radius, extra = {}) {
     elementType: 1,
     startNode: v.startNode, endNode: v.endNode,
     bearing: v.bearing, endBearing: v.endBearing,
-    length: v.length, absLength: v.length, radius, cant: 0, speed: 100, ...extra,
+    length: v.length, radius, cant: 0, speed: 100, ...extra,
     geometry: { type: 'LineString', coordinates: arcCoordsFromRadiusUtm(startUtm, endUtm, radius, SAGITTA_ELEMENT) },
     renderCoords: arcCoordsFromRadiusUtm(startUtm, endUtm, radius, SAGITTA_TRACK),
   }
 }
 
 const trackOf = (id, elements) => {
-  const els = recalcAbsLengths(elements)
+  const els = elements
   return { id, name: id, epsg: EPSG, elements: els, coordinates: rebuildCoords(els) }
 }
 
@@ -118,9 +118,12 @@ describe('the switches one change reaches', () => {
     ])
     const record = {
       ...sw,
-      portA_trackId: 't0',       portA_endpoint: 'END',
-      portB1_trackId: 't-branch', portB1_endpoint: 'BEGIN',
-      portB2_trackId: 't1',       portB2_endpoint: 'BEGIN',
+      ports: {
+        ...sw.ports,
+        A: { trackId: 't0', endpoint: 'END' },
+        B1: { trackId: 't-branch', endpoint: 'BEGIN' },
+        B2: { trackId: 't1', endpoint: 'BEGIN' },
+      },
     }
     return { tracks: [a, host, branch], switches: [record], record }
   }
@@ -144,9 +147,11 @@ describe('the switches one change reaches', () => {
     const second = { ...newSwitchFields(), name: 'W 2', label: '500 - 1:12' }
     const also = {
       ...second,
-      portA_trackId: 't1', portA_endpoint: 'END',
-      portB1_trackId: 't-branch', portB1_endpoint: 'END',
-      portB2_trackId: 't1', portB2_endpoint: 'END',
+      ports: {
+        A: { trackId: 't1', endpoint: 'END' },
+        B1: { trackId: 't-branch', endpoint: 'END' },
+        B2: { trackId: 't1', endpoint: 'END' },
+      },
     }
     const plan = planElementChange(tracks, [...switches, also], 't0', 0, { length: 250 })
     expect(plan.touchedSwitchIds.length).toBeGreaterThan(MAX_EDIT_SWITCHES)
@@ -158,9 +163,11 @@ describe('the switches one change reaches', () => {
     const elsewhere = chainOfTracks(1)[0]
     const far = { ...trackOf('t-far', elsewhere.elements), id: 't-far' }
     const other = { ...newSwitchFields(), name: 'W 9', label: '500 - 1:12',
-      portA_trackId: 't-far', portA_endpoint: 'END',
-      portB1_trackId: 't-far', portB1_endpoint: 'BEGIN',
-      portB2_trackId: 't-far', portB2_endpoint: 'BEGIN' }
+      ports: {
+        A: { trackId: 't-far', endpoint: 'END' },
+        B1: { trackId: 't-far', endpoint: 'BEGIN' },
+        B2: { trackId: 't-far', endpoint: 'BEGIN' },
+      }}
     const plan = planElementChange([...tracks, far], [...switches, other], 't0', 0, { length: 210 })
     expect(plan.touchedSwitchIds).not.toContain(other.switchId)
   })

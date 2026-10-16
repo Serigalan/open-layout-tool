@@ -1,8 +1,8 @@
-import { portsOf } from './switchModel'
+import { portsOf, portTrack, portEnd } from './switchModel'
 import { pointOnElement } from './platformUtils'
 import { sampleTransitionUtm } from './clothoidUtils'
 import { endKey } from './trackEndMarks'
-import { absLengthErrors, epsgMismatches, nodeGaps, untrueLengths } from './chainChecks'
+import { epsgMismatches, nodeGaps, untrueLengths } from './chainChecks'
 import { trackLabel } from './trackModel'
 import { surveyDefect } from './axisSurvey'
 import { referenceAxisDefect } from './referenceAxis'
@@ -54,8 +54,8 @@ export function validateProject(project) {
   const held = new Map()
   for (const sw of switches) {
     const label = sw.name ?? sw.label ?? sw.switchId
-    for (const { port, trackKey, endKey: ek } of portsOf(sw)) {
-      const trackId = sw[trackKey], endpoint = sw[ek]
+    for (const { port } of portsOf(sw)) {
+      const trackId = portTrack(sw, port), endpoint = portEnd(sw, port)
       if (!trackId || !byId.has(trackId)) {
         add(errors, 'port_track_missing', 'switches', sw.switchId, label, { port, trackId }, port)
         continue
@@ -85,9 +85,6 @@ export function validateProject(project) {
     for (const g of nodeGaps(els, GAP_WARNING)) {
       add(g.gap > GAP_ERROR ? errors : warnings, 'chain_gap', 'tracks', t.id, label,
         { index: g.index, gap: g.gap }, g.index)
-    }
-    for (const e of absLengthErrors(els, 1e-3)) {
-      add(errors, 'chain_abs_length', 'tracks', t.id, label, e, e.index)
     }
     for (const e of untrueLengths(els)) add(warnings, 'chain_length', 'tracks', t.id, label, e, e.index)
     for (const e of epsgMismatches(t)) add(errors, 'chain_epsg', 'tracks', t.id, label, e, e.index)
@@ -217,7 +214,7 @@ function segDist(px, py, ax, ay, bx, by) {
 export function overlappingTracks(tracks, switches = []) {
   const together = new Set()
   for (const sw of switches) {
-    const ids = portsOf(sw).map(p => sw[p.trackKey]).filter(Boolean)
+    const ids = portsOf(sw).map(p => portTrack(sw, p.port)).filter(Boolean)
     for (const a of ids) for (const b of ids) if (a !== b) together.add(`${a}|${b}`)
   }
 

@@ -11,7 +11,7 @@ const newId = () => `new${++n}`
 describe('planning a RailJSON import', () => {
   const parsed = {
     tracks: [track('a', '6340.001'), track('b', '6340.002')],
-    switches: [{ switchId: 'w1', kind: 'turnout', portA_trackId: 'a', portB1_trackId: 'b', portB2_trackId: null }],
+    switches: [{ switchId: 'w1', kind: 'turnout', ports: { A: { trackId: 'a' }, B1: { trackId: 'b' }, B2: { trackId: null } }}],
     endMarks: [{ id: 'm1', trackId: 'a', endpoint: 'BEGIN' }],
     infra: { routes: [1], switches: [{ id: 'f', ports: { A: { track: 'a', endpoint: 'END' } } }] },
   }
@@ -20,8 +20,7 @@ describe('planning a RailJSON import', () => {
     const plan = planRailJsonImport(parsed, { newId })
     expect(plan.addTracks.map(tr => [tr.id, tr.name])).toEqual([['a', '6340.001'], ['b', '6340.002']])
     expect(plan.addTracks[0].coordinates.length).toBeGreaterThan(0)
-    expect(plan.addTracks[0].elements[0].absLength).toBe(100)
-    expect(plan.addSwitches[0]).toMatchObject({ portA_trackId: 'a', portB1_trackId: 'b', portB2_trackId: null })
+    expect(plan.addSwitches[0]).toMatchObject({ ports: { A: { trackId: 'a' }, B1: { trackId: 'b' }, B2: { trackId: null } } })
     expect(plan.addEndMarks).toEqual([{ id: 'm1', trackId: 'a', endpoint: 'BEGIN' }])
     expect(plan.osrd).toEqual(parsed.infra)
   })
@@ -35,7 +34,7 @@ describe('planning a RailJSON import', () => {
     expect(a.name).not.toBe('6340.001')
     // b keeps its id; its name went to the renamed a, so it takes the next one.
     expect(b).toMatchObject({ id: 'b', name: '6340.003' })
-    expect(plan.addSwitches[0].portA_trackId).toBe(a.id)
+    expect(plan.addSwitches[0].ports?.A?.trackId).toBe(a.id)
     expect(plan.addEndMarks[0].trackId).toBe(a.id)
     expect(plan.addEndMarks[0].id).not.toBe('m1')
     expect(plan.osrd.switches[0].ports.A.track).toBe(a.id)

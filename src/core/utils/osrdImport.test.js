@@ -6,7 +6,7 @@ import { computeSwitchGeometryUtm } from './switch/symbol'
 import { switchRouteVaries } from './switch/route'
 import { crossingAngle, computeCrossingGeometryUtm, crossingElements } from './switch/crossing'
 import { newSwitchFields } from './switchModel'
-import { recalcAbsLengths } from './trackModel'
+
 
 /**
  * AP 3.1 — a turnout written out and read back in. The import identifies the
@@ -20,7 +20,7 @@ const START = { easting: 500000, northing: 5600000, zone: EPSG }
 const BEARING = 30
 
 /** The elements of one route of a turnout, as a dialog commits them. */
-const routeElements = (segments) => recalcAbsLengths(segments.map(seg => ({
+const routeElements = (segments) => segments.map(seg => ({
   ...(switchRouteVaries(seg)
     ? { elementType: 2, transitionType: 'clothoid', r1: seg.r1, r2: seg.r2 }
     : { elementType: seg.r1 ? 1 : 0, ...(seg.r1 ? { radius: seg.r1 } : {}) }),
@@ -28,7 +28,7 @@ const routeElements = (segments) => recalcAbsLengths(segments.map(seg => ({
   endNode:   [seg.endUtm.easting, seg.endUtm.northing],
   bearing: seg.bearing, endBearing: seg.endBearing, length: seg.length,
   geometry: { type: 'LineString', coordinates: seg.coords },
-})))
+}))
 
 /** A turnout of `form` on a straight, as the two tracks and the record of it. */
 function turnout(form) {
@@ -38,9 +38,11 @@ function turnout(form) {
   const sw = {
     ...newSwitchFields(),
     name: 'switch.001', label: form.label,
-    portA_trackId: null,       portA_endpoint: null,
-    portB1_trackId: 'branch',  portB1_endpoint: 'BEGIN',
-    portB2_trackId: 'through', portB2_endpoint: 'BEGIN',
+    ports: {
+      A: { trackId: null, endpoint: null },
+      B1: { trackId: 'branch', endpoint: 'BEGIN' },
+      B2: { trackId: 'through', endpoint: 'BEGIN' },
+    },
   }
   return { tracks: [branch, through], switches: [sw] }
 }
@@ -138,15 +140,17 @@ describe('a crossing switch through the exchange file', () => {
     const g = computeCrossingGeometryUtm(START, BEARING, form, angle)
     const identity = { ...newSwitchFields(form.kind), name: 'crossing.001', label }
     const els = crossingElements(g, identity)
-    const track = (id, el) => ({ id, epsg: EPSG, elements: recalcAbsLengths([el]) })
+    const track = (id, el) => ({ id, epsg: EPSG, elements: [el] })
     const tracks = [track('a', els.A), track('b', els.B), track('c', els.C), track('d', els.D),
       ...[els.slip1, els.slip2].filter(Boolean).map((el, i) => track(`s${i + 1}`, el))]
     const sw = {
       ...identity,
-      portA_trackId: 'a', portA_endpoint: 'END',
-      portB_trackId: 'b', portB_endpoint: 'END',
-      portC_trackId: 'c', portC_endpoint: 'BEGIN',
-      portD_trackId: 'd', portD_endpoint: 'BEGIN',
+      ports: {
+        A: { trackId: 'a', endpoint: 'END' },
+        B: { trackId: 'b', endpoint: 'END' },
+        C: { trackId: 'c', endpoint: 'BEGIN' },
+        D: { trackId: 'd', endpoint: 'BEGIN' },
+      },
     }
     return parseOsrdRailJson(buildInfra(tracks, [sw], [], {}))
   }

@@ -12,7 +12,7 @@ export function straight(id, x, y, bearing, length) {
   return {
     id, name: id, epsg: EPSG,
     elements: [{
-      elementType: 0, length, bearing, endBearing: bearing, absLength: length,
+      elementType: 0, length, bearing, endBearing: bearing,
       startNode: [start.easting, start.northing],
       endNode: [end.easting, end.northing],
       geometry: { type: 'LineString', coordinates: [
@@ -24,9 +24,11 @@ export function straight(id, x, y, bearing, length) {
 
 const turnout = (name, a, b1, b2) => ({
   switchId: name, kind: 'turnout', formVersion: 1, name,
-  portA_trackId: a[0], portA_endpoint: a[1],
-  portB1_trackId: b1[0], portB1_endpoint: b1[1],
-  portB2_trackId: b2[0], portB2_endpoint: b2[1],
+  ports: {
+    A: { trackId: a[0], endpoint: a[1] },
+    B1: { trackId: b1[0], endpoint: b1[1] },
+    B2: { trackId: b2[0], endpoint: b2[1] },
+  },
 })
 
 // Two tracks running east 4.5 m apart, a crossover between them near the

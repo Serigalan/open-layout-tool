@@ -6,17 +6,13 @@
  * beside them. Within a collection an object is compared field by field, and a
  * "field" is whatever is merged as one value — for a track `elements` and
  * `heights` are one field each (the elements carry no ids of their own,
- * decision 92), for a switch every port field together is one field, and a
- * km line, an end mark or a measured axis (axisSurvey) is one value altogether.
+ * decision 92), for a switch its `ports` are one field (they are one object
+ * on the record, oltjson-1.0), and a km line, an end mark or a measured axis
+ * (axisSurvey) is one value altogether.
  */
-
-const PORT_FIELD = /^port[A-Z0-9]+_(trackId|endpoint)$/
 
 /** The value the "whole entry" collections are compared as. */
 export const WHOLE = '*'
-
-/** The port fields of a switch, merged as one. */
-const PORTS = 'ports'
 
 const COLLECTIONS = [
   { name: 'tracks',    key: 'id' },
@@ -53,13 +49,9 @@ export function fieldsOf(collection, obj) {
     fields.set(WHOLE, obj)
     return fields
   }
-  const ports = {}
   for (const [k, v] of Object.entries(obj ?? {})) {
-    if (v === undefined) continue
-    if (collection === 'switches' && PORT_FIELD.test(k)) ports[k] = v
-    else fields.set(k, v)
+    if (v !== undefined) fields.set(k, v)
   }
-  if (Object.keys(ports).length) fields.set(PORTS, ports)
   return fields
 }
 
@@ -68,9 +60,7 @@ export function objectFromFields(collection, fields) {
   if (BY_NAME[collection].whole) return fields.get(WHOLE)
   const obj = {}
   for (const [k, v] of fields) {
-    if (v === undefined) continue
-    if (k === PORTS) Object.assign(obj, v)
-    else obj[k] = v
+    if (v !== undefined) obj[k] = v
   }
   return obj
 }

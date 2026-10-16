@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { commitImport, loadTracks } from '../../../storage'
 import { generateId } from '../../../utils/identifierUtils'
-import { nextTrackName, rebuildCoords, recalcAbsLengths } from '../../../utils/trackModel'
+import { nextTrackName, rebuildCoords } from '../../../utils/trackModel'
 import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../../utils/gleislageCsvImport'
 import { readFileText } from '../../../utils/fileUtils'
 import { FILE_CRS_OPTIONS } from '../../../utils/coordinateUtils'
@@ -79,7 +79,7 @@ export default function CsvSection() {
     if (!parsed.length) return
     const names = new Set(loadTracks().map(tr => tr.name).filter(Boolean))
     commitImport({ addTracks: parsed.map(tr => {
-      const elements = recalcAbsLengths(tr.elements)
+      const elements = tr.elements
       const name = names.has(tr.name) ? nextTrackName(tr.name.split('.')[0], names) : tr.name
       names.add(name)
       return { ...tr, id: generateId(), name, elements, coordinates: rebuildCoords(elements) }

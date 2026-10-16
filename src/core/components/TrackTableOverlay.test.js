@@ -33,7 +33,7 @@ const TRACK = {
   id: 't1', name: 'Gleis 1', epsg: 5678,
   elements: [
     arc({ radius: 500, cant: 100 }),
-    straight({ switchBranch: true, switchId: 'sw1', switchRoute: 'main', switchLabel: '500 – 1:12', speed: 60, length: 33.2000000004 }),
+    straight({ switchBranch: true, switchId: 'sw1', switchRoute: 'main', speed: 60, length: 33.2000000004 }),
     arc({ radius: -500, cant: -40, switchBranch: true, switchId: 'sw1', switchRoute: 'branch', speed: 60 }),
     straight({ switchHint: 'EW 190-1:9 nicht gebaut' }),
     // 100 km/h through R 500 with no cant at all: 236 mm, past anything.

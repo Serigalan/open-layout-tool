@@ -37,12 +37,17 @@ export const branchTrack = (heights = null) => ({
   ...(heights ? { heights } : {}),
 })
 
-export const turnout = (over = {}) => ({
+const PORTS = {
+  A: { trackId: 'a', endpoint: 'END' },
+  B1: { trackId: 'b', endpoint: 'BEGIN' },
+  B2: { trackId: 'm', endpoint: 'BEGIN' },
+}
+
+/** The turnout over a, b and m; `over.ports` is written port by port over its own. */
+export const turnout = ({ ports = {}, ...over } = {}) => ({
   switchId: 's1', kind: 'turnout', label: 'TEST',
-  portA_trackId: 'a', portA_endpoint: 'END',
-  portB1_trackId: 'b', portB1_endpoint: 'BEGIN',
-  portB2_trackId: 'm', portB2_endpoint: 'BEGIN',
   ...over,
+  ports: Object.fromEntries(Object.entries({ ...PORTS, ...ports }).map(([k, v]) => [k, { ...PORTS[k], ...v }])),
 })
 
 export const formOf = (label) => (label === 'TEST' ? { lds: 10 } : null)

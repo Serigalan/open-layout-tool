@@ -37,7 +37,7 @@ import { catalogLimit } from './regelkatalog'
 import { adjacentTracks, elementAtStation, gradientAt, jointHeightUpdates, pointAtStationUtm, roundHeight, trackLength } from './heightUtils'
 import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from './crossSectionUtils'
 import { cantSign, roundCant } from './rules/cant'
-import { isLinkSwitch, portsOf, turnoutDivergingPort, turnoutLinePort } from './switchModel'
+import { isLinkSwitch, portsOf, turnoutDivergingPort, turnoutLinePort, portTrack, portEnd } from './switchModel'
 import { ldsFromToe } from './switchGradient'
 
 const EPS = 1e-6
@@ -61,7 +61,7 @@ export function findCrossovers(tracks, switches) {
   for (const conn of tracks ?? []) {
     const at = (end) => (switches ?? []).find(sw => {
       const port = turnoutDivergingPort(sw)
-      return isTurnout(sw) && sw[`port${port}_trackId`] === conn.id && (sw[`port${port}_endpoint`] ?? 'BEGIN') === end
+      return isTurnout(sw) && portTrack(sw, port) === conn.id && (portEnd(sw, port) ?? 'BEGIN') === end
     })
     const w1 = at('BEGIN'), w2 = at('END')
     if (w1 && w2 && w1.switchId !== w2.switchId) out.push({ w1, w2, conn })
@@ -81,14 +81,14 @@ const other = (end) => (end === 'BEGIN' ? 'END' : 'BEGIN')
 function continuation(tracks, switches, track, end) {
   for (const sw of switches ?? []) {
     const ports = portsOf(sw)
-    const here = ports.find(p => sw[p.trackKey] === track.id && (sw[p.endKey] ?? 'BEGIN') === end)
+    const here = ports.find(p => portTrack(sw, p.port) === track.id && (portEnd(sw, p.port) ?? 'BEGIN') === end)
     if (!here) continue
     if (!isTurnout(sw)) return null
     const line = turnoutLinePort(sw)
     const to = here.port === 'A' ? line : here.port === line ? 'A' : null
     if (!to) return null
-    const next = tracks.find(t => t.id === sw[`port${to}_trackId`])
-    return next ? { track: next, end: sw[`port${to}_endpoint`] ?? 'BEGIN' } : null
+    const next = tracks.find(t => t.id === portTrack(sw, to))
+    return next ? { track: next, end: portEnd(sw, to) ?? 'BEGIN' } : null
   }
   const [n] = adjacentTracks(tracks, switches, track, end)
   return n ? { track: n.track, end: n.endpoint } : null
@@ -184,9 +184,9 @@ function nearestOn(chain, p, near = null) {
 /** Line distance of a turnout's toe and of its ldS, on the line its main route lies on. */
 function toeAndLds(chain, tracks, sw) {
   const line = turnoutLinePort(sw)
-  const seg = chain.find(s => s.track.id === sw[`port${line}_trackId`])
+  const seg = chain.find(s => s.track.id === portTrack(sw, line))
   if (!seg) return null
-  const fromBegin = (sw[`port${line}_endpoint`] ?? 'BEGIN') !== 'END'
+  const fromBegin = (portEnd(sw, line) ?? 'BEGIN') !== 'END'
   const toeStation = fromBegin ? 0 : seg.length
   const reach = ldsFromToe(tracks, sw) ?? 0
   const ldsStation = fromBegin ? reach : seg.length - reach
@@ -201,8 +201,8 @@ function toeAndLds(chain, tracks, sw) {
  * are one, a plane change).
  */
 export function crossoverFrame(tracks, switches, { w1, w2 }) {
-  const main1 = tracks.find(t => t.id === w1[`port${turnoutLinePort(w1)}_trackId`])
-  const main2 = tracks.find(t => t.id === w2[`port${turnoutLinePort(w2)}_trackId`])
+  const main1 = tracks.find(t => t.id === portTrack(w1, turnoutLinePort(w1)))
+  const main2 = tracks.find(t => t.id === portTrack(w2, turnoutLinePort(w2)))
   if (!main1 || !main2 || Number(main1.epsg) !== Number(main2.epsg)) return null
   const line1 = lineChain(tracks, switches, main1)
   const line2 = lineChain(tracks, switches, main2)
@@ -493,9 +493,9 @@ export function planCrossoverGradient(tracks, switches, crossover, { mode, cant,
   if (!(conn.heights?.length >= 2)) {
     const toeZ = (sw) => {
       const line = turnoutLinePort(sw)
-      const id = sw[`port${line}_trackId`]
+      const id = portTrack(sw, line)
       const t = withWrites.find(x => x.id === id)
-      const st = (sw[`port${line}_endpoint`] ?? 'BEGIN') === 'END' ? trackLength(t) : 0
+      const st = (portEnd(sw, line) ?? 'BEGIN') === 'END' ? trackLength(t) : 0
       return gradientAt(heights.get(id) ?? t.heights, st)
     }
     const z0 = toeZ(crossover.w1), z1 = toeZ(crossover.w2)

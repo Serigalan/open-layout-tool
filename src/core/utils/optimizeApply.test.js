@@ -32,7 +32,7 @@ describe('the optimized track', () => {
   it('carries the new elements and the regelwerk it was drawn under', () => {
     const out = optimizedTrack(track, { elements: [s, a], regelwerk: 'db-ril-800-0110', grenzwert: 'reg' })
     expect(out).toMatchObject({ id: 't', regelwerk: 'db-ril-800-0110', regelwerkGrenzwert: 'reg' })
-    expect(out.elements[1].absLength).toBeCloseTo(200, 9)
+    expect(out.elements.map(el => el.length).reduce((x, y) => x + y)).toBeCloseTo(200, 9)
     expect(out.coordinates.length).toBeGreaterThan(2)
   })
 })

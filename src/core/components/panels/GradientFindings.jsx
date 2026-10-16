@@ -2,7 +2,7 @@ import { useProject } from '../../hooks/useStore'
 import { checkVertical, verticalFindings } from '../../utils/gradientCheck'
 import { couplingOf, planeDeviations, switchLds } from '../../utils/switchGradient'
 import { pendingTurnouts } from '../../utils/switchChain'
-import { isLinkSwitch, portsOf } from '../../utils/switchModel'
+import { isLinkSwitch, portsOf, portTrack } from '../../utils/switchModel'
 import { ruleById, severityLabelKey } from '../../utils/regelkatalog'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -21,7 +21,7 @@ export default function GradientFindings({ trackId }) {
   const track = project?.tracks?.find(tr => tr.id === trackId)
   if (!track) return <p className="selecting-hint">{t('elevation_rules_pick')}</p>
   const turnouts = (project.switches ?? []).filter(sw => !isLinkSwitch(sw)
-    && portsOf(sw).some(p => sw[p.trackKey] === track.id))
+    && portsOf(sw).some(p => portTrack(sw, p.port) === track.id))
   // What coupling would still change (Paket WK): the pairs, the lines through
   // toe and ldS, the continuation behind it.
   const pendingIds = new Set(pendingTurnouts(project).map(sw => sw.switchId))
