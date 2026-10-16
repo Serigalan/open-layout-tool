@@ -1,18 +1,8 @@
 import { useState } from 'react'
-import { BASEMAPS, LANDESVERMESSUNG_STATES } from '../../basemaps'
+import { BASEMAPS, LANDESVERMESSUNG_STATES, LANDESVERMESSUNG_THUMBNAIL } from '../../basemaps'
 import { KM_COLOR, KM_OTHER_COLOR, KM_JUMP_COLOR } from '../../utils/kmLineLayer'
 import { OverlayThumbnail } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
-
-const THUMBNAIL = {
-  liberty:    './liberty.webp',
-  positron:   './positron.webp',
-  elevation:  './dem.webp',
-  satellite:  './satellite.webp',
-  'ign-ortho': './satellite.webp',
-  basemapde:  './basemap.webp',
-  dgm5:       './dem.webp',
-}
 
 const GROUPS = ['worldwide', 'france', 'germany']
 
@@ -22,94 +12,94 @@ const KM_OVERLAY_ENTRIES = [
   ['other', 'overlay_km_lines_other'],
 ]
 
+/**
+ * The map layers as one list: every basemap a row with its preview, grouped by
+ * where it covers, then the overlays, which lie on top of whichever basemap is
+ * chosen and so are a section of their own rather than part of a group.
+ */
 export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError }) {
   const { t } = useI18n()
-  const anyOverlay = kmOverlays.db || kmOverlays.other
-  const [lvExpanded, setLvExpanded] = useState(activeBasemap.startsWith('lv-'))
-  const [overlaysExpanded, setOverlaysExpanded] = useState(anyOverlay)
-
-  const isLvActive = activeBasemap.startsWith('lv-')
+  // The state list is open for the basemap it was opened under: choosing a
+  // state (or any other basemap, here or elsewhere) closes it again, and the
+  // row then names the state in use.
+  const [lvOpenFor, setLvOpenFor] = useState(null)
+  const lvExpanded = lvOpenFor === activeBasemap
+  const activeState = LANDESVERMESSUNG_STATES.find((s) => s.id === activeBasemap)
 
   return (
     <>
       <h2>{t('layers_title')}</h2>
-      {GROUPS.map((group, i) => {
-        const items = BASEMAPS.filter((b) => b.group === group)
-        return (
-          <div key={group}>
-            {i > 0 && <hr className="divider divider-wide" />}
-            <p className="layers-group-label">{t(`layers_group_${group}`)}</p>
-            <div className="basemap-grid">
-              {items.map((basemap) => (
+      {GROUPS.map((group) => (
+        <section key={group} className="layer-group">
+          <p className="layers-group-label">{t(`layers_group_${group}`)}</p>
+          <div className="layer-list">
+            {BASEMAPS.filter((b) => b.group === group).map((basemap) => (
+              <button
+                key={basemap.id}
+                type="button"
+                className={`layer-row${activeBasemap === basemap.id ? ' active' : ''}`}
+                aria-pressed={activeBasemap === basemap.id}
+                onClick={() => onBasemapChange(basemap.id)}
+              >
+                <img src={basemap.thumbnail} alt="" className="layer-thumbnail" />
+                <span className="layer-label">{t(basemap.labelKey)}</span>
+              </button>
+            ))}
+            {group === 'germany' && (
+              <>
                 <button
-                  key={basemap.id}
-                  className={`basemap-tile ${activeBasemap === basemap.id ? 'active' : ''}`}
-                  onClick={() => { setLvExpanded(false); onBasemapChange(basemap.id) }}
-                  title={t(basemap.labelKey)}
+                  type="button"
+                  className={`layer-row${activeState ? ' active' : ''}`}
+                  aria-expanded={lvExpanded}
+                  aria-controls="layers-lv-states"
+                  onClick={() => setLvOpenFor(lvExpanded ? null : activeBasemap)}
                 >
-                  <img src={THUMBNAIL[basemap.id]} alt={t(basemap.labelKey)} className="basemap-thumbnail" />
-                  <span className="basemap-label">{t(basemap.labelKey)}</span>
+                  <img src={LANDESVERMESSUNG_THUMBNAIL} alt="" className="layer-thumbnail" />
+                  <span className="layer-label">
+                    {t('basemap_landesvermessung')}
+                    <span className="layer-sublabel">{activeState ? activeState.name : t('basemap_landesvermessung_pick')}</span>
+                  </span>
+                  <span className={`layer-caret${lvExpanded ? ' open' : ''}`} aria-hidden="true">▸</span>
                 </button>
-              ))}
-              {group === 'germany' && (
-                <button
-                  className={`basemap-tile basemap-tile-full ${isLvActive ? 'active' : ''}`}
-                  onClick={() => setLvExpanded((v) => !v)}
-                  title={t('basemap_landesvermessung')}
-                >
-                  <img src="./satellite.webp" alt={t('basemap_landesvermessung')} className="basemap-thumbnail" />
-                  <span className="basemap-label">{t('basemap_landesvermessung')}</span>
-                </button>
-              )}
-            </div>
-            {group === 'germany' && lvExpanded && (
-              <div className="lv-state-list">
-                {LANDESVERMESSUNG_STATES.map((state) => (
-                  <button
-                    key={state.id}
-                    className={`lv-state-btn ${activeBasemap === state.id ? 'active' : ''}`}
-                    onClick={() => state.wmsUrl && onBasemapChange(state.id)}
-                    disabled={!state.wmsUrl}
-                  >
-                    {state.name}
-                  </button>
-                ))}
-              </div>
+                {lvExpanded && (
+                  <div id="layers-lv-states" className="layer-state-list">
+                    {LANDESVERMESSUNG_STATES.map((state) => (
+                      <button
+                        key={state.id}
+                        type="button"
+                        className={`layer-state${activeBasemap === state.id ? ' active' : ''}`}
+                        aria-pressed={activeBasemap === state.id}
+                        onClick={() => state.wmsUrl && onBasemapChange(state.id)}
+                        disabled={!state.wmsUrl}
+                      >
+                        {state.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
-        )
-      })}
+        </section>
+      ))}
 
-      {/* Overlays lie on top of whichever basemap is chosen, so they follow the
-          groups rather than belonging to one. The tile only opens the list —
-          what is switched on and off are the overlays inside it. The gap is the
-          one the tiles keep between themselves, so it reads as the next entry
-          rather than a section of its own. */}
-      <div className="basemap-grid mt-8">
-        <button
-          className={`basemap-tile basemap-tile-full ${anyOverlay ? 'active' : ''}`}
-          onClick={() => setOverlaysExpanded((v) => !v)}
-          title={t('layers_overlays')}
-        >
-          <OverlayThumbnail kmColor={KM_COLOR} kmOtherColor={KM_OTHER_COLOR} kmJumpColor={KM_JUMP_COLOR} />
-          <span className="basemap-label">{t('layers_overlays')}</span>
-        </button>
-      </div>
-      {overlaysExpanded && (
-        <div className="overlay-list">
+      <section className="layer-group">
+        <p className="layers-group-label">{t('layers_overlays')}</p>
+        <div className="layer-list">
           {KM_OVERLAY_ENTRIES.map(([key, labelKey]) => (
-            <label key={key} className="transition-curve-row overlay-item">
+            <label key={key} className={`layer-row${kmOverlays[key] ? ' active' : ''}`}>
+              <OverlayThumbnail kind={key} kmColor={KM_COLOR} kmOtherColor={KM_OTHER_COLOR} kmJumpColor={KM_JUMP_COLOR} />
+              <span className="layer-label">{t(labelKey)}</span>
               <input
                 type="checkbox"
                 checked={kmOverlays[key]}
                 onChange={(e) => onKmOverlayChange(key, e.target.checked)}
               />
-              <span>{t(labelKey)}</span>
             </label>
           ))}
-          {kmLinesError && <p className="overlay-error">{t('overlay_km_lines_missing')}</p>}
         </div>
-      )}
+        {kmLinesError && <p className="overlay-error">{t('overlay_km_lines_missing')}</p>}
+      </section>
     </>
   )
 }

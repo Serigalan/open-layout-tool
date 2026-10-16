@@ -175,6 +175,9 @@ export const LANDESVERMESSUNG_STATES = [
   { id: 'lv-th', name: 'Thüringen',               wmsUrl: 'https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP20', layer: 'th_dop', attribution: '© GDI-Th, TLBG (dl-de/by-2-0)' },
 ]
 
+/** The one preview all states share in the layers panel — a cut of Bavaria's DOP 20. */
+export const LANDESVERMESSUNG_THUMBNAIL = './dop.webp'
+
 const IGN_ORTHO_STYLE = {
   version: 8,
   sources: {
@@ -264,45 +267,56 @@ const ELEVATION_STYLE = {
   ],
 }
 
+// Each entry's `thumbnail` is the preview in the layers panel, a 200 × 150 px
+// cut of the map itself (public/), so no two look alike: the orthophotos show
+// different places, DGM5 a river valley at the zoom its 5 m grid is made for.
+// The state orthophotos share one preview (`LANDESVERMESSUNG_THUMBNAIL`).
 export const BASEMAPS = [
   {
     id: 'liberty',
+    thumbnail: './liberty.webp',
     labelKey: 'basemap_liberty',
     group: 'worldwide',
     style: 'https://tiles.openfreemap.org/styles/liberty',
   },
   {
     id: 'elevation',
+    thumbnail: './dem.webp',
     labelKey: 'basemap_elevation',
     group: 'worldwide',
     get style() { return JSON.parse(JSON.stringify(ELEVATION_STYLE)) },
   },
   {
     id: 'positron',
+    thumbnail: './positron.webp',
     labelKey: 'basemap_positron',
     group: 'worldwide',
     style: 'https://tiles.openfreemap.org/styles/positron',
   },
   {
     id: 'satellite',
+    thumbnail: './satellite.webp',
     labelKey: 'basemap_satellite',
     group: 'worldwide',
     style: `https://api.maptiler.com/maps/satellite/style.json?key=${MAPTILER_KEY}`,
   },
   {
     id: 'ign-ortho',
+    thumbnail: './ign-ortho.webp',
     labelKey: 'basemap_ign_ortho',
     group: 'france',
     get style() { return JSON.parse(JSON.stringify(IGN_ORTHO_STYLE)) },
   },
   {
     id: 'basemapde',
+    thumbnail: './basemap.webp',
     labelKey: 'basemap_basemapde',
     group: 'germany',
     style: 'https://basemap.de/data/produkte/web_vektor/styles/bm_web_bin.json',
   },
   {
     id: 'dgm5',
+    thumbnail: './dgm5.webp',
     labelKey: 'basemap_dgm5',
     group: 'germany',
     get style() { return JSON.parse(JSON.stringify(DGM5_STYLE)) },
