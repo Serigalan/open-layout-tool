@@ -28,7 +28,7 @@ import TransitionLengthButtons from '../TransitionLengthButtons'
  * (`found`), shown rather than typed.
  */
 export default function SpliceSettings({
-  picks, departure, s, set, cant, setCant, transitionLength, transitionRules = null, maximize = false, found = null, children,
+  picks, departure, s, set, cant, setCant, keptCant = null, transitionLength, transitionRules = null, maximize = false, found = null, children,
 }) {
   const { t } = useI18n()
   const bothArcs = picks[0]?.signedR != null && picks[1]?.signedR != null
@@ -75,7 +75,9 @@ export default function SpliceSettings({
       {/* The radius field here is a magnitude, so the cant is one too — it is
           signed by the fitted arc when the element is written. */}
       {!bothArcs && !maximize && (
-        <CantField value={cant} onChange={setCant} min={0} max={MAX_CANT} speed={s.speed} radius={Math.abs(Number(s.radius))} />
+        <CantField value={cant} onChange={setCant} min={0} max={MAX_CANT} speed={s.speed} radius={Math.abs(Number(s.radius))}>
+          {keptCant != null && <p className="msg-hint">{t('splice_cant_kept')}</p>}
+        </CantField>
       )}
       {directTransition ? (
         <div className="form-field">

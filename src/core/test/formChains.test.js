@@ -99,32 +99,30 @@ describe('connect element — arc onto a straight, over a transition', () => {
   })
 })
 
-describe('connect element — the arc\'s cant (Entscheidung 315)', () => {
+describe('connect element — the cant proposed for the arc (Entscheidung 315)', () => {
   const R = 700
-  const arcTrack = curvedTrack(endPointCurvedUtm(START, 20, 200, R), R)
-  const arc = lastOf(arcTrack)
-  const connect = (extra) => buildConnectCurved({
-    start: endOf(arc), bearing: arc.endBearing, arcLength: 150, speed: SPEED, cant: 120, ...extra,
-  })
+  const arc = lastOf(curvedTrack(endPointCurvedUtm(START, 20, 200, R), R))
 
-  it('without a transition the arc keeps the cant the track ends with, either hand', () => {
+  it('without a transition the one the track ends with, signed by the raised rail', () => {
     expect(cantAtTrackEnd(arc)).toBe(80)
-    for (const signedR of [500, -500]) {
-      expect(connect({ signedR, endCant: cantAtTrackEnd(arc) })[0].cant).toBe(80)
-    }
+    expect(cantAtTrackEnd(lastOf(curvedTrack(endPointCurvedUtm(START, 20, 200, -R), -R)))).toBe(-80)
+    expect(cantAtTrackEnd(lastOf(lineTrack(endPointStraightUtm(START, 20, 300))))).toBe(0)
   })
 
-  it('a transition ramps to the cant asked for', () => {
-    const els = connect({ signedR: 500, endCant: cantAtTrackEnd(arc), transition: { length: 60, fromRadius: R } })
-    expect(els).toHaveLength(2)
-    expect(els[1].cant).toBe(120)
-  })
-
-  it('after a transition that states no cant at its end the arc\'s is free', () => {
+  it('none after a transition that states no cant at its end — that one ramps into the arc', () => {
     const t = transitionElement(START, 20, 60, null, 500, { speed: SPEED }).element
     expect(cantAtTrackEnd(t)).toBeNull()
     expect(cantAtTrackEnd({ ...t, cantEnd: 40 })).toBe(40)
-    expect(connect({ signedR: 500, endCant: cantAtTrackEnd(t) })[0].cant).toBe(120)
+  })
+
+  it('the arc is written with the cant the dialog holds, even one that leans against the curve', () => {
+    const at = (signedR, cant) => buildConnectCurved({
+      start: endOf(arc), bearing: arc.endBearing, arcLength: 150, signedR, speed: SPEED, cant,
+    })[0].cant
+    expect(at(500, 80)).toBe(80)
+    expect(at(-500, 80)).toBe(-80)
+    // A reverse curve straight after a canted one: the cant taken over leans against it.
+    expect(at(-500, -80)).toBe(80)
   })
 })
 

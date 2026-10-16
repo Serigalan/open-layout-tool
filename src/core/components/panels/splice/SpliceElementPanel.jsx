@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { loadTracks, commitSwitchConnection, currentProject } from '../../../storage'
 import { computeAutoC } from '../../../utils/rules/cant'
 import {
-  buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer, splicePick, spliceRequest,
+  buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer, spliceKeptCant, splicePick, spliceRequest,
 } from '../../../utils/commands/splice'
 import { gaugeProfile } from '../../../utils/gaugeProfiles'
 import { utmToWgs84 } from '../../../utils/coordinateUtils'
@@ -104,7 +104,13 @@ export default function SpliceElementPanel() {
   const shown = answered?.find(sol => solutionKey(sol) === chosen) ?? answered?.[0] ?? null
   const found = maximize ? shown?.result?.clearance?.radius ?? null : null
   const radius = found ?? s.radius
-  const [typedCant, setCant] = useDerivedField(`${s.speed}|${radius}`, Math.abs(computeAutoC(s.speed, Math.abs(Number(radius)))))
+  // The cant is free. Proposed where a side has no transition is the pick's
+  // there — it stays as the elements the arc joins, only a transition
+  // changes it (Entscheidung 315) —, else the Regelüberhöhung.
+  const keptCant = configuring ? spliceKeptCant(picks, s.transitionOn) : null
+  const cantKey = (speed, r) => `${speed}|${r}|${keptCant}`
+  const [typedCant, setCant] = useDerivedField(cantKey(s.speed, radius),
+    keptCant ?? Math.abs(computeAutoC(s.speed, Math.abs(Number(radius)))))
   // With the search, the cant is the one the radius found was solved
   // with — its transitions and findings are that cant's (AP S.6).
   const searchedCant = maximize ? shown?.result?.clearance?.cant ?? null : null
@@ -253,10 +259,10 @@ export default function SpliceElementPanel() {
         ? { ...p, speed: r.speed, speedBefore: p.speedBefore ?? p.speed } : p)))
       const speed = Number(s.speed) > r.speed ? r.speed : s.speed
       set('speed', speed)
-      setCant(cant, `${speed}|${radius}`)
+      setCant(cant, cantKey(speed, radius))
     } else if (r.kind === 'radius') {
       set('radius', r.radius)
-      setCant(cant, `${s.speed}|${r.radius}`)
+      setCant(cant, cantKey(s.speed, r.radius))
     } else {
       setS(prev => ({ ...prev, transitionOn: [true, true], modes: ['regular', 'regular'], transitions: SPLICE_DEFAULTS.transitions }))
     }
@@ -290,7 +296,7 @@ export default function SpliceElementPanel() {
     return (
       <>
         <h2>{t('splice_element')}</h2>
-        <SpliceSettings picks={picks} departure={departure} s={s} set={set} cant={cant} setCant={setCant}
+        <SpliceSettings picks={picks} departure={departure} s={s} set={set} cant={cant} setCant={setCant} keptCant={keptCant}
           transitionLength={solution?.result?.transitionLength} transitionRules={transitionRules} maximize={maximize} found={found}>
           {withClearance && (
             <ClearanceFields on={s.clearanceOn} onToggle={v => set('clearanceOn', v)} refName={refName}

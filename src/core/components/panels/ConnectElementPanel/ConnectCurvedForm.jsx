@@ -19,7 +19,7 @@ import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { trackEndAnchor, inheritedSpeed } from '../../../utils/trackModel'
 import useMapEvents from '../../../map/useMapEvents'
-import { arcCant, buildConnectCurved, cantAtTrackEnd } from '../../../utils/commands/tracks'
+import { buildConnectCurved, cantAtTrackEnd, curveCant } from '../../../utils/commands/tracks'
 import NewStretchShiftValues from '../shift/NewStretchShiftValues'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'
@@ -47,10 +47,15 @@ export default function ConnectCurvedForm({ onCommitted }) {
   const [transitionType, setTransitionType]       = useState('clothoid')
   const [transitionLength, setTransitionLength]   = useState(20)
 
-  // Cant follows speed and radius unless the user overrode it for that pair —
-  // a magnitude, signed with the curve where the arc is judged and written.
-  const [cant, setCant, clearCant] = useDerivedField(`${speed}|${signedRadius}`,
-    computeAutoC(speed, Math.abs(Number(signedRadius))))
+  // The cant is free. Proposed without a transition is the one the track
+  // ends with — it stays as the elements it joins, only a transition changes
+  // it (Entscheidung 315) —, with one the Regelüberhöhung for speed and
+  // radius; an override holds for the inputs it was made under. Towards the
+  // curve, signed with it where the arc is judged and written.
+  const endCant = cantAtTrackEnd(lastEl)
+  const keepsCant = !transitionEnabled && endCant != null
+  const [cant, setCant, clearCant] = useDerivedField(`${speed}|${signedRadius}|${keepsCant}`,
+    keepsCant ? cantSign(Number(signedRadius)) * endCant : computeAutoC(speed, Math.abs(Number(signedRadius))))
 
   const bearingRef      = useRef(null)
   const startRef        = useRef(null)   // UTM
@@ -72,7 +77,6 @@ export default function ConnectCurvedForm({ onCommitted }) {
       setStartPoint(a.endUtm)
       setBearing(a.bearing)
       setSpeed(inheritedSpeed(track) ?? a.lastEl.speed ?? 80)
-      setCant(Math.abs(a.lastEl.cant ?? 0))
       setPrevRadius(a.lastEl.radius ?? null)
       setLastEl(a.lastEl)
       bearingRef.current = a.bearing
@@ -167,18 +171,10 @@ export default function ConnectCurvedForm({ onCommitted }) {
     setTransitionLength(20)
   }
 
-  // Without a transition the arc keeps the cant the track ends with — only a
-  // transition ramps it to another (Entscheidung 315). Null where it is free.
-  const endCant = cantAtTrackEnd(lastEl)
-  const fixedCant = transitionEnabled ? null : endCant
-  // The cant as the field states it: a magnitude towards the curve, negative
-  // where the inherited one leans against it.
-  const shownCant = fixedCant != null ? cantSign(Number(signedRadius)) * fixedCant : cant
-
   // The arc once it has a radius, and the transition in front of it — judged
   // in the chain it is laid into.
   const nextEl = Number(signedRadius)
-    ? { elementType: 1, radius: Number(signedRadius), cant: arcCant(Number(signedRadius), cant, fixedCant), speed, length: Number(arcLength) }
+    ? { elementType: 1, radius: Number(signedRadius), cant: curveCant(Number(signedRadius), cant), speed, length: Number(arcLength) }
     : null
   const transitionChainNow = transitionEnabled && nextEl
     ? transitionChain({ prev: lastEl, next: nextEl, r1: prevRadius, length: transitionLength, type: transitionType, speed })
@@ -186,9 +182,9 @@ export default function ConnectCurvedForm({ onCommitted }) {
 
   // What would be appended, for its shift values against a reference axis (Paket V).
   const appended = useMemo(() => (startPoint && endPoint && Number(signedRadius) && Number(arcLength) > 0 ? buildConnectCurved({
-    start: startPoint, bearing, arcLength: Number(arcLength), signedR: Number(signedRadius), speed, cant, endCant: cantAtTrackEnd(lastEl),
+    start: startPoint, bearing, arcLength: Number(arcLength), signedR: Number(signedRadius), speed, cant,
     transition: transitionEnabled ? { length: transitionLength, type: transitionType, fromRadius: prevRadius } : null,
-  }) : null), [startPoint, endPoint, bearing, arcLength, signedRadius, speed, cant, lastEl, transitionEnabled, transitionLength, transitionType, prevRadius])
+  }) : null), [startPoint, endPoint, bearing, arcLength, signedRadius, speed, cant, transitionEnabled, transitionLength, transitionType, prevRadius])
 
   const handleCommit = () => {
     if (!startPoint || !endPoint || !selectedTrack) return
@@ -196,7 +192,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
     if (!r || !arcLength) return
 
     addElementsToTrack(selectedTrack.id, buildConnectCurved({
-      start: startPoint, bearing, arcLength: Number(arcLength), signedR: r, speed, cant, endCant,
+      start: startPoint, bearing, arcLength: Number(arcLength), signedR: r, speed, cant,
       transition: transitionEnabled ? { length: transitionLength, type: transitionType, fromRadius: prevRadius } : null,
     }))
 
@@ -246,16 +242,11 @@ export default function ConnectCurvedForm({ onCommitted }) {
                 <NumberInput min="0" value={speed} onChange={e => setSpeed(Number(e.target.value))} unit="km/h" />
                 <FieldRule name="speed" />
               </div>
-              {fixedCant != null ? (
-                <>
-                  <ReadOnlyField type="number" label={t('cant')} value={shownCant} />
-                  <p className="msg-hint">{t('connect_cant_inherited')}</p>
-                </>
-              ) : (
-                <CantField value={cant} onChange={setCant}
-                  min={0} max={MAX_CANT}
-                  speed={speed} radius={Math.abs(Number(signedRadius))} />
-              )}
+              <CantField value={cant} onChange={setCant}
+                min={0} max={MAX_CANT}
+                speed={speed} radius={Math.abs(Number(signedRadius))}>
+                {keepsCant && <p className="msg-hint">{t('connect_cant_inherited')}</p>}
+              </CantField>
             </>
           )}
           <AdvancedInfo>
@@ -270,7 +261,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
               <ReadOnlyField type="number" label={t('end_bearing')} value={endBearing} />
             )}
             {hasArc && (
-              <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDefSigned(speed, Number(signedRadius), shownCant * cantSign(Number(signedRadius)))} />
+              <ReadOnlyField type="number" label={t('cant_def')} value={computeCantDefSigned(speed, Number(signedRadius), curveCant(Number(signedRadius), cant))} />
             )}
             {hasArc && endPoint && (
               <UtmCoordFields label={t('utm_end')} zone={endPoint.zone}
@@ -286,7 +277,7 @@ export default function ConnectCurvedForm({ onCommitted }) {
         // Judged once, shown and acted on: the findings say what the catalogue
         // found, and anything it calls an error stops the commit.
         const element = nextEl ?? {
-          elementType: 1, radius: Number(signedRadius), cant: arcCant(Number(signedRadius), cant, fixedCant), speed, length: Number(arcLength),
+          elementType: 1, radius: Number(signedRadius), cant: curveCant(Number(signedRadius), cant), speed, length: Number(arcLength),
         }
         const blocked = hasRuleError([element]) || (!!transitionChainNow && transitionHasError(transitionChainNow))
         return (

@@ -1060,6 +1060,17 @@ def _explain(picks, ends, spec, exc):
             exc.params["lMax"] = math.floor(lo * 10) / 10
 
 
+def kept_cant(picks, spec):
+    """The cant of the arc a splice inserts where no transition comes between
+    it and a pick (Entscheidung 315): it stays as that pick's — the first
+    one's where neither side has one —, a magnitude. None where a transition
+    stands beside both: the cant the app proposes for the radius then."""
+    for pick, length, mode in zip(picks, spec["lengths"], spec["modes"]):
+        if mode == "fixed" and not length > 0:
+            return pick["cant"]
+    return None
+
+
 def _with_clearance(picks, spec, cl):
     """The splice held to a spacing to a neighbouring track (see clearance.py):
     checked at `radius`, or with `maximize` the largest radius that keeps it —
@@ -1112,10 +1123,13 @@ def _with_clearance(picks, spec, cl):
                     r_max = float(exc.params["rMax"])
 
             def build(r):
-                # The cant follows the radius as the app proposes it, and the
-                # transitions in their mode follow both (AP S.6): each radius
-                # tried is solved as it would be written.
-                u = auto_cant(speed, r, model)
+                # The cant follows the radius as the app proposes it — where
+                # a side has no transition it stays as the pick's there
+                # (Entscheidung 315) —, and the transitions in their mode
+                # follow both (AP S.6): each radius tried is solved as it
+                # would be written.
+                kept = kept_cant(pk, sp)
+                u = kept if kept is not None else auto_cant(speed, r, model)
                 try:
                     sol = _solve(pk, ends, {**sp, "radius": r, "cant": u})
                 except SpliceError:

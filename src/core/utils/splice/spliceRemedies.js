@@ -1,6 +1,7 @@
 import { catalogLimit, severityRank } from '../regelkatalog'
 import { CANT_DEFICIENCY_COEFF } from '../regelwerkDefaults'
 import { SPEED_STEP } from '../rules/speed'
+import { computeAutoC } from '../rules/cant'
 
 // What a splice can change when the catalogue rejects a curvature jump on the
 // stretch it writes (LP.KS.01, Vergleichsradius): the speed at the joint, the
@@ -107,6 +108,9 @@ export async function spliceRemedies({ request, key, elements = [], findings = [
   if (noTransitions && request.arcJoin !== 'transition') {
     const found = await attempt({
       ...request, lDep: TRANSITION_START, lArr: TRANSITION_START, modeDep: 'regular', modeArr: 'regular',
+      // With transitions either side the arc takes the Regelüberhöhung, as the
+      // dialog then proposes it (Entscheidung 315).
+      ...(request.radius > 0 ? { cant: Math.abs(computeAutoC(request.speed, request.radius)) } : {}),
     })
     if (found) out.push({ kind: 'transitions', ...found })
   }

@@ -20,7 +20,8 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from olt_optimizer.geometry import _arc_forward, transition_end                  # noqa: E402
-from olt_optimizer.reconnect import chain_polyline, reconnect_payload             # noqa: E402
+from olt_optimizer.reconnect import _spec, chain_polyline, reconnect_payload       # noqa: E402
+from olt_optimizer.clearance import auto_cant                                    # noqa: E402
 from olt_optimizer.splice import arc, straight, transition                        # noqa: E402
 from chain_check import chain_holds                                              # noqa: E402
 
@@ -230,6 +231,16 @@ def main():
     ok("reverse curve: beyond 5 cm, the best still named",
        "solutions" in ans and not ans["solutions"][0]["reconnect"]["within"]
        or ans.get("error") == "reconnect_error_no_fit")
+
+    # The cant of the arc inserted (Entscheidung 315): without transitions it
+    # stays as the element's before it, with them the app's proposal.
+    picks = [{"cant": 40.0}, {"cant": 0.0}]
+    base = {"speed": 80.0, "profile": "clothoid", "profiles": ["clothoid", "clothoid"], "cantModel": MODEL}
+    plain = _spec(base, {"lengths": "none", "arcJoin": "straight"}, 600.0, picks)
+    ramped = _spec(base, {"lengths": "regular", "arcJoin": "straight"}, 600.0, picks)
+    ok(f"cant without transitions: the element's before it ({plain['cant']})", plain["cant"] == 40.0)
+    ok(f"cant with transitions: the proposal for the radius ({ramped['cant']})",
+       ramped["cant"] == auto_cant(80.0, 600.0, MODEL))
 
     if FAILED:
         print(f"\n{len(FAILED)} FAILED")

@@ -97,6 +97,17 @@ export function secondPickRefusal(first, pick) {
 }
 
 /**
+ * The cant proposed for the arc a splice inserts where no transition comes
+ * between it and a pick (Entscheidung 315): it stays as that pick's — the
+ * first one clicked where neither side has one —, a magnitude. Null where a
+ * transition stands beside both: the Regelüberhöhung is proposed then.
+ */
+export function spliceKeptCant(picks, transitionOn) {
+  const k = [0, 1].find(i => !transitionOn?.[i])
+  return k == null ? null : Math.abs(picks[k]?.cant ?? 0)
+}
+
+/**
  * The request for the service's `POST /splice`: the two picks in the order
  * they were clicked — their ends in the shared plane, the bearing at the end,
  * the signed radius, cant and speed, their length and what of their track

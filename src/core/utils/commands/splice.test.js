@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer, splicePick, spliceRequest,
+  buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer, spliceKeptCant, splicePick, spliceRequest,
 } from './splice'
 import { straightElement, arcElement, transitionElement } from '../elementFactory'
 import { recalcAbsLengths, rebuildCoords } from '../trackModel'
@@ -408,5 +408,17 @@ describe('the spacing to a neighbouring track', () => {
     expect(req.clearance.lMin).toBeCloseTo(32)
     expect(req.dep.cant).toBe(0)
     expect(spliceRequest(dep, arr, settings).clearance).toBeUndefined()
+  })
+})
+
+describe('the cant proposed for the arc a splice inserts (Entscheidung 315)', () => {
+  const picks = [{ cant: -60 }, { cant: 20 }]
+  it('stays as the pick\'s where no transition comes between, the first one\'s where neither side has one', () => {
+    expect(spliceKeptCant(picks, [false, false])).toBe(60)
+    expect(spliceKeptCant(picks, [true, false])).toBe(20)
+    expect(spliceKeptCant(picks, [false, true])).toBe(60)
+  })
+  it('is free for the Regelüberhöhung with a transition either side', () => {
+    expect(spliceKeptCant(picks, [true, true])).toBeNull()
   })
 })

@@ -107,16 +107,26 @@ ok(f"largest radius without cant: 305 m ({c.get('radius')})", c.get("radius") ==
 ok("…and it keeps the spacing", c["kept"] and c["margin"] >= 0)
 ok("…the arc built is that radius", abs(abs(res["info"]["signedR"]) - 305) < 1e-9)
 
-# At 80 km/h the new arc takes the cant the app proposes (135 mm at R 304)
-# and leans towards the inner track.
+# Without transitions the new arc keeps the cant of the straights it joins
+# (Entscheidung 315) — none here, so the largest radius is the plain one.
 res = ask(clearance={"maximize": True, "speed": 80})
 c = res["info"]["clearance"]
+ok(f"no transitions: the arc keeps the straights' cant, none ({c.get('radius')}, u = {c.get('cant')})",
+   c.get("radius") == 305 and c["cant"] == 0)
+
+# The straights canted 135 mm: the arc keeps that and leans towards the inner track.
+def canted(u):
+    return {"dep": {**DEP, "cant": u}, "arr": {**ARR, "cant": u}}
+
+
+res = ask(clearance={"maximize": True, "speed": 80}, **canted(135))
+c = res["info"]["clearance"]
 ok(f"largest radius with the new track canted: smaller ({c.get('radius')}, u = {c.get('cant')})",
-   c.get("radius") is not None and c["radius"] < 305 and c["cant"] == auto_cant(80, c["radius"], MODEL) > 0)
+   c.get("radius") is not None and c["radius"] < 305 and c["cant"] == 135)
 ok(f"…the spacing asked for there is widened ({c['required']:.3f} m)", c["required"] > 4.2)
 
 # Both canted alike: they lean together, and the plain 4.0 m holds again.
-res = ask(ref=inner(140.0), clearance={"maximize": True, "speed": 80})
+res = ask(ref=inner(140.0), clearance={"maximize": True, "speed": 80}, **canted(140))
 c = res["info"]["clearance"]
 ok(f"both canted alike: 305 m again ({c.get('radius')})", c.get("radius") == 305)
 
@@ -126,6 +136,8 @@ res = ask(lDep=40, lArr=40, clearance={"maximize": True, "speed": 80})
 c = res["info"]["clearance"]
 ok(f"with transitions: a radius that keeps the spacing ({c.get('radius')})",
    "error" not in res and c["kept"] and c["margin"] >= 0)
+ok(f"…its cant the one the app proposes for it, the transitions ramping to it ({c.get('cant')})",
+   c["cant"] == auto_cant(80, c["radius"], MODEL) > 0)
 
 # The transitions at the Regellänge (AP S.6): each radius tried with its own
 # cant and the ramps that cant needs — the answer's transitions are those of

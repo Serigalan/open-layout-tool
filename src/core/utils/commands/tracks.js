@@ -25,18 +25,12 @@ export function buildLineTrack({ start, end, speed, meta, id }) {
 }
 
 /**
- * The cant an arc of `signedR` stores: the dialogs take it as a magnitude, the
- * store keeps it signed with the curve (rules/cant `cantSign`) — unsigned, a
- * left-hand curve's cant would count against it.
+ * The cant an arc of `signedR` stores: the dialogs take it towards the curve,
+ * the store keeps it signed with the curve (rules/cant `cantSign`) — unsigned, a
+ * left-hand curve's cant would count against it. Negative only where a cant
+ * taken over from the element before leans against the curve.
  */
-export const curveCant = (signedR, cant) => cantSign(signedR) * Math.abs(Number(cant) || 0)
-
-/**
- * The cant an arc appended at a track's end stores: the track's own where no
- * transition comes between (`endCant`, signed; Entscheidung 315), else the
- * magnitude the dialog asked for, signed with the curve.
- */
-export const arcCant = (signedR, cant, endCant = null) => (endCant ?? curveCant(signedR, cant))
+export const curveCant = (signedR, cant) => cantSign(signedR) * (Number(cant) || 0)
 
 /** CurvedLineForm: one arc between two points with a (fitted) radius. */
 export function buildCurvedLineTrack({ start, end, signedR, speed, cant, meta, id }) {
@@ -81,10 +75,11 @@ export function buildConnectStraight({ start, bearing, length, speed, transition
 }
 
 /**
- * The cant an element appended at a track's end without a transition carries
- * (Entscheidung 315): the one the track ends with, signed by the raised rail —
- * only a transition ramps it to another. Null where the track ends in a
- * transition that states none at its end: that one ramps into whatever follows.
+ * The cant an arc appended at a track's end without a transition is proposed
+ * with (Entscheidung 315): the one the track ends with, signed by the raised
+ * rail — it stays as the elements it joins, only a transition ramps it to
+ * another. Null where the track ends in a transition that states none at its
+ * end: that one ramps into whatever follows.
  */
 export function cantAtTrackEnd(lastEl) {
   if (!lastEl) return 0
@@ -95,15 +90,13 @@ export function cantAtTrackEnd(lastEl) {
 /**
  * ConnectCurvedForm: an arc of `arcLength` and radius `signedR` appended at a
  * track's end, optionally after a transition from the last element's radius
- * into the new one. `cant` is the arc's (a magnitude) where a transition ramps
- * to it; without one the arc keeps `endCant`, the track's (cantAtTrackEnd),
- * where that is fixed. Returns the elements to append, in order.
+ * into the new one. Returns the elements to append, in order.
  */
-export function buildConnectCurved({ start, bearing, arcLength, signedR, speed, cant, endCant = null, transition = null }) {
+export function buildConnectCurved({ start, bearing, arcLength, signedR, speed, cant, transition = null }) {
   const lead = leadingTransition(start, bearing, transition, signedR, speed)
   const from = lead ? lead.endUtm : start
   const b    = lead ? lead.endBearing : bearing
   // The arc keeps the bearing and length it was asked for; the factory derives the rest.
-  const arc  = arcFrom(from, b, arcLength, signedR, { speed, cant: arcCant(signedR, cant, lead ? null : endCant) })
+  const arc  = arcFrom(from, b, arcLength, signedR, { speed, cant: curveCant(signedR, cant) })
   return [...(lead ? [lead.element] : []), { ...arc, bearing: b, length: arcLength }]
 }

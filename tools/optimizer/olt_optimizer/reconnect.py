@@ -42,7 +42,7 @@ from .alignment_fit import piece_points, project
 from .clearance import Neighbour, Spacing, auto_cant, check
 from .geometry import sample_transition, _transition_steps
 from .splice import (
-    SpliceError, _centre_of, _cost, _judge, _katalog, _loops, _pick, _solve,
+    SpliceError, _centre_of, _cost, _judge, _katalog, _loops, _pick, _solve, kept_cant,
 )
 
 # The radius search: a geometric grid between these [m] …
@@ -171,21 +171,27 @@ def _band(ref, offsets):
 
 # ── candidates ───────────────────────────────────────────────────────────────
 
-def _spec(base, variant, radius):
+def _spec(base, variant, radius, picks):
     """The splice settings for one candidate: `variant` {lengths, arcJoin} —
-    with lengths 'fitted' also `L`, the length of both transitions as it is."""
+    with lengths 'fitted' also `L`, the length of both transitions as it is.
+    The arc inserted takes the cant the app proposes for its radius, without
+    transitions the one of the element before it (Entscheidung 315)."""
     mode = variant["lengths"]
     on = mode != "none" and variant["arcJoin"] != "transition"
     fitted = on and mode == "fitted"
     start = (variant["L"] if fitted else LENGTH_START) if on else 0.0
-    return {
+    spec = {
         **base,
         "radius": radius or 0.0,
-        "cant": auto_cant(base["speed"], radius, base["cantModel"]) if radius else 0.0,
+        "cant": 0.0,
         "lengths": [start, start],
         "modes": [mode, mode] if on and not fitted else ["fixed", "fixed"],
         "arcJoin": variant["arcJoin"],
     }
+    if radius:
+        kept = kept_cant(picks, spec)
+        spec["cant"] = kept if kept is not None else auto_cant(base["speed"], radius, base["cantModel"])
+    return spec
 
 
 class Search:
@@ -223,7 +229,7 @@ class Search:
     def build(self, variant, radius, level="fine"):
         """The splice of one variant at `radius` (None for two arcs), measured
         with the points of `level` — or None where it does not fit."""
-        spec = _spec(self.base, variant, radius)
+        spec = _spec(self.base, variant, radius, self.picks)
         try:
             sol = _solve(self.picks, ("end", "start"), spec)
         except SpliceError:
