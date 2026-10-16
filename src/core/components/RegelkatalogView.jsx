@@ -1,5 +1,6 @@
 import { KATALOG, severityLabelKey } from '../utils/regelkatalog'
 import { useI18n } from '../locales/i18nContext'
+import InfoTip from './form/InfoTip'
 
 /**
  * The rule catalogue itself, read-only, inside the regelwerk popup — DB Ril
@@ -43,11 +44,10 @@ export default function RegelkatalogView() {
             machine-readable rendering, and it does not speak for the Ril. */}
         {t(`regelwerk_title_${catalog.id}`)} · {t('constraints_katalog_revision')} {catalog.katalog_version}
         {' '}({catalog.status})
+        <InfoTip text={t('constraints_katalog_hint')} />
       </p>
-      <p className="constraints-hint">{t('constraints_katalog_hint')}</p>
 
-      <h4 className="constraints-subsection">{t('constraints_severities')}</h4>
-      <p className="constraints-hint">{KATALOG.aggregation}</p>
+      <h4 className="constraints-subsection">{t('constraints_severities')}<InfoTip text={KATALOG.aggregation} /></h4>
       <div className="constraints-severities">
         {KATALOG.severity_levels.map(level => (
           <span key={level.id} className={`constraints-severity rule-sev-${level.id}`}>

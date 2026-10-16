@@ -17,6 +17,7 @@ import ReadOnlyField from '../../form/ReadOnlyField'
 import CommitBar from '../../form/CommitBar'
 import AdvancedInfo from '../../form/AdvancedInfo'
 import Modal from '../../Modal'
+import InfoTip from '../../form/InfoTip'
 
 /** A file's name without its point cloud extension. */
 const baseName = (name) => name.replace(/\.(laz|las|e57)$/i, '')
@@ -210,14 +211,13 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
         <p className="form-error">{fill('pointcloud_space_short', { size: sizeText(needed), free: sizeText(storage.free) })}</p>
       )}
       <div className="form-field">
-        <label>{t('pointcloud_crs')}</label>
+        <label>{t('pointcloud_crs')}{localCrs && <InfoTip text={t('pointcloud_crs_local_hint')} />}</label>
         <select value={crs} disabled={!!run} onChange={e => setCrs(e.target.value)}>
           <option value="">{t('pointcloud_choose')}</option>
           {CLOUD_CRS.map(code => <option key={code} value={code}>{crsLabel(code)}</option>)}
           {upload && <option value="local">{t('pointcloud_crs_local')}</option>}
         </select>
       </div>
-      {localCrs && <p className="selecting-hint">{t('pointcloud_crs_local_hint')}</p>}
       <div className="form-field">
         <label>{t('pointcloud_height')}</label>
         <select value={heightEpsg} disabled={!!run} onChange={e => setHeightEpsg(e.target.value)}>
@@ -227,26 +227,26 @@ export default function CloudImportForm({ storage, onMessage, onChanged, onRunni
       </div>
       {upload ? (
         <>
-          <p className="selecting-hint">{t('pointcloud_upload_levels')}</p>
-          <label className="transition-curve-row" title={t('pointcloud_keep_raw_hint')}>
+          <label className="transition-curve-row">
             <input type="checkbox" checked={keepRaw} onChange={e => setKeepRaw(e.target.checked)} />
             <span>{t('pointcloud_keep_raw')}</span>
+            <InfoTip text={<><p>{t('pointcloud_upload_levels')}</p><p>{t('pointcloud_keep_raw_hint')}</p></>} />
           </label>
         </>
       ) : (
         <>
           <div className="form-field">
-            <label>{t('pointcloud_resolution')}</label>
+            <label>
+              {t('pointcloud_resolution')}
+              <InfoTip text={original
+                ? fill('pointcloud_resolution_original_hint', { step: stepText(grid.scale[0]) })
+                : t('pointcloud_resolution_voxel_hint')} />
+            </label>
             <select value={resolution} disabled={!!run} onChange={e => setResolution(e.target.value)}>
               <option value="voxel">{t('pointcloud_resolution_voxel')}</option>
               <option value="original">{t('pointcloud_resolution_original')}</option>
             </select>
           </div>
-          <p className="selecting-hint">
-            {original
-              ? fill('pointcloud_resolution_original_hint', { step: stepText(grid.scale[0]) })
-              : t('pointcloud_resolution_voxel_hint')}
-          </p>
         </>
       )}
       {probe?.ok === true && <p className="selecting-hint">{t('pointcloud_probe_ok')}</p>}

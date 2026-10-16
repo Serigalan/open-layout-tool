@@ -2,6 +2,7 @@ import { useI18n } from '../../locales/i18nContext'
 import { historySteps, travelHistory } from '../../storage'
 import { useProject } from '../../hooks/useStore'
 import { describeStep } from '../../utils/stepLabel'
+import InfoTip from '../form/InfoTip'
 
 /**
  * The history (decisions 326, 328): a panel of its own, opened by the button
@@ -21,8 +22,7 @@ export default function HistoryPanel() {
 
   return (
     <>
-      <h2>{t('step_history_title')}</h2>
-      <span className="project-settings-hint">{t('step_history_hint')}</span>
+      <h2>{t('step_history_title')}<InfoTip text={t('step_history_hint')} /></h2>
       {empty ? <p className="step-history-empty">{t('step_history_empty')}</p> : (
         <div className="step-history-list">
           {[...future].reverse().map((step, i) => (

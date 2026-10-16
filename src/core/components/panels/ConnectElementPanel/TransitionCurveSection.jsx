@@ -5,6 +5,7 @@ import { splitUnit } from '../../../locales/i18n'
 import RuleFindings from '../RuleFindings'
 import TransitionLengthButtons from '../TransitionLengthButtons'
 import { connectTransitionLengths, transitionChain } from '../../../utils/rules/transitionLength'
+import InfoTip from '../../form/InfoTip'
 
 /**
  * The transition a connect dialog may put in front of what it appends.
@@ -17,7 +18,7 @@ import { connectTransitionLengths, transitionChain } from '../../../utils/rules/
  * (transitionLengths), once there is something to run into.
  */
 export default function TransitionCurveSection({
-  enabled, onEnabledChange, type, onTypeChange, length, onLengthChange, prev, next, r1, speed,
+  enabled, onEnabledChange, type, onTypeChange, length, onLengthChange, prev, next, r1, speed, info = null,
 }) {
   const { t } = useI18n()
   // The search runs the check a hundred times; the cursor moving over the map
@@ -34,6 +35,7 @@ export default function TransitionCurveSection({
       <label className="transition-curve-row">
         <input type="checkbox" checked={enabled} onChange={e => onEnabledChange(e.target.checked)} />
         <span>{t('transition_curve')}</span>
+        {info && <InfoTip text={info} />}
       </label>
       {enabled && (
         <>

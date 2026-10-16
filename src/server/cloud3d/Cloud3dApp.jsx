@@ -27,6 +27,7 @@ import LinkLanguage from './LinkLanguage'
 import { originalPoint, between, measurementsCsv } from './measure'
 import { PALETTE } from '../../core/styles/palette'
 import './cloud3d.css'
+import InfoTip from '../../core/components/form/InfoTip'
 
 /** How long the 3D window waits for the main window before it reads the server's head [ms]. */
 const MAIN_WAIT = 1200
@@ -728,7 +729,10 @@ function Cloud3dPage() {
           </p>
         )}
 
-        <h2>{t('cloud3d_camera')}</h2>
+        <h2>
+          {t('cloud3d_camera')}
+          <InfoTip text={<><p>{t(`cloud3d_view_${cameraMode}_hint`)}</p>{!shared && <p>{t('cloud3d_dblclick_hint')}</p>}</>} />
+        </h2>
         <div className="cloud3d-segmented" role="group" aria-label={t('cloud3d_camera')}>
           {['orbit', 'top', 'track'].map(m => (
             <button key={m} type="button" className={cameraMode === m ? 'active' : undefined} aria-pressed={cameraMode === m}
@@ -736,11 +740,8 @@ function Cloud3dPage() {
           ))}
         </div>
         <div className="cloud3d-view-details">
-          {cameraMode === 'orbit' && <p className="cloud3d-hint">{t('cloud3d_view_orbit_hint')}</p>}
-          {cameraMode === 'top' && <p className="cloud3d-hint">{t('cloud3d_view_top_hint')}</p>}
           {cameraMode === 'track' && (
             <>
-              <p className="cloud3d-hint">{t('cloud3d_view_track_hint')}</p>
               <label className="cloud3d-field">
                 <span>{t('cloud3d_walk_track')}</span>
                 <select value={walkTrack} onChange={e => { setWalkTrack(e.target.value); walkOn(e.target.value) }}>
@@ -757,7 +758,7 @@ function Cloud3dPage() {
               </label>
               {walking && walkRange && (
                 <label className="cloud3d-field">
-                  <span>{fill('cloud3d_walk_station', { s: walking.station.toFixed(1) })}</span>
+                  <span>{fill('cloud3d_walk_station', { s: walking.station.toFixed(1) })}<InfoTip text={t('cloud3d_walk_keys')} /></span>
                   <input type="range" min={walkRange[0]} max={walkRange[1]} step={0.5} value={walking.station}
                     onChange={e => { viewerRef.current?.setWalkStation(Number(e.target.value)); setWalking(viewerRef.current?.walkState() ?? null) }} />
                   <span className="cloud3d-range-ends">
@@ -772,25 +773,26 @@ function Cloud3dPage() {
               {clearanceOn && (
                 <>
                   <label className="cloud3d-field">
-                    <span>{t('cloud3d_clearance_profile')}</span>
+                    <span>
+                      {t('cloud3d_clearance_profile')}
+                      <InfoTip text={fill('cloud3d_clearance_hint', {
+                        profile: t(gaugeProfileLabelKey(clearanceId)), m: CLEARANCE_LENGTH, ahead: CLEARANCE_AHEAD,
+                      })} />
+                    </span>
                     <select value={clearanceChoice} onChange={e => setClearanceChoice(e.target.value)}>
                       <option value="">{fill('cloud3d_clearance_project', { profile: t(gaugeProfileLabelKey(projectProfileId)) })}</option>
                       {Object.keys(GAUGE_PROFILES).map(id => <option key={id} value={id}>{t(gaugeProfileLabelKey(id))}</option>)}
                     </select>
                   </label>
-                  <p className="cloud3d-hint">{fill('cloud3d_clearance_hint', {
-                    profile: t(gaugeProfileLabelKey(clearanceId)), m: CLEARANCE_LENGTH, ahead: CLEARANCE_AHEAD,
-                  })}</p>
                 </>
               )}
-              {walking && <p className="cloud3d-hint">{t('cloud3d_walk_keys')}</p>}
               {walking && (
                 <>
                   <LinkLanguage value={linkLang} onChange={setLinkLang} />
                   <div className="cloud3d-buttons">
                     <button type="button" onClick={copyWalkLink}>{t(linkCopied ? 'cloud3d_share_copied' : 'cloud3d_walk_link')}</button>
+                    <InfoTip text={t(shared ? 'cloud3d_walk_link_shared' : 'cloud3d_walk_link_hint')} />
                   </div>
-                  <p className="cloud3d-hint">{t(shared ? 'cloud3d_walk_link_shared' : 'cloud3d_walk_link_hint')}</p>
                 </>
               )}
             </>
@@ -801,8 +803,8 @@ function Cloud3dPage() {
         <label className="cloud3d-check">
           <input type="checkbox" checked={measuring} onChange={e => setMeasuring(e.target.checked)} />
           <span>{t('cloud3d_measure_on')}</span>
+          <InfoTip text={t('cloud3d_measure_hint')} />
         </label>
-        <p className="cloud3d-hint">{t('cloud3d_measure_hint')}</p>
         {measured.length > 0 && (
           <>
             <ol className="cloud3d-points">
@@ -838,7 +840,6 @@ function Cloud3dPage() {
         {note && <p className="cloud3d-warn">{note}</p>}
         {!shared && (
           <>
-            <p className="cloud3d-hint">{t('cloud3d_dblclick_hint')}</p>
             <RegistrationPanel reg={reg} rows={allRows} mayEdit={mayEdit} userName={user?.name ?? ''}
               projectTitle={project?.data?.title ?? ''} heightName={heightName} />
             {state.phase === 'ready' && <SharePanel projectId={params.projectId} variantId={params.variantId} rows={allRows}

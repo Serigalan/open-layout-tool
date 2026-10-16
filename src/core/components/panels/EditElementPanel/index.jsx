@@ -18,6 +18,7 @@ import {
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick from '../../../map/useMapPick'
 import BackButton from '../BackButton'
+import InfoTip from '../../form/InfoTip'
 
 export default function EditElementPanel({ trackTableId, onShowTrackTable, onCloseConstraints }) {
   const { t } = useI18n()
@@ -85,7 +86,7 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
   if (page === 'routes') return (
     <>
       {backButton()}
-      <h2>{t('routes')}</h2>
+      <h2>{t('routes')}<InfoTip text={t('route_hint')} /></h2>
       <RoutesForm />
     </>
   )

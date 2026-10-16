@@ -85,8 +85,7 @@ export default function ClearanceScanSection({ track, onShowCrossSection }) {
   const serverBusy = runIsActive(server.run)
 
   return (
-    <FormSection title={t('clearance_scan_title')}>
-      <p className="selecting-hint">{t('clearance_scan_hint')}</p>
+    <FormSection title={t('clearance_scan_title')} info={t('clearance_scan_hint')}>
       {run ? (
         <>
           <progress className="full-width" max={1} value={run.share} />

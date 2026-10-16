@@ -10,6 +10,7 @@ import { useMap } from '../../../map/MapContext'
 import useMapPick from '../../../map/useMapPick'
 import useRouteOnMap from '../../../map/useRouteOnMap'
 import MessageList from '../../form/MessageList'
+import InfoTip from '../../form/InfoTip'
 
 /** What a gap in a route is called, in the list of its parts. */
 const gapKey = (g) => (g.kind === 'missing' ? 'route_gap_missing' : 'route_gap_disconnected')
@@ -133,7 +134,7 @@ export default function RoutesForm() {
           <label>{t('route_name')}</label>
           <input type="text" value={draft.name} maxLength={120} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
         </div>
-        <p className="selecting-hint">{t('route_pick_hint')}</p>
+        <p className="selecting-hint">{t('route_pick')} <InfoTip text={t('route_pick_hint')} /></p>
         {draftResolved.parts.length ? (
           <>
             <p className="msg-hint msg-small">{fill('route_summary', {
@@ -173,7 +174,6 @@ export default function RoutesForm() {
   const selectedResolved = selected ? resolvedById.get(selected.id) : null
   return (
     <>
-      <p>{t('route_hint')}</p>
       <button type="button" className="panel-btn panel-btn-full" disabled={!tracks.length} onClick={startNew}>
         {t('route_new')}
       </button>

@@ -2,6 +2,7 @@ import { useI18n } from '../../core/locales/i18nContext'
 import { formatDate, tOr } from '../../core/locales/i18n'
 import { downloadText, downloadBlob } from '../../core/utils/fileUtils'
 import { PARAMETER_UNITS, protocolCsv, protocolPdf } from './registrationReport'
+import InfoTip from '../../core/components/form/InfoTip'
 
 const mm = (v) => (v == null ? '–' : (v * 1000).toFixed(1))
 
@@ -67,8 +68,8 @@ export default function RegistrationPanel({ reg, rows, mayEdit, projectTitle, he
           <label className="cloud3d-check">
             <input type="checkbox" checked={reg.picking} disabled={!mayEdit} onChange={e => reg.setPicking(e.target.checked)} />
             <span>{t('cloud3d_reg_pick')}</span>
+            <InfoTip text={t('cloud3d_reg_pick_hint')} />
           </label>
-          <p className="cloud3d-hint">{t('cloud3d_reg_pick_hint')}</p>
           {reg.pending && (
             <p className="cloud3d-warn">
               {fill('cloud3d_reg_pending', { first: reg.pending.side === 'ref' ? refRow.name : adjRow.name, second: reg.pending.side === 'ref' ? adjRow.name : refRow.name })}

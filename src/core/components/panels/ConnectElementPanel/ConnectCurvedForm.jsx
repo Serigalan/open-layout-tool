@@ -243,10 +243,8 @@ export default function ConnectCurvedForm({ onCommitted }) {
                 <FieldRule name="speed" />
               </div>
               <CantField value={cant} onChange={setCant}
-                min={0} max={MAX_CANT}
-                speed={speed} radius={Math.abs(Number(signedRadius))}>
-                {keepsCant && <p className="msg-hint">{t('connect_cant_inherited')}</p>}
-              </CantField>
+                min={0} max={MAX_CANT} info={keepsCant ? t('connect_cant_inherited') : null}
+                speed={speed} radius={Math.abs(Number(signedRadius))} />
             </>
           )}
           <AdvancedInfo>

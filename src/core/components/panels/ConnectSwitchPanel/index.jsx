@@ -12,6 +12,7 @@ import {
 } from '../../icons'
 import { useI18n } from '../../../locales/i18nContext'
 import BackButton from '../BackButton'
+import InfoTip from '../../form/InfoTip'
 
 export default function ConnectSwitchPanel() {
   const { t } = useI18n()
@@ -73,7 +74,7 @@ export default function ConnectSwitchPanel() {
   if (page === 'link') return (
     <>
       <BackButton onBack={back} />
-      <h2>{t('switch_link')}</h2>
+      <h2>{t('switch_link')}<InfoTip text={t('switch_link_hint')} /></h2>
       <TrackLinkForm
         onCommitted={() => setPage('menu')} />
     </>

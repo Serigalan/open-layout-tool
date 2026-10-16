@@ -16,6 +16,7 @@ import { PALETTE } from '../../../styles/palette'
 import CancelButton from '../../form/CancelButton'
 import NumberInput from '../../form/NumberInput'
 import { splitUnit } from '../../../locales/i18n'
+import InfoTip from '../../form/InfoTip'
 
 /** How close (px) the cursor has to come to an end for it to be the one meant. */
 const PICK_PX = 14
@@ -209,11 +210,10 @@ export default function BufferStopForm({ onCommitted, edit = false }) {
             </select>
           </div>
           <div className="form-field">
-            <label>{splitUnit(t('buffer_stop_brake')).text}</label>
+            <label>{splitUnit(t('buffer_stop_brake')).text}<InfoTip text={t('buffer_stop_hint')} /></label>
             <NumberInput min="0" step="0.1" value={brake}
               onChange={e => { setBrake(e.target.value); setBrakeTyped(true) }} unit="m" />
           </div>
-          <p className="selecting-hint">{t('buffer_stop_hint')}</p>
         </div>
       )}
 

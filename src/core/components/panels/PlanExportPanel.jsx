@@ -11,6 +11,7 @@ import PlanHeaderFields from './PlanHeaderFields'
 import PlanSheetFields from './plan/PlanSheetFields'
 import PlanContentSection from './plan/PlanContentSection'
 import usePlanHeader from './plan/usePlanHeader'
+import InfoTip from '../form/InfoTip'
 
 /** The settings a new dialog starts with. */
 const DEFAULTS = {
@@ -73,8 +74,7 @@ export default function PlanExportPanel({ onShowPlanPreview }) {
   if (!project) return null
   return (
     <>
-      <h2>{t('plan_title')}</h2>
-      <p className="msg-hint m-0">{t('plan_intro')}</p>
+      <h2>{t('plan_title')}<InfoTip text={t('plan_intro')} /></h2>
       <PlanSheetFields o={o} set={set} />
       <PlanContentSection o={o} set={set} />
       <FormSection title={t('plan_titleblock')}>

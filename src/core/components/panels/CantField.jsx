@@ -3,6 +3,7 @@ import { CANT_STEP, cantFromInput, regelCant } from '../../utils/rules/cant'
 import { useI18n } from '../../locales/i18nContext'
 import FieldRule from '../form/FieldRule'
 import NumberInput from '../form/NumberInput'
+import InfoTip from '../form/InfoTip'
 
 /**
  * The cant field of a dialog: a value that is proposed and may be overridden,
@@ -21,7 +22,7 @@ import NumberInput from '../form/NumberInput'
  * already its `u_reg`. It reads as `.field-override` reads everywhere else in
  * the panels — a small line under the field that says what it would put there.
  */
-export default function CantField({ label, value, onChange, min, max, speed, radius, children}) {
+export default function CantField({ label, info = null, value, onChange, min, max, speed, radius, children }) {
   const { t } = useI18n()
   const [draft, setDraft] = useState(null)
 
@@ -38,7 +39,7 @@ export default function CantField({ label, value, onChange, min, max, speed, rad
 
   return (
     <div className="form-field">
-      <label>{label ?? t('cant')}</label>
+      <label>{label ?? t('cant')}{info && <InfoTip text={info} />}</label>
       <NumberInput
         step={CANT_STEP} min={min} max={max}
         value={draft ?? value}

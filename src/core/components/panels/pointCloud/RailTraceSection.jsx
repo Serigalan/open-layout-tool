@@ -21,6 +21,7 @@ import { PALETTE } from '../../../styles/palette'
 import FormSection from '../../form/FormSection'
 import { SO_REFERENCES, exportAxisPoints } from './axisExport'
 import ServerRunStatus from './ServerRunStatus'
+import InfoTip from '../../form/InfoTip'
 
 // The guide drawn by hand, and the axis points found along it.
 const GUIDE_SOURCE = 'railtrace-guide-source'
@@ -218,11 +219,10 @@ export default function RailTraceSection({ clouds, paused = false, retrace = nul
   const good = shown?.points?.filter(p => p.quality === 'good').length ?? 0
 
   return (
-    <FormSection title={t('railtrace_title')}>
-      <p className="selecting-hint">{t('railtrace_hint')}</p>
+    <FormSection title={t('railtrace_title')} info={t('railtrace_hint')}>
       {replacing && <p className="selecting-hint">{fill('railtrace_retrace', { name: replacing.name })}</p>}
       <div className="form-field">
-        <label>{t('railtrace_guide')}</label>
+        <label>{t('railtrace_guide')}{mode === 'line' && <InfoTip text={t('railtrace_line_hint')} />}</label>
         <select value={mode} disabled={!!run}
           onChange={e => { setMode(e.target.value); setDrawing(false) }}>
           <option value="track">{t('railtrace_guide_track')}</option>
@@ -231,19 +231,16 @@ export default function RailTraceSection({ clouds, paused = false, retrace = nul
       </div>
       {mode === 'track' && (
         <div className="form-field">
-          <label>{t('railtrace_track')}</label>
+          <label>{t('railtrace_track')}<InfoTip text={t('railtrace_track_hint')} /></label>
           <select value={trackId} disabled={!!run} onChange={e => chooseTrack(e.target.value)}>
             <option value="">{t('pointcloud_choose')}</option>
             {tracks.map(tr => <option key={tr.id} value={tr.id}>{trackLabel(tr)}</option>)}
           </select>
-          <span className="range-use">{t('railtrace_track_hint')}</span>
         </div>
       )}
       {mode === 'line' && (
         <div className="form-field">
-          <p className="selecting-hint">
-            {drawing ? fill('railtrace_drawing', { n: line.length }) : t('railtrace_line_hint')}
-          </p>
+          {drawing && <p className="selecting-hint">{fill('railtrace_drawing', { n: line.length })}</p>}
           <div className="pointcloud-actions">
             {drawing ? (
               <button className="modal-btn modal-btn-primary" disabled={line.length < 2} onClick={() => setDrawing(false)}>
@@ -303,21 +300,19 @@ export default function RailTraceSection({ clouds, paused = false, retrace = nul
           {shown.points.length > 0 && (
             <>
               <div className="form-field">
-                <label>{t('railtrace_so')}</label>
+                <label>{t('railtrace_so')}<InfoTip text={fill('railtrace_export_hint', { epsg: String(shown.epsg) })} /></label>
                 <select value={soReference} onChange={e => setSoReference(e.target.value)}>
                   {SO_REFERENCES.map(r => <option key={r} value={r}>{t(`railtrace_so_${r}`)}</option>)}
                 </select>
               </div>
               <button className="panel-btn panel-btn-full" onClick={exportCsv}>{t('railtrace_export')}</button>
-              <span className="range-use">{fill('railtrace_export_hint', { epsg: String(shown.epsg) })}</span>
               {mayEdit ? (
                 <>
                   <div className="form-field">
-                    <label>{t('axis_survey_name')}</label>
+                    <label>{t('axis_survey_name')}<InfoTip text={t('axis_survey_save_hint')} /></label>
                     <input type="text" value={surveyName} onChange={e => setSurveyName(e.target.value)} />
                   </div>
                   <button className="panel-btn panel-btn-full" onClick={keep}>{t('axis_survey_save')}</button>
-                  <span className="range-use">{t('axis_survey_save_hint')}</span>
                 </>
               ) : <span className="range-use">{t('pointcloud_view_only')}</span>}
             </>

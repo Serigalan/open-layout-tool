@@ -2,6 +2,7 @@ import { flattenPhysics, PHYSICS } from '../utils/constraintsView'
 import FormelMathml from './FormelMathml'
 import { useI18n } from '../locales/i18nContext'
 import CloseButton from './form/CloseButton'
+import InfoTip from './form/InfoTip'
 
 /**
  * The physics beneath the optimizer, read-only, in the same popup shell the
@@ -23,13 +24,13 @@ export default function PhysicsOverlay({ onClose }) {
       <div className="track-table-header">
         <span className="track-table-title">
           {t('constraints_physics')}
+          <InfoTip text={t('constraints_physics_hint')} />
           <span className="track-table-subtitle">{t('constraints_readonly')}</span>
         </span>
         <CloseButton onClick={onClose} />
       </div>
 
       <div className="track-table-scroll constraints-scroll">
-        <p className="constraints-hint">{t('constraints_physics_hint')}</p>
         <table className="track-table constraints-table">
           <thead>
             <tr>

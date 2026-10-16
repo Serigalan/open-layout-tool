@@ -56,6 +56,16 @@ html, body, #root { height: 100%; margin: 0; }
 .cloud3d-warn { margin: 4px 0; color: #ffb347; font-size: 12px; line-height: 1.4; }
 
 .cloud3d-check { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+
+/* An explanation behind an ⓘ (decision 329), light on the dark panel. */
+.cloud3d-panel .info-tip-btn,
+.cloud3d-buttons button.info-tip-btn { color: #a8acbb; background: none; border: 0; padding: 2px; }
+.cloud3d-panel .info-tip-btn:hover,
+.cloud3d-panel .info-tip-btn.open { color: #fff; }
+.cloud3d-panel h2 .info-tip,
+.cloud3d-field > span .info-tip,
+.cloud3d-field-label .info-tip { margin-left: 5px; }
+.cloud3d-buttons .info-tip { align-self: center; }
 .cloud3d-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 
 .cloud3d-field { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }

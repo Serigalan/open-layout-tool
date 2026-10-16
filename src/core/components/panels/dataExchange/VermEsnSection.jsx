@@ -15,6 +15,7 @@ import NumberInput from '../../form/NumberInput'
 import ExchangeSection from './ExchangeSection'
 import ReferenceAxisList from './ReferenceAxisList'
 import VermEsnExport from './VermEsnExport'
+import InfoTip from '../../form/InfoTip'
 
 /** One file of the import: a button to choose it, or the chosen `file` ({ name, detail }) with ✕. */
 function FileSlot({ label, accept, onFile, file, pickLabel, removeLabel, disabled, onRemove }) {
@@ -184,8 +185,8 @@ export default function VermEsnSection() {
       <label className="transition-curve-row">
         <input type="checkbox" checked={asReference} onChange={e => setAsReference(e.target.checked)} />
         <span>{t('data_exchange_reference_toggle')}</span>
+        <InfoTip text={t('data_exchange_reference_hint')} />
       </label>
-      {asReference && <p className="msg-hint msg-small">{t('data_exchange_reference_hint')}</p>}
       {asReference && tra && range && (
         <>
           <p className="msg-hint msg-small">{fill('data_exchange_reference_axis', {

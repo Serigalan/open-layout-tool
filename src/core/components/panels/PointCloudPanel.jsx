@@ -14,6 +14,7 @@ import CloudList from './pointCloud/CloudList'
 import CloudCacheSetting from './pointCloud/CloudCacheSetting'
 import RailTraceSection from './pointCloud/RailTraceSection'
 import AxisSurveyList from './pointCloud/AxisSurveyList'
+import InfoTip from '../form/InfoTip'
 
 // Where each cloud lies, while the panel is open.
 const OUTLINE_SOURCE = 'pointcloud-outline-source'
@@ -79,8 +80,7 @@ export default function PointCloudPanel() {
 
   return (
     <>
-      <h2>{t('pointcloud_title')}</h2>
-      <p className="selecting-hint">{t('pointcloud_hint')}</p>
+      <h2>{t('pointcloud_title')}<InfoTip text={t('pointcloud_hint')} /></h2>
       {!opfsAvailable() && <p className="form-error">{t('pointcloud_no_opfs')}</p>}
       {mayEdit
         ? <CloudImportForm storage={storage} onMessage={setMessage} onChanged={refreshLocal} onRunning={setRunning} onUpload={remote.upload}

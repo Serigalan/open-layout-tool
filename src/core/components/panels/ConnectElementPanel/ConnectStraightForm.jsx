@@ -218,10 +218,8 @@ export default function ConnectStraightForm({ onCommitted }) {
           length={transitionLength}
           onLengthChange={setTransitionLength}
           prev={lastEl} next={nextEl} r1={prevRadius} speed={speed}
+          info={outOfCant && transitionEnabled ? t('connect_straight_transition_auto') : null}
         />
-      )}
-      {selectedTrack && outOfCant && transitionEnabled && (
-        <p className="msg-hint">{t('connect_straight_transition_auto')}</p>
       )}
 
       {selectedTrack && (

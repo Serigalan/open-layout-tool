@@ -6,6 +6,7 @@ import { useTracks } from '../../../hooks/useStore'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
 import { useMap } from '../../../map/MapContext'
 import { mapIsLive } from '../../../map/pick'
+import InfoTip from '../../form/InfoTip'
 
 const same = (a, b) => a.trackId === b.trackId && a.elementIndex === b.elementIndex
 
@@ -72,7 +73,7 @@ export default function DeleteForm({ onCommitted }) {
 
   return (
     <>
-      <p>{t('delete_elements_hint')}</p>
+      <p>{t('delete_elements_pick')} <InfoTip text={t('delete_elements_hint')} /></p>
       {picks.length > 0 && (
         <>
           {byTrack.map(r => (

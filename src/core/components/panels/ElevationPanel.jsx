@@ -17,6 +17,7 @@ import FormSection from '../form/FormSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
 import BackButton from './BackButton'
+import InfoTip from '../form/InfoTip'
 
 /**
  * Vertical alignment: pick a track to see its profile in the overlay, and
@@ -114,7 +115,7 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
         )) : <GradientFindings trackId={profileTrackId} />}
         {uncoupled > 0 && (
           <>
-            <p className="selecting-hint">{fill('elevation_couple_hint', { n: uncoupled })}</p>
+            <p className="selecting-hint">{fill('elevation_couple_status', { n: uncoupled })} <InfoTip text={t('elevation_couple_hint')} /></p>
             <button className="panel-btn panel-btn-full mt-2 secondary" onClick={() => coupleAllSwitchGradients()}>
               {fill('elevation_couple_all', { n: uncoupled })}
             </button>
@@ -139,8 +140,7 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
       </button>
       {busy && <p className="selecting-hint">{t('elevation_loading')}</p>}
       {result && !busy && <p className={result.failed ? 'form-error' : 'selecting-hint'}>{resultText(result)}</p>}
-      <FormSection title={t('crossover_section')}>
-        <p className="selecting-hint">{t('crossover_section_hint')}</p>
+      <FormSection title={t('crossover_section')} info={t('crossover_section_hint')}>
         {crossovers.length === 0 && <p className="selecting-hint">{t('crossover_none')}</p>}
         {crossovers.map(c => (
           <div key={c.conn.id} className="crossover-pair">

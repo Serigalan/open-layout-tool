@@ -8,6 +8,7 @@ import { resolveRoute } from '../../../utils/routes'
 import useMapPick from '../../../map/useMapPick'
 import MessageList from '../../form/MessageList'
 import RouteList from '../RouteList'
+import InfoTip from '../../form/InfoTip'
 
 /**
  * The project's tracks as Verm.ESN files — the tracks picked on the map, or
@@ -75,7 +76,7 @@ export default function VermEsnExport() {
   return (
     <>
       <hr className="divider" />
-      <p className="msg-hint">{t('data_exchange_vermesn_export_desc')}</p>
+      <span className="create-element-section">{t('data_exchange_export')}<InfoTip text={t('data_exchange_vermesn_export_desc')} /></span>
       <div className="row">
         <button className={`panel-btn panel-btn-full grow ${selecting ? 'active' : ''}`} disabled={!project}
           onClick={() => setSelecting(s => !s)}>
@@ -97,7 +98,7 @@ export default function VermEsnExport() {
       )}
       {routes.length > 0 && (
         <div className="mt-4">
-          <p className="msg-hint msg-small">{t('data_exchange_vermesn_routes_hint')}</p>
+          <p className="msg-hint msg-small">{t('data_exchange_vermesn_routes_pick')} <InfoTip text={t('data_exchange_vermesn_routes_hint')} /></p>
           <RouteList activeIds={routeIds} onPick={(route) => setRouteIds(flip(route.id))} />
         </div>
       )}

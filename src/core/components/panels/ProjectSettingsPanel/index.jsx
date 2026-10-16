@@ -4,6 +4,7 @@ import { useI18n } from '../../../locales/i18nContext'
 import { ownLineCategory, systemDeviates } from '../../../utils/projectSettings'
 import { AssignTracksIcon, TrackVisibilityIcon } from '../../icons'
 import FormSection from '../../form/FormSection'
+import InfoTip from '../../form/InfoTip'
 import BackButton from '../BackButton'
 import ProjectInfoSection from './ProjectInfoSection'
 import ProjectDefaultsSection from './ProjectDefaultsSection'
@@ -45,7 +46,7 @@ export default function ProjectSettingsPanel({ tracksOpen, onShowTracks }) {
   if (page === 'track_visibility') return (
     <>
       <BackButton onBack={() => setPage('main')} />
-      <h2>{t('track_visibility')}</h2>
+      <h2>{t('track_visibility')}<InfoTip text={t('track_visibility_hint')} /></h2>
       <TrackVisibilityForm />
     </>
   )

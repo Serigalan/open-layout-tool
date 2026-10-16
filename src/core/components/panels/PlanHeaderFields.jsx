@@ -1,6 +1,7 @@
 import { fileToLogo } from '../../utils/logoImage'
 import { PARTIES, STAFF } from '../../utils/planHeader'
 import { useI18n } from '../../locales/i18nContext'
+import InfoTip from '../form/InfoTip'
 
 /** Longest side of a location sketch image [px] — it fills a box of 13 × 4 cm. */
 const SKETCH_PX = 1600
@@ -104,7 +105,7 @@ export default function PlanHeaderFields({ header, onChange, onError, simple = f
       })}
 
       <div className="form-field">
-        <label>{t('plan_sketch')}</label>
+        <label>{t('plan_sketch')}{!header.sketch && <InfoTip text={t('plan_sketch_auto')} />}</label>
         <div className="row">
           {header.sketch && (
             <img src={header.sketch.dataUrl} alt="" className="plan-sketch-thumb" />
@@ -120,7 +121,6 @@ export default function PlanHeaderFields({ header, onChange, onError, simple = f
             </button>
           )}
         </div>
-        {!header.sketch && <p className="msg-hint msg-small">{t('plan_sketch_auto')}</p>}
       </div>
 
       {staffRows}

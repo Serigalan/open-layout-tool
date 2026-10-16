@@ -10,6 +10,7 @@ import useMapPick from '../../map/useMapPick'
 import BackButton from './BackButton'
 import PanelToolButtons from './PanelTools'
 import { extensionsOf } from '../../extensions'
+import InfoTip from '../form/InfoTip'
 
 /**
  * The bands of a track: pick one from the list or on the map, and its
@@ -23,8 +24,8 @@ function BandsPage({ trackId, onShow, onExit }) {
   return (
     <>
       <BackButton onBack={onExit} />
-      <h2>{t('check_bands')}</h2>
-      <p className="selecting-hint">{t('bands_hint')}</p>
+      <h2>{t('check_bands')}<InfoTip text={t('bands_hint')} /></h2>
+      <p className="selecting-hint">{t('bands_pick')}</p>
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
       <GroupedTrackList tracks={tracks}
         isActive={(track) => track.id === trackId}
@@ -71,8 +72,7 @@ export default function CheckPanel({ onShowPhysics, onShowRegelwerk, bandsTrackI
   }
   return (
     <>
-      <h2>{t('check_title')}</h2>
-      <p className="selecting-hint">{t('check_hint')}</p>
+      <h2>{t('check_title')}<InfoTip text={t('check_hint')} /></h2>
       <div className="create-element-options">
         <button className="create-element-btn" onClick={() => onShowPhysics?.()}>
           <PhysicsIcon />

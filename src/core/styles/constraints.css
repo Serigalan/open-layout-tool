@@ -49,6 +49,11 @@
   margin: 14px 0 4px;
 }
 
+/* An ⓘ beside a rulebook's heading or its edition (decision 329). */
+.constraints-subsection .info-tip,
+.constraints-hint .info-tip,
+.track-table-title .info-tip { margin-left: 5px; }
+
 .constraints-subsection {
   font-size: var(--fs-s);
   font-weight: 600;

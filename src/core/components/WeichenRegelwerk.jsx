@@ -1,6 +1,7 @@
 import { weichenGruppen, WEICHEN_REGELWERK } from '../utils/weichenRegelwerk'
 import { switchKindLabelKey } from '../utils/switchModel'
 import { useI18n } from '../locales/i18nContext'
+import InfoTip from './form/InfoTip'
 
 /**
  * The switch form tables, read-only, inside the regelwerk popup — the second
@@ -43,12 +44,11 @@ export default function WeichenRegelwerk() {
       <p className="constraints-hint">
         {t(`regelwerk_title_${WEICHEN_REGELWERK.id}`)} · {t('constraints_katalog_revision')}{' '}
         {WEICHEN_REGELWERK.katalog_version} ({WEICHEN_REGELWERK.status})
+        <InfoTip text={t('constraints_weichen_hint')} />
       </p>
-      <p className="constraints-hint">{t('constraints_weichen_hint')}</p>
       {gruppen.map(gruppe => (
         <div key={gruppe.key}>
-          <h4 className="constraints-subsection">{t(gruppe.titleKey)}</h4>
-          <p className="constraints-hint">{t(gruppe.hintKey)}</p>
+          <h4 className="constraints-subsection">{t(gruppe.titleKey)}<InfoTip text={t(gruppe.hintKey)} /></h4>
           <table className="track-table constraints-table">
             <thead>
               {gruppe.art === 'weiche' ? (

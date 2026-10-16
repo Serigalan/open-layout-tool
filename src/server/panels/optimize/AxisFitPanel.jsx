@@ -21,6 +21,7 @@ import FilePickButton from '../../../core/components/form/FilePickButton'
 import NumberInput from '../../../core/components/form/NumberInput'
 import CurvatureChart from '../../../core/components/chart/CurvatureChart'
 import useAxisPointEraser from '../../../core/components/panels/pointCloud/useAxisPointEraser'
+import InfoTip from '../../../core/components/form/InfoTip'
 
 /** How long edits must rest before the service is asked again [ms]. */
 const ALIGN_DEBOUNCE = 300
@@ -239,8 +240,7 @@ export default function AxisFitPanel({ backButton }) {
   return (
     <>
       {backButton}
-      <h2>{t('optimize_mode_axis')}</h2>
-      <p className="selecting-hint">{t('align_hint')}</p>
+      <h2>{t('optimize_mode_axis')}<InfoTip text={t('align_hint')} /></h2>
       <div className="element-form">
         <div className="form-field">
           <label>{t('align_source')}</label>
@@ -281,10 +281,9 @@ export default function AxisFitPanel({ backButton }) {
           <summary>{t('align_settings')}</summary>
           {SETTINGS.map(({ key, unit, step, min = 0, max, hint }) => (
             <div key={key} className="form-field">
-              <label>{t(`align_set_${key}`)}</label>
+              <label>{t(`align_set_${key}`)}{hint && <InfoTip text={t(hint)} />}</label>
               <NumberInput min={min} max={max} step={step} unit={unit} value={settings[key]}
                 onChange={e => setSettings(prev => ({ ...prev, [key]: e.target.value }))} />
-              {hint && <span className="msg-hint msg-small">{t(hint)}</span>}
             </div>
           ))}
           <button type="button" className="link-btn msg-small" onClick={() => setSettings(ALIGN_DEFAULTS)}>
@@ -322,7 +321,8 @@ export default function AxisFitPanel({ backButton }) {
             </button>
           </div>
           <p className="msg-hint msg-small">
-            {straights == null ? t('align_straights_auto') : t('align_straights_hand')}
+            {straights == null ? t('align_straights_auto') : t('align_straights_hand')}{' '}
+            <InfoTip text={t('align_straights_edit_hint')} />
           </p>
           {data.error && (
             <p className="msg-error">

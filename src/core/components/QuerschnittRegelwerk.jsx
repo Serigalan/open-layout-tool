@@ -4,6 +4,7 @@ import {
 } from '../utils/gaugeProfiles'
 import { useI18n } from '../locales/i18nContext'
 import { PALETTE } from '../styles/palette'
+import InfoTip from './form/InfoTip'
 
 /**
  * DB Ril 800.0130, Streckenquerschnitte auf Erdkörpern, read-only inside the
@@ -130,11 +131,10 @@ export default function QuerschnittRegelwerk() {
       <p className="constraints-hint">
         {t(`regelwerk_title_${katalog.id}`)} · {t('constraints_katalog_revision')} {katalog.katalog_version}{' '}
         ({katalog.status})
+        <InfoTip text={t('constraints_querschnitt_hint')} />
       </p>
-      <p className="constraints-hint">{t('constraints_querschnitt_hint')}</p>
 
-      <h4 className="constraints-subsection">{t('constraints_querschnitt_strecken')}</h4>
-      <p className="constraints-hint">{t('constraints_querschnitt_strecken_hint')}</p>
+      <h4 className="constraints-subsection">{t('constraints_querschnitt_strecken')}<InfoTip text={t('constraints_querschnitt_strecken_hint')} /></h4>
       <table className="track-table constraints-table">
         <thead>
           <tr>
@@ -158,8 +158,7 @@ export default function QuerschnittRegelwerk() {
         </tbody>
       </table>
 
-      <h4 className="constraints-subsection">{t('constraints_querschnitt_lichtraum')}</h4>
-      <p className="constraints-hint">{t('constraints_querschnitt_lichtraum_hint')}</p>
+      <h4 className="constraints-subsection">{t('constraints_querschnitt_lichtraum')}<InfoTip text={t('constraints_querschnitt_lichtraum_hint')} /></h4>
       <div className="querschnitt-profiles">
         {Object.entries(GAUGE_PROFILES).map(([id, profile]) => (
           <ProfileDrawing key={id} profile={profile} />

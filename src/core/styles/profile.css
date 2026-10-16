@@ -341,48 +341,6 @@
   margin: 6px 12px;
 }
 
-/* An explanation behind an ⓘ (form/InfoTip): opened below it, over what follows. */
-.info-tip {
-  position: relative;
-  display: inline-flex;
-}
-
-.info-tip-btn {
-  display: inline-flex;
-  padding: 2px;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--color-muted);
-  cursor: pointer;
-}
-
-.info-tip-btn:hover,
-.info-tip-btn.open {
-  color: var(--color-primary);
-}
-
-.info-tip-text {
-  position: absolute;
-  top: calc(100% + 6px);
-  z-index: 20;
-  width: 320px;
-  max-width: 70vw;
-  padding: 8px 10px;
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-  font-size: var(--fs-s);
-  font-weight: normal;
-  line-height: 1.4;
-  color: var(--color-text);
-  white-space: normal;
-}
-
-.info-tip-left { left: 0; }
-.info-tip-right { right: 0; }
-
 /* A curve whose length counts (decision 266): its length in the table, set apart. */
 .profile-table .profile-governing,
 .profile-table .profile-governing .track-table-input {

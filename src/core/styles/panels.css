@@ -24,6 +24,12 @@
   margin: 0;
 }
 
+/* An ⓘ beside a heading, a section title or a field label (decision 329). */
+.sidebar-secondary h2 .info-tip,
+.create-element-section .info-tip,
+.form-field label .info-tip { margin-left: 5px; }
+.create-element-section .info-tip-btn svg { width: 14px; height: 14px; }
+
 .sidebar-secondary p {
   font-family: var(--font-ui);
   font-size: 14px;

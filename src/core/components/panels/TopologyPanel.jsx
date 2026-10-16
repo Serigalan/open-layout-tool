@@ -8,6 +8,7 @@ import TopologyEndsList from './TopologyEndsList'
 import { useI18n } from '../../locales/i18nContext'
 import { useProject } from '../../hooks/useStore'
 import useMapEvents from '../../map/useMapEvents'
+import InfoTip from '../form/InfoTip'
 
 /** What an end that holds no switch port is, in the panel's words. */
 const END_STATE_KEY = {
@@ -73,8 +74,7 @@ export default function TopologyPanel({ selection, onSelect, graphOpen, onShowGr
 
   return (
     <>
-      <h2>{t('topology_title')}</h2>
-      <p className="selecting-hint">{t('topology_hint')}</p>
+      <h2>{t('topology_title')}<InfoTip text={t('topology_hint')} /></h2>
 
       <button className="panel-btn panel-btn-full" onClick={() => onShowGraph?.(!graphOpen)}>
         {t(graphOpen ? 'topology_graph_hide' : 'topology_graph_show')}

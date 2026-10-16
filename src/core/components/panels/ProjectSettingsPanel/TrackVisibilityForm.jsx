@@ -21,7 +21,6 @@ export default function TrackVisibilityForm() {
 
   return (
     <>
-      <p>{t('track_visibility_hint')}</p>
       <div className="track-visibility-actions">
         <button type="button" className="panel-btn" disabled={!hiddenCount}
           onClick={() => setTracksHidden(ids(tracks), false)}>

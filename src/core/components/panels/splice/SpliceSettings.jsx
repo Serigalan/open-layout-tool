@@ -75,9 +75,8 @@ export default function SpliceSettings({
       {/* The radius field here is a magnitude, so the cant is one too — it is
           signed by the fitted arc when the element is written. */}
       {!bothArcs && !maximize && (
-        <CantField value={cant} onChange={setCant} min={0} max={MAX_CANT} speed={s.speed} radius={Math.abs(Number(s.radius))}>
-          {keptCant != null && <p className="msg-hint">{t('splice_cant_kept')}</p>}
-        </CantField>
+        <CantField value={cant} onChange={setCant} min={0} max={MAX_CANT} speed={s.speed} radius={Math.abs(Number(s.radius))}
+          info={keptCant != null ? t('splice_cant_kept') : null} />
       )}
       {directTransition ? (
         <div className="form-field">

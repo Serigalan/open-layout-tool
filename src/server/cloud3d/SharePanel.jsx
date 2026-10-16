@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import { useI18n } from '../../core/locales/i18nContext'
 import { cloud3dShareUrl } from './channel'
 import LinkLanguage from './LinkLanguage'
+import InfoTip from '../../core/components/form/InfoTip'
 
 /** The expiries a link can be given [days]; '' for none. */
 const EXPIRIES = ['7', '30', '90', '365', '']
@@ -82,8 +83,7 @@ export default function SharePanel({ projectId, variantId, rows, walking = false
 
   return (
     <>
-      <h2>{t('cloud3d_share')}</h2>
-      <p className="cloud3d-hint">{t('cloud3d_share_hint')}</p>
+      <h2>{t('cloud3d_share')}<InfoTip text={t('cloud3d_share_hint')} /></h2>
       {!variantId && <p className="cloud3d-warn">{t('cloud3d_share_no_variant')}</p>}
       <label className="cloud3d-field">
         <span>{t('cloud3d_share_label')}</span>
@@ -98,14 +98,13 @@ export default function SharePanel({ projectId, variantId, rows, walking = false
           ))}
         </select>
       </label>
-      <span className="cloud3d-field-label">{t('cloud3d_share_clouds')}</span>
+      <span className="cloud3d-field-label">{t('cloud3d_share_clouds')}{picked == null && <InfoTip text={t('cloud3d_share_all_clouds')} />}</span>
       {rows.map(r => (
         <label key={r.id} className="cloud3d-check">
           <input type="checkbox" checked={ticked.includes(r.id)} onChange={e => toggle(r.id, e.target.checked)} />
           <span>{r.name}</span>
         </label>
       ))}
-      {picked == null && <p className="cloud3d-hint">{t('cloud3d_share_all_clouds')}</p>}
       <div className="cloud3d-buttons">
         <button type="button" disabled={busy || ticked.length === 0} onClick={create}>{t('cloud3d_share_create')}</button>
       </div>

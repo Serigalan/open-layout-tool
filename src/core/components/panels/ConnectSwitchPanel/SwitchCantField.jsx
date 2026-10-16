@@ -1,6 +1,7 @@
 import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION } from '../../../utils/rules/cant'
 import CantField from '../CantField'
 import { useI18n } from '../../../locales/i18nContext'
+import InfoTip from '../../form/InfoTip'
 
 /**
  * The cant of a turnout and, above 100 mm, the reason it is allowed to be there.
@@ -35,14 +36,13 @@ export default function SwitchCantField({ cant, onCant, reason, onReason, label,
       )}
       {needsReason && (
         <div className="form-field">
-          <label>{t('switch_cant_exception')}</label>
+          <label>{t('switch_cant_exception')}<InfoTip text={t('switch_cant_exception_hint')} /></label>
           <input
             type="text" value={reason}
             placeholder={t('switch_cant_exception_placeholder')}
             onChange={e => onReason(e.target.value)}
             className={reason.trim() ? undefined : 'input-error'}
           />
-          <span className="selecting-hint">{t('switch_cant_exception_hint')}</span>
         </div>
       )}
     </>

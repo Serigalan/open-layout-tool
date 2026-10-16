@@ -91,8 +91,6 @@ export default function TrackLinkForm({ onCommitted }) {
 
   return (
     <>
-      <p className="selecting-hint">{t('switch_link_hint')}</p>
-
       {created > 0 && <p>{fill('switch_link_done', { n: created })}</p>}
 
       {links.length > 0 && (
