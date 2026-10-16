@@ -9,6 +9,7 @@ import { trackLabel } from '../../../utils/trackModel'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import SwitchNumberField from '../SwitchNumberField'
 import RuleFindings from '../RuleFindings'
+import ConnectRemedies from './ConnectRemedies'
 import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildCrossingPreview } from '../../../map/switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
@@ -41,6 +42,8 @@ export default function CrossingConnectForm({ onCommitted }) {
   const [pickError, setPickError] = useState(null)
   const [formIdx, setFormIdx] = useState(() => Math.max(0, CROSSING_TYPES.findIndex(f => f.label === 'Kr 1:9')))
   const [side, setSide]   = useState(null)   // the cross route's side, once the user turned it
+  // A suggestion taken over (Entscheidung 314), for the form and side it was made for.
+  const [adjusted, setAdjusted] = useState(null)
   const [commitError, setCommitError] = useState(null)
   const form = CROSSING_TYPES[formIdx]
   const switchNo = useSwitchNumber(project.id, form.kind)
@@ -95,19 +98,52 @@ export default function CrossingConnectForm({ onCommitted }) {
     ? crossingConnectSolutions({ track, clickStation: stem.station, anchor, form })
     : null), [anchor, track, stem, form])
   const crossSide = side ?? found?.preferred?.crossSide ?? 'right'
-  const solution = found?.solutions.find(s => s.crossSide === crossSide) ?? null
-  const outcome = useMemo(() => (solution ? crossingConnectOutcome({ target, anchor, solution }) : null),
-    [solution, target, anchor])
+  const baseSolution = found?.solutions.find(s => s.crossSide === crossSide) ?? null
+  const adjustKey = `${end?.trackId}|${end?.endpoint}|${formIdx}|${crossSide}`
+  const adjust = adjusted?.key === adjustKey ? adjusted : null
+  const solution = adjust?.lead ? adjust.solution : baseSolution
+  const speedLimit = adjust?.speedLimit ?? null
+  const outcome = useMemo(() => (solution ? crossingConnectOutcome({ target, anchor, solution, speedLimit }) : null),
+    [solution, target, anchor, speedLimit])
+
+  // The suggestions solve again near the solution shown, the same side and leg.
+  const basePort = baseSolution?.port
+  const outcomeFor = useMemo(() => {
+    if (!baseSolution) return null
+    const only = { crossSide, port: basePort }
+    const byLead = new Map()
+    const solve = (lead) => {
+      if (!byLead.has(lead)) {
+        byLead.set(lead, crossingConnectSolutions({
+          track, clickStation: baseSolution.x, anchor, form, lead, only, reach: lead + 60,
+        }).solutions[0] ?? null)
+      }
+      return byLead.get(lead)
+    }
+    return ({ lead, speedLimit: limit }) => {
+      const s = lead > 0 ? solve(lead) : baseSolution
+      return s && crossingConnectOutcome({ target, anchor, solution: s, speedLimit: limit })
+    }
+  }, [baseSolution, basePort, crossSide, track, target, anchor, form])
+  const adopt = (r) => {
+    const s = r.lead > 0 ? crossingConnectSolutions({
+      track, clickStation: baseSolution.x, anchor, form, lead: r.lead, only: { crossSide, port: basePort }, reach: r.lead + 60,
+    }).solutions[0] : null
+    setCommitError(null)
+    setAdjusted({ key: adjustKey, lead: r.lead, speedLimit: r.speedLimit, solution: s })
+  }
   const g = solution?.at.placement.geom ?? null
 
   useEffect(() => {
     const pv = g ? buildCrossingPreview(g) : null
-    if (pv && outcome) pv.lines.features.push({ type: 'Feature', properties: {}, geometry: outcome.element.geometry })
+    for (const el of pv && outcome ? [outcome.lead, outcome.element].filter(Boolean) : []) {
+      pv.lines.features.push({ type: 'Feature', properties: {}, geometry: el.geometry })
+    }
     preview.set(SWITCH_LINES_SOURCE, pv?.lines ?? null)
     preview.set(SWITCH_FILL_SOURCE, pv?.fill ?? null)
   }, [g, outcome, preview])
 
-  const reset = () => { preview.clear(); setStem(null); setEnd(null); setSide(null); setPickError(null); setCommitError(null) }
+  const reset = () => { preview.clear(); setStem(null); setEnd(null); setSide(null); setAdjusted(null); setPickError(null); setCommitError(null) }
   const handleCancel = () => { reset(); onCommitted?.() }
 
   const errors = []
@@ -121,7 +157,7 @@ export default function CrossingConnectForm({ onCommitted }) {
     if (!switchNo.claim()) return
     const commit = buildCrossingConnect({
       track, target, anchor, solution, tracks: loadTracks(), form,
-      switchName: switchNo.name, switchNumber: switchNo.number,
+      switchName: switchNo.name, switchNumber: switchNo.number, speedLimit,
     })
     if (commit.noRoom) { setCommitError(fill('crossing_on_track_no_room', { m: commit.noRoom.toFixed(1) })); return }
     commitSwitchConnection(commit)
@@ -177,7 +213,20 @@ export default function CrossingConnectForm({ onCommitted }) {
       {found && found.solutions.length > 1 && (
         <p className="msg-hint">{fill('crossing_connect_more', { n: String(found.solutions.length) })}</p>
       )}
-      {outcome && <RuleFindings elements={outcome.chain} judge={[outcome.chain.length - 1]} fields={false} />}
+      {outcome && <RuleFindings elements={outcome.chain} judge={outcome.judged} fields={false} />}
+      {adjust && (
+        <p className="msg-hint">
+          {fill('connect_adjusted', { list: [
+            adjust.lead > 0 && fill('connect_adjusted_lead', { l: adjust.lead.toFixed(1) }),
+            adjust.speedLimit && fill('connect_adjusted_speed', { v: String(adjust.speedLimit) }),
+          ].filter(Boolean).join(', ') })}{' '}
+          <button type="button" className="link-btn" onClick={() => setAdjusted(null)}>{t('connect_adjusted_reset')}</button>
+        </p>
+      )}
+      {outcome?.ruleError && outcomeFor && (
+        <ConnectRemedies key={`${adjustKey}|${solution?.x}|${speedLimit}`} anchor={anchor}
+          current={{ lead: adjust?.lead ?? 0, speedLimit }} outcome={outcome} outcomeFor={outcomeFor} onAdopt={adopt} />
+      )}
       {errors.map(msg => <p key={msg} className="form-error">{msg}</p>)}
 
       <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!solution || errors.length > 0}

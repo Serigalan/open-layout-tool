@@ -1,5 +1,5 @@
 import { buildCrossingOnTrack, crossingOnTrackPlacement, crossingOnTrackPort } from './switches'
-import { refitCheckChain, refitRuleError, hostPointAt } from './connectSwitch'
+import { hostPointAt, refitOutcome } from './connectSwitch'
 import { connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitTrackEnd } from '../connectToTrack'
 import { crossingAngle, crossingEndDistance } from '../switch/crossing'
 import { trackLength } from '../heightUtils'
@@ -43,28 +43,29 @@ function sideOf(track, station, point) {
  *
  * Returns { solutions: [{ port, crossSide, x, fit, at }], preferred }.
  */
-export function crossingConnectSolutions({ track, clickStation, anchor, form }) {
+export function crossingConnectSolutions({ track, clickStation, anchor, form, lead = 0, only = null, reach: within = null }) {
   const total = trackLength(track)
   const endDist = crossingEndDistance(form)
   const near = clickStation
   const clickUtm = hostPointAt(track, near) ?? anchor.fixedUtm
-  const reach = 2 * Math.hypot(clickUtm.easting - anchor.fixedUtm.easting, clickUtm.northing - anchor.fixedUtm.northing)
-    + 2 * endDist + anchor.oldLength + 100
+  const reach = within ?? (2 * Math.hypot(clickUtm.easting - anchor.fixedUtm.easting, clickUtm.northing - anchor.fixedUtm.northing)
+    + 2 * endDist + anchor.oldLength + 100)
   const from = Math.max(0, near - reach), to = Math.min(total, near + reach)
   const solutions = []
   for (const crossSide of ['right', 'left']) {
     const args = { track, endDist, form, crossAngle: crossAngleOf(form, crossSide) }
     for (const port of ['B', 'D']) {
+      if (only && (only.crossSide !== crossSide || only.port !== port)) continue
       const portAt = (x) => {
         const end = crossingOnTrackPort({ ...args, pointStation: x }, port)
         return end && { port: end.utm, bearingIn: (end.bearing + 180) % 360 }
       }
-      for (const root of connectionRoots(anchor, portAt, { from, to, step: SCAN_STEP, near })) {
+      for (const root of connectionRoots(anchor, portAt, { from, to, step: SCAN_STEP, near, lead })) {
         const placement = crossingOnTrackPlacement({ ...args, pointStation: root.x })
         if (placement.error || !placement.geom) continue
         const portUtm = placement.geom[`port${port}_utm`]
         const at = { port: portUtm, bearingIn: root.at.bearingIn, placement }
-        const fit = fitConnectingElement(anchor, portUtm, at.bearingIn)
+        const fit = fitConnectingElement(anchor, portUtm, at.bearingIn, lead)
         if (fit && Math.abs(fit.miss) < 1e-5) solutions.push({ port, crossSide, x: root.x, fit, at })
       }
     }
@@ -75,11 +76,7 @@ export function crossingConnectSolutions({ track, clickStation, anchor, form }) 
 }
 
 /** The connected track refitted and the chain the rules judge, before anything is written. */
-export function crossingConnectOutcome({ target, anchor, solution }) {
-  const refitted = refitTrackEnd(target, anchor, solution.fit, solution.at.port)
-  const chain = refitCheckChain(refitted, anchor)
-  return { refitted, element: refitted.elements[anchor.elIdx], chain, ruleError: refitRuleError(chain) }
-}
+export const crossingConnectOutcome = refitOutcome
 
 /** What describes a track besides its geometry and its name — for the tracks the crossing adds. */
 const describe = (track) => Object.fromEntries(Object.entries(track)
@@ -92,7 +89,7 @@ const describe = (track) => Object.fromEntries(Object.entries(track)
  * slip routes as tracks of their own described like the connected one — the
  * argument for commitSwitchConnection, or { noRoom }.
  */
-export function buildCrossingConnect({ track, target, anchor, solution, tracks, form, switchName, switchNumber }) {
+export function buildCrossingConnect({ track, target, anchor, solution, tracks, form, switchName, switchNumber, speedLimit = null }) {
   const { placement } = solution.at
   const laid = buildCrossingOnTrack({
     g: placement.geom, ahead: placement.ahead, track, tracks, form, endDist: crossingEndDistance(form),
@@ -105,9 +102,9 @@ export function buildCrossingConnect({ track, target, anchor, solution, tracks, 
   // Leg B runs from its port in to the crossing point, leg D out from it; the
   // join wants the route from the crossing point out.
   const route = solution.port === 'B' ? reverseTrack(leg) : leg
-  const refitted = refitTrackEnd(target, anchor, solution.fit, solution.at.port)
+  const refitted = refitTrackEnd(target, anchor, solution.fit, solution.at.port, { speedLimit })
   const { track: joined, shift } = joinRouteIntoTrack(refitted, anchor, route)
-  const moved = shift ? shift + refitted.elements[anchor.elIdx].length - anchor.oldLength : 0
+  const moved = shift ? shift + trackLength(refitted) - trackLength(target) : 0
   const hostIds = new Set(laid.remap.flatMap(r => r.newId))
   const own = describe(target)
   // The other leg is the cross route's line on the far side: it is named after

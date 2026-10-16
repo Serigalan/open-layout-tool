@@ -179,3 +179,32 @@ describe('the track refitted and joined', () => {
     }
   })
 })
+
+describe('a transition before the refitted arc (Entscheidung 314)', () => {
+  /** A port the plain arc reaches from the track's end, 30 m beyond it. */
+  function portFor(track, endpoint) {
+    const { anchor } = connectionAnchor(track, endpoint)
+    const route = { length: anchor.oldLength + 30, r1: 900, r2: 900 }
+    const port = switchRoutePointUtm(anchor.fixedUtm, anchor.bearing, route)
+    return { anchor, port, bearingIn: switchRouteBearingAt(anchor.bearing, route) }
+  }
+
+  it('runs from the neighbour\'s curvature to the arc, which still ends on the port', () => {
+    for (const endpoint of ['END', 'BEGIN']) {
+      const track = trackEndingIn((p, b) => straightFrom(p, b, 50, { speed: 80, cant: 0 }))
+      const { anchor, port, bearingIn } = portFor(track, endpoint)
+      const fit = fitConnectingElement(anchor, port, bearingIn, 25)
+      expect(fit.lead).toMatchObject({ length: 25, r1: null })
+      expect(fit.lead.r2).toBeCloseTo(fit.route.r1, 9)
+      const out = refitTrackEnd(track, anchor, fit, port, { speedLimit: 60 })
+      expectValidTrack(out)
+      expect(out.elements).toHaveLength(3)
+      const [lead, arc] = endpoint === 'END' ? out.elements.slice(1) : [out.elements[1], out.elements[0]]
+      expect(lead.elementType).toBe(2)
+      expect(arc.elementType).toBe(1)
+      expect(out.elements.every(el => el.speed === 60)).toBe(true)
+      const end = endpoint === 'END' ? arc.endNode : arc.startNode
+      expect(Math.hypot(end[0] - port.easting, end[1] - port.northing)).toBeLessThan(1e-6)
+    }
+  })
+})

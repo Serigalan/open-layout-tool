@@ -1,5 +1,5 @@
 import { buildSwitchOnTrack, switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackRouteEnd } from './switches'
-import { connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitTrackEnd } from '../connectToTrack'
+import { connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitCount, refitTrackEnd } from '../connectToTrack'
 import { switchStraightLength, switchBranchLength } from '../switch/catalogue'
 import { switchRoutePointUtm } from '../switch/route'
 import { elementAtStation, trackLength } from '../heightUtils'
@@ -65,25 +65,30 @@ function sideOf(track, station, reversed, point) {
  * connection can reasonably lie on — around the click, as far again as the
  * connecting element's node lies from it, plus the turnout.
  *
+ * `lead` puts a transition of that length before the refitted arc (a remedy);
+ * `only` ({ reversed, side }) and `reach` narrow the search to one way and to
+ * that far around `clickStation`, as a remedy asks it again near a solution.
+ *
  * Returns { solutions: [{ reversed, side, x, fit, at }], preferred } — the
  * preferred one on the side the connected track lies on, where there is one.
  */
-export function switchConnectSolutions({ track, clickStation, anchor, sw }) {
+export function switchConnectSolutions({ track, clickStation, anchor, sw, lead = 0, only = null, reach: within = null }) {
   const total = trackLength(track)
   const near = clickStation
   const clickUtm = hostPointAt(track, near) ?? anchor.fixedUtm
-  const reach = 2 * Math.hypot(clickUtm.easting - anchor.fixedUtm.easting, clickUtm.northing - anchor.fixedUtm.northing)
-    + 2 * switchBranchLength(sw) + anchor.oldLength + 100
+  const reach = within ?? (2 * Math.hypot(clickUtm.easting - anchor.fixedUtm.easting, clickUtm.northing - anchor.fixedUtm.northing)
+    + 2 * switchBranchLength(sw) + anchor.oldLength + 100)
   const from = Math.max(0, near - reach), to = Math.min(total, near + reach)
   const solutions = []
   for (const reversed of [false, true]) {
     for (const side of ['left', 'right']) {
+      if (only && (only.reversed !== reversed || only.side !== side)) continue
       const args = { track, reversed, sw, side }
-      for (const root of connectionRoots(anchor, x => routeEndAt(args, x), { from, to, step: SCAN_STEP, near })) {
+      for (const root of connectionRoots(anchor, x => routeEndAt(args, x), { from, to, step: SCAN_STEP, near, lead })) {
         // Found on the route's end alone; the commit builds from the whole
         // placement, and the element is refitted to the port that one gives.
         const at = routeEndAt(args, root.x, true)
-        const fit = at && fitConnectingElement(anchor, at.port, at.bearingIn)
+        const fit = at && fitConnectingElement(anchor, at.port, at.bearingIn, lead)
         if (fit && Math.abs(fit.miss) < 1e-5) solutions.push({ reversed, side, x: root.x, fit, at })
       }
     }
@@ -98,16 +103,19 @@ export function switchConnectSolutions({ track, clickStation, anchor, sw }) {
  * towards the open end — for the rule check: its own rules and the joint to
  * the rest of its track, not the turnout's.
  */
-export function refitCheckChain(refitted, anchor) {
+export function refitCheckChain(refitted, anchor, count = 1) {
   const els = refitted.elements
-  if (anchor.endpoint === 'END') return els.slice(Math.max(0, anchor.elIdx - 1), anchor.elIdx + 1)
-  return els.slice(0, 2).reverse().map(reverseElement)
+  if (anchor.endpoint === 'END') return els.slice(Math.max(0, anchor.elIdx - 1), anchor.elIdx + count)
+  return els.slice(0, count + 1).reverse().map(reverseElement)
 }
 
-/** Does the catalogue find an error on the refitted element or its joint (Entscheidung 304)? */
-export function refitRuleError(chain) {
-  const own = checkTrack(chain).perElement[chain.length - 1]
-  return severityRank(own?.severity) >= severityRank('error')
+/** The indices in such a chain the rules are asked about: the refitted elements, the last `count`. */
+export const refitJudged = (chain, count = 1) => chain.map((_, i) => i).slice(-count)
+
+/** Does the catalogue find an error on the refitted elements or their joints (Entscheidung 304)? */
+export function refitRuleError(chain, count = 1) {
+  const per = checkTrack(chain).perElement
+  return refitJudged(chain, count).some(i => severityRank(per[i]?.severity) >= severityRank('error'))
 }
 
 /**
@@ -115,15 +123,33 @@ export function refitRuleError(chain) {
  * connected track refitted, the remnants at the toe (Entscheidungen 219, 301)
  * and the chain the rules judge.
  */
-export function switchConnectOutcome({ track, target, anchor, solution, speed }) {
-  const refitted = refitTrackEnd(target, anchor, solution.fit, solution.at.port)
-  const chain = refitCheckChain(refitted, anchor)
+export function switchConnectOutcome({ track, target, anchor, solution, speed, speedLimit = null }) {
+  return {
+    ...refitOutcome({ target, anchor, solution, speedLimit }),
+    remnant: switchOnTrackRemnant(track, solution.x, solution.reversed, speed),
+  }
+}
+
+/**
+ * The connected track refitted to a solution, and what the rules judge of it:
+ * `chain` read towards the open end (the neighbour, then the refitted
+ * elements), `judged` the indices in it that are new, `element` the arc (or
+ * the refitted element) and `lead` the transition before it, where there is
+ * one; `speedLimit` caps the speeds there (a remedy).
+ */
+export function refitOutcome({ target, anchor, solution, speedLimit = null }) {
+  const refitted = refitTrackEnd(target, anchor, solution.fit, solution.at.port, { speedLimit })
+  const count = refitCount(solution.fit)
+  const chain = refitCheckChain(refitted, anchor, count)
   return {
     refitted,
-    element: refitted.elements[anchor.elIdx],
     chain,
-    ruleError: refitRuleError(chain),
-    remnant: switchOnTrackRemnant(track, solution.x, solution.reversed, speed),
+    judged: refitJudged(chain, count),
+    element: chain[chain.length - 1],
+    lead: count > 1 ? chain[chain.length - 2] : null,
+    ruleError: refitRuleError(chain, count),
+    // How far the track's own stations move at its start: by the change of length.
+    delta: trackLength(refitted) - trackLength(target),
   }
 }
 
@@ -134,7 +160,7 @@ export function switchConnectOutcome({ track, target, anchor, solution, speed })
  * { noRoom } as buildSwitchOnTrack gives it.
  */
 export function buildSwitchConnect({
-  track, target, anchor, solution, tracks, sw, cant, cantReason, speed, switchName, switchNumber,
+  track, target, anchor, solution, tracks, sw, cant, cantReason, speed, switchName, switchNumber, speedLimit = null,
 }) {
   const { placement } = solution.at
   const straightLen = switchStraightLength(sw)
@@ -147,11 +173,11 @@ export function buildSwitchConnect({
   // The new route is the one track the turnout added beside the parted host.
   const routeId = laid.addTracks[laid.addTracks.length - 1].id
   const route = laid.addTracks.find(tr => tr.id === routeId)
-  const refitted = refitTrackEnd(target, anchor, solution.fit, solution.at.port)
+  const refitted = refitTrackEnd(target, anchor, solution.fit, solution.at.port, { speedLimit })
   const { track: joined, shift } = joinRouteIntoTrack(refitted, anchor, route)
   // At the track's start its old stations move by the route and by the change
-  // of length of the refitted element.
-  const moved = shift ? shift + refitted.elements[anchor.elIdx].length - anchor.oldLength : 0
+  // of length of the refitted end.
+  const moved = shift ? shift + trackLength(refitted) - trackLength(target) : 0
   const portKey = ['B1', 'B2'].find(p => record[`port${p}_trackId`] === routeId)
   return {
     removeTrackIds: [...laid.removeTrackIds, target.id],

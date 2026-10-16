@@ -12,6 +12,7 @@ import SwitchCantField from './SwitchCantField'
 import SwitchFormField from './SwitchFormField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import RuleFindings from '../RuleFindings'
+import ConnectRemedies from './ConnectRemedies'
 import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildLinesGeoJSON, buildFillGeoJSON } from '../../../map/switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
@@ -50,6 +51,9 @@ export default function SwitchConnectForm({ onCommitted }) {
   const [switchTypeIdx, setTypeIdx] = useState(DEFAULT_SWITCH_TYPE_IDX)
   const [speed, setSpeed]     = useState(SWITCH_PICK_TYPES[DEFAULT_SWITCH_TYPE_IDX].speed)
   const [choice, setChoice]   = useState(null)   // { reversed, side } once the user turned one
+  // A suggestion taken over (Entscheidung 314): { key, lead, speedLimit, solution } — it holds for
+  // the form, direction and side it was made for (`key`) and lapses with any of them.
+  const [adjusted, setAdjusted] = useState(null)
   const [cantEdit, setCantEdit] = useState(null) // { key, value }
   const [cantReason, setCantReason] = useState('')
   const [commitError, setCommitError] = useState(null)
@@ -107,12 +111,44 @@ export default function SwitchConnectForm({ onCommitted }) {
     ? switchConnectSolutions({ track, clickStation: stem.station, anchor, sw })
     : null), [anchor, track, stem, sw])
   const combo = choice ?? (found?.preferred ? { reversed: found.preferred.reversed, side: found.preferred.side } : null)
-  const solution = found && combo
+  const baseSolution = found && combo
     ? found.solutions.find(s => s.reversed === combo.reversed && s.side === combo.side) ?? null
     : null
+  const adjustKey = `${end?.trackId}|${end?.endpoint}|${switchTypeIdx}|${combo?.reversed}|${combo?.side}`
+  const adjust = adjusted?.key === adjustKey ? adjusted : null
+  const solution = adjust?.lead ? adjust.solution : baseSolution
+  const speedLimit = adjust?.speedLimit ?? null
   const outcome = useMemo(() => (solution
-    ? switchConnectOutcome({ track, target, anchor, solution, speed })
-    : null), [solution, track, target, anchor, speed])
+    ? switchConnectOutcome({ track, target, anchor, solution, speed, speedLimit })
+    : null), [solution, track, target, anchor, speed, speedLimit])
+
+  // The suggestions solve again with a transition before the arc: near the
+  // solution shown, the same way round; each length once.
+  const comboReversed = combo?.reversed, comboSide = combo?.side
+  const outcomeFor = useMemo(() => {
+    if (!baseSolution) return null
+    const only = { reversed: comboReversed, side: comboSide }
+    const byLead = new Map()
+    const solve = (lead) => {
+      if (!byLead.has(lead)) {
+        byLead.set(lead, switchConnectSolutions({
+          track, clickStation: baseSolution.x, anchor, sw, lead, only, reach: lead + 60,
+        }).solutions[0] ?? null)
+      }
+      return byLead.get(lead)
+    }
+    return ({ lead, speedLimit: limit }) => {
+      const s = lead > 0 ? solve(lead) : baseSolution
+      return s && switchConnectOutcome({ track, target, anchor, solution: s, speed, speedLimit: limit })
+    }
+  }, [baseSolution, track, target, anchor, sw, comboReversed, comboSide, speed])
+  const adopt = (r) => {
+    const s = r.lead > 0 ? switchConnectSolutions({
+      track, clickStation: baseSolution.x, anchor, sw, lead: r.lead, only: combo, reach: r.lead + 60,
+    }).solutions[0] : null
+    setCommitError(null)
+    setAdjusted({ key: adjustKey, lead: r.lead, speedLimit: r.speedLimit, solution: s })
+  }
 
   // ── Cant: as "Weiche auf Gleis" — the form's on a straight, the track's in a curve ──
   const placement = solution?.at.placement ?? null
@@ -138,14 +174,16 @@ export default function SwitchConnectForm({ onCommitted }) {
     const geom = g?.swapped ?? g
     const lines = geom ? buildLinesGeoJSON(geom) : null
     if (lines && outcome) {
-      lines.features.push({ type: 'Feature', properties: {}, geometry: outcome.element.geometry })
+      for (const el of [outcome.lead, outcome.element].filter(Boolean)) {
+        lines.features.push({ type: 'Feature', properties: {}, geometry: el.geometry })
+      }
     }
     preview.set(SWITCH_LINES_SOURCE, lines)
     preview.set(SWITCH_FILL_SOURCE, geom ? buildFillGeoJSON(geom) : null)
   }, [g, outcome, preview])
 
   const reset = () => {
-    preview.clear(); setStem(null); setEnd(null); setChoice(null); setPickError(null); setCommitError(null)
+    preview.clear(); setStem(null); setEnd(null); setChoice(null); setAdjusted(null); setPickError(null); setCommitError(null)
   }
   const handleCancel = () => { reset(); onCommitted?.() }
 
@@ -175,7 +213,7 @@ export default function SwitchConnectForm({ onCommitted }) {
     if (!switchNo.claim()) return
     const commit = buildSwitchConnect({
       track, target, anchor, solution, tracks: loadTracks(), sw, cant, cantReason, speed,
-      switchName: switchNo.name, switchNumber: switchNo.number,
+      switchName: switchNo.name, switchNumber: switchNo.number, speedLimit,
     })
     if (commit.noRoom) { setCommitError(fill('switch_on_track_no_room', { m: commit.noRoom.toFixed(1) })); return }
     commitSwitchConnection(commit)
@@ -229,7 +267,20 @@ export default function SwitchConnectForm({ onCommitted }) {
       {found && found.solutions.length > 1 && (
         <p className="msg-hint">{fill('switch_connect_more', { n: String(found.solutions.length) })}</p>
       )}
-      {outcome && <RuleFindings elements={outcome.chain} judge={[outcome.chain.length - 1]} fields={false} />}
+      {outcome && <RuleFindings elements={outcome.chain} judge={outcome.judged} fields={false} />}
+      {adjust && (
+        <p className="msg-hint">
+          {fill('connect_adjusted', { list: [
+            adjust.lead > 0 && fill('connect_adjusted_lead', { l: adjust.lead.toFixed(1) }),
+            adjust.speedLimit && fill('connect_adjusted_speed', { v: String(adjust.speedLimit) }),
+          ].filter(Boolean).join(', ') })}{' '}
+          <button type="button" className="link-btn" onClick={() => setAdjusted(null)}>{t('connect_adjusted_reset')}</button>
+        </p>
+      )}
+      {outcome?.ruleError && outcomeFor && (
+        <ConnectRemedies key={`${adjustKey}|${solution?.x}|${speedLimit}`} anchor={anchor}
+          current={{ lead: adjust?.lead ?? 0, speedLimit }} outcome={outcome} outcomeFor={outcomeFor} onAdopt={adopt} />
+      )}
       {errors.map(msg => <p key={msg} className="form-error">{msg}</p>)}
 
       <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!solution || errors.length > 0}

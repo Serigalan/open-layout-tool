@@ -2,7 +2,7 @@ import { classifyTrackEnds, isOpenState } from './topology'
 import { elementBelongsToSwitch } from './switchModel'
 import { resolveEndBearing, reverseElement } from './elementUtils'
 import { curvatureOf, radiusOfCurvature } from './clothoidUtils'
-import { switchRouteBearingAt, switchRoutePointUtm } from './switch/route'
+import { switchChainBearingAt, switchChainPointUtm, switchRouteBearingAt, switchRoutePointUtm } from './switch/route'
 import { STRAIGHT_CURVATURE } from './switch/catalogue'
 import { arcElement, straightElement, transitionElement } from './elementFactory'
 import { joinTracks, recalcAbsLengths, rebuildCoords, reverseTrack } from './trackModel'
@@ -64,6 +64,12 @@ export function connectionAnchor(track, endpoint, { tracks, switches, endMarks }
   const neighbour = els[atEnd ? elIdx - 1 : elIdx + 1]
   const bearing = !neighbour ? run.bearing
     : atEnd ? resolveEndBearing(neighbour, track.epsg) : (neighbour.bearing + 180) % 360
+  // The neighbour as it runs towards the fixed node: what a transition put in
+  // before the refitted arc starts from (curvature and cant), and what the
+  // rules judge the joint against.
+  const before = !neighbour ? null : atEnd ? neighbour : reverseElement(neighbour)
+  const endRadius = (e) => (e?.elementType === 2 ? (e.r2 ?? null) : e?.elementType === 1 ? e.radius : null)
+  const endCant = (e) => (e?.elementType === 2 ? (e.cantEnd ?? 0) : (e?.cant ?? 0))
   return {
     anchor: {
       trackId: track.id, endpoint, elIdx, kind,
@@ -71,6 +77,9 @@ export function connectionAnchor(track, endpoint, { tracks, switches, endMarks }
       bearing,
       r1: kind === 'transition' ? (run.r1 ?? null) : kind === 'arc' ? run.radius : null,
       oldLength: el.length,
+      r0: before ? endRadius(before) : null,
+      cant0: before ? endCant(before) : 0,
+      neighbourIdx: neighbour ? (atEnd ? elIdx - 1 : elIdx + 1) : null,
     },
   }
 }
@@ -137,13 +146,54 @@ function transitionTo(fixed, bearing, r1, port) {
  * r2 }), the tangent it then has at the port and how far that misses
  * `bearingIn` [deg].
  */
-export function fitConnectingElement(anchor, port, bearingIn) {
+export function fitConnectingElement(anchor, port, bearingIn, lead = 0) {
+  if (lead > 0 && anchor.kind !== 'transition') return fitWithLead(anchor, port, bearingIn, lead)
   const route = anchor.kind === 'transition'
     ? transitionTo(anchor.fixedUtm, anchor.bearing, anchor.r1, port)
     : arcTo(anchor.fixedUtm, anchor.bearing, port)
   if (!route || !(route.length > 0)) return null
   const endBearing = switchRouteBearingAt(anchor.bearing, route)
   return { route, endBearing, miss: wrap(endBearing - bearingIn) }
+}
+
+/**
+ * The same with a transition of length `lead` put in before the arc — from
+ * the neighbour's curvature at the fixed node to the arc's — as a remedy for
+ * a curvature jump there: the arc's length and radius by Newton from the arc
+ * without it. `{ route, lead: { length, r1, r2 }, endBearing, miss }`.
+ */
+function fitWithLead(anchor, port, bearingIn, lead) {
+  const plain = arcTo(anchor.fixedUtm, anchor.bearing, port)
+  if (!plain) return null
+  const r0 = anchor.r0 ?? null
+  const chain = (L, k) => {
+    const r = radiusOfCurvature(k)
+    return [{ length: lead, r1: r0, r2: r }, { length: L, r1: r, r2: r }]
+  }
+  const miss = (L, k) => {
+    const p = switchChainPointUtm(anchor.fixedUtm, anchor.bearing, chain(L, k))
+    return [p.easting - port.easting, p.northing - port.northing]
+  }
+  let L = Math.max(1, plain.length - lead / 2)
+  let k = curvatureOf(plain.r1)
+  for (let i = 0; i < 50; i++) {
+    const f = miss(L, k)
+    if (Math.hypot(f[0], f[1]) < FIT_TOL) break
+    const hL = Math.max(1e-6, 1e-7 * L), hk = 1e-9
+    const fL = miss(L + hL, k), fk = miss(L, k + hk)
+    const a = (fL[0] - f[0]) / hL, b = (fk[0] - f[0]) / hk
+    const c = (fL[1] - f[1]) / hL, d = (fk[1] - f[1]) / hk
+    const det = a * d - b * c
+    if (!Number.isFinite(det) || Math.abs(det) < 1e-18) return null
+    L -= (d * f[0] - b * f[1]) / det
+    k -= (a * f[1] - c * f[0]) / det
+    if (!(L > 0) || !Number.isFinite(k)) return null
+  }
+  const f = miss(L, k)
+  if (Math.hypot(f[0], f[1]) >= 1e-6) return null
+  const [leadRoute, route] = chain(L, k)
+  const endBearing = switchChainBearingAt(anchor.bearing, [leadRoute, route])
+  return { route, lead: leadRoute, endBearing, miss: wrap(endBearing - bearingIn) }
 }
 
 /**
@@ -158,10 +208,10 @@ export function fitConnectingElement(anchor, port, bearingIn) {
  *
  * Returns [{ x, fit, at }], `at` being portAt's answer there.
  */
-export function connectionRoots(anchor, portAt, { from, to, step = 0.5, near = (from + to) / 2 }) {
+export function connectionRoots(anchor, portAt, { from, to, step = 0.5, near = (from + to) / 2, lead = 0 }) {
   const miss = (x) => {
     const at = portAt(x)
-    const fit = at && fitConnectingElement(anchor, at.port, at.bearingIn)
+    const fit = at && fitConnectingElement(anchor, at.port, at.bearingIn, lead)
     return fit ? { x, fit, at, f: fit.miss } : { x, f: NaN }
   }
   const roots = []
@@ -205,16 +255,36 @@ const SHAPE_FIELDS = new Set([
  * an element ending exactly on `port`, turned back where the open end is the
  * track's start, with everything else the old one carried (speed, cant, …) —
  * stated in the old element's own direction, which the result has again.
+ * With a lead transition (fitWithLead) two elements, the transition first
+ * from the fixed node, its cant ramping from the neighbour's to the arc's.
+ * Returned in the track's order.
  */
-function refittedElement(track, anchor, route, port) {
+function refittedElements(track, anchor, fit, port) {
   const old = track.elements[anchor.elIdx]
   const keep = Object.fromEntries(Object.entries(old).filter(([k]) => !SHAPE_FIELDS.has(k)))
-  const built = route.r1 !== route.r2
-    ? transitionElement(anchor.fixedUtm, anchor.bearing, route.length, route.r1, route.r2, { endUtm: port }).element
+  const route = fit.route
+  let start = anchor.fixedUtm, bearing = anchor.bearing
+  const built = []
+  if (fit.lead) {
+    const { cant: _c, cantStart: _s, cantEnd: _e, ...plain } = keep
+    const arcCant = old.elementType === 2 ? (old.cantEnd ?? 0) : (old.cant ?? 0)
+    // In the run's direction the cant is the neighbour's at the fixed node.
+    const cantAt = (u) => (anchor.endpoint === 'END' ? u : -u)
+    const t = transitionElement(start, bearing, fit.lead.length, fit.lead.r1, fit.lead.r2, {
+      cantStart: anchor.cant0, cantEnd: cantAt(arcCant),
+    })
+    built.push({ el: t.element, keep: plain })
+    start = t.endUtm
+    bearing = t.endBearing
+  }
+  const last = route.r1 !== route.r2
+    ? transitionElement(start, bearing, route.length, route.r1, route.r2, { endUtm: port }).element
     : route.r1
-      ? arcElement(anchor.fixedUtm, port, route.r1)
-      : straightElement(anchor.fixedUtm, port)
-  return { ...(anchor.endpoint === 'END' ? built : reverseElement(built)), ...keep }
+      ? arcElement(start, port, route.r1)
+      : straightElement(start, port)
+  built.push({ el: last, keep })
+  const own = built.map(({ el, keep: k }) => ({ ...(anchor.endpoint === 'END' ? el : reverseElement(el)), ...k }))
+  return anchor.endpoint === 'END' ? own : own.reverse()
 }
 
 /**
@@ -222,11 +292,15 @@ function refittedElement(track, anchor, route, port) {
  * ending on `port`. Its heights stay with the part that does not move: at the
  * end of the track the points beyond the new length go, at its start every
  * station moves by the change of length and the points before the new start go.
+ * `speedLimit` caps the speed of the refitted element and of its neighbour (a
+ * remedy, as the splice's).
  */
-export function refitTrackEnd(track, anchor, fit, port) {
-  const el = refittedElement(track, anchor, fit.route, port)
-  const elements = recalcAbsLengths(track.elements.map((e, i) => (i === anchor.elIdx ? el : e)))
-  const delta = el.length - anchor.oldLength
+export function refitTrackEnd(track, anchor, fit, port, { speedLimit = null } = {}) {
+  const cap = (el) => (speedLimit > 0 && (el.speed ?? 0) > speedLimit ? { ...el, speed: speedLimit } : el)
+  const made = refittedElements(track, anchor, fit, port).map(cap)
+  const elements = recalcAbsLengths(track.elements.flatMap((e, i) => (
+    i === anchor.elIdx ? made : i === anchor.neighbourIdx ? [cap(e)] : [e])))
+  const delta = made.reduce((sum, e) => sum + e.length, 0) - anchor.oldLength
   const total = trackLength(track) + delta
   const heights = (track.heights ?? [])
     .map(p => (anchor.endpoint === 'BEGIN' ? { ...p, station: p.station + delta } : p))
@@ -234,6 +308,9 @@ export function refitTrackEnd(track, anchor, fit, port) {
   const { heights: _h, ...rest } = track
   return { ...rest, elements, coordinates: rebuildCoords(elements), ...(heights.length ? { heights } : {}) }
 }
+
+/** How many elements the refitted end is made of: the arc, and the transition before it where there is one. */
+export const refitCount = (fit) => (fit.lead ? 2 : 1)
 
 /**
  * The refitted track and the new route of a turnout or crossing as one track
