@@ -909,11 +909,6 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 .panel-heading.searching .panel-search input[type="search"] { cursor: text; }
 .panel-search input[type="search"]:focus { outline: none; border-color: var(--color-primary); }
 .panel-heading:not(.searching) .panel-search input::-webkit-search-cancel-button { display: none; }
-.panel-search-extra select {
-  font: inherit; font-size: var(--fs-s); padding: 3px 6px;
-  border: 1px solid var(--color-border); border-radius: 6px; background: #fff;
-}
-.panel-search-extra { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
 
 /* A number field with its unit behind it (R10.8). */
 .number-field { display: flex; align-items: center; gap: var(--space-3); }

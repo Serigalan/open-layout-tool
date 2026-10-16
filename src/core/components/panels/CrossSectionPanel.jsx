@@ -1,14 +1,11 @@
 import { useState } from 'react'
-import { loadTracks, loadSwitches, updateTrack, updateProject, currentProject } from '../../storage'
+import { loadTracks, loadSwitches, updateTrack, currentProject } from '../../storage'
 import { trackLength } from '../../utils/heightUtils'
 import { wgs84ToUTM } from '../../utils/coordinateUtils'
 import { stationFromClick } from '../../utils/platformUtils'
 import {
   RAILS, SLEEPERS, DEFAULT_RAIL, DEFAULT_SLEEPER,
 } from '../../utils/crossSectionUtils'
-import {
-  GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
-} from '../../utils/gaugeProfiles'
 import GroupedTrackList from './GroupedTrackList'
 import { trackSearchField, useTrackSearch } from './trackSearch'
 import PanelHeading from './PanelHeading'
@@ -158,18 +155,6 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
             if (crossSectionAt?.trackId !== tr.id || routeId) onShowCrossSection?.({ trackId: tr.id, station: 0 })
           }} />
       )}
-
-      <FormSection title={t('cross_section_profile_section')}>
-        <div className="form-field">
-          <label>{t('cross_section_profile')}</label>
-          <select value={currentProject()?.gaugeProfile ?? DEFAULT_GAUGE_PROFILE}
-            onChange={(e) => { updateProject({ gaugeProfile: e.target.value }) }}>
-            {Object.entries(GAUGE_PROFILES).map(([key]) => (
-              <option key={key} value={key}>{`${t(gaugeProfileLabelKey(key))} · ${LICHTRAUM_SOURCE}`}</option>
-            ))}
-          </select>
-        </div>
-      </FormSection>
 
       {track && (
         <>

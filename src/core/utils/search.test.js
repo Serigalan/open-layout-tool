@@ -14,12 +14,6 @@ describe('search', () => {
     expect(trackMatches(line, '')).toBe(true)
   })
 
-  it('filters by kind', () => {
-    expect(trackMatches(line, '', 'line')).toBe(true)
-    expect(trackMatches(line, '', 'station')).toBe(false)
-    expect(trackMatches(station, '', 'station')).toBe(true)
-  })
-
   it('finds a switch by name or form', () => {
     const sw = { switchId: 'abc', name: 'W 12', label: 'EW 60-500-1:12' }
     expect(switchMatches(sw, 'w 12')).toBe(true)

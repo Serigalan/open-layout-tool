@@ -7,14 +7,13 @@ import { SearchIcon } from '../icons'
  * magnifier only, until it is clicked — then it grows over the rest of the
  * row and takes what is typed. It stays open while it holds something or the
  * focus is in it; Escape empties it. What it searches is up to the panel —
- * `search` is { value, onChange, placeholder, active, children }: `active`
- * keeps it open for a filter of its own, `children` stand under the row while
- * it is open (the kind of track, say). `info` is an explanation behind an ⓘ.
+ * `search` is { value, onChange, placeholder }. `info` is an explanation
+ * behind an ⓘ.
  */
 export default function PanelHeading({ title, info = null, search = null }) {
   const [focus, setFocus] = useState(false)
   const inputRef = useRef(null)
-  const open = !!search && (focus || !!search.value || !!search.active)
+  const open = !!search && (focus || !!search.value)
 
   return (
     <div className={`panel-heading${open ? ' searching' : ''}`}
@@ -36,7 +35,6 @@ export default function PanelHeading({ title, info = null, search = null }) {
         </div>
       )}
       </div>
-      {open && search.children && <div className="panel-search-extra">{search.children}</div>}
     </div>
   )
 }

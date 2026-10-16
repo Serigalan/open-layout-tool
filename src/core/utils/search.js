@@ -1,5 +1,3 @@
-import { trackKind } from './trackGroups'
-
 // Finding tracks and switches by what a user would type (R10.6): any part of
 // a name, a line number, a station, a track or switch number — case and
 // surrounding spaces do not matter, and every word typed has to be found.
@@ -11,9 +9,8 @@ const matchesAll = (haystack, query) => {
   return words(query).every(w => hay.includes(w))
 }
 
-/** Whether `track` answers `query` and is of `kind` ('line', 'station', or '' for any). */
-export function trackMatches(track, query, kind = '') {
-  if (kind && trackKind(track) !== kind) return false
+/** Whether `track` answers `query`. */
+export function trackMatches(track, query) {
   return matchesAll([track.name, track.lineNumber, track.lineName, track.stationName, track.uicStation, track.trackNumber], query)
 }
 

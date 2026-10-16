@@ -17,7 +17,7 @@ function delta(before, after, key = 'id') {
 }
 
 /** The fields the project settings write on the project itself (decision 317). */
-const SETTINGS_FIELDS = ['title', 'description', 'lineCategory', 'crsSystem', 'epsg']
+const SETTINGS_FIELDS = ['title', 'description', 'lineCategory', 'crsSystem', 'epsg', 'gaugeProfile']
 
 const switchName = (sw) => sw.name || sw.label || sw.switchId?.slice(0, 8) || '?'
 const platformName = (p) => [p.code, p.stationName].filter(Boolean).join(' · ') || p.id?.slice(0, 8) || '?'

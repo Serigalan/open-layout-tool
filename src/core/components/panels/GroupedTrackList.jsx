@@ -5,7 +5,6 @@ import { fitToTracks } from '../../utils/mapRenderUtils'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useTrackSearch } from './trackSearch'
-import TrackKindSelect from './TrackKindSelect'
 
 /**
  * A project's tracks under the line or station they belong to (see
@@ -20,8 +19,8 @@ import TrackKindSelect from './TrackKindSelect'
  * `isChecked(track)` every track is a checkbox instead of a button, and
  * ticking it is the pick.
  *
- * Above it a search (R10.6): any part of a name, line number or station, and
- * the kind of track. A search that leaves one track zooms the map to it. A
+ * Above it a search (R10.6): any part of a name, line number or station
+ * (the filter by kind of track is gone, decision 332). A search that leaves one track zooms the map to it. A
  * panel may hold the search itself, beside its heading (decision 330): it
  * passes `search` (trackSearch.js: useTrackSearch, shown with trackSearchField), and the list
  * only says how many it found.
@@ -31,9 +30,9 @@ export default function GroupedTrackList({ tracks: all, isActive, onPick, onPick
   const map = useMap()
   const [folded, setFolded] = useState(() => new Set())
   const own = useTrackSearch()
-  const { query, setQuery, kind } = outer ?? own
-  const searching = !!(query.trim() || kind)
-  const tracks = searching ? all.filter(tr => trackMatches(tr, query, kind)) : all
+  const { query, setQuery } = outer ?? own
+  const searching = !!query.trim()
+  const tracks = searching ? all.filter(tr => trackMatches(tr, query)) : all
   const groups = groupTracks(tracks)
 
   // One track found: the map goes there.
@@ -48,7 +47,6 @@ export default function GroupedTrackList({ tracks: all, isActive, onPick, onPick
         <>
           <input type="search" value={query} placeholder={t('search_tracks')} aria-label={t('search_tracks')}
             onChange={e => setQuery(e.target.value)} />
-          <TrackKindSelect search={own} />
         </>
       )}
       {searching && (
