@@ -8,6 +8,7 @@ import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trac
 import { coupleSwitchGradients, coupleSwitchHeights } from './utils/switchChain'
 import { repairRoutes } from './utils/routes'
 import { lengthGovernedRadii } from './utils/gradientCheck'
+import { moveTracksToPlane } from './utils/projectSettings'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -433,6 +434,21 @@ function restore({ project, idLog }) {
 /** Merge fields into the project record (used for the OSRD infra passthrough). */
 export function updateProject(patch) {
   return mutate(p => ({ ...p, ...patch }))
+}
+
+/**
+ * Carry the tracks `trackIds` into plane `epsg`, in one undo step
+ * (projectSettings.moveTracksToPlane). Returns its report, or null where there
+ * was no project; nothing is written where the report refuses the move.
+ */
+export function setTracksPlane(trackIds, epsg) {
+  let report = null
+  mutate(p => {
+    const res = moveTracksToPlane(p, trackIds, epsg)
+    report = res.report
+    return res.project ?? p
+  })
+  return report
 }
 
 /**

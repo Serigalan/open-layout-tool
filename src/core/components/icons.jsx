@@ -466,6 +466,16 @@ export const PlaceIcon = () => (
   </SidebarIcon>
 )
 
+// Project settings — the project's sheet with its folded corner, and the
+// lines it says about the project.
+export const ProjectSettingsIcon = () => (
+  <SidebarIcon>
+    <path d="M5 3 H14 L19 8 V21 H5 Z" />
+    <path d="M14 3 V8 H19" />
+    <path d="M8.5 12.5 H15.5 M8.5 16.5 H15.5" />
+  </SidebarIcon>
+)
+
 // Settings — sliders, kept apart from the tool icons around them.
 export const SettingsIcon = () => (
   <SidebarIcon>

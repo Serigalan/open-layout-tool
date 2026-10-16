@@ -3,6 +3,7 @@ import { closeWorkingCopy, currentWorkingCopy } from './workingCopies'
 import { adoptUpdate, checkIn, localChanges, openVariant, prepareUpdate, revertToHead, serverHead } from './workingCopySync'
 import { useProject } from '../core/hooks/useStore'
 import { errorText } from './collab/errorText'
+import { onProjectMeta } from './projectMeta'
 
 // How often the open app asks whether the server has moved on [ms].
 const SERVER_POLL = 2 * 60 * 1000
@@ -42,6 +43,9 @@ export default function useWorkingCopy({ t }) {
     const timer = setTimeout(() => setChanges(localChanges()), CHANGES_SETTLE)
     return () => clearTimeout(timer)
   }, [wc, project])
+
+  // A title or description saved in the project settings is the bar's at once.
+  useEffect(() => onProjectMeta(p => setWc(w => (w && w.project.id === p.id ? { ...w, project: { ...w.project, ...p } } : w))), [])
 
   // Whether the server has moved on: on opening, every few minutes, and when
   // the tab comes back.

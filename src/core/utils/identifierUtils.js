@@ -22,10 +22,11 @@ export const TRACK_USES = ['main', 'siding']
  * other type are left as they are — a station track keeps the line number its
  * kilometrage is read off. Empty strings are stored as null.
  *
- * The line category and the use are only written where they say something: a
- * line track without a category of its own runs on the project's, and a track
- * is a main track unless it is a siding. Left undefined they clear what the
- * track carried, and a store that never had them stays without.
+ * The use is only written where it says something: a track is a main track
+ * unless it is a siding. Left undefined it clears what the track carried, and
+ * a store that never had it stays without. The line category is not among
+ * these fields: a track keeps its own, set in the project settings (decision
+ * 320), through every edit of its properties.
  */
 export function buildTypeFields(fields) {
   const str = v => (v != null && String(v).trim() !== '' ? String(v).trim() : null)
@@ -39,7 +40,6 @@ export function buildTypeFields(fields) {
       lineNumber: num(fields.lineNumber),
       lineName:   str(fields.lineName),
       side:       fields.side ? Number(SIDE_CODES[fields.side]) : null,
-      lineCategory: LINE_CATEGORIES.includes(fields.lineCategory) ? fields.lineCategory : undefined,
       trackUse,
       heightEpsg,
     }

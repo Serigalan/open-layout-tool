@@ -1,9 +1,7 @@
 import { useState } from 'react'
-import { loadTracks, currentProject, setHeightsForTracks, updateProject, coupleAllSwitchGradients } from '../../storage'
+import { loadTracks, currentProject, setHeightsForTracks, coupleAllSwitchGradients } from '../../storage'
 import { pendingTurnouts } from '../../utils/switchChain'
 import { useProject } from '../../hooks/useStore'
-import { LINE_CATEGORIES } from '../../utils/identifierUtils'
-import { projectLineCategory } from '../../utils/gradientCheck'
 import { fillHeights } from '../../utils/elevationFill'
 import { chosenTerrainSource } from '../../utils/elevationSource'
 import TerrainSourceSelect from '../TerrainSourceSelect'
@@ -27,10 +25,10 @@ import BackButton from './BackButton'
  * one, or with the buttons here — reading a whole track again (which
  * overwrites edited heights), or every track that still lacks heights.
  *
- * Above the list, what the Höhenplan rules say about the gradient on show,
- * and the line category of the project they judge a line track by — above
- * it, since the list of a large project runs far below the screen. The
- * crossovers to fit come last.
+ * Above the list, what the Höhenplan rules say about the gradient on show —
+ * above it, since the list of a large project runs far below the screen. The
+ * line category they judge a track by is set in the project settings
+ * (decision 320). The crossovers to fit come last.
  */
 export default function ElevationPanel({ profileTrackId, profileRouteId = null, onShowProfile, onShowRouteProfile }) {
   const { t, fill } = useI18n()
@@ -108,13 +106,6 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
       <p>{t('elevation_hint')}</p>
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
       <FormSection title={t('elevation_rules')}>
-        <div className="form-field">
-          <label title={t('elevation_line_category_hint')}>{t('elevation_line_category')}</label>
-          <select value={projectLineCategory(project)} title={t('elevation_line_category_hint')}
-            onChange={(e) => updateProject({ lineCategory: e.target.value })}>
-            {LINE_CATEGORIES.map(key => <option key={key} value={key}>{t(`line_category_${key}`)}</option>)}
-          </select>
-        </div>
         {resolvedRoute ? resolvedRoute.parts.map(p => (
           <div key={p.trackId} className="route-findings">
             <span className="create-element-section">{p.track.name || p.trackId.slice(0, 8)}</span>

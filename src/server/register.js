@@ -12,6 +12,7 @@ import useCloudRegistration from './cloud3d/useCloudRegistration'
 import CrossSectionCloudTools from './cloud3d/CrossSectionCloudTools'
 import Cloud3dLink from './cloud3d/Cloud3dLink'
 import { legacySection, workingCopiesSection } from './localStoreSections'
+import { saveProjectMeta } from './projectMeta'
 import {
   AxisFitTool, MdbDbrefImport, MdbImport, OptimizeElementTool, OptimizeTrackTool, ReconnectTool,
 } from './panels/tools'
@@ -56,6 +57,9 @@ provide('useServerRun', useServerRun)
 provide('useCloudRegistration', useCloudRegistration)
 extend('crossSectionTools', CrossSectionCloudTools)
 extend('workspaceAddons', Cloud3dLink)
+
+// A title or description saved in the project settings goes to the server's project list too.
+provide('saveProjectMeta', saveProjectMeta)
 
 // What the working copies and the stores of version 1 take in this browser.
 extend('localStoreSections', workingCopiesSection)

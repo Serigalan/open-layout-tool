@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { saveTrack, loadTracks } from '../../../storage'
-import { wgs84ToUTM, epsgForLngLat, EPSG_OPTIONS, toWgs } from '../../../utils/coordinateUtils'
+import { saveTrack, loadTracks, currentProject } from '../../../storage'
+import { wgs84ToUTM, toWgs } from '../../../utils/coordinateUtils'
+import { crsChoices, newTrackEpsg } from '../../../utils/projectSettings'
 import { computeStraightValuesUtm, endPointStraightUtm } from '../../../utils/elementUtils'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
@@ -68,7 +69,7 @@ export default function LineForm({ onDone }) {
     click: (e) => {
       const wgs = [e.lngLat.lng, e.lngLat.lat]
       if (!firstPointRef.current) {
-        const utm = wgs84ToUTM(wgs, epsgForLngLat(wgs))   // a new track: its CRS is suggested from the click
+        const utm = wgs84ToUTM(wgs, newTrackEpsg(currentProject(), wgs))   // a new track: in the project's CRS (decision 318)
         firstPointRef.current = utm
         setSelPhase(1)
         setFirstPoint(utm)
@@ -198,8 +199,8 @@ export default function LineForm({ onDone }) {
           <div className="form-field">
             <label>{t('create_crs')}</label>
             <select className="settings-select" value={epsg} onChange={e => handleEpsgChange(e.target.value)}>
-              {EPSG_OPTIONS.map(o => (
-                <option key={o.code} value={o.code}>EPSG {o.code} – {o.label}</option>
+              {crsChoices(epsg).map(o => (
+                <option key={o.code} value={o.code}>{o.label}</option>
               ))}
             </select>
           </div>

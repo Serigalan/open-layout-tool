@@ -16,6 +16,9 @@ function delta(before, after, key = 'id') {
   return { added, removed, changed }
 }
 
+/** The fields the project settings write on the project itself (decision 317). */
+const SETTINGS_FIELDS = ['title', 'description', 'lineCategory', 'epsg']
+
 const switchName = (sw) => sw.name || sw.label || sw.switchId?.slice(0, 8) || '?'
 const platformName = (p) => [p.code, p.stationName].filter(Boolean).join(' · ') || p.id?.slice(0, 8) || '?'
 
@@ -89,6 +92,7 @@ export function describeStep(before, after) {
   if (em.added.length) return { key: 'step_end_mark_added', params: {} }
   if (em.removed.length) return { key: 'step_end_mark_removed', params: {} }
   if (em.changed.length) return { key: 'step_end_mark_changed', params: {} }
+  if (SETTINGS_FIELDS.some(k => before[k] !== after[k])) return { key: 'step_project_settings', params: {} }
   return { key: 'step_project', params: {} }
 }
 

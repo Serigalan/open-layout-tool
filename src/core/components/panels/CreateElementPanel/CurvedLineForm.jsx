@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { saveTrack, loadTracks } from '../../../storage'
-import { wgs84ToUTM, epsgForLngLat, EPSG_OPTIONS, toWgs } from '../../../utils/coordinateUtils'
+import { saveTrack, loadTracks, currentProject } from '../../../storage'
+import { wgs84ToUTM, toWgs } from '../../../utils/coordinateUtils'
+import { crsChoices, newTrackEpsg } from '../../../utils/projectSettings'
 import {
   computeCurvedValuesUtm, arcCoordsFromRadiusUtm,
   signedRadiusFrom3PointsUtm, endPointCurvedUtm,
@@ -77,7 +78,7 @@ export default function CurvedLineForm({ onDone }) {
     click: (e) => {
       const wgs = [e.lngLat.lng, e.lngLat.lat]
       if (!p1Ref.current) {
-        const utm = wgs84ToUTM(wgs, epsgForLngLat(wgs))   // a new track: its CRS is suggested from the first click
+        const utm = wgs84ToUTM(wgs, newTrackEpsg(currentProject(), wgs))   // a new track: in the project's CRS (decision 318)
         p1Ref.current = utm
         setSelPhase(1)
         draw.markers([wgs])
@@ -228,8 +229,8 @@ export default function CurvedLineForm({ onDone }) {
               <div className="form-field">
                 <label>{t('create_crs')}</label>
                 <select className="settings-select" value={startPoint.zone} onChange={e => handleEpsgChange(e.target.value)}>
-                  {EPSG_OPTIONS.map(o => (
-                    <option key={o.code} value={o.code}>EPSG {o.code} – {o.label}</option>
+                  {crsChoices(startPoint.zone).map(o => (
+                    <option key={o.code} value={o.code}>{o.label}</option>
                   ))}
                 </select>
               </div>

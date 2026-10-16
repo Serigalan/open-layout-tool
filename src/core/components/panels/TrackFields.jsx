@@ -1,6 +1,4 @@
-import { TYPE_CODES, SIDE_CODES, LINE_CATEGORIES, TRACK_USES } from '../../utils/identifierUtils'
-import { projectLineCategory } from '../../utils/gradientCheck'
-import { currentProject } from '../../storage'
+import { TYPE_CODES, SIDE_CODES, TRACK_USES } from '../../utils/identifierUtils'
 import StationNameInput from './StationNameInput'
 import useLineNameSuggestion from '../../hooks/useLineNameSuggestion'
 import { useI18n } from '../../locales/i18nContext'
@@ -18,7 +16,7 @@ function lineNumError(owner, lineNumber) {
 
 export default function TrackFields({ fields, setField, name, onNameChange, nameError, lineOptions }) {
   const { t } = useI18n()
-  const { owner, type, lineNumber, lineName, side, stationName, uicStation, trackNumber, lineCategory, trackUse } = fields
+  const { owner, type, lineNumber, lineName, side, stationName, uicStation, trackNumber, trackUse } = fields
   const hasNameField = onNameChange !== undefined
   const lineErr = lineNumError(owner, lineNumber)
   useLineNameSuggestion(lineNumber, lineName, setField, type === 'line_track')
@@ -105,17 +103,6 @@ export default function TrackFields({ fields, setField, name, onNameChange, name
               {nameError && <span className="msg-error msg-small">{t('track_name_exists')}</span>}
             </div>
           )}
-          <div className="form-field">
-            <label>{t('line_category')}</label>
-            <select value={lineCategory ?? ''} onChange={(e) => setField('lineCategory', e.target.value)}>
-              <option value="">
-                {`${t('line_category_project')} (${t(`line_category_${projectLineCategory(currentProject())}`)})`}
-              </option>
-              {LINE_CATEGORIES.map((key) => (
-                <option key={key} value={key}>{t(`line_category_${key}`)}</option>
-              ))}
-            </select>
-          </div>
           <div className="form-field">
             <label>{t('side')}</label>
             <select value={side} onChange={(e) => setField('side', e.target.value)}>

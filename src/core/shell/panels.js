@@ -1,7 +1,8 @@
 import { lazy } from 'react'
-import { LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, CrossSectionIcon, PlanExportIcon, ElevationIcon, CheckIcon } from '../components/icons'
+import { ProjectSettingsIcon, LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, CrossSectionIcon, PlanExportIcon, ElevationIcon, CheckIcon } from '../components/icons'
 
 // Each panel is its own chunk (R9.1), loaded the first time it is opened.
+const ProjectSettingsPanel = lazy(() => import('../components/panels/ProjectSettingsPanel'))
 const LayersPanel = lazy(() => import('../components/panels/LayersPanel'))
 const TopologyPanel = lazy(() => import('../components/panels/TopologyPanel'))
 const CreatePanel = lazy(() => import('../components/panels/CreatePanel'))
@@ -20,10 +21,11 @@ const CheckPanel = lazy(() => import('../components/panels/CheckPanel'))
  * The panels of the map view (R2.3), in the order the sidebar shows them.
  * The sidebar and the panel pane are both made from this list.
  *
- * In the order of the work (R10.7): the view on the map; laying out the
- * alignment — create (platforms too), splice, the switches; editing; the
- * heights; cross sections; checking against the rules; exchange; the plan. The
- * sidebar draws a line where the `group` changes.
+ * In the order of the work (R10.7): the project's settings first (decision
+ * 317); the view on the map; laying out the alignment — create (platforms
+ * too), splice, the switches; editing; the heights; cross sections; checking
+ * against the rules; exchange; the plan. The sidebar draws a line where the
+ * `group` changes.
  *
  *   id          what the shell calls the panel
  *   icon        its sidebar symbol, titleKey its name
@@ -35,6 +37,7 @@ const CheckPanel = lazy(() => import('../components/panels/CheckPanel'))
  *   overlay     the map overlay that belongs to the panel and closes with it
  */
 export const PANELS = [
+  { id: 'project', group: 'project', icon: ProjectSettingsIcon, titleKey: 'project_settings', place: 'top', Component: ProjectSettingsPanel },
   {
     id: 'layers', group: 'view', icon: LayerIcon, titleKey: 'tooltip_layers', place: 'top', Component: LayersPanel,
     props: (s) => ({

@@ -135,7 +135,7 @@ describe('the panel menu icon rule (AP 4.3)', () => {
 // The sidebar rule: 24 grid shown at 20 px, stroke 2, white — the sidebar and
 // the info panel put these on the primary colour.
 const SIDEBAR_ICONS = [
-  'LayerIcon', 'TopologyIcon', 'PlaceIcon', 'ConnectSwitchIcon', 'SpliceElementIcon',
+  'ProjectSettingsIcon', 'LayerIcon', 'TopologyIcon', 'PlaceIcon', 'ConnectSwitchIcon', 'SpliceElementIcon',
   'ElevationIcon', 'CrossSectionIcon', 'EditElementIcon', 'DataExchangeIcon', 'PlanExportIcon',
   'UndoIcon', 'HomeIcon', 'InfoIcon', 'SettingsIcon',
 ]
