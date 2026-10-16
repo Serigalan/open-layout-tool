@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { trackOf } from './tracks'
-import { nearestStop, switchOnTrackRemnant, switchOnTrackStops, switchOnTrackToeValid } from './switches'
-import { straightFrom } from '../elementFactory'
+import {
+  nearestStop, switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackRouteEnd, switchOnTrackStops, switchOnTrackToeValid,
+} from './switches'
+import { arcFrom, straightFrom } from '../elementFactory'
 import { SWITCH_TYPES, switchStraightLength } from '../switch/catalogue'
 
 const EPSG = 25832
@@ -110,5 +112,39 @@ describe('switch on track — where the slider stands', () => {
     expect(nearestStop([100, 115, 116], 104)).toBe(100)
     expect(nearestStop([100, 115, 116], 110)).toBe(115)
     expect(nearestStop([], 110)).toBeNull()
+  })
+})
+
+describe('switch on track — where the new route ends, without the symbol', () => {
+  /** A track of a straight and an arc of `r`, 300 m each. */
+  function bentHost(r) {
+    const a = straightFrom(START, 30, 300)
+    const b = arcFrom({ easting: a.endNode[0], northing: a.endNode[1], zone: EPSG }, 30, 300, r)
+    return trackOf([a, b], EPSG, { name: 'line.001' }, 'host')
+  }
+  const full = (args, x) => {
+    const g = switchOnTrackPlacement({ ...args, toeStation: x }).geom
+    return g.swapped ? { utm: g.swapped.straightUtm, bearing: g.swapped.mainEndBearing }
+      : { utm: g.curvedUtm, bearing: g.branchEndBearing }
+  }
+
+  it('is the end the full geometry gives — on a straight, across a joint, bent either way, swapped', () => {
+    for (const r of [1200, -1200, -760, 760]) {
+      for (const side of ['left', 'right']) {
+        for (const reversed of [false, true]) {
+          const args = { track: bentHost(r), reversed, sw: FORM, side, straightLen: switchStraightLength(FORM) }
+          for (const x of [150, 290, 420]) {
+            const light = switchOnTrackRouteEnd(args, x)
+            const want = full(args, x)
+            expect(Math.hypot(light.utm.easting - want.utm.easting, light.utm.northing - want.utm.northing)).toBeLessThan(1e-9)
+            expect(Math.abs(((light.bearing - want.bearing + 540) % 360) - 180)).toBeLessThan(1e-9)
+          }
+        }
+      }
+    }
+  })
+
+  it('is null where the turnout cannot lie', () => {
+    expect(switchOnTrackRouteEnd(argsOf(twoStraights(100)), 195)).toBeNull()
   })
 })

@@ -1027,8 +1027,10 @@ export function updateSwitch(switchId, patch) {
  * @param {object[]} [ops.addEndMarks]   buffer stops / boundaries on the new tracks' ends
  * @param {object[]} [ops.append]        [{ trackId, elements }] appended to standing tracks
  *                                       (a trailing turnout's through route)
+ * @param {object[]} [ops.restation]     [{ trackId, shift }] tracks that grew at their start:
+ *                                       their platforms move by `shift` [m]
  */
-export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwitches, remap, addEndMarks, append = [], consumed = [] }) {
+export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwitches, remap, addEndMarks, append = [], consumed = [], restation = [] }) {
   return mutate(p => {
     const removeSet = new Set(removeTrackIds)
     const appendTo = new Map(append.map(a => [a.trackId, a.elements]))
@@ -1045,6 +1047,13 @@ export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwit
     }
     next = { ...next, switches: [...(next.switches ?? []), ...(addSwitches ?? [])] }
     if (addEndMarks?.length) next = { ...next, endMarks: [...(next.endMarks ?? []), ...addEndMarks] }
+    // A track that grew at its start moves everything stationed along it.
+    const shiftOf = new Map(restation.map(r => [r.trackId, r.shift]))
+    if (shiftOf.size && next.platforms?.length) {
+      next = { ...next, platforms: next.platforms.map(pl => (!shiftOf.has(pl.trackId) ? pl : {
+        ...pl, startStation: (pl.startStation ?? 0) + shiftOf.get(pl.trackId), endStation: (pl.endStation ?? 0) + shiftOf.get(pl.trackId),
+      })) }
+    }
     return next
   })
 }

@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import SCurveForm from './SCurveForm'
 import SwitchOnTrackForm from './SwitchOnTrackForm'
+import SwitchConnectForm from './SwitchConnectForm'
 import CrossingOnTrackForm from './CrossingOnTrackForm'
 import TrackLinkForm from './TrackLinkForm'
 import SwitchSearch from './SwitchSearch'
 import CrossoverGradientForm from '../CrossoverGradientForm'
 import {
-  SwitchOnTrackIcon, SwitchConnectionIcon, CrossingOnTrackIcon, SwitchLinkIcon,
+  SwitchOnTrackIcon, SwitchConnectTrackIcon, SwitchConnectionIcon, CrossingOnTrackIcon, SwitchLinkIcon,
 } from '../../icons'
 import { useI18n } from '../../../locales/i18nContext'
 import BackButton from '../BackButton'
@@ -22,6 +23,14 @@ export default function ConnectSwitchPanel() {
       <BackButton onBack={back} />
       <h2>{t('switch_on_track')}</h2>
       <SwitchOnTrackForm onCommitted={() => setPage('menu')} />
+    </>
+  )
+
+  if (page === 'connect') return (
+    <>
+      <BackButton onBack={back} />
+      <h2>{t('switch_connect_track')}</h2>
+      <SwitchConnectForm onCommitted={() => setPage('menu')} />
     </>
   )
 
@@ -69,6 +78,10 @@ export default function ConnectSwitchPanel() {
         <button className="create-element-btn" onClick={() => setPage('ontrack')}>
           <SwitchOnTrackIcon />
           {t('switch_on_track')}
+        </button>
+        <button className="create-element-btn" onClick={() => setPage('connect')}>
+          <SwitchConnectTrackIcon />
+          {t('switch_connect_track')}
         </button>
         <button className="create-element-btn" onClick={() => setPage('scurve')}>
           <SwitchConnectionIcon />

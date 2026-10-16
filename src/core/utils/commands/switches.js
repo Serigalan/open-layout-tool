@@ -6,8 +6,8 @@ import {
   computeCrossingGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius,
 } from '../switch/crossing'
 import { computeSwitchGeometryUtm } from '../switch/symbol'
-import { switchBranchLength } from '../switch/catalogue'
-import { switchRouteVaries } from '../switch/route'
+import { switchBranchLength, switchFormChain } from '../switch/catalogue'
+import { switchBranchChain, switchChainBearingAt, switchChainPointUtm, switchChainTo, switchRouteVaries } from '../switch/route'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../switchModel'
 import { cantExceptionFields, worstCantOf } from '../rules/cant'
 import { placeSwitchOnTrack } from '../switchPlacement'
@@ -66,6 +66,38 @@ export function switchOnTrackPlacement({ track, toeStation, reversed, sw, side, 
     error: null, place, plain,
     geom: computeSwitchGeometryUtm(place.toeUtm, place.bearing, sw, side, false, toeWgs,
       plain ? null : place.pieces),
+  }
+}
+
+/**
+ * Where the new route of a turnout laid into `track` at `toeStation` ends —
+ * the branch's end, or for a swapped turnout (computeSwitchGeometryUtm) the
+ * straight's — and its tangent there: `{ utm, bearing }`, or null where the
+ * turnout cannot lie. The same answer switchOnTrackPlacement's geometry gives,
+ * without building the symbol and its polylines: a search that asks it at
+ * every metre of a track needs only this (connectSwitch).
+ */
+export function switchOnTrackRouteEnd({ track, reversed, sw, side, straightLen }, toeStation) {
+  if (!track || !Number.isFinite(toeStation)) return null
+  if (sw.symmetric) {
+    const p = switchOnTrackPlacement({ track, toeStation, reversed, sw, side, straightLen })
+    if (p.error || !p.geom) return null
+    return { utm: p.geom.curvedUtm, bearing: p.geom.branchEndBearing }
+  }
+  const { error, place } = placeOnTrack({ track, toeStation, reversed, sw, side, straightLen })
+  if (error) return null
+  const plain = place.pieces.every(pc => pc.r1 == null && pc.r2 == null)
+  const stem = plain ? [{ length: straightLen, r1: null, r2: null }] : switchChainTo(place.pieces, straightLen)
+  const branch = switchBranchChain(switchFormChain(sw, side), stem)
+  // Bent so that the branch comes out straight all along, it is the plain
+  // form with its routes swapped: the new route is the straight from the toe.
+  if (!plain && branch.every(pc => pc.r1 == null && pc.r2 == null)) {
+    const straight = [{ length: straightLen, r1: null, r2: null }]
+    return { utm: switchChainPointUtm(place.toeUtm, place.bearing, straight), bearing: place.bearing }
+  }
+  return {
+    utm: switchChainPointUtm(place.toeUtm, place.bearing, branch),
+    bearing: switchChainBearingAt(place.bearing, branch),
   }
 }
 
