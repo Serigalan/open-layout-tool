@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lengthRuleFormula, transitionChain, transitionCheck, transitionLengths } from './transitionLength'
+import { connectTransitionLengths, lengthRuleFormula, transitionChain, transitionCheck, transitionHasError, transitionLengths } from './transitionLength'
 
 const straight = { elementType: 0, cant: 0, speed: 120 }
 const arc = (radius, cant, speed = 120) => ({ elementType: 1, radius, cant, speed })
@@ -81,5 +81,18 @@ describe('the length of a transition by the rules', () => {
     const check = transitionCheck(transitionChain({ prev: straight, next: arc(1000, 100), length: 50, speed: 120 }))
     expect(check.severity).toBe('error')
     expect(check.results.find(r => r.id === 'LP.UB.03').severity).toBe('error')
+  })
+})
+
+describe('the transition out of a canted arc into a straight (Entscheidung 316)', () => {
+  it('has a Regellänge that ramps the cant down without an error, longer the more cant there is', () => {
+    const at = (cant) => connectTransitionLengths({ prevCant: cant, r1: 600, type: 'clothoid', speed: 100 }).regular
+    expect(at(100)).toBeGreaterThan(0)
+    expect(at(140)).toBeGreaterThan(at(60))
+    const chain = transitionChain({
+      prev: { elementType: 1, radius: 600, cant: 100, speed: 100 }, next: { elementType: 0, cant: 0, speed: 100 },
+      r1: 600, length: at(100), speed: 100,
+    })
+    expect(transitionHasError(chain)).toBe(false)
   })
 })

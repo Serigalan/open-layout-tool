@@ -4,7 +4,7 @@ import NumberInput from '../../form/NumberInput'
 import { splitUnit } from '../../../locales/i18n'
 import RuleFindings from '../RuleFindings'
 import TransitionLengthButtons from '../TransitionLengthButtons'
-import { transitionChain, transitionLengths } from '../../../utils/rules/transitionLength'
+import { connectTransitionLengths, transitionChain } from '../../../utils/rules/transitionLength'
 
 /**
  * The transition a connect dialog may put in front of what it appends.
@@ -25,11 +25,9 @@ export default function TransitionCurveSection({
   // elements are rebuilt on every render — what they are made of is not.
   const has = enabled && !!next
   const [prevCant, nextRadius, nextCant] = [prev?.cant ?? 0, next?.radius ?? null, next?.cant ?? 0]
-  const lengths = useMemo(() => (has ? transitionLengths({
-    prev: { elementType: 0, cant: prevCant, speed },
-    next: { elementType: nextRadius ? 1 : 0, radius: nextRadius, cant: nextCant, speed },
-    r1, type, speed,
-  }) : null), [has, prevCant, nextRadius, nextCant, r1, type, speed])
+  const lengths = useMemo(() => (has
+    ? connectTransitionLengths({ prevCant, nextRadius, nextCant, r1, type, speed })
+    : null), [has, prevCant, nextRadius, nextCant, r1, type, speed])
   const chain = enabled && next ? transitionChain({ prev, next, r1, length, type, speed }) : null
   return (
     <div className="element-form">

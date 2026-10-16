@@ -185,6 +185,7 @@
   "cant_regel_hint": "Sets the standard cant of LP.KB.04 (6.5 · v² / R, rounded to 5 mm, capped at the admissible cant)",
   "cant_def": "Cant deficiency (mm)",
   "connect_cant_inherited": "Without a transition curve the cant stays as on the preceding element; with one the standard cant is proposed.",
+  "connect_straight_transition_auto": "After a canted arc the transition curve is switched on and set to its standard length – length and shape can be changed.",
   "splice_cant_kept": "Without a transition curve the cant stays as on the adjoining element; with transitions on both sides the standard cant is proposed.",
   "utm_start": "Start Node",
   "utm_end": "End Node",

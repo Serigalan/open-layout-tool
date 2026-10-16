@@ -146,6 +146,19 @@ export function transitionLengths({ prev, next, r1 = null, type = 'clothoid', sp
   return { regular: regular.length, minimum: minimum.length, regularBy: regular.by, minimumBy: minimum.by }
 }
 
+/**
+ * transitionLengths for the transition a connect dialog puts in front of what
+ * it appends, read from what decides them: the cant the track ends with
+ * (`prevCant`), the radius and cant of what is appended (`nextRadius` null: a
+ * straight), the radius it leaves (`r1`), its shape and the speed.
+ */
+export const connectTransitionLengths = ({ prevCant = 0, nextRadius = null, nextCant = 0, r1 = null, type, speed }) =>
+  transitionLengths({
+    prev: { elementType: 0, cant: prevCant, speed },
+    next: { elementType: nextRadius ? 1 : 0, radius: nextRadius, cant: nextCant, speed },
+    r1, type, speed,
+  })
+
 /** Does the catalogue call anything about the transition of such a chain an error? */
 export const transitionHasError = (chain) =>
   severityRank(transitionCheck(chain).severity) >= severityRank('error')

@@ -6,7 +6,8 @@ import { computeClothoidUtm } from '../../../utils/clothoidUtils'
 import { SAGITTA_ELEMENT } from '../../../utils/geometryPrecision'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
-import { transitionChain, transitionHasError } from '../../../utils/rules/transitionLength'
+import { connectTransitionLengths, transitionChain, transitionHasError } from '../../../utils/rules/transitionLength'
+import useDerivedField from '../../../hooks/useDerivedField'
 import RuleFindings from '../RuleFindings'
 import { hasRuleError } from '../../../utils/trassierungCheck'
 import { useI18n } from '../../../locales/i18nContext'
@@ -39,7 +40,18 @@ export default function ConnectStraightForm({ onCommitted }) {
   const [lastEl, setLastEl]                 = useState(null)   // the element the track ends with
   const [transitionEnabled, setTransitionEnabled] = useState(false)
   const [transitionType, setTransitionType]       = useState('clothoid')
-  const [transitionLength, setTransitionLength]   = useState(20)
+
+  // Out of a canted arc the cant has to come down over a transition: it is
+  // switched on when the track is picked and its length follows the
+  // Regellänge for speed and shape — until the user sets one; it can be
+  // switched off as well (Entscheidung 316).
+  const prevCant = lastEl?.cant ?? 0
+  const outOfCant = prevRadius !== null && prevCant !== 0
+  const regularLength = useMemo(() => (outOfCant
+    ? connectTransitionLengths({ prevCant, r1: prevRadius, type: transitionType, speed }).regular
+    : null), [outOfCant, prevCant, prevRadius, transitionType, speed])
+  const [transitionLength, setTransitionLength, clearTransitionLength] = useDerivedField(
+    outOfCant ? `regular|${speed}|${transitionType}` : 'plain', regularLength ?? 20)
 
   const bearingRef        = useRef(null)
   const startRef          = useRef(null)   // UTM
@@ -68,6 +80,7 @@ export default function ConnectStraightForm({ onCommitted }) {
       setSpeed(inheritedSpeed(track) ?? a.lastEl.speed ?? 80)
       setPrevRadius(a.lastEl.radius ?? null)
       setLastEl(a.lastEl)
+      setTransitionEnabled(a.lastEl.radius != null && (a.lastEl.cant ?? 0) !== 0)
       prevRadiusRef.current = a.lastEl.radius ?? null
       bearingRef.current    = a.bearing
       startRef.current      = a.endUtm
@@ -183,6 +196,7 @@ export default function ConnectStraightForm({ onCommitted }) {
     setLastEl(null)
     setTransitionEnabled(false)
     setTransitionType('clothoid')
+    clearTransitionLength()
     onCommitted?.()
   }
 
@@ -205,6 +219,9 @@ export default function ConnectStraightForm({ onCommitted }) {
           onLengthChange={setTransitionLength}
           prev={lastEl} next={nextEl} r1={prevRadius} speed={speed}
         />
+      )}
+      {selectedTrack && outOfCant && transitionEnabled && (
+        <p className="msg-hint">{t('connect_straight_transition_auto')}</p>
       )}
 
       {selectedTrack && (
