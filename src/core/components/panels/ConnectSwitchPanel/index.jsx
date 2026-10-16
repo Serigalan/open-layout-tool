@@ -1,15 +1,12 @@
 import { useState } from 'react'
-import ConnectStraightSwitchForm from './ConnectStraightSwitchForm'
 import SCurveForm from './SCurveForm'
 import SwitchOnTrackForm from './SwitchOnTrackForm'
-import CrossingForm from './CrossingForm'
 import CrossingOnTrackForm from './CrossingOnTrackForm'
 import TrackLinkForm from './TrackLinkForm'
 import SwitchSearch from './SwitchSearch'
 import CrossoverGradientForm from '../CrossoverGradientForm'
 import {
-  SwitchStraightIcon, SwitchCurvedIcon, SwitchOnTrackIcon, SwitchConnectionIcon,
-  CrossingIcon, CrossingSwitchIcon, CrossingOnTrackIcon, SwitchLinkIcon,
+  SwitchOnTrackIcon, SwitchConnectionIcon, CrossingOnTrackIcon, SwitchLinkIcon,
 } from '../../icons'
 import { useI18n } from '../../../locales/i18nContext'
 import BackButton from '../BackButton'
@@ -19,22 +16,6 @@ export default function ConnectSwitchPanel() {
   const [page, setPage] = useState('menu')
   const [crossover, setCrossover] = useState(null)   // switchIds of a crossover just laid in a curve
   const back = () => setPage('menu')
-
-  if (page === 'straight') return (
-    <>
-      <BackButton onBack={back} />
-      <h2>{t('switch_straight')}</h2>
-      <ConnectStraightSwitchForm onCommitted={() => setPage('menu')} />
-    </>
-  )
-
-  if (page === 'curved') return (
-    <>
-      <BackButton onBack={back} />
-      <h2>{t('switch_curved')}</h2>
-      <ConnectStraightSwitchForm curved onCommitted={() => setPage('menu')} />
-    </>
-  )
 
   if (page === 'ontrack') return (
     <>
@@ -62,24 +43,6 @@ export default function ConnectSwitchPanel() {
     </>
   )
 
-  if (page === 'crossing') return (
-    <>
-      <BackButton onBack={back} />
-      <h2>{t('crossing_title')}</h2>
-      <CrossingForm
-        onCommitted={() => setPage('menu')} initialKind="crossing" />
-    </>
-  )
-
-  if (page === 'crossing_switch') return (
-    <>
-      <BackButton onBack={back} />
-      <h2>{t('crossing_title')}</h2>
-      <CrossingForm
-        onCommitted={() => setPage('menu')} initialKind="single_slip" />
-    </>
-  )
-
   if (page === 'crossing_ontrack') return (
     <>
       <BackButton onBack={back} />
@@ -103,14 +66,6 @@ export default function ConnectSwitchPanel() {
       <h2>{t('connect_switch')}</h2>
       <SwitchSearch />
       <div className="create-element-options">
-        <button className="create-element-btn" onClick={() => setPage('straight')}>
-          <SwitchStraightIcon />
-          {t('switch_straight')}
-        </button>
-        <button className="create-element-btn" onClick={() => setPage('curved')}>
-          <SwitchCurvedIcon />
-          {t('switch_curved')}
-        </button>
         <button className="create-element-btn" onClick={() => setPage('ontrack')}>
           <SwitchOnTrackIcon />
           {t('switch_on_track')}
@@ -120,14 +75,6 @@ export default function ConnectSwitchPanel() {
           {t('scurve_title')}
         </button>
         <hr className="divider divider-wide" />
-        <button className="create-element-btn" onClick={() => setPage('crossing')}>
-          <CrossingIcon />
-          {t('crossing')}
-        </button>
-        <button className="create-element-btn" onClick={() => setPage('crossing_switch')}>
-          <CrossingSwitchIcon />
-          {t('crossing_switch')}
-        </button>
         <button className="create-element-btn" onClick={() => setPage('crossing_ontrack')}>
           <CrossingOnTrackIcon />
           {t('crossing_on_track')}

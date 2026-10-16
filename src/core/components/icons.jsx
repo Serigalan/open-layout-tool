@@ -130,27 +130,6 @@ export const ConnectCurvedIcon = () => (
 )
 
 // Connect switch panel
-export const SwitchStraightIcon = () => (
-  <MenuIcon>
-    <path d="M4 14 V2" />
-    <path d="M4 14 A10 10 0 0 1 12 4" />
-    <IconNode cx={4} cy={14} />
-    <IconNode cx={4} cy={2} />
-    <IconNode cx={12} cy={4} />
-  </MenuIcon>
-)
-
-// A curved turnout: both routes leave curved, into opposite directions.
-export const SwitchCurvedIcon = () => (
-  <MenuIcon>
-    <path d="M6 14c.134-4.828 1.5-7.665 6-10" />
-    <path d="M6 14C5.374 8.763 4.261 5.673 2 2" />
-    <IconNode cx={6} cy={14} />
-    <IconNode cx={12} cy={4} />
-    <IconNode cx={2} cy={2} />
-  </MenuIcon>
-)
-
 // A turnout laid into an existing track: the track runs through, the branch
 // leaves it.
 export const SwitchOnTrackIcon = () => (
@@ -158,6 +137,18 @@ export const SwitchOnTrackIcon = () => (
     <path d="M1 11 H15" />
     <path d="M6 11 L14.475 4.265" />
     <IconNode cx={6} cy={11} />
+  </MenuIcon>
+)
+
+// A turnout laid into a track whose branch runs on into another track's end:
+// the track through, the branch, and the track it meets, fainter.
+export const SwitchConnectTrackIcon = () => (
+  <MenuIcon>
+    <path d="M1 12 H15" />
+    <path d="M4 12 L9 8" />
+    <path d="M9 8 Q11.5 6 15 5" opacity="0.55" />
+    <IconNode cx={4} cy={12} />
+    <IconNode cx={9} cy={8} />
   </MenuIcon>
 )
 
@@ -315,35 +306,6 @@ export const BandsIcon = () => (
   </MenuIcon>
 )
 
-// The two crossing kinds AP 3.2/3.3 will place — drawn ahead of the geometry,
-// so the panels that place them reach for an icon instead of a placeholder.
-// A crossing is two routes that cross, one node per port. A crossing switch is
-// that crossing with a slip route joining the two ends on each side of it —
-// the double-slip drawing; the single slip is it with one bow left out.
-export const CrossingIcon = () => (
-  <MenuIcon>
-    <path d="M2 2 L14 14" />
-    <path d="M14 2 L2 14" />
-    <IconNode cx={2} cy={2} />
-    <IconNode cx={14} cy={14} />
-    <IconNode cx={14} cy={2} />
-    <IconNode cx={2} cy={14} />
-  </MenuIcon>
-)
-
-export const CrossingSwitchIcon = () => (
-  <MenuIcon>
-    <path d="M2 2 L14 14" />
-    <path d="M14 2 L2 14" />
-    <path d="M2 2 Q8 6 14 2" />
-    <path d="M2 14 Q8 10 14 14" />
-    <IconNode cx={2} cy={2} />
-    <IconNode cx={14} cy={14} />
-    <IconNode cx={14} cy={2} />
-    <IconNode cx={2} cy={14} />
-  </MenuIcon>
-)
-
 // A crossing laid into an existing track: the track runs through it, the cross
 // route crosses it — the crossing kinds' counterpart of the turnout on a track.
 export const CrossingOnTrackIcon = () => (
@@ -351,6 +313,18 @@ export const CrossingOnTrackIcon = () => (
     <path d="M1 8 H15" />
     <path d="M4 2 L12 14" />
     <IconNode cx={8} cy={8} />
+  </MenuIcon>
+)
+
+// A crossing laid into a track whose cross route runs on into another track's
+// end on one side: the track through, the cross route, and the track it meets.
+export const CrossingConnectTrackIcon = () => (
+  <MenuIcon>
+    <path d="M1 9 H15" />
+    <path d="M4 14 L10 4" />
+    <path d="M10 4 Q12 2.5 14.5 2" opacity="0.55" />
+    <IconNode cx={7} cy={9} />
+    <IconNode cx={10} cy={4} />
   </MenuIcon>
 )
 
