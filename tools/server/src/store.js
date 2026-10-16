@@ -1,6 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
-import { SCHEMA_VERSION } from '../../../src/core/utils/persistenceUtils.js'
+import { ApiError } from './errors.js'
+
+/**
+ * What `revision.schema_version` says of a record: 1 is oltjson-1.x (decision
+ * 333). Rows of the layout before it (2) are not read — they were not
+ * converted (decision 333), and opening one says so instead of failing
+ * somewhere in the browser.
+ */
+const STORED_FORMAT = 1
 
 
 const pack = (payload) => gzipSync(Buffer.from(JSON.stringify(payload)))
@@ -88,7 +96,7 @@ export function createStore(db, { now = () => Date.now() } = {}) {
     const { lastInsertRowid } = q.insertRevision.run({
       project_id: projectId, number: q.nextNumber.get(projectId), variant_id: variantId,
       parent_id: parentId, merge_parent_id: mergeParentId, author_id: authorId, created_at: iso(),
-      message: String(message ?? ''), schema_version: SCHEMA_VERSION, payload: pack(payload),
+      message: String(message ?? ''), schema_version: STORED_FORMAT, payload: pack(payload),
       remaps: JSON.stringify(remaps ?? []), error_keys: JSON.stringify(errorKeys),
       image_hash: typeof payload?.imageHash === 'string' ? payload.imageHash : null,
     })
@@ -136,6 +144,7 @@ export function createStore(db, { now = () => Date.now() } = {}) {
     revision(id) {
       const r = q.revisionFull.get(id)
       if (!r) return null
+      if (r.schema_version !== STORED_FORMAT) throw new ApiError(409, 'format_outdated')
       return { meta: revisionMeta(id), payload: unpack(r.payload), remaps: JSON.parse(r.remaps), errorKeys: JSON.parse(r.error_keys) }
     },
 

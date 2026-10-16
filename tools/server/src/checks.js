@@ -1,4 +1,4 @@
-import { PayloadError, SCHEMA_VERSION, dehydrateProjects, parseProjectsPayload } from '../../../src/core/utils/persistenceUtils.js'
+import { PayloadError, dehydrateProjects, parseProjectsPayload, projectsPayload } from '../../../src/core/utils/persistenceUtils.js'
 import { newFindings, validateProject } from '../../../src/core/utils/validateProject.js'
 import { ApiError } from './errors.js'
 
@@ -14,7 +14,7 @@ export function checkRecord(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new ApiError(422, 'invalid_payload')
   let parsed
   try {
-    parsed = parseProjectsPayload({ version: SCHEMA_VERSION, projects: [payload] })
+    parsed = parseProjectsPayload(projectsPayload([payload]))
   } catch (err) {
     throw new ApiError(422, err instanceof PayloadError ? err.code : 'invalid_payload')
   }
@@ -30,7 +30,7 @@ export function checkRecord(payload) {
  */
 export function normalizedRecord(payload) {
   try {
-    return dehydrateProjects(parseProjectsPayload({ version: SCHEMA_VERSION, projects: [payload] }).projects)[0]
+    return dehydrateProjects(parseProjectsPayload(projectsPayload([payload])).projects)[0]
   } catch {
     return payload
   }

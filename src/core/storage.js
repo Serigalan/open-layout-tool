@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION, hydrateProjects, dehydrateProjects } from './utils/persistenceUtils'
+import { hydrateProjects, dehydrateProjects, projectsPayload } from './utils/persistenceUtils'
 import { elementBelongsToSwitch, portsOf, unmarkSwitchElement, portTrack, portEnd } from './utils/switchModel'
 import { rebuildSwitchSymbol } from './utils/switch/symbol'
 import { sliceHeights } from './utils/heightUtils'
@@ -593,7 +593,7 @@ export function setTracksHidden(trackIds, hidden) {
  */
 export function exportProjectsPayload() {
   const projects = _project ? [structuredClone(_project)] : []
-  return { version: SCHEMA_VERSION, projects: dehydrateProjects(projects) }
+  return projectsPayload(dehydrateProjects(projects))
 }
 
 // ── plan header ─────────────────────────────────────────────────────────────

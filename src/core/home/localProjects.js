@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION, parseProjectsPayload } from '../utils/persistenceUtils'
+import { FORMAT_NAME, PayloadError, parseProjectsPayload, projectsPayload } from '../utils/persistenceUtils'
 import { generateId } from '../utils/identifierUtils'
 import { closeStoredProject, currentStoredMeta, openStoredProject } from '../storage'
 import { storedBytes } from '../localStore'
@@ -64,10 +64,14 @@ export function summaryOf({ id, project, createdAt, updatedAt }) {
   }
 }
 
+/**
+ * Every record is stored with the format it is in (oltjson-1.0, decision 333);
+ * one without is from before it and is not opened — it was not converted.
+ */
 async function put(record) {
   const db = await openDb()
   const tx = db.transaction([PROJECTS, SUMMARIES], 'readwrite')
-  tx.objectStore(PROJECTS).put(record)
+  tx.objectStore(PROJECTS).put({ ...record, format: FORMAT_NAME })
   tx.objectStore(SUMMARIES).put(summaryOf(record))
   await txDone(tx)
 }
@@ -99,7 +103,7 @@ export async function createLocalProject({ title, description = '', image = null
 }
 
 /**
- * The projects of a file (`{ version, projects }`, as exported here or from a
+ * The projects of a file (oltjson-1.0, as exported here or from a
  * server variant) as projects of their own — each a new id, so a file read
  * in twice is two projects, each naming the coordinate system most of its
  * tracks lie in where it names none (decision 322). Throws the PayloadError of
@@ -117,17 +121,18 @@ export async function importLocalProjects(data, fallbackTitle = '') {
   return projects.length
 }
 
-/** The file of one project: `{ version, projects: [record] }`, its picture embedded. */
+/** The file of one project (oltjson-1.0), its picture embedded. */
 export async function exportLocalProject(id) {
   const record = await get(id)
   if (!record) return null
-  return { version: SCHEMA_VERSION, projects: [record.project] }
+  return projectsPayload([record.project])
 }
 
 /** Change a project's title, description or picture (`image` a data URL, null to take it away). */
 export async function updateLocalProject(id, { title, description, image }) {
   const record = await get(id)
   if (!record) return
+  if (record.format !== FORMAT_NAME) throw new PayloadError('format_outdated')
   const project = { ...record.project }
   if (title !== undefined) project.title = title
   if (description !== undefined) project.description = description
@@ -156,6 +161,7 @@ export async function deleteLocalProject(id) {
 export async function openLocalProject(id) {
   const record = await get(id)
   if (!record) throw new Error(`no project ${id}`)
+  if (record.format !== FORMAT_NAME) throw new PayloadError('format_outdated')
   const { createdAt } = record
   return openStoredProject({
     project: record.project, idLog: record.idLog ?? [], key: id, meta: { localId: id },

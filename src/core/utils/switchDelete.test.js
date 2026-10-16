@@ -9,9 +9,7 @@ import { utmToWgs84 } from './coordinateUtils'
 import { SAGITTA_ELEMENT, SAGITTA_TRACK } from './geometryPrecision'
 import { newSwitchFields, switchElementMark } from './switchModel'
 import { splitElementAt, carveSwitchRoute } from './trackSplitUtils'
-import {
-  SCHEMA_VERSION, dehydrateProjects, hydrateProjects, parseProjectsPayload,
-} from './persistenceUtils'
+import { dehydrateProjects, hydrateProjects, parseProjectsPayload, projectsPayload } from './persistenceUtils'
 import { joinHeights, splitHeights } from './heightUtils'
 import {
   switchParts, planSwitchDeletion, keptRoutes, mergeableRun, mergeChain,
@@ -515,7 +513,7 @@ describe('a switch further along the same track', () => {
       tracks: after,
       switches: remapSwitches([rec2], plan.remap),
     }
-    const payload = { version: SCHEMA_VERSION, projects: dehydrateProjects(structuredClone([project])) }
+    const payload = projectsPayload(dehydrateProjects(structuredClone([project])))
     const { projects } = parseProjectsPayload(structuredClone(payload))
     const [reloaded] = hydrateProjects(projects)
 

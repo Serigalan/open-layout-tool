@@ -13,7 +13,7 @@ import fixture from '../test/fixtures/mdb_weiche.json'
 import crossingFixture from '../test/fixtures/mdb_kreuzungsweiche.json'
 import bogenFixture from '../test/fixtures/mdb_bogenkreuzungsweiche.json'
 import symFixture from '../test/fixtures/mdb_symmetrische_weiche.json'
-import { parseProjectsPayload, hydrateProjects, dehydrateProjects, SCHEMA_VERSION } from './persistenceUtils'
+import { parseProjectsPayload, hydrateProjects, dehydrateProjects, projectsPayload } from './persistenceUtils'
 
 /**
  * AP 6.3 — the inventory put onto the tracks the same import built.
@@ -331,7 +331,7 @@ describe('an imported switch is stored like a built one', () => {
 
   it('passes the payload gate a saved project has to pass', () => {
     const projects = [{ id: 'p1', name: 'MDB', tracks: placed.tracks, switches: placed.switches }]
-    const payloadOut = { version: SCHEMA_VERSION, projects: dehydrateProjects(projects) }
+    const payloadOut = projectsPayload(dehydrateProjects(projects))
     expect(() => parseProjectsPayload(JSON.parse(JSON.stringify(payloadOut)))).not.toThrow()
   })
 

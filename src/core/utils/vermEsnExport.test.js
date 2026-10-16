@@ -11,6 +11,7 @@ import { arcFrom, straightFrom } from './elementFactory'
 import { resolveRoute } from './routes'
 import { tangentLength } from './heightUtils'
 import { hasPekBestand, loadPekBestand } from '../test/pekFixture'
+import { hydrateProjects } from './persistenceUtils'
 
 const EPSG = 5684
 const bufferOf = (bytes) => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
@@ -260,7 +261,8 @@ describe.skipIf(!hasPekBestand)('PEK Bestand', () => {
   })
 
   it('a route over three tracks reads back to its own chain, each run in the route\'s direction', () => {
-    const { tracks, switches } = loadPekBestand()
+    // As the app has it: loaded, its arcs' end bearings derived again.
+    const { tracks, switches } = hydrateProjects([loadPekBestand()])[0]
     // From every track, both ways, the longest run of three that can be had.
     let checked = 0, reversed = 0, worst = 0
     for (const first of tracks.filter(t => t.elements?.length)) {

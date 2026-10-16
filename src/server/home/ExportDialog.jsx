@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api, blobUrl } from '../api/client'
-import { SCHEMA_VERSION } from '../../core/utils/persistenceUtils'
+import { projectsPayload } from '../../core/utils/persistenceUtils'
 import { downloadJSON } from '../../core/utils/fileUtils'
 import { useI18n } from '../../core/locales/i18nContext'
 import FormDialog from '../../core/components/home/FormDialog'
@@ -29,7 +29,7 @@ export default function ExportDialog({ project, onCancel, onDone }) {
     const { imageHash, ...record } = payload
     const image = imageHash ? await imageAsDataUrl(imageHash) : null
     const exported = { ...record, title: project.title, ...(image ? { image } : {}) }
-    downloadJSON({ version: SCHEMA_VERSION, projects: [exported] }, `${project.title} – ${variant.name}.json`)
+    downloadJSON(projectsPayload([exported]), `${project.title} – ${variant.name}.json`)
     onDone()
   })
   return (

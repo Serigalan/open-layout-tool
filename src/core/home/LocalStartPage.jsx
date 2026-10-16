@@ -84,8 +84,8 @@ export default function LocalStartPage({ onOpen }) {
     setError(null)
     try {
       await onOpen(project.id)
-    } catch {
-      setError(t('local_open_failed'))
+    } catch (err) {
+      setError(t(err instanceof PayloadError && err.code === 'format_outdated' ? 'collab_err_format_outdated' : 'local_open_failed'))
       setOpening(null)
     }
   }

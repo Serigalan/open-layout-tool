@@ -1,5 +1,6 @@
 import { wgs84ToUTM, utmToWgs84 } from './coordinateUtils'
 import { STRAIGHT_VERTEX_SPACING } from './geometryPrecision'
+import { transitionBearingAtUtm } from './clothoidUtils'
 
 // Every function here works in the track's own projected plane on
 // { easting, northing, zone } points (zone = the track's epsg). WGS84 is only
@@ -224,9 +225,28 @@ export function signedRadiusFrom3PointsUtm(p1, p2, p3) {
 }
 
 /**
- * End bearing of a stored element: the stored one when present (arcs,
- * transitions, kinked straights), otherwise derived from an arc's nodes and
- * radius, otherwise the element's own bearing (a plain straight).
+ * The end bearing an element's own design values give it: an arc's bearing
+ * turned by length / radius, a transition's by the heading its profile
+ * accumulates — null for a straight, which has none of its own. A stored
+ * `endBearing` that agrees with it is not kept in the file (oltjson-1.0,
+ * decision 333); one that does not — a kinked straight, an imported tangent —
+ * is.
+ */
+export function derivedEndBearing(element) {
+  if (element?.bearing == null || !(element.length >= 0)) return null
+  if (element.radius) return bearingAfterUtm(element.bearing, element.length, element.radius)
+  if (element.elementType === 2 && element.r1 !== undefined) {
+    return transitionBearingAtUtm(element.bearing, element.length, element.r1, element.r2 ?? null, element.transitionType)
+  }
+  return null
+}
+
+/**
+ * End bearing of an element in memory: the stated one when present (arcs and
+ * transitions as built or loaded, kinked straights), otherwise derived from an
+ * arc's nodes and radius — the pieces a split carves have their nodes exact and
+ * their length to the computation's own rounding — otherwise the element's own
+ * bearing (a plain straight).
  */
 export function resolveEndBearing(element, epsg = null) {
   if (element.endBearing != null) return element.endBearing

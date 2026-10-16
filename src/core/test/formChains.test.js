@@ -127,7 +127,7 @@ describe('connect element — the cant proposed for the arc (Entscheidung 315)',
 })
 
 describe('the committed chain survives a reload unchanged', () => {
-  it('dehydrate then hydrate gives back the same nodes, bearings and lengths', () => {
+  it('dehydrate then hydrate gives back the same nodes, bearings and lengths, to 1 µm and 10⁻⁹ °', () => {
     const straightTrack = lineTrack(endPointStraightUtm(START, 20, 300))
     const straight = lastOf(straightTrack)
     const track = appended(straightTrack, buildConnectCurved({
@@ -139,10 +139,10 @@ describe('the committed chain survives a reload unchanged', () => {
     const back = reloaded.tracks[0]
     expectValidTrack(back)
     back.elements.forEach((el, i) => {
-      expect(el.startNode).toEqual(track.elements[i].startNode)
-      expect(el.endNode).toEqual(track.elements[i].endNode)
+      el.startNode.forEach((v, k) => expect(v).toBeCloseTo(track.elements[i].startNode[k], 6))
+      el.endNode.forEach((v, k) => expect(v).toBeCloseTo(track.elements[i].endNode[k], 6))
       expect(el.bearing).toBeCloseTo(track.elements[i].bearing, 9)
-      expect(el.length).toBeCloseTo(track.elements[i].length, 9)
+      expect(el.length).toBeCloseTo(track.elements[i].length, 6)
     })
   })
 })

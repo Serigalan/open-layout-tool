@@ -1,4 +1,5 @@
 import { storedBytes } from '../core/localStore'
+import { FORMAT_NAME } from '../core/utils/persistenceUtils'
 
 // Thin promise wrapper around IndexedDB for the working copies (phase 10).
 //
@@ -51,13 +52,18 @@ export function openDb() {
   return _dbPromise
 }
 
+// A working copy is stored with the format its records are in (oltjson-1.0,
+// decision 333). One from before it is not read: it was not converted, and
+// what the server keeps of that state is not opened either.
+const current = (record) => record?.format === FORMAT_NAME
+
 /** One working copy, or null. */
 export async function getWorkingCopy(variantId) {
   const db = await openDb()
   const tx = db.transaction(WORKING, 'readonly')
   const record = await req(tx.objectStore(WORKING).get(variantId))
   await txDone(tx)
-  return record ?? null
+  return current(record) ? record : null
 }
 
 /** Every working copy. */
@@ -66,13 +72,13 @@ export async function getAllWorkingCopies() {
   const tx = db.transaction(WORKING, 'readonly')
   const records = await req(tx.objectStore(WORKING).getAll())
   await txDone(tx)
-  return records
+  return records.filter(current)
 }
 
 export async function putWorkingCopy(record) {
   const db = await openDb()
   const tx = db.transaction(WORKING, 'readwrite')
-  tx.objectStore(WORKING).put(record)
+  tx.objectStore(WORKING).put({ ...record, format: FORMAT_NAME })
   await txDone(tx)
 }
 
