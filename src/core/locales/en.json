@@ -226,6 +226,7 @@
   "project_settings_col_heights": "Height points",
   "info_project": "The project's title and description, and the line category and coordinate system every track goes by. The track list over the map shows each track with what it is; there a track can get a system and a line category of its own, and every track's meridian strip can be set. Here tracks are also assigned to lines and stations and shown or hidden on the map.",
   "step_history_title": "History",
+  "step_history_hint": "What can be undone and redone, the newest steps on top. A click goes there; the last 20 steps are kept.",
   "step_history_empty": "No steps yet.",
   "step_history_start": "Starting state",
   "project_settings_tracks_own": "{crs} with a system of their own, {category} with a line category of their own",

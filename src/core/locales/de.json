@@ -226,6 +226,7 @@
   "project_settings_col_heights": "Höhenpunkte",
   "info_project": "Titel und Beschreibung des Projekts, die Streckenart und das Koordinatensystem, nach denen alle Gleise gehen. Die Gleisliste über der Karte zeigt jedes Gleis mit seinen Angaben; dort kann ein Gleis ein eigenes System und eine eigene Streckenart bekommen, und der Meridianstreifen jedes Gleises ist einstellbar. Hier werden Gleise auch Strecken und Bahnhöfen zugeordnet und auf der Karte ein- und ausgeblendet.",
   "step_history_title": "Verlauf",
+  "step_history_hint": "Was sich rückgängig machen und wiederholen lässt, die neuesten Schritte oben. Ein Klick springt dorthin; die letzten 20 Schritte werden behalten.",
   "step_history_empty": "Noch keine Schritte.",
   "step_history_start": "Ausgangszustand",
   "project_settings_tracks_own": "{crs} mit eigenem System, {category} mit eigener Streckenart",

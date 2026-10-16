@@ -114,21 +114,17 @@
 .sidebar-history { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .sidebar-primary.with-labels .sidebar-history { flex-direction: row; justify-content: space-between; }
 .sidebar-primary.with-labels .sidebar-history .sidebar-icon-btn { flex: 1; justify-content: center; padding: 0; }
-.history-menu { display: contents; }
-.history-list {
-  position: fixed; z-index: 30; min-width: 240px; max-width: 360px; max-height: 60vh; overflow-y: auto;
-  display: flex; flex-direction: column; padding: 6px 0;
-  background: #fff; border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
-  font-family: var(--font-ui); font-size: var(--fs-s);
+
+/* The history panel (decision 328): one button per step, what is ahead
+   greyed, the state now marked. */
+.step-history-list { display: flex; flex-direction: column; margin-top: 10px; border: 1px solid var(--color-border); border-radius: 6px; padding: 4px 0; }
+.step-history-empty { color: var(--color-text-soft); }
+.step-history-item {
+  text-align: left; padding: 6px 12px 6px 26px; border: none; background: none; cursor: pointer;
+  font: inherit; font-size: var(--fs-s); color: var(--color-text); position: relative;
 }
-.history-head { padding: 4px 12px 6px; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); }
-.history-empty { padding: 4px 12px 8px; color: var(--color-text-soft); }
-.history-item {
-  text-align: left; padding: 5px 12px 5px 24px; border: none; background: none; cursor: pointer;
-  font: inherit; color: var(--color-text); position: relative;
-}
-.history-item:hover, .history-item:focus-visible { background: #f2f2fa; outline: none; }
-.history-ahead { color: var(--color-muted); font-style: italic; }
-.history-now { font-weight: 600; }
-.history-now::before { content: '●'; position: absolute; left: 9px; color: var(--color-primary); font-size: 9px; top: 50%; transform: translateY(-50%); }
-.history-start { color: var(--color-text-soft); border-top: 1px solid var(--color-border); margin-top: 4px; padding-top: 7px; }
+.step-history-item:hover, .step-history-item:focus-visible { background: #f2f2fa; outline: none; }
+.step-history-ahead { color: var(--color-muted); font-style: italic; }
+.step-history-now { font-weight: 600; }
+.step-history-now::before { content: '●'; position: absolute; left: 10px; color: var(--color-primary); font-size: 9px; top: 50%; transform: translateY(-50%); }
+.step-history-start { color: var(--color-text-soft); border-top: 1px solid var(--color-border); margin-top: 4px; padding-top: 8px; }

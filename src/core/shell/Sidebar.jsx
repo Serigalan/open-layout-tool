@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import { useI18n } from '../locales/i18nContext'
-import { HomeIcon, LogoIcon, RedoIcon, UndoIcon } from '../components/icons'
+import { HistoryIcon, HomeIcon, LogoIcon, RedoIcon, UndoIcon } from '../components/icons'
 import { useRedoStep, useUndoStep } from '../hooks/useStore'
 import { describeStep } from '../utils/stepLabel'
 import { loadSettings, saveSettings } from '../utils/settings'
 import { PANELS } from './panels'
 import { extensionsOf } from '../extensions'
-import HistoryMenu from './HistoryMenu'
 
 /**
  * The sidebar of the map view, made from the panel register (R2.3): the work
@@ -15,7 +14,9 @@ import HistoryMenu from './HistoryMenu'
  * At its foot, beside that button, what the server puts there
  * (`sidebarFoot`): whether the services are there (R10.12). Undo and redo
  * are two arrows without words, the history between them (decision 326) —
- * side by side while the names show, one above the other in the narrow bar.
+ * side by side while the names show, one above the other in the narrow bar,
+ * and a line under them. The history opens a panel of its own, which has no
+ * entry of its own in the sidebar (decision 328).
  */
 export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
   const { t, fill } = useI18n()
@@ -64,9 +65,13 @@ export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
       <div className="sidebar-bottom">
         <div className="sidebar-history">
           {iconButton({ key: 'undo', icon: UndoIcon, title: undoTitle, onClick: onUndo, disabled: !undoStep, bare: true })}
-          <HistoryMenu />
+          {iconButton({
+            key: 'history', icon: HistoryIcon, title: t('step_history_title'), onClick: () => onSelect('history'),
+            active: active === 'history', pressed: active === 'history', bare: true,
+          })}
           {iconButton({ key: 'redo', icon: RedoIcon, title: redoTitle, onClick: onRedo, disabled: !redoStep, bare: true })}
         </div>
+        <hr className="sidebar-divider" />
         {iconButton({ key: 'home', icon: HomeIcon, title: t('tooltip_home'), onClick: onHome })}
         {PANELS.filter(p => p.place === 'bottom').map(panelButton)}
         <div className="sidebar-foot">

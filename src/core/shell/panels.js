@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { ProjectSettingsIcon, LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, CrossSectionIcon, PlanExportIcon, ElevationIcon, CheckIcon } from '../components/icons'
+import { HistoryIcon, ProjectSettingsIcon, LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, CrossSectionIcon, PlanExportIcon, ElevationIcon, CheckIcon } from '../components/icons'
 
 // Each panel is its own chunk (R9.1), loaded the first time it is opened.
 const ProjectSettingsPanel = lazy(() => import('../components/panels/ProjectSettingsPanel'))
@@ -13,6 +13,7 @@ const CrossSectionsPanel = lazy(() => import('../components/panels/CrossSections
 const EditElementPanel = lazy(() => import('../components/panels/EditElementPanel'))
 const SettingsPanel = lazy(() => import('../components/panels/SettingsPanel'))
 const DataExchangePanel = lazy(() => import('../components/panels/DataExchangePanel'))
+const HistoryPanel = lazy(() => import('../components/panels/HistoryPanel'))
 const PlanExportPanel = lazy(() => import('../components/panels/PlanExportPanel'))
 const CheckPanel = lazy(() => import('../components/panels/CheckPanel'))
 
@@ -29,7 +30,8 @@ const CheckPanel = lazy(() => import('../components/panels/CheckPanel'))
  *   id          what the shell calls the panel
  *   icon        its sidebar symbol, titleKey its name
  *   group       the work step it belongs to
- *   place       'top' or 'bottom' of the sidebar
+ *   place       'top' or 'bottom' of the sidebar, 'none' when it is opened
+ *               from elsewhere (the history, from the button between the arrows)
  *   Component   the panel itself
  *   props(s)    what it takes from the shell `s` (state and handlers in App)
  *   onEnter(s)  runs when the panel is opened, onLeave(s) when it is left
@@ -142,6 +144,9 @@ export const PANELS = [
     }),
     onEnter: (s) => s.setSettingsPage('main'),
   },
+  // The steps that can be undone and redone (decision 328), opened by the
+  // button between the two arrows.
+  { id: 'history', group: 'app', icon: HistoryIcon, titleKey: 'step_history_title', place: 'none', Component: HistoryPanel },
 ]
 
 export const panelById = (id) => PANELS.find(p => p.id === id) ?? null
