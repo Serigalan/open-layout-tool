@@ -8,7 +8,7 @@ import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/trac
 import { coupleSwitchGradients, coupleSwitchHeights } from './utils/switchChain'
 import { repairRoutes } from './utils/routes'
 import { lengthGovernedRadii } from './utils/gradientCheck'
-import { moveTracksToPlane } from './utils/projectSettings'
+import { moveTracksToPlane, withImportSystem } from './utils/projectSettings'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -1076,10 +1076,12 @@ export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwit
 
 /**
  * Add what an import brought — tracks, switches, end marks, and fields of the
- * project record such as the RailJSON passthrough — as one undo step.
+ * project record such as the RailJSON passthrough — as one undo step. A
+ * project that names no coordinate system yet names the one most of its
+ * tracks lie in afterwards (decision 322).
  */
 export function commitImport({ addTracks = [], addSwitches = [], addEndMarks = [], patch = null }) {
-  return mutate(p => ({
+  return mutate(p => withImportSystem({
     ...p,
     ...(patch ?? {}),
     tracks: [...(p.tracks ?? []), ...addTracks],

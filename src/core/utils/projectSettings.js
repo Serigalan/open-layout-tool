@@ -1,4 +1,6 @@
-import { EPSG_OPTIONS, crsDatum, crsName, epsgForLngLat, projectCrsOptions } from './coordinateUtils'
+import {
+  EPSG_OPTIONS, crsCentre, crsDatum, crsName, crsSystem, epsgForLngLat, isCrsSystem, systemCodeAt, systemZones,
+} from './coordinateUtils'
 import { transformTrackToPlane } from './planeTransform'
 import { portTracks, rebuildCoords, referencesTrack } from './trackModel'
 import { isLinkSwitch } from './switchModel'
@@ -11,18 +13,21 @@ import { loadGridsFor } from './ntv2Grid'
  * The project settings (Paket PE): the project's coordinate system and line
  * category, and the tracks that keep one of their own.
  *
- * **The coordinate system** (decision 318) is the plane a new track is laid
- * out in. It does not move the tracks there are: each keeps its own plane
- * (`track.epsg`), and one in another plane than the project's is shown as
- * deviating. Unset, it is the plane most of the tracks lie in; a project
- * without tracks and without a setting takes the UTM zone of the first click,
- * as before.
+ * **The coordinate system** of the project is a system — a datum with its
+ * projection, DB_REF / Gauß-Krüger, ETRS89 / UTM — not one plane (decision
+ * 323): the meridian strip stays the track's own (`track.epsg`, one EPSG code
+ * per strip). A new track is laid out in the project's system, in the strip
+ * nearest to its first click (decision 318); the tracks there are keep their
+ * plane, and one in another system is shown as deviating. Unset, the system is
+ * the one most of the tracks lie in; an import sets it so where the project
+ * names none (decision 322). A project without tracks and without a setting
+ * takes the UTM zone of the first click, as before.
  *
- * A track is carried into another plane only on its own row
- * (moveTracksToPlane), and with the tracks a turnout or crossing joins it to
- * (decision 319): a switch symbol and its routes are read in one plane, so the
- * tracks of a switch have to share it. A link (Gleisenden verknüpfen) is no
- * such join — it is made for tracks in two planes.
+ * A track is carried into another plane — another strip, or another system —
+ * only on its own row (moveTracksToPlane), and with the tracks a turnout or
+ * crossing joins it to (decision 319): a switch symbol and its routes are read
+ * in one plane, so the tracks of a switch have to share it. A link (Gleisenden
+ * verknüpfen) is no such join — it is made for tracks in two planes.
  *
  * **The line category** (decision 320) is the project's `lineCategory`; a
  * track names one of its own only where it is switched on for it.
@@ -30,24 +35,84 @@ import { loadGridsFor } from './ntv2Grid'
 
 const knownCrs = (code) => (code != null && code !== '' && crsName(Number(code)) ? Number(code) : null)
 
-/** The plane the project names for new tracks, or null where it names none. */
-export const projectEpsgSetting = (project) => knownCrs(project?.epsg)
+/**
+ * The system the project names, or null where it names none. A project set
+ * before decision 323 names a plane (`epsg`), and its system is meant.
+ */
+export const projectSystemSetting = (project) =>
+  (isCrsSystem(project?.crsSystem) ? project.crsSystem : crsSystem(project?.epsg))
+
+/** The system most of `tracks` lie in, or null. Ties go to the first one met. */
+export function dominantSystem(tracks) {
+  const counts = new Map()
+  for (const t of tracks ?? []) {
+    const key = crsSystem(t.epsg)
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  let best = null
+  for (const [key, n] of counts) if (!best || n > counts.get(best)) best = key
+  return best
+}
+
+/** The project's coordinate system: the one it names, else the one most of its tracks lie in, else null. */
+export const projectSystem = (project) => projectSystemSetting(project) ?? dominantSystem(project?.tracks)
 
 /**
- * The project's coordinate system: the one it names, else the one most of its
- * tracks lie in, else null (a new track then takes the zone of the click).
+ * The project as an import leaves it (decision 322): where it names no system
+ * yet, it names the one most of its tracks lie in now.
  */
-export const projectEpsg = (project) =>
-  projectEpsgSetting(project) ?? projectCrsOptions(project?.tracks)[0]?.code ?? null
+export function withImportSystem(project) {
+  if (!project || projectSystemSetting(project)) return project
+  const key = dominantSystem(project.tracks)
+  return key ? { ...project, crsSystem: key } : project
+}
 
-/** The plane a new track first clicked at `lngLat` is laid out in. */
-export const newTrackEpsg = (project, lngLat) => projectEpsg(project) ?? epsgForLngLat(lngLat)
+/** The plane a new track first clicked at `lngLat` is laid out in: the project's system, the strip of the click. */
+export function newTrackEpsg(project, lngLat) {
+  const key = projectSystem(project)
+  return (key && systemCodeAt(key, lngLat[0])) ?? epsgForLngLat(lngLat)
+}
 
-/** Whether a track lies in another plane than the project's. */
-export function epsgDeviates(track, project) {
-  const own = Number(track?.epsg)
-  const ref = projectEpsg(project)
-  return ref != null && Number.isFinite(own) && own !== ref
+/** Whether a track lies in another system than the project's. */
+export function systemDeviates(track, project) {
+  const own = crsSystem(track?.epsg)
+  const ref = projectSystem(project)
+  return ref != null && own != null && own !== ref
+}
+
+/** The longitude a track lies at [°]: the middle of its polyline, or null. */
+function trackLng(track) {
+  const cs = track?.coordinates ?? []
+  return cs.length ? cs[Math.floor(cs.length / 2)][0] : null
+}
+
+/**
+ * The plane of system `key` a track goes into: the strip with the central
+ * meridian it has now, where the system has one (GK zone 4 of DHDN → zone 4 of
+ * DB_REF), else the strip nearest to where it lies.
+ */
+export function planeInSystem(track, key) {
+  const centre = crsCentre(track?.epsg)
+  const same = systemZones(key).find(z => centre != null && Math.abs(z.centre - centre) < 1e-9)
+  if (same) return same.code
+  const lng = trackLng(track)
+  return lng != null ? systemCodeAt(key, lng) : systemZones(key)[0]?.code ?? null
+}
+
+/**
+ * The strips a track can be put in within its system: the ones around its own
+ * (two either side — the WGS 84 UTM systems have sixty), as [{ zone, code, centre }].
+ */
+export function zoneChoices(track) {
+  const key = crsSystem(track?.epsg)
+  const zones = systemZones(key)
+  const at = zones.findIndex(z => z.code === Number(track?.epsg))
+  return at < 0 ? zones : zones.slice(Math.max(0, at - 2), at + 3)
+}
+
+/** The systems to pick from: ETRS89 / UTM and DB_REF / Gauß-Krüger, and the ones of `codes` in use. */
+export function systemChoices(...codes) {
+  return [...new Set(['ETRS89_UTM', 'DBREF_GK', ...codes.map(crsSystem).filter(Boolean)])]
 }
 
 /** The planes to pick from — the ones a new track is offered, and `extra` codes the tool can name. */

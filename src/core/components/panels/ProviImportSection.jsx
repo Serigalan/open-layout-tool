@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { loadTracks, loadSwitches, commitSwitchConnection } from '../../storage'
+import { loadTracks, loadSwitches, commitImport } from '../../storage'
 import { generateId } from '../../utils/identifierUtils'
 import { recalcAbsLengths, rebuildCoords, nextTrackName } from '../../utils/trackModel'
 import {
@@ -117,9 +117,7 @@ export default function ProviImportSection({ onReport }) {
         setNotes(readableLines)
         onReport?.(`ProVI · ${fileName}`, { tracks: addTracks.length, switches: placed.switches.length }, readableLines)
         if (addTracks.length) {
-          commitSwitchConnection({
-            removeTrackIds: [], addTracks, addSwitches: [...placed.switches, ...links], remap: [],
-          })
+          commitImport({ addTracks, addSwitches: [...placed.switches, ...links] })
           fitToTracks(map?.current, addTracks)
         }
       } catch (err) {

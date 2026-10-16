@@ -3,9 +3,10 @@ import { currentProject, setTracksPlane, updateTrack } from '../../../storage'
 import { LINE_CATEGORIES } from '../../../utils/identifierUtils'
 import { projectLineCategory } from '../../../utils/gradientCheck'
 import {
-  crsChoices, epsgDeviates, ownLineCategory, planeGroup, previewTracksToPlane, projectEpsg, withLineCategory,
+  ownLineCategory, planeGroup, planeInSystem, previewTracksToPlane, projectSystem, systemChoices, systemDeviates,
+  withLineCategory, zoneChoices,
 } from '../../../utils/projectSettings'
-import { crsName } from '../../../utils/coordinateUtils'
+import { crsName, crsSystem, crsSystemName } from '../../../utils/coordinateUtils'
 import { trackLength } from '../../../utils/heightUtils'
 import { trackStatus } from '../../../utils/planStatus'
 import { groupHeading, groupTracks, trackListLabel, trackTypeName } from '../../../utils/trackGroups'
@@ -21,14 +22,15 @@ import PlaneChangeDialog from './PlaneChangeDialog'
  * Every track of the project with what it is (decision 321) and the two
  * settings it may keep apart from the project's: its coordinate system and
  * its line category. Each is switched on explicitly by its box; off, the track
- * runs on the project's and the choice shows that.
+ * runs on the project's and the choice shows that. The meridian strip is the
+ * track's own whatever the system (decision 323), and always settable.
  *
  * The line category is written the moment the box is ticked — as the
- * project's, so the track keeps it when the project's changes. A coordinate
- * system is the plane the track's numbers are in, so a box alone writes
- * nothing: picking another plane carries the track there (with what its
- * turnouts join it to), and taking the box away carries a deviating track
- * into the project's — each after a dialog that says what it costs.
+ * project's, so the track keeps it when the project's changes. A system and a
+ * strip are the plane the track's numbers are in, so a box alone writes
+ * nothing: picking another system or strip carries the track there (with what
+ * its turnouts join it to), and taking the box away carries a deviating track
+ * into the project's system — each after a dialog that says what it costs.
  */
 export default function TrackSettingsList({ project }) {
   const { t, fill } = useI18n()
@@ -38,29 +40,29 @@ export default function TrackSettingsList({ project }) {
   const [onlyOwn, setOnlyOwn] = useState(false)
   const [folded, setFolded] = useState(() => new Set())
   const [shown, setShown] = useState(null)
-  // Tracks whose box for a coordinate system of their own is ticked while
-  // they still lie in the project's — nothing is written until one is picked.
+  // Tracks whose box for a system of their own is ticked while they still lie
+  // in the project's — nothing is written until one is picked.
   const [crsOpen, setCrsOpen] = useState(() => new Set())
   const [change, setChange] = useState(null)   // { tracks, epsg, report } — the dialog
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   useSelectedOnMap(shown ? { trackId: shown } : null)
 
-  const refEpsg = projectEpsg(project)
+  const refSystem = projectSystem(project)
   const refCategory = projectLineCategory(project)
-  const ownCrs = (tr) => epsgDeviates(tr, project) || crsOpen.has(tr.id)
+  const ownCrs = (tr) => systemDeviates(tr, project) || crsOpen.has(tr.id)
   const hasOwn = (tr) => ownCrs(tr) || ownLineCategory(tr) != null
-  const crsCount = tracks.filter(tr => epsgDeviates(tr, project)).length
+  const crsCount = tracks.filter(tr => systemDeviates(tr, project)).length
   const categoryCount = tracks.filter(tr => ownLineCategory(tr) != null).length
 
   const searching = !!query.trim() || onlyOwn
   const listed = tracks.filter(tr => (!query.trim() || trackMatches(tr, query)) && (!onlyOwn || hasOwn(tr)))
   const groups = groupTracks(listed)
 
-  // A track that went into the project's plane, or away, has no open box to keep.
+  // A track that went into another system, or away, has no open box to keep.
   useEffect(() => {
     setCrsOpen(prev => {
-      const keep = [...prev].filter(id => (project.tracks ?? []).some(tr => tr.id === id && !epsgDeviates(tr, project)))
+      const keep = [...prev].filter(id => (project.tracks ?? []).some(tr => tr.id === id && !systemDeviates(tr, project)))
       return keep.length === prev.size ? prev : new Set(keep)
     })
   }, [project])
@@ -96,7 +98,7 @@ export default function TrackSettingsList({ project }) {
   }
 
   const toggleCrs = (track) => {
-    if (epsgDeviates(track, project)) { askPlane(track, refEpsg); return }
+    if (systemDeviates(track, project)) { askPlane(track, planeInSystem(track, refSystem)); return }
     setCrsOpen(prev => {
       const next = new Set(prev)
       if (next.has(track.id)) next.delete(track.id)
@@ -118,8 +120,9 @@ export default function TrackSettingsList({ project }) {
 
   const row = (track) => (
     <TrackSettingsRow key={track.id} track={track} active={shown === track.id} onShow={() => show(track)}
-      crsOwn={ownCrs(track)} refEpsg={refEpsg} onToggleCrs={() => toggleCrs(track)}
-      onPickCrs={(epsg) => askPlane(track, epsg)} refCategory={refCategory}
+      crsOwn={ownCrs(track)} refSystem={refSystem} onToggleCrs={() => toggleCrs(track)}
+      onPickSystem={(key) => askPlane(track, planeInSystem(track, key))}
+      onPickZone={(epsg) => askPlane(track, epsg)} refCategory={refCategory}
       onToggleCategory={() => toggleCategory(track)}
       onPickCategory={(category) => updateTrack(withLineCategory(track, category))}
       busy={busy} />
@@ -176,12 +179,13 @@ export default function TrackSettingsList({ project }) {
 }
 
 /**
- * One track: its name (a click shows it on the map), what it is, and its two
- * settings — each a box that switches it on and the choice beside it, which
- * shows the project's while the box is off.
+ * One track: its name (a click shows it on the map), what it is, and its
+ * settings — the system and the line category each a box that switches it on
+ * and the choice beside it, which shows the project's while the box is off;
+ * between them the meridian strip of the system it lies in.
  */
 function TrackSettingsRow({
-  track, active, onShow, crsOwn, refEpsg, onToggleCrs, onPickCrs,
+  track, active, onShow, crsOwn, refSystem, onToggleCrs, onPickSystem, onPickZone,
   refCategory, onToggleCategory, onPickCategory, busy,
 }) {
   const { t, fill, language } = useI18n()
@@ -198,8 +202,11 @@ function TrackSettingsRow({
     track.trackUse === 'siding' && t('track_use_siding'),
     status !== 'existing' && t(`status_${status}`),
   ].filter(Boolean)
-  const crsValue = crsOwn ? Number(track.epsg) : refEpsg
-  const choices = crsChoices(track.epsg, refEpsg)
+  const ownSystem = crsSystem(track.epsg)
+  const systemValue = crsOwn ? ownSystem : refSystem
+  const systems = [...new Set([...systemChoices(track.epsg), ownSystem, refSystem].filter(Boolean))]
+  const zones = zoneChoices(track)
+  const hasZones = zones.some(z => z.zone != null)
 
   return (
     <div className={`project-settings-track${active ? ' active' : ''}`}>
@@ -213,10 +220,21 @@ function TrackSettingsRow({
           <input type="checkbox" checked={crsOwn} onChange={onToggleCrs} disabled={busy} />
           {t('project_settings_own_crs')}
         </label>
-        <select value={crsValue ?? ''} disabled={!crsOwn || busy} aria-label={t('project_settings_own_crs')}
-          title={crsName(crsValue) ?? ''} onChange={e => onPickCrs(Number(e.target.value))}>
-          {choices.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+        <select value={systemValue ?? ''} disabled={!crsOwn || busy} aria-label={t('project_settings_own_crs')}
+          onChange={e => onPickSystem(e.target.value)}>
+          {systems.map(key => <option key={key} value={key}>{crsSystemName(key)}</option>)}
         </select>
+        {hasZones && (
+          <>
+            <span className="project-settings-zone-label">{t('project_settings_zone')}</span>
+            <select value={Number(track.epsg)} disabled={busy} aria-label={t('project_settings_zone')}
+              title={crsName(track.epsg) ?? ''} onChange={e => onPickZone(Number(e.target.value))}>
+              {zones.map(z => (
+                <option key={z.code} value={z.code}>{fill('project_settings_zone_option', { zone: z.zone, cm: z.centre, code: z.code })}</option>
+              ))}
+            </select>
+          </>
+        )}
         <label>
           <input type="checkbox" checked={category != null} onChange={onToggleCategory} />
           {t('project_settings_own_category')}

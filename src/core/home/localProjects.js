@@ -2,6 +2,7 @@ import { SCHEMA_VERSION, parseProjectsPayload } from '../utils/persistenceUtils'
 import { generateId } from '../utils/identifierUtils'
 import { closeStoredProject, currentStoredMeta, openStoredProject } from '../storage'
 import { storedBytes } from '../localStore'
+import { withImportSystem } from '../utils/projectSettings'
 import { formatDate } from '../locales/i18n'
 
 /**
@@ -100,7 +101,9 @@ export async function createLocalProject({ title, description = '', image = null
 /**
  * The projects of a file (`{ version, projects }`, as exported here or from a
  * server variant) as projects of their own — each a new id, so a file read
- * in twice is two projects. Throws the PayloadError of parseProjectsPayload.
+ * in twice is two projects, each naming the coordinate system most of its
+ * tracks lie in where it names none (decision 322). Throws the PayloadError of
+ * parseProjectsPayload.
  * Resolves how many came in.
  */
 export async function importLocalProjects(data, fallbackTitle = '') {
@@ -108,7 +111,7 @@ export async function importLocalProjects(data, fallbackTitle = '') {
   const now = new Date().toISOString()
   for (const p of projects) {
     const id = generateId()
-    const { imageHash: _hash, ...record } = p
+    const { imageHash: _hash, ...record } = withImportSystem(p)
     await put({ id, project: { ...record, id, title: p.title || fallbackTitle }, idLog: [], createdAt: now, updatedAt: now })
   }
   return projects.length

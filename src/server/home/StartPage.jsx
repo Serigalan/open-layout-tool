@@ -21,6 +21,7 @@ import PairDialog from './PairDialog'
 import ProjectCard from './ProjectCard'
 import RenameProjectDialog from './RenameProjectDialog'
 import VariantDialog from './VariantDialog'
+import { withImportSystem } from '../../core/utils/projectSettings'
 
 /**
  * The start page (decision 96, AP 10.7): the projects on the server, each
@@ -101,7 +102,7 @@ export default function StartPage({ user, onOpenVariant, onViewVariant, onSignOu
     }
     try {
       for (const p of incoming) {
-        const { image, id: _id, ...record } = p
+        const { image, id: _id, ...record } = withImportSystem(p)
         const picture = splitDataUrl(image)
         if (picture) record.imageHash = (await api.uploadImage(picture.mime, picture.data)).hash
         await api.createProject({ title: p.title || file.name.replace(/\.json$/i, ''), description: p.description ?? '', payload: record })

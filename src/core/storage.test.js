@@ -8,7 +8,7 @@ import {
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
   openStoredProject, currentStoredProject, currentStoredMeta, closeStoredProject, flushPendingWrites, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
-  setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms,
+  setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms, commitImport,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 import { endPointCurvedUtm, endPointStraightUtm } from './utils/elementUtils'
@@ -64,6 +64,22 @@ describe('deleting a whole network', () => {
     undo()
     expect(loadTracks().map(t => t.id).sort()).toEqual(['a', 'b', 'c', 'far'])
     expect(loadSwitches()).toHaveLength(1)
+  })
+})
+
+describe('the coordinate system an import leaves the project with (decision 322)', () => {
+  const tr = (id, epsg) => ({ id, epsg, elements: [] })
+
+  it('is the system most of its tracks lie in, where the project names none', () => {
+    openProject({ id: 'cs1', tracks: [tr('u', 25832)], switches: [] })
+    commitImport({ addTracks: [tr('a', 5683), tr('b', 5684)] })
+    expect(currentProject().crsSystem).toBe('DBREF_GK')
+  })
+
+  it('stays the one the project names', () => {
+    openProject({ id: 'cs2', crsSystem: 'ETRS89_UTM', tracks: [], switches: [] })
+    commitImport({ addTracks: [tr('a', 5683), tr('b', 5684)] })
+    expect(currentProject().crsSystem).toBe('ETRS89_UTM')
   })
 })
 

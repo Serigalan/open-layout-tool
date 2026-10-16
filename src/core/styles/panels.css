@@ -1114,6 +1114,8 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 4px 8px; margin-top: 2px;
 }
 .project-settings-own label { display: flex; align-items: center; gap: 4px; font-family: var(--font-ui); font-size: var(--fs-s); }
+/* The strip has no box: it is always the track's own — indented to the box's text. */
+.project-settings-zone-label { padding-left: 21px; font-family: var(--font-ui); font-size: var(--fs-s); color: var(--color-text-soft); }
 .project-settings-own select {
   min-width: 0; width: 100%; padding: 3px 6px; border: 1px solid #ddd; border-radius: 5px;
   font-size: var(--fs-s); font-family: var(--font-ui); color: var(--color-text); background: white;

@@ -58,6 +58,64 @@ function planeOf(crs) {
   return null
 }
 
+/**
+ * The coordinate systems a plane belongs to — a datum with one projection,
+ * cut into meridian strips (Gauss-Krüger zones, UTM zones), each strip an EPSG
+ * code of its own (decision 323). Soldner Berlin is a system of one plane.
+ *
+ *   key → { name, zones: [zone, code][], centre(zone) → central meridian [°] }
+ */
+const gkCentre = (zone) => zone * 3
+const utmCentre = (zone) => zone * 6 - 183
+const range = (from, to, code) => Array.from({ length: to - from + 1 }, (_, i) => [from + i, code(from + i)])
+const SYSTEMS = {
+  ETRS89_UTM:   { name: 'ETRS89 / UTM', zones: range(28, 38, z => 25800 + z), centre: utmCentre },
+  DBREF_GK:     { name: 'DB_REF / Gauß-Krüger', zones: range(1, 5, z => 5680 + z), centre: gkCentre },
+  DHDN_GK:      { name: 'DHDN / Gauß-Krüger', zones: range(1, 5, z => (z === 1 ? 5680 : 5674 + z)), centre: gkCentre },
+  PD83_GK:      { name: 'PD/83 / Gauß-Krüger', zones: range(3, 4, z => 3393 + z), centre: gkCentre },
+  RD83_GK:      { name: 'RD/83 / Gauß-Krüger', zones: range(4, 5, z => 3394 + z), centre: gkCentre },
+  S4283_GK:     { name: '42/83 / Gauß-Krüger', zones: range(3, 5, z => 2394 + z), centre: gkCentre },
+  DHDN_SOLDNER: { name: 'DHDN / Soldner Berlin', zones: [[null, 3068]], centre: () => 13.6272036666667 },
+  WGS84_UTM_N:  { name: 'WGS 84 / UTM Nord', zones: range(1, 60, z => 32600 + z), centre: utmCentre },
+  WGS84_UTM_S:  { name: 'WGS 84 / UTM Süd', zones: range(1, 60, z => 32700 + z), centre: utmCentre },
+}
+
+const SYSTEM_OF_CODE = new Map(Object.entries(SYSTEMS)
+  .flatMap(([key, s]) => s.zones.map(([zone, code]) => [code, { system: key, zone }])))
+
+/** The system a plane belongs to (a key of SYSTEMS), or null for a code this tool has no plane for. */
+export const crsSystem = (crs) => SYSTEM_OF_CODE.get(Number(crs))?.system ?? null
+
+/** The meridian strip of a plane within its system, or null (Soldner Berlin, unknown codes). */
+export const crsZone = (crs) => SYSTEM_OF_CODE.get(Number(crs))?.zone ?? null
+
+/** Whether `key` names a system. */
+export const isCrsSystem = (key) => Object.hasOwn(SYSTEMS, key ?? '')
+
+/** What a system is called. */
+export const crsSystemName = (key) => SYSTEMS[key]?.name ?? ''
+
+/** The strips of a system: [{ zone, code, centre }] — one with zone null for Soldner Berlin. */
+export const systemZones = (key) => (SYSTEMS[key]?.zones ?? [])
+  .map(([zone, code]) => ({ zone, code, centre: SYSTEMS[key].centre(zone) }))
+
+/** The central meridian of a plane's strip [°], or null. */
+export function crsCentre(crs) {
+  const hit = SYSTEM_OF_CODE.get(Number(crs))
+  return hit ? SYSTEMS[hit.system].centre(hit.zone) : null
+}
+
+/**
+ * The plane of system `key` whose strip lies nearest to `lng` [°] — what a new
+ * track first clicked there is laid out in. A system of strips over part of
+ * Germany only (PD/83, RD/83, 42/83) takes its nearest strip.
+ */
+export function systemCodeAt(key, lng) {
+  const zones = systemZones(key)
+  if (!zones.length) return null
+  return zones.reduce((best, z) => (Math.abs(z.centre - lng) < Math.abs(best.centre - lng) ? z : best)).code
+}
+
 /** Gauss-Krüger zone of a German plane, else null (Soldner Berlin has none). */
 export const gkZone = (crs) => planeOf(crs)?.zone ?? null
 
