@@ -1,6 +1,6 @@
 import { classifyTrackEnds, isOpenState } from './topology'
 import { elementBelongsToSwitch } from './switchModel'
-import { reverseElement } from './elementUtils'
+import { resolveEndBearing, reverseElement } from './elementUtils'
 import { curvatureOf, radiusOfCurvature } from './clothoidUtils'
 import { switchRouteBearingAt, switchRoutePointUtm } from './switch/route'
 import { STRAIGHT_CURVATURE } from './switch/catalogue'
@@ -59,11 +59,16 @@ export function connectionAnchor(track, endpoint, { tracks, switches, endMarks }
   // the element as it runs, at its start the element turned round.
   const run = atEnd ? el : reverseElement(el)
   const kind = run.elementType === 2 ? 'transition' : run.elementType === 1 ? 'arc' : 'straight'
+  // The tangent at the fixed node is the neighbour's, where there is one: the
+  // refitted element continues the track, not whatever kink it had there.
+  const neighbour = els[atEnd ? elIdx - 1 : elIdx + 1]
+  const bearing = !neighbour ? run.bearing
+    : atEnd ? resolveEndBearing(neighbour, track.epsg) : (neighbour.bearing + 180) % 360
   return {
     anchor: {
       trackId: track.id, endpoint, elIdx, kind,
       fixedUtm: { easting: run.startNode[0], northing: run.startNode[1], zone: track.epsg },
-      bearing: run.bearing,
+      bearing,
       r1: kind === 'transition' ? (run.r1 ?? null) : kind === 'arc' ? run.radius : null,
       oldLength: el.length,
     },
