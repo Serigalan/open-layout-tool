@@ -114,8 +114,8 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
       const clicked  = Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000
       const sw = SWITCH_PICK_TYPES[switchTypeIdx]
-      const range = switchOnTrackSlider({ track, reversed, sw, side, speed, straightLen: switchStraightLength(sw) })
-      begin({ trackId })
+      const range = switchOnTrackSlider({ track, reversed, sw, side, speed, straightLen: switchStraightLength(sw) }, clicked)
+      begin({ trackId, clicked })
       // The branch lies at the height datum of the track it leaves (Entscheidung 311).
       setField('heightEpsg', String(track.heightEpsg ?? DEFAULT_HEIGHT_EPSG))
       const at = settleStation(clicked, { ...range, tol: 1 })
@@ -134,8 +134,8 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   // keeps the minimum element length on both sides of WA, and where WA or
   // WE fall on an element change (Entscheidungen 217, 301, 309–310) ─────────
   const slider = useMemo(() => (track
-    ? switchOnTrackSlider({ track, reversed, sw, side, speed, straightLen })
-    : { intervals: [], snaps: [] }), [track, reversed, sw, side, speed, straightLen])
+    ? switchOnTrackSlider({ track, reversed, sw, side, speed, straightLen }, pick.clicked)
+    : { intervals: [], snaps: [] }), [track, pick, reversed, sw, side, speed, straightLen])
   const remnant = track && Number.isFinite(toeStation) ? switchOnTrackRemnant(track, toeStation, reversed, speed) : null
 
   // A setting that changes where the turnout may lie keeps the toe where it
@@ -145,7 +145,7 @@ export default function SwitchOnTrackForm({ onCommitted }) {
     const nextSw = next.sw ?? sw
     const args = { track, reversed, sw, side, speed, ...next, straightLen: switchStraightLength(nextSw) }
     if (switchOnTrackToeValid(args, toeStation)) return
-    const to = nearestValid(toeStation, switchOnTrackSlider(args).intervals)
+    const to = nearestValid(toeStation, switchOnTrackSlider(args, pick.clicked).intervals)
     if (to != null) setStation(String(Math.round(to * 1e4) / 1e4))
   }
 

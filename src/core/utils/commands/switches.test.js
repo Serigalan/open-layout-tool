@@ -85,6 +85,15 @@ describe('switch on track — what the slider runs over', () => {
     expect(intervals[0][0]).toBeLessThan(1)
   })
 
+  it('runs 50 m either side of the clicked station (Entscheidung 313)', () => {
+    const { intervals } = switchOnTrackSlider(argsOf(track), 120)
+    expect(intervals[0][0]).toBeGreaterThanOrEqual(70)
+    expect(intervals.at(-1)[1]).toBeLessThanOrEqual(170)
+    expect(intervals.some(([a, b]) => a <= 100 && b >= 100)).toBe(true)
+    // Near the track's begin the window ends there.
+    expect(switchOnTrackSlider(argsOf(track), 20).intervals.at(-1)[1]).toBeLessThanOrEqual(70)
+  })
+
   it('snaps where WA or WE fall on an element change (Entscheidung 310)', () => {
     const L = switchStraightLength(FORM)
     const { snaps } = switchOnTrackSlider(argsOf(track))

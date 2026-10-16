@@ -7,6 +7,7 @@ import { ZOOM_LINE_WIDTH } from '../../../map/style'
 import { useI18n } from '../../../locales/i18nContext'
 import { REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, isUsableStem, preferredShift, settleConnection, shiftSnaps, stems, waOffset } from '../../../utils/commands/sCurve'
 import StationSlider from '../../form/StationSlider'
+import { SLIDER_REACH } from '../../../utils/commands/switches'
 import { splitUnit } from '../../../locales/i18n'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
@@ -155,7 +156,12 @@ export default function SCurveForm({ onCommitted }) {
   // WA lies on an element change (Entscheidung 170).
   const slider = useMemo(() => {
     if (phase !== 'config' || !picks[0] || !picks[1] || !speed) return null
-    const bounds = computeShiftBounds({ picks, speed, mids: solvedMids })
+    // Within SLIDER_REACH of the first click either way (Entscheidung 313):
+    // shift 0 is where track 1 was clicked.
+    const whole = computeShiftBounds({ picks, speed, mids: solvedMids })
+    // Where the connection stands nowhere near the click, the whole range.
+    const near = { min: Math.max(whole.min, -SLIDER_REACH), max: Math.min(whole.max, SLIDER_REACH) }
+    const bounds = near.max >= near.min ? near : whole
     const track1 = loadTracks().find(tr => tr.id === picks[0].trackId)
     const elStart = track1 ? elementStations(track1)[picks[0].elIdx]?.start ?? 0 : 0
     const dir1 = stems(picks).g1.dir ?? 1

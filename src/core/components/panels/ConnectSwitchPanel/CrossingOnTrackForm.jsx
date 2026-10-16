@@ -95,8 +95,8 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
       // at the height datum of the track it crosses (Entscheidung 311).
       const clickUtm = wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], track.epsg)
       const clicked = Math.round(clickStation(track, elIdx, clickUtm) * 1000) / 1000
-      const at = settleStation(clicked, { ...crossingOnTrackSlider({ track, endDist, form, crossAngle }), tol: 1 })
-      begin({ trackId })
+      const at = settleStation(clicked, { ...crossingOnTrackSlider({ track, endDist, form, crossAngle }, clicked), tol: 1 })
+      begin({ trackId, clicked })
       setField('heightEpsg', String(track.heightEpsg ?? DEFAULT_HEIGHT_EPSG))
       setStation(String(at == null ? clicked : Math.round(at * 1e4) / 1e4))
     },
@@ -106,8 +106,8 @@ export default function CrossingOnTrackForm({ onCommitted, initialKind = 'crossi
   const track = pick ? loadTracks().find(tr => tr.id === pick.trackId) : null
   const pointStation = Number(station)
   // Where the crossing point may lie, and where A or C fall on an element change.
-  const slider = useMemo(() => (track ? crossingOnTrackSlider({ track, endDist, form, crossAngle })
-    : { intervals: [], snaps: [] }), [track, endDist, form, crossAngle])
+  const slider = useMemo(() => (track ? crossingOnTrackSlider({ track, endDist, form, crossAngle }, pick.clicked)
+    : { intervals: [], snaps: [] }), [track, pick, endDist, form, crossAngle])
 
   // Where the crossing lies and the geometry it produces — derived, so the
   // preview and the commit always agree. Both halves of the main route are a

@@ -145,6 +145,16 @@ export function switchOnTrackToeValid(args, toeStation) {
   return !remnant?.short && !remnant?.shortAhead
 }
 
+/** How far the position slider runs either side of the clicked station [m] (Entscheidung 313). */
+export const SLIDER_REACH = 50
+
+/** The stretch of `track` the slider runs over: SLIDER_REACH around `around`, or all of it. */
+function sliderWindow(track, around) {
+  const total = trackLength(track)
+  if (!Number.isFinite(around)) return { from: 0, to: total }
+  return { from: Math.max(0, around - SLIDER_REACH), to: Math.min(total, around + SLIDER_REACH) }
+}
+
 /** The stations of the track's element changes, its two ends included. */
 function nodeStations(track) {
   let at = 0
@@ -161,13 +171,16 @@ function nodeStations(track) {
  * the switch end (WE) on an element change.
  *
  * `args` are switchOnTrackPlacement's, without the station, and `speed`, the
- * diverging track's. Returns { intervals, snaps }.
+ * diverging track's; `around` the station clicked, which the slider runs
+ * SLIDER_REACH either side of (Entscheidung 313) — the whole track without
+ * it. Returns { intervals, snaps }.
  */
-export function switchOnTrackSlider(args) {
+export function switchOnTrackSlider(args, around = null) {
   const { track, reversed, straightLen } = args
   if (!track?.elements?.length) return { intervals: [], snaps: [] }
   const nodes = nodeStations(track)
-  const intervals = validIntervals(s => switchOnTrackToeValid(args, s), 0, trackLength(track), 1)
+  const { from, to } = sliderWindow(track, around)
+  const intervals = validIntervals(s => switchOnTrackToeValid(args, s), from, to, 1)
   // WE lies the through length ahead of WA, in the direction the turnout opens.
   const snaps = uniqueStations([...nodes, ...nodes.map(n => (reversed ? n + straightLen : n - straightLen))])
   return { intervals, snaps }
@@ -618,15 +631,17 @@ export function crossingOnTrackPort({ track, pointStation, endDist, form, crossA
 
 /**
  * What the position slider of "Kreuzung auf Gleis" runs over (Entscheidung
- * 309): the stretches where the crossing point may lie, and the stations
- * where an end of its main route (A or C) falls on an element change.
+ * 309): the stretches where the crossing point may lie — SLIDER_REACH around
+ * the clicked station `around` (Entscheidung 313) — and the stations where
+ * an end of its main route (A or C) falls on an element change.
  */
-export function crossingOnTrackSlider({ track, endDist, form, crossAngle }) {
+export function crossingOnTrackSlider({ track, endDist, form, crossAngle }, around = null) {
   if (!track?.elements?.length) return { intervals: [], snaps: [] }
   const nodes = nodeStations(track)
   const valid = (s) => crossingOnTrackPort({ track, pointStation: s, endDist, form, crossAngle }, 'D') != null
+  const { from, to } = sliderWindow(track, around)
   return {
-    intervals: validIntervals(valid, 0, trackLength(track), 1),
+    intervals: validIntervals(valid, from, to, 1),
     snaps: uniqueStations(nodes.flatMap(n => [n - endDist, n + endDist])),
   }
 }
