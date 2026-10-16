@@ -1,13 +1,13 @@
 import { generateId, buildTypeFields } from '../identifierUtils'
 import { recalcAbsLengths } from '../trackModel'
-import { computeCurvedValuesUtm, computeStraightValuesUtm } from '../elementUtils'
+import { bearingAfterUtm, computeCurvedValuesUtm, computeStraightValuesUtm } from '../elementUtils'
 import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../trackSplitUtils'
 import {
   computeCrossingGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius,
 } from '../switch/crossing'
 import { computeSwitchGeometryUtm } from '../switch/symbol'
 import { switchBranchLength, switchFormChain } from '../switch/catalogue'
-import { switchBranchChain, switchChainBearingAt, switchChainPointUtm, switchChainTo, switchRouteVaries } from '../switch/route'
+import { switchBranchChain, switchChainBearingAt, switchChainPointUtm, switchChainTo, switchRouteVaries, utmEndRoute, negR } from '../switch/route'
 import { elementBelongsToSwitch, newSwitchFields, switchElementMark } from '../switchModel'
 import { cantExceptionFields, worstCantOf } from '../rules/cant'
 import { placeSwitchOnTrack } from '../switchPlacement'
@@ -613,4 +613,27 @@ export function crossingOnTrackPlacement({ track, pointStation, endDist, form, c
     }
   }
   return { error: null, ahead, back, geom: computeCrossingGeometryUtm(ahead.toeUtm, ahead.bearing, form, crossAngle) }
+}
+
+/**
+ * Where the end `port` ('B' or 'D') of the cross route of a crossing laid into
+ * `track` at `pointStation` lies, and the bearing its leg runs out on there:
+ * `{ utm, bearing }`, or null where the crossing cannot lie. What
+ * crossingOnTrackPlacement's geometry gives for that port, without building
+ * the body — a search asks it at every metre of a track (connectCrossing).
+ */
+export function crossingOnTrackPort({ track, pointStation, endDist, form, crossAngle }, port) {
+  if (!track || !Number.isFinite(pointStation)) return null
+  if (pointStation < 0 || pointStation > trackLength(track)) return null
+  const ahead = placeSwitchOnTrack(track, pointStation, false, endDist)
+  if (ahead.error) return null
+  const back = placeSwitchOnTrack(track, pointStation, true, endDist)
+  if (back.error) return null
+  const legR = crossingLegSignedRadius(form, crossAngle)
+  if (!crossingLegFitsTrack(ahead.pieces, legR) || !crossingLegFitsTrack(back.pieces, legR == null ? null : -legR)) return null
+  // As computeCrossingGeometryUtm lays the legs: D ahead on the cross
+  // bearing, B behind it, each the end distance out on the leg's radius.
+  const crossBearing = (ahead.bearing + crossAngle + 360) % 360
+  const [from, r] = port === 'B' ? [(crossBearing + 180) % 360, negR(legR)] : [crossBearing, legR]
+  return { utm: utmEndRoute(ahead.toeUtm, from, endDist, r), bearing: bearingAfterUtm(from, endDist, r) }
 }

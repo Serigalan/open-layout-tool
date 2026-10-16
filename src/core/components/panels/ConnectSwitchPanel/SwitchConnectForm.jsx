@@ -27,17 +27,7 @@ import FormSection from '../../form/FormSection'
 import { firstReason } from '../../form/firstReason'
 import NumberInput from '../../form/NumberInput'
 import { splitUnit } from '../../../locales/i18n'
-
-const fmtR = (r) => (r == null ? '∞' : `${Math.round(r)} m`)
-const fmtL = (l) => `${l.toFixed(3)} m`
-
-/** How an element reads in one line: its kind, length and radius (both ends of a transition). */
-function elementText(t, el) {
-  if (!el) return '–'
-  if (el.elementType === 2) return `${t('table_type_transition')} ${fmtL(el.length)}, ${fmtR(el.r1)} → ${fmtR(el.r2)}`
-  if (el.elementType === 1) return `${t('table_type_arc')} ${fmtL(el.length)}, R ${fmtR(el.radius)}`
-  return `${t('table_type_straight')} ${fmtL(el.length)}`
-}
+import { elementText } from './connectText'
 
 /**
  * "Weiche an Gleis anschließen" (Entscheidungen 302–304): a turnout laid into a

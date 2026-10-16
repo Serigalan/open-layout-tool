@@ -38,7 +38,7 @@ function routeEndAt({ track, reversed, sw, side }, x, full = false) {
 }
 
 /** The point of the host at `station`, and one `ahead` metres further along it. */
-function hostPointAt(track, station, ahead = 0) {
+export function hostPointAt(track, station, ahead = 0) {
   const hit = elementAtStation(track.elements, Math.min(trackLength(track), Math.max(0, station)))
   if (!hit) return null
   const el = hit.el

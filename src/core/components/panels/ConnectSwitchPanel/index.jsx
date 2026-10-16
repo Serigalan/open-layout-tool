@@ -3,11 +3,12 @@ import SCurveForm from './SCurveForm'
 import SwitchOnTrackForm from './SwitchOnTrackForm'
 import SwitchConnectForm from './SwitchConnectForm'
 import CrossingOnTrackForm from './CrossingOnTrackForm'
+import CrossingConnectForm from './CrossingConnectForm'
 import TrackLinkForm from './TrackLinkForm'
 import SwitchSearch from './SwitchSearch'
 import CrossoverGradientForm from '../CrossoverGradientForm'
 import {
-  SwitchOnTrackIcon, SwitchConnectTrackIcon, SwitchConnectionIcon, CrossingOnTrackIcon, SwitchLinkIcon,
+  SwitchOnTrackIcon, SwitchConnectTrackIcon, SwitchConnectionIcon, CrossingOnTrackIcon, CrossingConnectTrackIcon, SwitchLinkIcon,
 } from '../../icons'
 import { useI18n } from '../../../locales/i18nContext'
 import BackButton from '../BackButton'
@@ -61,6 +62,14 @@ export default function ConnectSwitchPanel() {
     </>
   )
 
+  if (page === 'crossing_connect') return (
+    <>
+      <BackButton onBack={back} />
+      <h2>{t('crossing_connect_track')}</h2>
+      <CrossingConnectForm onCommitted={() => setPage('menu')} />
+    </>
+  )
+
   if (page === 'link') return (
     <>
       <BackButton onBack={back} />
@@ -91,6 +100,10 @@ export default function ConnectSwitchPanel() {
         <button className="create-element-btn" onClick={() => setPage('crossing_ontrack')}>
           <CrossingOnTrackIcon />
           {t('crossing_on_track')}
+        </button>
+        <button className="create-element-btn" onClick={() => setPage('crossing_connect')}>
+          <CrossingConnectTrackIcon />
+          {t('crossing_connect_track')}
         </button>
         <hr className="divider divider-wide" />
         <button className="create-element-btn" onClick={() => setPage('link')}>
