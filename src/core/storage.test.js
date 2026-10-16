@@ -8,7 +8,7 @@ import {
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
   openStoredProject, currentStoredProject, currentStoredMeta, closeStoredProject, flushPendingWrites, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
-  setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms, commitImport,
+  setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms, commitImport, historySteps, travelHistory,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/trackEndMarks'
 import { endPointCurvedUtm, endPointStraightUtm } from './utils/elementUtils'
@@ -64,6 +64,33 @@ describe('deleting a whole network', () => {
     undo()
     expect(loadTracks().map(t => t.id).sort()).toEqual(['a', 'b', 'c', 'far'])
     expect(loadSwitches()).toHaveLength(1)
+  })
+})
+
+describe('the history of steps (decision 326)', () => {
+  const tr = (id) => ({ id, epsg: 25832, elements: [] })
+  const ids = () => loadTracks().map(t => t.id)
+
+  it('lists the steps behind and ahead, and goes several at once', () => {
+    openProject({ id: 'hist1', tracks: [], switches: [] })
+    saveTrack(tr('a')); saveTrack(tr('b')); saveTrack(tr('c'))
+    expect(historySteps().past).toHaveLength(3)
+    expect(historySteps().future).toHaveLength(0)
+
+    expect(travelHistory(-2)).toBe(true)
+    expect(ids()).toEqual(['a'])
+    const { past, future } = historySteps()
+    expect(past).toHaveLength(1)
+    expect(future.map(s => s.after.tracks.length)).toEqual([2, 3])
+    expect(future[0].before).toBe(currentProject())
+
+    expect(travelHistory(5)).toBe(true)
+    expect(ids()).toEqual(['a', 'b', 'c'])
+    expect(travelHistory(1)).toBe(false)
+    expect(travelHistory(-3)).toBe(true)
+    expect(ids()).toEqual([])
+    expect(canUndo()).toBe(false)
+    expect(canRedo()).toBe(true)
   })
 })
 

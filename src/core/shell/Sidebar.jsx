@@ -6,13 +6,16 @@ import { describeStep } from '../utils/stepLabel'
 import { loadSettings, saveSettings } from '../utils/settings'
 import { PANELS } from './panels'
 import { extensionsOf } from '../extensions'
+import HistoryMenu from './HistoryMenu'
 
 /**
  * The sidebar of the map view, made from the panel register (R2.3): the work
  * steps in their order, a line between them, and their names beside the
  * symbols (R10.7), which can be folded away — remembered on this device.
  * At its foot, beside that button, what the server puts there
- * (`sidebarFoot`): whether the services are there (R10.12).
+ * (`sidebarFoot`): whether the services are there (R10.12). Undo and redo
+ * are two arrows without words, the history between them (decision 326) —
+ * side by side while the names show, one above the other in the narrow bar.
  */
 export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
   const { t, fill } = useI18n()
@@ -26,13 +29,13 @@ export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
   const undoTitle = undoStep ? fill('tooltip_undo_step', { step: stepText(undoStep) }) : t('tooltip_undo')
   const redoTitle = redoStep ? fill('tooltip_redo_step', { step: stepText(redoStep) }) : t('tooltip_redo')
 
-  const iconButton = ({ key, icon, title, onClick, disabled, active: on, pressed }) => {
+  const iconButton = ({ key, icon, title, onClick, disabled, active: on, pressed, bare = false }) => {
     const Icon = icon
     return (
       <button key={key} type="button" className={`sidebar-icon-btn${on ? ' active' : ''}`}
         onClick={onClick} disabled={disabled} title={title} aria-label={title} aria-pressed={pressed}>
         <Icon />
-        {labels && <span className="sidebar-label">{title}</span>}
+        {labels && !bare && <span className="sidebar-label">{title}</span>}
       </button>
     )
   }
@@ -59,8 +62,11 @@ export default function Sidebar({ active, onSelect, onUndo, onRedo, onHome }) {
         {withDividers(PANELS.filter(p => p.place === 'top'))}
       </div>
       <div className="sidebar-bottom">
-        {iconButton({ key: 'undo', icon: UndoIcon, title: undoTitle, onClick: onUndo, disabled: !undoStep })}
-        {iconButton({ key: 'redo', icon: RedoIcon, title: redoTitle, onClick: onRedo, disabled: !redoStep })}
+        <div className="sidebar-history">
+          {iconButton({ key: 'undo', icon: UndoIcon, title: undoTitle, onClick: onUndo, disabled: !undoStep, bare: true })}
+          <HistoryMenu />
+          {iconButton({ key: 'redo', icon: RedoIcon, title: redoTitle, onClick: onRedo, disabled: !redoStep, bare: true })}
+        </div>
         {iconButton({ key: 'home', icon: HomeIcon, title: t('tooltip_home'), onClick: onHome })}
         {PANELS.filter(p => p.place === 'bottom').map(panelButton)}
         <div className="sidebar-foot">

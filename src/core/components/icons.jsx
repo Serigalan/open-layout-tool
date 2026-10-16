@@ -215,6 +215,15 @@ export const RouteIcon = () => (
   </MenuIcon>
 )
 
+// The information about the tool, a page of the settings: an i in a circle.
+export const AboutIcon = () => (
+  <MenuIcon>
+    <path d="M2 8 A6 6 0 1 1 14 8 A6 6 0 1 1 2 8 Z" />
+    <path d="M8 7.5 V11.5" />
+    <circle cx="8" cy="4.8" r="1.5" fill="currentColor" stroke="none" />
+  </MenuIcon>
+)
+
 // Which tracks the map shows: an eye.
 export const TrackVisibilityIcon = () => (
   <MenuIcon>
@@ -575,19 +584,20 @@ export const UndoIcon = () => (
   </SidebarIcon>
 )
 
+/** The steps that can be undone and redone: a clock with its hand turning back. */
+export const HistoryIcon = () => (
+  <SidebarIcon>
+    <path d="M4 12 A8 8 0 1 0 6.3 6.3" />
+    <path d="M2.8 6.6 H6.6 V2.8" />
+    <path d="M12 7.5 V12 L15 14" />
+  </SidebarIcon>
+)
+
 /** The undo arrow, mirrored. */
 export const RedoIcon = () => (
   <SidebarIcon>
     <path d="M15 14 L20 9 L15 4" />
     <path d="M20 9 H9.5 A5.5 5.5 0 0 0 9.5 20 H13" />
-  </SidebarIcon>
-)
-
-export const InfoIcon = () => (
-  <SidebarIcon>
-    <circle cx="12" cy="12" r="9.5" />
-    <path d="M12 11 V17" />
-    <circle cx="12" cy="7.5" r="1.4" fill="currentColor" stroke="none" />
   </SidebarIcon>
 )
 

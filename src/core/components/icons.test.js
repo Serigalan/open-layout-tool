@@ -23,7 +23,7 @@ const MENU_ICONS = [
   'ChangeDirectionIcon', 'AssignTracksIcon', 'DeleteTrackIcon', 'DeleteSwitchIcon', 'TrackVisibilityIcon', 'RouteIcon',
   'OptimizeTrackModeIcon', 'OptimizeElementModeIcon', 'AxisFitModeIcon', 'BandsIcon',
   'CrossingOnTrackIcon', 'CrossingConnectTrackIcon', 'SwitchLinkIcon',
-  'SpliceJoinIcon', 'ReconnectIcon', 'ShiftValuesIcon', 'NewPlatformIcon', 'BufferStopIcon', 'PointCloudIcon',
+  'SpliceJoinIcon', 'ReconnectIcon', 'AboutIcon', 'ShiftValuesIcon', 'NewPlatformIcon', 'BufferStopIcon', 'PointCloudIcon',
 ]
 
 // Walk a path the way a renderer does and state every absolute position it
@@ -137,7 +137,7 @@ describe('the panel menu icon rule (AP 4.3)', () => {
 const SIDEBAR_ICONS = [
   'ProjectSettingsIcon', 'LayerIcon', 'TopologyIcon', 'PlaceIcon', 'ConnectSwitchIcon', 'SpliceElementIcon',
   'ElevationIcon', 'CrossSectionIcon', 'EditElementIcon', 'DataExchangeIcon', 'PlanExportIcon',
-  'UndoIcon', 'HomeIcon', 'InfoIcon', 'SettingsIcon',
+  'UndoIcon', 'HistoryIcon', 'HomeIcon', 'SettingsIcon',
 ]
 
 describe('the sidebar icon rule', () => {

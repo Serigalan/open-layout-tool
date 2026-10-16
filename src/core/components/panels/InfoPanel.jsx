@@ -1,5 +1,5 @@
 import {
-  LayerIcon, TopologyIcon, PlaceIcon, ConnectSwitchIcon, SpliceElementIcon,
+  ProjectSettingsIcon, LayerIcon, TopologyIcon, PlaceIcon, ConnectSwitchIcon, SpliceElementIcon,
   EditElementIcon, ElevationIcon, CrossSectionIcon, DataExchangeIcon,
   PlanExportIcon, ExternalLinkIcon, CheckIcon,
 } from '../icons'
@@ -26,6 +26,7 @@ function withOsrdLink(text) {
 // entry — its icon and label — with the descriptions of both of its groups,
 // one paragraph each: `desc` is a key, or several keys for those panels.
 const PANELS = [
+  { Icon: ProjectSettingsIcon, title: 'project_settings', desc: 'info_project' },
   { Icon: LayerIcon,          title: 'tooltip_layers', desc: 'info_layers' },
   { Icon: TopologyIcon,       title: 'topology_title', desc: 'info_topology' },
   { Icon: PlaceIcon,          title: 'create_element', desc: ['info_places', 'info_platform'] },

@@ -38,6 +38,7 @@ const BandsOverlay = lazy(() => import('../components/BandsOverlay'))
 const CrossSectionOverlay = lazy(() => import('../components/CrossSectionOverlay'))
 const TopologyGraphOverlay = lazy(() => import('../components/TopologyGraphOverlay'))
 const CompareOverlay = lazy(() => import('../components/collab/CompareOverlay'))
+const ProjectTracksOverlay = lazy(() => import('../components/ProjectTracksOverlay'))
 import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 
@@ -91,9 +92,10 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
   const km = useKmOverlays(map)
   useKmLineHover(map, km.kmOverlays.db || km.kmOverlays.other, t)
 
-  // A panel is always open, the info panel first — for an empty project with
-  // its first steps (R10.13).
-  const [activePanel, setActivePanel] = useState('info')
+  // A panel is always open, the information first — for an empty project with
+  // its first steps (R10.13). It is a page of the settings (decision 325).
+  const [activePanel, setActivePanel] = useState('settings')
+  const [settingsPage, setSettingsPage] = useState('info')
   const [overlays, dispatch] = useReducer(overlayReducer, OVERLAYS_CLOSED)
   const { overlay, popup, detached } = overlays
   // Two states over each other (AP 10.3): { before, after, beforeLabel, afterLabel, drawUnchanged }.
@@ -189,6 +191,7 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
       : closeOverlay('trackTable')),
     setCompare,
     color, setColor,
+    settingsPage, setSettingsPage,
     selectPanel,
   }
 
@@ -352,6 +355,7 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
             onDirtyChange={setTableDirty} onClose={() => closeOverlay('trackTable')} />}
           {overlay?.kind === 'profile' && <ElevationOverlay trackId={overlay.trackId} routeId={overlay.routeId ?? null}
             section={detached?.kind === 'crossSection' ? detached.at : null} onClose={() => closeOverlay('profile')} />}
+          {overlay?.kind === 'projectTracks' && <ProjectTracksOverlay onClose={() => closeOverlay('projectTracks')} />}
           {overlay?.kind === 'bands' && <BandsOverlay trackId={overlay.trackId} onClose={() => closeOverlay('bands')} />}
           {overlay?.kind === 'crossSection' && <CrossSectionOverlay at={overlay.at}
             onAtChange={(at) => openOverlay({ kind: 'crossSection', at })} onClose={() => closeOverlay('crossSection')}

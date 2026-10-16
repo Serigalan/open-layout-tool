@@ -423,6 +423,41 @@ export function redoStep() {
 let _undoStepCache = null
 let _redoStepCache = null
 
+/**
+ * The steps that can be undone and redone (decision 326), for the history:
+ * `past` oldest first — the last of them is the one undo takes back —, and
+ * `future` in the order redo brings them, each { before, after } as undoStep
+ * gives them. Worked out anew on every call; read it on a change of the store.
+ */
+export function historySteps() {
+  const states = [..._undoStack.map(e => e.project), _project]
+  const past = _undoStack.map((e, i) => ({ before: e.project, after: states[i + 1] }))
+  const ahead = [..._redoStack].reverse().map(e => e.project)
+  const future = ahead.map((after, i) => ({ before: i === 0 ? _project : ahead[i - 1], after }))
+  return { past, future }
+}
+
+/**
+ * Go `n` steps through the history at once: back for n < 0 (as many undos),
+ * forward for n > 0 (as many redos) — one step for the notice, from where it
+ * was to where it lands. Returns whether it moved.
+ */
+export function travelHistory(n) {
+  const from = n < 0 ? _undoStack : _redoStack
+  const to = n < 0 ? _redoStack : _undoStack
+  const k = Math.min(Math.abs(n), from.length)
+  if (!k || !_project) return false
+  const before = _project
+  let current = { project: _project, idLog: _idLog }
+  for (let i = 0; i < k; i++) {
+    to.push(current)
+    current = from.pop()
+  }
+  recordStep(n < 0 ? 'undo' : 'redo', before, current.project)
+  restore(current)
+  return true
+}
+
 // A snapshot back into place. The header is not part of the snapshots, so it
 // is kept as it is now.
 function restore({ project, idLog }) {

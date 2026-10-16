@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { ProjectSettingsIcon, LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, InfoIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, CrossSectionIcon, PlanExportIcon, ElevationIcon, CheckIcon } from '../components/icons'
+import { ProjectSettingsIcon, LayerIcon, TopologyIcon, PlaceIcon, SettingsIcon, DataExchangeIcon, EditElementIcon, ConnectSwitchIcon, SpliceElementIcon, CrossSectionIcon, PlanExportIcon, ElevationIcon, CheckIcon } from '../components/icons'
 
 // Each panel is its own chunk (R9.1), loaded the first time it is opened.
 const ProjectSettingsPanel = lazy(() => import('../components/panels/ProjectSettingsPanel'))
@@ -12,7 +12,6 @@ const ElevationPanel = lazy(() => import('../components/panels/ElevationPanel'))
 const CrossSectionsPanel = lazy(() => import('../components/panels/CrossSectionsPanel'))
 const EditElementPanel = lazy(() => import('../components/panels/EditElementPanel'))
 const SettingsPanel = lazy(() => import('../components/panels/SettingsPanel'))
-const InfoPanel = lazy(() => import('../components/panels/InfoPanel'))
 const DataExchangePanel = lazy(() => import('../components/panels/DataExchangePanel'))
 const PlanExportPanel = lazy(() => import('../components/panels/PlanExportPanel'))
 const CheckPanel = lazy(() => import('../components/panels/CheckPanel'))
@@ -37,7 +36,16 @@ const CheckPanel = lazy(() => import('../components/panels/CheckPanel'))
  *   overlay     the map overlay that belongs to the panel and closes with it
  */
 export const PANELS = [
-  { id: 'project', group: 'project', icon: ProjectSettingsIcon, titleKey: 'project_settings', place: 'top', Component: ProjectSettingsPanel },
+  {
+    id: 'project', group: 'project', icon: ProjectSettingsIcon, titleKey: 'project_settings', place: 'top', Component: ProjectSettingsPanel,
+    overlay: 'projectTracks',
+    props: (s) => ({
+      tracksOpen: s.overlay?.kind === 'projectTracks',
+      onShowTracks: (on) => (on ? s.openOverlay({ kind: 'projectTracks' }) : s.closeOverlay('projectTracks')),
+    }),
+    // The tracks come up with the panel, over the map (decision 324).
+    onEnter: (s) => s.openOverlay({ kind: 'projectTracks' }),
+  },
   {
     id: 'layers', group: 'view', icon: LayerIcon, titleKey: 'tooltip_layers', place: 'top', Component: LayersPanel,
     props: (s) => ({
@@ -122,13 +130,17 @@ export const PANELS = [
       onShowPlanPreview: (preview) => (preview ? s.openOverlay({ kind: 'planPreview', ...preview }) : s.closeOverlay('planPreview')),
     }),
   },
-  {
-    id: 'info', group: 'app', icon: InfoIcon, titleKey: 'info', place: 'bottom', Component: InfoPanel,
-    props: (s) => ({ onDraw: () => s.selectPanel('places'), onImport: () => s.selectPanel('data') }),
-  },
+  // The information is a page of the settings (decision 325): the one a
+  // project opens on, with its first steps; the settings icon opens the
+  // settings themselves.
   {
     id: 'settings', group: 'app', icon: SettingsIcon, titleKey: 'settings', place: 'bottom', Component: SettingsPanel,
-    props: (s) => ({ color: s.color, onColorChange: s.setColor }),
+    props: (s) => ({
+      color: s.color, onColorChange: s.setColor,
+      page: s.settingsPage, onPage: s.setSettingsPage,
+      onDraw: () => s.selectPanel('places'), onImport: () => s.selectPanel('data'),
+    }),
+    onEnter: (s) => s.setSettingsPage('main'),
   },
 ]
 
