@@ -103,17 +103,17 @@ export function switchConnectSolutions({ track, clickStation, anchor, sw, lead =
  * towards the open end — for the rule check: its own rules and the joint to
  * the rest of its track, not the turnout's.
  */
-export function refitCheckChain(refitted, anchor, count = 1) {
+function refitCheckChain(refitted, anchor, count = 1) {
   const els = refitted.elements
   if (anchor.endpoint === 'END') return els.slice(Math.max(0, anchor.elIdx - 1), anchor.elIdx + count)
   return els.slice(0, count + 1).reverse().map(reverseElement)
 }
 
 /** The indices in such a chain the rules are asked about: the refitted elements, the last `count`. */
-export const refitJudged = (chain, count = 1) => chain.map((_, i) => i).slice(-count)
+const refitJudged = (chain, count = 1) => chain.map((_, i) => i).slice(-count)
 
 /** Does the catalogue find an error on the refitted elements or their joints (Entscheidung 304)? */
-export function refitRuleError(chain, count = 1) {
+function refitRuleError(chain, count = 1) {
   const per = checkTrack(chain).perElement
   return refitJudged(chain, count).some(i => severityRank(per[i]?.severity) >= severityRank('error'))
 }

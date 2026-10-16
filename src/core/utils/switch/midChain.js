@@ -41,7 +41,7 @@ export const MID_OPEN = 2
  * curvatures of the branches at either end, which a transition there runs
  * from or to.
  */
-export function midPieces(mids, values, signs, kStart, kEnd) {
+function midPieces(mids, values, signs, kStart, kEnd) {
   const open = midUnknowns(mids)
   const value = (i, field) => {
     const at = open.findIndex(u => u.i === i && u.field === field)

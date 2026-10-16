@@ -8,8 +8,8 @@ jobs:
   app:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -31,8 +31,8 @@ jobs:
   optimizer:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           # The servers' Python (Ubuntu 22.04), with the versions they run.
           python-version: '3.10'
@@ -64,6 +64,6 @@ jobs:
   deploy-scripts:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: bash -n deploy/setup.sh && bash -n deploy/deploy.sh && bash -n deploy/lib.sh && bash -n deploy/release.sh && bash -n deploy/monitor.sh
       - run: shellcheck -x deploy/setup.sh deploy/deploy.sh deploy/lib.sh deploy/release.sh deploy/monitor.sh tools/check.sh

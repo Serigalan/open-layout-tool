@@ -16,7 +16,7 @@ const LEAD_START = 60
 const LEAD_ROUNDS = 6
 
 /** What is still worse than a hint on the refitted elements of an outcome (refitOutcome). */
-export function remainingFindings(outcome) {
+function remainingFindings(outcome) {
   const per = checkTrack(outcome.chain).perElement
   return outcome.judged.flatMap(i => per[i]?.results ?? [])
     .filter(r => severityRank(r.severity) > severityRank('hint'))

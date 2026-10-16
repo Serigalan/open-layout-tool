@@ -470,46 +470,6 @@ function buildSwappedAtTrackEnd({
 }
 
 /**
- * The commit of a crossing at a track's end (CrossingForm, R4.2): the main
- * route's first leg appended to the picked track — from port A to the
- * crossing point, so the join at the port is the joint the track already
- * had — the three other legs and the slip routes as new tracks, the record.
- * `g` is the crossing geometry, `anchor` { trackId, epsg } the picked end.
- */
-export function buildCrossingAtTrackEnd({ g, anchor, form, switchName, switchNumber, name, fields }) {
-  const identity = { ...newSwitchFields(form.kind), name: switchName, label: form.label }
-  // One element per leg and per connecting route, marked with its route —
-  // straight or arc as the form's geometry has it.
-  const els = crossingElements(g, identity)
-  // The legs run from the crossing point out to their ports, so the three new
-  // ones join the appended first leg end to end there.
-  const legTrack = (el, trackName = null) => ({
-    id: generateId(), name: trackName, owner: fields.owner, ...buildTypeFields(fields),
-    epsg: anchor.epsg, coordinates: el.geometry.coordinates, elements: recalcAbsLengths([el]),
-  })
-  const legC = legTrack(els.C, name)
-  const legB = legTrack(els.B)
-  const legD = legTrack(els.D)
-  const slipTracks = [els.slip1, els.slip2].filter(Boolean).map(el => legTrack(el))
-  return {
-    removeTrackIds: [],
-    append: [{ trackId: anchor.trackId, elements: [els.A] }],
-    addTracks: [legC, legB, legD, ...slipTracks],
-    addSwitches: [{
-      ...identity,
-      number: switchNumber,
-      // Port A names the track the crossing is connected to: its end node is
-      // the port, and the appended leg is the switch's own element there.
-      portA_trackId: anchor.trackId, portA_endpoint: 'END',
-      portB_trackId: legB.id, portB_endpoint: 'END',
-      portC_trackId: legC.id, portC_endpoint: 'BEGIN',
-      portD_trackId: legD.id, portD_endpoint: 'BEGIN',
-      fillCoords: g.fillCoords,
-    }],
-  }
-}
-
-/**
  * The commit of a crossing laid into a track (CrossingOnTrackForm, R4.2): the
  * host track parted at the crossing point with the main legs carved out of
  * its halves, the cross legs and slip routes as new tracks, the record — or
