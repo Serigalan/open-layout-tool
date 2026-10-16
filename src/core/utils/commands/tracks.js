@@ -31,6 +31,13 @@ export function buildLineTrack({ start, end, speed, meta, id }) {
  */
 export const curveCant = (signedR, cant) => cantSign(signedR) * Math.abs(Number(cant) || 0)
 
+/**
+ * The cant an arc appended at a track's end stores: the track's own where no
+ * transition comes between (`endCant`, signed; Entscheidung 315), else the
+ * magnitude the dialog asked for, signed with the curve.
+ */
+export const arcCant = (signedR, cant, endCant = null) => (endCant ?? curveCant(signedR, cant))
+
 /** CurvedLineForm: one arc between two points with a (fitted) radius. */
 export function buildCurvedLineTrack({ start, end, signedR, speed, cant, meta, id }) {
   return trackOf([arcElement(start, end, signedR, { speed, cant: curveCant(signedR, cant) })], start.zone, meta, id)
@@ -74,15 +81,29 @@ export function buildConnectStraight({ start, bearing, length, speed, transition
 }
 
 /**
+ * The cant an element appended at a track's end without a transition carries
+ * (Entscheidung 315): the one the track ends with, signed by the raised rail —
+ * only a transition ramps it to another. Null where the track ends in a
+ * transition that states none at its end: that one ramps into whatever follows.
+ */
+export function cantAtTrackEnd(lastEl) {
+  if (!lastEl) return 0
+  if (lastEl.elementType === 2) return lastEl.cantEnd ?? null
+  return lastEl.cant ?? 0
+}
+
+/**
  * ConnectCurvedForm: an arc of `arcLength` and radius `signedR` appended at a
  * track's end, optionally after a transition from the last element's radius
- * into the new one. Returns the elements to append, in order.
+ * into the new one. `cant` is the arc's (a magnitude) where a transition ramps
+ * to it; without one the arc keeps `endCant`, the track's (cantAtTrackEnd),
+ * where that is fixed. Returns the elements to append, in order.
  */
-export function buildConnectCurved({ start, bearing, arcLength, signedR, speed, cant, transition = null }) {
+export function buildConnectCurved({ start, bearing, arcLength, signedR, speed, cant, endCant = null, transition = null }) {
   const lead = leadingTransition(start, bearing, transition, signedR, speed)
   const from = lead ? lead.endUtm : start
   const b    = lead ? lead.endBearing : bearing
   // The arc keeps the bearing and length it was asked for; the factory derives the rest.
-  const arc  = arcFrom(from, b, arcLength, signedR, { speed, cant: curveCant(signedR, cant) })
+  const arc  = arcFrom(from, b, arcLength, signedR, { speed, cant: arcCant(signedR, cant, lead ? null : endCant) })
   return [...(lead ? [lead.element] : []), { ...arc, bearing: b, length: arcLength }]
 }

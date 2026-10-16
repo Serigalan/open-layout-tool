@@ -160,6 +160,25 @@ describe('the track refitted and joined', () => {
     expect(out.elements[1].r2).toBeCloseTo(600, 3)
   })
 
+  it('an arc without a transition before it takes the neighbour\'s cant (Entscheidung 315)', () => {
+    for (const endpoint of ['END', 'BEGIN']) {
+      const base = trackEndingIn((p, b) => straightFrom(p, b, 50, { speed: 80, cant: 0 }))
+      // The element at the open end carries a cant the straight beside it does not.
+      const els = base.elements.map((e, i) => (i === (endpoint === 'END' ? 1 : 0) ? { ...e, cant: endpoint === 'END' ? 50 : -50 } : e))
+      const track = { ...base, elements: els }
+      const { anchor, port, bearingIn } = portFor(track, endpoint)
+      const out = refitTrackEnd(track, anchor, fitConnectingElement(anchor, port, bearingIn), port)
+      expect(out.elements[endpoint === 'END' ? 1 : 0].cant).toBe(0)
+    }
+    // Beside an arc the refitted one keeps its cant, stated in its own direction.
+    const first = arcFrom(START, 30, 100, 900, { speed: 80, cant: 40 })
+    const track = trackOf([first, straightFrom(at(first.endNode), first.endBearing, 50, { speed: 80, cant: 0 })], EPSG, {}, 'c')
+    const { anchor, port, bearingIn } = portFor(track, 'END')
+    const out = refitTrackEnd(track, anchor, fitConnectingElement(anchor, port, bearingIn), port)
+    expect(out.elements[1].elementType).toBe(1)
+    expect(out.elements[1].cant).toBe(40)
+  })
+
   it('joins the route so that the track keeps its id, direction and the switch port is its end', () => {
     const track = trackEndingIn((p, b) => straightFrom(p, b, 50))
     for (const endpoint of ['END', 'BEGIN']) {

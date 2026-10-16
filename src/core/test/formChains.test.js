@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { rebuildCoords } from '../utils/trackModel'
-import { buildConnectCurved, buildConnectStraight, buildCurvedLineTrack, buildLineTrack, trackOf } from '../utils/commands/tracks'
+import { buildConnectCurved, buildConnectStraight, buildCurvedLineTrack, buildLineTrack, cantAtTrackEnd, trackOf } from '../utils/commands/tracks'
 import { buildSwitchOnTrack, switchOnTrackPlacement } from '../utils/commands/switches'
 import { arcFrom, straightFrom, transitionElement } from '../utils/elementFactory'
 import { endPointStraightUtm, endPointCurvedUtm } from '../utils/elementUtils'
@@ -96,6 +96,35 @@ describe('connect element — arc onto a straight, over a transition', () => {
       transition: { length: 120, fromRadius: 700 },
     })
     expectValidTrack(appended(arcTrack, els))
+  })
+})
+
+describe('connect element — the arc\'s cant (Entscheidung 315)', () => {
+  const R = 700
+  const arcTrack = curvedTrack(endPointCurvedUtm(START, 20, 200, R), R)
+  const arc = lastOf(arcTrack)
+  const connect = (extra) => buildConnectCurved({
+    start: endOf(arc), bearing: arc.endBearing, arcLength: 150, speed: SPEED, cant: 120, ...extra,
+  })
+
+  it('without a transition the arc keeps the cant the track ends with, either hand', () => {
+    expect(cantAtTrackEnd(arc)).toBe(80)
+    for (const signedR of [500, -500]) {
+      expect(connect({ signedR, endCant: cantAtTrackEnd(arc) })[0].cant).toBe(80)
+    }
+  })
+
+  it('a transition ramps to the cant asked for', () => {
+    const els = connect({ signedR: 500, endCant: cantAtTrackEnd(arc), transition: { length: 60, fromRadius: R } })
+    expect(els).toHaveLength(2)
+    expect(els[1].cant).toBe(120)
+  })
+
+  it('after a transition that states no cant at its end the arc\'s is free', () => {
+    const t = transitionElement(START, 20, 60, null, 500, { speed: SPEED }).element
+    expect(cantAtTrackEnd(t)).toBeNull()
+    expect(cantAtTrackEnd({ ...t, cantEnd: 40 })).toBe(40)
+    expect(connect({ signedR: 500, endCant: cantAtTrackEnd(t) })[0].cant).toBe(120)
   })
 })
 

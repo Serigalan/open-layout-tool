@@ -79,6 +79,10 @@ export function connectionAnchor(track, endpoint, { tracks, switches, endMarks }
       oldLength: el.length,
       r0: before ? endRadius(before) : null,
       cant0: before ? endCant(before) : 0,
+      // The cant a refitted arc keeps where no transition comes between
+      // (Entscheidung 315): the neighbour's at the fixed node. Null where none
+      // fixes it — no neighbour, or a transition that ramps into what follows.
+      cantOn: !before ? null : before.elementType === 2 ? (before.cantEnd ?? null) : (before.cant ?? 0),
       neighbourIdx: neighbour ? (atEnd ? elIdx - 1 : elIdx + 1) : null,
     },
   }
@@ -256,7 +260,8 @@ const SHAPE_FIELDS = new Set([
  * track's start, with everything else the old one carried (speed, cant, …) —
  * stated in the old element's own direction, which the result has again.
  * With a lead transition (fitWithLead) two elements, the transition first
- * from the fixed node, its cant ramping from the neighbour's to the arc's.
+ * from the fixed node, its cant ramping from the neighbour's to the arc's;
+ * without one an arc takes the neighbour's cant (Entscheidung 315).
  * Returned in the track's order.
  */
 function refittedElements(track, anchor, fit, port) {
@@ -265,11 +270,11 @@ function refittedElements(track, anchor, fit, port) {
   const route = fit.route
   let start = anchor.fixedUtm, bearing = anchor.bearing
   const built = []
+  // A cant read in the run's direction, stated in the old element's own.
+  const cantAt = (u) => (anchor.endpoint === 'END' ? u : -u)
   if (fit.lead) {
     const { cant: _c, cantStart: _s, cantEnd: _e, ...plain } = keep
     const arcCant = old.elementType === 2 ? (old.cantEnd ?? 0) : (old.cant ?? 0)
-    // In the run's direction the cant is the neighbour's at the fixed node.
-    const cantAt = (u) => (anchor.endpoint === 'END' ? u : -u)
     const t = transitionElement(start, bearing, fit.lead.length, fit.lead.r1, fit.lead.r2, {
       cantStart: anchor.cant0, cantEnd: cantAt(arcCant),
     })
@@ -282,7 +287,8 @@ function refittedElements(track, anchor, fit, port) {
     : route.r1
       ? arcElement(start, port, route.r1)
       : straightElement(start, port)
-  built.push({ el: last, keep })
+  const inherits = !fit.lead && route.r1 && route.r1 === route.r2 && anchor.cantOn != null
+  built.push({ el: last, keep: inherits ? { ...keep, cant: cantAt(anchor.cantOn) } : keep })
   const own = built.map(({ el, keep: k }) => ({ ...(anchor.endpoint === 'END' ? el : reverseElement(el)), ...k }))
   return anchor.endpoint === 'END' ? own : own.reverse()
 }

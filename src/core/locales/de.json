@@ -184,6 +184,7 @@
   "cant_regel": "Regelüberhöhung",
   "cant_regel_hint": "Setzt die Regelüberhöhung nach LP.KB.04 (6,5 · v² / R, auf 5 mm gerundet, begrenzt auf die zulässige Überhöhung)",
   "cant_def": "Überhöhungsfehlbetrag (mm)",
+  "connect_cant_inherited": "Ohne Übergangsbogen bleibt die Überhöhung des Vorgängerelements – erst ein Übergangsbogen kann sie ändern.",
   "utm_start": "Startknoten",
   "utm_end": "Endknoten",
   "bearing": "Richtung (°)",
