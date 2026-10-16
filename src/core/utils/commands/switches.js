@@ -85,15 +85,17 @@ function elementSpan(track, elIdx, reversed) {
 }
 
 /**
- * The piece of its element a turnout at `toeStation` leaves before its toe
- * (WA) — between the toe and the element's node on the side away from the
- * turnout. It has to be none at all (the toe on the node) or at least l_min of
- * LP.EL.01 at `speed`, the speed of the diverging track, whatever the element
- * runs at (Entscheidung 219); behind the switch end nothing is asked
- * (Entscheidung 217). `lMin` is null below the catalogue's table (40 km/h):
- * then it is not checked.
+ * The pieces of its element a turnout at `toeStation` leaves on either side of
+ * its toe (WA): `length` between the toe and the element's node on the side
+ * away from the turnout, `ahead` between the toe and the node it opens towards,
+ * under the turnout. Each has to be none at all (the toe on the node) or at
+ * least l_min of LP.EL.01 at `speed`, the speed of the diverging track,
+ * whatever the element runs at (Entscheidungen 219, 301); behind the switch end
+ * nothing is asked (Entscheidung 217). `lMin` is null below the catalogue's
+ * table (40 km/h): then it is not checked.
  *
- * Returns { elIdx, length, lMin, speed, short } — or null off the track.
+ * Returns { elIdx, length, ahead, lMin, speed, short, shortAhead } — or null
+ * off the track.
  */
 export function switchOnTrackRemnant(track, toeStation, reversed, speed) {
   const hit = elementAtStation(track?.elements, toeStation)
@@ -101,43 +103,57 @@ export function switchOnTrackRemnant(track, toeStation, reversed, speed) {
   const len = hit.el.length ?? 0
   const onNode = hit.s <= NODE_TOL || hit.s >= len - NODE_TOL
   const length = onNode ? 0 : (reversed ? len - hit.s : hit.s)
+  const ahead  = onNode ? 0 : len - length
   const lMin = minElementLength(speed || null)
-  return { elIdx: hit.elIdx, length, lMin, speed: speed || null, short: lMin != null && length > NODE_TOL && length < lMin - NODE_TOL }
+  const tooShort = (l) => lMin != null && l > NODE_TOL && l < lMin - NODE_TOL
+  return {
+    elIdx: hit.elIdx, length, ahead, lMin, speed: speed || null,
+    short: tooShort(length), shortAhead: tooShort(ahead),
+  }
 }
 
 /**
  * May the toe stand at `toeStation`: the turnout lies there and leaves no
- * piece too short before it? `args` are switchOnTrackStops'.
+ * piece too short on either side of it? `args` are switchOnTrackStops'.
  */
 export function switchOnTrackToeValid(args, toeStation) {
-  return !placeOnTrack({ ...args, toeStation }).error
-    && !switchOnTrackRemnant(args.track, toeStation, args.reversed, args.speed)?.short
+  if (placeOnTrack({ ...args, toeStation }).error) return false
+  const remnant = switchOnTrackRemnant(args.track, toeStation, args.reversed, args.speed)
+  return !remnant?.short && !remnant?.shortAhead
+}
+
+/** The stations of element `elIdx` a stop may fall on: its nodes and the whole metres from the node behind. */
+function elementStops(track, elIdx, reversed, lMin) {
+  const { start, end, behind } = elementSpan(track, elIdx, reversed)
+  const len = end - start
+  const dir = reversed ? -1 : 1
+  const ds = [0, len]
+  for (let d = Math.max(1, Math.ceil(lMin - NODE_TOL)); d < len - NODE_TOL; d++) ds.push(d)
+  // Stated to a tenth of a millimetre: the station field shows it as it is.
+  return { stations: ds.map(d => Math.round((behind + dir * d) * 1e4) / 1e4), behind }
 }
 
 /**
- * The stations the dialog's slider can stand on with the toe on element
- * `elIdx`, ascending: both of its nodes and every whole metre from the node
- * behind the toe, from l_min on — each only where the turnout lies and keeps
- * the minimum element length before WA (Entscheidung 217). `behind` is the
- * station of that node: the slider shows the toe's distance from it.
+ * The stations the dialog's slider can stand on, ascending: on every element
+ * of the track (Entscheidung 300) — or only on element `elIdx` where one is
+ * given — both of its nodes and every whole metre from the node behind the
+ * toe, from l_min on; each only where the turnout lies and leaves no piece of
+ * its element shorter than l_min on either side of the toe (Entscheidungen
+ * 217, 301). `behind` is, for one element, the station of that node.
  *
  * `args` are switchOnTrackPlacement's, without the station, and `speed`, the
  * diverging track's.
  */
 export function switchOnTrackStops(args, elIdx) {
   const { track, reversed } = args
-  const el = track?.elements?.[elIdx]
-  if (!el) return { stops: [], behind: 0 }
-  const { start, end, behind } = elementSpan(track, elIdx, reversed)
-  const len = end - start
+  const n = track?.elements?.length ?? 0
+  if (elIdx != null && !track?.elements?.[elIdx]) return { stops: [], behind: 0 }
   const lMin = minElementLength(args.speed || null) ?? 0
-  const dir = reversed ? -1 : 1
-  const ds = [0, len]
-  for (let d = Math.max(1, Math.ceil(lMin - NODE_TOL)); d < len - NODE_TOL; d++) ds.push(d)
-  // Stated to a tenth of a millimetre: the station field shows it as it is.
-  const at = (d) => Math.round((behind + dir * d) * 1e4) / 1e4
-  const stops = [...new Set(ds.map(at))].filter(s => switchOnTrackToeValid(args, s)).sort((a, b) => a - b)
-  return { stops, behind }
+  const indices = elIdx != null ? [elIdx] : [...Array(n).keys()]
+  const all = indices.map(i => elementStops(track, i, reversed, lMin))
+  const stops = [...new Set(all.flatMap(e => e.stations))]
+    .filter(s => switchOnTrackToeValid(args, s)).sort((a, b) => a - b)
+  return { stops, behind: all[0]?.behind ?? 0 }
 }
 
 /** The stop of `stops` nearest to `station` — or null where there is none. */

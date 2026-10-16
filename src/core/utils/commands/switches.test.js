@@ -40,6 +40,15 @@ describe('switch on track — the piece before the toe (LP.EL.01)', () => {
     expect(switchOnTrackRemnant(track, 110, false, 30)).toMatchObject({ length: 10, lMin: null, short: false })
   })
 
+  it('also measures the piece ahead of the toe up to the next node (Entscheidung 301)', () => {
+    expect(switchOnTrackRemnant(track, 190, false, 100)).toMatchObject({ elIdx: 1, length: 90, ahead: 10, shortAhead: true })
+    expect(switchOnTrackRemnant(track, 180, false, 100)).toMatchObject({ ahead: 20, shortAhead: false })
+    // Opening against the track, ahead is towards the element's start.
+    expect(switchOnTrackRemnant(track, 10, true, 100)).toMatchObject({ elIdx: 0, length: 90, ahead: 10, shortAhead: true })
+    expect(switchOnTrackRemnant(track, 100, false, 100)).toMatchObject({ ahead: 0, shortAhead: false })
+    expect(switchOnTrackRemnant(track, 190, false, 30)).toMatchObject({ ahead: 10, shortAhead: false })
+  })
+
   it('takes the speed of the diverging track, not the element\'s (Entscheidung 219)', () => {
     // 10 m are short at 100 km/h, enough at 60 (l_min 6 m) — on either element.
     expect(switchOnTrackRemnant(track, 110, false, 60)).toMatchObject({ lMin: 6, short: false })
@@ -79,6 +88,22 @@ describe('switch on track — where the slider stands', () => {
   it('every whole metre where the diverging track has no speed to check', () => {
     const { stops } = switchOnTrackStops(argsOf(track, false, 30), 1)
     expect(stops.slice(0, 3)).toEqual([100, 101, 102])
+  })
+
+  it('stops short of l_min before the element end as well (Entscheidung 301)', () => {
+    const { stops } = switchOnTrackStops(argsOf(track), 0)
+    expect(stops).toContain(85)
+    expect(stops.some(s => s > 85 && s < 100)).toBe(false)
+  })
+
+  it('without an element, runs over the whole track (Entscheidung 300)', () => {
+    const { stops } = switchOnTrackStops(argsOf(track))
+    expect(stops).toEqual([...new Set([
+      ...switchOnTrackStops(argsOf(track), 0).stops, ...switchOnTrackStops(argsOf(track), 1).stops,
+    ])].sort((a, b) => a - b))
+    expect(stops).toContain(15)
+    expect(stops).toContain(100)
+    expect(stops).toContain(115)
   })
 
   it('snaps a station to the nearest stop', () => {
