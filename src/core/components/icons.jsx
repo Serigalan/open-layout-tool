@@ -41,6 +41,14 @@ export const BackIcon = () => (
   </MenuIcon>
 )
 
+// The search beside a panel's heading (PanelHeading, decision 330): a magnifier.
+export const SearchIcon = () => (
+  <MenuIcon>
+    <path d="M11.5 7 A4.5 4.5 0 1 1 2.5 7 A4.5 4.5 0 1 1 11.5 7" />
+    <path d="M10.5 10.5 L14 14" />
+  </MenuIcon>
+)
+
 // Commit and Cancel at a dialog's foot, when the bar is too narrow for their
 // words (CommitBar): a tick and a cross.
 export const ConfirmIcon = () => (

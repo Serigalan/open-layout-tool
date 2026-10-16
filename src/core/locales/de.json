@@ -1034,7 +1034,7 @@
   "elevation_title": "Höhenprofil",
   "cross_section_title": "Querprofil",
   "cross_section_show": "Querschnitt zeigen",
-  "cross_section_hint": "Wähle ein Gleis aus der Liste oder klicke es auf der Karte an – im Overlay scrubst du mit dem Slider entlang des Gleises.",
+  "cross_section_hint": "Gleis in der Karte anklicken oder aus der Liste wählen, um sein Querprofil zu zeigen.",
   "cross_section_station": "Station",
   "cross_section_step_back": "Einen Meter zurück",
   "cross_section_step_forward": "Einen Meter weiter",

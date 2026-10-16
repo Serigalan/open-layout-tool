@@ -13,11 +13,13 @@ import {
 import { useI18n } from '../../../locales/i18nContext'
 import BackButton from '../BackButton'
 import InfoTip from '../../form/InfoTip'
+import PanelHeading from '../PanelHeading'
 
 export default function ConnectSwitchPanel() {
   const { t } = useI18n()
   const [page, setPage] = useState('menu')
   const [crossover, setCrossover] = useState(null)   // switchIds of a crossover just laid in a curve
+  const [switchQuery, setSwitchQuery] = useState('')
   const back = () => setPage('menu')
 
   if (page === 'ontrack') return (
@@ -82,8 +84,9 @@ export default function ConnectSwitchPanel() {
 
   return (
     <>
-      <h2>{t('connect_switch')}</h2>
-      <SwitchSearch />
+      <PanelHeading title={t('connect_switch')}
+        search={{ value: switchQuery, onChange: setSwitchQuery, placeholder: t('search_switches') }} />
+      <SwitchSearch query={switchQuery} />
       <div className="create-element-options">
         <button className="create-element-btn" onClick={() => setPage('ontrack')}>
           <SwitchOnTrackIcon />

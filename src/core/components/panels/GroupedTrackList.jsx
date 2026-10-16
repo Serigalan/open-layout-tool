@@ -4,6 +4,8 @@ import { trackMatches } from '../../utils/search'
 import { fitToTracks } from '../../utils/mapRenderUtils'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
+import { useTrackSearch } from './trackSearch'
+import TrackKindSelect from './TrackKindSelect'
 
 /**
  * A project's tracks under the line or station they belong to (see
@@ -19,14 +21,17 @@ import { useMap } from '../../map/MapContext'
  * ticking it is the pick.
  *
  * Above it a search (R10.6): any part of a name, line number or station, and
- * the kind of track. A search that leaves one track zooms the map to it.
+ * the kind of track. A search that leaves one track zooms the map to it. A
+ * panel may hold the search itself, beside its heading (decision 330): it
+ * passes `search` (trackSearch.js: useTrackSearch, shown with trackSearchField), and the list
+ * only says how many it found.
  */
-export default function GroupedTrackList({ tracks: all, isActive, onPick, onPickGroup, groupLabel, isChecked }) {
+export default function GroupedTrackList({ tracks: all, isActive, onPick, onPickGroup, groupLabel, isChecked, search: outer = null }) {
   const { t, fill } = useI18n()
   const map = useMap()
   const [folded, setFolded] = useState(() => new Set())
-  const [query, setQuery] = useState('')
-  const [kind, setKind] = useState('')
+  const own = useTrackSearch()
+  const { query, setQuery, kind } = outer ?? own
   const searching = !!(query.trim() || kind)
   const tracks = searching ? all.filter(tr => trackMatches(tr, query, kind)) : all
   const groups = groupTracks(tracks)
@@ -37,15 +42,15 @@ export default function GroupedTrackList({ tracks: all, isActive, onPick, onPick
     if (only) fitToTracks(map?.current, [only], { maxZoom: 17 })
   }, [only, map])
 
-  const search = (
+  const search = (outer && !searching) ? null : (
     <div className="track-search">
-      <input type="search" value={query} placeholder={t('search_tracks')} aria-label={t('search_tracks')}
-        onChange={e => setQuery(e.target.value)} />
-      <select value={kind} onChange={e => setKind(e.target.value)} aria-label={t('type')}>
-        <option value="">{t('search_kind_all')}</option>
-        <option value="line">{t('search_kind_line')}</option>
-        <option value="station">{t('search_kind_station')}</option>
-      </select>
+      {!outer && (
+        <>
+          <input type="search" value={query} placeholder={t('search_tracks')} aria-label={t('search_tracks')}
+            onChange={e => setQuery(e.target.value)} />
+          <TrackKindSelect search={own} />
+        </>
+      )}
       {searching && (
         <span className="track-search-count">
           {tracks.length ? fill('search_count', { n: tracks.length, total: all.length }) : t('search_none')}
@@ -113,3 +118,4 @@ export default function GroupedTrackList({ tracks: all, isActive, onPick, onPick
     </>
   )
 }
+

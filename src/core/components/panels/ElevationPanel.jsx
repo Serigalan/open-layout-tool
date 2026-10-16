@@ -6,6 +6,8 @@ import { fillHeights } from '../../utils/elevationFill'
 import { chosenTerrainSource } from '../../utils/elevationSource'
 import TerrainSourceSelect from '../TerrainSourceSelect'
 import GroupedTrackList from './GroupedTrackList'
+import { trackSearchField, useTrackSearch } from './trackSearch'
+import PanelHeading from './PanelHeading'
 import RouteList from './RouteList'
 import { resolveRoute } from '../../utils/routes'
 import useRouteOnMap from '../../map/useRouteOnMap'
@@ -39,6 +41,7 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
   const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
   const project = useProject()
   const [crossover, setCrossover] = useState(null)   // switchIds of the crossover being fitted
+  const search = useTrackSearch()
   // Turnouts whose points do not lie in pairs on their sleepers yet: the store
   // pairs a turnout when a write reaches it, so a project from before has some.
   const uncoupled = project ? pendingTurnouts(project).length : 0
@@ -103,16 +106,17 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
 
   return (
     <>
-      <h2>{t('elevation_title')}</h2>
+      <PanelHeading title={t('elevation_title')} search={trackSearchField(search, t)} />
       <p>{t('elevation_hint')}</p>
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
-      <FormSection title={t('elevation_rules')}>
+      {/* Only once there is something to judge, or turnouts to couple (decision 331). */}
+      {(resolvedRoute || profileTrackId || uncoupled > 0) && <FormSection title={t('elevation_rules')}>
         {resolvedRoute ? resolvedRoute.parts.map(p => (
           <div key={p.trackId} className="route-findings">
             <span className="create-element-section">{p.track.name || p.trackId.slice(0, 8)}</span>
             <GradientFindings trackId={p.trackId} />
           </div>
-        )) : <GradientFindings trackId={profileTrackId} />}
+        )) : profileTrackId && <GradientFindings trackId={profileTrackId} />}
         {uncoupled > 0 && (
           <>
             <p className="selecting-hint">{fill('elevation_couple_status', { n: uncoupled })} <InfoTip text={t('elevation_couple_hint')} /></p>
@@ -121,9 +125,9 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
             </button>
           </>
         )}
-      </FormSection>
+      </FormSection>}
       <RouteList activeId={profileRouteId} onPick={(r) => onShowRouteProfile?.(r.id)} />
-      <GroupedTrackList tracks={tracks}
+      <GroupedTrackList tracks={tracks} search={search}
         isActive={(track) => track.id === profileTrackId}
         onPick={(track) => onShowProfile?.(track.id)} />
       <div className="form-field mt-12">

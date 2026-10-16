@@ -10,6 +10,8 @@ import {
   GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
 } from '../../utils/gaugeProfiles'
 import GroupedTrackList from './GroupedTrackList'
+import { trackSearchField, useTrackSearch } from './trackSearch'
+import PanelHeading from './PanelHeading'
 import RouteList from './RouteList'
 import { partStation, resolveRoute, routeStationOf } from '../../utils/routes'
 import useRouteOnMap from '../../map/useRouteOnMap'
@@ -36,6 +38,7 @@ import NumberInput from '../form/NumberInput'
 export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }) {
   const { t } = useI18n()
   const [trackId, setTrackId] = useState(null)
+  const search = useTrackSearch()
 
   // The overlay may walk on to the next track at an end; the panel follows it,
   // so the superstructure shown is the one of the track in the section.
@@ -141,12 +144,12 @@ export default function CrossSectionPanel({ onShowCrossSection, crossSectionAt }
 
   return (
     <>
-      <h2>{t('cross_section_title')}</h2>
+      <PanelHeading title={t('cross_section_title')} search={trackSearchField(search, t)} />
       {!track && <p>{t('cross_section_hint')}</p>}
 
       <RouteList activeId={routeId} onPick={openRoute} />
       {tracks.length > 0 && (
-        <GroupedTrackList tracks={tracks}
+        <GroupedTrackList tracks={tracks} search={search}
           isActive={(tr) => !routeId && tr.id === trackId}
           onPick={(tr) => {
             setTrackId(tr.id)

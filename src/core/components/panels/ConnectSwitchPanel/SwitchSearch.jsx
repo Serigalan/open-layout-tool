@@ -10,15 +10,18 @@ import { useSelectedOnMap } from '../../../map/useMapPick'
 const MAX_HITS = 12
 
 /**
- * Find a switch by its name or form (R10.6): the hits as a list, a click on
+ * Find a switch by its name or form (R10.6): the hits of `query` — typed in
+ * the field beside the panel's heading (decision 330) — as a list, a click on
  * one shows it on the map — its body framed and marked.
  */
-export default function SwitchSearch() {
+export default function SwitchSearch({ query }) {
   const { t, fill } = useI18n()
   const map = useMap()
   const switches = useSwitches()
-  const [query, setQuery] = useState('')
-  const [shown, setShown] = useState(null)   // switchId
+  // The switch shown, for the query it was found by: a new query lets it go.
+  const [found, setFound] = useState(null)   // { switchId, query }
+  const shown = found?.query === query ? found.switchId : null
+  const setShown = (switchId) => setFound({ switchId, query })
   useSelectedOnMap(shown ? { switchId: shown } : null)
   const hits = query.trim() ? switches.filter(sw => switchMatches(sw, query)) : []
 
@@ -30,15 +33,12 @@ export default function SwitchSearch() {
     map.current.fitBounds(box, { padding: 120, maxZoom: 19 })
   }
 
+  if (!query.trim()) return null
   return (
     <div className="track-search">
-      <input type="search" value={query} placeholder={t('search_switches')} aria-label={t('search_switches')}
-        onChange={e => { setQuery(e.target.value); setShown(null) }} />
-      {query.trim() && (
-        <span className="track-search-count">
-          {hits.length ? fill('search_count', { n: hits.length, total: switches.length }) : t('search_none')}
-        </span>
-      )}
+      <span className="track-search-count">
+        {hits.length ? fill('search_count', { n: hits.length, total: switches.length }) : t('search_none')}
+      </span>
       {hits.length > 0 && (
         <div className="create-element-options track-search-hits">
           {hits.slice(0, MAX_HITS).map(sw => (

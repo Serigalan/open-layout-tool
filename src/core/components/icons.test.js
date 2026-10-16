@@ -15,7 +15,7 @@ const STROKE = 1.5
 const NODE = 1.5
 
 const MENU_ICONS = [
-  'BackIcon', 'ConfirmIcon', 'CancelIcon',
+  'BackIcon', 'SearchIcon', 'ConfirmIcon', 'CancelIcon',
   'CreateLineIcon', 'CreateArcIcon', 'CreateParallelIcon', 'CreateParallelTrackIcon',
   'ConnectStraightIcon', 'ConnectCurvedIcon',
   'SwitchOnTrackIcon', 'SwitchConnectTrackIcon', 'SwitchConnectionIcon',

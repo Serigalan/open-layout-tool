@@ -890,6 +890,31 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 .track-search-count { flex-basis: 100%; font-size: var(--fs-xs); color: var(--color-text-soft); }
 .track-search-hits { flex-basis: 100%; }
 
+/* A panel's heading with its search beside it (decision 330): a small field
+   with a magnifier that grows over the rest of the row once clicked. */
+.panel-heading { flex-shrink: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.panel-heading-row { display: flex; align-items: center; gap: var(--space-4); min-height: 30px; }
+.panel-heading h2 { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-search {
+  position: relative; margin-left: auto; flex: 0 0 32px; height: 30px;
+  transition: flex-basis 0.18s ease; cursor: text;
+}
+.panel-heading.searching .panel-search { flex: 1 0 150px; }
+.panel-search svg { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--color-muted); pointer-events: none; }
+.panel-search input[type="search"] {
+  box-sizing: border-box; width: 100%; height: 100%; padding: 4px 6px 4px 28px;
+  border: 1px solid var(--color-border); border-radius: 6px; background: #fff;
+  font: inherit; font-size: var(--fs-s); cursor: pointer;
+}
+.panel-heading.searching .panel-search input[type="search"] { cursor: text; }
+.panel-search input[type="search"]:focus { outline: none; border-color: var(--color-primary); }
+.panel-heading:not(.searching) .panel-search input::-webkit-search-cancel-button { display: none; }
+.panel-search-extra select {
+  font: inherit; font-size: var(--fs-s); padding: 3px 6px;
+  border: 1px solid var(--color-border); border-radius: 6px; background: #fff;
+}
+.panel-search-extra { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+
 /* A number field with its unit behind it (R10.8). */
 .number-field { display: flex; align-items: center; gap: var(--space-3); }
 .number-field input { flex: 1; min-width: 0; }
