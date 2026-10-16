@@ -12,6 +12,12 @@ describe('the position slider', () => {
     expect(iv[1]).toEqual([expect.closeTo(60, 4), expect.closeTo(70, 4)])
   })
 
+  it('asks the snap points on their own: a valid point between failing samples is a stretch', () => {
+    const point = (s) => Math.abs(s - 20.37) < 1e-9
+    expect(validIntervals(point, 0, 50, 1)).toEqual([])
+    expect(validIntervals(point, 0, 50, 1, [20.37, 30])).toEqual([[20.37, 20.37]])
+  })
+
   it('skips what is not valid: the nearest valid station', () => {
     const iv = [[10, 40], [60, 70]]
     expect(nearestValid(45, iv)).toBe(40)

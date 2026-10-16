@@ -90,6 +90,9 @@ describe('switch on track — what the slider runs over', () => {
     expect(intervals[0][0]).toBeGreaterThanOrEqual(70)
     expect(intervals.at(-1)[1]).toBeLessThanOrEqual(170)
     expect(intervals.some(([a, b]) => a <= 100 && b >= 100)).toBe(true)
+    // The element change itself, off the metre grid of the window, is still a place to stand.
+    const off = switchOnTrackSlider(argsOf(track), 120.37).intervals
+    expect(off.some(([a, b]) => a <= 100 + 1e-9 && b >= 100 - 1e-9)).toBe(true)
     // Near the track's begin the window ends there.
     expect(switchOnTrackSlider(argsOf(track), 20).intervals.at(-1)[1]).toBeLessThanOrEqual(70)
   })

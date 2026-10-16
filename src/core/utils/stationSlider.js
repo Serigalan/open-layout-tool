@@ -11,10 +11,20 @@ const EDGE_TOL = 1e-4
  * The stretches of [from, to] where `valid(station)` holds, as [[a, b], …]
  * ascending: sampled every `step` metres, each edge then halved down to a
  * tenth of a millimetre. A stretch shorter than the step between two samples
- * that both fail is not seen — at a metre, nothing a slider could be put on.
+ * that both fail is not seen, unless it is one of `points` (the snap points),
+ * which are asked on their own.
  */
-export function validIntervals(valid, from, to, step = 1) {
+export function validIntervals(valid, from, to, step = 1, points = []) {
   if (!(to >= from)) return []
+  const sampled = sampledIntervals(valid, from, to, step)
+  // A valid point between two samples that fail — a toe right on an element
+  // change, with l_min to either side — is a stretch of its own.
+  const inside = (p) => sampled.some(([a, b]) => p >= a - 1e-9 && p <= b + 1e-9)
+  const lone = points.filter(p => p >= from && p <= to && !inside(p) && valid(p)).map(p => [p, p])
+  return [...sampled, ...lone].sort((x, y) => x[0] - y[0])
+}
+
+function sampledIntervals(valid, from, to, step) {
   const n = Math.max(1, Math.ceil((to - from) / step))
   const at = (i) => from + (to - from) * i / n
   const edge = (bad, good) => {
@@ -24,13 +34,20 @@ export function validIntervals(valid, from, to, step = 1) {
     }
     return good
   }
+  // Ends rounded inwards to the millimetre, where they stay valid: the field
+  // shows a station to the tenth of a millimetre, and an edge found to that
+  // would round onto the side where the turnout may not lie.
+  const inward = (x, up) => {
+    const r = up ? Math.ceil(x * 1000 - 1e-6) / 1000 : Math.floor(x * 1000 + 1e-6) / 1000
+    return valid(r) ? r : x
+  }
   const out = []
   let prev = null, prevOk = false, start = null
   for (let i = 0; i <= n; i++) {
     const s = at(i)
     const ok = valid(s)
-    if (ok && !prevOk) start = prev == null ? s : edge(prev, s)
-    if (!ok && prevOk) out.push([start, edge(s, prev)])
+    if (ok && !prevOk) start = prev == null ? s : inward(edge(prev, s), true)
+    if (!ok && prevOk) out.push([start, inward(edge(s, prev), false)])
     prev = s
     prevOk = ok
   }

@@ -180,10 +180,9 @@ export function switchOnTrackSlider(args, around = null) {
   if (!track?.elements?.length) return { intervals: [], snaps: [] }
   const nodes = nodeStations(track)
   const { from, to } = sliderWindow(track, around)
-  const intervals = validIntervals(s => switchOnTrackToeValid(args, s), from, to, 1)
   // WE lies the through length ahead of WA, in the direction the turnout opens.
   const snaps = uniqueStations([...nodes, ...nodes.map(n => (reversed ? n + straightLen : n - straightLen))])
-  return { intervals, snaps }
+  return { intervals: validIntervals(s => switchOnTrackToeValid(args, s), from, to, 1, snaps), snaps }
 }
 
 /** Branch element from a piece of the branch with one radius (or none). */
@@ -640,8 +639,6 @@ export function crossingOnTrackSlider({ track, endDist, form, crossAngle }, arou
   const nodes = nodeStations(track)
   const valid = (s) => crossingOnTrackPort({ track, pointStation: s, endDist, form, crossAngle }, 'D') != null
   const { from, to } = sliderWindow(track, around)
-  return {
-    intervals: validIntervals(valid, from, to, 1),
-    snaps: uniqueStations(nodes.flatMap(n => [n - endDist, n + endDist])),
-  }
+  const snaps = uniqueStations(nodes.flatMap(n => [n - endDist, n + endDist]))
+  return { intervals: validIntervals(valid, from, to, 1, snaps), snaps }
 }
