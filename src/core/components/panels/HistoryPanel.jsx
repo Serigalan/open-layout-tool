@@ -1,7 +1,7 @@
 import { useI18n } from '../../locales/i18nContext'
 import { historySteps, travelHistory } from '../../storage'
 import { useProject } from '../../hooks/useStore'
-import { describeStep } from '../../utils/project/stepLabel'
+import { describeStep } from '../../utils/project'
 import InfoTip from '../form/InfoTip'
 
 /**

@@ -20,6 +20,7 @@
     "check": "tools/check.sh",
     "knip": "knip --no-progress",
     "boundary": "node tools/boundary.mjs",
+    "modules": "node tools/modules.mjs",
     "i18n:unused": "node tools/i18n-unused.mjs"
   },
   "dependencies": {

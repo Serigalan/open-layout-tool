@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { importGraph, serverReach } from '../../../tools/boundary.mjs'
+import { checkModules } from '../../../tools/modules.mjs'
 
 // Rules about who may import whom (Roadmap rework). Checked on the sources,
 // so a new import that breaks one fails here and not in review.
@@ -38,6 +39,11 @@ describe('architecture', () => {
     expect(unnamed).toEqual([])
     const fixed = jsx.filter(p => /aria-label="[A-Za-z]/.test(readFileSync(p, 'utf8'))).map(p => relative(SRC, p))
     expect(fixed).toEqual([])
+  })
+
+  // The modules of src/core/utils (docs/architecture.md, tools/modules.mjs).
+  it('imports a module through its index, and the modules need each other without a cycle and no interface', () => {
+    expect(checkModules().breaches).toEqual([])
   })
 
   // Paket L, decision 277: two layers, one direction.

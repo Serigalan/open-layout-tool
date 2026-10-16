@@ -1,4 +1,4 @@
-import { BACKGROUNDS } from '../../../utils/plan/planAssemble'
+import { BACKGROUNDS } from '../../../utils/plan'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
 import FormSection from '../../form/FormSection'

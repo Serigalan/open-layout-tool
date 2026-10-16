@@ -1,4 +1,4 @@
-import { HEIGHT_DATUMS, heightDatumLabel } from '../../utils/track/heightDatums'
+import { HEIGHT_DATUMS, heightDatumLabel } from '../../utils/track'
 import { useI18n } from '../../locales/i18nContext'
 
 /**

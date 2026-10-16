@@ -1,9 +1,9 @@
 import { FRAME, FRAME_WIDTH, TITLE_COLUMN_MM } from './planExport'
 import { BLOCK_ORIGIN, LOGO_ICON_BOX, LOGO_PATHS, MM_PER_UNIT } from './planLogo'
 import {
-  MARK_BLUE, MARK_GROUND, MARK_INNER, MARK_LETTERS, MARK_LINK_BLUE, MARK_LINKS, MARK_RAIL, MARK_WIDTH,
-} from '../common/logoMark'
-import { parseSvgPath } from '../common/svgPath'
+  MARK_BLUE, MARK_GROUND, MARK_INNER, MARK_LETTERS, MARK_LINK_BLUE, MARK_LINKS, MARK_RAIL,
+  MARK_WIDTH, parseSvgPath,
+} from '../common'
 import { PALETTE } from '../../styles/palette'
 import { format } from '../../locales/i18n'
 import { STYLE, line, mapPath, path, text } from './planItems'

@@ -1,13 +1,9 @@
-import { generateId } from '../track/identifierUtils'
-import { nextTrackName, rebuildCoords } from '../track/trackModel'
-import { crsDatum, crsLabel } from '../geometry/coordinateUtils'
+import { generateId, nextTrackName, rebuildCoords, linkAllJoints } from '../track'
+import { crsDatum, crsLabel, transformTrackToPlane, loadGridsFor } from '../geometry'
 import {
   buildAllTracksFromMdb, buildTracksFromMdb, mdbSwitchInventory, mdbBufferStops, matchMdbBufferStops,
 } from './mdbImport'
 import { placeMdbSwitches } from './mdbSwitchPlacement'
-import { linkAllJoints } from '../track/trackLinkUtils'
-import { transformTrackToPlane } from '../geometry/planeTransform'
-import { loadGridsFor } from '../geometry/ntv2Grid'
 
 /** The line-number picker's entry for „every line in the file“. */
 export const ALL_STRECKEN = '*'

@@ -3,9 +3,7 @@ import {
   horizontalElements, startAnchor, endAnchor, switchesToPorts, platformsToOperationalPoints,
   endMarksToBufferStops,
 } from './alignmentCodec'
-import { tangentLength } from '../track/heightUtils'
-import { DEFAULT_HEIGHT_EPSG } from '../track/heightDatums'
-import { TYPE_NAMES, SIDE_NAMES } from '../track/identifierUtils'
+import { tangentLength, DEFAULT_HEIGHT_EPSG, TYPE_NAMES, SIDE_NAMES } from '../track'
 
 // The alignment exchange file: an infrastructure in the shape of RailJSON —
 // version, track_sections and the infra-level object lists — where a track

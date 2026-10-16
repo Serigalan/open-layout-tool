@@ -1,5 +1,5 @@
-import { fileToLogo } from '../../utils/common/logoImage'
-import { PARTIES, STAFF } from '../../utils/plan/planHeader'
+import { fileToLogo } from '../../utils/common'
+import { PARTIES, STAFF } from '../../utils/plan'
 import { useI18n } from '../../locales/i18nContext'
 import InfoTip from '../form/InfoTip'
 

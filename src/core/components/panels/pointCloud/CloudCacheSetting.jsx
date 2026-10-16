@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { cacheLimit, cacheUsage, clearCache, setCacheLimit } from '../../../utils/pointCloud/cloudCache'
-import { sizeText } from '../../../utils/pointCloud/cloudFormat'
+import { cacheLimit, cacheUsage, clearCache, setCacheLimit, sizeText } from '../../../utils/pointCloud'
 import { useI18n } from '../../../locales/i18nContext'
 import NumberInput from '../../form/NumberInput'
 

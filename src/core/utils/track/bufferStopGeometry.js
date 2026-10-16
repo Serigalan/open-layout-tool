@@ -1,5 +1,5 @@
 import { pointAtStation, offsetEdgeCoords } from './platformUtils'
-import { utmToWgs84 } from '../geometry/coordinateUtils'
+import { utmToWgs84 } from '../geometry'
 import { trackLength } from './heightUtils'
 import { BUFFER_STOP, bufferStopStations } from './trackEndMarks'
 

@@ -1,7 +1,8 @@
-import { utmToWgs84 } from '../geometry/coordinateUtils'
-import { bearingAfterUtm, computeStraightValuesUtm, computeCurvedValuesUtm } from '../geometry/elementUtils'
-import { switchElementMark } from '../track/switchModel'
-import { arcElement, straightElement } from '../geometry/elementFactory'
+import {
+  utmToWgs84, bearingAfterUtm, computeStraightValuesUtm, computeCurvedValuesUtm, arcElement,
+  straightElement,
+} from '../geometry'
+import { switchElementMark } from '../track'
 import { STRAIGHT_CURVATURE } from './catalogue'
 import { negR, routeCoords, utmEndRoute } from './route'
 

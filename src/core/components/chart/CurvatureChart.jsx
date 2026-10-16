@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useDrag, useElementSize, useWheelZoom } from './useChartViewport'
-import { niceStep, stepDecimals, ticks } from '../../utils/common/chartAxes'
-import { clamp } from '../../utils/common/format'
-import { insertStraight, moveStraightEnd } from '../../utils/survey/alignmentFit'
+import { niceStep, stepDecimals, ticks, clamp } from '../../utils/common'
+import { insertStraight, moveStraightEnd } from '../../utils/survey'
 import { useI18n } from '../../locales/i18nContext'
 import { PALETTE } from '../../styles/palette'
 

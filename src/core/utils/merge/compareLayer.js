@@ -1,9 +1,8 @@
 import maplibregl from 'maplibre-gl'
-import { hydrateProjects } from '../project/persistenceUtils'
-import { endKey } from '../track/trackEndMarks'
-import { surveyPoints } from '../survey/axisSurvey'
-import { axisOutline } from '../survey/referenceAxis'
-import { utmToWgs84 } from '../geometry/coordinateUtils'
+import { hydrateProjects } from '../project'
+import { endKey } from '../track'
+import { surveyPoints, axisOutline } from '../survey'
+import { utmToWgs84 } from '../geometry'
 
 /**
  * Two states of a project on the map (phase 10, AP 10.3): what is new in the

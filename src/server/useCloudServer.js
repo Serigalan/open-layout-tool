@@ -5,7 +5,7 @@ import { readableOnServer, serverLevel } from './cloudsOnServer'
 import { currentVariantId } from './workingCopies'
 import { openCloud3d } from './cloud3d/channel'
 import useRegistrationSession from './cloud3d/useRegistrationSession'
-import { forgetCloud } from '../core/utils/pointCloud/cloudSection'
+import { forgetCloud } from '../core/utils/pointCloud'
 import { useI18n } from '../core/locales/i18nContext'
 import { tOr } from '../core/locales/i18n'
 

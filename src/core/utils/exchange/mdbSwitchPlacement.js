@@ -1,16 +1,16 @@
-import { ALL_SWITCH_TYPES, CROSSING_TYPES, switchStraightLength, switchBranchLength } from '../switch/catalogue'
-import { crossingEndDistance, crossingAngle, crossingLegRadius } from '../switch/crossing'
-import { rebuildSwitchSymbol } from '../switch/symbol'
-import { switchRouteBearingAt, switchElementRoute } from '../switch/route'
-import { newSwitchFields, switchElementMark } from '../track/switchModel'
-import { splitTrackAtJoint, splitElementAt, carveSwitchRoute } from '../track/trackSplitUtils'
-import { placeSwitchOnTrack } from '../switch/switchPlacement'
-import { resolveEndBearing } from '../geometry/elementUtils'
-import { elementAtStation, pointAtStationUtm } from '../track/heightUtils'
+import {
+  ALL_SWITCH_TYPES, CROSSING_TYPES, switchStraightLength, switchBranchLength, crossingEndDistance,
+  crossingAngle, crossingLegRadius, rebuildSwitchSymbol, switchRouteBearingAt, switchElementRoute,
+  placeSwitchOnTrack,
+} from '../switch'
+import {
+  newSwitchFields, switchElementMark, splitTrackAtJoint, splitElementAt, carveSwitchRoute,
+  elementAtStation, pointAtStationUtm, generateId, nextSwitchNumber, switchDesignation,
+  remapSwitches,
+} from '../track'
+import { resolveEndBearing } from '../geometry'
 import { epsgForLagesystem } from './mdbImport'
 import { deriveMdbTurnouts, offsetOnTrack, AXIS_TOL } from './mdbSwitchDerive'
-import { generateId, nextSwitchNumber, switchDesignation } from '../track/identifierUtils'
-import { remapSwitches } from '../track/trackModel'
 
 /**
  * Putting the MDB's switch inventory onto the tracks the same import built.

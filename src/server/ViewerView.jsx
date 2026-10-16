@@ -3,7 +3,9 @@ import { useI18n } from '../core/locales/i18nContext'
 import { MapContext } from '../core/map/MapContext'
 import useMapInstance from '../core/map/useMapInstance'
 import TiltToggle from '../core/map/TiltToggle'
-import { clearFeatures, comparisonFeatures, drawable, recordFeatures, showFeaturesSoon, zoomToFeatures } from '../core/utils/merge/compareLayer'
+import {
+  clearFeatures, comparisonFeatures, drawable, recordFeatures, showFeaturesSoon, zoomToFeatures,
+} from '../core/utils/merge'
 import { diffEntries, diffProject } from '../core/utils/merge'
 import CompareOverlay from '../core/components/collab/CompareOverlay'
 import ConflictDialog from './collab/ConflictDialog'

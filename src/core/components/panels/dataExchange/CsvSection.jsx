@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import { commitImport, loadTracks } from '../../../storage'
-import { generateId } from '../../../utils/track/identifierUtils'
-import { nextTrackName, rebuildCoords } from '../../../utils/track/trackModel'
-import { parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG } from '../../../utils/exchange/gleislageCsvImport'
-import { readFileText } from '../../../utils/common/fileUtils'
-import { FILE_CRS_OPTIONS } from '../../../utils/geometry/coordinateUtils'
+import { generateId, nextTrackName, rebuildCoords } from '../../../utils/track'
+import {
+  parseGleislageCsv, parseUeberhoehungCsv, listStrecken, buildTracksFromCsv, CSV_EPSG,
+} from '../../../utils/exchange'
+import { readFileText } from '../../../utils/common'
+import { FILE_CRS_OPTIONS } from '../../../utils/geometry'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
 import FilePickButton from '../../form/FilePickButton'

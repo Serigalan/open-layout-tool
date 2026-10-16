@@ -16,8 +16,7 @@ import { readCloudHeader, readFirstPoints } from './cloudReader'
 import { importPointCloud } from './importPipeline'
 import { planeMapper } from './cloudCrs'
 import { projectDir, INDEX_FILE, TILES_FILE } from './cloudStore'
-import { loadNtv2Grid, loadGridsFor } from '../geometry/ntv2Grid'
-import { crsDatum, utmToWgs84 } from '../geometry/coordinateUtils'
+import { loadNtv2Grid, loadGridsFor, crsDatum, utmToWgs84 } from '../geometry'
 
 let controller = null
 

@@ -1,12 +1,11 @@
 import { generateId } from './identifierUtils'
 import { nextTrackName, rebuildCoords } from './trackModel'
-import { computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm, nodeUtm } from '../geometry/elementUtils'
-import { utmToWgs84 } from '../geometry/coordinateUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../geometry/geometryPrecision'
-import { splitHeights } from './heightUtils'
 import {
-  computeClothoidUtm, transitionBearingAtUtm, clothoidRadiusAt, transitionCantEnds,
-} from '../geometry/clothoidUtils'
+  computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm, nodeUtm, utmToWgs84,
+  SAGITTA_ELEMENT, SAGITTA_TRACK, computeClothoidUtm, transitionBearingAtUtm, clothoidRadiusAt,
+  transitionCantEnds,
+} from '../geometry'
+import { splitHeights } from './heightUtils'
 
 const DEG2RAD = Math.PI / 180
 

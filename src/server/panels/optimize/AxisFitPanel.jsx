@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import { commitImport } from '../../../core/storage'
 import {
-  ALIGN_DEFAULTS, alignRequest, deleteStraight, elementReport, fittedCurvature, gradientReport, parseAxisPointFile,
-  straightRanges, surveyAxis, trackFromFit,
-} from '../../../core/utils/survey/alignmentFit'
+  ALIGN_DEFAULTS, alignRequest, deleteStraight, elementReport, fittedCurvature, gradientReport,
+  parseAxisPointFile, straightRanges, surveyAxis, trackFromFit,
+} from '../../../core/utils/survey'
 import { alignOnServer, optimizerReachable, OptimizerError } from '../../optimizerService'
-import { optimizeErrorText } from '../../../core/utils/commands/optimizeApply'
-import { reconstructElements } from '../../../core/utils/geometry/elementReconstruct'
-import { FILE_CRS_OPTIONS, crsLabel, projectCrsOptions, utmToWgs84 } from '../../../core/utils/geometry/coordinateUtils'
+import { optimizeErrorText } from '../../../core/utils/commands'
+import {
+  reconstructElements, FILE_CRS_OPTIONS, crsLabel, projectCrsOptions, utmToWgs84,
+} from '../../../core/utils/geometry'
 import { useI18n } from '../../../core/locales/i18nContext'
 import { useAxisSurveys, useTracks } from '../../../core/hooks/useStore'
 import { useMap } from '../../../core/map/MapContext'

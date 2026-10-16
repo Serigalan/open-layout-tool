@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadTracks, savePlatform, updatePlatform, deletePlatform } from '../../storage'
-import { generateId } from '../../utils/track/identifierUtils'
-import { wgs84ToUTM } from '../../utils/geometry/coordinateUtils'
+import {
+  generateId, PLATFORM_CODE_MAX, platformRing, stationFromClick, platformLength,
+  EMPTY_PLATFORM_FORM, pickedStation, platformDraft, platformForm, platformFormValid,
+} from '../../utils/track'
+import { wgs84ToUTM } from '../../utils/geometry'
 import { PLATFORM_FILL_COLOR, PLATFORM_FILL_OPACITY } from '../../map/mapRenderUtils'
-import { PLATFORM_CODE_MAX, platformRing, stationFromClick, platformLength } from '../../utils/track/platformUtils'
-import { EMPTY_PLATFORM_FORM, pickedStation, platformDraft, platformForm, platformFormValid } from '../../utils/track/platformForm'
 import { useI18n } from '../../locales/i18nContext'
 import CommitBar from '../form/CommitBar'
 import { usePlatforms, useTracks } from '../../hooks/useStore'

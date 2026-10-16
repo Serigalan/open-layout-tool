@@ -1,5 +1,5 @@
 import maplibregl from 'maplibre-gl'
-import { wgs84ToUTM, utmToWgs84 } from '../geometry/coordinateUtils'
+import { wgs84ToUTM, utmToWgs84 } from '../geometry'
 import { drawingArea, makeTransform } from './planExport'
 
 // OpenFreeMap "Positron" — light and grey, the default backdrop for a plan.

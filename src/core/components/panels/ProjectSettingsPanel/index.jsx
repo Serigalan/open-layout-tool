@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useProject } from '../../../hooks/useStore'
 import { useI18n } from '../../../locales/i18nContext'
-import { ownLineCategory, systemDeviates } from '../../../utils/project/projectSettings'
+import { ownLineCategory, systemDeviates } from '../../../utils/project'
 import { AssignTracksIcon, TrackVisibilityIcon } from '../../icons'
 import FormSection from '../../form/FormSection'
 import InfoTip from '../../form/InfoTip'

@@ -1,4 +1,4 @@
-import { formatNumber } from '../common/format'
+import { formatNumber } from '../common'
 
 
 // The plan's drawing primitives and text metrics: pens, type sizes, text boxes, culling, paths and texts in page millimetres.

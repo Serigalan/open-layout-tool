@@ -7,7 +7,7 @@ import './core/index.css'
 import App from './server/App.jsx'
 import { initStorage } from './core/storage'
 import { initWorkingCopies } from './server/workingCopies'
-import { loadNtv2Grid } from './core/utils/geometry/ntv2Grid'
+import { loadNtv2Grid } from './core/utils/geometry'
 
 // The grid first, then the store — in that order, not side by side.
 //

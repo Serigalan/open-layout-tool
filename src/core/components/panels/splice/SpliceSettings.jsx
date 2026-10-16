@@ -1,4 +1,4 @@
-import { MAX_CANT, computeCantDef } from '../../../utils/rules/cant'
+import { MAX_CANT, computeCantDef } from '../../../utils/rules'
 import { useI18n } from '../../../locales/i18nContext'
 import CantField from '../CantField'
 import ReadOnlyField from '../../form/ReadOnlyField'

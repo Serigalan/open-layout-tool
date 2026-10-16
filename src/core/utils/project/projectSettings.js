@@ -1,13 +1,9 @@
 import {
-  EPSG_OPTIONS, crsCentre, crsDatum, crsName, crsSystem, epsgForLngLat, isCrsSystem, systemCodeAt, systemZones,
-} from '../geometry/coordinateUtils'
-import { transformTrackToPlane } from '../geometry/planeTransform'
-import { portTracks, rebuildCoords, referencesTrack } from '../track/trackModel'
-import { isLinkSwitch } from '../track/switchModel'
-import { rebuildSwitchSymbol } from '../switch/symbol'
-import { trackLength } from '../track/heightUtils'
-import { LINE_CATEGORIES } from '../track/identifierUtils'
-import { loadGridsFor } from '../geometry/ntv2Grid'
+  EPSG_OPTIONS, crsCentre, crsDatum, crsName, crsSystem, epsgForLngLat, isCrsSystem, systemCodeAt,
+  systemZones, transformTrackToPlane, loadGridsFor,
+} from '../geometry'
+import { portTracks, rebuildCoords, referencesTrack, isLinkSwitch, trackLength, LINE_CATEGORIES } from '../track'
+import { rebuildSwitchSymbol } from '../switch'
 
 /**
  * The project settings (Paket PE): the project's coordinate system and line

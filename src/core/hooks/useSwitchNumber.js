@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { loadSwitches } from '../storage'
-import { switchDesignation, nextSwitchNumber, switchNumbersInUse } from '../utils/track/identifierUtils'
+import { switchDesignation, nextSwitchNumber, switchNumbersInUse } from '../utils/track'
 
 /**
  * The number a new switch is created under, and the designation composed from

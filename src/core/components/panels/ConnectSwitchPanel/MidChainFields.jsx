@@ -1,5 +1,5 @@
 import { useI18n } from '../../../locales/i18nContext'
-import { MID_OPEN, midUnknowns } from '../../../utils/switch/midChain'
+import { MID_OPEN, midUnknowns } from '../../../utils/switch'
 import NumberInput from '../../form/NumberInput'
 import FormSection from '../../form/FormSection'
 

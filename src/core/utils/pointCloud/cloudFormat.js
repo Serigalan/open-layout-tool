@@ -1,4 +1,4 @@
-import { FILE_CRS_OPTIONS } from '../geometry/coordinateUtils'
+import { FILE_CRS_OPTIONS } from '../geometry'
 
 // How the point cloud dialog states numbers, and which planes it offers.
 

@@ -1,5 +1,5 @@
 import { TYPE_CODES } from './identifierUtils'
-import { kmTrackName } from '../km/lineLookup'
+import { kmTrackName } from '../km'
 import { nextTrackName } from './trackModel'
 
 /**

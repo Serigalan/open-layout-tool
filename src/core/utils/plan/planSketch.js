@@ -1,5 +1,5 @@
 import { trackPointAt } from './planGeometry'
-import { trackLength } from '../track/heightUtils'
+import { trackLength } from '../track'
 import { toPlane } from './planSchematic'
 
 /**

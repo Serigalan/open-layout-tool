@@ -1,5 +1,5 @@
-import { weichenGruppen, WEICHEN_REGELWERK } from '../utils/switch/weichenRegelwerk'
-import { switchKindLabelKey } from '../utils/track/switchModel'
+import { weichenGruppen, WEICHEN_REGELWERK } from '../utils/switch'
+import { switchKindLabelKey } from '../utils/track'
 import { useI18n } from '../locales/i18nContext'
 import InfoTip from './form/InfoTip'
 

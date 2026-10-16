@@ -1,4 +1,4 @@
-import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION } from '../../../utils/rules/cant'
+import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_EXCEPTION } from '../../../utils/rules'
 import CantField from '../CantField'
 import { useI18n } from '../../../locales/i18nContext'
 import InfoTip from '../../form/InfoTip'

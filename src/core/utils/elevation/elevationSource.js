@@ -22,8 +22,7 @@
 // far less than any of these resolve against a track's gradient; the app
 // treats them all as the height system of its tracks.
 
-import { loadSettings } from '../common/settings'
-import { MAPTILER_KEY } from '../common/mapTiler'
+import { loadSettings, MAPTILER_KEY } from '../common'
 import { extensionsOf } from '../../extensions'
 
 /** The choices of terrain source, the first the default: the automatic one, the point sources, the tiles. */

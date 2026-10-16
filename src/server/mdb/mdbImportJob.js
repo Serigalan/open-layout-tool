@@ -1,5 +1,5 @@
-import { runMdbImport } from './mdbPipeline'
-import { loadRegionalGrids, loadedRegionalGrids } from '../geometry/ntv2Grid'
+import { runMdbImport } from '../../core/utils/exchange'
+import { loadRegionalGrids, loadedRegionalGrids } from '../../core/utils/geometry'
 
 /**
  * runMdbImport in a worker, so the page stays responsive while a database is

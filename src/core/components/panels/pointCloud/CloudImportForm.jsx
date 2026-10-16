@@ -1,15 +1,12 @@
 import { useState } from 'react'
-import { crsLabel } from '../../../utils/geometry/coordinateUtils'
-import { HEIGHT_DATUMS, heightDatumLabel } from '../../../utils/track/heightDatums'
-import { fileSource } from '../../../utils/pointCloud/lasReader'
-import { readCloudHeader } from '../../../utils/pointCloud/cloudReader'
-import { probeExtent, projectPlane } from '../../../utils/pointCloud/cloudProbe'
-import { startImport, previewPoints } from '../../../utils/pointCloud/pointCloudImport'
-import { formatName, pointsAsText, PREVIEW_POINTS } from '../../../utils/pointCloud/lasText'
-import { persistStorage, estimateCloudBytes } from '../../../utils/pointCloud/cloudStore'
-import { CLOUD_CRS, count, crsHint, duration, mb, sizeText, stepText } from '../../../utils/pointCloud/cloudFormat'
-import { originalGrid } from '../../../utils/pointCloud/tiles'
-import { downloadText } from '../../../utils/common/fileUtils'
+import { crsLabel } from '../../../utils/geometry'
+import { HEIGHT_DATUMS, heightDatumLabel } from '../../../utils/track'
+import {
+  fileSource, readCloudHeader, probeExtent, projectPlane, startImport, previewPoints, formatName,
+  pointsAsText, PREVIEW_POINTS, persistStorage, estimateCloudBytes, CLOUD_CRS, count, crsHint,
+  duration, mb, sizeText, stepText, originalGrid,
+} from '../../../utils/pointCloud'
+import { downloadText } from '../../../utils/common'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject, useTracks } from '../../../hooks/useStore'
 import FilePickButton from '../../form/FilePickButton'

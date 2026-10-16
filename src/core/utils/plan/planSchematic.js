@@ -1,9 +1,7 @@
 import { trackPointAt } from './planGeometry'
-import { trackLength } from '../track/heightUtils'
-import { kmForTrackPoint } from '../km/kmLineUtils'
-import { utmToWgs84, wgs84ToUTM } from '../geometry/coordinateUtils'
-import { isLinkSwitch, portsOf, turnoutLinePort, portTrack, portEnd } from '../track/switchModel'
-import { trackStatus } from '../track/planStatus'
+import { trackLength, isLinkSwitch, portsOf, turnoutLinePort, portTrack, portEnd, trackStatus } from '../track'
+import { kmForTrackPoint } from '../km'
+import { utmToWgs84, wgs84ToUTM } from '../geometry'
 
 /**
  * The track network as a schematic strip: the lines of the layout become

@@ -1,4 +1,4 @@
-import { planeCoordsToWgs84 } from '../geometry/coordinateUtils'
+import { planeCoordsToWgs84 } from '../geometry'
 import { cloudPlane, cloudToPlane } from './cloudCrs'
 
 /**

@@ -1,7 +1,5 @@
-import { resolveEndBearing } from '../geometry/elementUtils'
-import { transformPlanePoint, gkZone } from '../geometry/coordinateUtils'
-import { cantSign } from '../rules/cant'
-import { arcFrom, straightFrom, transitionElement } from '../geometry/elementFactory'
+import { resolveEndBearing, transformPlanePoint, gkZone, arcFrom, straightFrom, transitionElement } from '../geometry'
+import { cantSign } from '../rules'
 
 const GON2DEG = 0.9
 

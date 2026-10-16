@@ -1,7 +1,7 @@
 import { useI18n } from '../../../locales/i18nContext'
 import { formatNum } from '../../../locales/i18n'
-import { crsLabel } from '../../../utils/geometry/coordinateUtils'
-import { trackListLabel } from '../../../utils/track/trackGroups'
+import { crsLabel } from '../../../utils/geometry'
+import { trackListLabel } from '../../../utils/track'
 import Modal from '../../Modal'
 
 /** How many of the tracks that go along are named; the rest are counted. */

@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { commitImport, loadEndMarks, loadTracks } from '../../../storage'
-import { parseOsrdRailJson } from '../../../utils/exchange/osrdImport'
-import { planRailJsonImport } from '../../../utils/exchange/railJsonImport'
+import { parseOsrdRailJson, planRailJsonImport } from '../../../utils/exchange'
 import { fitToTracks } from '../../../map/mapRenderUtils'
-import { readFileText } from '../../../utils/common/fileUtils'
+import { readFileText } from '../../../utils/common'
 import { useI18n } from '../../../locales/i18nContext'
 import { useMap } from '../../../map/MapContext'
 

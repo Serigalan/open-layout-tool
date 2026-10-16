@@ -1,6 +1,4 @@
-import { catalogSpeedRange } from '../../utils/rules/regelkatalog'
-import { cantDefLimit, MAX_SWITCH_CANT_DEF } from '../../utils/rules/cant'
-import { SPEED_STEP } from '../../utils/rules/speed'
+import { catalogSpeedRange, cantDefLimit, MAX_SWITCH_CANT_DEF, SPEED_STEP } from '../../utils/rules'
 import { useI18n } from '../../locales/i18nContext'
 import { lengthText } from './rowText'
 import CloseButton from '../form/CloseButton'

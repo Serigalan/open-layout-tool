@@ -3,9 +3,9 @@ import { path, text, line, circlePath, cullItems, textWidth, STYLE } from './pla
 import { frameItems } from './planSheet'
 import { fitSize, titleBlockFor } from './planTitleBlock'
 import { schematicLayout, toPlane } from './planSchematic'
-import { STATUSES, STATUS_COLOR, switchStatus } from '../track/planStatus'
+import { STATUSES, STATUS_COLOR, switchStatus } from '../track'
 import { format } from '../../locales/i18n'
-import { formatNumber } from '../common/format'
+import { formatNumber } from '../common'
 
 /**
  * The schematic overview as a plan: the strip from planSchematic cut into

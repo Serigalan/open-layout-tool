@@ -1,6 +1,5 @@
-import { elementPoints } from '../commands/reconnect'
-import { gradientAt } from '../track/heightUtils'
-import { generateId } from '../track/identifierUtils'
+import { elementPoints } from '../commands'
+import { gradientAt, generateId } from '../track'
 
 // A reference axis (Bestandsachse, Paket V): the axis of a surveyed track as
 // points every centimetre, nothing else — its elements are not kept

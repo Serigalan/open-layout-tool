@@ -1,12 +1,13 @@
-import { classifyTrackEnds, isOpenState } from '../track/topology'
-import { elementBelongsToSwitch } from '../track/switchModel'
-import { resolveEndBearing, reverseElement } from '../geometry/elementUtils'
-import { curvatureOf, radiusOfCurvature } from '../geometry/clothoidUtils'
+import {
+  classifyTrackEnds, isOpenState, elementBelongsToSwitch, joinTracks, rebuildCoords, reverseTrack,
+  trackLength,
+} from '../track'
+import {
+  resolveEndBearing, reverseElement, curvatureOf, radiusOfCurvature, arcElement, straightElement,
+  transitionElement,
+} from '../geometry'
 import { switchChainBearingAt, switchChainPointUtm, switchRouteBearingAt, switchRoutePointUtm } from './route'
 import { STRAIGHT_CURVATURE } from './catalogue'
-import { arcElement, straightElement, transitionElement } from '../geometry/elementFactory'
-import { joinTracks, rebuildCoords, reverseTrack } from '../track/trackModel'
-import { trackLength } from '../track/heightUtils'
 
 // Connecting a turnout's branch, or a crossing's cross leg, to an open track
 // end (Entscheidungen 302–304, 307–308).

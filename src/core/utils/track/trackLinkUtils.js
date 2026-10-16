@@ -1,7 +1,4 @@
-import {
-  transformPlanePoint, transformGridBearing, utmToWgs84, crsName,
-} from '../geometry/coordinateUtils'
-import { resolveEndBearing } from '../geometry/elementUtils'
+import { transformPlanePoint, transformGridBearing, utmToWgs84, crsName, resolveEndBearing } from '../geometry'
 import { portsOf, newSwitchFields, isLinkSwitch, LINK_KIND, portTrack, portEnd } from './switchModel'
 
 /**

@@ -1,4 +1,4 @@
-import { transformPlanePoint } from '../geometry/coordinateUtils'
+import { transformPlanePoint } from '../geometry'
 import { invertMatrix } from './registration'
 
 /**

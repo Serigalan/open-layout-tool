@@ -1,5 +1,7 @@
-import { PayloadError, dehydrateProjects, parseProjectsPayload, projectsPayload } from '../../../src/core/utils/project/persistenceUtils.js'
-import { newFindings, validateProject } from '../../../src/core/utils/project/validateProject.js'
+import {
+  PayloadError, dehydrateProjects, parseProjectsPayload, projectsPayload, newFindings,
+  validateProject,
+} from '../../../src/core/utils/project'
 import { ApiError } from './errors.js'
 
 /**

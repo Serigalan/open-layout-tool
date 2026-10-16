@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { ruleById, severityLabelKey } from '../../../utils/rules/regelkatalog'
-import { connectRemedies } from '../../../utils/commands/connectRemedies'
+import { ruleById, severityLabelKey } from '../../../utils/rules'
+import { connectRemedies } from '../../../utils/commands'
 import { useI18n } from '../../../locales/i18nContext'
 
 /**

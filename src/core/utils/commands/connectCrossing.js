@@ -1,10 +1,10 @@
 import { buildCrossingOnTrack, crossingOnTrackPlacement, crossingOnTrackPort } from './switches'
 import { hostPointAt, refitOutcome } from './connectSwitch'
-import { connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitTrackEnd } from '../switch/connectToTrack'
-import { crossingAngle, crossingEndDistance } from '../switch/crossing'
-import { trackLength } from '../track/heightUtils'
-import { nextTrackName, reverseTrack } from '../track/trackModel'
-import { portTrack, withPort } from '../track/switchModel'
+import {
+  connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitTrackEnd, crossingAngle,
+  crossingEndDistance,
+} from '../switch'
+import { trackLength, nextTrackName, reverseTrack, portTrack, withPort } from '../track'
 
 // "Kreuzung(-sweiche) an Gleis anschließen" (Entscheidung 307): a crossing or
 // crossing switch laid into the host track, one end of its cross route — B or

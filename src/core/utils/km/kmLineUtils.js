@@ -1,4 +1,4 @@
-import { wgs84ToUTM } from '../geometry/coordinateUtils'
+import { wgs84ToUTM } from '../geometry'
 
 /**
  * Referencing a point against a kilometrage line.

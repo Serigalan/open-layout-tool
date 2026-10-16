@@ -27,7 +27,12 @@ export async function load(url, context, next) {
   if (url.startsWith('file:') && url.includes('/src/') && url.endsWith('.js')) {
     const source = await readFile(fileURLToPath(url), 'utf8')
     // Vite fills import.meta.env at build time; under Node it is not there.
-    return { format: 'module', source: source.replaceAll('import.meta.env', '(import.meta.env ?? {})'), shortCircuit: true }
+    // import.meta.glob is Vite's too: the one module using it (rules/catalogHash,
+    // the hash of the bundled catalogues) is loaded with its module here but not
+    // run, so it finds no files rather than failing to load.
+    const patched = source.replaceAll('import.meta.env', '(import.meta.env ?? {})')
+      .replaceAll('import.meta.glob(', '(() => ({}))(')
+    return { format: 'module', source: patched, shortCircuit: true }
   }
   return next(url, context)
 }

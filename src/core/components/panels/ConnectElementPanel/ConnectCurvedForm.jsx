@@ -2,24 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { addElementsToTrack, loadTracks } from '../../../storage'
 import {
   computeCurvedValuesUtm, arcCoordsFromRadiusUtm, projectOnBearingUtm, endPointCurvedUtm,
-} from '../../../utils/geometry/elementUtils'
-import { wgs84ToUTM, toWgs } from '../../../utils/geometry/coordinateUtils'
-import { computeClothoidUtm } from '../../../utils/geometry/clothoidUtils'
-import { cantSign, computeAutoC, computeCantDefSigned, MAX_CANT } from '../../../utils/rules/cant'
-import { SAGITTA_ELEMENT } from '../../../utils/geometry/geometryPrecision'
+  wgs84ToUTM, toWgs, computeClothoidUtm, SAGITTA_ELEMENT,
+} from '../../../utils/geometry'
+import {
+  cantSign, computeAutoC, computeCantDefSigned, MAX_CANT, hasRuleError, transitionChain,
+  transitionHasError,
+} from '../../../utils/rules'
 import RuleFindings from '../RuleFindings'
-import { hasRuleError } from '../../../utils/rules/trassierungCheck'
 import CantField from '../CantField'
 import useDerivedField from '../../../hooks/useDerivedField'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
-import { transitionChain, transitionHasError } from '../../../utils/rules/transitionLength'
 import { useI18n } from '../../../locales/i18nContext'
 import useDrawPreview from '../../../map/useDrawPreview'
 import useMapPick, { useSelectedOnMap } from '../../../map/useMapPick'
-import { trackEndAnchor, inheritedSpeed } from '../../../utils/track/trackModel'
+import { trackEndAnchor, inheritedSpeed } from '../../../utils/track'
 import useMapEvents from '../../../map/useMapEvents'
-import { buildConnectCurved, cantAtTrackEnd, curveCant } from '../../../utils/commands/tracks'
+import { buildConnectCurved, cantAtTrackEnd, curveCant } from '../../../utils/commands'
 import NewStretchShiftValues from '../shift/NewStretchShiftValues'
 import CommitBar from '../../form/CommitBar'
 import ReadOnlyField from '../../form/ReadOnlyField'

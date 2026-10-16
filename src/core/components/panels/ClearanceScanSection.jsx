@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { readableClouds } from '../../utils/pointCloud/projectClouds'
-import { scanClearance } from '../../utils/pointCloud/clearanceScan'
-import { gaugeProfile, gaugeProfileRing, gaugeProfileAreas, DEFAULT_GAUGE_PROFILE } from '../../utils/crossSection/gaugeProfiles'
-import { heightContext } from '../../utils/elevation/switchGradient'
+import {
+  readableClouds, scanClearance, runIsActive, runsOnServer, serverRunHook, registrationHook,
+} from '../../utils/pointCloud'
+import { gaugeProfile, gaugeProfileRing, gaugeProfileAreas, DEFAULT_GAUGE_PROFILE } from '../../utils/crossSection'
+import { heightContext } from '../../utils/elevation'
 import { currentProject } from '../../storage'
 import { useI18n } from '../../locales/i18nContext'
 import { tOr, formatDate } from '../../locales/i18n'
 import { useProject } from '../../hooks/useStore'
 import { useMayEditClouds } from '../../hooks/useCurrentUser'
-import { runIsActive, runsOnServer, serverRunHook } from '../../utils/pointCloud/serverRuns'
-import { registrationHook } from '../../utils/pointCloud/cloudRegistration'
 import FormSection from '../form/FormSection'
 import ServerRunStatus from './pointCloud/ServerRunStatus'
 

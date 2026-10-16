@@ -1,6 +1,8 @@
-import { nodeUtm, reverseElement, resolveEndBearing, projectOnArcUtm } from '../geometry/elementUtils'
-import { transitionCantEnds, projectOnTransitionUtm } from '../geometry/clothoidUtils'
-import { elementAtStation, pointAtStationUtm } from '../track/heightUtils'
+import {
+  nodeUtm, reverseElement, resolveEndBearing, projectOnArcUtm, transitionCantEnds,
+  projectOnTransitionUtm,
+} from '../geometry'
+import { elementAtStation, pointAtStationUtm } from '../track'
 import { switchElementRoute, switchRouteSlice, switchRouteBearingAt } from './route'
 import { asRadius } from './catalogue'
 

@@ -5,7 +5,7 @@ import '../../core/components/collab/collab.css'
 import { useI18n } from '../../core/locales/i18nContext'
 import { errorText } from './errorText'
 import Modal from '../../core/components/Modal'
-import { sizeText } from '../../core/utils/pointCloud/cloudFormat'
+import { sizeText } from '../../core/utils/pointCloud'
 
 /** A start password: 16 characters a person can read out (no 0/O, 1/l/I). */
 function startPassword() {

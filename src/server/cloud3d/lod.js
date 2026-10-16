@@ -1,4 +1,4 @@
-import { LEVELS } from '../../core/utils/pointCloud/tiles'
+import { LEVELS } from '../../core/utils/pointCloud'
 
 /**
  * Which tiles the 3D view draws (AP 13.9). The levels of a server cloud form a

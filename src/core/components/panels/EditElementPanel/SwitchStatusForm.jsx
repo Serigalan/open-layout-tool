@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { loadSwitches, loadTracks, updateSwitch } from '../../../storage'
-import { switchStatus } from '../../../utils/track/planStatus'
+import { switchStatus } from '../../../utils/track'
 import StatusField from '../StatusField'
 import { SWITCH_PICK_LAYERS, hasSwitch } from '../../../map/pick'
 import { useI18n } from '../../../locales/i18nContext'

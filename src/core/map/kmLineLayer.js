@@ -1,7 +1,6 @@
 import maplibregl from 'maplibre-gl'
 import { PMTiles, Protocol } from 'pmtiles'
-import { KmTileSource } from '../utils/km/kmTileSource'
-import { kmOnPieces, toMercator } from '../utils/km/kmLineMath'
+import { KmTileSource, kmOnPieces, toMercator } from '../utils/km'
 import { ZOOM_LINE_WIDTH } from './style'
 
 /**

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { lineNameOf } from '../utils/km/lineLookup'
+import { lineNameOf } from '../utils/km'
 
 /** How long the number has to hold still before its name is looked up. */
 const SETTLE_MS = 300

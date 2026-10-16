@@ -1,6 +1,4 @@
-import { pointAtStation, stationOnTrack } from '../track/platformUtils'
-import { portsOf, portTrack, portEnd, withPort } from '../track/switchModel'
-import { repairRoute } from '../track/routes'
+import { pointAtStation, stationOnTrack, portsOf, portTrack, portEnd, withPort, repairRoute } from '../track'
 
 /**
  * Carrying a reference across a change of track ids (decision 93, merge rule 5).

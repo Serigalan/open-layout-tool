@@ -2,7 +2,7 @@ import { sourceOf, forgetSource, forgetSources } from './cloudSource'
 import { decodeCloudSegment, segmentPlacement } from './tiles'
 import { sliceFrame, tilesInSlice, sliceSegment, SlicePoints } from './cloudSlice'
 import { cloudToPlane, planeToCloud } from './cloudCrs'
-import { transformPlanePoint, transformGridBearing } from '../geometry/coordinateUtils'
+import { transformPlanePoint, transformGridBearing } from '../geometry'
 
 /**
  * The points of the project's clouds in a cross section, read through each

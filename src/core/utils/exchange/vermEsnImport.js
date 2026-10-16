@@ -1,6 +1,6 @@
-import { cantSign } from '../rules/cant'
+import { cantSign } from '../rules'
 import { gradientStretch } from './proviImport'
-import { arcFrom, straightFrom, transitionElement } from '../geometry/elementFactory'
+import { arcFrom, straightFrom, transitionElement } from '../geometry'
 
 const RECORD_SIZE = 78
 const GRA_RECORD_SIZE = 36   // the header is one record long, too

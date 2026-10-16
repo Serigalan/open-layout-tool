@@ -1,5 +1,4 @@
-import { planeMapper } from '../../core/utils/pointCloud/cloudCrs'
-import { applyMatrix, IDENTITY } from '../../core/utils/pointCloud/registration'
+import { planeMapper, applyMatrix, IDENTITY } from '../../core/utils/pointCloud'
 
 /**
  * Where a cloud is drawn in the 3D view (AP 13.13). The worker carries the

@@ -1,9 +1,6 @@
-import { rebuildCoords, trackLabel } from '../track/trackModel'
-import { resolveEndBearing, nodeUtm, endPointCurvedUtm, endPointStraightUtm } from '../geometry/elementUtils'
-import { sampleTransitionUtm } from '../geometry/clothoidUtils'
-import { cantSign, AUTO_CANT_MODEL } from '../rules/cant'
-import { minElementLength } from '../rules/elementLength'
-import { heightAt } from '../track/heightUtils'
+import { rebuildCoords, trackLabel, heightAt } from '../track'
+import { resolveEndBearing, nodeUtm, endPointCurvedUtm, endPointStraightUtm, sampleTransitionUtm } from '../geometry'
+import { cantSign, AUTO_CANT_MODEL, minElementLength } from '../rules'
 import { spliceFromAnswer } from './splice'
 
 // Reconnecting existing elements (Paket N): a stretch of one track is taken

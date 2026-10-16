@@ -10,7 +10,7 @@ import { initStorage } from './core/storage'
 import { extend } from './core/extensions'
 import { setCurrentUser } from './core/hooks/useCurrentUser'
 import { localProjectsSection } from './core/home/localProjects'
-import { loadNtv2Grid } from './core/utils/geometry/ntv2Grid'
+import { loadNtv2Grid } from './core/utils/geometry'
 
 // The one local user, with every right (decision 281).
 setCurrentUser({ id: 'local', name: 'local', role: 'admin', canEditClouds: true })

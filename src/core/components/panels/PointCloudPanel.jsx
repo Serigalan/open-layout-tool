@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listClouds, deleteCloud, opfsAvailable, storagePersisted, storageEstimate } from '../../utils/pointCloud/cloudStore'
-import { outlineFeature } from '../../utils/pointCloud/cloudOutline'
-import { forgetCloud } from '../../utils/pointCloud/cloudSection'
-import { cloudServerHook } from '../../utils/pointCloud/cloudServer'
-import { sizeText } from '../../utils/pointCloud/cloudFormat'
+import {
+  listClouds, deleteCloud, opfsAvailable, storagePersisted, storageEstimate, outlineFeature,
+  forgetCloud, cloudServerHook, sizeText,
+} from '../../utils/pointCloud'
 import { useI18n } from '../../locales/i18nContext'
 import { useProject } from '../../hooks/useStore'
 import { useMayEditClouds } from '../../hooks/useCurrentUser'

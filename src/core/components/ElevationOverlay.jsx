@@ -1,34 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches } from '../storage'
 import { useProject, useReferenceAxes, useRoutes, useSwitches, useTracks } from '../hooks/useStore'
-import { checkVertical, regularVerticalRadius, verticalFindings } from '../utils/elevation/gradientCheck'
-import { coupledPoints, trackHeightAt } from '../utils/elevation/switchGradient'
-import { heightRoles } from '../utils/elevation/switchChain'
-import { ruleById, severityLabelKey } from '../utils/rules/regelkatalog'
 import {
-  adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps, elementAtStation,
-  insertHeightPoint, solveHeightPoint, pointGrades, GIVEN_MODES,
-} from '../utils/track/heightUtils'
-import { partStation, resolveRoute, routeAt, routePointAt } from '../utils/track/routes'
-import { routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute } from '../utils/elevation/routeProfile'
-import { reverseTrack } from '../utils/track/trackModel'
+  checkVertical, regularVerticalRadius, verticalFindings, coupledPoints, trackHeightAt,
+  heightRoles, routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute,
+  fillHeights, chosenTerrainSource,
+} from '../utils/elevation'
+import { ruleById, severityLabelKey } from '../utils/rules'
+import {
+  adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps,
+  elementAtStation, insertHeightPoint, solveHeightPoint, pointGrades, GIVEN_MODES, partStation,
+  resolveRoute, routeAt, routePointAt, reverseTrack, turnoutDivergingPort, turnoutLinePort,
+  portTrack,
+} from '../utils/track'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
-import { fillHeights } from '../utils/elevation/elevationFill'
-import { chosenTerrainSource } from '../utils/elevation/elevationSource'
 import {
   comparedLine, deviationAt, heightsComparable, nearestAxis, referenceProfile, shiftValues,
-} from '../utils/survey/shiftValues'
-import { loadSettings, saveSettings } from '../utils/common/settings'
+} from '../utils/survey'
+import { loadSettings, saveSettings, clamp, niceStep, stepDecimals, ticks } from '../utils/common'
 import useReferenceAxesOnMap from '../map/useReferenceAxesOnMap'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import usePreview from '../map/usePreview'
-import { utmToWgs84 } from '../utils/geometry/coordinateUtils'
+import { utmToWgs84 } from '../utils/geometry'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
-import { clamp } from '../utils/common/format'
-import { turnoutDivergingPort, turnoutLinePort, portTrack } from '../utils/track/switchModel'
-import { niceStep, stepDecimals, ticks } from '../utils/common/chartAxes'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
 import InfoTip from './form/InfoTip'

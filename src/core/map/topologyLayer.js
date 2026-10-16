@@ -1,5 +1,5 @@
-import { classifyTrackEnds, switchNodes } from '../utils/track/topology'
-import { GEOJSON_MAXZOOM } from '../utils/geometry/geometryPrecision'
+import { classifyTrackEnds, switchNodes } from '../utils/track'
+import { GEOJSON_MAXZOOM } from '../utils/geometry'
 import { ZOOM_LINE_WIDTH } from './style'
 import { BUFFER_STOPS_BRAKE_LAYER, BUFFER_STOPS_LAYER, PLATFORMS_FILL_LAYER, PLATFORMS_OUTLINE_LAYER, SWITCH_FILLS_LAYER, SWITCH_LCS_LAYER, TRACKS_LAYER, TRACKS_SOURCE, TRACK_MARKERS_LAYER } from './layerIds'
 import { EMPTY_FC } from './geojson'

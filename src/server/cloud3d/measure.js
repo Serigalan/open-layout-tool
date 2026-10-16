@@ -1,5 +1,4 @@
-import { decodeCloudSegment, segmentPlacement } from '../../core/utils/pointCloud/tiles'
-import { sourceOf } from '../../core/utils/pointCloud/cloudSource'
+import { decodeCloudSegment, segmentPlacement, sourceOf } from '../../core/utils/pointCloud'
 
 /**
  * Measuring in the 3D view (AP 13.11). A click picks the nearest point drawn

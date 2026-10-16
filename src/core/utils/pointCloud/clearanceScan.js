@@ -1,8 +1,8 @@
 import { cloudSectionPoints } from './cloudSection'
 import { checkClearance } from './clearanceCheck'
-import { sectionOrigin, sectionAtStation } from '../crossSection/crossSectionUtils'
-import { trackLength } from '../track/heightUtils'
-import { trackHeightAt } from '../elevation/switchGradient'
+import { sectionOrigin, sectionAtStation } from '../crossSection'
+import { trackLength } from '../track'
+import { trackHeightAt } from '../elevation'
 
 /**
  * The clearance check along a whole track (AP 11.5, the optional part): the

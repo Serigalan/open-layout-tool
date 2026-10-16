@@ -1,6 +1,5 @@
-import { transitionCantEnds } from '../geometry/clothoidUtils'
-import { worstSeverity } from '../rules/regelkatalog'
-import { clampCant } from '../rules/cant'
+import { transitionCantEnds } from '../geometry'
+import { worstSeverity, clampCant } from '../rules'
 
 // The bands of a track drawn under each other over its station: curvature,
 // cant and speed, each a polyline of { s, v } — a value of null breaks it.

@@ -3,9 +3,10 @@ import { loadTracks, replaceAllTracks } from '../../../storage'
 import useNearbyLines from '../../../hooks/useNearbyLines'
 import useLineNameSuggestion from '../../../hooks/useLineNameSuggestion'
 import {
-  assignTracks, assignmentFields, groupTitle, groupTracks, plannedNames, trackGroupKey, trackListLabel,
-} from '../../../utils/track/trackGroups'
-import { elementsPath, identifyTrackLine } from '../../../utils/km/lineLookup'
+  assignTracks, assignmentFields, groupTitle, groupTracks, plannedNames, trackGroupKey,
+  trackListLabel,
+} from '../../../utils/track'
+import { elementsPath, identifyTrackLine } from '../../../utils/km'
 import { FILTER_NONE, mapIsLive } from '../../../map/pick'
 import GroupedTrackList from '../GroupedTrackList'
 import StationNameInput from '../StationNameInput'

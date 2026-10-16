@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
-import {
-  heightsComparable, nearestAxis, shiftSummary, shiftValues, shiftValuesCsv,
-} from '../../../utils/survey/shiftValues'
-import { loadSettings, saveSettings } from '../../../utils/common/settings'
-import { downloadText } from '../../../utils/common/fileUtils'
-import { utmToWgs84 } from '../../../utils/geometry/coordinateUtils'
+import { heightsComparable, nearestAxis, shiftSummary, shiftValues, shiftValuesCsv } from '../../../utils/survey'
+import { loadSettings, saveSettings, downloadText } from '../../../utils/common'
+import { utmToWgs84 } from '../../../utils/geometry'
 import { useReferenceAxes } from '../../../hooks/useStore'
 import { useI18n } from '../../../locales/i18nContext'
 import usePreview from '../../../map/usePreview'

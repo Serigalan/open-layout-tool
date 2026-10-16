@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { identifyTrackLine } from '../utils/km/lineLookup'
+import { identifyTrackLine } from '../utils/km'
 
 /** How long the geometry has to hold still before the lines are looked up. */
 const SETTLE_MS = 300

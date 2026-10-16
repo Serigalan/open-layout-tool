@@ -1,9 +1,7 @@
-import { utmToWgs84 } from '../geometry/coordinateUtils'
-import { bearingAfterUtm } from '../geometry/elementUtils'
 import {
-  transitionPointAtUtm, transitionBearingAtUtm, sampleTransitionUtm, clothoidRadiusAt, curvatureOf,
-  radiusOfCurvature,
-} from '../geometry/clothoidUtils'
+  utmToWgs84, bearingAfterUtm, transitionPointAtUtm, transitionBearingAtUtm, sampleTransitionUtm,
+  clothoidRadiusAt, curvatureOf, radiusOfCurvature,
+} from '../geometry'
 import { STRAIGHT_CURVATURE, asRadius, bauform, branchRadius } from './catalogue'
 
 // Switch routes and chains: a route or a chain of pieces as it runs away from the point it starts at.

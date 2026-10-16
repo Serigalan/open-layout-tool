@@ -1,7 +1,4 @@
-import { catalogLimit, severityRank } from '../rules/regelkatalog'
-import { CANT_DEFICIENCY_COEFF } from '../rules/regelwerkDefaults'
-import { SPEED_STEP } from '../rules/speed'
-import { computeAutoC } from '../rules/cant'
+import { catalogLimit, severityRank, CANT_DEFICIENCY_COEFF, SPEED_STEP, computeAutoC } from '../rules'
 
 // What a splice can change when the catalogue rejects a curvature jump on the
 // stretch it writes (LP.KS.01, Vergleichsradius): the speed at the joint, the

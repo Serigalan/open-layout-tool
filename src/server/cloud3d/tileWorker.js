@@ -6,10 +6,8 @@
 // would leave some half a metre at 4 467 335 / 5 333 806, AP 13.8; the model
 // matrix takes them on into the view, placement.js), colour and intensity as
 // bytes; or { type: 'error', id, message }.
-import { decodeCloudSegment, segmentPlacement } from '../../core/utils/pointCloud/tiles'
-import { planeMapper } from '../../core/utils/pointCloud/cloudCrs'
-import { loadNtv2Grid, loadGridsFor } from '../../core/utils/geometry/ntv2Grid'
-import { crsDatum } from '../../core/utils/geometry/coordinateUtils'
+import { decodeCloudSegment, segmentPlacement, planeMapper } from '../../core/utils/pointCloud'
+import { loadNtv2Grid, loadGridsFor, crsDatum } from '../../core/utils/geometry'
 
 let ready = Promise.resolve()
 const mappers = new Map()

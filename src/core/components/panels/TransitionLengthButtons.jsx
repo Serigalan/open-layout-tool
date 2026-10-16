@@ -1,5 +1,5 @@
 import { useI18n } from '../../locales/i18nContext'
-import { ruleById } from '../../utils/rules/regelkatalog'
+import { ruleById } from '../../utils/rules'
 
 /**
  * Setting a transition's length to the shortest the rules allow

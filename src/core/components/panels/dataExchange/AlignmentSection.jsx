@@ -1,6 +1,6 @@
 import { currentProject } from '../../../storage'
-import { exportExchange, FORMAT_VERSION } from '../../../utils/exchange/exchangeExport'
-import { downloadJSON } from '../../../utils/common/fileUtils'
+import { exportExchange, FORMAT_VERSION } from '../../../utils/exchange'
+import { downloadJSON } from '../../../utils/common'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
 import FilePickButton from '../../form/FilePickButton'

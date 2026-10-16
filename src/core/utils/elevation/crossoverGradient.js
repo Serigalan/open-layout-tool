@@ -33,11 +33,12 @@
  * outside the turnouts (HP.AR.06).
  */
 
-import { catalogLimit } from '../rules/regelkatalog'
-import { adjacentTracks, elementAtStation, gradientAt, jointHeightUpdates, pointAtStationUtm, roundHeight, trackLength } from '../track/heightUtils'
-import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from '../crossSection/crossSectionUtils'
-import { cantSign, roundCant } from '../rules/cant'
-import { isLinkSwitch, portsOf, turnoutDivergingPort, turnoutLinePort, portTrack, portEnd } from '../track/switchModel'
+import { catalogLimit, cantSign, roundCant } from '../rules'
+import {
+  adjacentTracks, elementAtStation, gradientAt, jointHeightUpdates, pointAtStationUtm, roundHeight,
+  trackLength, isLinkSwitch, portsOf, turnoutDivergingPort, turnoutLinePort, portTrack, portEnd,
+} from '../track'
+import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from '../crossSection'
 import { ldsFromToe } from './switchGradient'
 
 const EPS = 1e-6

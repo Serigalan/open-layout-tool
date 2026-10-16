@@ -1,14 +1,13 @@
-import { hydrateProjects, dehydrateProjects, projectsPayload } from './utils/project/persistenceUtils'
-import { elementBelongsToSwitch, portsOf, unmarkSwitchElement, portTrack, portEnd } from './utils/track/switchModel'
-import { rebuildSwitchSymbol } from './utils/switch/symbol'
-import { sliceHeights } from './utils/track/heightUtils'
-import { flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTrack, remapSwitches, reverseTrack } from './utils/track/trackModel'
-import { generateId } from './utils/track/identifierUtils'
-import { remapEndMarks, flipEndMarks, pruneEndMarks, endKey } from './utils/track/trackEndMarks'
-import { coupleSwitchGradients, coupleSwitchHeights } from './utils/elevation/switchChain'
-import { repairRoutes } from './utils/track/routes'
-import { lengthGovernedRadii } from './utils/elevation/gradientCheck'
-import { moveTracksToPlane, withImportSystem } from './utils/project/projectSettings'
+import {
+  hydrateProjects, dehydrateProjects, projectsPayload, moveTracksToPlane, withImportSystem,
+} from './utils/project'
+import {
+  elementBelongsToSwitch, portsOf, unmarkSwitchElement, portTrack, portEnd, sliceHeights,
+  flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTrack, remapSwitches,
+  reverseTrack, generateId, remapEndMarks, flipEndMarks, pruneEndMarks, endKey, repairRoutes,
+} from './utils/track'
+import { rebuildSwitchSymbol } from './utils/switch'
+import { coupleSwitchGradients, coupleSwitchHeights, lengthGovernedRadii } from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 

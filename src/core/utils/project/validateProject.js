@@ -1,12 +1,6 @@
-import { portsOf, portTrack, portEnd } from '../track/switchModel'
-import { pointOnElement } from '../track/platformUtils'
-import { sampleTransitionUtm } from '../geometry/clothoidUtils'
-import { endKey } from '../track/trackEndMarks'
-import { epsgMismatches, nodeGaps, untrueLengths } from '../geometry/chainChecks'
-import { trackLabel } from '../track/trackModel'
-import { surveyDefect } from '../survey/axisSurvey'
-import { referenceAxisDefect } from '../survey/referenceAxis'
-import { resolveRoute } from '../track/routes'
+import { portsOf, portTrack, portEnd, pointOnElement, endKey, trackLabel, resolveRoute } from '../track'
+import { sampleTransitionUtm, epsgMismatches, nodeGaps, untrueLengths } from '../geometry'
+import { surveyDefect, referenceAxisDefect } from '../survey'
 
 /**
  * Whether a project record holds together — the check every merge result and

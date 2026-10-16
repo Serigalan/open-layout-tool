@@ -1,6 +1,5 @@
-import { endOfIndex, trackLength } from '../track/heightUtils'
-import { partStation } from '../track/routes'
-import { worstSeverity } from '../rules/regelkatalog'
+import { endOfIndex, trackLength, partStation } from '../track'
+import { worstSeverity } from '../rules'
 
 /**
  * The vertical alignment along a route (Paket RT, decision 251): the height

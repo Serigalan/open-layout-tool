@@ -1,7 +1,5 @@
-import { generateId } from '../track/identifierUtils'
-import { rebuildCoords } from '../track/trackModel'
-import { reconstructElements } from '../geometry/elementReconstruct'
-import { crsName } from '../geometry/coordinateUtils'
+import { generateId, rebuildCoords } from '../track'
+import { reconstructElements, crsName } from '../geometry'
 import { surveyPoints } from './axisSurvey'
 
 // An alignment from measured axis points (AP 12.5, Entscheidungen 133, 134,

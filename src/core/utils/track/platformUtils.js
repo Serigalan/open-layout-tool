@@ -1,11 +1,9 @@
-import { utmToWgs84 } from '../geometry/coordinateUtils'
 import {
-  nodeUtm, endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm, projectOnArcUtm,
-} from '../geometry/elementUtils'
-import { transitionPointAtUtm, transitionBearingAtUtm } from '../geometry/clothoidUtils'
+  utmToWgs84, nodeUtm, endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm, projectOnArcUtm,
+  transitionPointAtUtm, transitionBearingAtUtm, SAGITTA_ELEMENT, STRAIGHT_VERTEX_SPACING,
+} from '../geometry'
 import { heightAt } from './heightUtils'
-import { SAGITTA_ELEMENT, STRAIGHT_VERTEX_SPACING } from '../geometry/geometryPrecision'
-import { clamp } from '../common/format'
+import { clamp } from '../common'
 
 /**
  * A platform is anchored to one track: the two picked points are stations along

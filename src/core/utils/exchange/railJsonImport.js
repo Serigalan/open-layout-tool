@@ -1,5 +1,4 @@
-import { generateId } from '../track/identifierUtils'
-import { nextTrackName, rebuildCoords } from '../track/trackModel'
+import { generateId, nextTrackName, rebuildCoords } from '../track'
 
 /**
  * What a parsed RailJSON or alignment exchange file (osrdImport) adds to a

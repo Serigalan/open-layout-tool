@@ -1,26 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { updateTrack } from '../storage'
 import { useProject, useSwitches, useTracks } from '../hooks/useStore'
-import { trackProfile, verticalCurves, gradientAt } from '../utils/track/heightUtils'
 import {
-  curvatureBand, cantBand, speedBand, bandValueAt, bandRuns, bandRange, elementSpans,
-  bandFindings, bandEditable, withBandValue,
-} from '../utils/track/alignmentBands'
-import { checkTrack } from '../utils/rules/trassierungCheck'
-import { checkVertical } from '../utils/elevation/gradientCheck'
-import { ruleById, severityLabelKey, worstSeverity } from '../utils/rules/regelkatalog'
-import { maxSpeeds } from '../utils/rules/speed'
+  trackProfile, verticalCurves, gradientAt, curvatureBand, cantBand, speedBand, bandValueAt,
+  bandRuns, bandRange, elementSpans, bandFindings, bandEditable, withBandValue, pointAtStation,
+} from '../utils/track'
+import { checkTrack, ruleById, severityLabelKey, worstSeverity, maxSpeeds } from '../utils/rules'
+import { checkVertical, trackHeightAt } from '../utils/elevation'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
 import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
-import { trackHeightAt } from '../utils/elevation/switchGradient'
 import { useI18n } from '../locales/i18nContext'
 import usePreview from '../map/usePreview'
-import { pointAtStation } from '../utils/track/platformUtils'
-import { utmToWgs84 } from '../utils/geometry/coordinateUtils'
+import { utmToWgs84 } from '../utils/geometry'
 import { PALETTE } from '../styles/palette'
-import { clamp } from '../utils/common/format'
-import { niceStep, stepDecimals, ticks } from '../utils/common/chartAxes'
+import { clamp, niceStep, stepDecimals, ticks } from '../utils/common'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
 import NumberInput from './form/NumberInput'

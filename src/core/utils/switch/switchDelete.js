@@ -1,13 +1,12 @@
-import { joinTracks, rebuildCoords, reverseTrack } from '../track/trackModel'
 import {
-  portsOf, switchRoutePorts, elementBelongsToSwitch, elementOnSwitchRoute, unmarkSwitchElement, isLinkSwitch, portTrack, portEnd,
-} from '../track/switchModel'
+  joinTracks, rebuildCoords, reverseTrack, portsOf, switchRoutePorts, elementBelongsToSwitch,
+  elementOnSwitchRoute, unmarkSwitchElement, isLinkSwitch, portTrack, portEnd, splitHeights,
+  trackLength,
+} from '../track'
 import {
-  computeCurvedValuesUtm, computeStraightValuesUtm, resolveEndBearing,
-} from '../geometry/elementUtils'
-import { curvatureOf } from '../geometry/clothoidUtils'
-import { reconstructElements } from '../geometry/elementReconstruct'
-import { splitHeights, trackLength } from '../track/heightUtils'
+  computeCurvedValuesUtm, computeStraightValuesUtm, resolveEndBearing, curvatureOf,
+  reconstructElements,
+} from '../geometry'
 
 /**
  * The routes that stay as ordinary track when the switch goes: a route both of

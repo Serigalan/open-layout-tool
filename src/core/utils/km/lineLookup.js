@@ -1,7 +1,6 @@
 import { fetchKmLine, clipRuns, kmDataUrl } from './kmLineSource'
 import { planeRuns, kmOnRuns } from './kmLineUtils'
-import { utmToWgs84 } from '../geometry/coordinateUtils'
-import { arcPlanePoints } from '../geometry/elementUtils'
+import { utmToWgs84, arcPlanePoints } from '../geometry'
 
 /**
  * Which line a track lies on, and what that makes its name.

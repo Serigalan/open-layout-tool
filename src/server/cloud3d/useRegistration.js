@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import { serverLevel } from '../cloudsOnServer'
-import { cloudPlane, cloudToPlane, planeMapper } from '../../core/utils/pointCloud/cloudCrs'
-import { solveRegistration, applyMatrix, IDENTITY } from '../../core/utils/pointCloud/registration'
+import {
+  cloudPlane, cloudToPlane, planeMapper, solveRegistration, applyMatrix, IDENTITY,
+} from '../../core/utils/pointCloud'
 import { cloudPlacement } from './placement'
 import { PALETTE } from '../../core/styles/palette'
 

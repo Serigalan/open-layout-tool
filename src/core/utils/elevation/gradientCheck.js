@@ -18,12 +18,9 @@
  * connection or a cant ramp.
  */
 
-import { catalogLimit, evaluateRules, rulesForScope, severityRank, worstSeverity } from '../rules/regelkatalog'
-import { tangentLength } from '../track/heightUtils'
-import { trackKind } from '../track/trackGroups'
-import { portsOf, portTrack, portEnd } from '../track/switchModel'
-import { transitionCantEnds } from '../geometry/clothoidUtils'
-import { LINE_CATEGORIES } from '../track/identifierUtils'
+import { catalogLimit, evaluateRules, rulesForScope, severityRank, worstSeverity } from '../rules'
+import { tangentLength, trackKind, portsOf, portTrack, portEnd, LINE_CATEGORIES } from '../track'
+import { transitionCantEnds } from '../geometry'
 import { switchBodySpans } from './switchGradient'
 
 const DEFAULT_LINE_CATEGORY = 'main'

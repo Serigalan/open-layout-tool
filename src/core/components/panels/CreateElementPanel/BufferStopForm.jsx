@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks, saveEndMark, deleteEndMark } from '../../../storage'
-import { classifyTrackEnds, freeEnds } from '../../../utils/track/topology'
 import {
-  BUFFER_STOP_TYPES, DEFAULT_BUFFER_STOP_TYPE, BUFFER_STOP_LENGTH, BUFFER_STOP,
-  defaultBrakeLength, bufferStopFits, newBufferStop,
-} from '../../../utils/track/trackEndMarks'
-import { bufferStopFeatures } from '../../../utils/track/bufferStopGeometry'
-import { trackLength } from '../../../utils/track/heightUtils'
+  classifyTrackEnds, freeEnds, BUFFER_STOP_TYPES, DEFAULT_BUFFER_STOP_TYPE, BUFFER_STOP_LENGTH,
+  BUFFER_STOP, defaultBrakeLength, bufferStopFits, newBufferStop, bufferStopFeatures, trackLength,
+} from '../../../utils/track'
 import { useI18n } from '../../../locales/i18nContext'
 import CommitBar from '../../form/CommitBar'
 import { useProject } from '../../../hooks/useStore'

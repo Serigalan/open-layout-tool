@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { currentProject, setTracksPlane, updateTrack } from '../storage'
 import { useProject } from '../hooks/useStore'
-import { LINE_CATEGORIES } from '../utils/track/identifierUtils'
-import { projectLineCategory } from '../utils/elevation/gradientCheck'
 import {
-  ownLineCategory, planeGroup, planeInSystem, previewTracksToPlane, projectSystem, systemChoices, systemDeviates,
-  withLineCategory, zoneChoices,
-} from '../utils/project/projectSettings'
-import { crsName, crsSystem, crsSystemName } from '../utils/geometry/coordinateUtils'
-import { trackLength } from '../utils/track/heightUtils'
-import { trackStatus } from '../utils/track/planStatus'
-import { groupHeading, groupTracks, trackListLabel, trackTypeName } from '../utils/track/trackGroups'
-import { trackMatches } from '../utils/track/search'
+  LINE_CATEGORIES, trackLength, trackStatus, groupHeading, groupTracks, trackListLabel,
+  trackTypeName, trackMatches,
+} from '../utils/track'
+import { projectLineCategory } from '../utils/elevation'
+import {
+  ownLineCategory, planeGroup, planeInSystem, previewTracksToPlane, projectSystem, systemChoices,
+  systemDeviates, withLineCategory, zoneChoices,
+} from '../utils/project'
+import { crsName, crsSystem, crsSystemName } from '../utils/geometry'
 import { fitToTracks } from '../map/mapRenderUtils'
 import { formatNum } from '../locales/i18n'
 import { useI18n } from '../locales/i18nContext'

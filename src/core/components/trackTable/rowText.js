@@ -1,6 +1,7 @@
-import { switchKindLabelKey, switchRouteLabelKey } from '../../utils/track/switchModel'
-import { ruleById, severityLabelKey } from '../../utils/rules/regelkatalog'
-import { cantExceedsLimit, cantExceptionOf, cantLimit, limitCantDef } from '../../utils/rules/cant'
+import { switchKindLabelKey, switchRouteLabelKey } from '../../utils/track'
+import {
+  ruleById, severityLabelKey, cantExceedsLimit, cantExceptionOf, cantLimit, limitCantDef,
+} from '../../utils/rules'
 import { formatNum } from '../../locales/i18n'
 
 // What the cells of the element table say — the words and marks of one row,

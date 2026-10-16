@@ -22,6 +22,15 @@ const entryFor = (mode) => ({
   },
 })
 
+// The computing modules under src/core/utils do nothing when they are loaded
+// but define functions and constants — the workers' own entries aside, which
+// are entries anyway (docs/architecture.md). Saying so lets the bundler drop
+// whatever a module's index re-exports and nobody uses, even where a constant
+// is computed on load (the catalogue parsed, a table built).
+const treeshake = {
+  moduleSideEffects: (id) => !/\/src\/core\/utils\/(?!.*Worker\.js$)/.test(id),
+}
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
   // The dev server runs over https because two of the Landesvermessung WMS
@@ -32,7 +41,8 @@ export default defineConfig(({ mode }) => ({
   // serves it: no certificate to click away, and those two layers missing.
   plugins: mode === LOCAL ? [react(), entryFor(mode)] : [react(), basicSsl(), entryFor(mode)],
   base: './',
-  build: mode === LOCAL ? { outDir: 'dist-local' } : {},
+  build: { ...(mode === LOCAL ? { outDir: 'dist-local' } : {}), rollupOptions: { treeshake } },
+  worker: { rollupOptions: { treeshake } },
   // The project server (tools/server) answers under /api and the optimizer
   // service (tools/optimizer) under /optimizer on the app's own origin, as both
   // do behind Caddy in production (deploy/templates/Caddyfile). The optimizer

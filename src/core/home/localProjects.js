@@ -1,8 +1,7 @@
-import { FORMAT_NAME, PayloadError, parseProjectsPayload, projectsPayload } from '../utils/project/persistenceUtils'
-import { generateId } from '../utils/track/identifierUtils'
+import { FORMAT_NAME, PayloadError, parseProjectsPayload, projectsPayload, withImportSystem } from '../utils/project'
+import { generateId } from '../utils/track'
 import { closeStoredProject, currentStoredMeta, openStoredProject } from '../storage'
 import { storedBytes } from '../localStore'
-import { withImportSystem } from '../utils/project/projectSettings'
 import { formatDate } from '../locales/i18n'
 
 /**

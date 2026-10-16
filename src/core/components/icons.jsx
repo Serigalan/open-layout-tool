@@ -1,7 +1,8 @@
 import { PALETTE } from '../styles/palette'
 import {
-  MARK_GROUND, MARK_HEIGHT, MARK_INNER, MARK_LETTERS, MARK_LINK_OPACITY, MARK_LINKS, MARK_RAIL, MARK_WIDTH,
-} from '../utils/common/logoMark'
+  MARK_GROUND, MARK_HEIGHT, MARK_INNER, MARK_LETTERS, MARK_LINK_OPACITY, MARK_LINKS, MARK_RAIL,
+  MARK_WIDTH,
+} from '../utils/common'
 // ── Panel menu icons ────────────────────────────────────────────────────────
 //
 // One rule for every icon a panel button carries (AP 4.3): 16 × 16, currentColor,

@@ -1,10 +1,8 @@
 import { zipSync, strToU8 } from 'fflate'
-import { transitionCantEnds } from '../geometry/clothoidUtils'
-import { tangentLength } from '../track/heightUtils'
-import { heightDatumLabel } from '../track/heightDatums'
+import { transitionCantEnds } from '../geometry'
+import { tangentLength, heightDatumLabel, reverseTrack, trackLabel } from '../track'
 import { lagesystemForEpsg } from './mdbImport'
-import { reverseTrack, trackLabel } from '../track/trackModel'
-import { routeProfile } from '../elevation/routeProfile'
+import { routeProfile } from '../elevation'
 
 /**
  * Verm.ESN files of the project's tracks — the counterpart of vermEsnImport,

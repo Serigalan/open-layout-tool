@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks } from '../../../storage'
-import { trackLabel } from '../../../utils/track/trackModel'
-import { RAILS, DEFAULT_RAIL, superstructureAt } from '../../../utils/crossSection/crossSectionUtils'
-import { wgs84ToUTM, utmToWgs84 } from '../../../utils/geometry/coordinateUtils'
-import { traceTrack, trackGuide, lineGuide, TRACE_STEP } from '../../../utils/pointCloud/railTrace'
-import { surveyFromTrace, surveyPoints } from '../../../utils/survey/axisSurvey'
-import { cloudRefsOf } from '../../../utils/pointCloud/surveyShift'
-import { generateId } from '../../../utils/track/identifierUtils'
+import { trackLabel, generateId } from '../../../utils/track'
+import { RAILS, DEFAULT_RAIL, superstructureAt } from '../../../utils/crossSection'
+import { wgs84ToUTM, utmToWgs84 } from '../../../utils/geometry'
+import {
+  traceTrack, trackGuide, lineGuide, TRACE_STEP, cloudRefsOf, runIsActive, runsOnServer,
+  serverRunHook,
+} from '../../../utils/pointCloud'
+import { surveyFromTrace, surveyPoints } from '../../../utils/survey'
 import { saveAxisSurvey } from '../../../storage'
 import { useMayEditClouds } from '../../../hooks/useCurrentUser'
-import { runIsActive, runsOnServer, serverRunHook } from '../../../utils/pointCloud/serverRuns'
 import { useI18n } from '../../../locales/i18nContext'
 import { tOr, formatDate } from '../../../locales/i18n'
 import { useProject } from '../../../hooks/useStore'

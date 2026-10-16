@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { clamp } from '../../utils/common/format'
+import { clamp } from '../../utils/common'
 
 // What the two drawing overlays — the elevation profile and the cross section —
 // share about their drawing area (R5.3): its measured size, the height the

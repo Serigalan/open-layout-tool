@@ -1,7 +1,4 @@
-import { checkTrack } from '../rules/trassierungCheck'
-import { severityRank } from '../rules/regelkatalog'
-import { transitionLengths } from '../rules/transitionLength'
-import { SPEED_STEP } from '../rules/speed'
+import { checkTrack, severityRank, transitionLengths, SPEED_STEP } from '../rules'
 
 // What "an Gleis anschließen" can change where the rules reject the refitted
 // element or its joint (Entscheidung 314) — the splice's suggestions

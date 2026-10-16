@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PROJECT_IMAGES, PROJECT_IMAGE_MIME, projectImagePicture } from '../utils/common/projectImages'
+import { PROJECT_IMAGES, PROJECT_IMAGE_MIME, projectImagePicture } from '../utils/common'
 import ProjectImagePicker from '../components/collab/ProjectImagePicker'
 import FormDialog from '../components/home/FormDialog'
 import { useI18n } from '../locales/i18nContext'

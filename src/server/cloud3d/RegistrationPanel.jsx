@@ -1,6 +1,6 @@
 import { useI18n } from '../../core/locales/i18nContext'
 import { formatDate, tOr } from '../../core/locales/i18n'
-import { downloadText, downloadBlob } from '../../core/utils/common/fileUtils'
+import { downloadText, downloadBlob } from '../../core/utils/common'
 import { PARAMETER_UNITS, protocolCsv, protocolPdf } from './registrationReport'
 import InfoTip from '../../core/components/form/InfoTip'
 

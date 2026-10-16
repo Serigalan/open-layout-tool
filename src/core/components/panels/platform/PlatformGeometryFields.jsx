@@ -1,6 +1,7 @@
-import { PLATFORM_FRONT_OFFSET, PLATFORM_HEIGHTS, platformLength, pointAtStation, platformEdgeElevation } from '../../../utils/track/platformUtils'
-import { trackLength } from '../../../utils/track/heightUtils'
-import { trackLabel } from '../../../utils/track/trackModel'
+import {
+  PLATFORM_FRONT_OFFSET, PLATFORM_HEIGHTS, platformLength, pointAtStation, platformEdgeElevation,
+  trackLength, trackLabel,
+} from '../../../utils/track'
 import { useI18n } from '../../../locales/i18nContext'
 import FormSection from '../../form/FormSection'
 import ReadOnlyField from '../../form/ReadOnlyField'

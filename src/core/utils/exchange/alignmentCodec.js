@@ -4,11 +4,11 @@
 // scalars a polyline cannot express — and differ only in where it sits and
 // what surrounds it. The import (osrdImport) reads either.
 
-import { transitionCantEnds } from '../geometry/clothoidUtils'
-import { portsOf, portTrack, portEnd } from '../track/switchModel'
+import { transitionCantEnds } from '../geometry'
 import {
-  BUFFER_STOP, BUFFER_STOP_LENGTH, BUFFER_STOP_TYPES, DEFAULT_BUFFER_STOP_TYPE, bufferStopStations,
-} from '../track/trackEndMarks'
+  portsOf, portTrack, portEnd, BUFFER_STOP, BUFFER_STOP_LENGTH, BUFFER_STOP_TYPES,
+  DEFAULT_BUFFER_STOP_TYPE, bufferStopStations,
+} from '../track'
 
 const DEG2GON = 10 / 9
 // Everything that defines the geometry is written at full precision: the

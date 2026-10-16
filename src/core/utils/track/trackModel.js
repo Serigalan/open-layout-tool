@@ -1,4 +1,4 @@
-import { resolveEndBearing, reverseElement } from '../geometry/elementUtils'
+import { resolveEndBearing, reverseElement } from '../geometry'
 import { portsOf, portTrack, portEnd, withPort } from './switchModel'
 import { joinHeights, reverseHeights, trackLength } from './heightUtils'
 import { generateId } from './identifierUtils'

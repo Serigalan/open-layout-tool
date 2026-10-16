@@ -35,10 +35,9 @@
  * on. A form that does not state one is not coupled.
  */
 
-import { gradientAt, roundHeight } from '../track/heightUtils'
-import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from '../crossSection/crossSectionUtils'
+import { gradientAt, roundHeight, turnoutLinePort, portTrack } from '../track'
+import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from '../crossSection'
 import { mainRouteLength, routeFrom, sleeperOffsets, sleeperThrough, switchLds, turnoutSleepers } from './switchSleepers'
-import { turnoutLinePort, portTrack } from '../track/switchModel'
 
 export { switchLds }
 

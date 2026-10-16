@@ -4,7 +4,7 @@ import NumberInput from '../../form/NumberInput'
 import { splitUnit } from '../../../locales/i18n'
 import RuleFindings from '../RuleFindings'
 import TransitionLengthButtons from '../TransitionLengthButtons'
-import { connectTransitionLengths, transitionChain } from '../../../utils/rules/transitionLength'
+import { connectTransitionLengths, transitionChain } from '../../../utils/rules'
 import InfoTip from '../../form/InfoTip'
 
 /**

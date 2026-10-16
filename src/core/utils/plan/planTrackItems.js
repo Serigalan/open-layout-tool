@@ -1,10 +1,7 @@
-import { kmForTrackPoint } from '../km/kmLineUtils'
-import { formatKm } from '../km/kmLineMath'
+import { kmForTrackPoint, formatKm } from '../km'
 import { trackPathUtm, mainPoints, switchSymbolUtm, trackPointAt, isArc, isTransition } from './planGeometry'
-import { pointAtStationUtm, trackLength } from '../track/heightUtils'
-import { BUFFER_STOP, bufferStopStations } from '../track/trackEndMarks'
-import { FACE_HALF_WIDTH } from '../track/bufferStopGeometry'
-import { cantExceptionOf, computeCantDef, worstCantOf } from '../rules/cant'
+import { pointAtStationUtm, trackLength, BUFFER_STOP, bufferStopStations, FACE_HALF_WIDTH } from '../track'
+import { cantExceptionOf, computeCantDef, worstCantOf } from '../rules'
 import {
   CAP_CENTRE, PRIO, STYLE, arrowItems, circlePath, fmtNum, line, mapPath, pageAngle, pageDown,
   pageLeft, path, polyPath, readable, text, textWidth,

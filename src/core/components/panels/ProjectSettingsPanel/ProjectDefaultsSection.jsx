@@ -1,9 +1,11 @@
 import { updateProject } from '../../../storage'
-import { LINE_CATEGORIES } from '../../../utils/track/identifierUtils'
-import { projectLineCategory } from '../../../utils/elevation/gradientCheck'
-import { dominantSystem, projectSystemSetting, systemChoices } from '../../../utils/project/projectSettings'
-import { crsSystemName } from '../../../utils/geometry/coordinateUtils'
-import { GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileLabelKey, LICHTRAUM_SOURCE } from '../../../utils/crossSection/gaugeProfiles'
+import { LINE_CATEGORIES } from '../../../utils/track'
+import { projectLineCategory } from '../../../utils/elevation'
+import { dominantSystem, projectSystemSetting, systemChoices } from '../../../utils/project'
+import { crsSystemName } from '../../../utils/geometry'
+import {
+  GAUGE_PROFILES, DEFAULT_GAUGE_PROFILE, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
+} from '../../../utils/crossSection'
 import { useI18n } from '../../../locales/i18nContext'
 import FormSection from '../../form/FormSection'
 import InfoTip from '../../form/InfoTip'

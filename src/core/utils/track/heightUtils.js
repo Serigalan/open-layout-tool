@@ -1,7 +1,5 @@
-import { nodeUtm, endPointStraightUtm, endPointCurvedUtm } from '../geometry/elementUtils'
+import { nodeUtm, endPointStraightUtm, endPointCurvedUtm, transitionPointAtUtm, utmToWgs84 } from '../geometry'
 import { portsOf, portTrack, portEnd } from './switchModel'
-import { transitionPointAtUtm } from '../geometry/clothoidUtils'
-import { utmToWgs84 } from '../geometry/coordinateUtils'
 import { HEIGHT_POINT_SPACING, HEIGHT_SPLIT_MIN } from './heightDatums'
 
 // The vertical alignment of a track is its own thing, independent of the

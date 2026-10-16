@@ -25,12 +25,12 @@
  * answered from those steps.
  */
 
-import { switchTypeByLabel } from '../switch/catalogue'
-import { elementAtStation, pointAtStationUtm, trackLength } from '../track/heightUtils'
-import { elementStations, pointOnElement } from '../track/platformUtils'
+import { switchTypeByLabel } from '../switch'
 import {
-  elementBelongsToSwitch, turnoutDivergingPort, turnoutLinePort, turnoutLineRoute, portTrack, portEnd,
-} from '../track/switchModel'
+  elementAtStation, pointAtStationUtm, trackLength, elementStations, pointOnElement,
+  elementBelongsToSwitch, turnoutDivergingPort, turnoutLinePort, turnoutLineRoute, portTrack,
+  portEnd,
+} from '../track'
 
 /** Where the first sleeper lies behind WA, and how far apart they are [m]. */
 export const FIRST_SLEEPER = 0.3

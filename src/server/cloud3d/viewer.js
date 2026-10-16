@@ -5,7 +5,7 @@ import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { buildTree, selectNodes } from './lod'
 import { pointMaterial, pickLowMaterial, setLook, edlPass } from './shaders'
-import { sourceOf } from '../../core/utils/pointCloud/cloudSource'
+import { sourceOf } from '../../core/utils/pointCloud'
 import { modelMatrix } from './placement'
 import { clearanceEnvelope, railBodies, CLEARANCE_AHEAD } from './trackGeometry'
 

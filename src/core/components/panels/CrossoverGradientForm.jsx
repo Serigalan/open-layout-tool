@@ -2,12 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { applyCrossoverGradient } from '../../storage'
 import { useProject } from '../../hooks/useStore'
 import {
-  findCrossovers, crossoverFrame, crossoverCant, crossoverRanges, lineCoordinates, rangeEndFromClick,
-  lineTrackAt, planCrossoverGradient,
-} from '../../utils/elevation/crossoverGradient'
-import { stationFromClick } from '../../utils/track/platformUtils'
-import { utmToWgs84, wgs84ToUTM } from '../../utils/geometry/coordinateUtils'
-import { trackLabel } from '../../utils/track/trackModel'
+  findCrossovers, crossoverFrame, crossoverCant, crossoverRanges, lineCoordinates,
+  rangeEndFromClick, lineTrackAt, planCrossoverGradient,
+} from '../../utils/elevation'
+import { stationFromClick, trackLabel } from '../../utils/track'
+import { utmToWgs84, wgs84ToUTM } from '../../utils/geometry'
 import { ZOOM_LINE_WIDTH } from '../../map/style'
 import { useMap } from '../../map/MapContext'
 import { fitToTracks } from '../../map/mapRenderUtils'

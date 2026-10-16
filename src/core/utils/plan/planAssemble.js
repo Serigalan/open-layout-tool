@@ -1,13 +1,12 @@
 import { PARTIES, STAFF, todayIso } from './planHeader'
 import { findBasemap } from '../../basemaps'
-import { DEFAULT_HEIGHT_EPSG, heightDatumLabel } from '../track/heightDatums'
+import { DEFAULT_HEIGHT_EPSG, heightDatumLabel, STATUSES } from '../track'
 import { PAPER_FORMATS, SCALES, TITLE_COLUMN_MM } from './planExport'
 import { planSheets } from './planLayout'
 import { buildPlan } from './planModel'
 import { buildSchematicPlan, SCHEMATIC_SCALES } from './planSchematicPlan'
 import { fetchBasemapImage } from './rasterBasemap'
 import { sketchLines } from './planSketch'
-import { STATUSES } from '../track/planStatus'
 
 // From the settings of the plan dialog and a project to the plan model —
 // the layout, the title block's fields and the basemaps, apart from the

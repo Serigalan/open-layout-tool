@@ -6,10 +6,8 @@ import {
   TYPE_STRAIGHT, TYPE_KINK, TYPE_ARC, TYPE_CLOTHOID, TYPE_BLOSS,
   CANT_CONSTANT,
 } from './gleislageCsvImport'
-import { utmToWgs84 } from '../geometry/coordinateUtils'
-import { classifyTrackEnds, freeEnds } from '../track/topology'
-import { JOINT_TOL } from '../track/trackLinkUtils'
-import { newBufferStop, DEFAULT_BUFFER_STOP_TYPE } from '../track/trackEndMarks'
+import { utmToWgs84 } from '../geometry'
+import { classifyTrackEnds, freeEnds, JOINT_TOL, newBufferStop, DEFAULT_BUFFER_STOP_TYPE } from '../track'
 
 /**
  * Adapter for the DB ASCII interface delivered as an Access database (Satzarten

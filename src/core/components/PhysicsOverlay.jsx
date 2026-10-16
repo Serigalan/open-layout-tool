@@ -1,4 +1,4 @@
-import { flattenPhysics, PHYSICS } from '../utils/rules/constraintsView'
+import { flattenPhysics, PHYSICS } from '../utils/rules'
 import FormelMathml from './FormelMathml'
 import { useI18n } from '../locales/i18nContext'
 import CloseButton from './form/CloseButton'

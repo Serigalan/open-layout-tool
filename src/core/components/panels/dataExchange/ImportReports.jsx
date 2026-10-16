@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { downloadText } from '../../../utils/common/fileUtils'
+import { downloadText } from '../../../utils/common'
 import { useI18n } from '../../../locales/i18nContext'
 import { formatDate } from '../../../locales/i18n'
 import ExchangeSection from './ExchangeSection'

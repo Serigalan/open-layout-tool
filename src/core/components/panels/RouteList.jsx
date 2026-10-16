@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useRoutes, useSwitches, useTracks } from '../../hooks/useStore'
-import { resolveRoute } from '../../utils/track/routes'
+import { resolveRoute } from '../../utils/track'
 import { useI18n } from '../../locales/i18nContext'
 
 /**

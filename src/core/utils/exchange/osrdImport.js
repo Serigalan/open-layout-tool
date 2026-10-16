@@ -1,14 +1,16 @@
-import { endPointStraightUtm, endPointCurvedUtm, arcCoordsFromRadiusUtm, reverseElement } from '../geometry/elementUtils'
-import { ALL_SWITCH_TYPES, switchBranchSections, switchStraightLength, CROSSING_TYPES, bauform } from '../switch/catalogue'
-import { crossingAngle, crossingEndDistance, crossingLegRadius, computeCrossingGeometryUtm } from '../switch/crossing'
-import { lcsLine, switchFillRing, switchLabelGeometry } from '../switch/symbol'
-import { newSwitchFields, switchElementMark, LINK_KIND } from '../track/switchModel'
+import {
+  endPointStraightUtm, endPointCurvedUtm, arcCoordsFromRadiusUtm, reverseElement, utmToWgs84,
+  SAGITTA_ELEMENT, arcFrom, straightFrom, transitionElement,
+} from '../geometry'
+import {
+  ALL_SWITCH_TYPES, switchBranchSections, switchStraightLength, CROSSING_TYPES, bauform,
+  crossingAngle, crossingEndDistance, crossingLegRadius, computeCrossingGeometryUtm, lcsLine,
+  switchFillRing, switchLabelGeometry,
+} from '../switch'
+import {
+  newSwitchFields, switchElementMark, LINK_KIND, TYPE_CODES, SIDE_CODES, LINE_CATEGORIES, STATUSES,
+} from '../track'
 import { kindForOsrdType, bufferStopsToEndMarks } from './alignmentCodec'
-import { utmToWgs84 } from '../geometry/coordinateUtils'
-import { SAGITTA_ELEMENT } from '../geometry/geometryPrecision'
-import { TYPE_CODES, SIDE_CODES, LINE_CATEGORIES } from '../track/identifierUtils'
-import { STATUSES } from '../track/planStatus'
-import { arcFrom, straightFrom, transitionElement } from '../geometry/elementFactory'
 
 const GON2DEG = 9 / 10
 

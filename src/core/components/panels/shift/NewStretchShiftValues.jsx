@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
-import { comparedLine } from '../../../utils/survey/shiftValues'
-import { trackLabel } from '../../../utils/track/trackModel'
-import { trackLength } from '../../../utils/track/heightUtils'
+import { comparedLine } from '../../../utils/survey'
+import { trackLabel, trackLength } from '../../../utils/track'
 import { useI18n } from '../../../locales/i18nContext'
 import ShiftValuesSection from './ShiftValuesSection'
 

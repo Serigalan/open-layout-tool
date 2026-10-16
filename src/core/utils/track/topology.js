@@ -1,4 +1,4 @@
-import { utmToWgs84, crsName } from '../geometry/coordinateUtils'
+import { utmToWgs84, crsName } from '../geometry'
 import { portsOf, isLinkSwitch, switchRoutePorts, portTrack, portEnd } from './switchModel'
 import { trackEndAt } from './trackLinkUtils'
 import { endKey, BUFFER_STOP, BOUNDARY } from './trackEndMarks'

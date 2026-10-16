@@ -1,7 +1,5 @@
 import { sampleHeights } from './elevationSource'
-import {
-  heightStations, trackSamplePoints, trackLength, jointGroup, jointHeightUpdates,
-} from '../track/heightUtils'
+import { heightStations, trackSamplePoints, trackLength, jointGroup, jointHeightUpdates } from '../track'
 
 const STATION_TOL = 0.001   // m
 

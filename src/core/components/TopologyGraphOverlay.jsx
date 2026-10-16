@@ -1,13 +1,14 @@
 import { useMemo, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks, deleteTrack, deleteTracks, switchesOnTrack } from '../storage'
 import ConfirmModal from './ConfirmModal'
-import { buildTopologyGraph, topologyClusters, selectionHighlight } from '../utils/topology/topologyGraph'
-import { layoutClusterLanes } from '../utils/topology/topologyLanes'
+import {
+  buildTopologyGraph, topologyClusters, selectionHighlight, layoutClusterLanes, labelBox,
+  placeLabels,
+} from '../utils/topology'
 import { TOPOLOGY_RED } from '../map/topologyLayer'
 import { useI18n } from '../locales/i18nContext'
 import { useProject } from '../hooks/useStore'
 import { PALETTE } from '../styles/palette'
-import { labelBox, placeLabels } from '../utils/topology/labelPlacement'
 import CloseButton from './form/CloseButton'
 import { useOverlayHeight } from './chart/useChartViewport'
 

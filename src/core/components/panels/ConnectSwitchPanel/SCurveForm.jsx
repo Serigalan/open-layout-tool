@@ -1,13 +1,15 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitSwitchConnection } from '../../../storage'
-import { elementStations, stationFromClick } from '../../../utils/track/platformUtils'
-import { wgs84ToUTM } from '../../../utils/geometry/coordinateUtils'
-import { SWITCH_TYPES, CONNECTION_SPEEDS, computeSwitchConnections } from '../../../utils/switch/switchConnectionUtils'
+import { elementStations, stationFromClick } from '../../../utils/track'
+import { wgs84ToUTM } from '../../../utils/geometry'
+import { SWITCH_TYPES, CONNECTION_SPEEDS, computeSwitchConnections, DEFAULT_MIDS } from '../../../utils/switch'
 import { ZOOM_LINE_WIDTH } from '../../../map/style'
 import { useI18n } from '../../../locales/i18nContext'
-import { REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, isUsableStem, preferredShift, settleConnection, shiftSnaps, stems, waOffset } from '../../../utils/commands/sCurve'
+import {
+  REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, isUsableStem, preferredShift,
+  settleConnection, shiftSnaps, stems, waOffset, SLIDER_REACH,
+} from '../../../utils/commands'
 import StationSlider from '../../form/StationSlider'
-import { SLIDER_REACH } from '../../../utils/commands/switches'
 import { splitUnit } from '../../../locales/i18n'
 import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
@@ -18,7 +20,6 @@ import AdvancedInfo from '../../form/AdvancedInfo'
 import CommitBar from '../../form/CommitBar'
 import CancelButton from '../../form/CancelButton'
 import MidChainFields from './MidChainFields'
-import { DEFAULT_MIDS } from '../../../utils/switch/midChain'
 
 // ── Preview layers (managed by usePreview) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'

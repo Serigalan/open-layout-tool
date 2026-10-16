@@ -1,4 +1,4 @@
-import { MAPTILER_KEY } from './utils/common/mapTiler'
+import { MAPTILER_KEY } from './utils/common'
 
 const TERRAIN_URL =
   `https://api.maptiler.com/tiles/terrain-rgb/tiles.json?key=${MAPTILER_KEY}`

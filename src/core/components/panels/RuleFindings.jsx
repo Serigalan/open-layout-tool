@@ -1,8 +1,6 @@
 import { useContext, useEffect } from 'react'
-import { checkTrack } from '../../utils/rules/trassierungCheck'
-import { fieldFindings } from '../../utils/rules/ruleFields'
+import { checkTrack, fieldFindings, ruleById, severityLabelKey, worstSeverity } from '../../utils/rules'
 import { RuleFieldsContext } from '../form/ruleFieldsContext'
-import { ruleById, severityLabelKey, worstSeverity } from '../../utils/rules/regelkatalog'
 import { useI18n } from '../../locales/i18nContext'
 
 /**

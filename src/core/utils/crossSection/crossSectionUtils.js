@@ -15,11 +15,10 @@
  * crosses, and the terrain along it, are found where the section is drawn.
  */
 
-import { transitionCantEnds } from '../geometry/clothoidUtils'
-import { edgeOffsets, elementStations, pointOnElement, DEFAULT_PLATFORM_HEIGHT } from '../track/platformUtils'
-import { transformPlanePoint, utmToWgs84 } from '../geometry/coordinateUtils'
+import { transitionCantEnds, transformPlanePoint, utmToWgs84 } from '../geometry'
+import { edgeOffsets, elementStations, pointOnElement, DEFAULT_PLATFORM_HEIGHT } from '../track'
 import { QUERSCHNITT_KATALOG } from './gaugeProfiles'
-import { clamp } from '../common/format'
+import { clamp } from '../common'
 
 /** Distance between the two running circles, and between the rail inner faces [mm]. */
 export const RUNNING_CIRCLE_DISTANCE = 1500

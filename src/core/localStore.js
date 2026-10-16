@@ -1,9 +1,10 @@
 import { REPORT_KEY_PREFIX, HIDDEN_KEY_PREFIX, forgetHiddenTracks } from './storage'
 import { extensionsOf } from './extensions'
-import { SETTINGS_KEY } from './utils/common/settings'
-import { INDEX_FILE, opfsAvailable, storageEstimate, storagePersisted } from './utils/pointCloud/cloudStore'
-import { forgetAllClouds, forgetCloud } from './utils/pointCloud/cloudSection'
-import { forgetCache } from './utils/pointCloud/cloudCache'
+import { SETTINGS_KEY } from './utils/common'
+import {
+  INDEX_FILE, opfsAvailable, storageEstimate, storagePersisted, forgetAllClouds, forgetCloud,
+  forgetCache,
+} from './utils/pointCloud'
 import { formatNum } from './locales/i18n'
 
 /**

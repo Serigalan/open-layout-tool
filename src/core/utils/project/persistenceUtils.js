@@ -1,9 +1,6 @@
-import { reconstructElements } from '../geometry/elementReconstruct'
-import { derivedEndBearing } from '../geometry/elementUtils'
-import { rebuildSwitchSymbol } from '../switch/symbol'
-import { rebuildPlatformSymbol } from '../track/platformUtils'
-import { isModelledSwitch } from '../track/switchModel'
-import { rebuildCoords } from '../track/trackModel'
+import { reconstructElements, derivedEndBearing } from '../geometry'
+import { rebuildSwitchSymbol } from '../switch'
+import { rebuildPlatformSymbol, isModelledSwitch, rebuildCoords } from '../track'
 
 /**
  * oltjson-1.0 — the one format of a project (decision 333): what a file holds,

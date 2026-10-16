@@ -2,8 +2,8 @@
 // switches and carrying everything into one plane take seconds on a whole
 // database, and the page would stand still for them. The notes come back as
 // { key, params } — the translation stays with the page, which has the language.
-import { runMdbImport } from './mdbPipeline'
-import { loadNtv2Grid, loadRegionalGrids, loadGridsFor, loadedRegionalGrids } from '../geometry/ntv2Grid'
+import { runMdbImport } from '../../core/utils/exchange'
+import { loadNtv2Grid, loadRegionalGrids, loadGridsFor, loadedRegionalGrids } from '../../core/utils/geometry'
 
 self.onmessage = async (e) => {
   const { base, grids, ...args } = e.data

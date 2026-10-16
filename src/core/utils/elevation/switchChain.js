@@ -37,11 +37,13 @@
  * the user change.
  */
 
-import { heightAt, gradientAt, jointGroup, roundHeight } from '../track/heightUtils'
+import {
+  heightAt, gradientAt, jointGroup, roundHeight, turnoutDivergingPort, turnoutLinePort, portTrack,
+  portEnd,
+} from '../track'
 import {
   carried, couplingOf, isTurnout, ldsPlaneHeight, ldsPlaneTerms, pairedHeights, roundMm, STATION_TOL, switchCouplings, touchedTurnouts, Z_TOL,
 } from './switchGradient'
-import { turnoutDivergingPort, turnoutLinePort, portTrack, portEnd } from '../track/switchModel'
 
 /** Between two ldS of a crossover, more than this carries a point of its own [m] (decision 272). */
 export const CROSSOVER_SPAN = 20

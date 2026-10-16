@@ -1,4 +1,4 @@
-import { ruleById, severityLabelKey } from '../../../utils/rules/regelkatalog'
+import { ruleById, severityLabelKey } from '../../../utils/rules'
 import { useI18n } from '../../../locales/i18nContext'
 
 /**

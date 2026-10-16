@@ -1,4 +1,4 @@
-import { trackLabel } from '../track/trackModel'
+import { trackLabel } from '../track'
 
 // What one step of the project did, in a few words (R10.1) — for the undo and
 // redo buttons. Worked out from the two states rather than told by each

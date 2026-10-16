@@ -1,6 +1,7 @@
-import { classifyTrackEnds } from '../track/topology'
-import { portsOf, isLinkSwitch, DEFAULT_SWITCH_KIND, turnoutLinePort, portTrack, portEnd } from '../track/switchModel'
-import { endKey } from '../track/trackEndMarks'
+import {
+  classifyTrackEnds, portsOf, isLinkSwitch, DEFAULT_SWITCH_KIND, turnoutLinePort, portTrack,
+  portEnd, endKey,
+} from '../track'
 
 /**
  * The topology of a project as a graph, for the diagram that shows nothing

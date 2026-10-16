@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CANT_STEP, cantFromInput, regelCant } from '../../utils/rules/cant'
+import { CANT_STEP, cantFromInput, regelCant } from '../../utils/rules'
 import { useI18n } from '../../locales/i18nContext'
 import FieldRule from '../form/FieldRule'
 import NumberInput from '../form/NumberInput'

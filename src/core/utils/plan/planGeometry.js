@@ -1,15 +1,16 @@
 import {
-  nodeUtm, endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm,
-} from '../geometry/elementUtils'
-import { sampleTransitionUtm, transitionBearingAtUtm } from '../geometry/clothoidUtils'
-import { elementAtStation, pointAtStationUtm, trackLength } from '../track/heightUtils'
+  nodeUtm, endPointStraightUtm, endPointCurvedUtm, bearingAfterUtm, sampleTransitionUtm,
+  transitionBearingAtUtm,
+} from '../geometry'
 import {
-  lcsLineUtm, switchFillRing, switchRoutePointsUtm, switchRoutesFromTracks, crossingRoutesFromTracks, crossingBodyUtm,
-} from '../switch/symbol'
-import { crossingEndDistance } from '../switch/crossing'
-import { switchChainPointUtm, switchChainBearingAt, switchChainBauform } from '../switch/route'
-import { switchNumberOf } from '../track/identifierUtils'
-import { isLinkSwitch, portTrack, portEnd } from '../track/switchModel'
+  elementAtStation, pointAtStationUtm, trackLength, switchNumberOf, isLinkSwitch, portTrack,
+  portEnd,
+} from '../track'
+import {
+  lcsLineUtm, switchFillRing, switchRoutePointsUtm, switchRoutesFromTracks,
+  crossingRoutesFromTracks, crossingBodyUtm, crossingEndDistance, switchChainPointUtm,
+  switchChainBearingAt, switchChainBauform,
+} from '../switch'
 
 /**
  * Everything a plan needs to draw, in the track's own projected plane — paths,

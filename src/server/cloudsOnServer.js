@@ -1,5 +1,5 @@
 import { api } from './api/client'
-import { cacheGet, cachePut } from '../core/utils/pointCloud/cloudCache'
+import { cacheGet, cachePut } from '../core/utils/pointCloud'
 
 /**
  * The project's clouds on the server (AP 13.6) as core reads clouds

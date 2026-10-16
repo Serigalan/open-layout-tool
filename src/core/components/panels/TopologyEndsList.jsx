@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks, saveEndMark, deleteEndMark } from '../../storage'
-import { classifyTrackEnds, isOpenState } from '../../utils/track/topology'
-import { newBoundary, BOUNDARY } from '../../utils/track/trackEndMarks'
+import { classifyTrackEnds, isOpenState, newBoundary, BOUNDARY } from '../../utils/track'
 import { useI18n } from '../../locales/i18nContext'
 import { useMap } from '../../map/MapContext'
 import { useProject } from '../../hooks/useStore'

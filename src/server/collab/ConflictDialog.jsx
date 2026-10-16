@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { resolve, validationConflicts } from '../../core/utils/merge'
-import { clearFeatures, drawable, findObject, objectFeatures, showFeaturesSoon, zoomToFeatures, COMPARE_COLORS } from '../../core/utils/merge/compareLayer'
+import {
+  clearFeatures, drawable, findObject, objectFeatures, showFeaturesSoon, zoomToFeatures,
+  COMPARE_COLORS,
+} from '../../core/utils/merge'
 import { conflictText, entryText, findingText, valueText } from '../../core/components/collab/mergeText'
 import '../../core/components/collab/collab.css'
 import { useI18n } from '../../core/locales/i18nContext'

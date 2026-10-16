@@ -1,4 +1,4 @@
-import { STATUSES } from '../../utils/track/planStatus'
+import { STATUSES } from '../../utils/track'
 import { useI18n } from '../../locales/i18nContext'
 
 /**

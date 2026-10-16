@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './api/client'
-import { runIsActive } from '../core/utils/pointCloud/serverRuns'
+import { runIsActive } from '../core/utils/pointCloud'
 
 /**
  * Long runs over a project's clouds on the server (AP 13.7) as the panels

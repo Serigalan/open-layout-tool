@@ -1,15 +1,13 @@
-import { generateId, switchDesignation, nextSwitchNumber } from '../track/identifierUtils'
-import { nextTrackName, rebuildCoords, trackLabel } from '../track/trackModel'
-import { nodeUtm } from '../geometry/elementUtils'
-import { switchElementRoute, switchRouteVaries } from '../switch/route'
-import { transitionCantEnds } from '../geometry/clothoidUtils'
-import { computeSwitchGeometryUtm } from '../switch/symbol'
-import { wgs84ToUTM, utmToWgs84, transformGridBearing } from '../geometry/coordinateUtils'
-import { newSwitchFields, switchElementMark } from '../track/switchModel'
-import { splitElementAt, splitTrackAtJoint, carveSwitchRoute } from '../track/trackSplitUtils'
-import { solveSwitchConnection, buildConnectionElements, orientStemToward } from '../switch/switchConnectionUtils'
-import { minElementLength } from '../rules/elementLength'
-import { uniqueStations } from '../switch/stationSlider'
+import {
+  generateId, switchDesignation, nextSwitchNumber, nextTrackName, rebuildCoords, trackLabel,
+  newSwitchFields, switchElementMark, splitElementAt, splitTrackAtJoint, carveSwitchRoute,
+} from '../track'
+import { nodeUtm, transitionCantEnds, wgs84ToUTM, utmToWgs84, transformGridBearing } from '../geometry'
+import {
+  switchElementRoute, switchRouteVaries, computeSwitchGeometryUtm, solveSwitchConnection,
+  buildConnectionElements, orientStemToward, uniqueStations,
+} from '../switch'
+import { minElementLength } from '../rules'
 
 // The S-curve between two line tracks (SCurveForm): solving the connection
 // for a shift, the range of shifts it stands over, and the commit.

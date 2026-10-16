@@ -1,6 +1,5 @@
-import { elementPoints } from '../commands/reconnect'
-import { gradientAt } from '../track/heightUtils'
-import { DEFAULT_HEIGHT_EPSG } from '../track/heightDatums'
+import { elementPoints } from '../commands'
+import { gradientAt, DEFAULT_HEIGHT_EPSG } from '../track'
 import { referencePoints, axisRange } from './referenceAxis'
 
 // Shift values (Verschiebewerte, Paket V): how far an axis lies from a

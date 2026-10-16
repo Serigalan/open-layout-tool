@@ -1,12 +1,11 @@
 import { buildSwitchOnTrack, switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackRouteEnd } from './switches'
-import { connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitCount, refitTrackEnd } from '../switch/connectToTrack'
-import { switchStraightLength, switchBranchLength } from '../switch/catalogue'
-import { switchRoutePointUtm } from '../switch/route'
-import { elementAtStation, trackLength } from '../track/heightUtils'
-import { reverseElement } from '../geometry/elementUtils'
-import { checkTrack } from '../rules/trassierungCheck'
-import { severityRank } from '../rules/regelkatalog'
-import { portTrack, withPort } from '../track/switchModel'
+import {
+  connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitCount, refitTrackEnd,
+  switchStraightLength, switchBranchLength, switchRoutePointUtm,
+} from '../switch'
+import { elementAtStation, trackLength, portTrack, withPort } from '../track'
+import { reverseElement } from '../geometry'
+import { checkTrack, severityRank } from '../rules'
 
 // "Weiche an Gleis anschließen" (Entscheidungen 302–304): a turnout laid into
 // the host track whose new route ends on an open end of another track. The

@@ -1,17 +1,15 @@
-import { utmToWgs84 } from '../geometry/coordinateUtils'
-import { arcCoordsFromRadiusUtm, projectOnArcUtm } from '../geometry/elementUtils'
-import { SAGITTA_ELEMENT, SAGITTA_TRACK } from '../geometry/geometryPrecision'
-import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, computeCantDefSigned } from '../rules/cant'
+import {
+  utmToWgs84, arcCoordsFromRadiusUtm, projectOnArcUtm, SAGITTA_ELEMENT, SAGITTA_TRACK,
+  computeClothoidUtm, arcElement, straightElement, transitionElement,
+} from '../geometry'
+import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, computeCantDefSigned, minElementLength } from '../rules'
 import {
   SWITCH_TYPES, SWITCH_CONNECTION_STAGES, STRAIGHT_CURVATURE, switchStraightLength, switchBranchLength, switchBranchSections,
 } from './catalogue'
 import {
   switchBranchChain, switchRouteVaries, switchRoutePointUtm, switchRouteBearingAt, switchRouteRadiusAt, switchRouteSlice, switchChainPointUtm, switchChainBearingAt, switchChainSegmentsUtm,
 } from './route'
-import { computeClothoidUtm } from '../geometry/clothoidUtils'
-import { arcElement, straightElement, transitionElement } from '../geometry/elementFactory'
 import { MID_OPEN, endCurvature, isDefaultMids, midUnknowns, solveMidChain } from './midChain'
-import { minElementLength } from '../rules/elementLength'
 
 const DEG2RAD = Math.PI / 180
 const RAD2DEG = 180 / Math.PI

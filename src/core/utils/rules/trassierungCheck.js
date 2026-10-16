@@ -16,7 +16,7 @@
 import {
   evaluateRules, rulesForElement, rulesForScope, severityRank, worstSeverity,
 } from './regelkatalog'
-import { transitionCantEnds } from '../geometry/clothoidUtils'
+import { transitionCantEnds } from '../geometry'
 import { computeCantDefSigned } from './cant'
 import { CANT_DEFICIENCY_COEFF } from './regelwerkDefaults'
 

@@ -1,38 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { loadTracks, loadPlatforms, loadSwitches, currentProject } from '../storage'
-import { trackLength } from '../utils/track/heightUtils'
-import { tracksOnFrom } from '../utils/track/topology'
-import { resolveRoute, routeAt, routeStationOf } from '../utils/track/routes'
-import { trackHeightAt } from '../utils/elevation/switchGradient'
-import { utmToWgs84, transformGridBearing } from '../utils/geometry/coordinateUtils'
-import { pointAtStation } from '../utils/track/platformUtils'
+import {
+  trackLength, tracksOnFrom, resolveRoute, routeAt, routeStationOf, pointAtStation,
+  DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS,
+} from '../utils/track'
+import { trackHeightAt, sampleHeightsWithSource, terrainSourceLabel, chosenTerrainSource } from '../utils/elevation'
+import { utmToWgs84, transformGridBearing } from '../utils/geometry'
 import { PLATFORM_FILL_COLOR, PLATFORM_OUTLINE_COLOR } from '../map/mapRenderUtils'
-import { sampleHeightsWithSource, terrainSourceLabel, chosenTerrainSource } from '../utils/elevation/elevationSource'
 import TerrainSourceSelect from './TerrainSourceSelect'
 import {
   crossSection, fitSection, superstructureAt, sectionAtStation, platformSection, placeSection,
   sectionNeighbours, sectionLinePoints, sectionLevels, sectionOrigin, PLANUM_EDGE, RAILS, SLEEPERS,
-} from '../utils/crossSection/crossSectionUtils'
-import { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS } from '../utils/track/heightDatums'
-import { readableClouds } from '../utils/pointCloud/projectClouds'
-import { planeMapper } from '../utils/pointCloud/cloudCrs'
-import { applyMatrix, invertMatrix } from '../utils/pointCloud/registration'
-import { registrationHook } from '../utils/pointCloud/cloudRegistration'
-import { extensionsOf } from '../extensions'
-import { cloudSectionPoints } from '../utils/pointCloud/cloudSection'
-import { paintCloudCanvas, coloringsFor, INTRUSION_COLOR } from '../utils/pointCloud/cloudPaint'
-import { checkClearance, BOTTOM_BAND } from '../utils/pointCloud/clearanceCheck'
-import { detectInClouds, soHeight, cantMm } from '../utils/pointCloud/railTrace'
-import {
   gaugeProfile, gaugeProfileRing, gaugeProfileAreas, gaugeProfileLabelKey, LICHTRAUM_SOURCE,
   DEFAULT_GAUGE_PROFILE,
-} from '../utils/crossSection/gaugeProfiles'
+} from '../utils/crossSection'
+import {
+  readableClouds, planeMapper, applyMatrix, invertMatrix, registrationHook, cloudSectionPoints,
+  paintCloudCanvas, coloringsFor, INTRUSION_COLOR, checkClearance, BOTTOM_BAND, detectInClouds,
+  soHeight, cantMm,
+} from '../utils/pointCloud'
+import { extensionsOf } from '../extensions'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import { useProject } from '../hooks/useStore'
 import usePreview from '../map/usePreview'
 import { PALETTE } from '../styles/palette'
-import { clamp } from '../utils/common/format'
+import { clamp } from '../utils/common'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
 import { ExternalLinkIcon } from './icons'

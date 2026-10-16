@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { loadTracks, commitSwitchConnection } from '../../../storage'
-import { wgs84ToUTM } from '../../../utils/geometry/coordinateUtils'
-import { SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, switchStraightLength } from '../../../utils/switch/catalogue'
-import { switchRouteVaries } from '../../../utils/switch/route'
-import { clickStation } from '../../../utils/switch/switchPlacement'
-import { computeSwitchCant, computeCantDef, computeCantDefSigned, switchCantError, MAX_SWITCH_CANT_DEF } from '../../../utils/rules/cant'
-import { elementPath } from '../../../utils/km/lineLookup'
+import { wgs84ToUTM } from '../../../utils/geometry'
+import {
+  SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, switchBranchLength, switchStraightLength,
+  switchRouteVaries, clickStation, nearestValid, settleStation,
+} from '../../../utils/switch'
+import {
+  computeSwitchCant, computeCantDef, computeCantDefSigned, switchCantError, MAX_SWITCH_CANT_DEF,
+} from '../../../utils/rules'
+import { elementPath } from '../../../utils/km'
 import useTrackFields from '../../../hooks/useTrackFields'
 import useTrackName from '../../../hooks/useTrackName'
 import TrackFields from '../TrackFields'
@@ -21,13 +24,13 @@ import { TRACKS_HOVER_LAYER } from '../../../map/layerIds'
 import usePreview from '../../../map/usePreview'
 import useMapPick from '../../../map/useMapPick'
 import {
-  buildSwitchOnTrack, switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackSlider, switchOnTrackToeValid,
-} from '../../../utils/commands/switches'
+  buildSwitchOnTrack, switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackSlider,
+  switchOnTrackToeValid,
+} from '../../../utils/commands'
 import CommitBar from '../../form/CommitBar'
 import SwitchOrientationPicker from '../../form/SwitchOrientationPicker'
 import StationSlider from '../../form/StationSlider'
-import { nearestValid, settleStation } from '../../../utils/switch/stationSlider'
-import { DEFAULT_HEIGHT_EPSG, heightDatumLabel } from '../../../utils/track/heightDatums'
+import { DEFAULT_HEIGHT_EPSG, heightDatumLabel } from '../../../utils/track'
 import ReadOnlyField from '../../form/ReadOnlyField'
 import AdvancedInfo from '../../form/AdvancedInfo'
 import FormSection from '../../form/FormSection'
