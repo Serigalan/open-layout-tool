@@ -38,7 +38,8 @@ export function kmDataUrl(file) {
 
 /**
  * One line's file: { lineNumber, lineName?, crs, chainage: [[[lon, lat, km], …], …],
- * inDbNetwork: [true | false per run] } — see tools/km_network_status.py.
+ * inDbNetwork: [true | false per run] } — `inDbNetwork` whether a run belongs to
+ * today's DB InfraGO network.
  */
 export async function fetchKmLine(lineNumber) {
   const url = kmDataUrl(`${encodeURIComponent(lineNumber)}.json`)

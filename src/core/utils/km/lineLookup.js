@@ -13,9 +13,9 @@ import { utmToWgs84, arcPlanePoints } from '../geometry'
  * Two kinds of file next to the app answer that: `_index.json`, a grid saying
  * which lines run through which part of the country, so that only the lines
  * near a track are fetched; and the line files themselves, which distances
- * and kilometrage are measured against and which carry the line's name too
- * (see embed_line_names.py) — so naming a track costs nothing beyond the
- * fetch its kilometrage already needed.
+ * and kilometrage are measured against and which carry the line's name too —
+ * so naming a track costs nothing beyond the fetch its kilometrage already
+ * needed.
  *
  * Everything measured is measured in the track's own plane, against the line
  * converted into it (see kmLineUtils). Degrees only ever select — the grid

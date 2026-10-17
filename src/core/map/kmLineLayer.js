@@ -7,7 +7,7 @@ import { ZOOM_LINE_WIDTH } from './style'
  * The DB kilometrage lines as reference overlays.
  *
  * What is drawn comes from one PMTiles archive checked into the repository at
- * `tiles/km_linie.pmtiles` (built by tools/km_lines_to_tiles.py and symlinked
+ * `tiles/km_linie.pmtiles` (built outside this repository and symlinked
  * into `public/data/`, so both `npm run dev` and `npm run build` pick it up
  * without a separate step). It carries three layers, each for the zooms it
  * makes sense at: the network as whole chains while zoomed out, the alignment

@@ -18,8 +18,7 @@ any point. The map overlay that draws the lines is `src/core/map/kmLineLayer.js`
 
 ## Data
 
-Shipped with the app (checked into `tiles/`, symlinked into `public/data/`, built by the tools under
-`tools/`):
+Shipped with the app (checked into `tiles/`, symlinked into `public/data/`; built outside this repository):
 
 - `tiles/km_linie.pmtiles` — the overlay: whole chains when zoomed out, the alignment in 100 m pieces from
   zoom 12, a point per hectometre and per kilometrage jump from zoom 13. Each feature says whether it belongs

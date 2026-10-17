@@ -1,7 +1,7 @@
 /**
  * Where along a kilometrage line a point lies — the arithmetic behind the
  * overlay's readout, kept free of MapLibre so it can be checked against the
- * tiles on its own (see tools/check-km-math.mjs).
+ * tiles on its own.
  */
 
 /**

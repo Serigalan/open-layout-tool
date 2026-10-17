@@ -40,6 +40,9 @@ WEBSITE/
 ROADMAP.md
 ROADMAP.archiv-*.md
 
+# Backups and archived versions of the roadmap — kept locally, not published
+archiv/
+
 # Test-MDB — 33 MB Bestandsauszug, Zuarbeit von außen, nicht ins Repo
 Testdaten.MDB
 *.MDB
