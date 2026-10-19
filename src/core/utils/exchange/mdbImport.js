@@ -444,10 +444,11 @@ export function mdbRows(payload) {
     errors.push(`${unplaced} Elemente ohne Koordinate im eigenen Lagesystem übersprungen.`)
   }
   if (loose) {
-    errors.push(`${loose} Elemente gehören zu keinem Gleisabschnitt (Satzart 33) – `
-      + `${byPoints ? `${byPoints} nach der Strecke ihrer Punkte gruppiert, die übrigen ` : ''}`
-      + 'nach Trassenbezeichnung, sonst nach Betriebsstelle. '
-      + 'Diese Namen stehen mit in der Streckenliste.')
+    const how = byPoints === loose
+      ? 'gruppiert nach der Strecke ihrer Punkte.'
+      : `${byPoints ? `${byPoints} nach der Strecke ihrer Punkte gruppiert, die übrigen ` : 'gruppiert '}`
+        + 'nach Trassenbezeichnung, sonst nach Betriebsstelle. Diese Namen stehen mit in der Streckenliste.'
+    errors.push(`${loose} Elemente gehören zu keinem Gleisabschnitt (Satzart 33) – ${how}`)
   }
   return { rows, cantRows, errors }
 }

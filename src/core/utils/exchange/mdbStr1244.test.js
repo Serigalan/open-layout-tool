@@ -43,7 +43,7 @@ describe('a delivery without Gleisabschnitte', () => {
       { strecke: '6100', count: 6 },
     ])
     expect(buildAllTracksFromMdb(payload).errors.join(' '))
-      .toMatch(/15 Elemente gehören zu keinem Gleisabschnitt \(Satzart 33\) – 15 nach der Strecke ihrer Punkte/)
+      .toMatch(/15 Elemente gehören zu keinem Gleisabschnitt \(Satzart 33\) – gruppiert nach der Strecke ihrer Punkte\./)
   })
 
   it('builds each line as its two tracks, Richtungsgleis and Gegenrichtungsgleis', () => {
