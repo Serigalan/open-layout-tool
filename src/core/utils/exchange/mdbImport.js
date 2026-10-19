@@ -228,24 +228,70 @@ function pointIndex(points) {
 }
 
 /**
- * Which line number(s) an element belongs to. The elements themselves carry
- * none — the Gleisabschnitt (Satzart 33) does, and it names its elements
- * through its ordered PAD chain.
+ * A line or track number as one spelling: Satzart 33 writes track 0 as `   0`
+ * and Satzart 11 as `0000`, and they have to land in one group.
+ */
+const normStrecke = (v) => {
+  const text = String(v ?? '').trim()
+  return /^\d+$/.test(text) ? String(Number(text)) : text
+}
+
+/**
+ * Which line number(s) an element belongs to, each with the
+ * Richtungskennzeichen it is filed under. The elements themselves carry none
+ * — the Gleisabschnitt (Satzart 33) does, and it names its elements through
+ * its ordered PAD chain.
+ *
+ * Returns pair → Map(strecke → richtung).
  */
 function streckeByElement(tracks) {
   const byPair = new Map()
   for (const t of tracks) {
     const chain = Array.isArray(t?.chain) ? t.chain : []
-    const strecke = String(t?.strecke ?? '').trim()
+    const strecke = normStrecke(t?.strecke)
     if (!strecke) continue
     for (let i = 0; i + 1 < chain.length; i++) {
       const key = padKey(chain[i], chain[i + 1])
-      let set = byPair.get(key)
-      if (!set) { set = new Set(); byPair.set(key, set) }
-      set.add(strecke)
+      let map = byPair.get(key)
+      if (!map) { map = new Map(); byPair.set(key, map) }
+      if (!map.has(strecke)) map.set(strecke, Number(t?.richtung) || 0)
     }
   }
   return byPair
+}
+
+/**
+ * The Richtungskennzeichen (`PSTRRIKZ` of Satzart 11, `STRRIKZ` of 33). The
+ * key lists five kinds of axis without their numbers; measured against the
+ * test database's kilometrage line, 1 lies right of it in the direction of
+ * rising kilometrage (1 205 of 1 216 points) and 2 left (1 155 of 1 171), and
+ * every point of Satzart 24 carries 3.
+ */
+const RIKZ = { RICHTUNG: 1, GEGENRICHTUNG: 2, KM_LINIE: 3, BAHNHOF: 4, SONST: 5 }
+
+/**
+ * What the Richtungskennzeichen makes of a track filed under `strecke`: the
+ * fields of its type (identifierUtils). A line track (1, 2) has its line
+ * number and its side; a station track (4) its track number where that is a
+ * number other than 0 — "1A" is a name, and stays one, and 0 is the number of
+ * every auxiliary and unnumbered track — and no line number, since the
+ * field holds the track's own number inside a station. "Other track" (5) is a
+ * line track where the number is a line (≥ 1000) and a station track where
+ * it is not. Anything else says nothing, and the track keeps the line number
+ * it is filed under, as before.
+ */
+export function trackTypeFields(strecke, richtung) {
+  const text = String(strecke ?? '').trim()
+  const num = /^\d+$/.test(text) ? Number(text) : null
+  const line = { trackType: 1, lineNumber: num ?? text }
+  const station = { trackType: 2, lineNumber: undefined, ...(num ? { trackNumber: num } : {}) }
+  switch (Number(richtung)) {
+    case RIKZ.RICHTUNG: return { ...line, side: 1 }
+    case RIKZ.GEGENRICHTUNG: return { ...line, side: 2 }
+    case RIKZ.BAHNHOF: return station
+    case RIKZ.SONST: return num != null && num >= 1000 ? line : station
+    default: return {}
+  }
 }
 
 /**
@@ -256,19 +302,43 @@ function streckeByElement(tracks) {
  * the alignment and no sections at all. Those elements used to be counted and
  * dropped, which makes such a file import as nothing.
  *
- * So they are grouped by what the file does say about them — the
- * Trassenbezeichnung the element carries (`ELTEXT`, written `Trasse:…` by the
- * planning tool), else the Betriebsstelle its point address begins with. Both
- * are names where a Streckennummer would be a number, so the line picker shows
- * at a glance which is which, and the report says how many came in this way.
+ * So they are grouped by what the file does say about them. In a file
+ * without any Gleisabschnitt, first the points themselves: Satzart 11 names
+ * the line or track number of every point and its Richtungskennzeichen, and
+ * where both ends of an element name the same, that is its line — the way
+ * ProVI groups them (STR 1244: lines 1244 and 6100 with their sides, where
+ * the Trassen gave `1244UCS` and `6100_247-273`). Where the ends disagree or
+ * are not in the file, and always for the leftovers of a file that has
+ * sections, the Trassenbezeichnung the element carries (`ELTEXT`, written
+ * `Trasse:…` by the planning tool), else the Betriebsstelle its point address
+ * begins with: a leftover is a piece of a planned Trasse, and cut by the
+ * numbers of its points it falls apart where it runs from a station into the
+ * line — in the test database 36 turnouts fewer could be placed. Those are
+ * names where a Streckennummer would be a number, so the line picker shows at
+ * a glance which is which, and the report says how many came in this way.
  */
 const TRASSE = /^Trasse:\s*(\S.*)$/
 
-function looseStrecke(el) {
+function looseStrecke(el, pointInfo) {
+  const a = pointInfo?.get(el?.pad1)
+  const b = pointInfo?.get(el?.pad2)
+  if (a?.strecke && b && a.strecke === b.strecke) {
+    return { map: new Map([[a.strecke, a.richtung === b.richtung ? a.richtung : 0]]), byPoints: true }
+  }
   const named = TRASSE.exec(String(el?.text ?? '').trim())
-  if (named) return new Set([named[1].trim()])
+  if (named) return { map: new Map([[named[1].trim(), 0]]), byPoints: false }
   const bst = String(el?.pad1 ?? '').slice(0, 4).trim()
-  return new Set([bst ? `Bst ${bst}` : 'ohne Strecke'])
+  return { map: new Map([[bst ? `Bst ${bst}` : 'ohne Strecke', 0]]), byPoints: false }
+}
+
+/** Line or track number and Richtungskennzeichen of every point of Satzart 11. */
+function pointInfoOf(stations) {
+  const out = new Map()
+  for (const s of stations ?? []) {
+    const strecke = normStrecke(s?.strecke)
+    if (s?.pad && !out.has(s.pad)) out.set(s.pad, { strecke, richtung: Number(s?.richtung) || 0 })
+  }
+  return out
 }
 
 /**
@@ -276,6 +346,7 @@ function looseStrecke(el) {
  *
  * An element that serves two line numbers is emitted once per number; the
  * chain builder there keys on the point-address pair and drops the repeat.
+ * Every row carries the Richtungskennzeichen it is filed under.
  * Cant is stored in metres and converted to millimetres here, which is the
  * unit the model and the CSV path use throughout.
  */
@@ -283,16 +354,21 @@ export function mdbRows(payload) {
   const { points, elements, cants, tracks } = payload
   const coords = pointIndex(points)
   const sectioned = streckeByElement(tracks)
+  // Grouping by the points' own numbers only where nothing groups them better.
+  const pointInfo = tracks.length ? null : pointInfoOf(payload.stations)
   // What the sections do not mention is filed under a name of its own, and
   // written into the same index — so the cant records at those addresses end
   // up under the same name as the element they belong to.
   const byPair = new Map(sectioned)
-  let loose = 0
+  let loose = 0, byPoints = 0
   for (const el of elements) {
     const key = padKey(el?.pad1, el?.pad2)
     if (sectioned.has(key)) continue
     loose++
-    if (!byPair.has(key)) byPair.set(key, looseStrecke(el))
+    if (byPair.has(key)) continue
+    const found = looseStrecke(el, pointInfo)
+    if (found.byPoints) byPoints++
+    byPair.set(key, found.map)
   }
   const errors = []
   const rows = []
@@ -304,15 +380,17 @@ export function mdbRows(payload) {
     if (!start) { unplaced++; continue }
     const strecken = byPair.get(padKey(el?.pad1, el?.pad2))
     if (!strecken) continue
-    for (const strecke of strecken) {
+    for (const [strecke, richtung] of strecken) {
       rows.push({
         typ: typ ?? `ELTYP ${el?.typ}`,
         anf: el?.pad1, end: el?.pad2,
-        lsys: el?.sys, strecke,
+        lsys: el?.sys, strecke, richtung,
         bearing: Number(el?.ariwi) * GON2DEG,
         length: Number(el?.p1),
         p2: Number(el?.p2), p3: Number(el?.p3),
         start,
+        // Where the file says the element ends, for the check of the built one.
+        endAt: coords.get(padKey(el?.pad2, el?.sys)) ?? null,
         flagged: Number(el?.err) !== 0,
       })
     }
@@ -324,7 +402,7 @@ export function mdbRows(payload) {
   for (const c of cants) {
     const strecken = byPair.get(padKey(c?.pad1, c?.pad2))
     if (!strecken) continue
-    for (const strecke of strecken) {
+    for (const strecke of strecken.keys()) {
       cantRows.push({
         typ: Number(c?.typ) === 0 ? CANT_CONSTANT : 'Rampe',
         anf: c?.pad1, end: c?.pad2, strecke,
@@ -340,8 +418,9 @@ export function mdbRows(payload) {
     errors.push(`${unplaced} Elemente ohne Koordinate im eigenen Lagesystem übersprungen.`)
   }
   if (loose) {
-    errors.push(`${loose} Elemente gehören zu keinem Gleisabschnitt (Satzart 33) `
-      + '– gruppiert nach Trassenbezeichnung, sonst nach Betriebsstelle. '
+    errors.push(`${loose} Elemente gehören zu keinem Gleisabschnitt (Satzart 33) – `
+      + `${byPoints ? `${byPoints} nach der Strecke ihrer Punkte gruppiert, die übrigen ` : ''}`
+      + 'nach Trassenbezeichnung, sonst nach Betriebsstelle. '
       + 'Diese Namen stehen mit in der Streckenliste.')
   }
   return { rows, cantRows, errors }
@@ -479,6 +558,13 @@ export function buildAllTracksFromMdb(payload, opts = {}) {
   return { tracks, errors: [...errors, ...gradientNotes(vertical, tracks)] }
 }
 
+/** The Richtungskennzeichen most of a chain's rows are filed under. */
+function richtungOf(chain) {
+  const count = new Map()
+  for (const r of chain) count.set(r.richtung ?? 0, (count.get(r.richtung ?? 0) ?? 0) + 1)
+  return [...count].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0
+}
+
 function oneStrecke({ rows, cantRows, vertical }, strecke, opts = {}) {
   const errors = []
   const mine = rows.filter(r => r.strecke === String(strecke))
@@ -528,7 +614,10 @@ function oneStrecke({ rows, cantRows, vertical }, strecke, opts = {}) {
       targetEpsg: Number(opts.targetEpsg ?? epsgForLagesystem(sys)),
       // The vertical alignment is stated over the line, not over this chain:
       // it is cut to the piece the chain runs over once the chain is known.
-      fieldsFor: (chain, elements) => heightsForChain(chain, elements, vertical),
+      fieldsFor: (chain, elements) => ({
+        ...trackTypeFields(strecke, richtungOf(chain)),
+        ...heightsForChain(chain, elements, vertical),
+      }),
     })
     for (const t of res.tracks) tracks.push({ ...t, lagesystem: sys })
     errors.push(...res.errors.map(e => (known.length > 1 ? `[${sys}] ${e}` : e)))
