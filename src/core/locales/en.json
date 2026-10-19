@@ -1298,6 +1298,7 @@
   "end_end": "End",
   "edit_track_end": "Edit Track End",
   "data_exchange_mdb_buffer_stops": "Buffer stops: {n} placed on free track ends, {missed} without a free track end nearby. The database states neither type nor braking distance – they stand at the track end with no braking distance until set under Edit → Edit buffer stop.",
+  "data_exchange_mdb_km_lines": "Kilometrage taken from the file (Satzart 24) for {n} lines ({lines}) – it replaces the shipped kilometrage lines of these lines in the project.",
   "topology_open_ends": "Open track ends: {n}",
   "topology_no_open_ends": "No open track ends.",
   "topology_state_open": "free",

@@ -109,6 +109,9 @@ const ELTYP_NAME = {
   5: TYPE_KINK,
 }
 
+/** The row type of an element type code of Satzart 21 or 24, or null for one the model has no form for. */
+export const elementTypeName = (typ) => ELTYP_NAME[typ] ?? null
+
 /**
  * Bauform prefix → the record kind, and how many nodes the source splits it
  * into. The Bogenkreuzungsweichen are crossing switches, not turnouts: `EBKW`
@@ -251,7 +254,7 @@ const CLOSURE_TOL = 0.002
  * A line or track number as one spelling: Satzart 33 writes track 0 as `   0`
  * and Satzart 11 as `0000`, and they have to land in one group.
  */
-const normStrecke = (v) => {
+export const normStrecke = (v) => {
   const text = String(v ?? '').trim()
   return /^\d+$/.test(text) ? String(Number(text)) : text
 }

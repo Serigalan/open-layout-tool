@@ -4,6 +4,8 @@ import {
   buildAllTracksFromMdb, buildTracksFromMdb, mdbSwitchInventory, mdbBufferStops, matchMdbBufferStops,
 } from './mdbImport'
 import { placeMdbSwitches } from './mdbSwitchPlacement'
+import { mdbKmLines } from './mdbKmLine'
+import { projectBox } from '../km'
 
 /** The line-number picker's entry for „every line in the file“. */
 export const ALL_STRECKEN = '*'
@@ -58,8 +60,12 @@ export async function toPlane(tracks, target, notes, fill, { loadGrids = loadGri
  * `target` puts every track into that plane (the DB_REF import) instead of
  * leaving each chain in the one it was surveyed in.
  *
- * Returns { notes, counts: { tracks, switches }, commit } — `commit` null when
- * nothing could be built.
+ * The kilometrage lines of the file (Satzart 24) come along for every line an
+ * imported track names, cut to the project and replacing the shipped ones of
+ * the same number (mdbKmLine).
+ *
+ * Returns { notes, counts: { tracks, switches, kmLines }, commit } — `commit`
+ * null when nothing could be built.
  */
 export async function runMdbImport({
   payload, strecke, withSwitches = true, target = null, existing = {}, fill,
@@ -89,7 +95,7 @@ export async function runMdbImport({
     : { tracks: built.tracks, switches: [], errors: [] }
 
   const notes = [...built.errors, ...inventory.errors, ...placed.errors]
-  if (!placed.tracks.length) return { notes, counts: { tracks: 0, switches: 0 }, commit: null }
+  if (!placed.tracks.length) return { notes, counts: { tracks: 0, switches: 0, kmLines: 0 }, commit: null }
 
   const names = new Set(existingTracks.map(tr => tr.name).filter(Boolean))
   let addTracks = placed.tracks.map(tr => {
@@ -138,9 +144,18 @@ export async function runMdbImport({
     notes.push(fill('data_exchange_mdb_buffer_stops', { n: buffered.marks.length, missed: buffered.missed }))
   }
 
+  // The kilometrage of the delivery itself, for the lines its tracks run on —
+  // to the millimetre and with its own jumps, where the shipped lines have
+  // whole metres. Cut to the project as it will be, like a fetched line.
+  const named = new Set(addTracks.map(tr => tr.lineNumber).filter(n => n != null && n !== '').map(String))
+  const addKmLines = named.size ? mdbKmLines(payload, named, projectBox(afterTracks)) : []
+  if (addKmLines.length) {
+    notes.push(fill('data_exchange_mdb_km_lines', { n: addKmLines.length, lines: addKmLines.map(l => l.lineNumber).join(', ') }))
+  }
+
   return {
     notes,
-    counts: { tracks: addTracks.length, switches: placed.switches.length },
-    commit: { addTracks, addSwitches: [...placed.switches, ...links], addEndMarks: buffered.marks },
+    counts: { tracks: addTracks.length, switches: placed.switches.length, kmLines: addKmLines.length },
+    commit: { addTracks, addSwitches: [...placed.switches, ...links], addEndMarks: buffered.marks, addKmLines },
   }
 }

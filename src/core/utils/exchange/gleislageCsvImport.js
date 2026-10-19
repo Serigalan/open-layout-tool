@@ -206,7 +206,12 @@ function buildChains(rows) {
   return chains
 }
 
-function buildElement(rec, crs) {
+/**
+ * One element from a row: its start point (already in `crs`), bearing [°],
+ * length and the type's parameters. Also what the MDB's kilometrage line is
+ * built from (mdbKmLine).
+ */
+export function buildElement(rec, crs) {
   const start = { easting: rec.start[0], northing: rec.start[1], zone: crs }
   const bearing = ((rec.bearing % 360) + 360) % 360
 

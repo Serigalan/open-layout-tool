@@ -43,7 +43,7 @@ describe('the MDB import pipeline', () => {
   it('builds nothing for a line the file does not have', async () => {
     const { commit, counts } = await runMdbImport({ payload, strecke: '0000', fill, newId })
     expect(commit).toBe(null)
-    expect(counts).toEqual({ tracks: 0, switches: 0 })
+    expect(counts).toEqual({ tracks: 0, switches: 0, kmLines: 0 })
   })
 })
 

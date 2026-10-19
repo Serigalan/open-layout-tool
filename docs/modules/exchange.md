@@ -1,6 +1,6 @@
 # exchange — files in and out
 
-`src/core/utils/exchange/` · needs `geometry`, `track`, `switch`, `rules`, `elevation`
+`src/core/utils/exchange/` · needs `geometry`, `track`, `switch`, `rules`, `elevation`, `km`
 
 Reading and writing the file formats other programs use: OSRD's RailJSON and the tool's own alignment
 exchange file, Verm.ESN binary axes (TRA/GRA), ProVI interface archives, the Gleislage CSV export and the
@@ -24,7 +24,8 @@ converted on the server.
 | `proviImport.js` | in | ProVI archives: axes (`A…`), gradients (`T…`), turnouts on axes |
 | `gleislageCsvImport.js` | in | The Gleislage CSV export (and cant CSV) |
 | `mdbImport.js` | in | The DB ASCII interface (Satzarten 11–41) as converted from Access by the server |
-| `mdbGradient.js` | in | MDB gradient (Satzart 22 + 13 + 11) → `track.heights` |
+| `mdbGradient.js` | in | MDB gradient (Satzart 22 + 13 + 11) → `track.heights` with its height datum |
+| `mdbKmLine.js` | in | MDB kilometrage line (Satzart 24) → `project.kmLines` |
 | `mdbSwitchPlacement.js` | in | The MDB's switch inventory placed onto the imported tracks |
 | `mdbSwitchDerive.js` | in | Turnouts the inventory does not state, read from the alignment |
 | `mdbPipeline.js` | in | The whole MDB import: tracks, plane, switches, links, buffer stops, notes |
@@ -107,14 +108,34 @@ plane DB_REF GK zone 3; the row's system code is not read as a plane — the use
 
 ### MDB — the DB ASCII interface
 
-The Access database is converted to JSON by the server (`/mdb` of the optimizer service); everything else is
-here, where it is testable.
+The Access database (GND-Edit, format version 4 or 6 „AGON“) is converted to JSON by the server (`/mdb` of the
+optimizer service: one table per Satzart, records marked deleted dropped); everything else is here, where it
+is testable. The ProVI import of the same files (DBGNDIN) served as a reference for code lists and checks;
+where it is silent or guesses, the delivered files decide.
 
-- **Lagesystem → EPSG.** Three characters: strip (C 6° … F 15° → GK zone 2…5), frame (`A` RD/83 —
-  read as DHDN on BeTA2007, since nothing in a file says a chain is Saxon; `B` PD/83 Thüringen; `C` 42/83;
-  `S` Soldner Berlin; `R` DB_REF), serial digit. `ER0` is DB_REF in the 12° strip, `EA0` DHDN, `DB0` PD/83.
-- **Tracks** by line (Strecke); elements of no Gleisabschnitt are grouped by the route name in `ELTEXT`,
-  else by the operating point — otherwise a pure geometry export would import nothing.
+- **Lagesystem → EPSG.** Three characters: strip (C 6° … F 15° → GK zone 2…5; G/H/I → UTM 31…33), frame
+  (`A` DHDN — the western states, on BeTA2007; `B` PD/83 Thüringen; `C` 42/83; `D` RD/83 Sachsen; `R` DB_REF;
+  `S` Soldner Berlin; `U` ETRS89 in the UTM strips), serial character. `ER0` is DB_REF in the 12° strip, `EA0`
+  DHDN, `DB0` PD/83, `HU0` ETRS89/UTM32. The key calls a serial character other than `0` „other Cartesian
+  coordinates“, but GND_6403 delivers its 42/83 chains as `EC9` and they meet the same points in DB_REF within
+  9 cm — so it is read like `0` and named in the report.
+- **Packed station** (Satzart 11 `STATION`, 24 `EKAKM`/`EKEKM`): `10⁸ + hectometre · 10⁴ + metres`, with four
+  places of metres because a hectometre can be longer than 100 m; below 10⁸ the kilometrage is negative and
+  packed as its magnitude; below 10⁵ it is the plain metres of a station track. Read so, every kilometrage
+  element of the test database is as long as the difference of its ends.
+- **Tracks** by line (Strecke): the Gleisabschnitte of Satzart 33 name their elements. A delivery without
+  them is grouped by the line both end points of an element name in Satzart 11 (as ProVI does); the leftovers
+  of a file with sections by the route name in `ELTEXT`, else by the operating point — cut by point numbers,
+  a planned route falls apart where it runs from a station into the line.
+- **Track type from the Richtungskennzeichen** (`STRRIKZ` of 33, else `PSTRRIKZ` of the points). Measured
+  against the kilometrage line: 1 lies right of it in the direction of rising km (Richtungsgleis), 2 left
+  (Gegenrichtungsgleis), 3 is the kilometrage line itself, 4 a station track, 5 another track. 1/2 become line
+  tracks with line number and side, 4 a station track with its track number where that is a number, 5 a line
+  track where the number is a line (≥ 1000), else a station track.
+- **Checks.** Every element is built from its start point, bearing, length and radii and compared with the
+  end point the file states in the same Lagesystem (2 mm, ProVI's limit; the test database: 2 of 9 275). The
+  mean point error of Satzart 12 (`MP · 10^MPEXP`) tells surveyed points (3 mm) from digitised ones (2 m);
+  tracks on digitised points are named.
 - **Gradient** (`mdbGradient.js`): Satzart 22 states gradient elements between point addresses with the
   gradient before and after; a rounding has `Rv = 1000·L/Δi`. Satzart 13 gives the point heights per height
   system, Satzart 11 the stations along the line. Height and plan chains share no point address — only the
@@ -122,6 +143,15 @@ here, where it is testable.
   out and stretched onto the track length with **both ends as anchors** (stationing and geometry measure the
   same stretch slightly differently; anchored at one end the difference would pile up at the other). More
   than 1 % stretch is refused. A rounding becomes one tangent-polygon point at its middle.
+- **Height datum.** The Höhensystem of the gradient (`EHSYS`) becomes the track's `heightEpsg`: P DHHN2016
+  7837, R DHHN92 5783, V DHHN12 7699, S DHHN85 5784, T HN76 5785. DBRH 2016 (O) and DBRH 2003 (N), the heights
+  DB_REF delivers by GNSS, are read as the datum each is tied to — DHHN2016 and DHHN92; where a point is stated
+  in both, O lies a median 1.7 cm above N, the step between those two. Systems without an EPSG code (HN56, W,
+  X) are not taken. Where several gradients cover a track the current datum wins.
+- **Kilometrage line** (`mdbKmLine.js`): Satzart 24 is laid out like the track elements, the kilometrage
+  running with the length from `EKAKM` to `EKEKM`; type 6 is the kilometrage jump and ends a run. For every
+  line an imported track names, the line is cut to the project and kept in `project.kmLines` with `source:
+  'mdb'`, replacing the shipped line of that number — to the millimetre, with the delivery's own jumps.
 - **Switches** (`mdbSwitchPlacement.js`): a unit is located by **projecting its point onto the imported
   tracks**, not by topology — 99.4 % of the units lie within 0.5 m of an axis, while the node addresses are in
   a chain only 35 % of the time. The projection finds the turnout shape — one track running through, one
@@ -143,6 +173,11 @@ here, where it is testable.
 - **Full precision for geometry; native planes; one element builder.**
 - **Chains stay in their survey's Lagesystem**, joined by links; a single target plane only on request.
 - **MDB switches by projection, never generated**; unbuildable ones leave hints.
+- **ProVI's reading of the MDB as a reference, the files as the judge**: its code lists and its 2 mm check
+  are taken; its dropping of elements whose end points name different lines is not.
+- **The gradient keeps its own height datum**; DBRH is read as the official datum it is tied to.
+- **Track type and side from the Richtungskennzeichen**; a delivery without sections grouped by its points.
+- **The kilometrage of the delivery replaces the shipped line** in the project.
 - **Derived turnouts need an end on a track and an angle**; no derived crossings.
 - **Import reports outside the record.**
 - **Routes export as one axis or not at all.**

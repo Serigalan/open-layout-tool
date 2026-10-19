@@ -138,7 +138,11 @@ export async function ensureKmLines(project) {
 
   for (const lineNumber of wanted) {
     // Already there and still covering the tracks? Then there is nothing to do.
+    // A line from an imported file (`source`, mdbKmLine) is the delivery's own
+    // kilometrage and stays, whatever the tracks grow to: fetching would put the
+    // shipped line over it.
     const covering = held.filter((l) => String(l.lineNumber) === lineNumber)
+    if (covering.some((l) => l.source)) continue
     if (covering.length && covering.every((l) => l.clip && contains(l.clip, box))) continue
 
     let file

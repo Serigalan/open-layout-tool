@@ -43,6 +43,11 @@ around the project is kept in `project.kmLines` as `{ id, lineNumber, crs, clip,
 instead of a whole line), with id `km-<line number>` — fixed, so two browsers loading the same line produce the same entry rather than a merge
 conflict.
 
+**Lines from a file.** The MDB import brings the kilometrage line of the delivery itself (Satzart 24, see
+[exchange](exchange.md)), to the millimetre and with its own jumps. It is kept like a fetched line but marked
+`source: 'mdb'`; it replaces the shipped line of that number, and `ensureKmLines` fetches nothing over it,
+however far the tracks grow. A line no track names any more goes like any other.
+
 **Why WGS84 here.** Everything else in the app is plane data. The km lines are foreign reference data, not
 design geometry, and one line serves tracks whose planes may differ — there is no one plane to keep it in.
 Clipping by a box is a filter on data, not a measurement; measuring happens in the track's plane.
@@ -54,6 +59,7 @@ the server rightly answers with the whole 48 MB file. `KmTileSource` asks once m
 
 - **Km lines in WGS84, measured in the track plane.**
 - **Only the stretch around the project is stored**, under a deterministic id.
+- **A line from an imported file is not replaced by the shipped one.**
 - **The DB network and the rest as two overlays** from one archive.
 
 ## Tests

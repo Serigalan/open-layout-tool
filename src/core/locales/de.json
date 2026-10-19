@@ -1298,6 +1298,7 @@
   "end_end": "Ende",
   "edit_track_end": "Gleisende bearbeiten",
   "data_exchange_mdb_buffer_stops": "Prellböcke: {n} auf freie Gleisenden gesetzt, {missed} ohne freies Gleisende in der Nähe. Die MDB nennt weder Typ noch Bremsweg – sie stehen mit Bremsweg 0 am Gleisende, bis sie unter Bearbeiten → Prellbock bearbeiten eingestellt werden.",
+  "data_exchange_mdb_km_lines": "Kilometrierung aus der Datei (Satzart 24) für {n} Strecken übernommen ({lines}) – sie ersetzt im Projekt die mitgelieferten km-Linien dieser Strecken.",
   "topology_open_ends": "Offene Gleisenden: {n}",
   "topology_no_open_ends": "Keine offenen Gleisenden.",
   "topology_state_open": "frei",

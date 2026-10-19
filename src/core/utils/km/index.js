@@ -6,7 +6,7 @@
 // the module's own business. See docs/modules/km.md.
 
 export { formatKm, kmOnPieces, toMercator } from './kmLineMath'
-export { ensureKmLines, projectBox } from './kmLineSource'
+export { clipRuns, ensureKmLines, projectBox } from './kmLineSource'
 export { kmForTrackPoint } from './kmLineUtils'
 export { KmTileSource } from './kmTileSource'
 export { elementPath, elementsPath, identifyTrackLine, kmTrackName, lineNameOf } from './lineLookup'

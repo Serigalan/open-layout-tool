@@ -1110,13 +1110,18 @@ export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwit
  * project that names no coordinate system yet names the one most of its
  * tracks lie in afterwards (decision 322).
  */
-export function commitImport({ addTracks = [], addSwitches = [], addEndMarks = [], patch = null }) {
+export function commitImport({ addTracks = [], addSwitches = [], addEndMarks = [], addKmLines = [], patch = null }) {
+  // A kilometrage line from the import replaces the project's line of that number.
+  const replaced = new Set(addKmLines.map(l => String(l.lineNumber)))
   return mutate(p => withImportSystem({
     ...p,
     ...(patch ?? {}),
     tracks: [...(p.tracks ?? []), ...addTracks],
     switches: [...(p.switches ?? []), ...addSwitches],
     endMarks: [...(p.endMarks ?? []), ...addEndMarks],
+    ...(addKmLines.length
+      ? { kmLines: [...(p.kmLines ?? []).filter(l => !replaced.has(String(l.lineNumber))), ...addKmLines] }
+      : {}),
   }))
 }
 
