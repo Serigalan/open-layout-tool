@@ -41,26 +41,28 @@ const SAME = 1e-3
 /**
  * Station [m] from the field of Satzart 11 and 24, which comes in two forms.
  *
- * Along a **line** it is packed: the metres are the last two digits and the
- * hundred-metre block counts in ten thousands, so `101320005.372` is
- * 1 013 200 m plus 5.372 m. Along a **station track** it is plain metres —
- * `804.799` is 804.799 m.
+ * Along a **line** it is the kilometrage, packed: `10⁸ + hectometre · 10⁴ +
+ * metres`, the metres with four places before the point because a hectometre
+ * can be longer than a hundred metres (Überlänge — up to 216 m in the test
+ * database). So `115750099.917` is hectometre 1575 plus 99.917 m, km
+ * 157.599 917, and `100060144.499` is hectometre 6 plus 144.499 m. Below 10⁸
+ * the kilometrage is negative and packed as its magnitude: `99959932.706` is
+ * 10⁸ − 40 067.294, hectometre 4 plus 67.294 m, km −0.467 294 — where the
+ * shipped line 5525 begins as well. Read this way every one of the 2 578
+ * kilometrage elements of the test database is as long as the difference of
+ * its two ends; read with two places, as before, 119 were not.
  *
- * The two are told apart by size: a packed value carries at least a whole
- * kilometre of blocks (10 · 10 000), a station track's own station never
- * reaches a hundred kilometres. Measured over five databases against the
- * lengths between the stationed points — element by element, horizontal and
- * vertical — this reads 91 % of them to within half a metre where taking
- * every value as packed reads 77 %. What is left is the file's own
- * Fehlprofile, and `stationsAlong` refuses a chain where the stationing and
- * the lengths disagree beyond them.
+ * Along a **station track** it is plain metres — `804.799` is 804.799 m. The
+ * two are told apart by size: a packed value is at least 10⁵ even at km −0.
  *
  * Null for a field that states nothing (0 is "not stationed" here, not km 0).
  */
 export function mdbStation(value) {
   const v = Number(value)
   if (!Number.isFinite(v) || v <= 0) return null
-  return v < 100000 ? v : Math.floor(v / 10000) * 100 + (v % 100)
+  if (v < 100000) return v
+  const packed = (w) => Math.floor(w / 10000) * 100 + (w % 10000)
+  return v >= 1e8 ? packed(v - 1e8) : -packed(1e8 - v)
 }
 
 /** Where a point address sits: its station and the line it is stationed on. */

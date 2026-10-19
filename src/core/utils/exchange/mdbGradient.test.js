@@ -21,13 +21,27 @@ const slope = (a, b) => (b.z - a.z) / (b.station - a.station) * 1000
 
 describe('reading a station', () => {
   it('unpacks the form a line uses', () => {
-    // 1 157 500 m + 99.917 m. The metres are the last two digits before the
-    // point, the hundred-metre block counts in ten thousands.
-    expect(mdbStation(115750099.917)).toBeCloseTo(1157599.917, 3)
-    expect(mdbStation(115800099.925)).toBeCloseTo(1158099.925, 3)
+    // Hectometre 1575 plus 99.917 m: km 157.599 917.
+    expect(mdbStation(115750099.917)).toBeCloseTo(157599.917, 3)
+    expect(mdbStation(115800099.925)).toBeCloseTo(158099.925, 3)
     // Which makes the difference of the two the length between them: the
     // element there is 500.008 m long.
     expect(mdbStation(115800099.925) - mdbStation(115750099.917)).toBeCloseTo(500.008, 3)
+  })
+
+  it('reads four places of metres, for a hectometre longer than a hundred', () => {
+    // Testdaten.MDB, line 5540: an arc of 141.322 m from hectometre 5 + 59.145 m
+    // to hectometre 6 + 100.466 m.
+    expect(mdbStation(100060100.466) - mdbStation(100050059.145)).toBeCloseTo(141.321, 3)
+    expect(mdbStation(100060216.002)).toBeCloseTo(816.002, 3)
+  })
+
+  it('reads a value below 10⁸ as a negative kilometrage', () => {
+    // Line 5525 begins at km −0.467 294; the next element runs 6.092 m on.
+    expect(mdbStation(99959932.706)).toBeCloseTo(-467.294, 3)
+    expect(mdbStation(99959938.798) - mdbStation(99959932.706)).toBeCloseTo(6.092, 3)
+    // And across km 0: 367.481 m from −15.374 to +352.107.
+    expect(mdbStation(100030052.107) - mdbStation(99999984.626)).toBeCloseTo(367.481, 3)
   })
 
   it('takes the form a station track uses as the metres it is', () => {
