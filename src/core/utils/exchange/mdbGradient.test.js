@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mdbStation, mdbGradientChains, gradientForTrack, stationsAlong } from './mdbGradient'
+import { mdbStation, mdbGradientChains, gradientForTrack, stationsAlong, hoehensystemOf } from './mdbGradient'
 import { parseMdbPayload, buildAllTracksFromMdb } from './mdbImport'
 import { trackLength } from '../track/heightUtils'
 import fixture from '../../test/fixtures/mdb_gradiente.json'
@@ -73,6 +73,7 @@ describe('the gradient of the file', () => {
     expect(chains).toHaveLength(1)
     expect(chains[0].line).toBe('1150')
     expect(chains[0].sys).toBe('V00')
+    expect(chains[0].heightEpsg).toBe(7699)
     expect(chains[0].to - chains[0].from).toBeCloseTo(3385, 0)
   })
 
@@ -206,8 +207,8 @@ describe('a track the file states no gradient for', () => {
     }]
     const ask = (length) => gradientForTrack(chains,
       { line: '1150', bst: new Set(['1150']), begin: 0, end: 1000, length })
-    expect(ask(1000)).toHaveLength(2)
-    expect(ask(1005)).toHaveLength(2)     // a per cent of stretching is the two measurements
+    expect(ask(1000).points).toHaveLength(2)
+    expect(ask(1005).points).toHaveLength(2)     // a per cent of stretching is the two measurements
     expect(ask(1200)).toBe(null)          // a fifth of the track is not
   })
 
@@ -219,6 +220,44 @@ describe('a track the file states no gradient for', () => {
     expect(gradientForTrack(chains,
       { line: '1150', bst: new Set(['1150']), begin: 0, end: 800, length: 800 })).toBe(null)
     expect(gradientForTrack(chains,
-      { line: '1150', bst: new Set(['1150']), begin: 100, end: 400, length: 300 })).toHaveLength(2)
+      { line: '1150', bst: new Set(['1150']), begin: 100, end: 400, length: 300 }).points).toHaveLength(2)
+  })
+
+  it('takes the current datum where the file states the stretch in several', () => {
+    const chain = (sys, heightEpsg, rank, z) => ({
+      line: '1150', bst: new Set(['1150']), sys, heightEpsg, rank,
+      from: 0, to: 1000, points: [{ station: 0, z }, { station: 1000, z: z + 1 }],
+    })
+    // As mdbGradientChains hands them over: sorted by rank.
+    const chains = [chain('O00', 7837, 1, 10.05), chain('V00', 7699, 4, 10)]
+    const found = gradientForTrack(chains, { line: '1150', bst: new Set(['1150']), begin: 0, end: 1000, length: 1000 })
+    expect(found).toMatchObject({ sys: 'O00', heightEpsg: 7837 })
+    expect(found.points[0].z).toBe(10.05)
+  })
+})
+
+describe('the height system of a gradient', () => {
+  it('names the EPSG code of the datum', () => {
+    expect(hoehensystemOf('P00')).toMatchObject({ epsg: 7837 })
+    expect(hoehensystemOf('R00')).toMatchObject({ epsg: 5783 })
+    expect(hoehensystemOf('V00')).toMatchObject({ epsg: 7699 })
+    expect(hoehensystemOf('S00')).toMatchObject({ epsg: 5784 })
+    expect(hoehensystemOf('T00')).toMatchObject({ epsg: 5785 })
+  })
+
+  it('reads DBRH, the railway’s own heights, as the official datum it is tied to', () => {
+    expect(hoehensystemOf('O00')).toMatchObject({ epsg: 7837, dbrh: 'DBRH 2016' })
+    expect(hoehensystemOf('N00')).toMatchObject({ epsg: 5783, dbrh: 'DBRH 2003' })
+  })
+
+  it('has none for a system without EPSG code', () => {
+    for (const sys of ['U00', 'W00', 'X00', '', null]) expect(hoehensystemOf(sys)).toBe(null)
+  })
+
+  it('leaves a gradient in such a system out, and counts it', () => {
+    const local = parseMdbPayload({ ...fixture, gradients: fixture.gradients.map(g => ({ ...g, sys: 'X00' })) })
+    const { chains, foreign } = mdbGradientChains(local)
+    expect(chains).toHaveLength(0)
+    expect(foreign).toEqual({ X00: fixture.gradients.length })
   })
 })

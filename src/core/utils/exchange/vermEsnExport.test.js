@@ -34,8 +34,10 @@ describe('lagesystemForEpsg', () => {
     expect(lagesystemForEpsg(5678)).toBe('EA0')
     expect(lagesystemForEpsg(3397)).toBe('EB0')
     expect(lagesystemForEpsg(2399)).toBe('FC0')
-    expect(lagesystemForEpsg(25832)).toBeNull()
-    for (const code of ['CR0', 'DA0', 'DB0', 'EC0', 'FR0']) expect(lagesystemForEpsg(epsgForLagesystem(code))).toBe(code)
+    expect(lagesystemForEpsg(25832)).toBe('HU0')
+    expect(lagesystemForEpsg(3399)).toBe('FD0')
+    expect(lagesystemForEpsg(32632)).toBeNull()
+    for (const code of ['CR0', 'DA0', 'DB0', 'EC0', 'ED0', 'FR0', 'GU0', 'IU0']) expect(lagesystemForEpsg(epsgForLagesystem(code))).toBe(code)
   })
 })
 
@@ -150,13 +152,13 @@ describe('exportVermEsn', () => {
     const { zip, files, skipped } = exportVermEsn(tracks, { title: 'PEK' })
     const entries = unzipSync(zip)
     expect(Object.keys(entries).sort()).toEqual([
-      '6344_1_ER0-2.TRA', '6344_1_ER0.GRA', '6344_1_ER0.TRA', 'Verm.ESN-Export.txt', 'Wildeck-Hoenebach_3.TRA',
+      '6344_1_ER0-2.TRA', '6344_1_ER0.GRA', '6344_1_ER0.TRA', 'Verm.ESN-Export.txt', 'Wildeck-Hoenebach_3_HU0.TRA',
     ])
     expect(files.map(f => f.gra)).toEqual(['6344_1_ER0.GRA', null, null])
     expect(skipped).toEqual(['leer'])
     const note = strFromU8(entries['Verm.ESN-Export.txt'])
     expect(note).toContain('EPSG 5684 (ER0)')
-    expect(note).toContain('EPSG 25832')
+    expect(note).toContain('EPSG 25832 (HU0)')
     expect(note).toContain('DHHN92')
     expect(note).toContain('leer')
   })
@@ -209,13 +211,13 @@ describe('routes', () => {
   it('puts routes into the archive next to the tracks and names them in the note', () => {
     const { zip, files, routesSkipped } = exportVermEsn([A], { routes: [resolve(['A', 'B']), resolve(['K', 'B'])] })
     const entries = unzipSync(zip)
-    expect(Object.keys(entries).sort()).toEqual(['A.GRA', 'A.TRA', 'R_AB.GRA', 'R_AB.TRA', 'Verm.ESN-Export.txt'])
+    expect(Object.keys(entries).sort()).toEqual(['A_HU0.GRA', 'A_HU0.TRA', 'R_AB_HU0.GRA', 'R_AB_HU0.TRA', 'Verm.ESN-Export.txt'])
     expect(files.map(f => f.route?.tracks ?? null)).toEqual([null, ['A', 'B']])
     expect(routesSkipped).toEqual([{ name: 'R KB', problem: 'gaps' }])
     const note = strFromU8(entries['Verm.ESN-Export.txt'])
     expect(note).toContain('Route „R AB“ über A → B')
     expect(note).toContain('R KB (unterbrochen)')
-    expect(parseGradient(bufferOf(entries['R_AB.GRA'])).map(p => Math.round(p.station))).toEqual([0, 100, 150])
+    expect(parseGradient(bufferOf(entries['R_AB_HU0.GRA'])).map(p => Math.round(p.station))).toEqual([0, 100, 150])
   })
 })
 

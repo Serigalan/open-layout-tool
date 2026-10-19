@@ -109,11 +109,11 @@ describe('building the tracks of one line', () => {
     expect(buildTracksFromCsv(rows, '9999')).toEqual({ tracks: [], errors: ['Keine Zeilen für Strecke 9999 gefunden.'] })
   })
 
-  it('hands each chain to heightsFor and keeps what it returns', () => {
+  it('hands each chain to fieldsFor and keeps what it returns', () => {
     const { tracks } = buildTracksFromCsv(rows, '6340', null, {
-      heightsFor: (chain) => (chain[0].anf === 'A' ? [{ station: 0, height: 100 }] : []),
+      fieldsFor: (chain) => (chain[0].anf === 'A' ? { heights: [{ station: 0, height: 100 }], heightEpsg: 5783 } : null),
     })
-    expect(tracks[0].heights).toEqual([{ station: 0, height: 100 }])
+    expect(tracks[0]).toMatchObject({ heights: [{ station: 0, height: 100 }], heightEpsg: 5783 })
     expect(tracks[1]).not.toHaveProperty('heights')
   })
 })

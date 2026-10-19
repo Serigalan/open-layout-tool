@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import fs from 'node:fs'
-import { epsgForLagesystem, parseMdbPayload, buildTracksFromMdb, mdbRows } from './mdbImport'
+import { epsgForLagesystem, isOfficialLagesystem, parseMdbPayload, buildTracksFromMdb, mdbRows } from './mdbImport'
 import { crsName, utmToWgs84 } from '../geometry/coordinateUtils'
 import { loadNtv2Grid } from '../geometry/ntv2Grid'
 import fixture from '../../test/fixtures/mdb_thueringen.json'
@@ -54,6 +54,23 @@ describe('reading a Lagesystem code', () => {
     expect(crsName(epsgForLagesystem('DB0'))).toBe('PD/83 / GK Zone 3')
     expect(crsName(epsgForLagesystem('EC0'))).toBe('42/83 / GK Zone 4')
     expect(crsName(epsgForLagesystem('ER0'))).toBe('DB_REF / GK Zone 4')
+  })
+
+  it('knows RD/83 in Sachsen and ETRS89 in the UTM strips', () => {
+    expect(epsgForLagesystem('ED0')).toBe(3398)   // RD/83, GK zone 4
+    expect(epsgForLagesystem('FD0')).toBe(3399)   // zone 5
+    expect(epsgForLagesystem('DD0')).toBe(null)   // Sachsen has no 9° strip
+    expect(epsgForLagesystem('GU0')).toBe(25831)
+    expect(epsgForLagesystem('HU0')).toBe(25832)
+    expect(epsgForLagesystem('IU0')).toBe(25833)
+    expect(epsgForLagesystem('EU0')).toBe(null)   // ETRS89 only in UTM
+  })
+
+  it('reads a serial character other than 0 like 0, and says it is one', () => {
+    // GND_6403 states its 42/83 chains as EC9 (mdbOhneAbschnitt).
+    expect(epsgForLagesystem('EC9')).toBe(epsgForLagesystem('EC0'))
+    expect(isOfficialLagesystem('EC0')).toBe(true)
+    expect(isOfficialLagesystem('EC9')).toBe(false)
   })
 
   it('gives Berlin its Soldner net, which has no strip', () => {

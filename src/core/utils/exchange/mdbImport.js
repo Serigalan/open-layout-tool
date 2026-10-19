@@ -1,5 +1,5 @@
 import {
-  mdbGradientChains, stationIndex, gradientForTrack, stationsAlong, bstOf,
+  mdbGradientChains, stationIndex, gradientForTrack, stationsAlong, bstOf, hoehensystemOf,
 } from './mdbGradient'
 import {
   buildTracksFromCsv,
@@ -7,7 +7,9 @@ import {
   CANT_CONSTANT,
 } from './gleislageCsvImport'
 import { utmToWgs84 } from '../geometry'
-import { classifyTrackEnds, freeEnds, JOINT_TOL, newBufferStop, DEFAULT_BUFFER_STOP_TYPE } from '../track'
+import {
+  classifyTrackEnds, freeEnds, JOINT_TOL, newBufferStop, DEFAULT_BUFFER_STOP_TYPE, heightDatumLabel,
+} from '../track'
 
 /**
  * Adapter for the DB ASCII interface delivered as an Access database (Satzarten
@@ -26,34 +28,40 @@ const GON2DEG = 0.9
  * Lagesystem → EPSG.
  *
  * The interface names a plane with three characters: the meridian strip it is
- * computed in, the frame, and a serial digit. `ER0` is DB_REF in the 12°
- * strip, `EA0` the DHDN before it, `DB0` Thüringen's PD/83 in the 9° strip.
+ * computed in, the frame, and a serial character. `ER0` is DB_REF in the 12°
+ * strip, `EA0` the DHDN before it, `DB0` Thüringen's PD/83 in the 9° strip,
+ * `HU0` ETRS89 in UTM zone 32.
  *
  *   strip   C 6°E   D 9°E   E 12°E   F 15°E        → Gauss-Krüger zone 2…5
- *   frame   A  RD/83, Bessel, Rauenberg — the western states and Sachsen
+ *           G       H       I                      → UTM zone 31…33
+ *   frame   A  DHDN, Bessel, Rauenberg — the western states
  *           B  PD/83, Bessel, Potsdam — Thüringen
  *           C  42/83, Krassowski, Pulkowo — Brandenburg, Mecklenburg,
  *              Sachsen-Anhalt
- *           S  Soldner Netz 88, Müggelturm — Berlin, one net without a strip
+ *           D  RD/83, Bessel, Rauenberg — Sachsen
  *           R  DB_REF, the railway's own frame
- *
- * `A` is the one that is not a single EPSG realisation. The key calls it
- * RD/83, and EPSG defines RD/83 only over Sachsen (3398/3399) while the same
- * Rauenberg-based plane in the west is DHDN (5676–5680). Nothing in a file
- * says which state a chain lies in, so all of `A` is read as DHDN and
- * converted on BeTA2007, the AdV's nationwide transition — inside Sachsen
- * that is about half a metre off RD/83's own grid (ntv2Grid).
+ *           S  Soldner Netz 88, Müggelturm — Berlin, one net without a strip
+ *           U  ETRS89 (AdV), in the UTM strips
  *
  * A frame is missing from a strip where that combination has no plane: PD/83
- * is Thüringen and so exists in zones 3 and 4 only, 42/83 in 3 to 5. Such a
- * code is reported as unassigned rather than bent onto a neighbour.
+ * is Thüringen and so exists in zones 3 and 4 only, RD/83 in 4 and 5, 42/83
+ * in 3 to 5. Such a code is reported as unassigned rather than bent onto a
+ * neighbour.
+ *
+ * The third character is `0` for the official system. The key says anything
+ * else is "other Cartesian coordinates" — but the delivered GND_6403 states
+ * its 42/83 chains as `EC9`, and they land within 9 cm of the same points'
+ * DB_REF values, so a serial character other than 0 is read like 0 and
+ * named in the report (`isOfficialLagesystem`) instead of refused.
  */
 const SYS_ZONE = { C: 2, D: 3, E: 4, F: 5 }
+const SYS_UTM = { G: 25831, H: 25832, I: 25833 }
 
 const SYS_CODE = {
   A: { 2: 5676, 3: 5677, 4: 5678, 5: 5679 },
   B: { 3: 3396, 4: 3397 },
   C: { 3: 2397, 4: 2398, 5: 2399 },
+  D: { 4: 3398, 5: 3399 },
   R: { 2: 5682, 3: 5683, 4: 5684, 5: 5685 },
 }
 
@@ -64,12 +72,21 @@ const SOLDNER_EPSG = 3068
 export function epsgForLagesystem(sys) {
   const code = String(sys ?? '').trim().toUpperCase()
   if (code[1] === 'S') return SOLDNER_EPSG
+  if (code[1] === 'U') return SYS_UTM[code[0]] ?? null
   const zone = SYS_ZONE[code[0]]
   return (zone && SYS_CODE[code[1]]?.[zone]) ?? null
 }
 
-/** The Lagesystem code of a Gauss-Krüger plane (`ER0` for 5684), null for any other. */
+/** Whether a Lagesystem code names the official system (third character `0`). */
+export function isOfficialLagesystem(sys) {
+  return String(sys ?? '').trim()[2] === '0'
+}
+
+/** The Lagesystem code of a plane (`ER0` for 5684, `HU0` for 25832), null for any other. */
 export function lagesystemForEpsg(epsg) {
+  for (const [strip, code] of Object.entries(SYS_UTM)) {
+    if (code === Number(epsg)) return `${strip}U0`
+  }
   for (const [frame, zones] of Object.entries(SYS_CODE)) {
     for (const [zone, code] of Object.entries(zones)) {
       if (code !== Number(epsg)) continue
@@ -374,12 +391,13 @@ export function buildTracksFromMdb(payload, strecke, opts = {}) {
  */
 function verticalFor(payload) {
   const { station, line } = stationIndex(payload)
-  const { chains, refused } = mdbGradientChains(payload)
-  return { station, line, chains, refused, drift: 0 }
+  const { chains, refused, foreign } = mdbGradientChains(payload)
+  return { station, line, chains, refused, foreign, drift: 0, systems: new Map() }
 }
 
 /**
- * The heights of the track a chain of rows becomes, or null where none fit.
+ * The heights of the track a chain of rows becomes, with the datum they are
+ * in — `{ heights, heightEpsg }` — or null where none fit.
  *
  * Where the track sits on the line is read from its own point addresses the
  * same way the gradient is read: the stations the file states, and the element
@@ -396,23 +414,40 @@ function heightsForChain(chain, elements, vertical) {
   const begin = at[0]
   const end = at[at.length - 1]
   const length = elements.reduce((n, el) => n + (el.length ?? 0), 0)
-  const points = gradientForTrack(vertical.chains,
+  const found = gradientForTrack(vertical.chains,
     { line, bst: new Set(pads.map(bstOf)), begin, end, length })
-  if (points) {
-    // How far the line's stationing and the track's own geometry disagree over
-    // this track — reported, because it is a property of the file.
-    vertical.drift = Math.max(vertical.drift, Math.abs(Math.abs(end - begin) - length))
-  }
-  return points
+  if (!found) return null
+  // How far the line's stationing and the track's own geometry disagree over
+  // this track — reported, because it is a property of the file.
+  vertical.drift = Math.max(vertical.drift, Math.abs(Math.abs(end - begin) - length))
+  vertical.systems.set(found.sys, (vertical.systems.get(found.sys) ?? 0) + 1)
+  return { heights: found.points, heightEpsg: found.heightEpsg }
 }
 
 function gradientNotes(vertical, tracks) {
   const notes = []
-  if (!vertical.chains.length && !vertical.refused) return notes
+  if (!vertical.chains.length && !vertical.refused && !Object.keys(vertical.foreign ?? {}).length) return notes
   const withHeights = tracks.filter(t => t.heights?.length).length
   notes.push(`Gradiente: ${vertical.chains.length} Höhenketten in der Datei, `
     + `${withHeights} von ${tracks.length} Gleisen bekommen eine. `
     + 'Ein Gleis bleibt ohne, wenn keine Kette seiner Strecke über seine ganze Länge reicht.')
+  const systems = [...vertical.systems].sort((a, b) => b[1] - a[1])
+  if (systems.length) {
+    notes.push(`Höhensysteme der Gradienten: ${systems.map(([sys, n]) => {
+      const datum = hoehensystemOf(sys)
+      const name = heightDatumLabel(datum.epsg)
+      return `${sys} → ${datum.dbrh ? `${datum.dbrh} als ${name}` : name}: ${n} Gleise`
+    }).join(', ')}. Wo mehrere über einem Gleis liegen, gilt DHHN2016 vor DHHN92 vor älteren Systemen.`)
+  }
+  if (systems.some(([sys]) => hoehensystemOf(sys).dbrh)) {
+    notes.push('DBRH ist die Höhe, die DB_REF über GNSS liefert: DBRH 2016 bezieht sich auf DHHN2016, '
+      + 'DBRH 2003 auf DHHN92 – übernommen als diese Systeme, die Realisierungen weichen um wenige Zentimeter ab.')
+  }
+  const foreign = Object.entries(vertical.foreign ?? {})
+  if (foreign.length) {
+    notes.push(`Gradienten in Höhensystemen ohne EPSG-Code nicht übernommen: `
+      + `${foreign.map(([sys, n]) => `${sys} (${n} Elemente)`).join(', ')}.`)
+  }
   if (vertical.refused) {
     notes.push(`${vertical.refused} Höhenketten übersprungen – kein Punkt der Kette `
       + 'ist stationiert oder keiner trägt eine Höhe im eigenen Höhensystem.')
@@ -463,6 +498,10 @@ function oneStrecke({ rows, cantRows, vertical }, strecke, opts = {}) {
     errors.push(`Lagesystem ${s} ist nicht zugeordnet – ${bySys.get(s).length} Elemente übersprungen.`)
   }
   if (!known.length) return { tracks: [], errors }   // nothing placeable in this line
+  for (const s of known.filter(k => !isOfficialLagesystem(k))) {
+    errors.push(`Lagesystem ${s}: drittes Zeichen nicht 0 – laut Schlüssel ein sonstiges System, `
+      + `gelesen als EPSG ${epsgForLagesystem(s)} (${bySys.get(s).length} Elemente). Lage prüfen.`)
+  }
 
   // No explicit target means no transformation: every track keeps the plane its
   // elements were surveyed in. The model holds one plane per track anyway, and
@@ -489,7 +528,7 @@ function oneStrecke({ rows, cantRows, vertical }, strecke, opts = {}) {
       targetEpsg: Number(opts.targetEpsg ?? epsgForLagesystem(sys)),
       // The vertical alignment is stated over the line, not over this chain:
       // it is cut to the piece the chain runs over once the chain is known.
-      heightsFor: (chain, elements) => heightsForChain(chain, elements, vertical),
+      fieldsFor: (chain, elements) => heightsForChain(chain, elements, vertical),
     })
     for (const t of res.tracks) tracks.push({ ...t, lagesystem: sys })
     errors.push(...res.errors.map(e => (known.length > 1 ? `[${sys}] ${e}` : e)))

@@ -14,7 +14,8 @@
  *   The element names its own system (`EHSYS`, and the files met so far use
  *   `V00`, `N00`, `O00`, `T00`, `R00`), and the height in *that* system is the
  *   one that belongs to it — measured over five databases, every endpoint of
- *   every gradient element has one.
+ *   every gradient element has one. The track takes that system as its
+ *   `heightEpsg` (HOEHENSYSTEM).
  * - **Satzart 11** stations the points along their line, which is what places
  *   the gradient on a track: the horizontal elements' own points are stationed
  *   the same way, so the two chains meet on the line and not on each other's
@@ -28,6 +29,41 @@
  */
 
 const padKey = (a, b) => `${a}\u0000${b}`
+
+/**
+ * Höhensystem → the EPSG code of the vertical datum a track states, by the
+ * first letter of the key (the other two are `00` by default):
+ *
+ *   P DHHN2016 · R DHHN92 · S DHHN85 · T HN76 (SNN76) · V DHHN12, the
+ *   "neues System" of the western states before DHHN92
+ *   O DBRH 2016 · N DBRH 2003 — the railway's own realisations, by GNSS on
+ *   DB_REF. DB_REF2016 states normal heights in DHHN2016, the older DB_REF
+ *   its heights in DHHN92 (EPSG 5833 pairs the two), and where a point of the
+ *   test database is stated in both, O00 lies a median 1.7 cm above N00 —
+ *   the size of the step from DHHN92 to DHHN2016. So each is read as the
+ *   official datum it is tied to, and the report says so.
+ *
+ * U HN56, W (NN before 1912) and X (provisional or local heights) have no
+ * EPSG code: a gradient in one of them is not taken, rather than taken under
+ * a datum it is not in.
+ *
+ * `rank` is the order in which a track takes a gradient where the file
+ * states more than one over it: the current datum first, the oldest last.
+ */
+const HOEHENSYSTEM = {
+  P: { epsg: 7837, rank: 0 },
+  O: { epsg: 7837, rank: 1, dbrh: 'DBRH 2016' },
+  R: { epsg: 5783, rank: 2 },
+  N: { epsg: 5783, rank: 3, dbrh: 'DBRH 2003' },
+  V: { epsg: 7699, rank: 4 },
+  S: { epsg: 5784, rank: 5 },
+  T: { epsg: 5785, rank: 6 },
+}
+
+/** The vertical datum of a Höhensystem key, or null where it has no EPSG code. */
+export function hoehensystemOf(sys) {
+  return HOEHENSYSTEM[String(sys ?? '').trim().toUpperCase()[0]] ?? null
+}
 
 /** The Betriebsstelle a point address begins with. */
 export const bstOf = (pad) => String(pad ?? '').slice(0, 4)
@@ -210,11 +246,13 @@ function verticesOf(chain, station, height, sys) {
 }
 
 /**
- * Every gradient the file states, as `{ line, sys, from, to, points }` with
- * `points` the tangent polygon in absolute station, ascending.
+ * Every gradient the file states, as `{ line, sys, heightEpsg, from, to,
+ * points }` with `points` the tangent polygon in absolute station, ascending,
+ * the preferred height system first (HOEHENSYSTEM).
  *
  * Chains are built per height system: two systems over the same stretch are
  * two readings of the same gradient, not one chain with a step in it.
+ * `foreign` counts the elements in a system without EPSG code, per system.
  */
 export function mdbGradientChains(payload) {
   const { station, line } = stationIndex(payload)
@@ -230,7 +268,10 @@ export function mdbGradientChains(payload) {
   }
   const out = []
   let refused = 0
+  const foreign = {}
   for (const [sys, elements] of bySys) {
+    const datum = hoehensystemOf(sys)
+    if (!datum) { foreign[sys] = elements.length; continue }
     for (const chain of chainsOf(elements)) {
       const points = verticesOf(chain, station, height, sys)
       if (!points) { refused += 1; continue }
@@ -243,13 +284,16 @@ export function mdbGradientChains(payload) {
         line: pads.map(pad => line.get(pad)).find(Boolean) ?? '',
         bst: new Set(pads.map(bstOf)),
         sys,
+        heightEpsg: datum.epsg,
+        rank: datum.rank,
         from: points[0].station,
         to: points[points.length - 1].station,
         points,
       })
     }
   }
-  return { chains: out, refused }
+  out.sort((a, b) => a.rank - b.rank)
+  return { chains: out, refused, foreign }
 }
 
 /** Height on the tangent polygon at an absolute station. */
@@ -279,6 +323,11 @@ function zAt(points, s) {
  * `bst` is the set of Betriebsstellen the track's own chain touches; a
  * gradient counts as the same stretch only where the two meet in one.
  *
+ * Where several height systems reach over the track, the preferred one is
+ * taken — the chains come in that order (mdbGradientChains).
+ *
+ * Returns `{ points, sys, heightEpsg }`.
+ *
  * `length` is the track's own length, and both its ends are anchors: the
  * stationing of a line and the lengths of the elements laid along it are two
  * measurements of the same stretch and disagree by a few centimetres per
@@ -305,9 +354,10 @@ export function gradientForTrack(chains, { line, bst, begin, end, length }) {
   if (!(span > 0) || Math.abs(span - length) > 1 + 0.01 * length) return null
   const along = (s) => Math.abs(s - begin) * length / span
   const inside = chain.points.filter(p => p.station > lo + SAME && p.station < hi - SAME)
-  return [
+  const points = [
     { station: along(begin), z: zAt(chain.points, begin) },
     ...inside.map(p => ({ station: along(p.station), z: p.z, ...(p.rv ? { rv: p.rv } : {}) })),
     { station: along(end), z: zAt(chain.points, end) },
   ].sort((a, b) => a.station - b.station)
+  return { points, sys: chain.sys, heightEpsg: chain.heightEpsg }
 }

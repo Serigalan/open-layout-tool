@@ -15,6 +15,10 @@ export const DEFAULT_HEIGHT_EPSG = 7837
 export const HEIGHT_DATUMS = [
   { epsg: 7837, label: 'DHHN2016' },
   { epsg: 5783, label: 'DHHN92' },
+  // Older official datums, as the DB ASCII interface delivers them (mdbGradient).
+  { epsg: 7699, label: 'DHHN12' },
+  { epsg: 5784, label: 'DHHN85' },
+  { epsg: 5785, label: 'SNN76 (HN 76)' },
   { epsg: 5773, label: 'EGM96' },
   { epsg: 3855, label: 'EGM2008' },
 ]
