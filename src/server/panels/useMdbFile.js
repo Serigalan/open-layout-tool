@@ -29,6 +29,7 @@ export default function useMdbFile() {
       payloadRef.current = payload
       setCounts(payload.elements.length ? {
         elements: payload.elements.length, tracks: payload.tracks.length, nodes: payload.nodes.length,
+        km: payload.km.length, version: payload.version ?? '?',
       } : null)
       const list = listMdbStrecken(payload)
       setStrecken(list)

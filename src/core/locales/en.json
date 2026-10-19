@@ -653,7 +653,7 @@
   "data_exchange_mdb_desc": "Inventory database of the ASCII interface. The file is sent to the server to be converted and deleted there afterwards. Every track keeps the plane it was surveyed in.",
   "data_exchange_mdb_choose": "Choose MDB",
   "data_exchange_mdb_reading": "Sending and converting …",
-  "data_exchange_mdb_counts": "Read {elements} elements, {tracks} track sections, {nodes} nodes.",
+  "data_exchange_mdb_counts": "Read {elements} elements, {tracks} track sections, {nodes} nodes, {km} kilometrage elements (format version {version}).",
   "data_exchange_mdb_err_empty": "No alignment elements with a line number in the file.",
   "data_exchange_mdb_err_unavailable": "The conversion service cannot be reached.",
   "data_exchange_mdb_err_not_a_database": "That is not an Access database.",

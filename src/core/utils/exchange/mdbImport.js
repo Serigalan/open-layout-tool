@@ -228,6 +228,26 @@ function pointIndex(points) {
 }
 
 /**
+ * The mean point error [m] of every point, keyed like pointIndex. Satzart 12
+ * states it as mantissa and exponent (the converter multiplies them out): 3 mm
+ * for a surveyed point, 2.0 m for one digitised from a map — ProVI's mark for
+ * "digitalisiert".
+ */
+function pointErrorIndex(points) {
+  const idx = new Map()
+  for (const p of points) {
+    if (Number.isFinite(p?.mp)) idx.set(padKey(p.pad, p.sys), p.mp)
+  }
+  return idx
+}
+
+/** A point error from which on a track counts as digitised rather than surveyed [m]. */
+const DIGITISED = 1
+
+/** How far a built element may end from the end point the file states [m] — ProVI's limit. */
+const CLOSURE_TOL = 0.002
+
+/**
  * A line or track number as one spelling: Satzart 33 writes track 0 as `   0`
  * and Satzart 11 as `0000`, and they have to land in one group.
  */
@@ -353,6 +373,7 @@ function pointInfoOf(stations) {
 export function mdbRows(payload) {
   const { points, elements, cants, tracks } = payload
   const coords = pointIndex(points)
+  const pointError = pointErrorIndex(points)
   const sectioned = streckeByElement(tracks)
   // Grouping by the points' own numbers only where nothing groups them better.
   const pointInfo = tracks.length ? null : pointInfoOf(payload.stations)
@@ -389,8 +410,10 @@ export function mdbRows(payload) {
         length: Number(el?.p1),
         p2: Number(el?.p2), p3: Number(el?.p3),
         start,
-        // Where the file says the element ends, for the check of the built one.
+        // Where the file says the element ends, for the check of the built one,
+        // and how well its two points are known.
         endAt: coords.get(padKey(el?.pad2, el?.sys)) ?? null,
+        mp: Math.max(pointError.get(padKey(el?.pad1, el?.sys)) ?? 0, pointError.get(padKey(el?.pad2, el?.sys)) ?? 0),
         flagged: Number(el?.err) !== 0,
       })
     }
@@ -453,11 +476,59 @@ export function listMdbStrecken(payload) {
 export function buildTracksFromMdb(payload, strecke, opts = {}) {
   const built = mdbRows(payload)
   const vertical = verticalFor(payload)
-  const res = oneStrecke({ ...built, vertical }, strecke, opts)
+  const checks = newChecks()
+  const res = oneStrecke({ ...built, vertical, checks }, strecke, opts)
   return {
     tracks: res.tracks,
-    errors: [...built.errors, ...res.errors, ...gradientNotes(vertical, res.tracks)],
+    errors: [...built.errors, ...res.errors, ...checkNotes(checks), ...gradientNotes(vertical, res.tracks)],
   }
+}
+
+/**
+ * What the import measures about the file while it builds — summed over every
+ * line number and reported once (checkNotes): elements that do not end where
+ * the file says they do, and tracks laid on digitised points.
+ */
+function newChecks() {
+  return { checked: 0, off: 0, max: 0, lines: new Map(), digitised: [] }
+}
+
+/**
+ * Every element against its own end point: built from its start point,
+ * bearing, length and radii, it has to arrive where Satzart 12 puts its end
+ * point in the same Lagesystem — within 2 mm, the limit ProVI warns at. Only
+ * where the track is built in that plane; a transformed one is checked at its
+ * joints instead (buildTracksFromCsv).
+ */
+function checkChain(chain, elements, checks, strecke) {
+  chain.forEach((row, i) => {
+    const el = elements[i]
+    if (!row.endAt || !el?.endNode) return
+    const d = Math.hypot(el.endNode[0] - row.endAt[0], el.endNode[1] - row.endAt[1])
+    checks.checked += 1
+    if (d <= CLOSURE_TOL) return
+    checks.off += 1
+    checks.max = Math.max(checks.max, d)
+    checks.lines.set(strecke, Math.max(checks.lines.get(strecke) ?? 0, d))
+  })
+}
+
+function checkNotes(checks) {
+  const notes = []
+  if (checks.off) {
+    const worst = [...checks.lines].sort((a, b) => b[1] - a[1]).slice(0, 10)
+    notes.push(`${checks.off} von ${checks.checked} Elementen enden mehr als 2 mm neben ihrem Endpunkt in der Datei `
+      + `(größte Abweichung ${(checks.max * 1000).toFixed(1)} mm). Am stärksten: `
+      + `${worst.map(([line, d]) => `${line} ${(d * 1000).toFixed(1)} mm`).join(', ')}`
+      + `${checks.lines.size > worst.length ? ` und ${checks.lines.size - worst.length} weitere Strecken` : ''}.`)
+  }
+  if (checks.digitised.length) {
+    const shown = checks.digitised.slice(0, 20)
+    notes.push(`${checks.digitised.length} Gleise liegen ganz oder teilweise auf digitalisierten Punkten `
+      + `(mittlerer Punktfehler ab ${DIGITISED} m, meist 2 m) – Lage nur auf Meter genau: ${shown.join(', ')}`
+      + `${checks.digitised.length > shown.length ? ` und ${checks.digitised.length - shown.length} weitere` : ''}.`)
+  }
+  return notes
 }
 
 /**
@@ -548,14 +619,15 @@ function gradientNotes(vertical, tracks) {
 export function buildAllTracksFromMdb(payload, opts = {}) {
   const built = mdbRows(payload)
   const vertical = verticalFor(payload)
+  const checks = newChecks()
   const tracks = []
   const errors = [...built.errors]
   for (const { strecke } of streckenOf(built.rows)) {
-    const res = oneStrecke({ ...built, vertical }, strecke, opts)
+    const res = oneStrecke({ ...built, vertical, checks }, strecke, opts)
     tracks.push(...res.tracks)
     errors.push(...res.errors)
   }
-  return { tracks, errors: [...errors, ...gradientNotes(vertical, tracks)] }
+  return { tracks, errors: [...errors, ...checkNotes(checks), ...gradientNotes(vertical, tracks)] }
 }
 
 /** The Richtungskennzeichen most of a chain's rows are filed under. */
@@ -565,7 +637,7 @@ function richtungOf(chain) {
   return [...count].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0
 }
 
-function oneStrecke({ rows, cantRows, vertical }, strecke, opts = {}) {
+function oneStrecke({ rows, cantRows, vertical, checks = newChecks() }, strecke, opts = {}) {
   const errors = []
   const mine = rows.filter(r => r.strecke === String(strecke))
   if (!mine.length) {
@@ -608,26 +680,34 @@ function oneStrecke({ rows, cantRows, vertical }, strecke, opts = {}) {
   }
 
   const tracks = []
+  // Which built chains lie on digitised points — keyed by the elements array,
+  // which the track keeps, so it is known again once the track has its name.
+  const digitised = new WeakSet()
   for (const sys of known) {
+    const sourceEpsg = epsgForLagesystem(sys)
+    const targetEpsg = Number(opts.targetEpsg ?? sourceEpsg)
     const res = buildTracksFromCsv(bySys.get(sys), strecke, cantRows, {
-      sourceEpsg: epsgForLagesystem(sys),
-      targetEpsg: Number(opts.targetEpsg ?? epsgForLagesystem(sys)),
+      sourceEpsg,
+      targetEpsg,
       // The vertical alignment is stated over the line, not over this chain:
       // it is cut to the piece the chain runs over once the chain is known.
-      fieldsFor: (chain, elements) => ({
-        ...trackTypeFields(strecke, richtungOf(chain)),
-        ...heightsForChain(chain, elements, vertical),
-      }),
+      fieldsFor: (chain, elements) => {
+        if (targetEpsg === sourceEpsg) checkChain(chain, elements, checks, strecke)
+        if (chain.some(r => r.mp >= DIGITISED)) digitised.add(elements)
+        return {
+          ...trackTypeFields(strecke, richtungOf(chain)),
+          ...heightsForChain(chain, elements, vertical),
+        }
+      },
     })
     for (const t of res.tracks) tracks.push({ ...t, lagesystem: sys })
     errors.push(...res.errors.map(e => (known.length > 1 ? `[${sys}] ${e}` : e)))
   }
   // Each system numbers its chains from 1, so a line in two systems would hand
   // out `5510.001` twice. The number runs across the whole line instead.
-  return {
-    tracks: tracks.map((t, i) => ({ ...t, name: `${strecke}.${String(i + 1).padStart(3, '0')}` })),
-    errors,
-  }
+  const named = tracks.map((t, i) => ({ ...t, name: `${strecke}.${String(i + 1).padStart(3, '0')}` }))
+  for (const t of named) if (digitised.has(t.elements)) checks.digitised.push(t.name)
+  return { tracks: named, errors }
 }
 
 /**

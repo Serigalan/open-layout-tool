@@ -653,7 +653,7 @@
   "data_exchange_mdb_desc": "Bestandsdatenbank der ASCII-Schnittstelle. Die Datei wird zum Umwandeln an den Server übertragen und dort nach der Umwandlung gelöscht. Jedes Gleis behält die Lage, in der es vermessen wurde.",
   "data_exchange_mdb_choose": "MDB wählen",
   "data_exchange_mdb_reading": "Datei wird übertragen und umgewandelt …",
-  "data_exchange_mdb_counts": "{elements} Elemente, {tracks} Gleisabschnitte, {nodes} Knoten gelesen.",
+  "data_exchange_mdb_counts": "{elements} Elemente, {tracks} Gleisabschnitte, {nodes} Knoten, {km} Kilometrierungselemente gelesen (Formatversion {version}).",
   "data_exchange_mdb_err_empty": "Keine Trassierungselemente mit Streckennummer in der Datei.",
   "data_exchange_mdb_err_unavailable": "Der Umwandlungsdienst ist nicht erreichbar.",
   "data_exchange_mdb_err_not_a_database": "Das ist keine Access-Datenbank.",

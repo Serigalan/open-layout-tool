@@ -86,3 +86,33 @@ describe('a delivery with Gleisabschnitte', () => {
     expect(listMdbStrecken(sectioned).some(s => /UCS|_247-273/.test(s.strecke))).toBe(true)
   })
 })
+
+describe('what the import measures about the file', () => {
+  it('finds every element ending on its own end point, and no digitised point', () => {
+    const { errors } = buildAllTracksFromMdb(payload)
+    expect(errors.join(' ')).not.toMatch(/neben ihrem Endpunkt|digitalisierten Punkten/)
+  })
+
+  it('names an element that does not end where the file says', () => {
+    // The end point of the first element, moved 5 mm east.
+    const el = fixture.elements[0]
+    const moved = parseMdbPayload({
+      ...fixture,
+      points: fixture.points.map(p => (p.pad === el.pad2 && p.sys === el.sys ? { ...p, y: p.y + 0.005 } : p)),
+    })
+    const note = buildAllTracksFromMdb(moved).errors.find(e => /neben ihrem Endpunkt/.test(e))
+    // Two see it: the element that ends there, and the next one, which starts
+    // there and so arrives 5 mm beside its own, unmoved end point.
+    expect(note).toMatch(/^2 von 15 Elementen enden mehr als 2 mm neben ihrem Endpunkt in der Datei \(größte Abweichung 5\.0 mm\)/)
+  })
+
+  it('names the tracks laid on digitised points', () => {
+    const el = fixture.elements.find(e => fixture.stations.find(s => s.pad === e.pad1)?.strecke === '6100')
+    const coarse = parseMdbPayload({
+      ...fixture,
+      points: fixture.points.map(p => (p.pad === el.pad1 ? { ...p, mp: 2 } : p)),
+    })
+    const note = buildAllTracksFromMdb(coarse).errors.find(e => /digitalisierten Punkten/.test(e))
+    expect(note).toMatch(/^1 Gleise liegen ganz oder teilweise auf digitalisierten Punkten .*: 6100\.00\d\.$/)
+  })
+})
