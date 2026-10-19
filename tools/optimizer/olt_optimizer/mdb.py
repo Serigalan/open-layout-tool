@@ -40,7 +40,8 @@ def _tool():
 
 
 def _rows(path, table):
-    """One table as dicts. A table the file does not have yields nothing."""
+    """One table as dicts, without the records GND-Edit marked as deleted
+    (`bDel`). A table the file does not have yields nothing."""
     try:
         proc = subprocess.run(
             [_tool(), path, table],
@@ -51,7 +52,7 @@ def _rows(path, table):
     if proc.returncode != 0:
         return []
     text = proc.stdout.decode("utf-8", errors="replace")
-    return list(csv.DictReader(io.StringIO(text)))
+    return [r for r in csv.DictReader(io.StringIO(text)) if _int(r.get("bDel")) == 0]
 
 
 def _num(v):
@@ -72,6 +73,13 @@ def _txt(v):
     return (v or "").strip()
 
 
+def _mp(mantissa, exponent):
+    m = _num(mantissa)
+    if m is None:
+        return None
+    return m * 10 ** _int(exponent)
+
+
 def convert(path):
     """The payload `parseMdbPayload` consumes."""
     with open(path, "rb") as fh:
@@ -79,9 +87,15 @@ def convert(path):
     if head not in (MAGIC, MAGIC_ACE):
         raise MdbError("not_a_database")
 
+    # The format version (4, or 6 for AGON); the same in every row.
+    version = next((_int(r.get("TABSYS_VERSION"), None) for r in _rows(path, "TABSYS_GNDED")), None)
+
+    # `mp` is the mean point error in metres, stored as mantissa and exponent:
+    # 0.003 for a surveyed point, 2.0 for a digitised one.
     points = [
         {"pad": _txt(r.get("PAD")), "sys": _txt(r.get("LSYS")),
-         "y": _num(r.get("Y")), "x": _num(r.get("X"))}
+         "y": _num(r.get("Y")), "x": _num(r.get("X")),
+         "mp": _mp(r.get("MP"), r.get("MPEXP"))}
         for r in _rows(path, "X_ASC12_PL")
     ]
     points = [p for p in points if p["pad"] and p["y"] is not None and p["x"] is not None]
@@ -126,15 +140,16 @@ def convert(path):
             "err": _int(r.get("ErrStatus")),
         })
 
-    # Satzart 11: what a point address is stationed at, and on which line.
-    # The field is packed (mdbGradient.mdbStation reads it); it is carried
-    # through as it stands, like everything else here.
+    # Satzart 11: what a point address is stationed at, on which line or
+    # track, and which kind of axis it belongs to (`PSTRRIKZ`, the
+    # Richtungskennzeichen). The station is packed (mdbGradient.mdbStation
+    # reads it); it is carried through as it stands, like everything else here.
     stations = [
         {"pad": _txt(r.get("PAD")), "station": _num(r.get("STATION")),
-         "strecke": _txt(r.get("PSTRECKE"))}
+         "strecke": _txt(r.get("PSTRECKE")), "richtung": _int(r.get("PSTRRIKZ"), 0)}
         for r in _rows(path, "X_ASC11_PP")
     ]
-    stations = [s for s in stations if s["pad"] and s["station"]]
+    stations = [s for s in stations if s["pad"]]
 
     # Satzart 13: the height of a point, one record per height system.
     heights = [
@@ -152,6 +167,17 @@ def convert(path):
         for r in _rows(path, "X_ASC22_EH")
     ]
 
+    # Satzart 24: the kilometrage line itself, elements like those of 21 with
+    # the (packed) kilometrage at both ends.
+    km = [
+        {"pad1": _txt(r.get("PAD1")), "pad2": _txt(r.get("PAD2")),
+         "sys": _txt(r.get("EKSYS")), "typ": _int(r.get("EKTYP"), -1),
+         "p1": _num(r.get("EKPAR1")), "p2": _num(r.get("EKPAR2")),
+         "p3": _num(r.get("EKPAR3")), "ariwi": _num(r.get("EKARIWI")),
+         "akm": _num(r.get("EKAKM")), "ekm": _num(r.get("EKEKM"))}
+        for r in _rows(path, "X_ASC24_EK")
+    ]
+
     nodes = [
         {"knoten": r.get("KNOTEN") or "", "typ": _int(r.get("KNTYP"), -1),
          "pad": _txt(r.get("PAD")), "form": _txt(r.get("KNBE")),
@@ -164,6 +190,7 @@ def convert(path):
         raise MdbError("no_records")
 
     return {
+        "version": version,
         "points": points,
         "elements": elements,
         "cants": cants,
@@ -172,10 +199,11 @@ def convert(path):
         "stations": stations,
         "heights": heights,
         "gradients": gradients,
+        "km": km,
         "counts": {
             "points": len(points), "elements": len(elements), "cants": len(cants),
             "tracks": len(tracks), "nodes": len(nodes),
             "stations": len(stations), "heights": len(heights),
-            "gradients": len(gradients),
+            "gradients": len(gradients), "km": len(km),
         },
     }

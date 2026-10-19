@@ -18,6 +18,20 @@ import fixture from '../../test/fixtures/mdb_ausschnitt.json'
 
 const payload = parseMdbPayload(fixture)
 
+describe('parseMdbPayload', () => {
+  it('carries the format version and the kilometrage line through', () => {
+    const p = parseMdbPayload({ version: 6, km: [{ pad1: 'a', pad2: 'b', akm: 100140007.429 }] })
+    expect(p.version).toBe(6)
+    expect(p.km).toHaveLength(1)
+  })
+
+  it('takes the payload of an older converter without them', () => {
+    const p = parseMdbPayload({ elements: [] })
+    expect(p.version).toBe(null)
+    expect(p.km).toEqual([])
+  })
+})
+
 describe('parseBauform', () => {
   it('reads prefix, rail, radius and slope from the usual spelling', () => {
     expect(parseBauform('EW 54-190-1:9'))

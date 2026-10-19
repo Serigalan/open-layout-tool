@@ -180,6 +180,8 @@ export const RAIL_NAME = { 49: 'S49', 54: 'S54', 60: 'UIC60' }
 export function parseMdbPayload(json) {
   const arr = (v) => (Array.isArray(v) ? v : [])
   return {
+    // The format version of the database (TABSYS_VERSION: 4, or 6 for AGON).
+    version:  Number.isFinite(Number(json?.version)) && json?.version != null ? Number(json.version) : null,
     points:   arr(json?.points),
     elements: arr(json?.elements),
     cants:    arr(json?.cants),
@@ -190,6 +192,8 @@ export function parseMdbPayload(json) {
     stations:  arr(json?.stations),
     heights:   arr(json?.heights),
     gradients: arr(json?.gradients),
+    // The kilometrage line (Satzart 24) — mdbKmLine.
+    km:        arr(json?.km),
   }
 }
 
