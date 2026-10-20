@@ -5,7 +5,7 @@ import {
   planeDeviations,
 } from './switchGradient'
 import { coupleSwitchGradients, coupleSwitchHeights, pendingTurnouts } from './switchChain'
-import { turnoutSleepers } from './switchSleepers'
+import { turnoutSleepers } from '../switch/sleepers'
 import { reverseTrack } from '../track/trackModel'
 import { endPointCurvedUtm } from '../geometry/elementUtils'
 import { checkVertical } from './gradientCheck'

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { FIRST_SLEEPER, SLEEPER_SPACING, sleeperNear, sleeperOffsets, sleeperThrough, turnoutSleepers } from './switchSleepers'
+import { FIRST_SLEEPER, SLEEPER_SPACING, sleeperNear, sleeperOffsets, sleeperThrough, turnoutSleepers } from './sleepers'
 import { reverseTrack } from '../track/trackModel'
 import { branchTrack, formOf, mainTrack, sleeperAtX as exact, turnout, xAtArc, xAtMain } from '../../test/turnoutFixture'
 

@@ -12,7 +12,6 @@ in cant, the profile along a route, and ground heights from terrain models.
 | File | What it does |
 |---|---|
 | `gradientCheck.js` | HP.LN (gradients) and HP.AR (vertical curves) applied to a track; the Regelwert radius; radii governed by a curve length |
-| `switchSleepers.js` | Where a turnout's sleepers lie (along its bisector), the ldS, the sleeper through a point of either track |
 | `switchGradient.js` | The turnout plane: the branch's height from the main route's height, gradient and cant; pairs of height points on one sleeper |
 | `switchChain.js` | The coupling points at WA and ldS, the continuation behind the ldS, crossovers ≤ 20 m; `coupleSwitchHeights`, run by the store after every write |
 | `crossoverGradient.js` | Fitting both tracks of a crossover in cant into one plane (heights from cant, or cant from heights) |
@@ -79,7 +78,7 @@ ldS lies comes from the form (`lds`: distance behind the switch end WE); a form 
 and its area ends at WE.
 
 **Sleepers** lie along the **bisector** of main route and branch — the line equally far from both axes;
-sleeper k at `s_k = 0.3 + 0.6·k` m from WA along it, square to it there. The bisector is traced from WA in
+sleeper k at `s_k = 0.3 + 0.6·k` m from WA along it, square to it there (`switch/sleepers.js`). The bisector is traced from WA in
 1 m steps, each step put back where both axes are equally far. A sleeper crosses the two axes in a *pair*
 of points. Nothing here is a setting or stored.
 
@@ -174,6 +173,6 @@ resolve against a gradient.
 
 ## Tests
 
-`gradientCheck.test.js`, `switchGradient.test.js`, `switchChain.test.js`, `switchSleepers.test.js`,
+`gradientCheck.test.js`, `switchGradient.test.js`, `switchChain.test.js`, ,
 `crossoverGradient.test.js`, `routeProfile.test.js`, `elevationSource.test.js`, `elevationFill.test.js`
 next to the files.

@@ -16,6 +16,8 @@ ports, element marks — is in the `track` module; what the dialogs commit is in
 | `route.js` | A switch route `{ length, r1, r2 }` and chains of them: points, bearings and slices along a route, the branch of a turnout laid on a given stem |
 | `symbol.js` | The drawn switch: routes as polylines, the filled body between them, the LCS line, the label; `rebuildSwitchSymbol` derives all of it from the tracks on load |
 | `crossing.js` | Crossings and crossing switches (incl. Bogenkreuzungsweiche): angle, legs, end distances, connecting curves, geometry |
+| `sleepers.js` | Where a turnout's sleepers lie (along its bisector, 0.30 + 0.60·k m from WA), the ldS, the sleeper through a point of either track — the grid the heights lie on |
+| `detail.js` | A turnout in detail: sleepers (with the bracket sleepers of its variant) and rails in the turnout's own frame, for a laid turnout or a catalogue form on helper tracks |
 | `switchPlacement.js` | Where a turnout lies on a track: the toe at a station, the through route over as many elements as it covers; why it cannot lie somewhere |
 | `switchConnectionUtils.js` | The switch connection: two turnouts facing each other on two tracks and the element(s) between them |
 | `midChain.js` | One to three elements between the two branches of a switch connection, two of their values sought |
@@ -76,6 +78,19 @@ the straight the through route.
 plus the LCS line (Weichenmarke) and the label, placed from the centre of area of the body so the same
 distance means the same gap for a 1:7 and a 1:26,5. All of it is derived from the tracks on every load and
 never stored.
+
+## A turnout in detail
+
+`switchDetail(tracks, sw, { rail })` draws a laid turnout, `formDetail(form, { rail })` a catalogue form on
+two helper tracks. The frame is the turnout's own: WA at the origin, x along the main route's tangent at
+WA, y toward the branch. The sleepers are the grid of `sleepers.js` — 0.30 m behind WA, then every 0.60 m
+along the bisector, the ldS last; a grid sleeper less than half a spacing before the ldS gives way to it
+(the table counts one, and with that every form reaches the table's count to one sleeper). Each reaches
+from the outer rail of the main track to the outer rail of the branch plus 0.55 m. The sleepers of the
+variant's brackets carry on the spacing: before WA square to the main track, ±1.30 m; behind the ldS one per
+track, square to it, 1.30 m outside and inside shortened to 5 cm short of the middle between the axes. The
+rails are parallels 0.75 m beside both axes. Marks: WA, WM (R·tan(α/2) along the main route), WE and ldS on
+both tracks. The rail profile of the main track at WA picks the variant (`switchVariantFor`).
 
 ## Crossings and crossing switches
 
@@ -193,6 +208,6 @@ unmarked and joined back with their neighbours into one track; what does not sta
 ## Tests
 
 `switch.test.js`, `crossingUtils.test.js`, `connectToTrack.test.js`, `stationSlider.test.js`,
-`switchConnectionUtils.test.js`, `switchDelete.test.js`, `variants.test.js` … next to the files; `src/core/test/formChains.test.js`,
+`switchConnectionUtils.test.js`, `switchDelete.test.js`, `variants.test.js`, `sleepers.test.js`, `detail.test.js` … next to the files; `src/core/test/formChains.test.js`,
 `swappedTurnout.test.js` and `switchEnds.test.js`; every construction holds the chain invariants
 (`expectValidTrack`, `expectSwitchRoutesCarved`, `expectSwitchCantAdmissible`).

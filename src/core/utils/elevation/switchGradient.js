@@ -18,7 +18,7 @@
  * cant the branch simply has the main route's height; with it, a branch to
  * the raised side lies higher and one to the other side lower.
  *
- * The turnout lies on sleepers (switchSleepers, decision 256), and every
+ * The turnout lies on sleepers (switch/sleepers.js, decision 256), and every
  * height point between WA and the ldS sits on one of them and has a partner on
  * the same sleeper of the other track (decision 258). Either track can be
  * edited: after a write the track that led — the branch where only its heights
@@ -37,7 +37,7 @@
 
 import { gradientAt, roundHeight, turnoutLinePort, portTrack } from '../track'
 import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from '../crossSection'
-import { mainRouteLength, routeFrom, sleeperOffsets, sleeperThrough, switchLds, turnoutSleepers } from './switchSleepers'
+import { mainRouteLength, routeFrom, sleeperOffsets, sleeperThrough, switchLds, turnoutSleepers } from '../switch'
 
 export { switchLds }
 
@@ -87,7 +87,7 @@ const cantOn = (c, sl) => (sl.cant ??= sectionAtStation(c.main.track, sl.main)?.
  * How one turnout couples its branch to its main route, or null where it does
  * not: not a turnout, a track missing, no ldS for its form.
  *
- * Its sleepers (switchSleepers.turnoutSleepers) with { offset, cant }: how far
+ * Its sleepers (switch/sleepers.turnoutSleepers) with { offset, cant }: how far
  * the branch lies to the left of the main route on the ldS sleeper [m] and the
  * main route's cant there [mm].
  */

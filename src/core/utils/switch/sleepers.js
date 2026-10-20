@@ -25,7 +25,7 @@
  * answered from those steps.
  */
 
-import { switchTypeByLabel } from '../switch'
+import { switchTypeByLabel } from './catalogue'
 import {
   elementAtStation, pointAtStationUtm, trackLength, elementStations, pointOnElement,
   elementBelongsToSwitch, turnoutDivergingPort, turnoutLinePort, turnoutLineRoute, portTrack,
@@ -120,6 +120,8 @@ function poseOf(route) {
   }
   return route.pose
 }
+/** A route's point [E, N] and unit direction away from WA, `{ p, t }`, at a distance d from WA. */
+export const routePose = (route, d) => poseOf(route)(d)
 const at = (route, d) => poseOf(route)(d)?.p ?? null
 const awayAt = (route, d) => poseOf(route)(d)?.t ?? null
 
@@ -138,7 +140,7 @@ function foot(route, x, guess) {
 }
 
 /** The distance along a route where it crosses the line through `x` square to `dir`. */
-function cut(route, x, dir, guess) {
+export function routeCut(route, x, dir, guess) {
   let d = guess
   for (let i = 0; i < NEWTON; i++) {
     const pose = poseOf(route)(d)
@@ -202,7 +204,7 @@ function traceBisector(main, branch, ldsMain) {
     if (!here) return null
     s += Math.hypot(...sub(next, x))
     x = next; dir = here.d; fm = here.am; fb = here.ab
-    const cm = cut(main, x, dir, fm), cb = cut(branch, x, dir, fb)
+    const cm = routeCut(main, x, dir, fm), cb = routeCut(branch, x, dir, fb)
     if (cm == null || cb == null) return null
     m = cm; b = cb
     samples.push({ s, x, dir, m, b })

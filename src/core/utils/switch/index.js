@@ -9,7 +9,7 @@
 export {
   ALL_SWITCH_TYPES, asRadius, bauform, CROSSING_TYPES, DEFAULT_SWITCH_TYPE_IDX, SWITCH_PICK_TYPES,
   switchBranchLength, switchBranchSections, switchFormChain, switchStraightLength,
-  switchTypeByLabel,
+  switchTypeByLabel, switchVariants,
 } from './catalogue'
 export {
   connectionAnchor, connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitCount,
@@ -19,6 +19,7 @@ export {
   computeCrossingGeometryUtm, crossingAngle, crossingElements, crossingEndDistance,
   crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius,
 } from './crossing'
+export { formDetail, switchDetail } from './detail'
 export { DEFAULT_MIDS, MID_OPEN, midUnknowns } from './midChain'
 export {
   negR, switchBranchChain, switchChainBauform, switchChainBearingAt, switchChainPointUtm,
@@ -31,6 +32,9 @@ export {
   solveSwitchConnection, SWITCH_TYPES,
 } from './switchConnectionUtils'
 export { planSwitchDeletion, switchParts } from './switchDelete'
+export {
+  mainRouteLength, routeFrom, sleeperOffsets, sleeperThrough, switchLds, turnoutSleepers,
+} from './sleepers'
 export { clickStation, placeSwitchOnTrack } from './switchPlacement'
 export {
   computeSwitchGeometryUtm, crossingBodyUtm, crossingRoutesFromTracks, lcsLine, lcsLineUtm,
