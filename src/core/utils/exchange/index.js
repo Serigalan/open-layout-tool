@@ -20,4 +20,6 @@ export {
 } from './proviImport'
 export { planRailJsonImport } from './railJsonImport'
 export { exportVermEsn } from './vermEsnExport'
-export { buildElements, gradientHeightCode, gradientHeights, parseGradient, parseRecords } from './vermEsnImport'
+export {
+  buildElements, buildVermEsnBatch, gradientHeightCode, gradientHeights, parseGradient, parseRecords, readVermEsnArchive,
+} from './vermEsnImport'

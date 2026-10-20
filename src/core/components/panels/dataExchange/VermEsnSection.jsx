@@ -14,6 +14,7 @@ import MessageList from '../../form/MessageList'
 import NumberInput from '../../form/NumberInput'
 import ExchangeSection from './ExchangeSection'
 import ReferenceAxisList from './ReferenceAxisList'
+import VermEsnBatch from './VermEsnBatch'
 import VermEsnExport from './VermEsnExport'
 import InfoTip from '../../form/InfoTip'
 
@@ -43,7 +44,8 @@ function FileSlot({ label, accept, onFile, file, pickLabel, removeLabel, disable
  * it is stated in — as a track, or as a reference axis (Paket V): only its
  * points every centimetre, at most REFERENCE_MAX_LENGTH of it, the stretch
  * chosen in the axis' own stationing where it is longer (Entscheidung 195).
- * Below, the export of the project's tracks into the same files.
+ * Then the batch: all pairs of a zip at once (VermEsnBatch). Below, the
+ * export of the project's tracks into the same files.
  */
 export default function VermEsnSection() {
   const { t, fill, num } = useI18n()
@@ -211,6 +213,7 @@ export default function VermEsnSection() {
       {done && <p className="msg-ok msg-small">{done}</p>}
       <MessageList items={errors} />
       <MessageList items={notes} kind="warn" />
+      <VermEsnBatch epsg={epsg} />
       <ReferenceAxisList />
       <VermEsnExport />
     </ExchangeSection>

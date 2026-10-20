@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode } from './vermEsnImport'
+import { zipSync } from 'fflate'
+import {
+  parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode, readVermEsnArchive, buildVermEsnBatch,
+} from './vermEsnImport'
 
 /** A GRA file: header (num = number of points), then station, height, radius, tangent length, point number. */
 function graBuffer(rows, num = rows.length) {
@@ -109,5 +112,50 @@ describe('gradientHeightCode — the height status the file names', () => {
     new Uint8Array(buf).set([0x00, 0x7e, 0x70, 0x01], 8)
     expect(gradientHeightCode(buf, '5550R000_EA0_V00_VR.GRA')).toBe('V00')
     expect(gradientHeightCode(buf, 'gradient.gra')).toBeNull()
+  })
+})
+
+describe('Verm.ESN batch — TRA and GRA pairs from one zip', () => {
+  const tra = () => new Uint8Array(traBuffer([{ station: 1000, length: 100 }, { station: 1100, length: 50 }, { station: 1150, length: 0 }]))
+  const gra = () => new Uint8Array(graBuffer([[1000, 80], [1150, 81.5]]))
+  const zip = zipSync({
+    'Lage/5550L.TRA': tra(), 'Hoehe/5550l.gra': gra(),
+    '5550R.tra': tra(),
+    '6340.GRA': gra(),
+    '__MACOSX/Lage/._5550L.TRA': new Uint8Array(4), 'liesmich.txt': new Uint8Array(1),
+  })
+
+  it('pairs a GRA with the TRA of the same name, case and folders ignored', () => {
+    const { pairs, orphans, duplicates } = readVermEsnArchive(zip)
+    expect(pairs.map(p => [p.name, p.traFile, p.graFile])).toEqual([
+      ['5550L', '5550L.TRA', '5550l.gra'], ['5550R', '5550R.tra', null],
+    ])
+    expect(orphans).toEqual(['6340.GRA'])
+    expect(duplicates).toEqual([])
+    expect(parseRecords(pairs[0].tra)).toHaveLength(3)
+  })
+
+  it('reads a name that comes twice once', () => {
+    const { pairs, duplicates } = readVermEsnArchive(zipSync({ 'a/X.TRA': tra(), 'b/x.tra': tra() }))
+    expect(pairs).toHaveLength(1)
+    expect(duplicates).toEqual(['x.tra'])
+  })
+
+  it('builds one track per pair in the chosen plane and height datum, named after the file', () => {
+    const { pairs } = readVermEsnArchive(zip)
+    const { tracks, files } = buildVermEsnBatch(pairs, { epsg: 5683, heightEpsg: 7837, takenNames: ['5550R'] })
+    expect(tracks.map(t => [t.name, t.epsg, t.heightEpsg])).toEqual([['5550L', 5683, 7837], ['5550R.001', 5683, undefined]])
+    expect(tracks[0].elements).toHaveLength(2)
+    expect(tracks[0].heights[0]).toMatchObject({ station: 0, z: 80 })
+    expect(files.map(f => [f.name, f.imported, f.count, f.heights > 0])).toEqual([['5550L', true, 2, true], ['5550R.001', true, 2, false]])
+  })
+
+  it('leaves out a TRA whose elements do not join, as the single import refuses it', () => {
+    const buf = traBuffer([{ station: 0, length: 100 }, { station: 100, length: 50 }, { station: 150, length: 0 }])
+    new DataView(buf).setFloat64(78 + 24, 5700100.5, true)   // second element 0.5 m off
+    const { tracks, files } = buildVermEsnBatch([{ name: 'bad', traFile: 'bad.TRA', tra: buf, gra: null }], { epsg: 5683 })
+    expect(tracks).toEqual([])
+    expect(files[0]).toMatchObject({ imported: false })
+    expect(files[0].errors[0]).toMatch(/Anschluss-Abweichung/)
   })
 })

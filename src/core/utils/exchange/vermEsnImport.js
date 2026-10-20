@@ -1,4 +1,6 @@
+import { unzipSync } from 'fflate'
 import { cantSign } from '../rules'
+import { generateId, nextTrackName, rebuildCoords } from '../track'
 import { gradientStretch } from './proviImport'
 import { arcFrom, straightFrom, transitionElement } from '../geometry'
 
@@ -208,4 +210,88 @@ export function gradientHeights(points, startStation, length) {
     notes: covered ? [] : [`Gradiente (${range}) deckt die Achse nicht ganz ab – dort bleibt das Gleis `
       + 'ohne Höhen. Sie lassen sich im Höhenprofil aus dem Gelände ergänzen.'],
   }
+}
+
+// ── Batch (.zip) ────────────────────────────────────────────────────────────
+
+/** The bytes of an archive entry as an ArrayBuffer of their own, as parseRecords and parseGradient read them. */
+const ownBuffer = (data) => data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
+
+/**
+ * The Verm.ESN files of a zip, paired by name: a GRA belongs to the TRA whose
+ * file name it shares up to the extension (case ignored, folders left out — a
+ * file is known by its name alone, as in readProviArchive). `buffer` is the zip
+ * as an ArrayBuffer or Uint8Array.
+ *
+ * Returns { pairs, orphans, duplicates } — `pairs` one per TRA, sorted by name,
+ * as { name, tra, gra, traFile, graFile } (name without extension, tra/gra as
+ * ArrayBuffers, gra null where there is none); `orphans` the GRA files without
+ * a TRA; `duplicates` the files whose name came twice (the first one is read).
+ */
+export function readVermEsnArchive(buffer) {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
+  const tras = new Map()
+  const gras = new Map()
+  const duplicates = []
+  for (const [path, data] of Object.entries(unzipSync(bytes))) {
+    const file = path.split('/').pop()
+    // macOS keeps resource forks beside the files (`__MACOSX/…`, `._name`).
+    if (!file || file.startsWith('._') || path.startsWith('__MACOSX/')) continue
+    const match = /^(.+)\.(tra|gra)$/i.exec(file)
+    if (!match) continue
+    const into = match[2].toLowerCase() === 'tra' ? tras : gras
+    const key = match[1].toLowerCase()
+    if (into.has(key)) { duplicates.push(file); continue }
+    into.set(key, { name: match[1], file, data: ownBuffer(data) })
+  }
+  const pairs = [...tras.entries()]
+    .map(([key, tra]) => ({
+      name: tra.name, traFile: tra.file, tra: tra.data,
+      graFile: gras.get(key)?.file ?? null, gra: gras.get(key)?.data ?? null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+  const orphans = [...gras.entries()].filter(([key]) => !tras.has(key)).map(([, g]) => g.file)
+  return { pairs, orphans, duplicates }
+}
+
+/**
+ * The tracks of a batch (readVermEsnArchive): every pair in plane `epsg`, its
+ * gradient's heights in `heightEpsg`, named after the files — where the name is
+ * taken already (`takenNames`, or by an earlier pair) the next free one after it.
+ * A TRA that is unreadable or whose elements do not join is left out, as the
+ * single import refuses it; a GRA that does not fit leaves its track without
+ * heights.
+ *
+ * Returns { tracks, files } — `files` one per pair as { name, traFile, graFile,
+ * imported, count, heights, errors, notes }.
+ */
+export function buildVermEsnBatch(pairs, { epsg, heightEpsg = null, takenNames = [] }) {
+  const names = new Set(takenNames)
+  const tracks = []
+  const files = []
+  for (const pair of pairs) {
+    const { elements, errors, startStation } = buildElements(parseRecords(pair.tra), Number(epsg))
+    const file = { name: pair.name, traFile: pair.traFile, graFile: pair.graFile, imported: false, count: 0, heights: 0, errors, notes: [] }
+    files.push(file)
+    if (errors.length || !elements.length) continue
+    const length = elements.reduce((sum, el) => sum + (el.length ?? 0), 0)
+    let heights = null
+    if (pair.gra) {
+      const points = parseGradient(pair.gra)
+      if (points.length < 2) file.notes.push('GRA ohne Gradiente (weniger als zwei Punkte) – ohne Höhen importiert.')
+      else {
+        const fitted = gradientHeights(points, startStation, length)
+        heights = fitted.heights
+        file.notes.push(...fitted.notes)
+      }
+    }
+    const name = names.has(pair.name) ? nextTrackName(pair.name, names) : pair.name
+    names.add(name)
+    tracks.push({
+      id: generateId(), name, epsg: Number(epsg), coordinates: rebuildCoords(elements), elements,
+      ...(heights ? { heights, heightEpsg: Number(heightEpsg) } : {}),
+    })
+    Object.assign(file, { name, imported: true, count: elements.length, heights: heights?.length ?? 0 })
+  }
+  return { tracks, files }
 }
