@@ -3,10 +3,12 @@
  * its rails, in the turnout's own frame — WA at the origin, x along the main
  * route's tangent at WA, y toward the side the branch leaves to.
  *
- * The sleepers are the grid the heights already lie on (sleepers.js, decision
- * 256): the first 0.30 m behind WA, then every 0.60 m along the bisector, the
- * last through sleeper (ldS) last — taking the place of the grid sleeper
- * before it where that lies less than half a spacing short of it. Each reaches from the outer rail of the
+ * The sleepers are the grid the heights lie on (sleepers.js, decisions 256 and
+ * 349): WA and WE are rail joints in the middle of a sleeper bay, so the first
+ * sleeper lies 0.30 m behind WA and the last before WE 0.30 m before it, the
+ * ones between evenly spaced at about 0.60 m, and every 0.60 m behind WE. The
+ * last through sleeper (ldS) is the grid sleeper nearest to where the
+ * catalogue puts it. Each reaches from the outer rail of the
  * main track to the outer rail of the branch, 0.55 m beyond either — the
  * 0.75 m from axis to rail plus that overhang is the 1.30 m half of an
  * ordinary 2.60 m sleeper.
@@ -27,8 +29,10 @@ import {
   endPointCurvedUtm, endPointStraightUtm, bearingAfterUtm, transitionBearingAtUtm, transitionPointAtUtm,
 } from '../geometry'
 import { elementBelongsToSwitch } from '../track'
-import { switchFormChain, switchStraightLength, switchTangents, switchTypeByLabel, switchVariantFor } from './catalogue'
-import { FIRST_SLEEPER, SLEEPER_SPACING, routeCut, routePose, turnoutSleepers } from './sleepers'
+import { switchFormChain, switchStraightLength, switchTangents, switchTypeByLabel } from './catalogue'
+import {
+  FIRST_SLEEPER, SLEEPER_SPACING, routeCut, routePose, sleepersWeToLds, tableLds, turnoutSleepers,
+} from './sleepers'
 
 /** From a track's axis to the middle of its rail [m] (decision 341). */
 export const RAIL_OFFSET = 0.75
@@ -80,14 +84,15 @@ const branchRouteLength = (track, sw) => (track.elements ?? [])
  * `m` negative), 'main' or 'branch' (behind the ldS on that track). `rails`:
  * [{ track: 'main' | 'branch', side: 'outer' | 'inner', points }], inner the
  * rail toward the other track. `marks`: WA, WM, WE and ldS, the last two on
- * both tracks.
+ * both tracks, and `joints` — WA and WE as the rail joints they are, a point
+ * on each rail: `joints.WA` the two of the main track, `joints.WE` those of
+ * the main track and of the branch.
  */
 export function switchDetail(tracks, sw, { formOf = switchTypeByLabel, rail = null } = {}) {
-  const frame = turnoutSleepers(tracks, sw, { formOf })
+  const frame = turnoutSleepers(tracks, sw, { formOf, rail })
   if (!frame) return null
-  const { main, branch } = frame
+  const { main, branch, variant } = frame
   const form = formOf(sw.label)
-  const variant = form ? switchVariantFor(form, rail) : null
   const [before, behindMain, behindBranch] = variant?.klammer ?? [0, 0, 0]
 
   const wa = routePose(main, 0)
@@ -98,35 +103,58 @@ export function switchDetail(tracks, sw, { formOf = switchTypeByLabel, rail = nu
 
   // The side the branch lies to, seen from the main route — at the ldS, where
   // the two are well apart.
-  const ldsMain = routePose(main, frame.lds)
-  const ldsBranch = routePose(branch, frame.ldsBranchDistance)
-  const side = Math.sign(dot(sub(ldsBranch.p, ldsMain.p), left(ldsMain.t))) || 1
+  const ldsMainPose = routePose(main, frame.lds)
+  const ldsBranchPose = routePose(branch, frame.ldsBranchDistance)
+  const side = Math.sign(dot(sub(ldsBranchPose.p, ldsMainPose.p), left(ldsMainPose.t))) || 1
   const toward = (t) => { const n = left(t); return [n[0] * side, n[1] * side] }
+  const away = (t) => { const n = toward(t); return [-n[0], -n[1]] }
 
   const origin = wa.p
   const X = wa.t
   const Y = toward(X)
   const local = (p) => { const v = sub(p, origin); return [dot(v, X), dot(v, Y)] }
-
-  // A grid sleeper closer than half a spacing before the ldS is the ldS: two
-  // sleepers a few centimetres apart do not exist, and the table counts one —
-  // with it, its count is reached to one sleeper for every form. The heights
-  // keep the grid as it is (decision 256).
-  const through = frame.sleepers.filter((sl, i, all) => !(
-    i === all.length - 2 && all[i + 1].k === 'lds' && all[i + 1].s - sl.s < SLEEPER_SPACING / 2))
+  // How far along direction n a sleeper reaches from an axis whose own normal is `normal`.
+  const reach = (n, normal) => SLEEPER_HALF / Math.max(0.5, Math.abs(dot(n, normal)))
 
   const sleepers = []
-  for (const sl of through) {
+  // WA–WE: square to the bisector, as many as the table counts (decision 350).
+  const sWe = frame.weBisector ?? Infinity
+  for (const sl of (frame.grid ?? frame.sleepers).filter(s => s.k !== 'lds' && s.s < sWe - 1e-6)) {
     const P = routePose(main, sl.m), Q = routePose(branch, sl.b)
     if (!P || !Q) continue
-    // Square to the bisector, whose direction is the mean of the two tracks'.
     const n = toward(unit(add(P.t, Q.t)) ?? P.t)
-    const reachMain = SLEEPER_HALF / Math.max(0.5, Math.abs(dot(n, toward(P.t))))
-    const reachBranch = SLEEPER_HALF / Math.max(0.5, Math.abs(dot(n, toward(Q.t))))
     sleepers.push({
-      kind: sl.k === 'lds' ? 'lds' : 'grid', k: sl.k, m: sl.m, b: sl.b, main: sl.main, branch: sl.branch,
-      ends: [local(add(P.p, n, -reachMain)), local(add(Q.p, n, reachBranch))],
+      kind: 'grid', k: sleepers.length, m: sl.m, b: sl.b, main: sl.main, branch: sl.branch,
+      ends: [local(add(P.p, n, -reach(n, toward(P.t)))), local(add(Q.p, n, reach(n, toward(Q.t))))],
     })
+  }
+
+  // WE to the ldS: laid off along both following axes from WE — the same
+  // distance on the main track and on the branch, the ldS at the table's — so
+  // each sleeper joins the two points, and that gives the ldS its angle.
+  const weBranch = branchRouteLength(branch.track, sw)
+  const lds = tableLds(variant, frame.lds - frame.we)
+  let ldsDir = null
+  for (const d of sleepersWeToLds(lds)) {
+    const m = frame.we + d, b = weBranch + d
+    if (m > main.length || b > branch.length) break
+    const P = routePose(main, m), Q = routePose(branch, b)
+    const n = P && Q ? unit(sub(Q.p, P.p)) : null
+    if (!n) break
+    sleepers.push({
+      kind: 'grid', k: sleepers.length, m, b, main: main.station(m), branch: branch.station(b),
+      ends: [local(add(P.p, n, -reach(n, toward(P.t)))), local(add(Q.p, n, reach(n, toward(Q.t))))],
+    })
+    ldsDir = n
+  }
+  // The last of them is the ldS — or, where the table puts the ldS before WE,
+  // the last sleeper before it.
+  const ldsSleeper = sleepers[sleepers.length - 1]
+  if (ldsSleeper) ldsSleeper.kind = 'lds'
+  if (!ldsDir && ldsSleeper) {
+    const [e0, e1] = ldsSleeper.ends
+    const v = unit(sub(e1, e0))
+    ldsDir = [v[0] * X[0] + v[1] * Y[0], v[0] * X[1] + v[1] * Y[1]]
   }
 
   for (let j = 1; j <= before; j++) {
@@ -138,29 +166,38 @@ export function switchDetail(tracks, sw, { formOf = switchTypeByLabel, rail = nu
     })
   }
 
-  // Behind the ldS: one sleeper per track, shortened on the inner side.
-  const behind = (own, other, start, otherStart, count, kind, inward) => {
+  // Behind the ldS: one sleeper per track every 0.60 m, carrying the ldS's
+  // angle on and turning linearly until the last one lies square to its
+  // track; on the inner side shortened to 5 cm short of the middle between
+  // the two axes.
+  const behind = (own, other, start, otherStart, count, kind, inward, dirAtLds) => {
+    if (!dirAtLds) return
+    const P0 = routePose(own, start)
+    const n0 = inward(P0.t)
+    const turn = Math.atan2(n0[0] * dirAtLds[1] - n0[1] * dirAtLds[0], dot(n0, dirAtLds))
     for (let j = 1; j <= count; j++) {
       const d = start + SLEEPER_SPACING * j
       if (d > own.length) break
       const P = routePose(own, d)
       if (!P) break
-      const n = inward(P.t)
-      const hit = routeCut(other, P.p, P.t, otherStart + SLEEPER_SPACING * j)
+      const normal = inward(P.t)
+      const a = turn * (1 - j / count)
+      const n = [normal[0] * Math.cos(a) - normal[1] * Math.sin(a), normal[0] * Math.sin(a) + normal[1] * Math.cos(a)]
+      const hit = routeCut(other, P.p, left(n), otherStart + SLEEPER_SPACING * j)
       const Q = hit == null ? null : routePose(other, hit)
       const gap = Q ? Math.hypot(...sub(Q.p, P.p)) : Infinity
-      const inner = Math.max(0, Math.min(SLEEPER_HALF, gap / 2 - SLEEPER_GAP))
+      const full = reach(n, normal)
+      const inner = Math.max(0, Math.min(full, gap / 2 - SLEEPER_GAP))
       sleepers.push({
         kind, k: j, [kind === 'main' ? 'm' : 'b']: d, [kind]: own.station(d),
-        ends: [local(add(P.p, n, -SLEEPER_HALF)), local(add(P.p, n, inner))],
+        ends: [local(add(P.p, n, -full)), local(add(P.p, n, inner))],
       })
     }
   }
-  behind(main, branch, frame.lds, frame.ldsBranchDistance, behindMain, 'main', toward)
-  behind(branch, main, frame.ldsBranchDistance, frame.lds, behindBranch, 'branch', (t) => {
-    const n = toward(t)
-    return [-n[0], -n[1]]
-  })
+  const ldsM = ldsSleeper?.m ?? frame.lds
+  const ldsB = ldsSleeper?.b ?? frame.ldsBranchDistance
+  behind(main, branch, ldsM, ldsB, behindMain, 'main', toward, ldsDir)
+  behind(branch, main, ldsB, ldsM, behindBranch, 'branch', away, ldsDir && [-ldsDir[0], -ldsDir[1]])
 
   // The rails, from the first sleeper's end to the last one's, plus a little.
   const railsOf = (track, from, to, pose, inward) => {
@@ -176,20 +213,52 @@ export function switchDetail(tracks, sw, { formOf = switchTypeByLabel, rail = nu
     return [{ track, side: 'outer', points: out.outer }, { track, side: 'inner', points: out.inner }]
   }
   const mainFrom = before ? FIRST_SLEEPER - SLEEPER_SPACING * before - RAIL_BEYOND : 0
-  const mainTo = Math.min(main.length, frame.lds + SLEEPER_SPACING * behindMain + RAIL_BEYOND)
-  const branchTo = Math.min(branch.length, frame.ldsBranchDistance + SLEEPER_SPACING * behindBranch + RAIL_BEYOND)
+  const mainTo = Math.min(main.length, Math.max(frame.we, ldsM) + SLEEPER_SPACING * behindMain + RAIL_BEYOND)
+  const branchTo = Math.min(branch.length, Math.max(weBranch, ldsB) + SLEEPER_SPACING * behindBranch + RAIL_BEYOND)
   const rails = [
     ...railsOf('main', mainFrom, mainTo, mainPose, toward),
     ...railsOf('branch', 0, branchTo, (d) => routePose(branch, d), toward),
   ]
 
   const a = tangentLength(form)
-  const weBranch = branchRouteLength(branch.track, sw)
+  const weMain = routePose(main, frame.we)
+  const weBranchPose = weBranch > 0 ? routePose(branch, weBranch) : null
+  // A joint on both rails of a track (decision 349): on each rail in the
+  // middle of the bay between the two sleepers it lies between — measured
+  // along that rail, since the sleepers stand square to the bisector and not
+  // to the track, and 0.75 m off the axis the bay moves by up to some
+  // centimetres. Without a sleeper on one side, 0.30 m from the other.
+  const onRails = (P, d, key) => {
+    const near = sleepers.filter(s => s[key] != null)
+    const before = near.filter(s => s[key] < d).reduce((a, s) => (!a || s[key] > a[key] ? s : a), null)
+    const after = near.filter(s => s[key] > d).reduce((a, s) => (!a || s[key] < a[key] ? s : a), null)
+    const tl = [dot(P.t, X), dot(P.t, Y)]
+    return [-RAIL_OFFSET, RAIL_OFFSET].map(off => {
+      const r = local(add(P.p, toward(P.t), off))
+      // Where the rail, r + u·tl, crosses a sleeper's centre line.
+      const cross = (s) => {
+        if (!s) return null
+        const [e0, e1] = s.ends
+        const e = sub(e1, e0)
+        const den = tl[0] * e[1] - tl[1] * e[0]
+        if (Math.abs(den) < 1e-12) return null
+        return ((e0[0] - r[0]) * e[1] - (e0[1] - r[1]) * e[0]) / den
+      }
+      const ub = cross(before), ua = cross(after)
+      const u = ub != null && ua != null ? (ub + ua) / 2
+        : ua != null ? ua - FIRST_SLEEPER : ub != null ? ub + FIRST_SLEEPER : 0
+      return add(r, tl, u)
+    })
+  }
   const marks = {
     WA: [0, 0],
     WM: a != null && a <= main.length ? local(routePose(main, a).p) : null,
-    WE: { main: local(routePose(main, frame.we).p), branch: weBranch > 0 ? local(routePose(branch, weBranch).p) : null },
-    ldS: { main: local(ldsMain.p), branch: local(ldsBranch.p) },
+    WE: { main: local(weMain.p), branch: weBranchPose ? local(weBranchPose.p) : null },
+    ldS: { main: local(routePose(main, ldsM).p), branch: local(routePose(branch, ldsB).p) },
+    joints: {
+      WA: onRails(wa, 0, 'm'),
+      WE: [onRails(weMain, frame.we, 'm'), ...(weBranchPose ? [onRails(weBranchPose, weBranch, 'b')] : [])],
+    },
   }
 
   const counted = (kind) => sleepers.filter(s => s.kind === kind).length

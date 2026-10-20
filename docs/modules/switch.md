@@ -101,16 +101,23 @@ never stored.
 
 ## A turnout in detail
 
-`switchDetail(tracks, sw, { rail })` draws a laid turnout, `formDetail(form, { rail })` a catalogue form on
-two helper tracks. The frame is the turnout's own: WA at the origin, x along the main route's tangent at
-WA, y toward the branch. The sleepers are the grid of `sleepers.js` — 0.30 m behind WA, then every 0.60 m
-along the bisector, the ldS last; a grid sleeper less than half a spacing before the ldS gives way to it
-(the table counts one, and with that every form reaches the table's count to one sleeper). Each reaches
-from the outer rail of the main track to the outer rail of the branch plus 0.55 m. The sleepers of the
-variant's brackets carry on the spacing: before WA square to the main track, ±1.30 m; behind the ldS one per
-track, square to it, 1.30 m outside and inside shortened to 5 cm short of the middle between the axes. The
-rails are parallels 0.75 m beside both axes. Marks: WA, WM (R·tan(α/2) along the main route), WE and ldS on
-both tracks. The rail profile of the main track at WA picks the variant (`switchVariantFor`).
+`switchDetail(tracks, sw)` draws a laid turnout, `formDetail(form, { rail })` a catalogue form on two helper
+tracks. The frame is the turnout's own: WA at the origin, x along the main route's tangent at WA, y toward the
+branch. The variant is the one of the main track's rail at WA (`turnoutSleepers` reads it with
+`superstructureAt`).
+
+WA and WE are rail joints in the middle of a sleeper bay. From WA to WE lie as many sleepers as the variant's
+count less those from WE to the ldS, spaced evenly (0.596–0.617 m for the DB forms, about 0.63 m for the
+run-out turnouts) and square to the bisector — the grid of `sleepers.js`, which the heights snap to as well.
+From WE the sleepers are laid off along both following axes: at WE + 0.30 + 0.60·k on the main track and the
+same distance behind the branch's own WE, the ldS at the table's distance (the catalogue's where there is no
+variant; the table's −0.244 of the 215 – 1:4.8 makes the last sleeper before WE the ldS). Each joins its two
+axis points, which fixes its angle. With this every variant reaches the table's count exactly. The sleepers
+of the variant's brackets carry on: before WA square to the main track, ±1.30 m; behind the ldS one per track
+every 0.60 m, starting at the ldS's angle and turning linearly until the last lies square to its track, 1.30 m
+outside and inside shortened to 5 cm short of the middle between the axes. Every sleeper reaches 0.55 m beyond
+the outer rail; the rails are parallels 0.75 m beside both axes. WA and WE are drawn as joints, a point on each
+rail in the middle of its bay; WM (t1 along the main route) and the ldS on the axes.
 
 ## Crossings and crossing switches
 

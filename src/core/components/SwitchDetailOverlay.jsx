@@ -1,8 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { loadSwitches, loadTracks } from '../storage'
 import { formDetail, switchDetail, switchTypeByLabel } from '../utils/switch'
-import { portEnd, portTrack, trackLength, turnoutLinePort } from '../utils/track'
-import { superstructureAt } from '../utils/crossSection'
 import { useI18n } from '../locales/i18nContext'
 import { useProject } from '../hooks/useStore'
 import { PALETTE } from '../styles/palette'
@@ -27,14 +25,6 @@ function segmentDistance(p, a, b) {
   const len2 = dot(ab, ab)
   const t = len2 > 0 ? Math.max(0, Math.min(1, dot(ap, ab) / len2)) : 0
   return Math.hypot(ap[0] - ab[0] * t, ap[1] - ab[1] * t)
-}
-
-/** The rail profile of a laid turnout's main track at WA — what picks its variant. */
-function railAtToe(tracks, sw) {
-  const port = turnoutLinePort(sw)
-  const main = tracks.find(t => t.id === portTrack(sw, port))
-  if (!main) return null
-  return superstructureAt(main, portEnd(sw, port) === 'END' ? trackLength(main) : 0).rail
 }
 
 /**
@@ -63,8 +53,8 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
     if (!project) return null
     const sw = loadSwitches().find(s => s.switchId === switchId)
     if (!sw) return null
-    const tracks = loadTracks()
-    return { name: sw.name ?? null, detail: switchDetail(tracks, sw, { rail: railAtToe(tracks, sw) }) }
+    // The variant follows from the main track's rail at WA (switch/sleepers).
+    return { name: sw.name ?? null, detail: switchDetail(loadTracks(), sw) }
     // `project` is the store's live record: a change to the tracks redraws.
   }, [project, switchId, formLabel, rail])
   const detail = shown?.detail ?? null
@@ -159,11 +149,14 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
       : `${where} · ${fill('switch_detail_stations', { main: num(s.main, { digits: 3 }), branch: num(s.branch, { digits: 3 }) })}`
   }
 
+  // WM and the ldS on the axes; WA and WE are rail joints, a point on each
+  // rail, named once beside the pair (decision 349).
   const marks = detail && [
-    ['WA', detail.marks.WA], ['WM', detail.marks.WM],
-    ['WE', detail.marks.WE.main], ['WE', detail.marks.WE.branch],
-    ['ldS', detail.marks.ldS.main], ['ldS', detail.marks.ldS.branch],
+    ['WM', detail.marks.WM], ['ldS', detail.marks.ldS.main], ['ldS', detail.marks.ldS.branch],
   ].filter(([, p]) => p)
+  const joints = detail && [
+    ['WA', detail.marks.joints.WA], ...detail.marks.joints.WE.map(pair => ['WE', pair]),
+  ]
 
   return (
     <div className="track-table-overlay switch-detail-overlay" style={overlay.style}>
@@ -198,6 +191,16 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
                 <text x={sx(p)} y={sy(p) - 7} textAnchor="middle" className="switch-detail-mark">{label}</text>
               </g>
             ))}
+            {joints.map(([label, pair], i) => {
+              // Named above the upper of the two rails.
+              const top = pair.reduce((a, b) => (sy(b) < sy(a) ? b : a))
+              return (
+                <g key={`j${i}`}>
+                  {pair.map((p, j) => <circle key={j} cx={sx(p)} cy={sy(p)} r={3.5} fill={PALETTE.mapSelected} />)}
+                  <text x={sx(top)} y={sy(top) - 8} textAnchor="middle" className="switch-detail-mark">{label}</text>
+                </g>
+              )
+            })}
           </svg>
         )}
       </div>

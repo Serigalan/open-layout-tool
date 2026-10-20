@@ -1,17 +1,40 @@
 import { describe, it, expect } from 'vitest'
-import { FIRST_SLEEPER, SLEEPER_SPACING, sleeperNear, sleeperOffsets, sleeperThrough, turnoutSleepers } from './sleepers'
+import { FIRST_SLEEPER, SLEEPER_SPACING, sleeperGrid, sleeperNear, sleeperOffsets, sleeperThrough, turnoutSleepers } from './sleepers'
 import { reverseTrack } from '../track/trackModel'
 import { branchTrack, formOf, mainTrack, sleeperAtX as exact, turnout, xAtArc, xAtMain } from '../../test/turnoutFixture'
+
+describe('the sleeper grid (decision 349)', () => {
+  it('spaces WA–WE evenly with both joints 0.3 m from a sleeper, and every 0.6 m behind WE', () => {
+    const g = sleeperGrid(27.139, 31.1)
+    expect(g[0]).toBeCloseTo(0.3, 12)
+    const atWe = g.findIndex(s => s > 27.139)
+    expect(atWe).toBe(45)
+    expect(27.139 - g[atWe - 1]).toBeCloseTo(0.3, 12)
+    expect(g[atWe] - 27.139).toBeCloseTo(0.3, 12)
+    expect(g[1] - g[0]).toBeCloseTo((27.139 - 0.6) / 44, 12)
+    expect(g.at(-1)).toBeCloseTo(27.139 + 3.9, 9)
+  })
+})
 
 describe('the sleepers of a turnout', () => {
   const frame = turnoutSleepers([mainTrack(), branchTrack()], turnout(), { formOf })
 
-  it('lie 0.3 m behind WA and then every 0.6 m along the bisector', () => {
+  // WA and WE are rail joints in the middle of a bay (decision 349).
+  it('lie with WA and WE in the middle of a bay: evenly between, every 0.6 m behind WE', () => {
     const grid = frame.sleepers.filter(sl => sl.k !== 'lds')
-    grid.forEach((sl, i) => {
+    const sWe = frame.weBisector
+    const inner = grid.filter(sl => sl.s < sWe)
+    expect(inner[0].s).toBeCloseTo(FIRST_SLEEPER, 9)
+    expect(sWe - inner[inner.length - 1].s).toBeCloseTo(FIRST_SLEEPER, 9)
+    const d = (sWe - 2 * FIRST_SLEEPER) / (inner.length - 1)
+    expect(Math.abs(d - SLEEPER_SPACING)).toBeLessThan(SLEEPER_SPACING / (2 * (inner.length - 1)))
+    inner.forEach((sl, i) => {
       expect(sl.k).toBe(i)
-      expect(sl.s).toBeCloseTo(FIRST_SLEEPER + SLEEPER_SPACING * i, 9)
+      expect(sl.s).toBeCloseTo(FIRST_SLEEPER + d * i, 9)
     })
+    grid.filter(sl => sl.s > sWe).forEach((sl, j) => expect(sl.s).toBeCloseTo(sWe + FIRST_SLEEPER + SLEEPER_SPACING * j, 9))
+    // WE is where the sleeper through the main route's switch end crosses the bisector.
+    expect(exact(xAtArc(sWe)).main).toBeCloseTo(30, 3)
     for (const sl of [grid[0], grid[25], grid[grid.length - 1]]) {
       const e = exact(xAtArc(sl.s))
       expect(sl.main).toBeCloseTo(e.main, 3)

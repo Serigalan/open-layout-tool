@@ -6,12 +6,23 @@
  * lie as far from the main route's axis as from the branch's. At the switch
  * toe (WA) it runs with the main route — the branch leaves it tangentially —
  * at the switch end (WE) along the bisector of the turnout angle, and in a
- * symmetric turnout it is the axis of symmetry. Sleeper k lies
+ * symmetric turnout it is the axis of symmetry. Each sleeper lies square to it.
  *
- *   s_k = 0.3 + 0.6 · k
+ * WA and WE are rail joints, and a joint lies in the middle of a sleeper bay
+ * (decision 349): the first sleeper 0.30 m behind WA, the last before WE 0.30
+ * m before it, and the ones between spaced evenly. How many there are is the
+ * table's sleeper count of the variant the turnout is built as, less those
+ * from WE to the table's ldS (decision 350) — 0.596–0.617 m apart for the DB
+ * forms; a form without a count spaces them as near 0.60 m as a whole number
+ * allows. Behind WE they carry on every 0.60 m, from 0.30 m behind it:
  *
- * along the bisector from WA and square to it there; where it crosses the two
- * axes are the two points of a pair. The last through sleeper (ldS) stays where
+ *   s_k = 0.3 + d · k   (WA–WE, d = (s_WE − 0.6) / (n − 1))
+ *   s_j = s_WE + 0.3 + 0.6 · j
+ *
+ * along the bisector from WA, s_WE where the sleeper through WE of the main
+ * route crosses it. Where a sleeper crosses the two axes are the two points of
+ * a pair. With this grid the DB table's sleeper counts are met to one sleeper,
+ * and its ldS lies on a grid sleeper. The last through sleeper (ldS) stays where
  * the catalogue puts it — WE plus `lds` along the main route — as the sleeper
  * through that point of the main route, square to the bisector there; the grid
  * ends with the sleeper before it. Nothing here is a setting, and nothing is
@@ -25,7 +36,8 @@
  * answered from those steps.
  */
 
-import { switchTypeByLabel } from './catalogue'
+import { superstructureAt } from '../crossSection'
+import { switchTypeByLabel, switchVariantFor } from './catalogue'
 import {
   elementAtStation, pointAtStationUtm, trackLength, elementStations, pointOnElement,
   elementBelongsToSwitch, turnoutDivergingPort, turnoutLinePort, turnoutLineRoute, portTrack,
@@ -235,7 +247,7 @@ const geometries = new WeakMap()
  * turnout, a track missing or in another plane, no ldS for its form, a track
  * shorter than the turnout.
  *
- * Returns { sw, main, branch, we, lds, ldsMain, ldsBranch, samples, sleepers }:
+ * Returns { sw, main, branch, we, lds, ldsMain, ldsBranch, weBisector, samples, sleepers, grid }:
  * `main` / `branch` the two tracks as seen from WA (routeFrom), `we` and
  * `lds` the distances WA–WE and WA–ldS along the main route, `ldsMain` /
  * `ldsBranch` the stations of the ldS on either track, and `sleepers` every
@@ -245,7 +257,7 @@ const geometries = new WeakMap()
  * `branch` its station on each and `a` / `y` how it sits in the main track's
  * frame (sleeperOffsets).
  */
-export function turnoutSleepers(tracks, sw, { formOf } = {}) {
+export function turnoutSleepers(tracks, sw, { formOf = switchTypeByLabel, rail = null } = {}) {
   if (!isTurnout(sw)) return null
   const behindWe = switchLds(sw, formOf)
   if (behindWe == null) return null
@@ -253,39 +265,105 @@ export function turnoutSleepers(tracks, sw, { formOf } = {}) {
   const branch = routeFrom(tracks, sw, turnoutDivergingPort(sw))
   if (!main || !branch || main.track.id === branch.track.id) return null
   if (Number(main.track.epsg) !== Number(branch.track.epsg)) return null
+  // The variant the turnout is built as: the one of the main track's rail at
+  // WA (decision 347) — its sleeper count and ldS place the sleepers.
+  const form = formOf(sw.label)
+  const profile = rail ?? superstructureAt(main.track, main.station(0)).rail
+  const variant = form ? switchVariantFor(form, profile) : null
 
-  const key = [main.track.elements, branch.track.elements, main.sense, branch.sense, behindWe]
+  const key = [main.track.elements, branch.track.elements, main.sense, branch.sense, behindWe, variant]
   const cached = geometries.get(sw)
   let geo = cached && cached.key.every((v, i) => v === key[i]) ? cached.geo : undefined
   if (geo === undefined) {
-    geo = buildGeometry(sw, main, branch, behindWe)
+    geo = buildGeometry(sw, main, branch, behindWe, variant)
     geometries.set(sw, { key, geo })
   }
-  return geo && { sw, main, branch, ...geo }
+  return geo && { sw, main, branch, variant, ...geo }
 }
 
-function buildGeometry(sw, main, branch, behindWe) {
+/**
+ * How far behind WE the ldS lies for the sleepers [m] (decision 350): the
+ * table's, from the variant, where there is one — the catalogue's otherwise.
+ * The heights keep the catalogue's (decision 342). 0 or less: the ldS is the
+ * last sleeper before WE (the 215 – 1:4.8, −0.244 in the table).
+ */
+export const tableLds = (variant, behindWe) => (Number.isFinite(variant?.masse?.lds) ? variant.masse.lds : behindWe)
+
+/** The sleepers from WE to the ldS, the ldS included: WE + 0.3 + 0.6 · j short of it, then it (decision 350). */
+export function sleepersWeToLds(lds) {
+  if (!(lds > 0)) return []
+  const out = []
+  for (let j = 0; FIRST_SLEEPER + SLEEPER_SPACING * j < lds - FIRST_SLEEPER + EPS; j++) out.push(FIRST_SLEEPER + SLEEPER_SPACING * j)
+  out.push(lds)
+  return out
+}
+
+/**
+ * How many sleepers lie WA–WE (decision 350): the variant's count less those
+ * from WE to the ldS — or null where it states none, or where that would
+ * space them outside 0.5–0.7 m.
+ */
+function sleepersWaToWe(variant, behindWe, sWe) {
+  const total = variant?.schwellenzahl
+  if (!total) return null
+  const n = total - sleepersWeToLds(tableLds(variant, behindWe)).length
+  const d = n > 1 ? (sWe - 2 * FIRST_SLEEPER) / (n - 1) : 0
+  return d >= 0.5 && d <= 0.7 ? n : null
+}
+
+/**
+ * The grid positions along the bisector [m from WA] up to `sEnd`: WA–WE
+ * spaced evenly with both joints in the middle of a bay, every 0.60 m behind
+ * WE (decision 349). `sWe` is where WE lies on the bisector, `count` how
+ * many sleepers lie WA–WE (the table's, decision 350; as near 0.60 m apart as
+ * a whole number allows without one). A turnout too short for two bays keeps
+ * the plain grid.
+ */
+export function sleeperGrid(sWe, sEnd, count = null) {
+  const out = []
+  const inner = sWe - 2 * FIRST_SLEEPER
+  if (!(inner >= SLEEPER_SPACING)) {
+    for (let k = 0; FIRST_SLEEPER + SLEEPER_SPACING * k <= sEnd + EPS; k++) out.push(FIRST_SLEEPER + SLEEPER_SPACING * k)
+    return out
+  }
+  const n = count ?? Math.round(inner / SLEEPER_SPACING) + 1
+  const d = inner / (n - 1)
+  for (let k = 0; k < n; k++) out.push(FIRST_SLEEPER + d * k)
+  for (let j = 0; sWe + FIRST_SLEEPER + SLEEPER_SPACING * j <= sEnd + EPS; j++) {
+    out.push(sWe + FIRST_SLEEPER + SLEEPER_SPACING * j)
+  }
+  return out.filter(s => s <= sEnd + EPS)
+}
+
+function buildGeometry(sw, main, branch, behindWe, variant) {
   const we = mainRouteLength(main.track, sw)
   if (!(we > 0)) return null
   const lds = we + behindWe
   if (lds > main.length) return null
-  const samples = traceBisector(main, branch, lds)
+  // Traced half a spacing past the ldS where the track allows it, so the grid
+  // sleeper nearest to the ldS is known even where it lies behind it.
+  const beyond = Math.min(main.length, lds + SLEEPER_SPACING / 2)
+  const samples = (beyond > lds + EPS && traceBisector(main, branch, beyond)) || traceBisector(main, branch, lds)
   if (!samples) return null
   const last = sampleAt(samples, 'm', lds)
   if (!last || !(last.b > 0)) return null
-  const sleepers = []
-  for (let k = 0; ; k++) {
-    const s = FIRST_SLEEPER + SLEEPER_SPACING * k
-    if (s >= last.s - EPS) break
+  const weAt = sampleAt(samples, 'm', we)
+  const at = (s, k) => {
     const p = sampleAt(samples, 's', s)
-    if (!p) break
-    sleepers.push({ k, s, m: p.m, b: p.b, main: main.station(p.m), branch: branch.station(p.b) })
+    return p && { k, s, m: p.m, b: p.b, main: main.station(p.m), branch: branch.station(p.b) }
   }
+  // Every grid sleeper up to half a spacing past the ldS — the drawing shows
+  // the ldS on the one nearest to it; the heights take the grid up to the ldS
+  // and the ldS itself where the catalogue puts it.
+  const sWe = weAt?.s ?? 0
+  const grid = sleeperGrid(sWe, last.s + SLEEPER_SPACING / 2, sleepersWaToWe(variant, behindWe, sWe))
+    .map((s, k) => at(s, k)).filter(Boolean)
+  const sleepers = grid.filter(sl => sl.s < last.s - EPS)
   sleepers.push({ k: 'lds', s: last.s, m: lds, b: last.b, main: main.station(lds), branch: branch.station(last.b) })
-  for (const sl of sleepers) Object.assign(sl, sleeperOffsets({ main, branch }, sl) ?? { a: 0, y: 0 })
+  for (const sl of [...grid, ...sleepers]) Object.assign(sl, sleeperOffsets({ main, branch }, sl) ?? { a: 0, y: 0 })
   return {
     we, lds, ldsMain: main.station(lds), ldsBranch: branch.station(last.b), ldsBranchDistance: last.b,
-    samples, sleepers,
+    weBisector: weAt?.s ?? null, samples, sleepers, grid,
   }
 }
 
