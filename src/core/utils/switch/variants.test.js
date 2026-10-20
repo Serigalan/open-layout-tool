@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
-  ALL_SWITCH_TYPES, CROSSING_TYPES, SWITCH_CONNECTION_STAGES, SWITCH_PICK_TYPES, switchMark, switchMarkDistance,
-  switchStraightLength, switchTypeByLabel, switchVariantFor, switchVariants,
+  ALL_SWITCH_TYPES, CROSSING_TYPES, SWITCH_CONNECTION_STAGES, SWITCH_PICK_TYPES, hasCompoundBranch, switchBranchSections,
+  switchMark, switchMarkDistance, switchStraightLength, switchTangents, switchTypeByLabel, switchVariantFor,
+  switchVariants,
 } from './catalogue'
 
 // The variants are the rows of the DB switch table (800.0120, 05/2024); the
@@ -14,7 +15,7 @@ const straightPiece = (form) => (form.branch ?? [])
 describe('switch variants', () => {
   it('every turnout row is built by its form to 3 mm', () => {
     let rows = 0
-    for (const form of ALL_SWITCH_TYPES) {
+    for (const form of ALL_SWITCH_TYPES.filter(f => !hasCompoundBranch(f))) {
       const alpha = Math.atan(1 / form.ratio)
       for (const v of switchVariants(form)) {
         rows++
@@ -63,7 +64,7 @@ describe('switch variants', () => {
 })
 
 describe('the fb and gb turnouts (decision 343)', () => {
-  const frogs = ALL_SWITCH_TYPES.filter(f => f.herzstueck)
+  const frogs = ALL_SWITCH_TYPES.filter(f => f.herzstueck && !hasCompoundBranch(f))
 
   it('are forms of their own, each built as the rows of the table that name it', () => {
     expect(frogs.map(f => f.label)).toEqual([
@@ -103,5 +104,53 @@ describe('the fb and gb turnouts (decision 343)', () => {
     expect(SWITCH_PICK_TYPES.filter(f => f.klasse === 'sonderbauform').map(f => f.label)).toContain('760 – 1:14 gb')
     const staged = SWITCH_CONNECTION_STAGES.flat()
     for (const f of frogs) expect(staged.includes(f), f.label).toBe(f.label === '2500 – 1:26.5')
+  })
+})
+
+describe('the clothoid and compound-curve turnouts (decision 344)', () => {
+  const forms = ALL_SWITCH_TYPES.filter(hasCompoundBranch)
+
+  it('are the nine of the table, all fb', () => {
+    expect(forms.map(f => f.label)).toEqual([
+      '6000/3700 – 1:32.5 fb', '7000/6000 – 1:42 fb',
+      '3000/1500 – 1:18.132 fb', '3000/1500/∞ – 1:23.735 fb', '4800/2450 – 1:24.257 fb', '4800/2450/∞ – 1:30.686 fb',
+      '10000/4000 – 1:32.05 fb', '10000/4000/∞ – 1:39.113 fb', '16000/6100 – 1:40.154 fb',
+    ])
+    expect(forms.every(f => f.herzstueck === 'fb')).toBe(true)
+  })
+
+  it('turn through the frog angle over their stated sections', () => {
+    for (const form of forms) {
+      const angle = form.branch.reduce((sum, s) => sum + (s.type === 'clothoid'
+        ? s.length * (1 / s.R1 + (s.R2 ? 1 / s.R2 : 0)) / 2
+        : s.type === 'arc' ? s.length / s.R : 0), 0)
+      expect(angle, form.label).toBeCloseTo(Math.atan(1 / form.ratio), 6)
+    }
+  })
+
+  it('reach t1, t2 and l of the table to 3 cm — a run-out branch to where the tracks stand s apart', () => {
+    for (const form of forms) {
+      const m = switchVariants(form)[0].masse
+      const { t1, t2 } = switchTangents(form)
+      expect(Math.abs(t1 - m.t1), `${form.label} t1`).toBeLessThan(0.03)
+      expect(Math.abs(t2 - m.t2), `${form.label} t2`).toBeLessThan(0.03)
+      expect(Math.abs(switchStraightLength(form) - m.l), `${form.label} l`).toBeLessThan(0.03)
+    }
+    // 3000/1500/∞: WE on the straight behind the run-out; 10000/4000/∞: 4 m before its end.
+    expect(switchBranchSections(switchTypeByLabel('3000/1500/∞ – 1:23.735 fb')).at(-1)).toMatchObject({ type: 'straight' })
+    const cut = switchBranchSections(switchTypeByLabel('10000/4000/∞ – 1:39.113 fb')).at(-1)
+    expect(cut.type).toBe('clothoid')
+    expect(cut.length).toBeCloseTo(51.08, 1)
+  })
+
+  it('run at the speed of their smallest radius (decision 348)', () => {
+    expect(forms.map(f => [f.R, f.speed])).toEqual([
+      [3700, 160], [6000, 200], [1500, 100], [1500, 100], [2450, 130], [2450, 130], [4000, 160], [4000, 160], [6100, 200],
+    ])
+  })
+
+  it('take the Weichenmarke from the construction with t2', () => {
+    const form = switchTypeByLabel('6000/3700 – 1:32.5 fb')
+    expect(switchMark(form)).toBeCloseTo(15.9, 6)
   })
 })

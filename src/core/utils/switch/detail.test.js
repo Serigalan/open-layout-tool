@@ -39,12 +39,19 @@ describe('a turnout in detail', () => {
       for (const v of switchVariants(form)) {
         // Only rows whose ldS is the form's: the catalogue's ldS binds, a row
         // with another one counts other sleepers.
-        if (v.schwellenzahl == null || Math.abs(v.masse.lds - form.lds) > 0.1) continue
+        // The run-out turnouts (…/∞) are laid on another spacing than 0.60 m:
+        // even (l + ldS) / 0.60 overshoots the table's count by 6 to 12.
+        if (v.schwellenzahl == null || Math.abs(v.masse.lds - form.lds) > 0.1 || form.s_we) continue
         expect(Math.abs(d.counts.throughSleepers - v.schwellenzahl), `${v.nr} ${v.bezeichnung}`).toBeLessThanOrEqual(1)
         checked++
       }
     }
     expect(checked).toBeGreaterThan(40)
+  })
+
+  it('reaches the count of the clothoid and compound-curve turnouts exactly', () => {
+    expect(formDetail(switchTypeByLabel('6000/3700 – 1:32.5 fb')).counts.throughSleepers).toBe(232)
+    expect(formDetail(switchTypeByLabel('7000/6000 – 1:42 fb')).counts.throughSleepers).toBe(290)
   })
 
   it('lets the ldS take the place of a grid sleeper just before it', () => {

@@ -263,7 +263,7 @@ export function buildSwitchOnTrack({
   const branchId = generateId()
   const newRoute = swapped ? 'main' : 'branch'
   const newSegments = swapped ? swapped.stemSegments : g.branchSegments
-  const branchEls = newSegments.map((seg, i) => {
+  const branchEls = newSegments.map((seg) => {
     const base = switchRouteVaries(seg)
       ? {
           elementType: 2, transitionType: 'clothoid', r1: seg.r1, r2: seg.r2,
@@ -271,9 +271,9 @@ export function buildSwitchOnTrack({
           endNode:   [seg.endUtm.easting, seg.endUtm.northing],
           bearing: seg.bearing, endBearing: seg.endBearing,
           length: seg.length,
-          cantStart: place.cantAt(seg.s0, i), cantEnd: place.cantAt(seg.s0 + seg.length, i),
+          cantStart: place.cantAt(seg.s0, seg), cantEnd: place.cantAt(seg.s0 + seg.length, seg),
         }
-      : constantBranchElement(seg, plain ? cant : place.cantAt(seg.s0, i))
+      : constantBranchElement(seg, plain ? cant : place.cantAt(seg.s0, seg))
     return justify({
       ...base,
       ...switchElementMark(identity, newRoute),

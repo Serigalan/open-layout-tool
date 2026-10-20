@@ -198,9 +198,9 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   // them is banked for, so the sign of the cant has to be read against each.
   // Radius and cant run linearly along each piece, and so does the deficiency
   // wherever the route keeps its side: the worst end of any piece is the route's.
-  const worstDef = (segments) => Math.max(...segments.flatMap((seg, i) => [
-    computeCantDefSigned(speed, seg.r1, place.cantAt(seg.s0, i)),
-    computeCantDefSigned(speed, seg.r2, place.cantAt(seg.s0 + seg.length, i)),
+  const worstDef = (segments) => Math.max(...segments.flatMap((seg) => [
+    computeCantDefSigned(speed, seg.r1, place.cantAt(seg.s0, seg)),
+    computeCantDefSigned(speed, seg.r2, place.cantAt(seg.s0 + seg.length, seg)),
   ]))
   // Swapped, the host track is the branch and the straight the through route.
   const [stemRoute, branchRoute] = swapped ? [g.branchSegments, g.stemSegments] : [g?.stemSegments, g?.branchSegments]

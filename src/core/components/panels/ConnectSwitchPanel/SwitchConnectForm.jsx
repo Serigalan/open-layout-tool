@@ -161,9 +161,9 @@ export default function SwitchConnectForm({ onCommitted }) {
   const worstCant = plain || !place ? Math.abs(cant)
     : place.spans.reduce((m, sp) => Math.max(m, Math.abs(sp.cantStart), Math.abs(sp.cantEnd)), 0)
   const g = placement?.geom ?? null
-  const worstDef = (segments) => Math.max(...segments.flatMap((seg, i) => [
-    computeCantDefSigned(speed, seg.r1, place.cantAt(seg.s0, i)),
-    computeCantDefSigned(speed, seg.r2, place.cantAt(seg.s0 + seg.length, i)),
+  const worstDef = (segments) => Math.max(...segments.flatMap((seg) => [
+    computeCantDefSigned(speed, seg.r1, place.cantAt(seg.s0, seg)),
+    computeCantDefSigned(speed, seg.r2, place.cantAt(seg.s0 + seg.length, seg)),
   ]))
   const [stemRoute, branchRoute] = g?.swapped ? [g.branchSegments, g.stemSegments] : [g?.stemSegments, g?.branchSegments]
   const cantDef = plain ? computeCantDef(speed, sw.R, cant) : g ? worstDef(branchRoute) : 0

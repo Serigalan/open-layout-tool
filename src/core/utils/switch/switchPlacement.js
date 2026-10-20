@@ -70,7 +70,9 @@ export function clickStation(track, elIdx, clickUtm) {
  *                     (stations along the element as it runs from the toe) and the
  *                     cant at both ends, signed in the opening direction
  *   endUtm            the switch end
- *   cantAt(s, i?)     cant `s` from the toe, on span `i` where a joint is ambiguous
+ *   cantAt(s, on?)    cant `s` from the toe; where a joint is ambiguous on the span
+ *                     that holds the piece `on` ({ s0, length }) — a branch piece
+ *                     lies on the stretch of stem whose middle it shares
  */
 export function placeSwitchOnTrack(track, station, reversed, length) {
   const els  = track?.elements ?? []
@@ -151,8 +153,9 @@ export function placeSwitchOnTrack(track, station, reversed, length) {
   const endEl  = els[last.elIdx]
   const endUtm = pointAtStationUtm(endEl, reversed ? endEl.length - last.to : last.to, epsg)
 
-  const cantAt = (s, i = null) => {
-    const k  = i ?? spans.findIndex(sp => s <= sp.s0 + sp.length)
+  const cantAt = (s, on = null) => {
+    const at = on ? on.s0 + on.length / 2 : s
+    const k  = spans.findIndex(sp => at <= sp.s0 + sp.length)
     const sp = spans[k < 0 ? spans.length - 1 : k]
     return sp.length > 0
       ? sp.cantStart + (sp.cantEnd - sp.cantStart) * (s - sp.s0) / sp.length

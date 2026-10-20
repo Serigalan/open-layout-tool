@@ -220,7 +220,8 @@ export function switchChainSlice(chain, a, b) {
  * So the branch parts wherever *either* side parts: where the elements under the
  * turnout part, and where the form's sections do. A form of a single arc — every
  * one the tables hold — has no interior boundary of its own, and the branch then
- * parts exactly where the stem's elements do.
+ * parts exactly where the stem's elements do. A clothoid section's curvature
+ * runs from `signedR` to `signedREnd`.
  */
 export function switchBranchChain(formChain, stem) {
   const sections = Array.isArray(formChain) ? formChain : [formChain]
@@ -232,8 +233,25 @@ export function switchBranchChain(formChain, stem) {
   const out = []
   let s = 0
   for (const section of sections) {
+    // A clothoid section of the form (`signedREnd`, decision 344) adds a
+    // curvature that runs linearly along it; added to the stem's, which runs
+    // linearly along each piece too, every piece is a clothoid again.
+    const varies = 'signedREnd' in section && section.signedREnd !== section.signedR
+    const k0 = curvatureOf(section.signedR)
+    const k1 = varies ? curvatureOf(section.signedREnd) : k0
+    let u = 0                          // where the piece starts within the section
     for (const piece of switchChainSlice(onStem, s, s + section.length)) {
-      out.push(switchBranchRoute(section.signedR, piece, piece.length))
+      if (!varies) {
+        out.push(switchBranchRoute(section.signedR, piece, piece.length))
+      } else {
+        const kForm = (v) => k0 + (k1 - k0) * v / section.length
+        out.push({
+          length: piece.length,
+          r1: radiusOfCurvature(curvatureOf(piece.r1) + kForm(u)),
+          r2: radiusOfCurvature(curvatureOf(piece.r2) + kForm(u + piece.length)),
+        })
+      }
+      u += piece.length
     }
     s += section.length
   }

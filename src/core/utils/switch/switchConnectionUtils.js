@@ -279,6 +279,7 @@ function buildConnection(sw, frame, speed, mids = null) {
   const formChain = switchBranchSections(sw).map(section => ({
     length:  section.length,
     signedR: section.R == null ? null : Math.sign(Rf) * section.R,
+    ...(section.type === 'clothoid' ? { signedREnd: section.REnd == null ? null : Math.sign(Rf) * section.REnd } : {}),
   }))
 
   // Branch 1: the form laid on the stretch of stem it covers, so on a straight

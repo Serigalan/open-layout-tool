@@ -2,7 +2,7 @@
   "katalog": {
     "id": "db-ril-800-0120",
     "title": "DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen",
-    "katalog_version": "0.5.0",
+    "katalog_version": "0.6.0",
     "status": "draft",
     "date": "2026-10-20",
     "language": "de",
@@ -21,6 +21,15 @@
     "label_note": "Die Labels sind Schlüssel: ein gespeichertes Projekt schlägt seine Form darüber nach (switchTypeByLabel, switchModel.SWITCH_FORM_VERSION). Ein Label wird deshalb nicht umbenannt, auch wenn die Ril die Form anders schreibt."
   },
   "changelog": [
+    {
+      "version": "0.6.0",
+      "date": "2026-10-20",
+      "changes": [
+        "Neu: die Klothoiden- und Korbbogenweichen der Weichentabelle DB 800.0120 (05/2024) als eigene Formen: 6000/3700 – 1:32.5 fb, 7000/6000 – 1:42 fb, 3000/1500 – 1:18.132 fb, 3000/1500/∞ – 1:23.735 fb, 4800/2450 – 1:24.257 fb, 4800/2450/∞ – 1:30.686 fb, 10000/4000 – 1:32.05 fb, 10000/4000/∞ – 1:39.113 fb, 16000/6100 – 1:40.154 fb (Paket WD, Entscheidung 344)",
+        "Neuer Abschnitt clothoid im Zweig, Bögen mit eigener Länge; R der Form ist ihr kleinster Radius, die Geschwindigkeit folgt aus ihm (Entscheidung 348), die Weichenmarke aus switchMarkDistance mit t2 (Entscheidung 346)",
+        "Neues Feld s_we: bei den drei Formen mit Auslaufklothoide (…/∞) liegt das WE dort, wo der Gleisabstand das s der Tabelle erreicht — 3,57 m hinter dem Ende der Elemente bzw. 0,58 m und 4,15 m davor; so treffen t1 und t2 die Tabelle auf 2 cm"
+      ]
+    },
     {
       "version": "0.5.0",
       "date": "2026-10-20",
@@ -119,13 +128,14 @@
     "dLcs": "Abstand der Weichenmarke vom Weichen- bzw. Kreuzungsende [m]; bei einer Kreuzung negativ möglich",
     "minl": "Mindestzwischengerade [m] zwischen zwei Weichen — steht hier noch je Form, gehört aber an v (OP.W.01)",
     "lds": "Abstand der letzten durchgehenden Schwelle (ldS) hinter dem Weichenende (WE) [m], entlang des Stammgleises; 0 bei einer Form, deren WE die ldS ist. Vom Weichenanfang (WA) aus liegt die ldS um die Länge der Weiche (WA bis WE) und diesen Abstand weiter. Bis dorthin liegen Stamm- und Zweiggleis auf einer Ebene: das Zweiggleis hat die Höhe des Stammgleises, in der Überhöhung um u/1500 · Achsabstand gehoben bzw. gesenkt. Fehlt der Wert, wird nicht gekoppelt, und der Weichenbereich reicht im Höhenplan bis WE",
-    "branch": "Der Zweig als Folge seiner Abschnitte ab der Spitze: arc (Radius R der Form) und straight mit eigener Länge [m]. Fehlt der Eintrag, ist der Zweig genau ein Bogen.",
+    "branch": "Der Zweig als Folge seiner Abschnitte ab der Spitze: arc (Radius R der Form, oder ein eigener R; mit length, wo er einer von mehreren ist), clothoid (von R1 nach R2, R2 = null für die Gerade, mit length) und straight mit eigener Länge [m]. Fehlt der Eintrag, ist der Zweig genau ein Bogen bis zur Neigung der Form.",
     "symmetric": "Beide Fahrwege verlassen die Spitze auf demselben Radius, je durch den halben Winkel — die Form hat keinen durchgehenden Strang",
     "lt": "Tangente einer Kreuzung [m]: vom Kreuzungspunkt bis zu jedem ihrer vier Enden",
     "masse": "Die gelieferte Tabellenzeile im Wortlaut der Ril, soweit sie vorliegt. Nichts rechnet damit: sie bindet (B.10) und ist der Prüfstein für die Konstruktion aus R, ratio und branch.",
     "verbindung": "stufe und rang der Ausweichreihenfolge — Festlegung dieses Werkzeugs, siehe verbindung unten",
     "varianten": "Die Ausführungen einer Form nach der Weichentabelle DB 800.0120 (05/2024): DB-Nummer, Bezeichnung, Schienenprofil, Schwellen (beton oder holz), Klasse der Ausführung, zungen (gekürzt bzw. innen/außen), schwellenzahl von WA bis ldS, klammer = [Schwellen vor WA, hinter der ldS im Stammgleis, hinter der ldS im Zweiggleis], zs_wa (Zungenspitze vor WA [m]), r_ibw_min (kleinster Radius als Innenbogenweiche [m]) und masse — die Tabellenzeile im Wortlaut (a, b, l, lz, s, c, lds; bei Kreuzungen l1, l2, t1, t2, lz, lds je Seite). Die Geometrie bleibt die der Form, und ihre ldS bindet (Entscheidung 342): masse.lds ist auf 0,1 m gerundet und wird nicht verwendet.",
-    "herzstueck": "Herzstück, wo es nicht starr ist: fb = federnd beweglich, gb = gelenkig beweglich — die Weiche wird mit u_f = 130 mm befahren. Eine solche Form ist eine eigene Form, auch wo ihre Geometrie einer starren gleicht (Entscheidung 343). Fehlt das Feld, ist das Herzstück starr."
+    "herzstueck": "Herzstück, wo es nicht starr ist: fb = federnd beweglich, gb = gelenkig beweglich — die Weiche wird mit u_f = 130 mm befahren. Eine solche Form ist eine eigene Form, auch wo ihre Geometrie einer starren gleicht (Entscheidung 343). Fehlt das Feld, ist das Herzstück starr.",
+    "s_we": "Gleisabstand am WE [m] — nur bei einem Zweig, der mit einer Klothoide bis zur Geraden ausläuft: die Weiche reicht bis dorthin, wo die beiden Gleise s_we auseinander stehen (das s der Tabelle), vor dem Ende der Auslaufklothoide oder auf der Geraden dahinter. Die Abzweigelemente stehen, wie die Tabelle sie nennt."
   },
   "verbindung": {
     "note": "Festlegung dieses Werkzeugs, nicht der Ril. Die Weichenverbindung versucht die Formen Stufe für Stufe: erreicht keine Form einer Stufe die Mindestzwischengerade für den gegebenen Abstand, geht sie zur nächsten. Innerhalb einer Stufe entscheidet rang — bei gleicher Geschwindigkeit steht die flachere Form voran, weil die schärfere das ist, worauf ausgewichen wird.",
@@ -1325,6 +1335,99 @@
             "s": 1.847,
             "c": 1.846,
             "lds": 8.1
+          }
+        }
+      ]
+    },
+    {
+      "label": "6000/3700 – 1:32.5 fb",
+      "lds": 16.5,
+      "art": "weiche",
+      "klasse": "regel",
+      "herzstueck": "fb",
+      "R": 3700,
+      "ratio": 32.5,
+      "speed": 160,
+      "minl": null,
+      "branch": [
+        {
+          "type": "clothoid",
+          "R1": 6000,
+          "R2": 3700,
+          "length": 44.0
+        },
+        {
+          "type": "arc",
+          "R": 3700,
+          "length": 78.243
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1019,
+          "bezeichnung": "60-6000/3700-1:32.5 fb",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellenzahl": 232,
+          "klammer": [
+            3,
+            19,
+            21
+          ],
+          "zs_wa": 3.102,
+          "masse": {
+            "t1": 64.569,
+            "t2": 57.684,
+            "l": 122.253,
+            "s": 1.774,
+            "lds": 16.5,
+            "A": "651.7"
+          }
+        }
+      ]
+    },
+    {
+      "label": "7000/6000 – 1:42 fb",
+      "lds": 19.5,
+      "art": "weiche",
+      "klasse": "regel",
+      "herzstueck": "fb",
+      "R": 6000,
+      "ratio": 42,
+      "speed": 200,
+      "minl": null,
+      "branch": [
+        {
+          "type": "arc",
+          "R": 7000,
+          "length": 80.0
+        },
+        {
+          "type": "arc",
+          "R": 6000,
+          "length": 74.259
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1020,
+          "bezeichnung": "60-7000/6000-1:42 fb",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellenzahl": 290,
+          "klammer": [
+            3,
+            22,
+            24
+          ],
+          "zs_wa": 4.237,
+          "masse": {
+            "t1": 80.104,
+            "t2": 74.162,
+            "l": 154.266,
+            "s": 1.765,
+            "lds": 19.5,
+            "A": null
           }
         }
       ]
@@ -3209,6 +3312,330 @@
             "s": 1.774,
             "c": 1.774,
             "lds": 13.5
+          }
+        }
+      ]
+    },
+    {
+      "label": "3000/1500 – 1:18.132 fb",
+      "lds": 3.3,
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "herzstueck": "fb",
+      "R": 1500,
+      "ratio": 18.132,
+      "speed": 100,
+      "minl": null,
+      "branch": [
+        {
+          "type": "clothoid",
+          "R1": 3000,
+          "R2": 1500,
+          "length": 27.0
+        },
+        {
+          "type": "arc",
+          "R": 1500,
+          "length": 62.393
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1066,
+          "bezeichnung": "60-3000/1500-1:18.132 fb",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "masse": {
+            "t1": 47.624,
+            "t2": 41.792,
+            "l": 89.416,
+            "s": 2.302,
+            "lds": 3.3,
+            "A": "284.6"
+          }
+        }
+      ]
+    },
+    {
+      "label": "3000/1500/∞ – 1:23.735 fb",
+      "lds": 9.22,
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "herzstueck": "fb",
+      "R": 1500,
+      "ratio": 23.735,
+      "speed": 100,
+      "minl": null,
+      "branch": [
+        {
+          "type": "clothoid",
+          "R1": 3000,
+          "R2": 1500,
+          "length": 27.0
+        },
+        {
+          "type": "arc",
+          "R": 1500,
+          "length": 26.911
+        },
+        {
+          "type": "clothoid",
+          "R1": 1500,
+          "R2": null,
+          "length": 32.0
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1067,
+          "bezeichnung": "60-3000/1500/oo 1:23.735 fb",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellenzahl": 159,
+          "klammer": [
+            3,
+            5,
+            0
+          ],
+          "zs_wa": 1.352,
+          "masse": {
+            "t1": 38.41,
+            "t2": 51.075,
+            "l": 89.485,
+            "s": 2.15,
+            "lds": 9.22,
+            "A": "284.6, 219.1"
+          }
+        }
+      ],
+      "s_we": 2.15
+    },
+    {
+      "label": "4800/2450 – 1:24.257 fb",
+      "lds": 8.7,
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "herzstueck": "fb",
+      "R": 2450,
+      "ratio": 24.257,
+      "speed": 130,
+      "minl": null,
+      "branch": [
+        {
+          "type": "clothoid",
+          "R1": 4800,
+          "R2": 2450,
+          "length": 41.075
+        },
+        {
+          "type": "arc",
+          "R": 2450,
+          "length": 69.925
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1068,
+          "bezeichnung": "60-4800/2450-1:24.257 fb",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "masse": {
+            "t1": 59.672,
+            "t2": 51.344,
+            "l": 111.016,
+            "s": 2.115,
+            "lds": 8.7,
+            "A": "453.4"
+          }
+        }
+      ]
+    },
+    {
+      "label": "4800/2450/∞ – 1:30.686 fb",
+      "lds": 16.43,
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "herzstueck": "fb",
+      "R": 2450,
+      "ratio": 30.685,
+      "speed": 130,
+      "minl": null,
+      "branch": [
+        {
+          "type": "clothoid",
+          "R1": 4800,
+          "R2": 2450,
+          "length": 41.075
+        },
+        {
+          "type": "arc",
+          "R": 2450,
+          "length": 27.446
+        },
+        {
+          "type": "clothoid",
+          "R1": 2450,
+          "R2": null,
+          "length": 42.7
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1069,
+          "bezeichnung": "60-4800/2450/oo 1:30.686 fb",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellenzahl": 202,
+          "klammer": [
+            0,
+            6,
+            0
+          ],
+          "zs_wa": 2.552,
+          "masse": {
+            "t1": 49.824,
+            "t2": 60.806,
+            "l": 110.63,
+            "s": 1.981,
+            "lds": 16.43,
+            "A": "453.4, 323.4"
+          }
+        }
+      ],
+      "s_we": 1.981
+    },
+    {
+      "label": "10000/4000 – 1:32.05 fb",
+      "lds": 14.713,
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "herzstueck": "fb",
+      "R": 4000,
+      "ratio": 32.05,
+      "speed": 160,
+      "minl": null,
+      "branch": [
+        {
+          "type": "clothoid",
+          "R1": 10000,
+          "R2": 4000,
+          "length": 37.5
+        },
+        {
+          "type": "arc",
+          "R": 4000,
+          "length": 98.515
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1070,
+          "bezeichnung": "60-10000/4000-1:32.050 fb",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "zs_wa": 3.152,
+          "masse": {
+            "t1": 73.018,
+            "t2": 63.008,
+            "l": 136.026,
+            "s": 1.965,
+            "lds": 14.713,
+            "A": "500"
+          }
+        }
+      ]
+    },
+    {
+      "label": "10000/4000/∞ – 1:39.113 fb",
+      "lds": 24.12,
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "herzstueck": "fb",
+      "R": 4000,
+      "ratio": 39.113,
+      "speed": 160,
+      "minl": null,
+      "branch": [
+        {
+          "type": "clothoid",
+          "R1": 10000,
+          "R2": 4000,
+          "length": 37.5
+        },
+        {
+          "type": "arc",
+          "R": 4000,
+          "length": 48.383
+        },
+        {
+          "type": "clothoid",
+          "R1": 4000,
+          "R2": null,
+          "length": 55.225
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1071,
+          "bezeichnung": "60-10000/4000/oo 1:39.113 fb",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellenzahl": 257,
+          "klammer": [
+            0,
+            7,
+            0
+          ],
+          "zs_wa": 3.152,
+          "masse": {
+            "t1": 62.746,
+            "t2": 74.199,
+            "l": 136.945,
+            "s": 1.894,
+            "lds": 24.12,
+            "A": "500, 470"
+          }
+        }
+      ],
+      "s_we": 1.894
+    },
+    {
+      "label": "16000/6100 – 1:40.154 fb",
+      "lds": 21.3,
+      "art": "weiche",
+      "klasse": "sonderbauform",
+      "herzstueck": "fb",
+      "R": 6100,
+      "ratio": 40.154,
+      "speed": 200,
+      "minl": null,
+      "branch": [
+        {
+          "type": "clothoid",
+          "R1": 16000,
+          "R2": 6100,
+          "length": 56.0
+        },
+        {
+          "type": "arc",
+          "R": 6100,
+          "length": 113.209
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1072,
+          "bezeichnung": "60-16000/6100-1:40.154 fb",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "zs_wa": 0.752,
+          "masse": {
+            "t1": 92.129,
+            "t2": 77.087,
+            "l": 169.216,
+            "s": 1.919,
+            "lds": 21.3,
+            "A": "743"
           }
         }
       ]

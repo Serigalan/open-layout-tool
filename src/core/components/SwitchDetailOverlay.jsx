@@ -138,7 +138,8 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
     variant
       ? fill('switch_detail_variant', {
         nr: variant.nr, name: variant.bezeichnung, profil: variant.profil,
-        schwellen: t(variant.schwellen === 'holz' ? 'constraints_weichen_var_holz' : 'constraints_weichen_var_beton'),
+        schwellen: variant.schwellen
+          ? t(variant.schwellen === 'holz' ? 'constraints_weichen_var_holz' : 'constraints_weichen_var_beton') : '–',
       })
       : t('switch_detail_no_variant'),
     fill('switch_detail_counts', {

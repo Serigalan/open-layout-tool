@@ -57,6 +57,18 @@ the speed of their radius, state no minimum intermediate straight and no connect
 picks them), and take the ldS of the rigid form of the same geometry where the table's rounds to it. The
 2500 – 1:26.5 is itself an fb turnout.
 
+**Clothoid and compound-curve turnouts.** Nine fb forms of the DB table have a branch of several curved
+sections: a clothoid from a large radius at the toe (the curvature steps there, as the design has it) into an
+arc — `6000/3700 – 1:32.5 fb` — two arcs (`7000/6000 – 1:42 fb`), or that and a clothoid running out to the
+straight (`…/∞`). `branch` states them as the table does (`{ type: 'clothoid', R1, R2, length }`, arcs with
+their `length`); `R` is the smallest radius, which the speed follows. Their through length is t1 + t2, where
+the branch's end tangent crosses the through route (`switchTangents`), not a sum of arc tangents. A run-out
+branch states more than the turnout: its WE is where the tracks stand `s_we` apart (the table's s), so it is
+cut in the run-out clothoid or carried on straight to there — with that every form meets t1, t2 and l of the
+table to 2 cm. Laid on a curved stem, a clothoid section's curvature adds to the stem's piece by piece
+(`switchBranchChain`), so the branch is clothoids again. A branch piece finds its stretch of stem by its middle
+(`cantAt(s, piece)`), since a form of several sections has more pieces than the stem has.
+
 The Weichenmarke is the table's `dLcs`; `switchMark(form)` gives it, and the construction below for a turnout
 that states none (the fb and gb forms). Only a form without one would use the construction
 `d = 2.272·n − (l_t + g)` with `l_t = R·tan(w/2)`, `w = atan(1/n)`, rounded onto the grid `0.30 + k·0.60 m`.

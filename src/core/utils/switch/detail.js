@@ -23,9 +23,11 @@
  * Nothing here is stored: it all follows from the two tracks and the form.
  */
 
-import { endPointCurvedUtm, endPointStraightUtm, bearingAfterUtm } from '../geometry'
+import {
+  endPointCurvedUtm, endPointStraightUtm, bearingAfterUtm, transitionBearingAtUtm, transitionPointAtUtm,
+} from '../geometry'
 import { elementBelongsToSwitch } from '../track'
-import { switchFormChain, switchStraightLength, switchTypeByLabel, switchVariantFor } from './catalogue'
+import { switchFormChain, switchStraightLength, switchTangents, switchTypeByLabel, switchVariantFor } from './catalogue'
 import { FIRST_SLEEPER, SLEEPER_SPACING, routeCut, routePose, turnoutSleepers } from './sleepers'
 
 /** From a track's axis to the middle of its rail [m] (decision 341). */
@@ -47,13 +49,14 @@ const left = (v) => [-v[1], v[0]]
 const unit = (v) => { const n = Math.hypot(v[0], v[1]); return n > 1e-12 ? [v[0] / n, v[1] / n] : null }
 
 /**
- * Distance WA–WM along the main route [m]: the tangent of the branch's arc,
- * R · tan(α/2) — for the symmetrical turnout half its length.
+ * Distance WA–WM along the main route [m]: t1, where the branch's end tangent
+ * crosses the through route — R · tan(α/2) for a form of one arc, half its
+ * length for the symmetrical turnout.
  */
 function tangentLength(form) {
   if (!form?.R || !form?.ratio) return null
   if (form.symmetric) return switchStraightLength(form) / 2
-  return form.R * Math.tan(Math.atan(1 / form.ratio) / 2)
+  return switchTangents(form).t1
 }
 
 /** Length of the branch's own elements, WA–WE on the branch track. */
@@ -204,16 +207,28 @@ export function switchDetail(tracks, sw, { formOf = switchTypeByLabel, rail = nu
 const ORIGIN = { easting: 500000, northing: 5600000, zone: 25832 }
 const node = (p) => [p.easting, p.northing]
 
-/** Elements along a chain of { length, signedR } from a point on a bearing. */
+/** Elements along a chain of { length, signedR, signedREnd? } from a point on a bearing. */
 function chainElements(start, bearing, chain, fields) {
   const elements = []
   let p = start, b = bearing
   for (const piece of chain) {
-    const end = piece.signedR ? endPointCurvedUtm(p, b, piece.length, piece.signedR) : endPointStraightUtm(p, b, piece.length)
-    const endBearing = bearingAfterUtm(b, piece.length, piece.signedR)
-    elements.push(piece.signedR
-      ? { elementType: 1, startNode: node(p), endNode: node(end), bearing: b, endBearing, radius: piece.signedR, length: piece.length, ...fields }
-      : { elementType: 0, startNode: node(p), endNode: node(end), bearing: b, length: piece.length, ...fields })
+    const { length, signedR } = piece
+    let el, end, endBearing
+    if ('signedREnd' in piece && piece.signedREnd !== signedR) {
+      const r2 = piece.signedREnd
+      end = transitionPointAtUtm(p, b, length, signedR, r2, 'clothoid', length)
+      endBearing = transitionBearingAtUtm(b, length, signedR, r2, 'clothoid', length)
+      el = { elementType: 2, transitionType: 'clothoid', r1: signedR, r2, startNode: node(p), endNode: node(end), bearing: b, endBearing, length }
+    } else if (signedR) {
+      end = endPointCurvedUtm(p, b, length, signedR)
+      endBearing = bearingAfterUtm(b, length, signedR)
+      el = { elementType: 1, startNode: node(p), endNode: node(end), bearing: b, endBearing, radius: signedR, length }
+    } else {
+      end = endPointStraightUtm(p, b, length)
+      endBearing = b
+      el = { elementType: 0, startNode: node(p), endNode: node(end), bearing: b, length }
+    }
+    elements.push({ ...el, ...fields })
     p = end; b = endBearing
   }
   return { elements, end: p, bearing: b }

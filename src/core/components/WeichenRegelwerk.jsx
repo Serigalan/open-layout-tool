@@ -66,7 +66,7 @@ function Varianten({ varianten, colSpan }) {
                 <td>{v.nr}</td>
                 <td className="constraints-value">{v.bezeichnung}</td>
                 <td>{v.profil}</td>
-                <td>{t(v.schwellen === 'holz' ? 'constraints_weichen_var_holz' : 'constraints_weichen_var_beton')}</td>
+                <td>{v.schwellen ? t(v.schwellen === 'holz' ? 'constraints_weichen_var_holz' : 'constraints_weichen_var_beton') : '–'}</td>
                 <td>{t(v.klasse === 'regel' ? 'constraints_weichen_var_regel' : 'constraints_weichen_var_sonder')}</td>
                 <td>{schwellenText(v)}</td>
                 <td>{zahl(v.zs_wa)}</td>

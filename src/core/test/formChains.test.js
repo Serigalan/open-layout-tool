@@ -4,7 +4,9 @@ import { buildConnectCurved, buildConnectStraight, buildCurvedLineTrack, buildLi
 import { buildSwitchOnTrack, switchOnTrackPlacement } from '../utils/commands/switches'
 import { arcFrom, straightFrom, transitionElement } from '../utils/geometry/elementFactory'
 import { endPointStraightUtm, endPointCurvedUtm } from '../utils/geometry/elementUtils'
-import { SWITCH_TYPES, switchStraightLength } from '../utils/switch/catalogue'
+import {
+  ALL_SWITCH_TYPES, SWITCH_TYPES, hasCompoundBranch, switchBranchSections, switchStraightLength, switchVariants,
+} from '../utils/switch/catalogue'
 import { dehydrateProjects, hydrateProjects } from '../utils/project/persistenceUtils'
 import { hasRuleError } from '../utils/rules/trassierungCheck'
 import {
@@ -237,6 +239,64 @@ describe('the branch a switch dialog commits', () => {
     ])
     const total = elements.reduce((sum, el) => sum + el.length, 0)
     expect(total).toBeCloseTo(g.arcLen, 6)
+  })
+})
+
+// The clothoid and compound-curve turnouts (Paket WD, decision 344): a branch of
+// several curved sections, starting on a radius at the toe, laid by the same
+// commit as every other form.
+describe('the branch of a clothoid turnout', () => {
+  const forms = ALL_SWITCH_TYPES.filter(hasCompoundBranch)
+
+  const laid = (form, pieces) => {
+    const straightLen = switchStraightLength(form)
+    const els = []
+    let at = START, bearing = 30
+    for (const { length, r } of pieces) {
+      const el = r ? arcFrom(at, bearing, length, r) : straightFrom(at, bearing, length)
+      els.push({ ...el, speed: SPEED })
+      at = { easting: el.endNode[0], northing: el.endNode[1], zone: EPSG }
+      bearing = el.endBearing ?? el.bearing
+    }
+    const track = { ...trackOf(els, EPSG, { name: 'line.001' }, 'host') }
+    const placement = switchOnTrackPlacement({ track, toeStation: 1, reversed: false, sw: form, side: 'right', straightLen })
+    expect(placement.error, form.label).toBeNull()
+    const commit = buildSwitchOnTrack({
+      track, tracks: [track], place: placement.place, g: placement.geom, plain: placement.plain,
+      sw: form, straightLen, cant: 0, cantReason: '', speed: SPEED,
+      switchName: 'W 1', switchNumber: 1, name: 'branch.001', fields: { owner: 'DB', type: 'station_track' },
+    })
+    const branch = commit.addTracks[commit.addTracks.length - 1]
+    return { g: placement.geom, commit, elements: branch.elements }
+  }
+
+  it('are the nine of the table', () => {
+    expect(forms).toHaveLength(9)
+  })
+
+  it('on a straight stem: one element per section, tangential, ending where the table puts WE', () => {
+    for (const form of forms) {
+      const { g, commit, elements } = laid(form, [{ length: 400, r: null }])
+      expect(elements, form.label).toHaveLength(switchBranchSections(form).length)
+      expect(elements[0].startNode).toEqual(g.portA)
+      expect(elements.at(-1).endNode).toEqual(g.portB1)
+      expectNodesJoin(elements)
+      expectTangentsContinuous(elements, EPSG)
+      expectSwitchRoutesCarved(commit.addSwitches[0], commit.addTracks)
+      // The branch end lies the table's s from the through route.
+      const [ax, ay] = g.portA, [bx, by] = g.portB2, [ex, ey] = g.portB1
+      const off = Math.abs((bx - ax) * (ey - ay) - (by - ay) * (ex - ax)) / Math.hypot(bx - ax, by - ay)
+      expect(off, form.label).toBeCloseTo(switchVariants(form)[0].masse.s, 2)
+    }
+  })
+
+  it('bent into an arc: the curvatures add, and the chain stays valid', () => {
+    for (const form of forms) {
+      const { commit, elements } = laid(form, [{ length: switchStraightLength(form) + 100, r: 4000 }])
+      expectNodesJoin(elements)
+      expectTangentsContinuous(elements, EPSG)
+      commit.addTracks.forEach(tr => expectValidTrack(tr))
+    }
   })
 })
 

@@ -102,7 +102,10 @@ export function switchMarkDistance(type) {
   const straight = (type.branch ?? [])
     .filter(section => section.type === 'straight')
     .reduce((sum, section) => sum + section.length, 0)
-  const d = 2.272 * type.ratio - (type.R * Math.tan(w / 2) + straight)
+  // l_t + g is the tangent from WM to the branch end, t2 — which is what a
+  // clothoid turnout's branch gives where it has no one radius to take it from.
+  const lt2 = hasCompoundBranch(type) ? switchTangents(type).t2 : type.R * Math.tan(w / 2) + straight
+  const d = 2.272 * type.ratio - lt2
   return Math.max(0.30, Math.round((d - 0.30) / 0.60) * 0.60 + 0.30)
 }
 
@@ -186,6 +189,14 @@ export function switchStraightLength(type) {
   // A symmetrical turnout's through route is no tangent polygon: it is the
   // branch's mirror image, the same arc to the other side, and as long.
   if (type.symmetric) return switchBranchLength(type)
+  // A branch of more than one curved section — a clothoid turnout, a compound
+  // curve — has no one tangent to add up: the through route reaches to where
+  // the branch's end tangent, carried back, crosses it, and on as far again as
+  // the branch end lies from that point (t1 + t2, as the table states them).
+  if (hasCompoundBranch(type)) {
+    const { t1, t2 } = switchTangents(type)
+    return t1 + t2
+  }
   return switchBranchSections(type).reduce((sum, section) => (
     sum + (section.R == null
       ? section.length
@@ -204,6 +215,7 @@ export function switchStraightLength(type) {
  * straight piece are written `[{ type:'arc', R }, { type:'straight', length }]`.
  */
 export function switchBranchSections(type) {
+  if (!type) return []
   if (!type.branch) {
     // A symmetrical turnout parts into two arcs of the same radius, one to
     // each side, and the frog angle is what they make *between them* — so each
@@ -212,11 +224,112 @@ export function switchBranchSections(type) {
     const length = switchArcLength(type.R, type.ratio) / (type.symmetric ? 2 : 1)
     return [{ type: 'arc', R: type.R, length }]
   }
+  let sections = cut.get(type)
+  if (!sections) {
+    sections = toWe(type, statedSections(type))
+    cut.set(type, sections)
+  }
+  return sections
+}
+
+// The sections are worked out once per form — the clothoid turnouts' WE is found by bisection.
+const cut = new WeakMap()
+
+/** The sections as the form states them. */
+function statedSections(type) {
   return type.branch.map((section) => {
     if (section.type === 'straight') return { type: 'straight', R: null, length: section.length }
+    // A clothoid from R1 to R2 (null: straight) — the first section of the
+    // clothoid turnouts, and the last of those that run out straight.
+    if (section.type === 'clothoid') {
+      return { type: 'clothoid', R: section.R1, REnd: section.R2 ?? null, length: section.length }
+    }
     const R = section.R ?? type.R
-    return { type: 'arc', R, length: switchArcLength(R, section.ratio ?? type.ratio) }
+    // An arc that states its length is one of several (a clothoid turnout, a
+    // compound curve); the single arc of every other form turns to the frog angle.
+    return { type: 'arc', R, length: section.length ?? switchArcLength(R, section.ratio ?? type.ratio) }
   })
+}
+
+/**
+ * A branch that runs out in a clothoid to the straight states more than the
+ * turnout: its WE is where the two tracks stand `s_we` apart (the table's s),
+ * which lies before the run-out ends or behind it on the straight that follows
+ * (Paket WD). So such a branch is cut there, or carried on straight to there.
+ * Every other branch ends where its sections do.
+ */
+function toWe(type, sections) {
+  const last = sections[sections.length - 1]
+  if (!(type.s_we > 0) || last?.type !== 'clothoid' || last.REnd != null) return sections
+  const end = branchEnd(sections)
+  if (end.y <= type.s_we) {
+    return [...sections, { type: 'straight', R: null, length: (type.s_we - end.y) / Math.sin(end.angle) }]
+  }
+  const head = sections.slice(0, -1)
+  const k0 = kappa(last.R)
+  const piece = (u) => ({ type: 'clothoid', R: last.R, REnd: 1 / (k0 * (1 - u / last.length)), length: u })
+  let lo = 0, hi = last.length
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2
+    if (branchEnd([...head, piece(mid)]).y < type.s_we) lo = mid; else hi = mid
+  }
+  return [...head, piece((lo + hi) / 2)]
+}
+
+/**
+ * Is the form's branch more than one arc and a straight end piece — a clothoid
+ * turnout or a compound curve (Paket WD, decision 344)? Their tangents and
+ * through length are worked out from the branch itself (switchTangents).
+ */
+export const hasCompoundBranch = (type) =>
+  switchBranchSections(type).filter(section => section.type !== 'straight').length > 1
+
+/** Curvature of a radius, 0 for none. */
+const kappa = (r) => (r ? 1 / r : 0)
+
+/**
+ * The branch of a form laid from WA along +x, turning toward +y: its end
+ * point and the angle of its end tangent [rad]. Arcs and straights exactly, a
+ * clothoid by Simpson's rule over its own angle.
+ */
+function branchEnd(sections) {
+  let x = 0, y = 0, th = 0
+  for (const section of sections) {
+    const L = section.length
+    if (section.type === 'clothoid') {
+      const k0 = kappa(section.R), k1 = kappa(section.REnd)
+      const n = 200
+      const angle = (s) => th + k0 * s + (k1 - k0) * s * s / (2 * L)
+      let sx = 0, sy = 0
+      for (let i = 0; i <= n; i++) {
+        const w = i === 0 || i === n ? 1 : (i % 2 ? 4 : 2)
+        const a = angle(L * i / n)
+        sx += w * Math.cos(a); sy += w * Math.sin(a)
+      }
+      x += sx * L / (3 * n); y += sy * L / (3 * n)
+      th = angle(L)
+    } else if (section.R) {
+      const dth = L / section.R
+      x += section.R * (Math.sin(th + dth) - Math.sin(th))
+      y += section.R * (Math.cos(th) - Math.cos(th + dth))
+      th += dth
+    } else {
+      x += L * Math.cos(th); y += L * Math.sin(th)
+    }
+  }
+  return { x, y, angle: th }
+}
+
+/**
+ * The tangents of a turnout [m]: t1 from WA to WM, where the branch's end
+ * tangent crosses the through route, and t2 from WM to the branch end —
+ * the a and b of the table for a form of one arc, its t1 and t2 for a clothoid
+ * turnout. Not for the symmetrical turnout, whose through route is no straight.
+ */
+export function switchTangents(type) {
+  const { x, y, angle } = branchEnd(switchBranchSections(type))
+  const t2 = y / Math.sin(angle)
+  return { t1: x - t2 * Math.cos(angle), t2 }
 }
 
 /** Length of the whole branch — how far from the toe the turnout's own geometry reaches. */
@@ -230,10 +343,13 @@ export function switchBranchLength(type) {
  */
 export function switchFormChain(type, side) {
   const sign = side === 'left' ? -1 : 1
-  return switchBranchSections(type).map(section => ({
-    length:  section.length,
-    signedR: section.R == null ? null : sign * section.R,
-  }))
+  return switchBranchSections(type).map(section => (section.type === 'clothoid'
+    ? {
+      length:     section.length,
+      signedR:    section.R == null ? null : sign * section.R,
+      signedREnd: section.REnd == null ? null : sign * section.REnd,
+    }
+    : { length: section.length, signedR: section.R == null ? null : sign * section.R }))
 }
 
 /**
