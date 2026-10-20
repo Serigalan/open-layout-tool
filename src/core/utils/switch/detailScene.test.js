@@ -36,10 +36,13 @@ describe('the partners of a switch connection', () => {
 })
 
 describe.skipIf(!hasPekBestand)('a turnout with its surroundings (PEK Bestand)', () => {
-  const { tracks, switches } = hydrateProjects([loadPekBestand()])[0]
-  const named = (name) => switches.find(s => s.name === name)
+  // Loaded on first use: a skipped suite still runs its body.
+  let pek = null
+  const project = () => (pek ??= hydrateProjects([loadPekBestand()])[0])
+  const named = (name) => project().switches.find(s => s.name === name)
 
   it('draws the other half of a crossover in the turnout’s frame, and the tracks around', () => {
+    const { tracks, switches } = project()
     const scene = switchDetailScene(tracks, switches, named('0603'))
     expect(scene.partners.map(d => d.sw.name)).toEqual(['0604'])
     // The partner's WA is where its own detail puts it, carried into this frame.
@@ -61,6 +64,7 @@ describe.skipIf(!hasPekBestand)('a turnout with its surroundings (PEK Bestand)',
   })
 
   it('takes the turnouts close by along, but not the far end of a station track', () => {
+    const { tracks, switches } = project()
     const scene = switchDetailScene(tracks, switches, named('0809'))
     expect(scene.partners).toEqual([])
     expect(scene.nearby.map(d => d.sw.name)).toContain('0808')
