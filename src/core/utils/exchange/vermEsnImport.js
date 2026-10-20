@@ -3,6 +3,7 @@ import { cantSign } from '../rules'
 import { generateId, nextTrackName, rebuildCoords } from '../track'
 import { gradientStretch } from './proviImport'
 import { arcFrom, straightFrom, transitionElement } from '../geometry'
+import { axisLine, END_TOL, endMismatch, gradientOnTrack } from './vermEsnKmGradient'
 
 const RECORD_SIZE = 78
 const GRA_RECORD_SIZE = 36   // the header is one record long, too
@@ -56,14 +57,17 @@ export function parseRecords(arrayBuffer) {
  * element record is always ignored — it only marks the alignment's end point.
  *
  * Each element must start where the previous one ends (tolerance 0.3 mm);
- * violations are reported in `errors`. Returns { elements, errors, startStation }
- * — `startStation` is the axis station [m] the first element begins at, which
- * is what a gradient of the same axis is stationed against.
+ * violations are reported in `errors`. Returns { elements, errors, startStation,
+ * stations } — `startStation` is the axis station [m] the first element begins
+ * at, which is what a gradient of the same axis is stationed against;
+ * `stations` the station each element's record names (a kilometrage line may
+ * jump between two).
  */
 export function buildElements(records, epsg) {
   const crs = Number(epsg)
   const elements = []
   const errors = []
+  const stations = []
   let prevIdx = -1
   let startStation = null
 
@@ -88,6 +92,7 @@ export function buildElements(records, epsg) {
     }
     prevIdx = idx
     if (startStation == null) startStation = rec.absLength
+    stations.push(rec.absLength)
 
     const start      = { easting: rec.easting, northing: rec.northing, zone: crs }
     const bearingDeg = ((rec.bearing * RAD2DEG) % 360 + 360) % 360   // bearing stored in radians (grid)
@@ -132,7 +137,7 @@ export function buildElements(records, epsg) {
     }
   }
 
-  return { elements, errors, startStation }
+  return { elements, errors, startStation, stations }
 }
 
 // ── Gradient (.GRA) ─────────────────────────────────────────────────────────
@@ -191,12 +196,14 @@ export function gradientHeightCode(arrayBuffer, fileName = '') {
  * and a note says so. Returns { heights, notes } — heights null where the
  * gradient does not reach into the track at all.
  */
-export function gradientHeights(points, startStation, length) {
+export function gradientHeights(points, startStation, length, { tolerance = null } = {}) {
   if (!points?.length || !Number.isFinite(startStation)) return { heights: null, notes: [] }
   const first = points[0].station
   const last = points[points.length - 1].station
   const range = `${first.toFixed(3)}–${last.toFixed(3)} m`
-  const heights = gradientStretch(points, startStation, startStation + length)
+  const heights = tolerance == null
+    ? gradientStretch(points, startStation, startStation + length)
+    : gradientStretch(points, startStation, startStation + length, tolerance)
   if (!(heights?.length >= 2)) {
     return {
       heights: null,
@@ -204,12 +211,107 @@ export function gradientHeights(points, startStation, length) {
         + `(${startStation.toFixed(3)}–${(startStation + length).toFixed(3)} m) – ohne Höhen importiert.`],
     }
   }
-  const covered = heights[0].station <= 0.002 && heights[heights.length - 1].station >= length - 0.5
+  const covered = heights[0].station <= (tolerance ?? 0.002) && heights[heights.length - 1].station >= length - (tolerance ?? 0.5)
   return {
     heights,
     notes: covered ? [] : [`Gradiente (${range}) deckt die Achse nicht ganz ab – dort bleibt das Gleis `
       + 'ohne Höhen. Sie lassen sich im Höhenprofil aus dem Gelände ergänzen.'],
   }
+}
+
+// ── Gradient along the kilometrage line ─────────────────────────────────────
+
+/** A kilometrage line's file name ends in `S` behind a digit: `6340S`, `63400164S`, `6311-001S`. */
+const isKmLineName = (name) => /\dS$/.test(name)
+
+/** The line number a kilometrage line's file names: its first four digits, else the name without the `S`. */
+export function kmLineNumber(name) {
+  const digits = /^(\d{4})/.exec(name)?.[1]
+  return digits ? Number(digits) : name.replace(/S$/, '')
+}
+
+/**
+ * A TRA file as an axis in plane `epsg`: buildElements' { elements, errors,
+ * startStation, stations } plus its `length` and, for laying off stations
+ * and dropping perpendiculars, its `line` (axisLine).
+ */
+export function readAxis(buffer, epsg) {
+  const built = buildElements(parseRecords(buffer), Number(epsg))
+  const length = built.elements.reduce((sum, el) => sum + (el.length ?? 0), 0)
+  return { ...built, startStation: built.startStation ?? 0, length, line: axisLine(built.elements, Number(epsg), built) }
+}
+
+/**
+ * What a gradient (`points`, parseGradient) can be stationed along for the
+ * track `axis` (readAxis): the track itself (`ref` null) and every
+ * kilometrage line of `kmAxes` ([{ name, line }]) whose perpendiculars meet
+ * the track, its points carried over (gradientOnTrack). Each as { ref,
+ * points, lost, mismatch } — `mismatch` how far the gradient's ends lie from
+ * the track's, summed. Best first: a gradient normally runs from one end of
+ * its track to the other, so the one that ends closest to them is taken.
+ */
+export function gradientReferences(axis, points, kmAxes = []) {
+  const from = axis.startStation, to = axis.startStation + axis.length
+  const out = [{ ref: null, points, lost: [], mismatch: endMismatch(points, from, to) }]
+  for (const km of kmAxes) {
+    const carried = gradientOnTrack(points, km.line, axis.line)
+    if (carried.points) out.push({ ref: km.name, ...carried, mismatch: endMismatch(carried.points, from, to) })
+  }
+  return out.sort((a, b) => a.mismatch - b.mismatch)
+}
+
+/**
+ * The heights a track (`axis`) takes from a gradient stationed as `reference`
+ * says (gradientReferences): along the track as gradientHeights reads it,
+ * along a kilometrage line carried over, its ends taken as the track's where
+ * they differ by at most END_TOL. Returns { heights, notes }.
+ */
+export function referencedHeights(reference, axis) {
+  if (!reference.ref) return gradientHeights(reference.points, axis.startStation, axis.length)
+  const fitted = gradientHeights(reference.points, axis.startStation, axis.length, { tolerance: END_TOL })
+  const lost = reference.lost.length
+    ? [`${reference.lost.length} Punkt(e) der Gradiente treffen das Gleis nicht senkrecht zur Kilometerlinie `
+      + `${reference.ref} (km ${reference.lost.map(s => s.toFixed(3)).join(', ')} m) – weggelassen.`]
+    : []
+  return { heights: fitted.heights, notes: [...lost, ...fitted.notes] }
+}
+
+/**
+ * Kilometrage lines (readAxis, with their `name`) as the `kmLines` a project
+ * keeps (mdbKmLine): one per line number, WGS84 runs of `[lon, lat, metres]`
+ * from the elements' drawn lines, a new run wherever the kilometrage jumps.
+ * Marked `source: 'vermesn'`, so the shipped line of that number is not
+ * fetched over it.
+ */
+export function kmLineEntries(kmAxes) {
+  const byNumber = new Map()
+  for (const km of kmAxes) {
+    const lineNumber = kmLineNumber(km.name)
+    if (!byNumber.has(lineNumber)) byNumber.set(lineNumber, [])
+    const runs = byNumber.get(lineNumber)
+    let run = null
+    let at = null
+    km.elements.forEach((el, i) => {
+      const coords = el.geometry?.coordinates ?? []
+      const len = el.length ?? 0
+      if (coords.length < 2 || !(len > 0)) return
+      const s0 = km.stations?.[i] ?? at ?? km.startStation
+      if (!run || Math.abs(s0 - at) > 0.01) { run = []; runs.push(run) }
+      const along = [0]
+      for (let k = 1; k < coords.length; k++) {
+        along.push(along[k - 1] + Math.hypot(coords[k][0] - coords[k - 1][0], coords[k][1] - coords[k - 1][1]))
+      }
+      const total = along[along.length - 1] || 1
+      coords.forEach(([lon, lat], k) => {
+        if (k === 0 && run.length) return
+        run.push([lon, lat, Math.round((s0 + len * along[k] / total) * 1000) / 1000])
+      })
+      at = s0 + len
+    })
+  }
+  return [...byNumber].map(([lineNumber, runs]) => ({
+    id: `km-${lineNumber}`, lineNumber, crs: 'EPSG:4326', runs: runs.filter(r => r.length >= 2), source: 'vermesn',
+  }))
 }
 
 // ── Batch (.zip) ────────────────────────────────────────────────────────────
@@ -220,13 +322,16 @@ const ownBuffer = (data) => data.buffer.slice(data.byteOffset, data.byteOffset +
 /**
  * The Verm.ESN files of a zip, paired by name: a GRA belongs to the TRA whose
  * file name it shares up to the extension (case ignored, folders left out — a
- * file is known by its name alone, as in readProviArchive). `buffer` is the zip
- * as an ArrayBuffer or Uint8Array.
+ * file is known by its name alone, as in readProviArchive). A TRA whose name
+ * ends in `S` behind a digit is a kilometrage line (isKmLineName), not a
+ * track. `buffer` is the zip as an ArrayBuffer or Uint8Array.
  *
- * Returns { pairs, orphans, duplicates } — `pairs` one per TRA, sorted by name,
- * as { name, tra, gra, traFile, graFile } (name without extension, tra/gra as
- * ArrayBuffers, gra null where there is none); `orphans` the GRA files without
- * a TRA; `duplicates` the files whose name came twice (the first one is read).
+ * Returns { pairs, kmLines, orphans, duplicates } — `pairs` one per track TRA,
+ * sorted by name, as { name, tra, gra, traFile, graFile } (name without
+ * extension, tra/gra as ArrayBuffers, gra null where there is none);
+ * `kmLines` the kilometrage lines as { name, traFile, tra }; `orphans` the GRA
+ * files without a TRA; `duplicates` the files whose name came twice (the
+ * first one is read).
  */
 export function readVermEsnArchive(buffer) {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
@@ -244,54 +349,109 @@ export function readVermEsnArchive(buffer) {
     if (into.has(key)) { duplicates.push(file); continue }
     into.set(key, { name: match[1], file, data: ownBuffer(data) })
   }
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })
   const pairs = [...tras.entries()]
+    .filter(([, tra]) => !isKmLineName(tra.name))
     .map(([key, tra]) => ({
       name: tra.name, traFile: tra.file, tra: tra.data,
       graFile: gras.get(key)?.file ?? null, gra: gras.get(key)?.data ?? null,
     }))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+    .sort(byName)
+  const kmLines = [...tras.values()].filter(tra => isKmLineName(tra.name))
+    .map(tra => ({ name: tra.name, traFile: tra.file, tra: tra.data }))
+    .sort(byName)
   const orphans = [...gras.entries()].filter(([key]) => !tras.has(key)).map(([, g]) => g.file)
-  return { pairs, orphans, duplicates }
+  return { pairs, kmLines, orphans, duplicates }
+}
+
+/**
+ * The kilometrage lines of a batch read in plane `epsg`: { axes, errors } —
+ * `axes` those that can be used (readAxis, with `name` and `traFile`),
+ * `errors` the others as { file, errors }.
+ */
+export function readKmLines(kmLines, epsg) {
+  const axes = []
+  const errors = []
+  for (const km of kmLines) {
+    const axis = readAxis(km.tra, epsg)
+    if (axis.errors.length || !axis.elements.length) errors.push({ file: km.traFile, errors: axis.errors })
+    else axes.push({ ...axis, name: km.name, traFile: km.traFile })
+  }
+  return { axes, errors }
+}
+
+/**
+ * Per pair with a gradient, what it can be stationed along (gradientReferences):
+ * Map(name → refs, best first, each the kilometrage line's name or null for
+ * the track itself) — for choosing before the import.
+ */
+export function batchReferences(pairs, kmAxes, epsg) {
+  const out = new Map()
+  for (const pair of pairs) {
+    if (!pair.gra) continue
+    const axis = readAxis(pair.tra, epsg)
+    const points = parseGradient(pair.gra)
+    if (axis.errors.length || !axis.elements.length || points.length < 2) continue
+    out.set(pair.name, gradientReferences(axis, points, kmAxes).map(r => r.ref))
+  }
+  return out
 }
 
 /**
  * The tracks of a batch (readVermEsnArchive): every pair in plane `epsg`, its
  * gradient's heights in `heightEpsg`, named after the files — where the name is
  * taken already (`takenNames`, or by an earlier pair) the next free one after it.
+ * A gradient is stationed along the track or along one of the kilometrage
+ * lines `kmAxes` (readKmLines): as `references` names it per pair (Map name →
+ * kilometrage line name, null for the track), else the best fit
+ * (gradientReferences). A track whose gradient runs along a kilometrage line
+ * takes its line number, and the line goes into the project with it.
  * A TRA that is unreadable or whose elements do not join is left out, as the
  * single import refuses it; a GRA that does not fit leaves its track without
  * heights.
  *
- * Returns { tracks, files } — `files` one per pair as { name, traFile, graFile,
- * imported, count, heights, errors, notes }.
+ * Returns { tracks, kmLines, files } — `kmLines` the project entries
+ * (kmLineEntries) of the lines used; `files` one per pair as { name, traFile,
+ * graFile, imported, count, heights, reference, errors, notes }.
  */
-export function buildVermEsnBatch(pairs, { epsg, heightEpsg = null, takenNames = [] }) {
+export function buildVermEsnBatch(pairs, { epsg, heightEpsg = null, takenNames = [], kmAxes = [], references = new Map() }) {
   const names = new Set(takenNames)
   const tracks = []
   const files = []
+  const used = new Set()
   for (const pair of pairs) {
-    const { elements, errors, startStation } = buildElements(parseRecords(pair.tra), Number(epsg))
-    const file = { name: pair.name, traFile: pair.traFile, graFile: pair.graFile, imported: false, count: 0, heights: 0, errors, notes: [] }
+    const axis = readAxis(pair.tra, epsg)
+    const { elements, errors } = axis
+    const file = {
+      name: pair.name, traFile: pair.traFile, graFile: pair.graFile, imported: false, count: 0, heights: 0,
+      reference: null, errors, notes: [],
+    }
     files.push(file)
     if (errors.length || !elements.length) continue
-    const length = elements.reduce((sum, el) => sum + (el.length ?? 0), 0)
     let heights = null
+    let reference = null
     if (pair.gra) {
       const points = parseGradient(pair.gra)
       if (points.length < 2) file.notes.push('GRA ohne Gradiente (weniger als zwei Punkte) – ohne Höhen importiert.')
       else {
-        const fitted = gradientHeights(points, startStation, length)
+        const options = gradientReferences(axis, points, kmAxes)
+        const chosen = references.has(pair.name) ? options.find(o => o.ref === references.get(pair.name)) : null
+        reference = chosen ?? options[0]
+        const fitted = referencedHeights(reference, axis)
         heights = fitted.heights
         file.notes.push(...fitted.notes)
       }
     }
     const name = names.has(pair.name) ? nextTrackName(pair.name, names) : pair.name
     names.add(name)
+    const km = reference?.ref ? kmAxes.find(k => k.name === reference.ref) : null
+    if (km) used.add(km)
     tracks.push({
       id: generateId(), name, epsg: Number(epsg), coordinates: rebuildCoords(elements), elements,
+      ...(km ? { lineNumber: kmLineNumber(km.name) } : {}),
       ...(heights ? { heights, heightEpsg: Number(heightEpsg) } : {}),
     })
-    Object.assign(file, { name, imported: true, count: elements.length, heights: heights?.length ?? 0 })
+    Object.assign(file, { name, imported: true, count: elements.length, heights: heights?.length ?? 0, reference: km?.name ?? null })
   }
-  return { tracks, files }
+  return { tracks, kmLines: kmLineEntries([...used]), files }
 }

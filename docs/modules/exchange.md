@@ -20,6 +20,7 @@ converted on the server.
 | `osrdImport.js` | in | Both of the above; rebuilds switches, crossings and links from RailJSON nodes |
 | `railJsonImport.js` | in | What a parsed RailJSON adds to a project: fresh ids, renamed tracks, repointed switches and buffer stops, passthrough of unmodelled objects |
 | `vermEsnImport.js` | in | Verm.ESN TRA (axis) and GRA (gradient) records → elements and heights; a zip of pairs as a batch |
+| `vermEsnKmGradient.js` | in | A gradient stationed along the kilometrage line carried over to the track at right angles |
 | `vermEsnExport.js` | out | Tracks and routes as TRA + GRA, zipped with a text naming plane and height datum |
 | `proviImport.js` | in | ProVI archives: axes (`A…`), gradients (`T…`), turnouts on axes |
 | `gleislageCsvImport.js` | in | The Gleislage CSV export (and cant CSV) |
@@ -87,6 +88,17 @@ names its plane or height datum, so the export adds a text naming them.
 A **batch** reads a zip: each TRA becomes a track named after its file, and the GRA of the same file name
 (case and folders ignored) gives its heights. Plane and height datum are chosen once for all pairs. A TRA
 whose elements do not join is left out as the single import refuses it; a GRA without a TRA is reported.
+
+A TRA whose name ends in a digit and `S` (`6340S`, `6311-001S`) is a **kilometrage line**, not a track. A
+gradient is often stationed along it rather than along its track: each point is then laid off on the line
+(beyond its ends along the tangent), a perpendicular is dropped there, and where it meets the track — or
+the track's tangent beyond an end — the point takes its height; the vertical curve radii stay, a track
+running against the kilometrage takes the points in its own direction. Which reference holds is decided per
+gradient by how far its ends lie from the track's ends (the track's own stationing or each line); a
+gradient normally spans its track, and in the test delivery every one was unambiguous to within 5 cm.
+Ends up to 2 cm apart count as the same. A track whose gradient runs along a line takes its line number
+(the first four digits), and the line goes into the project as a `kmLines` entry marked `source: 'vermesn'`
+— otherwise the kilometrage sync would drop it again, since it keeps only the lines some track names.
 
 A **route** is exported as one axis: its tracks in its direction, reversed ones turned (radii and cant with
 them), stationed from 0; one GRA from its profile; a direction change at a joint is written as a straight

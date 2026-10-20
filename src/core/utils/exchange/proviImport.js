@@ -377,25 +377,26 @@ export function parseProviGradient(text) {
  * heights do too — that stretch is left to be read from the terrain on
  * request (elevationFill). A cut between two points takes the height of the
  * tangent polygon there, as a split does (splitHeights). Null where the
- * gradient does not reach into the stretch at all.
+ * gradient does not reach into the stretch at all. `reach`: how far it may
+ * fall short of an end and still count as reaching it [m].
  */
-export function gradientStretch(points, from, to) {
+export function gradientStretch(points, from, to, reach = REACH_TOL) {
   if (!points?.length) return null
   const first = points[0]
   const last = points[points.length - 1]
-  if (last.station < from + REACH_TOL || first.station > to - REACH_TOL) return null
+  if (last.station < from + reach || first.station > to - reach) return null
   const at = (s) => {
     const hit = points.find(p => Math.abs(p.station - s) <= SAME)
     return hit ? { ...hit, station: s } : { z: heightAt(points, s), station: s }
   }
   // A gradient that begins behind `from` begins with its own first point — at
-  // `from` itself where it falls short of it by less than REACH_TOL — and one
+  // `from` itself where it falls short of it by less than `reach` — and one
   // that reaches past `from` is cut there. The same at the far end.
   const begin = first.station >= from - SAME
-    ? { ...first, station: first.station <= from + REACH_TOL ? from : first.station }
+    ? { ...first, station: first.station <= from + reach ? from : first.station }
     : at(from)
   const end = last.station <= to + SAME
-    ? { ...last, station: last.station >= to - REACH_TOL ? to : last.station }
+    ? { ...last, station: last.station >= to - reach ? to : last.station }
     : at(to)
   const lo = Math.max(from, first.station)
   const hi = Math.min(to, last.station)

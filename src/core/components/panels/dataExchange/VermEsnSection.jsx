@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { commitImport, saveReferenceAxis } from '../../../storage'
 import { generateId, rebuildCoords, HEIGHT_DATUMS, heightDatumLabel } from '../../../utils/track'
 import {
-  parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode,
+  gradientHeightCode, gradientReferences, kmLineEntries, kmLineNumber, parseGradient, readAxis, referencedHeights,
 } from '../../../utils/exchange'
 import { readFileBuffer } from '../../../utils/common'
 import { REFERENCE_MAX_LENGTH, buildReferenceAxis } from '../../../utils/survey'
@@ -39,9 +39,12 @@ function FileSlot({ label, accept, onFile, file, pickLabel, removeLabel, disable
 }
 
 /**
- * Verm.ESN: a TRA (alignment) and an optional GRA (gradient). Both files are
- * chosen first and imported together, the gradient only with the height datum
- * it is stated in — as a track, or as a reference axis (Paket V): only its
+ * Verm.ESN: a TRA (alignment), an optional GRA (gradient) and an optional
+ * kilometrage line (TRA) the gradient may be stationed along — then its points
+ * are carried over to the track at right angles to the line (Entscheidung
+ * 353), the line goes into the project and the track takes its number. The
+ * files are chosen first and imported together, the gradient only with the
+ * height datum it is stated in — as a track, or as a reference axis (Paket V): only its
  * points every centimetre, at most REFERENCE_MAX_LENGTH of it, the stretch
  * chosen in the axis' own stationing where it is longer (Entscheidung 195).
  * Then the batch: all pairs of a zip at once (VermEsnBatch). Below, the
@@ -57,9 +60,11 @@ export default function VermEsnSection() {
   const projectCrs = projectCrsOptions(tracks)
   const otherCrs = FILE_CRS_OPTIONS.filter(o => !projectCrs.some(p => p.code === o.code))
   const [epsg, setEpsg] = useState(() => String(projectCrs[0]?.code ?? 5683))
-  const [tra, setTra] = useState(null)              // { name, records, count }
+  const [tra, setTra] = useState(null)              // { name, buffer, count, startStation, length }
   const [gra, setGra] = useState(null)              // { name, points, code }
   const [graHeightEpsg, setGraHeightEpsg] = useState('')   // chosen, never preset
+  const [km, setKm] = useState(null)                // { name, buffer, count, from, to }
+  const [refChoice, setRefChoice] = useState(null)  // km line name, '' for the track; null: the best fit
   const [errors, setErrors] = useState([])
   const [notes, setNotes] = useState([])
   const [done, setDone] = useState(null)
@@ -69,16 +74,15 @@ export default function VermEsnSection() {
   const readTra = async (file) => {
     setDone(null); setNotes([])
     try {
-      const records = parseRecords(await readFileBuffer(file))
+      const buffer = await readFileBuffer(file)
       // Element count and junctions do not depend on the plane: checked here
       // already, so a broken file shows before the import.
-      const { elements, errors: errs } = buildElements(records, Number(epsg))
+      const { elements, errors: errs, startStation, length } = readAxis(buffer, epsg)
       setErrors(elements.length ? errs : [...errs, t('data_exchange_vermesn_tra_empty')])
       const ok = elements.length && !errs.length
-      const { startStation } = buildElements(records, Number(epsg))
-      const length = elements.reduce((sum, el) => sum + (el.length ?? 0), 0)
-      setTra(ok ? { name: file.name, records, count: elements.length, startStation: startStation ?? 0, length } : null)
-      if (ok) setRange({ from: startStation ?? 0, to: (startStation ?? 0) + Math.min(length, REFERENCE_MAX_LENGTH) })
+      setTra(ok ? { name: file.name, buffer, count: elements.length, startStation, length } : null)
+      setRefChoice(null)
+      if (ok) setRange({ from: startStation, to: startStation + Math.min(length, REFERENCE_MAX_LENGTH) })
     } catch (err) {
       console.error('Verm.ESN import error:', err)
       setTra(null)
@@ -96,8 +100,36 @@ export default function VermEsnSection() {
       return
     }
     setErrors([])
+    setRefChoice(null)
     setGra({ name: file.name, points, code: gradientHeightCode(buffer, file.name) })
   }
+
+  const readKm = async (file) => {
+    setDone(null); setNotes([])
+    try {
+      const buffer = await readFileBuffer(file)
+      const { elements, errors: errs, startStation, length } = readAxis(buffer, epsg)
+      const ok = elements.length && !errs.length
+      setErrors(ok ? [] : [...errs, t('data_exchange_vermesn_km_empty')])
+      setRefChoice(null)
+      setKm(ok ? { name: file.name, buffer, count: elements.length, from: startStation, to: startStation + length } : null)
+    } catch (err) {
+      console.error('Verm.ESN import error:', err)
+      setKm(null)
+      setErrors([t('data_exchange_vermesn_km_empty')])
+    }
+  }
+
+  // What the gradient can be stationed along, best first — only asked where
+  // a kilometrage line is there to choose.
+  const kmAxis = useMemo(() => (km ? { ...readAxis(km.buffer, epsg), name: km.name.replace(/\.tra$/i, '') } : null), [km, epsg])
+  const references = useMemo(() => {
+    if (!tra || !gra) return null
+    return gradientReferences(readAxis(tra.buffer, epsg), gra.points, kmAxis ? [kmAxis] : [])
+  }, [tra, gra, kmAxis, epsg])
+  const reference = references
+    ? (refChoice == null ? null : references.find(r => (r.ref ?? '') === refChoice)) ?? references[0]
+    : null
 
   // The stretch read as a reference axis: inside the axis, at most REFERENCE_MAX_LENGTH.
   const axisEnd = tra ? tra.startStation + tra.length : 0
@@ -108,7 +140,7 @@ export default function VermEsnSection() {
   const ready = !!project && !!tra && (!gra || !!graHeightEpsg) && !rangeError
 
   const importReference = () => {
-    const { elements, errors: errs, startStation } = buildElements(tra.records, Number(epsg))
+    const { elements, errors: errs, startStation } = readAxis(tra.buffer, epsg)
     setErrors(errs)
     if (errs.length || !elements.length) return
     const from = Number(range.from), to = Number(range.to)
@@ -116,8 +148,8 @@ export default function VermEsnSection() {
     const base = tra.name.replace(/\.tra$/i, '')
     const axis = buildReferenceAxis({
       name: whole ? base : `${base} ${num(from, { digits: 0 })}–${num(to, { digits: 0 })}`,
-      epsg: Number(epsg), elements, startStation: startStation ?? 0, from, to,
-      gradient: gra?.points ?? null, heightEpsg: gra ? Number(graHeightEpsg) : null,
+      epsg: Number(epsg), elements, startStation, from, to,
+      gradient: reference?.points ?? null, heightEpsg: gra ? Number(graHeightEpsg) : null,
       tra: tra.name, gra: gra?.name ?? null,
     })
     saveReferenceAxis(axis)
@@ -127,28 +159,35 @@ export default function VermEsnSection() {
     setNotes(gra && !axis.points.z ? [t('data_exchange_reference_no_heights')] : [])
     setTra(null)
     setGra(null)
+    setKm(null)
   }
 
   const importIt = () => {
     if (!ready) return
     if (asReference) { importReference(); return }
-    const { elements, errors: errs, startStation } = buildElements(tra.records, Number(epsg))
+    const axis = readAxis(tra.buffer, epsg)
+    const { elements, errors: errs } = axis
     setErrors(errs)
     if (errs.length || !elements.length) return
-    const recalced = elements
-    const length = recalced.reduce((sum, el) => sum + (el.length ?? 0), 0)
-    const { heights, notes: hNotes } = gra ? gradientHeights(gra.points, startStation, length) : { heights: null, notes: [] }
+    const { heights, notes: hNotes } = reference ? referencedHeights(reference, axis) : { heights: null, notes: [] }
+    const kmUsed = reference?.ref ? kmAxis : null
     setNotes(hNotes)
-    commitImport({ addTracks: [{
-      id: generateId(), epsg: Number(epsg), coordinates: rebuildCoords(recalced), elements: recalced,
-      ...(heights ? { heights, heightEpsg: Number(graHeightEpsg) } : {}),
-    }] })
+    commitImport({
+      addTracks: [{
+        id: generateId(), epsg: Number(epsg), coordinates: rebuildCoords(elements), elements,
+        ...(kmUsed ? { lineNumber: kmLineNumber(kmUsed.name) } : {}),
+        ...(heights ? { heights, heightEpsg: Number(graHeightEpsg) } : {}),
+      }],
+      addKmLines: kmUsed ? kmLineEntries([kmUsed]) : [],
+    })
     setDone(fill(heights ? 'data_exchange_vermesn_done_heights' : 'data_exchange_vermesn_done',
-      { name: tra.name, count: recalced.length, heights: heights?.length ?? 0 }))
+      { name: tra.name, count: elements.length, heights: heights?.length ?? 0 }))
     setTra(null)
     setGra(null)
+    setKm(null)
   }
 
+  const referenceLabel = ref => (ref ? fill('data_exchange_vermesn_reference_km', { name: ref }) : t('data_exchange_vermesn_reference_track'))
   const crsOption = o => <option key={o.code} value={o.code}>EPSG {o.code} – {o.label}</option>
 
   return (
@@ -172,6 +211,21 @@ export default function VermEsnSection() {
         file={gra && { name: gra.name, detail: fill('data_exchange_vermesn_gra_loaded', { count: gra.points.length }) }}
         pickLabel={t('data_exchange_vermesn_gra_pick')} removeLabel={t('data_exchange_vermesn_gra_remove')}
         disabled={!project} onRemove={() => setGra(null)} />
+      <FileSlot label={t('data_exchange_vermesn_km')} accept=".tra,.TRA" onFile={readKm}
+        file={km && { name: km.name, detail: fill('data_exchange_vermesn_km_loaded', {
+          count: km.count, from: num(km.from, { digits: 3 }), to: num(km.to, { digits: 3 }),
+        }) }}
+        pickLabel={t('data_exchange_vermesn_km_pick')} removeLabel={t('data_exchange_vermesn_km_remove')}
+        disabled={!project} onRemove={() => { setKm(null); setRefChoice(null) }} />
+      {km && references && (
+        <div className="form-field">
+          <label>{t('data_exchange_vermesn_reference')}<InfoTip text={t('data_exchange_vermesn_reference_hint')} /></label>
+          <select className="settings-select" value={reference?.ref ?? ''} onChange={e => setRefChoice(e.target.value)}>
+            {references.map(r => <option key={r.ref ?? ''} value={r.ref ?? ''}>{referenceLabel(r.ref)}</option>)}
+          </select>
+          {references.length < 2 && <span className="msg-hint msg-small">{t('data_exchange_vermesn_km_misses')}</span>}
+        </div>
+      )}
       {gra && (
         <div className="form-field">
           <label>{t('data_exchange_vermesn_height')}</label>

@@ -823,6 +823,9 @@
 }
 .chip-remove { margin-left: var(--space-3); font-weight: 700; color: var(--color-muted); cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
 .file-slot-name { font-size: var(--fs-s); }
+/* Verm.ESN batch: per track what its gradient is stationed along — the name keeps the room it needs. */
+.vermesn-ref-row { font-size: var(--fs-s); }
+.vermesn-ref-row .settings-select { flex: 0 0 auto; width: auto; max-width: 55%; padding: 3px 6px; font-size: var(--fs-s); }
 .station-name-input { position: relative; width: 100%; }
 .station-name-input input { width: 100%; box-sizing: border-box; }
 .plan-date-input { width: 45%; min-width: 0; }

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { zipSync } from 'fflate'
 import {
   parseRecords, buildElements, parseGradient, gradientHeights, gradientHeightCode, readVermEsnArchive, buildVermEsnBatch,
+  readAxis, gradientReferences, referencedHeights, readKmLines, batchReferences, kmLineEntries, kmLineNumber,
 } from './vermEsnImport'
 
 /** A GRA file: header (num = number of points), then station, height, radius, tangent length, point number. */
@@ -20,15 +21,18 @@ function graBuffer(rows, num = rows.length) {
   return buf
 }
 
-/** A TRA file of straights due north, each record { station, length }; the last one closes the axis. */
-function traBuffer(rows) {
+/**
+ * A TRA file of straights due north (or due south with `south`), each record
+ * { station, length }; the last one closes the axis. It begins at (`easting`, `northing`).
+ */
+function traBuffer(rows, { easting = 700000, northing = 5700000, south = false } = {}) {
   const buf = new ArrayBuffer(78 * rows.length)
   const view = new DataView(buf)
   rows.forEach(({ station, length }, i) => {
     const o = 78 * i
-    view.setFloat64(o + 16, 700000, true)
-    view.setFloat64(o + 24, 5700000 + (station - rows[0].station), true)
-    view.setFloat64(o + 32, 0, true)
+    view.setFloat64(o + 16, easting, true)
+    view.setFloat64(o + 24, northing + (south ? -1 : 1) * (station - rows[0].station), true)
+    view.setFloat64(o + 32, south ? Math.PI : 0, true)
     view.setFloat64(o + 40, station, true)
     view.setInt16(o + 48, 0, true)
     view.setFloat64(o + 50, length, true)
@@ -157,5 +161,81 @@ describe('Verm.ESN batch — TRA and GRA pairs from one zip', () => {
     expect(tracks).toEqual([])
     expect(files[0]).toMatchObject({ imported: false })
     expect(files[0].errors[0]).toMatch(/Anschluss-Abweichung/)
+  })
+})
+
+describe('Verm.ESN gradient along the kilometrage line', () => {
+  // The kilometrage line runs north from km 165400.0 for 400 m; the track lies
+  // 4.5 m east of it, from km 165450 for 200 m.
+  const kmTra = traBuffer([{ station: 165400, length: 400 }, { station: 165800, length: 0 }])
+  const trackTra = traBuffer([{ station: 0, length: 120 }, { station: 120, length: 80 }, { station: 200, length: 0 }],
+    { easting: 700004.5, northing: 5700050 })
+  const kmGra = graBuffer([[165450, 100], [165550, 101, 5000, 10], [165650, 100.5]])
+  const km = () => ({ ...readAxis(kmTra, 5683), name: '6340S' })
+
+  it('carries the points over at right angles to the line, the track ends taking the gradient ends', () => {
+    const axis = readAxis(trackTra, 5683)
+    const [best, own] = gradientReferences(axis, parseGradient(kmGra), [km()])
+    expect(best.ref).toBe('6340S')
+    expect(own.ref).toBeNull()
+    expect(best.points.map(p => p.station)).toEqual([expect.closeTo(0, 6), expect.closeTo(100, 6), expect.closeTo(200, 6)])
+    const { heights, notes } = referencedHeights(best, axis)
+    expect(heights.map(h => [Math.round(h.station * 1000) / 1000, h.z])).toEqual([[0, 100], [100, 101], [200, 100.5]])
+    expect(heights[1].rv).toBe(5000)
+    expect(notes).toEqual([])
+  })
+
+  it('takes the points in the direction of a track that runs against the kilometrage', () => {
+    const back = readAxis(traBuffer([{ station: 0, length: 200 }, { station: 200, length: 0 }],
+      { easting: 699996, northing: 5700250, south: true }), 5683)
+    const [best] = gradientReferences(back, parseGradient(kmGra), [km()])
+    expect(best.ref).toBe('6340S')
+    expect(best.points.map(p => [Math.round(p.station * 1000) / 1000, p.z])).toEqual([[0, 100.5], [100, 101], [200, 100]])
+  })
+
+  it('counts gradient and track ends up to 2 cm apart as the same, and says where the gradient falls short', () => {
+    const axis = readAxis(trackTra, 5683)
+    const near = gradientReferences(axis, parseGradient(graBuffer([[165450.015, 100], [165649.99, 100.5]])), [km()])[0]
+    const { heights, notes } = referencedHeights(near, axis)
+    expect([heights[0].station, heights[heights.length - 1].station]).toEqual([0, 200])
+    expect(notes).toEqual([])
+    const short = gradientReferences(axis, parseGradient(graBuffer([[165450.05, 100], [165649.99, 100.5]])), [km()])[0]
+    expect(referencedHeights(short, axis).notes[0]).toMatch(/nicht ganz ab/)
+  })
+
+  it('keeps a gradient along the track where it fits there best', () => {
+    const own = gradientReferences(readAxis(trackTra, 5683), parseGradient(graBuffer([[0, 100], [200, 101]])), [km()])
+    expect(own[0].ref).toBeNull()
+  })
+
+  it('makes the line a project kilometrage line under the number its name starts with', () => {
+    expect(kmLineNumber('63400164S')).toBe(6340)
+    expect(kmLineNumber('6311-001S')).toBe(6311)
+    const [entry] = kmLineEntries([km()])
+    expect(entry).toMatchObject({ id: 'km-6340', lineNumber: 6340, source: 'vermesn' })
+    expect(entry.runs).toHaveLength(1)
+    expect(entry.runs[0][0][2]).toBe(165400)
+    expect(entry.runs[0][entry.runs[0].length - 1][2]).toBe(165800)
+  })
+
+  it('in a batch: an S file is a kilometrage line, the track takes its number and the line goes along', () => {
+    const archive = readVermEsnArchive(zipSync({
+      '6340S.TRA': new Uint8Array(kmTra), 'Gleis_1.TRA': new Uint8Array(trackTra), 'Gleis_1.GRA': new Uint8Array(kmGra),
+      'Gleis_links.TRA': new Uint8Array(trackTra),
+    }))
+    expect(archive.pairs.map(p => p.name)).toEqual(['Gleis_1', 'Gleis_links'])
+    expect(archive.kmLines.map(k => k.name)).toEqual(['6340S'])
+    const { axes } = readKmLines(archive.kmLines, 5683)
+    expect(batchReferences(archive.pairs, axes, 5683).get('Gleis_1')).toEqual(['6340S', null])
+    const { tracks, kmLines, files } = buildVermEsnBatch(archive.pairs, { epsg: 5683, heightEpsg: 7837, kmAxes: axes })
+    expect(tracks[0]).toMatchObject({ name: 'Gleis_1', lineNumber: 6340 })
+    expect(tracks[0].heights[0]).toMatchObject({ station: 0, z: 100 })
+    expect(tracks[1].lineNumber).toBeUndefined()
+    expect(files[0].reference).toBe('6340S')
+    expect(kmLines.map(l => l.lineNumber)).toEqual([6340])
+    // Chosen otherwise: along the track, whose stationing the gradient misses.
+    const own = buildVermEsnBatch(archive.pairs, { epsg: 5683, kmAxes: axes, references: new Map([['Gleis_1', null]]) })
+    expect(own.tracks[0].heights).toBeUndefined()
+    expect(own.kmLines).toEqual([])
   })
 })

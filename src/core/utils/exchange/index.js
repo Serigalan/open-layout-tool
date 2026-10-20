@@ -21,5 +21,6 @@ export {
 export { planRailJsonImport } from './railJsonImport'
 export { exportVermEsn } from './vermEsnExport'
 export {
-  buildElements, buildVermEsnBatch, gradientHeightCode, gradientHeights, parseGradient, parseRecords, readVermEsnArchive,
+  batchReferences, buildVermEsnBatch, gradientHeightCode, gradientReferences, kmLineEntries, kmLineNumber,
+  parseGradient, readAxis, readKmLines, readVermEsnArchive, referencedHeights,
 } from './vermEsnImport'
