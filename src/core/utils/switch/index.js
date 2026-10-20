@@ -19,7 +19,8 @@ export {
   computeCrossingGeometryUtm, crossingAngle, crossingElements, crossingEndDistance,
   crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius,
 } from './crossing'
-export { formDetail, switchDetail } from './detail'
+export { formDetail } from './detail'
+export { switchDetailScene } from './detailScene'
 export { DEFAULT_MIDS, MID_OPEN, midUnknowns } from './midChain'
 export {
   negR, switchBranchChain, switchChainBauform, switchChainBearingAt, switchChainPointUtm,

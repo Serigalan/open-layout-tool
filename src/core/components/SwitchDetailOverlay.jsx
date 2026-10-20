@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { loadSwitches, loadTracks } from '../storage'
-import { formDetail, switchDetail, switchTypeByLabel } from '../utils/switch'
+import { formDetail, switchDetailScene, switchTypeByLabel } from '../utils/switch'
 import { useI18n } from '../locales/i18nContext'
 import { useProject } from '../hooks/useStore'
 import { PALETTE } from '../styles/palette'
@@ -35,6 +35,11 @@ function segmentDistance(p, a, b) {
  * the same way. The wheel zooms, a drag moves the drawing; a sleeper under the
  * pointer says which it is and where it lies.
  *
+ * Around a laid turnout the drawing shows its surroundings (switch/detailScene):
+ * the turnouts joined to it in a switch connection, in full detail and fitted
+ * into the view with it, the other turnouts close by, and the tracks there as
+ * their rails. A switch in the header turns them off.
+ *
  * `switchId` names a laid turnout, `formLabel` (with `rail`) a catalogue form
  * shown on helper tracks instead.
  */
@@ -45,31 +50,38 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
   const overlay = useOverlayHeight(bodyRef, { min: 160 })
   const size = useElementSize(bodyRef)
 
+  const [surroundings, setSurroundings] = useState(true)
   const shown = useMemo(() => {
     if (formLabel) {
       const form = switchTypeByLabel(formLabel)
-      return form ? { name: null, detail: formDetail(form, { rail }) } : null
+      return form ? { name: null, detail: formDetail(form, { rail }), scene: null } : null
     }
     if (!project) return null
-    const sw = loadSwitches().find(s => s.switchId === switchId)
+    const switches = loadSwitches()
+    const sw = switches.find(s => s.switchId === switchId)
     if (!sw) return null
     // The variant follows from the main track's rail at WA (switch/sleepers).
-    return { name: sw.name ?? null, detail: switchDetail(loadTracks(), sw) }
+    const scene = switchDetailScene(loadTracks(), switches, sw)
+    return { name: sw.name ?? null, detail: scene?.detail ?? null, scene }
     // `project` is the store's live record: a change to the tracks redraws.
   }, [project, switchId, formLabel, rail])
   const detail = shown?.detail ?? null
+  const scene = surroundings ? shown?.scene ?? null : null
+  // The other turnouts drawn: the partners in a switch connection first.
+  const others = scene ? [...scene.partners, ...scene.nearby] : []
 
-  // Every point drawn, for the box the view is fitted to.
+  // The box the view is fitted to: the turnout, and its partners with it.
   const bounds = useMemo(() => {
     if (!detail) return null
+    if (scene) return scene.focus
     const pts = [...detail.sleepers.flatMap(s => s.ends), ...detail.rails.flatMap(r => r.points)]
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1])
     return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) }
-  }, [detail])
+  }, [detail, scene])
 
   // The view: k px per metre, (ox, oy) where the origin (WA) lies on screen —
   // for the turnout it was set on; another one is shown fitted.
-  const viewKey = `${switchId}|${formLabel}|${rail}`
+  const viewKey = `${switchId}|${formLabel}|${rail}|${surroundings}`
   const [moved, setMoved] = useState(null)
   const view = moved?.key === viewKey ? moved : null
   const setView = (next) => setMoved(next && { ...next, key: viewKey })
@@ -101,9 +113,11 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
     const rect = e.currentTarget.getBoundingClientRect()
     const p = [(e.clientX - rect.left - v.ox) / v.k, -(e.clientY - rect.top - v.oy) / v.k]
     let best = null, bestD = Infinity
-    for (const s of detail.sleepers) {
-      const d = segmentDistance(p, s.ends[0], s.ends[1])
-      if (d < bestD) { best = s; bestD = d }
+    for (const owner of [detail, ...others]) {
+      for (const s of owner.sleepers) {
+        const d = segmentDistance(p, s.ends[0], s.ends[1])
+        if (d < bestD) { best = { ...s, owner, key: s }; bestD = d }
+      }
     }
     setHover(bestD <= SLEEPER_WIDTH / 2 + HOVER_PX / v.k ? best : null)
   }
@@ -140,6 +154,10 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
 
   const m = (x) => num(x, { digits: 2 })
   const hoverText = (s) => {
+    const own = s.owner === detail ? '' : `${s.owner.sw.name ?? s.owner.form?.label ?? ''}: `
+    return own + sleeperText(s)
+  }
+  const sleeperText = (s) => {
     if (s.kind === 'before') return fill('switch_detail_sleeper_before', { m: m(-s.m) })
     if (s.kind === 'main' || s.kind === 'branch') {
       return fill(s.kind === 'main' ? 'switch_detail_sleeper_main' : 'switch_detail_sleeper_branch', { k: s.k })
@@ -150,13 +168,45 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
   }
 
   // WM and the ldS on the axes; WA and WE are rail joints, a point on each
-  // rail, named once beside the pair (decision 349).
-  const marks = detail && [
-    ['WM', detail.marks.WM], ['ldS', detail.marks.ldS.main], ['ldS', detail.marks.ldS.branch],
+  // rail, named once beside the pair (decision 349). Another turnout is named
+  // at its WA.
+  const marksOf = (d) => [
+    ['WM', d.marks.WM], ['ldS', d.marks.ldS.main], ['ldS', d.marks.ldS.branch],
   ].filter(([, p]) => p)
-  const joints = detail && [
-    ['WA', detail.marks.joints.WA], ...detail.marks.joints.WE.map(pair => ['WE', pair]),
+  const jointsOf = (d, name = null) => [
+    [name ? `WA ${name}` : 'WA', d.marks.joints.WA], ...d.marks.joints.WE.map(pair => ['WE', pair]),
   ]
+  const points = (pts) => pts.map(p => `${sx(p).toFixed(1)},${sy(p).toFixed(1)}`).join(' ')
+
+  /** One turnout's sleepers, rails and marks. */
+  const drawn = (d, key, name = null) => (
+    <g key={key} className={name ? 'switch-detail-other' : undefined}>
+      {d.sleepers.map((s, i) => (
+        <polygon key={i} points={sleeperPolygon(s)}
+          fill={hover?.key === s ? PALETTE.mapHover : PALETTE.sleeper} stroke={PALETTE.sleeperEdge} strokeWidth={1} />
+      ))}
+      {d.rails.map((r, i) => (
+        <polyline key={i} fill="none" stroke={PALETTE.rail} strokeWidth={Math.max(RAIL_MIN_PX, RAIL_WIDTH * v.k)}
+          strokeLinejoin="round" points={points(r.points)} />
+      ))}
+      {marksOf(d).map(([label, p], i) => (
+        <g key={i}>
+          <circle cx={sx(p)} cy={sy(p)} r={3} fill={PALETTE.primaryDefault} />
+          <text x={sx(p)} y={sy(p) - 7} textAnchor="middle" className="switch-detail-mark">{label}</text>
+        </g>
+      ))}
+      {jointsOf(d, name).map(([label, pair], i) => {
+        // Named above the upper of the two rails.
+        const top = pair.reduce((a, b) => (sy(b) < sy(a) ? b : a))
+        return (
+          <g key={`j${i}`}>
+            {pair.map((p, j) => <circle key={j} cx={sx(p)} cy={sy(p)} r={3.5} fill={PALETTE.mapSelected} />)}
+            <text x={sx(top)} y={sy(top) - 8} textAnchor="middle" className="switch-detail-mark">{label}</text>
+          </g>
+        )
+      })}
+    </g>
+  )
 
   return (
     <div className="track-table-overlay switch-detail-overlay" style={overlay.style}>
@@ -167,6 +217,12 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
           <span className="track-table-subtitle">{hover ? hoverText(hover) : subtitle}</span>
         </span>
         <span className="switch-detail-tools">
+          {shown?.scene && (
+            <label className="switch-detail-toggle">
+              <input type="checkbox" checked={surroundings} onChange={e => setSurroundings(e.target.checked)} />
+              {t('switch_detail_surroundings')}
+            </label>
+          )}
           <button type="button" className="panel-btn" onClick={() => setView(null)} disabled={!view}>{t('switch_detail_fit')}</button>
           <InfoTip text={t('switch_detail_overlay_hint')} />
           <CloseButton onClick={onClose} />
@@ -177,30 +233,12 @@ export default function SwitchDetailOverlay({ switchId = null, formLabel = null,
         {detail && v && size && (
           <svg width={size.w} height={size.h} className={drag.dragging ? 'is-dragging' : undefined}
             {...drag.handlers} onPointerMove={onPointerMove} onPointerLeave={() => setHover(null)}>
-            {detail.sleepers.map((s, i) => (
-              <polygon key={i} points={sleeperPolygon(s)}
-                fill={hover === s ? PALETTE.mapHover : PALETTE.sleeper} stroke={PALETTE.sleeperEdge} strokeWidth={1} />
-            ))}
-            {detail.rails.map((r, i) => (
-              <polyline key={i} fill="none" stroke={PALETTE.rail} strokeWidth={Math.max(RAIL_MIN_PX, RAIL_WIDTH * v.k)}
-                strokeLinejoin="round" points={r.points.map(p => `${sx(p).toFixed(1)},${sy(p).toFixed(1)}`).join(' ')} />
-            ))}
-            {marks.map(([label, p], i) => (
-              <g key={i}>
-                <circle cx={sx(p)} cy={sy(p)} r={3} fill={PALETTE.primaryDefault} />
-                <text x={sx(p)} y={sy(p) - 7} textAnchor="middle" className="switch-detail-mark">{label}</text>
-              </g>
-            ))}
-            {joints.map(([label, pair], i) => {
-              // Named above the upper of the two rails.
-              const top = pair.reduce((a, b) => (sy(b) < sy(a) ? b : a))
-              return (
-                <g key={`j${i}`}>
-                  {pair.map((p, j) => <circle key={j} cx={sx(p)} cy={sy(p)} r={3.5} fill={PALETTE.mapSelected} />)}
-                  <text x={sx(top)} y={sy(top) - 8} textAnchor="middle" className="switch-detail-mark">{label}</text>
-                </g>
-              )
-            })}
+            {scene?.tracks.map((run, i) => run.rails.map((rail, j) => (
+              <polyline key={`t${i}-${j}`} fill="none" stroke={PALETTE.axis} strokeWidth={1}
+                strokeLinejoin="round" points={points(rail)} />
+            )))}
+            {others.map((d, i) => drawn(d, `o${i}`, d.sw.name ?? d.form?.label ?? '?'))}
+            {drawn(detail, 'main')}
           </svg>
         )}
       </div>

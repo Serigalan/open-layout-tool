@@ -70,7 +70,8 @@ part of the same React tree through a portal, reads the same store, and outlives
 a turnout clicked on the map, or a catalogue form on a chosen rail profile, drawn to scale from
 `switch.switchDetail` / `switch.formDetail` — sleepers as grey bars with an edge, rails as dark lines, WA, WM,
 WE and ldS as dots; the wheel zooms about the pointer, a drag moves, a sleeper under the pointer names itself
-and its stations.
+and its stations. Around a laid turnout the partners of a switch connection, the turnouts close by and the
+tracks there are drawn with it (switch "Surroundings" in the header).
 
 **Step notice** (`shell/StepNotice.jsx`): what the last step did, said once over the map ("Track 6340.12393
 created") with the way back, and the tracks it touched lit for a moment.

@@ -18,6 +18,7 @@ ports, element marks — is in the `track` module; what the dialogs commit is in
 | `crossing.js` | Crossings and crossing switches (incl. Bogenkreuzungsweiche): angle, legs, end distances, connecting curves, geometry |
 | `sleepers.js` | Where a turnout's sleepers lie (along its bisector, 0.30 + 0.60·k m from WA), the ldS, the sleeper through a point of either track — the grid the heights lie on |
 | `detail.js` | A turnout in detail: sleepers (with the bracket sleepers of its variant) and rails in the turnout's own frame, for a laid turnout or a catalogue form on helper tracks |
+| `detailScene.js` | A laid turnout in detail with its surroundings: the partners of a switch connection, the turnouts close by and the tracks there, in the turnout's frame |
 | `switchPlacement.js` | Where a turnout lies on a track: the toe at a station, the through route over as many elements as it covers; why it cannot lie somewhere |
 | `switchConnectionUtils.js` | The switch connection: two turnouts facing each other on two tracks and the element(s) between them |
 | `midChain.js` | One to three elements between the two branches of a switch connection, two of their values sought |
@@ -118,6 +119,13 @@ every 0.60 m, starting at the ldS's angle and turning linearly until the last li
 outside and inside shortened to 5 cm short of the middle between the axes. Every sleeper reaches 0.55 m beyond
 the outer rail; the rails are parallels 0.75 m beside both axes. WA and WE are drawn as joints, a point on each
 rail in the middle of its bay; WM (t1 along the main route) and the ldS on the axes.
+
+**Surroundings.** `switchDetailScene(tracks, switches, sw)` adds what lies around a laid turnout, in its
+frame. The partners of a switch connection are found along the branch: its track followed to the far end,
+across links, and a turnout met there within 250 m of the toe — or one whose branch leads here — is the other
+half; a turnout farther off (the other end of a station track) is not. The partners are drawn in full and the
+view is fitted to them with the turnout; every other turnout with a part within 15 m of that box is drawn too,
+and the tracks there as runs of their two rails (only the elements near the window are sampled).
 
 ## Crossings and crossing switches
 

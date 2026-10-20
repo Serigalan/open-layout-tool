@@ -31,3 +31,16 @@
   pointer-events: none;
   user-select: none;
 }
+
+/* The surroundings: other turnouts a little behind the one shown. */
+.switch-detail-other {
+  opacity: 0.8;
+}
+
+.switch-detail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-s);
+  white-space: nowrap;
+}
