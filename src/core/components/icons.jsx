@@ -346,6 +346,15 @@ export const CrossingConnectTrackIcon = () => (
   </MenuIcon>
 )
 
+// A turnout in detail: the main track and the branch on their sleepers.
+export const SwitchDetailIcon = () => (
+  <MenuIcon>
+    <path d="M1 12 H15" />
+    <path d="M4 12 L14 5" />
+    <path d="M6 9 V14.5 M9 7 V14.5 M12 5 V14.5" opacity="0.55" />
+  </MenuIcon>
+)
+
 // A link: two track ends and the node between them. The gap is the drawing —
 // a link has no length, and nothing runs between the ends but the node itself.
 export const SwitchLinkIcon = () => (

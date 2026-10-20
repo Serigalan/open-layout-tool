@@ -83,7 +83,14 @@ export const PANELS = [
   },
   { id: 'places', group: 'design', icon: PlaceIcon, titleKey: 'create_element', place: 'top', Component: CreatePanel },
   { id: 'splice', group: 'design', icon: SpliceElementIcon, titleKey: 'splice_element', place: 'top', Component: SpliceConnectPanel },
-  { id: 'connect_switch', group: 'design', icon: ConnectSwitchIcon, titleKey: 'connect_switch', place: 'top', Component: ConnectSwitchPanel },
+  {
+    id: 'connect_switch', group: 'design', icon: ConnectSwitchIcon, titleKey: 'connect_switch', place: 'top', Component: ConnectSwitchPanel,
+    overlay: 'switchDetail',
+    props: (s) => ({
+      detailTarget: s.overlay?.kind === 'switchDetail' ? s.overlay : null,
+      onShowDetail: (target) => (target ? s.openOverlay({ kind: 'switchDetail', ...target }) : s.closeOverlay('switchDetail')),
+    }),
+  },
   {
     id: 'edit', group: 'edit', icon: EditElementIcon, titleKey: 'edit', place: 'top', Component: EditElementPanel,
     overlay: 'trackTable',

@@ -62,9 +62,15 @@ gets what it needs from the shell through `props(s)`. Server tools appear inside
 
 **Overlays** (`shell/overlays.js`): at most one map overlay and one popup at a time. The overlay belongs to the
 open panel — element table (edit), height profile (heights), cross section, bands (check), topology diagram,
-plan preview, project tracks — and closes when the panel changes; popups (physics, rulebooks) belong to no panel
+plan preview, project tracks, switch in detail (switches) — and closes when the panel changes; popups (physics, rulebooks) belong to no panel
 and replace each other. An overlay can be **detached** into its own browser window (the cross section): it stays
 part of the same React tree through a portal, reads the same store, and outlives panel changes.
+
+**Switch in detail** (`components/SwitchDetailOverlay.jsx`, page `ConnectSwitchPanel/SwitchDetailPage.jsx`):
+a turnout clicked on the map, or a catalogue form on a chosen rail profile, drawn to scale from
+`switch.switchDetail` / `switch.formDetail` — sleepers as grey bars with an edge, rails as dark lines, WA, WM,
+WE and ldS as dots; the wheel zooms about the pointer, a drag moves, a sleeper under the pointer names itself
+and its stations.
 
 **Step notice** (`shell/StepNotice.jsx`): what the last step did, said once over the map ("Track 6340.12393
 created") with the way back, and the tracks it touched lit for a moment.

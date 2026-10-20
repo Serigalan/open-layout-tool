@@ -9,7 +9,7 @@
 export {
   ALL_SWITCH_TYPES, asRadius, bauform, CROSSING_TYPES, DEFAULT_SWITCH_TYPE_IDX, SWITCH_PICK_TYPES,
   switchBranchLength, switchBranchSections, switchFormChain, switchStraightLength,
-  switchTypeByLabel, switchVariants,
+  switchTypeByLabel,
 } from './catalogue'
 export {
   connectionAnchor, connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitCount,

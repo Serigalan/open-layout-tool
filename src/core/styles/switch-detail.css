@@ -1,0 +1,33 @@
+/* A turnout in detail (Paket WD): the drawing fills the overlay below its
+   header, moved by dragging and zoomed by the wheel. */
+.switch-detail-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+.switch-detail-body svg {
+  display: block;
+}
+
+.switch-detail-body svg.is-dragging {
+  cursor: grabbing;
+}
+
+.switch-detail-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.switch-detail-mark {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  fill: var(--color-text);
+  pointer-events: none;
+  user-select: none;
+}

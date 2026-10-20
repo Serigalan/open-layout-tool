@@ -38,6 +38,7 @@ const CrossSectionOverlay = lazy(() => import('../components/CrossSectionOverlay
 const TopologyGraphOverlay = lazy(() => import('../components/TopologyGraphOverlay'))
 const CompareOverlay = lazy(() => import('../components/collab/CompareOverlay'))
 const ProjectTracksOverlay = lazy(() => import('../components/ProjectTracksOverlay'))
+const SwitchDetailOverlay = lazy(() => import('../components/SwitchDetailOverlay'))
 import { TRACKS_HOVER_LAYER, TRACKS_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 
@@ -355,6 +356,8 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
           {overlay?.kind === 'profile' && <ElevationOverlay trackId={overlay.trackId} routeId={overlay.routeId ?? null}
             section={detached?.kind === 'crossSection' ? detached.at : null} onClose={() => closeOverlay('profile')} />}
           {overlay?.kind === 'projectTracks' && <ProjectTracksOverlay onClose={() => closeOverlay('projectTracks')} />}
+          {overlay?.kind === 'switchDetail' && <SwitchDetailOverlay switchId={overlay.switchId ?? null}
+            formLabel={overlay.formLabel ?? null} rail={overlay.rail ?? null} onClose={() => closeOverlay('switchDetail')} />}
           {overlay?.kind === 'bands' && <BandsOverlay trackId={overlay.trackId} onClose={() => closeOverlay('bands')} />}
           {overlay?.kind === 'crossSection' && <CrossSectionOverlay at={overlay.at}
             onAtChange={(at) => openOverlay({ kind: 'crossSection', at })} onClose={() => closeOverlay('crossSection')}
