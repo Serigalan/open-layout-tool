@@ -50,7 +50,15 @@ rail)` picks the variant of a rail profile — concrete before timber, Regelform
 form's first where none has the profile. A test builds every row from its form (a = R·tan(α/2), b = a + lz,
 l, track distance at WE) to 3 mm.
 
-The Weichenmarke is the table's `dLcs`. Only a form without one would use the construction
+**Frogs.** The fb and gb turnouts of the DB switch table (federnd beweglich, gelenkig beweglich; run with a
+cant deficiency of 130 mm) are forms of their own with `herzstueck` — fifteen of them, labelled like
+`500 – 1:12 fb`, some with their own straight end piece, some with the geometry of a rigid form. They run at
+the speed of their radius, state no minimum intermediate straight and no connection stage (a connection never
+picks them), and take the ldS of the rigid form of the same geometry where the table's rounds to it. The
+2500 – 1:26.5 is itself an fb turnout.
+
+The Weichenmarke is the table's `dLcs`; `switchMark(form)` gives it, and the construction below for a turnout
+that states none (the fb and gb forms). Only a form without one would use the construction
 `d = 2.272·n − (l_t + g)` with `l_t = R·tan(w/2)`, `w = atan(1/n)`, rounded onto the grid `0.30 + k·0.60 m`.
 
 ## A turnout on a track

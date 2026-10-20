@@ -132,13 +132,21 @@ export default function WeichenRegelwerk() {
                     {form.symmetrisch && (
                       <span className="constraints-note">{t('constraints_weichen_symmetrisch')}</span>
                     )}
+                    {form.herzstueck && (
+                      <span className="constraints-note">
+                        {t(form.herzstueck === 'gb' ? 'constraints_weichen_herz_gb' : 'constraints_weichen_herz_fb')}
+                      </span>
+                    )}
                   </td>
                   {gruppe.art === 'weiche' ? (
                     <>
                       <td>{zahl(form.radius)}</td>
                       <td>1:{form.neigung}</td>
                       <td>{zahl(form.speed)}</td>
-                      <td>{zahl(form.marke)}</td>
+                      <td>
+                        {zahl(form.marke)}
+                        {form.markeBerechnet && <span className="constraints-note">{t('constraints_weichen_marke_berechnet')}</span>}
+                      </td>
                       <td>{zahl(form.minl)}</td>
                       <td>{form.gerade ? String(form.gerade) : '–'}</td>
                       <td>{form.lds === 0 ? t('constraints_weichen_lds_we') : zahl(form.lds)}</td>

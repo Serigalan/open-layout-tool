@@ -75,7 +75,11 @@ export function switchTypeFor(unit) {
       && radiusFits(t)) ?? null
   }
   if (unit.radius == null) return null
-  return ALL_TYPES.find(t => t.R === unit.radius && Math.abs(t.ratio - unit.slope) < 1e-6) ?? null
+  // Radius and slope name the form; a frog named in the Bauform (fb, gb)
+  // picks the form with that frog, none the rigid one — and where the form is
+  // built only one way (2500 – 1:26.5 is fb) that one either way.
+  const fits = ALL_TYPES.filter(t => t.R === unit.radius && Math.abs(t.ratio - unit.slope) < 1e-6)
+  return fits.find(t => (t.herzstueck ?? null) === (unit.herzstueck ?? null)) ?? fits[0] ?? null
 }
 
 /** Intersection of the lines a→c and b→d, or null where they are parallel. */

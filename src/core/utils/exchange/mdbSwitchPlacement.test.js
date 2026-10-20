@@ -34,6 +34,11 @@ const placed = placeMdbSwitches(payload, built.tracks, units)
 describe('switchTypeFor', () => {
   it('finds the form by radius and slope, across all four tables', () => {
     expect(switchTypeFor({ radius: 190, slope: 9 })?.label).toBe('190 – 1:9')
+    // A frog named in the Bauform picks the fb or gb form, none the rigid one (decision 343).
+    expect(switchTypeFor({ radius: 760, slope: 14, herzstueck: 'gb' })?.label).toBe('760 – 1:14 gb')
+    expect(switchTypeFor({ radius: 760, slope: 14, herzstueck: 'fb' })?.label).toBe('760 – 1:14 fb')
+    expect(switchTypeFor({ radius: 760, slope: 14 })?.label).toBe('760 – 1:14')
+    expect(switchTypeFor({ radius: 2500, slope: 26.5 })?.label).toBe('2500 – 1:26.5')
     expect(switchTypeFor({ radius: 500, slope: 14 })?.label).toBe('500 – 1:14')     // ALT1
     expect(switchTypeFor({ radius: 760, slope: 18.5 })?.label).toBe('760 – 1:18.5') // ALT2
     // The inventory table: forms the network carries that no connection builds.

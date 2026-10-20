@@ -63,7 +63,8 @@ describe('the switch forms as a regelwerk', () => {
   it('reads a turnout form as the table states it', () => {
     expect(form('regel_weichen', '190 – 1:9')).toEqual({
       label: '190 – 1:9', radius: 190, neigung: 9, speed: 40, marke: 3.9, minl: 6,
-      gerade: 6.092, lds: 3.94, symmetrisch: false, varianten: expect.any(Array),
+      gerade: 6.092, lds: 3.94, symmetrisch: false, herzstueck: null, markeBerechnet: false,
+      varianten: expect.any(Array),
     })
   })
 
@@ -154,7 +155,8 @@ describe('what the viewer asks the locales for', () => {
       'constraints_weichen_var_klasse', 'constraints_weichen_var_schwellenzahl',
       'constraints_weichen_var_schwellenzahl_hint', 'constraints_weichen_var_zs_wa', 'constraints_weichen_var_r_ibw',
       'constraints_weichen_var_beton', 'constraints_weichen_var_holz', 'constraints_weichen_var_regel',
-      'constraints_weichen_var_sonder',
+      'constraints_weichen_var_sonder', 'constraints_weichen_herz_fb', 'constraints_weichen_herz_gb',
+      'constraints_weichen_marke_berechnet',
     ]) expect(says(key), key).toBe(true)
   })
 })
@@ -165,7 +167,7 @@ describe('what rulebook it is', () => {
     // statement beside it.
     expect(WEICHEN_REGELWERK.id).toBe('db-ril-800-0120')
     expect(WEICHEN_REGELWERK.title).toBe('DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen')
-    expect(WEICHEN_REGELWERK.katalog_version).toBe('0.4.0')
+    expect(WEICHEN_REGELWERK.katalog_version).toBe('0.5.0')
     expect(WEICHEN_REGELWERK.status).toBe('draft')
     // The Ril's own edition and validity date are stated nowhere.
     expect(WEICHEN_REGELWERK.version).toBeUndefined()

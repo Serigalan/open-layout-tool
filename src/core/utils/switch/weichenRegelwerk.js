@@ -14,7 +14,7 @@
 // is: this one is bundled, so it is there whether or not the optimizer service
 // answers.
 
-import { SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES, WEICHEN_KATALOG, switchVariants } from './catalogue'
+import { SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES, WEICHEN_KATALOG, switchMark, switchVariants } from './catalogue'
 
 /**
  * What this rulebook is, as the catalogue states it about itself. The Ril's
@@ -36,7 +36,10 @@ const weicheRow = (form) => ({
   radius: form.R,
   neigung: form.ratio,
   speed: form.speed,
-  marke: form.dLcs ?? null,
+  // The mark the form states, or the construction where it states none
+  // (decision 346) — said as such beside it.
+  marke: switchMark(form),
+  markeBerechnet: form.dLcs == null,
   minl: form.minl ?? null,
   gerade: geradesEndstueck(form),
   // How far behind WE the last through sleeper lies — 0 where WE is the ldS.
@@ -45,6 +48,8 @@ const weicheRow = (form) => ({
   // leave the toe on the one radius. A reader of the table would otherwise
   // read it as an ordinary form with a very sharp branch.
   symmetrisch: form.symmetric === true,
+  // A frog that is not rigid: fb (federnd beweglich) or gb (gelenkig beweglich).
+  herzstueck: form.herzstueck ?? null,
   // The rows of the DB switch table the form is built as (Paket WD).
   varianten: switchVariants(form),
 })

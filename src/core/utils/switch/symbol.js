@@ -6,7 +6,7 @@ import {
   switchChainTo, switchElementRoute, switchRouteBearingAt, switchRouteSegments, switchRouteVaries,
   switchStemRoute, toChain, toRoute, utmEndRoute,
 } from './route'
-import { switchBranchLength, switchFormChain, switchStraightLength, switchTypeByLabel } from './catalogue'
+import { switchBranchLength, switchFormChain, switchMark, switchStraightLength, switchTypeByLabel } from './catalogue'
 import { crossingEndDistance, crossingWedgeRing } from './crossing'
 
 // The drawn switch: route coordinates, the body ring, the LCS line, the label, and the symbol rebuilt from its tracks.
@@ -443,7 +443,7 @@ export function rebuildSwitchSymbol(sw, trackById) {
   const branchCoords = chainGeometry(node, routes.branchStartWgs, bearing, branch, routes.branchEndWgs).coords
   const lcsCoords = type
     ? lcsLine([node.easting, node.northing], routes.branchEnd,
-      [mainEndUtm.easting, mainEndUtm.northing], type.dLcs, epsg)
+      [mainEndUtm.easting, mainEndUtm.northing], switchMark(type), epsg)
     : null
   return {
     ...rest,
@@ -582,7 +582,7 @@ export function computeSwitchGeometryUtm(startUtm, bearing, sw, side, trailing, 
   const portB1_wgs = curvedEnd
   const portB2_wgs = trailing ? sWgs : straightEnd
 
-  const lcsCoords = lcsLine(portA, portB1, portB2, sw.dLcs, startUtm.zone)
+  const lcsCoords = lcsLine(portA, portB1, portB2, switchMark(sw), startUtm.zone)
 
   // The symbol, built once here so every caller draws the same turnout. Both
   // routes have to run from the toe: a trailing switch's through route is built

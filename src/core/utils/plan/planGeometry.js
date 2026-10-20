@@ -9,7 +9,7 @@ import {
 import {
   lcsLineUtm, switchFillRing, switchRoutePointsUtm, switchRoutesFromTracks,
   crossingRoutesFromTracks, crossingBodyUtm, crossingEndDistance, switchChainPointUtm,
-  switchChainBearingAt, switchChainBauform,
+  switchChainBearingAt, switchChainBauform, switchMark,
 } from '../switch'
 
 /**
@@ -283,7 +283,7 @@ export function switchSymbolUtm(sw, trackById) {
     // to go to the other one, and the branch arc's centre is on it as well.
     branchTurn: branchR ? Math.sign(branchR) : 0,
     fill: switchFillRing(mainPts, branchPts),
-    lcs: type ? lcsLineUtm([node.easting, node.northing], routes.branchEnd, mainEnd, type.dLcs) : null,
+    lcs: type ? lcsLineUtm([node.easting, node.northing], routes.branchEnd, mainEnd, switchMark(type)) : null,
     label: sw.label ?? null,
     bauform: switchChainBauform(stem, branch),
   }

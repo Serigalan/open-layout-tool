@@ -106,6 +106,17 @@ export function switchMarkDistance(type) {
   return Math.max(0.30, Math.round((d - 0.30) / 0.60) * 0.60 + 0.30)
 }
 
+/**
+ * The Weichenmarke of a form [m]: the `dLcs` it states, and for a turnout that
+ * states none the construction above (decision 346) — the fb and gb turnouts of
+ * the DB switch table, which gives no mark. A crossing without one has none.
+ */
+export function switchMark(form) {
+  if (!form) return null
+  if (form.dLcs != null) return form.dLcs
+  return form.art === 'weiche' && form.R && form.ratio ? switchMarkDistance(form) : null
+}
+
 // ── Crossings and crossing switches (AP 3.2) ─────────────────────────────────
 //
 // The crossing kinds are not turnouts: their two routes cross instead of parting,

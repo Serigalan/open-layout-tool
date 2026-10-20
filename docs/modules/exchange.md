@@ -156,7 +156,8 @@ where it is silent or guesses, the delivered files decide.
   tracks**, not by topology — 99.4 % of the units lie within 0.5 m of an axis, while the node addresses are in
   a chain only 35 % of the time. The projection finds the turnout shape — one track running through, one
   beginning there — and **no geometry is generated**: both routes are survey, the record only marks them,
-  the symbol is derived. A unit that cannot be built leaves a `switchHint` (form, number, reason) on the
+  the symbol is derived. The form follows from radius and slope of the Bauform; a frog named behind the slope
+  (`EW 60-500-1:12 fb`, `gb`) picks the fb or gb form, none the rigid one. A unit that cannot be built leaves a `switchHint` (form, number, reason) on the
   elements at its point instead of a switch mark, so the track does not read as plain line. The switch number
   comes from the project, the name from the file (the designation on site), the point address as `pad`.
 - **Derived turnouts** (`mdbSwitchDerive.js`): an inventory can be short. A track that ends **on** another

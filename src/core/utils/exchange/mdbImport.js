@@ -158,7 +158,7 @@ const padKey = (a, b) => `${a}\u0000${b}`
  */
 export function parseBauform(text) {
   const raw = String(text ?? '').trim()
-  const out = { raw, prefix: null, kind: null, bogen: false, rail: null, radius: null, n: null }
+  const out = { raw, prefix: null, kind: null, bogen: false, rail: null, radius: null, n: null, herzstueck: null }
   if (!raw) return out
 
   // Strip the qualifiers that say how much of the switch lies in a curve; they
@@ -171,6 +171,11 @@ export function parseBauform(text) {
     out.kind = KIND_BY_PREFIX[out.prefix]?.kind ?? null
     out.bogen = KIND_BY_PREFIX[out.prefix]?.bogen === true
   }
+
+  // A frog that is not rigid stands behind the slope: `EW 60-500-1:12 fb`
+  // (federnd beweglich) or `gb` (gelenkig beweglich) — another form (decision 343).
+  const herz = /\b(fb|gb)\b/i.exec(core)
+  if (herz) out.herzstueck = herz[1].toLowerCase()
 
   const slope = /1\s*[:]\s*(\d+(?:[.,]\d+)?)/.exec(core)
   if (slope) out.n = Number(slope[1].replace(',', '.'))
@@ -785,6 +790,7 @@ export function mdbSwitchInventory(payload) {
       label: form.raw,
       radius: form.radius,
       slope: form.n,
+      herzstueck: form.herzstueck,
       rail: RAIL_NAME[form.rail] ?? null,
       pads: g.members.map(m => m.pad),
       // Which node is which corner: the crossing kinds run their routes A–C and

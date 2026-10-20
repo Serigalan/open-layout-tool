@@ -5,7 +5,7 @@ import {
 import {
   ALL_SWITCH_TYPES, switchBranchSections, switchStraightLength, CROSSING_TYPES, bauform,
   crossingAngle, crossingEndDistance, crossingLegRadius, computeCrossingGeometryUtm, lcsLine,
-  switchFillRing, switchLabelGeometry,
+  switchFillRing, switchLabelGeometry, switchMark,
 } from '../switch'
 import {
   newSwitchFields, switchElementMark, LINK_KIND, TYPE_CODES, SIDE_CODES, LINE_CATEGORIES, STATUSES,
@@ -277,7 +277,7 @@ function rebuildSwitch(sw, trackById) {
   // dimensions — with an end piece both ends move, and the mark moves with them.
   const lcsCoords = type
     ? lcsLine([nodeUtm.easting, nodeUtm.northing], branchEndNode,
-      [straightUtm.easting, straightUtm.northing], type.dLcs, epsg)
+      [straightUtm.easting, straightUtm.northing], switchMark(type), epsg)
     : null
 
   return {

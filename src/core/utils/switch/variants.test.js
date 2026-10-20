@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  ALL_SWITCH_TYPES, CROSSING_TYPES, switchStraightLength, switchTypeByLabel, switchVariantFor, switchVariants,
+  ALL_SWITCH_TYPES, CROSSING_TYPES, SWITCH_CONNECTION_STAGES, SWITCH_PICK_TYPES, switchMark, switchMarkDistance,
+  switchStraightLength, switchTypeByLabel, switchVariantFor, switchVariants,
 } from './catalogue'
 
 // The variants are the rows of the DB switch table (800.0120, 05/2024); the
@@ -58,5 +59,49 @@ describe('switch variants', () => {
     const form = switchTypeByLabel('215 – 1:4.8')
     expect(form.lds).toBe(0)
     expect(switchVariants(form).every(v => v.masse.lds < 0)).toBe(true)
+  })
+})
+
+describe('the fb and gb turnouts (decision 343)', () => {
+  const frogs = ALL_SWITCH_TYPES.filter(f => f.herzstueck)
+
+  it('are forms of their own, each built as the rows of the table that name it', () => {
+    expect(frogs.map(f => f.label)).toEqual([
+      '2500 – 1:26.5', '500 – 1:12 fb', '760 – 1:14 fb', '1200 – 1:18.5 fb',
+      '300 – 1:9 gb', '300 – 1:9.4 gb', '500 – 1:11 fb', '500 – 1:12 gb', '500 – 1:14 fb', '760 – 1:14 gb',
+      '760 – 1:15 fb', '760 – 1:18.5 fb', '1200 – 1:18 fb', '1200 – 1:18.5 gb', '1200 – 1:19.277 fb',
+      '2500 – 1:27.85 fb',
+    ])
+    for (const f of frogs) {
+      expect(f.label.endsWith(f.herzstueck) || f.label === '2500 – 1:26.5', f.label).toBe(true)
+      expect(switchVariants(f).every(v => v.bezeichnung.endsWith(` ${f.herzstueck}`)), f.label).toBe(true)
+    }
+  })
+
+  it('run at the speed of their radius (decision 348)', () => {
+    const speed = { 300: 50, 500: 60, 760: 80, 1200: 100, 2500: 130 }
+    for (const f of frogs) expect(f.speed, f.label).toBe(speed[f.R])
+  })
+
+  it('take the Weichenmarke from the construction, the stated one where there is one (decision 346)', () => {
+    const fb = switchTypeByLabel('500 – 1:12 fb')
+    expect(fb.dLcs).toBeUndefined()
+    expect(switchMark(fb)).toBe(switchMarkDistance(fb))
+    expect(switchMark(switchTypeByLabel('500 – 1:12'))).toBe(6.3)
+    expect(switchMark(switchTypeByLabel('Kr 1:2.9'))).toBeNull()
+  })
+
+  it('keep the exact ldS of the rigid form of the same geometry, the table’s otherwise', () => {
+    expect(switchTypeByLabel('760 – 1:14 gb').lds).toBe(5.125)
+    expect(switchTypeByLabel('500 – 1:12 fb').lds).toBe(2.7)
+    expect(switchTypeByLabel('1200 – 1:18.5 fb').branch.at(-1).length).toBe(1.798)
+  })
+
+  it('are offered in their group and never chosen by a switch connection', () => {
+    const regel = SWITCH_PICK_TYPES.filter(f => f.klasse === 'regel').map(f => f.label)
+    expect(regel).toContain('500 – 1:12 fb')
+    expect(SWITCH_PICK_TYPES.filter(f => f.klasse === 'sonderbauform').map(f => f.label)).toContain('760 – 1:14 gb')
+    const staged = SWITCH_CONNECTION_STAGES.flat()
+    for (const f of frogs) expect(staged.includes(f), f.label).toBe(f.label === '2500 – 1:26.5')
   })
 })

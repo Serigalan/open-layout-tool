@@ -61,6 +61,9 @@ describe('parseBauform', () => {
   // kind, slope and radius alone are also an EKW 500's.
   it('marks the Bogenkreuzungsweichen, the doppelte among them', () => {
     expect(parseBauform('EBKW 54-500-1:9')).toMatchObject({ kind: 'single_slip', bogen: true, radius: 500, n: 9 })
+    expect(parseBauform('EW 60-500-1:12 fb')).toMatchObject({ rail: 60, radius: 500, n: 12, herzstueck: 'fb' })
+    expect(parseBauform('EW 60-760-1:14 gb')).toMatchObject({ herzstueck: 'gb' })
+    expect(parseBauform('EW 54-500-1:12').herzstueck).toBeNull()
     expect(parseBauform('EABKW 54-500-1:9')).toMatchObject({ kind: 'single_slip', bogen: true })
     expect(parseBauform('DBKW 54-500-1:9')).toMatchObject({ kind: 'double_slip', bogen: true, radius: 500 })
     expect(parseBauform('EKW 54-500-1:9').bogen).toBe(false)
