@@ -38,6 +38,16 @@ catalogue).
 Turnouts are offered in the Ril's two groups: Regelformen (A01) first, Sonderbauformen (A02) after them.
 The default is `300 – 1:9`, found by name, not position.
 
+**Variants.** Most forms are built several ways: rail profile 49E5, 54E4 or 60E2A1, concrete or timber
+sleepers, as a Regelform or a Sonderbauform. Each way is a row of the DB switch table 800.0120 (05/2024) and
+stands under its form as `varianten`: DB number, designation, profile, sleepers, class, sleeper count from WA
+to the ldS, `klammer` (sleepers before WA / behind the ldS on the main track / on the branch track), ZS–WA,
+smallest radius as an inner-bent turnout, and the table's measures (`masse`). A variant changes neither the
+geometry nor the ldS: the catalogue binds, and the table rounds the ldS to 0.1 m. `switchVariantFor(form,
+rail)` picks the variant of a rail profile — concrete before timber, Regelform before Sonderbauform, the
+form's first where none has the profile. A test builds every row from its form (a = R·tan(α/2), b = a + lz,
+l, track distance at WE) to 3 mm.
+
 The Weichenmarke is the table's `dLcs`. Only a form without one would use the construction
 `d = 2.272·n − (l_t + g)` with `l_t = R·tan(w/2)`, `w = atan(1/n)`, rounded onto the grid `0.30 + k·0.60 m`.
 
@@ -177,10 +187,12 @@ unmarked and joined back with their neighbours into one track; what does not sta
 - **A switch connection needs equal cant at the ldS**, not at the toe; one cant on the middle element.
 - **Bloss curves carry no turnout**, crossings need straight track.
 - **Deleting follows one rule for all kinds** instead of a table per kind.
+- **A variant is not a form.** Profile and sleepers do not change the geometry, so they stand under the
+  form, whose label stays the key a project keeps; the catalogue's ldS binds over the table's.
 
 ## Tests
 
 `switch.test.js`, `crossingUtils.test.js`, `connectToTrack.test.js`, `stationSlider.test.js`,
-`switchConnectionUtils.test.js`, `switchDelete.test.js` … next to the files; `src/core/test/formChains.test.js`,
+`switchConnectionUtils.test.js`, `switchDelete.test.js`, `variants.test.js` … next to the files; `src/core/test/formChains.test.js`,
 `swappedTurnout.test.js` and `switchEnds.test.js`; every construction holds the chain invariants
 (`expectValidTrack`, `expectSwitchRoutesCarved`, `expectSwitchCantAdmissible`).

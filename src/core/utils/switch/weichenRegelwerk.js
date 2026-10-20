@@ -14,7 +14,7 @@
 // is: this one is bundled, so it is there whether or not the optimizer service
 // answers.
 
-import { SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES, WEICHEN_KATALOG } from './catalogue'
+import { SWITCH_TYPES, SWITCH_TYPES_SPECIAL, CROSSING_TYPES, WEICHEN_KATALOG, switchVariants } from './catalogue'
 
 /**
  * What this rulebook is, as the catalogue states it about itself. The Ril's
@@ -45,6 +45,8 @@ const weicheRow = (form) => ({
   // leave the toe on the one radius. A reader of the table would otherwise
   // read it as an ordinary form with a very sharp branch.
   symmetrisch: form.symmetric === true,
+  // The rows of the DB switch table the form is built as (Paket WD).
+  varianten: switchVariants(form),
 })
 
 const kreuzungRow = (form) => ({
@@ -63,6 +65,7 @@ const kreuzungRow = (form) => ({
   // them; a plain crossing has the one. Passed on as the catalogue states it,
   // formatted where it is drawn.
   routen: form.routen ?? null,
+  varianten: switchVariants(form),
 })
 
 const istKreuzungsweiche = (form) => form.kind !== 'crossing'

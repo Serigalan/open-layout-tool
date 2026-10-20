@@ -1,3 +1,4 @@
+import { Fragment, useState } from 'react'
 import { weichenGruppen, WEICHEN_REGELWERK } from '../utils/switch'
 import { switchKindLabelKey } from '../utils/track'
 import { useI18n } from '../locales/i18nContext'
@@ -35,9 +36,55 @@ const radiusText = (form) => (form.routen
   ? form.routen.map(route => (route.R == null ? '∞' : String(route.R))).join(' / ')
   : zahl(form.radius))
 
+// A variant's sleepers: the count WA–ldS, and the ones outside it in brackets
+// (before WA / behind the ldS on the main and on the branch track).
+const schwellenText = (v) => (v.schwellenzahl == null ? '–'
+  : `${v.schwellenzahl}${v.klammer ? ` (${v.klammer.join('/')})` : ''}`)
+
+/** The variants of one form, as the table under its row (Paket WD). */
+function Varianten({ varianten, colSpan }) {
+  const { t } = useI18n()
+  return (
+    <tr className="constraints-variants">
+      <td colSpan={colSpan}>
+        <table className="track-table constraints-table">
+          <thead>
+            <tr>
+              <th>{t('constraints_weichen_var_nr')}</th>
+              <th>{t('constraints_weichen_var_bezeichnung')}</th>
+              <th>{t('constraints_weichen_var_profil')}</th>
+              <th>{t('constraints_weichen_var_schwellen')}</th>
+              <th>{t('constraints_weichen_var_klasse')}</th>
+              <th title={t('constraints_weichen_var_schwellenzahl_hint')}>{t('constraints_weichen_var_schwellenzahl')}</th>
+              <th>{t('constraints_weichen_var_zs_wa')}</th>
+              <th>{t('constraints_weichen_var_r_ibw')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {varianten.map(v => (
+              <tr key={v.nr}>
+                <td>{v.nr}</td>
+                <td className="constraints-value">{v.bezeichnung}</td>
+                <td>{v.profil}</td>
+                <td>{t(v.schwellen === 'holz' ? 'constraints_weichen_var_holz' : 'constraints_weichen_var_beton')}</td>
+                <td>{t(v.klasse === 'regel' ? 'constraints_weichen_var_regel' : 'constraints_weichen_var_sonder')}</td>
+                <td>{schwellenText(v)}</td>
+                <td>{zahl(v.zs_wa)}</td>
+                <td>{zahl(v.r_ibw_min)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </td>
+    </tr>
+  )
+}
+
 export default function WeichenRegelwerk() {
   const { t } = useI18n()
   const gruppen = weichenGruppen()
+  // The form whose variants are open — one at a time, the table is long enough.
+  const [offen, setOffen] = useState(null)
 
   return (
     <>
@@ -61,6 +108,7 @@ export default function WeichenRegelwerk() {
                   <th>{t('constraints_weichen_minl')}</th>
                   <th>{t('constraints_weichen_gerade')}</th>
                   <th title={t('constraints_weichen_lds_hint')}>{t('constraints_weichen_lds')}</th>
+                  <th title={t('constraints_weichen_varianten_hint')}>{t('constraints_weichen_varianten')}</th>
                 </tr>
               ) : (
                 <tr>
@@ -71,12 +119,14 @@ export default function WeichenRegelwerk() {
                   <th>{t('constraints_weichen_tangente')}</th>
                   <th>{t('constraints_weichen_speed')}</th>
                   <th>{t('constraints_weichen_marke')}</th>
+                  <th title={t('constraints_weichen_varianten_hint')}>{t('constraints_weichen_varianten')}</th>
                 </tr>
               )}
             </thead>
             <tbody>
               {gruppe.formen.map(form => (
-                <tr key={form.label}>
+                <Fragment key={form.label}>
+                <tr>
                   <td className="constraints-value">
                     {form.label}
                     {form.symmetrisch && (
@@ -103,7 +153,19 @@ export default function WeichenRegelwerk() {
                       <td>{zahl(form.marke)}</td>
                     </>
                   )}
+                  <td>
+                    {form.varianten.length ? (
+                      <button type="button" className="constraints-variants-toggle" aria-expanded={offen === form.label}
+                        onClick={() => setOffen(offen === form.label ? null : form.label)}>
+                        {offen === form.label ? '▾' : '▸'} {form.varianten.length}
+                      </button>
+                    ) : '–'}
+                  </td>
                 </tr>
+                {offen === form.label && (
+                  <Varianten varianten={form.varianten} colSpan={gruppe.art === 'weiche' ? 9 : 8} />
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

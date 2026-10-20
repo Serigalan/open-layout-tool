@@ -63,7 +63,7 @@ describe('the switch forms as a regelwerk', () => {
   it('reads a turnout form as the table states it', () => {
     expect(form('regel_weichen', '190 – 1:9')).toEqual({
       label: '190 – 1:9', radius: 190, neigung: 9, speed: 40, marke: 3.9, minl: 6,
-      gerade: 6.092, lds: 3.94, symmetrisch: false,
+      gerade: 6.092, lds: 3.94, symmetrisch: false, varianten: expect.any(Array),
     })
   })
 
@@ -86,7 +86,7 @@ describe('the switch forms as a regelwerk', () => {
   it('reads a plain crossing as tangent and angle, with no radius', () => {
     expect(form('regel_kreuzungen', 'Kr 1:9')).toEqual({
       label: 'Kr 1:9', kind: 'crossing', neigung: 9, radius: null, tangente: 16.6155,
-      speed: 100, marke: 3.9, routen: null,
+      speed: 100, marke: 3.9, routen: null, varianten: expect.any(Array),
     })
   })
 
@@ -98,6 +98,7 @@ describe('the switch forms as a regelwerk', () => {
         { id: 'durchgehend', R: null, speed: 100 },
         { id: 'bogen', R: 190, speed: 40 },
       ],
+      varianten: expect.any(Array),
     })
   })
 
@@ -112,7 +113,13 @@ describe('the switch forms as a regelwerk', () => {
         { id: 'kreuzungsgleis', R: 500.86, speed: 60 },
         { id: 'innenbogen', R: 249.763, speed: 40 },
       ],
+      varianten: [],
     })
+  })
+
+  it('carries the variants of the DB switch table under each form', () => {
+    expect(form('regel_weichen', '190 – 1:9').varianten.map(v => v.nr)).toEqual([1001, 1005, 1022, 1027])
+    expect(form('regel_kreuzungen', 'Kr 1:9').varianten.map(v => v.nr)).toEqual([1201, 1203])
   })
 
   it('keeps a Weichenmarke that stands before the body ends', () => {
@@ -142,6 +149,12 @@ describe('what the viewer asks the locales for', () => {
       'constraints_weichen_gerade', 'constraints_weichen_lds', 'constraints_weichen_lds_hint',
       'constraints_weichen_lds_we', 'constraints_weichen_tangente',
       'constraints_weichen_symmetrisch', 'constraints_service_down',
+      'constraints_weichen_varianten', 'constraints_weichen_varianten_hint', 'constraints_weichen_var_nr',
+      'constraints_weichen_var_bezeichnung', 'constraints_weichen_var_profil', 'constraints_weichen_var_schwellen',
+      'constraints_weichen_var_klasse', 'constraints_weichen_var_schwellenzahl',
+      'constraints_weichen_var_schwellenzahl_hint', 'constraints_weichen_var_zs_wa', 'constraints_weichen_var_r_ibw',
+      'constraints_weichen_var_beton', 'constraints_weichen_var_holz', 'constraints_weichen_var_regel',
+      'constraints_weichen_var_sonder',
     ]) expect(says(key), key).toBe(true)
   })
 })
@@ -152,7 +165,7 @@ describe('what rulebook it is', () => {
     // statement beside it.
     expect(WEICHEN_REGELWERK.id).toBe('db-ril-800-0120')
     expect(WEICHEN_REGELWERK.title).toBe('DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen')
-    expect(WEICHEN_REGELWERK.katalog_version).toBe('0.3.1')
+    expect(WEICHEN_REGELWERK.katalog_version).toBe('0.4.0')
     expect(WEICHEN_REGELWERK.status).toBe('draft')
     // The Ril's own edition and validity date are stated nowhere.
     expect(WEICHEN_REGELWERK.version).toBeUndefined()

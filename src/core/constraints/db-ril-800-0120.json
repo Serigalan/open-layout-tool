@@ -2,9 +2,9 @@
   "katalog": {
     "id": "db-ril-800-0120",
     "title": "DB Ril 800.0120 | Auswahl der Weichen und Kreuzungen",
-    "katalog_version": "0.3.1",
+    "katalog_version": "0.4.0",
     "status": "draft",
-    "date": "2026-10-06",
+    "date": "2026-10-20",
     "language": "de",
     "scope": {
       "included": [
@@ -21,6 +21,15 @@
     "label_note": "Die Labels sind Schlüssel: ein gespeichertes Projekt schlägt seine Form darüber nach (switchTypeByLabel, switchModel.SWITCH_FORM_VERSION). Ein Label wird deshalb nicht umbenannt, auch wenn die Ril die Form anders schreibt."
   },
   "changelog": [
+    {
+      "version": "0.4.0",
+      "date": "2026-10-20",
+      "changes": [
+        "Neues Feld varianten: die Ausführungen jeder Form nach der Weichentabelle DB 800.0120 (05/2024) — Profil, Schwellen, DB-Nummer, Schwellenzahl mit Klammer, ZS–WA, R IBW min und die Tabellenmaße (Paket WD, Entscheidungen 342, 345, 347)",
+        "Die Konstruktion aus R, 1:n und lz trifft alle Tabellenzeilen auf 3 mm; die ldS der Formen bleibt (die Tabelle rundet auf 0,1 m, 215 – 1:4.8 bleibt 0 statt −0,244)",
+        "190 – 1:6.3 und die Bogenkreuzungsweichen stehen nicht in der Tabelle und haben keine Varianten"
+      ]
+    },
     {
       "version": "0.3.1",
       "date": "2026-10-06",
@@ -66,6 +75,10 @@
     {
       "id": "RIL_800_0120_A02",
       "title": "DB Ril 800.0120A02 — Sonderbauformen"
+    },
+    {
+      "id": "DB_800_0120_TABELLE_2024_05",
+      "title": "Weichentabelle DB 800.0120 (05/2024), geliefert vom Auftraggeber am 2026-10-19 (Weichengeometrie.md)"
     }
   ],
   "klassen": [
@@ -101,7 +114,8 @@
     "symmetric": "Beide Fahrwege verlassen die Spitze auf demselben Radius, je durch den halben Winkel — die Form hat keinen durchgehenden Strang",
     "lt": "Tangente einer Kreuzung [m]: vom Kreuzungspunkt bis zu jedem ihrer vier Enden",
     "masse": "Die gelieferte Tabellenzeile im Wortlaut der Ril, soweit sie vorliegt. Nichts rechnet damit: sie bindet (B.10) und ist der Prüfstein für die Konstruktion aus R, ratio und branch.",
-    "verbindung": "stufe und rang der Ausweichreihenfolge — Festlegung dieses Werkzeugs, siehe verbindung unten"
+    "verbindung": "stufe und rang der Ausweichreihenfolge — Festlegung dieses Werkzeugs, siehe verbindung unten",
+    "varianten": "Die Ausführungen einer Form nach der Weichentabelle DB 800.0120 (05/2024): DB-Nummer, Bezeichnung, Schienenprofil, Schwellen (beton oder holz), Klasse der Ausführung, zungen (gekürzt bzw. innen/außen), schwellenzahl von WA bis ldS, klammer = [Schwellen vor WA, hinter der ldS im Stammgleis, hinter der ldS im Zweiggleis], zs_wa (Zungenspitze vor WA [m]), r_ibw_min (kleinster Radius als Innenbogenweiche [m]) und masse — die Tabellenzeile im Wortlaut (a, b, l, lz, s, c, lds; bei Kreuzungen l1, l2, t1, t2, lz, lds je Seite). Die Geometrie bleibt die der Form, und ihre ldS bindet (Entscheidung 342): masse.lds ist auf 0,1 m gerundet und wird nicht verwendet."
   },
   "verbindung": {
     "note": "Festlegung dieses Werkzeugs, nicht der Ril. Die Weichenverbindung versucht die Formen Stufe für Stufe: erreicht keine Form einer Stufe die Mindestzwischengerade für den gegebenen Abstand, geht sie zur nächsten. Innerhalb einer Stufe entscheidet rang — bei gleicher Geschwindigkeit steht die flachere Form voran, weil die schärfere das ist, worauf ausgewichen wird.",
@@ -130,7 +144,103 @@
       "verbindung": {
         "stufe": 1,
         "rang": 2
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1000,
+          "bezeichnung": "49-190-1:7.5",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 48,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "zs_wa": 1.248,
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 12.611,
+            "b": 13.251,
+            "l": 25.862,
+            "lz": 0.64,
+            "s": 1.755,
+            "c": 1.751,
+            "lds": 3.3
+          }
+        },
+        {
+          "nr": 1004,
+          "bezeichnung": "54-190-1:7.5",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 49,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 12.611,
+            "b": 13.251,
+            "l": 25.862,
+            "lz": 0.64,
+            "s": 1.755,
+            "c": 1.751,
+            "lds": 3.3
+          }
+        },
+        {
+          "nr": 1021,
+          "bezeichnung": "49-190-1:7.5",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 48,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "zs_wa": 1.248,
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 12.611,
+            "b": 13.251,
+            "l": 25.862,
+            "lz": 0.64,
+            "s": 1.755,
+            "c": 1.751,
+            "lds": 3.3
+          }
+        },
+        {
+          "nr": 1026,
+          "bezeichnung": "54-190-1:7.5",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 49,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 12.611,
+            "b": 13.251,
+            "l": 25.862,
+            "lz": 0.64,
+            "s": 1.755,
+            "c": 1.751,
+            "lds": 3.3
+          }
+        }
+      ]
     },
     {
       "label": "190 – 1:9",
@@ -154,7 +264,103 @@
       "verbindung": {
         "stufe": 1,
         "rang": 1
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1001,
+          "bezeichnung": "49-190-1:9",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 51,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "zs_wa": 1.248,
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 10.523,
+            "b": 16.616,
+            "l": 27.139,
+            "lz": 6.092,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1005,
+          "bezeichnung": "54-190-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 52,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 10.523,
+            "b": 16.616,
+            "l": 27.139,
+            "lz": 6.092,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1022,
+          "bezeichnung": "49-190-1:9",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 51,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "zs_wa": 1.248,
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 10.523,
+            "b": 16.616,
+            "l": 27.139,
+            "lz": 6.092,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1027,
+          "bezeichnung": "54-190-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 52,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 10.523,
+            "b": 16.616,
+            "l": 27.139,
+            "lz": 6.092,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        }
+      ]
     },
     {
       "label": "215 – 1:4.8",
@@ -166,7 +372,69 @@
       "speed": 40,
       "dLcs": 0.3,
       "minl": 6,
-      "symmetric": true
+      "symmetric": true,
+      "varianten": [
+        {
+          "nr": 1006,
+          "bezeichnung": "54-215-1:4.8",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 37,
+          "klammer": [
+            3,
+            4,
+            4
+          ],
+          "masse": {
+            "a": 11.05,
+            "b": 11.05,
+            "l": 22.08,
+            "lz": 0,
+            "s": 2.266,
+            "c": 2.254,
+            "lds": -0.244
+          }
+        },
+        {
+          "nr": 1023,
+          "bezeichnung": "49-215-1:4.8",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "masse": {
+            "a": 11.05,
+            "b": 11.05,
+            "l": 22.08,
+            "lz": 0,
+            "s": 2.266,
+            "c": 2.254,
+            "lds": -0.24
+          }
+        },
+        {
+          "nr": 1028,
+          "bezeichnung": "54-215-1:4.8",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 37,
+          "klammer": [
+            3,
+            4,
+            4
+          ],
+          "masse": {
+            "a": 11.05,
+            "b": 11.05,
+            "l": 22.08,
+            "lz": 0,
+            "s": 2.266,
+            "c": 2.254,
+            "lds": -0.244
+          }
+        }
+      ]
     },
     {
       "label": "300 – 1:9",
@@ -181,7 +449,149 @@
       "verbindung": {
         "stufe": 1,
         "rang": 3
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1002,
+          "bezeichnung": "49-300-1:9",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 61,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "zs_wa": 1.5,
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 16.616,
+            "b": 16.616,
+            "l": 33.231,
+            "lz": 0,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1007,
+          "bezeichnung": "54-300-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 62,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 16.616,
+            "b": 16.616,
+            "l": 33.231,
+            "lz": 0,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1011,
+          "bezeichnung": "60-300-1:9",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 62,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 16.616,
+            "b": 16.616,
+            "l": 33.231,
+            "lz": 0,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1024,
+          "bezeichnung": "49-300-1:9",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 61,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "zs_wa": 1.5,
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 16.616,
+            "b": 16.616,
+            "l": 33.231,
+            "lz": 0,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1029,
+          "bezeichnung": "54-300-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 62,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 16.616,
+            "b": 16.616,
+            "l": 33.231,
+            "lz": 0,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1033,
+          "bezeichnung": "60-300-1:9",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 62,
+          "klammer": [
+            3,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 16.616,
+            "b": 16.616,
+            "l": 33.231,
+            "lz": 0,
+            "s": 1.838,
+            "c": 1.835,
+            "lds": 3.9
+          }
+        }
+      ]
     },
     {
       "label": "500 – 1:12",
@@ -196,7 +606,159 @@
       "verbindung": {
         "stufe": 1,
         "rang": 4
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1003,
+          "bezeichnung": "49-500-1:12",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 20.797,
+            "b": 20.797,
+            "l": 41.595,
+            "lz": 0,
+            "s": 1.729,
+            "c": 1.727,
+            "lds": 6.3
+          }
+        },
+        {
+          "nr": 1008,
+          "bezeichnung": "54-500-1:12",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 80,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 20.797,
+            "b": 20.797,
+            "l": 41.595,
+            "lz": 0,
+            "s": 1.729,
+            "c": 1.727,
+            "lds": 6.3
+          }
+        },
+        {
+          "nr": 1012,
+          "bezeichnung": "60-500-1:12",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 80,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 20.797,
+            "b": 20.797,
+            "l": 41.595,
+            "lz": 0,
+            "s": 1.729,
+            "c": 1.727,
+            "lds": 6.31
+          }
+        },
+        {
+          "nr": 1025,
+          "bezeichnung": "49-500-1:12",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 20.797,
+            "b": 20.797,
+            "l": 41.595,
+            "lz": 0,
+            "s": 1.729,
+            "c": 1.727,
+            "lds": 6.3
+          }
+        },
+        {
+          "nr": 1030,
+          "bezeichnung": "54-500-1:12",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 80,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 20.797,
+            "b": 20.797,
+            "l": 41.595,
+            "lz": 0,
+            "s": 1.729,
+            "c": 1.727,
+            "lds": 6.3
+          }
+        },
+        {
+          "nr": 1034,
+          "bezeichnung": "60-500-1:12",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 80,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 20.797,
+            "b": 20.797,
+            "l": 41.595,
+            "lz": 0,
+            "s": 1.729,
+            "c": 1.727,
+            "lds": 6.31
+          }
+        },
+        {
+          "nr": 1076,
+          "bezeichnung": "54-500-1:12 mit gek. Zungen",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "zungen": "gekürzt",
+          "schwellenzahl": 80,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 20.797,
+            "b": 20.797,
+            "l": 41.595,
+            "lz": 0,
+            "s": 1.729,
+            "c": 1.727,
+            "lds": 6.3
+          }
+        }
+      ]
     },
     {
       "label": "760 – 1:14",
@@ -211,7 +773,166 @@
       "verbindung": {
         "stufe": 1,
         "rang": 5
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1009,
+          "bezeichnung": "54-760-1:14",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 99,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 27.108,
+            "b": 27.108,
+            "l": 54.217,
+            "lz": 0,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1013,
+          "bezeichnung": "60-760-1:14",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 99,
+          "klammer": [
+            0,
+            7,
+            8
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 27.108,
+            "b": 27.108,
+            "l": 54.217,
+            "lz": 0,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1031,
+          "bezeichnung": "54-760-1:14",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 99,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 27.108,
+            "b": 27.108,
+            "l": 54.217,
+            "lz": 0,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1035,
+          "bezeichnung": "60-760-1:14",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 99,
+          "klammer": [
+            0,
+            7,
+            8
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 27.108,
+            "b": 27.108,
+            "l": 54.217,
+            "lz": 0,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1044,
+          "bezeichnung": "54-760-1:14 mit gek. Zungen",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "zungen": "gekürzt",
+          "schwellenzahl": 99,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 27.108,
+            "b": 27.108,
+            "l": 54.217,
+            "lz": 0,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1073,
+          "bezeichnung": "49-760-1:14",
+          "profil": "49E5",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 27.108,
+            "b": 27.108,
+            "l": 54.217,
+            "lz": 0,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 4.04
+          }
+        },
+        {
+          "nr": 1079,
+          "bezeichnung": "54-760-1:14 mit gek. Zungen",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "zungen": "gekürzt",
+          "schwellenzahl": 99,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 27.108,
+            "b": 27.108,
+            "l": 54.217,
+            "lz": 0,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        }
+      ]
     },
     {
       "label": "1200 – 1:18.5",
@@ -226,7 +947,118 @@
       "verbindung": {
         "stufe": 1,
         "rang": 6
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1010,
+          "bezeichnung": "54-1200-1:18.5",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 125,
+          "klammer": [
+            3,
+            10,
+            12
+          ],
+          "r_ibw_min": 441.552,
+          "masse": {
+            "a": 32.409,
+            "b": 32.409,
+            "l": 64.818,
+            "lz": 0,
+            "s": 1.75,
+            "c": 1.749,
+            "lds": 9.9
+          }
+        },
+        {
+          "nr": 1014,
+          "bezeichnung": "60-1200-1:18.5",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 124,
+          "klammer": [
+            3,
+            10,
+            12
+          ],
+          "r_ibw_min": 441.552,
+          "masse": {
+            "a": 32.409,
+            "b": 32.409,
+            "l": 64.818,
+            "lz": 0,
+            "s": 1.75,
+            "c": 1.749,
+            "lds": 9.9
+          }
+        },
+        {
+          "nr": 1032,
+          "bezeichnung": "54-1200-1:18.5",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 125,
+          "klammer": [
+            3,
+            10,
+            12
+          ],
+          "r_ibw_min": 441.552,
+          "masse": {
+            "a": 32.409,
+            "b": 32.409,
+            "l": 64.818,
+            "lz": 0,
+            "s": 1.75,
+            "c": 1.749,
+            "lds": 9.9
+          }
+        },
+        {
+          "nr": 1036,
+          "bezeichnung": "60-1200-1:18.5",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 124,
+          "klammer": [
+            3,
+            10,
+            12
+          ],
+          "r_ibw_min": 441.552,
+          "masse": {
+            "a": 32.409,
+            "b": 32.409,
+            "l": 64.818,
+            "lz": 0,
+            "s": 1.75,
+            "c": 1.749,
+            "lds": 9.9
+          }
+        },
+        {
+          "nr": 1074,
+          "bezeichnung": "49-1200-1:18.5",
+          "profil": "49E5",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "r_ibw_min": 441.552,
+          "masse": {
+            "a": 32.409,
+            "b": 32.409,
+            "l": 64.818,
+            "lz": 0,
+            "s": 1.75,
+            "c": 1.749,
+            "lds": 9.217
+          }
+        }
+      ]
     },
     {
       "label": "2500 – 1:26.5",
@@ -241,7 +1073,55 @@
       "verbindung": {
         "stufe": 1,
         "rang": 7
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1018,
+          "bezeichnung": "60-2500-1:26.5 fb",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "schwellenzahl": 180,
+          "klammer": [
+            3,
+            15,
+            17
+          ],
+          "r_ibw_min": 941,
+          "masse": {
+            "a": 47.153,
+            "b": 47.153,
+            "l": 94.306,
+            "lz": 0,
+            "s": 1.778,
+            "c": 1.778,
+            "lds": 13.5
+          }
+        },
+        {
+          "nr": 1040,
+          "bezeichnung": "60-2500-1:26.5 fb",
+          "profil": "60E2A1",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "schwellenzahl": 180,
+          "klammer": [
+            3,
+            15,
+            17
+          ],
+          "r_ibw_min": 941,
+          "masse": {
+            "a": 47.153,
+            "b": 47.153,
+            "l": 94.306,
+            "lz": 0,
+            "s": 1.778,
+            "c": 1.778,
+            "lds": 13.5
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:7.5",
@@ -251,7 +1131,39 @@
       "ratio": 7.5,
       "lt": 13.251,
       "speed": 80,
-      "dLcs": 3.3
+      "dLcs": 3.3,
+      "varianten": [
+        {
+          "nr": 1200,
+          "bezeichnung": "Kr 54-1:7.5",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 13.251,
+            "l2": 13.251,
+            "lds": [
+              3.3,
+              3.3
+            ]
+          }
+        },
+        {
+          "nr": 1202,
+          "bezeichnung": "Kr 54-1:7.5",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 13.251,
+            "l2": 13.251,
+            "lds": [
+              3.3,
+              3.3
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:9",
@@ -261,7 +1173,39 @@
       "ratio": 9,
       "lt": 16.6155,
       "speed": 100,
-      "dLcs": 3.9
+      "dLcs": 3.9,
+      "varianten": [
+        {
+          "nr": 1201,
+          "bezeichnung": "Kr 54-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "lds": [
+              3.9,
+              3.9
+            ]
+          }
+        },
+        {
+          "nr": 1203,
+          "bezeichnung": "Kr 54-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "lds": [
+              3.9,
+              3.9
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "EKW 1:9 – 190",
@@ -280,6 +1224,52 @@
           "id": "bogen",
           "R": 190,
           "speed": 40
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1228,
+          "bezeichnung": "EKW 54-190-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "zungen": "innen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 10.523,
+            "t2": 10.523,
+            "lz": [
+              6.092,
+              6.092
+            ],
+            "lds": [
+              3.9,
+              3.9
+            ]
+          }
+        },
+        {
+          "nr": 1274,
+          "bezeichnung": "EKW 54-190-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "zungen": "innen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 10.523,
+            "t2": 10.523,
+            "lz": [
+              6.092,
+              6.092
+            ],
+            "lds": [
+              3.9,
+              3.9
+            ]
+          }
         }
       ]
     },
@@ -301,6 +1291,74 @@
           "R": 500,
           "speed": 60
         }
+      ],
+      "varianten": [
+        {
+          "nr": 1229,
+          "bezeichnung": "EKW 54-500-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "zungen": "außen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 16.616,
+            "t2": 16.616,
+            "lz": [
+              0,
+              0
+            ],
+            "lds": [
+              3.4,
+              3.4
+            ]
+          }
+        },
+        {
+          "nr": 1244,
+          "bezeichnung": "EKW 49-500-1:9",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "zungen": "außen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 16.616,
+            "t2": 16.616,
+            "lz": [
+              0,
+              0
+            ],
+            "lds": [
+              3.19,
+              3.19
+            ]
+          }
+        },
+        {
+          "nr": 1275,
+          "bezeichnung": "EKW 54-500-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "zungen": "außen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 16.616,
+            "t2": 16.616,
+            "lz": [
+              0,
+              0
+            ],
+            "lds": [
+              3.4,
+              3.4
+            ]
+          }
+        }
       ]
     },
     {
@@ -321,6 +1379,96 @@
           "R": 190,
           "speed": 40
         }
+      ],
+      "varianten": [
+        {
+          "nr": 1219,
+          "bezeichnung": "DKW 49-190-1:9",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "zungen": "innen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 10.523,
+            "t2": 10.523,
+            "lz": [
+              6.092,
+              6.092
+            ],
+            "lds": [
+              4.04,
+              4.04
+            ]
+          }
+        },
+        {
+          "nr": 1240,
+          "bezeichnung": "DKW 54-190-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "zungen": "innen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 10.523,
+            "t2": 10.523,
+            "lz": [
+              6.092,
+              6.092
+            ],
+            "lds": [
+              3.9,
+              3.9
+            ]
+          }
+        },
+        {
+          "nr": 1262,
+          "bezeichnung": "DKW 49-190-1:9",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "zungen": "innen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 10.523,
+            "t2": 10.523,
+            "lz": [
+              6.092,
+              6.092
+            ],
+            "lds": [
+              4.04,
+              4.04
+            ]
+          }
+        },
+        {
+          "nr": 1286,
+          "bezeichnung": "DKW 54-190-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "zungen": "innen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 10.523,
+            "t2": 10.523,
+            "lz": [
+              6.092,
+              6.092
+            ],
+            "lds": [
+              3.9,
+              3.9
+            ]
+          }
+        }
       ]
     },
     {
@@ -340,6 +1488,74 @@
           "id": "bogen",
           "R": 500,
           "speed": 60
+        }
+      ],
+      "varianten": [
+        {
+          "nr": 1241,
+          "bezeichnung": "DKW 54-500-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "beton",
+          "zungen": "außen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 16.616,
+            "t2": 16.616,
+            "lz": [
+              0,
+              0
+            ],
+            "lds": [
+              -7.88,
+              -7.88
+            ]
+          }
+        },
+        {
+          "nr": 1263,
+          "bezeichnung": "DKW 49-500-1:9",
+          "profil": "49E5",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "zungen": "außen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 16.616,
+            "t2": 16.616,
+            "lz": [
+              0,
+              0
+            ],
+            "lds": [
+              -7.88,
+              -7.88
+            ]
+          }
+        },
+        {
+          "nr": 1287,
+          "bezeichnung": "DKW 54-500-1:9",
+          "profil": "54E4",
+          "klasse": "regel",
+          "schwellen": "holz",
+          "zungen": "außen",
+          "masse": {
+            "l1": 16.616,
+            "l2": 16.616,
+            "t1": 16.616,
+            "t2": 16.616,
+            "lz": [
+              0,
+              0
+            ],
+            "lds": [
+              -7.88,
+              -7.88
+            ]
+          }
         }
       ]
     },
@@ -376,7 +1592,89 @@
       "verbindung": {
         "stufe": 2,
         "rang": 1
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1041,
+          "bezeichnung": "54-300-1:9.4",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 15.913,
+            "b": 17.319,
+            "l": 33.231,
+            "lz": 1.406,
+            "s": 1.835,
+            "c": 1.832,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1048,
+          "bezeichnung": "60-300-1:9.4",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 62,
+          "klammer": [
+            0,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 15.913,
+            "b": 17.319,
+            "l": 33.231,
+            "lz": 1.406,
+            "s": 1.835,
+            "c": 1.832,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1075,
+          "bezeichnung": "54-300-1:9.4",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 15.913,
+            "b": 17.319,
+            "l": 33.231,
+            "lz": 1.406,
+            "s": 1.835,
+            "c": 1.832,
+            "lds": 3.9
+          }
+        },
+        {
+          "nr": 1083,
+          "bezeichnung": "60-300-1:9.4",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 62,
+          "klammer": [
+            0,
+            5,
+            6
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 15.913,
+            "b": 17.319,
+            "l": 33.231,
+            "lz": 1.406,
+            "s": 1.835,
+            "c": 1.832,
+            "lds": 3.9
+          }
+        }
+      ]
     },
     {
       "label": "300 – 1:14",
@@ -403,7 +1701,101 @@
         "d": 16.4077,
         "lw": 37.809,
         "c": 1.9326
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1042,
+          "bezeichnung": "54-300-1:14",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 72,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 10.701,
+            "b": 27.108,
+            "l": 37.809,
+            "lz": 16.408,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1049,
+          "bezeichnung": "60-300-1:14",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 71,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 10.701,
+            "b": 27.108,
+            "l": 37.809,
+            "lz": 16.408,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1077,
+          "bezeichnung": "54-300-1:14",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 72,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 10.701,
+            "b": 27.108,
+            "l": 37.809,
+            "lz": 16.408,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1084,
+          "bezeichnung": "60-300-1:14",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 71,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 175,
+          "masse": {
+            "a": 10.701,
+            "b": 27.108,
+            "l": 37.809,
+            "lz": 16.408,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        }
+      ]
     },
     {
       "label": "500 – 1:14",
@@ -427,7 +1819,101 @@
       "verbindung": {
         "stufe": 2,
         "rang": 2
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1043,
+          "bezeichnung": "54-500-1:14",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 84,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 17.834,
+            "b": 27.108,
+            "l": 44.943,
+            "lz": 9.274,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1050,
+          "bezeichnung": "60-500-1:14",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 84,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 17.834,
+            "b": 27.108,
+            "l": 44.943,
+            "lz": 9.274,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1078,
+          "bezeichnung": "54-500-1:14",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 84,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 17.834,
+            "b": 27.108,
+            "l": 44.943,
+            "lz": 9.274,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1085,
+          "bezeichnung": "60-500-1:14",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 84,
+          "klammer": [
+            3,
+            7,
+            8
+          ],
+          "r_ibw_min": 200,
+          "masse": {
+            "a": 17.834,
+            "b": 27.108,
+            "l": 44.943,
+            "lz": 9.274,
+            "s": 1.933,
+            "c": 1.931,
+            "lds": 5.1
+          }
+        }
+      ]
     },
     {
       "label": "760 – 1:15",
@@ -451,7 +1937,101 @@
       "verbindung": {
         "stufe": 2,
         "rang": 3
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1045,
+          "bezeichnung": "54-760-1:15",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 99,
+          "klammer": [
+            3,
+            9,
+            10
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 25.305,
+            "b": 28.911,
+            "l": 54.217,
+            "lz": 3.606,
+            "s": 1.924,
+            "c": 1.923,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1051,
+          "bezeichnung": "60-760-1:15",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 99,
+          "klammer": [
+            3,
+            9,
+            10
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 25.305,
+            "b": 28.911,
+            "l": 54.217,
+            "lz": 3.606,
+            "s": 1.924,
+            "c": 1.923,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1080,
+          "bezeichnung": "54-760-1:15",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 99,
+          "klammer": [
+            3,
+            9,
+            10
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 25.305,
+            "b": 28.911,
+            "l": 54.217,
+            "lz": 3.606,
+            "s": 1.924,
+            "c": 1.923,
+            "lds": 5.1
+          }
+        },
+        {
+          "nr": 1086,
+          "bezeichnung": "60-760-1:15",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 99,
+          "klammer": [
+            3,
+            9,
+            10
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 25.305,
+            "b": 28.911,
+            "l": 54.217,
+            "lz": 3.606,
+            "s": 1.924,
+            "c": 1.923,
+            "lds": 5.1
+          }
+        }
+      ]
     },
     {
       "label": "760 – 1:18.5",
@@ -475,7 +2055,101 @@
       "verbindung": {
         "stufe": 3,
         "rang": 1
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1046,
+          "bezeichnung": "54-760-1:18.5",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 105,
+          "klammer": [
+            3,
+            10,
+            12
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 20.526,
+            "b": 32.409,
+            "l": 52.934,
+            "lz": 11.883,
+            "s": 1.75,
+            "c": 1.749,
+            "lds": 9.9
+          }
+        },
+        {
+          "nr": 1052,
+          "bezeichnung": "60-760-1:18.5",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 105,
+          "klammer": [
+            3,
+            10,
+            12
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 20.526,
+            "b": 32.409,
+            "l": 52.934,
+            "lz": 11.883,
+            "s": 1.75,
+            "c": 1.749,
+            "lds": 9.9
+          }
+        },
+        {
+          "nr": 1081,
+          "bezeichnung": "54-760-1:18.5",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 105,
+          "klammer": [
+            3,
+            10,
+            12
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 20.526,
+            "b": 32.409,
+            "l": 52.934,
+            "lz": 11.883,
+            "s": 1.75,
+            "c": 1.749,
+            "lds": 9.9
+          }
+        },
+        {
+          "nr": 1087,
+          "bezeichnung": "60-760-1:18.5",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 105,
+          "klammer": [
+            3,
+            10,
+            12
+          ],
+          "r_ibw_min": 300,
+          "masse": {
+            "a": 20.526,
+            "b": 32.409,
+            "l": 52.934,
+            "lz": 11.883,
+            "s": 1.75,
+            "c": 1.749,
+            "lds": 9.9
+          }
+        }
+      ]
     },
     {
       "label": "1200 – 1:19.277",
@@ -499,7 +2173,101 @@
       "verbindung": {
         "stufe": 2,
         "rang": 4
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1047,
+          "bezeichnung": "54-1200-1:19.277",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 125,
+          "klammer": [
+            3,
+            12,
+            13
+          ],
+          "r_ibw_min": 441.552,
+          "masse": {
+            "a": 31.104,
+            "b": 33.713,
+            "l": 64.818,
+            "lz": 2.609,
+            "s": 1.747,
+            "c": 1.747,
+            "lds": 9.96
+          }
+        },
+        {
+          "nr": 1053,
+          "bezeichnung": "60-1200-1:19.277",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "schwellenzahl": 124,
+          "klammer": [
+            0,
+            10,
+            12
+          ],
+          "r_ibw_min": 441.552,
+          "masse": {
+            "a": 31.104,
+            "b": 33.713,
+            "l": 64.818,
+            "lz": 2.609,
+            "s": 1.747,
+            "c": 1.747,
+            "lds": 9.96
+          }
+        },
+        {
+          "nr": 1082,
+          "bezeichnung": "54-1200-1:19.277",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 125,
+          "klammer": [
+            3,
+            12,
+            13
+          ],
+          "r_ibw_min": 441.552,
+          "masse": {
+            "a": 31.104,
+            "b": 33.713,
+            "l": 64.818,
+            "lz": 2.609,
+            "s": 1.747,
+            "c": 1.747,
+            "lds": 9.96
+          }
+        },
+        {
+          "nr": 1088,
+          "bezeichnung": "60-1200-1:19.277",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "schwellenzahl": 124,
+          "klammer": [
+            0,
+            10,
+            12
+          ],
+          "r_ibw_min": 441.552,
+          "masse": {
+            "a": 31.104,
+            "b": 33.713,
+            "l": 64.818,
+            "lz": 2.609,
+            "s": 1.747,
+            "c": 1.747,
+            "lds": 9.96
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:2.9",
@@ -508,7 +2276,39 @@
       "kind": "crossing",
       "ratio": 2.9,
       "lt": 6.904,
-      "speed": 40
+      "speed": 40,
+      "varianten": [
+        {
+          "nr": 1290,
+          "bezeichnung": "Kr 54-1:2.9",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 6.904,
+            "l2": 6.904,
+            "lds": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "nr": 1301,
+          "bezeichnung": "Kr 54-1:2.9",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 6.904,
+            "l2": 6.904,
+            "lds": [
+              0,
+              0
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:3.224",
@@ -517,7 +2317,39 @@
       "kind": "crossing",
       "ratio": 3.224,
       "lt": 7.92,
-      "speed": 80
+      "speed": 80,
+      "varianten": [
+        {
+          "nr": 1291,
+          "bezeichnung": "Kr 54-1:3.224",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 7.92,
+            "l2": 7.92,
+            "lds": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "nr": 1302,
+          "bezeichnung": "Kr 54-1:3.224",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 7.92,
+            "l2": 7.92,
+            "lds": [
+              0,
+              0
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:3.683",
@@ -527,7 +2359,39 @@
       "ratio": 3.683,
       "lt": 9.448,
       "speed": 80,
-      "dLcs": -0.87
+      "dLcs": -0.87,
+      "varianten": [
+        {
+          "nr": 1292,
+          "bezeichnung": "Kr 54-1:3.683",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 9.448,
+            "l2": 9.448,
+            "lds": [
+              -0.87,
+              -0.87
+            ]
+          }
+        },
+        {
+          "nr": 1303,
+          "bezeichnung": "Kr 54-1:3.683",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 9.448,
+            "l2": 9.448,
+            "lds": [
+              -0.87,
+              -0.87
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:4.444",
@@ -537,7 +2401,39 @@
       "ratio": 4.444,
       "lt": 10.9035,
       "speed": 80,
-      "dLcs": -1.48
+      "dLcs": -1.48,
+      "varianten": [
+        {
+          "nr": 1293,
+          "bezeichnung": "Kr 54-1:4.444",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 10.903,
+            "l2": 10.903,
+            "lds": [
+              -1.48,
+              -1.48
+            ]
+          }
+        },
+        {
+          "nr": 1304,
+          "bezeichnung": "Kr 54-1:4.444",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 10.903,
+            "l2": 10.903,
+            "lds": [
+              -1.48,
+              -1.48
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:5.5",
@@ -547,7 +2443,39 @@
       "ratio": 5.5,
       "lt": 10.7,
       "speed": 80,
-      "dLcs": 1.5
+      "dLcs": 1.5,
+      "varianten": [
+        {
+          "nr": 1294,
+          "bezeichnung": "Kr 54-1:5.5",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 10.7,
+            "l2": 10.7,
+            "lds": [
+              1.5,
+              1.5
+            ]
+          }
+        },
+        {
+          "nr": 1305,
+          "bezeichnung": "Kr 54-1:5.5",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 10.7,
+            "l2": 10.7,
+            "lds": [
+              1.5,
+              1.5
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:6.6",
@@ -557,7 +2485,39 @@
       "ratio": 6.6,
       "lt": 12.239,
       "speed": 80,
-      "dLcs": 2.65
+      "dLcs": 2.65,
+      "varianten": [
+        {
+          "nr": 1295,
+          "bezeichnung": "Kr 54-1:6.6",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 12.239,
+            "l2": 12.239,
+            "lds": [
+              2.65,
+              2.65
+            ]
+          }
+        },
+        {
+          "nr": 1306,
+          "bezeichnung": "Kr 54-1:6.6",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 12.239,
+            "l2": 12.239,
+            "lds": [
+              2.65,
+              2.65
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:6.964",
@@ -567,7 +2527,39 @@
       "ratio": 6.964,
       "lt": 12.69,
       "speed": 80,
-      "dLcs": 3.3
+      "dLcs": 3.3,
+      "varianten": [
+        {
+          "nr": 1296,
+          "bezeichnung": "Kr 54-1:6.964",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 12.69,
+            "l2": 12.69,
+            "lds": [
+              3.3,
+              3.3
+            ]
+          }
+        },
+        {
+          "nr": 1307,
+          "bezeichnung": "Kr 54-1:6.964",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 12.69,
+            "l2": 12.69,
+            "lds": [
+              3.3,
+              3.3
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:14",
@@ -582,7 +2574,54 @@
         "lt": 27.10835,
         "lKr": 54.2167,
         "c": 1.9326
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1297,
+          "bezeichnung": "Kr 54-1:14",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 27.108,
+            "l2": 27.108,
+            "lds": [
+              5.1,
+              5.1
+            ]
+          }
+        },
+        {
+          "nr": 1299,
+          "bezeichnung": "Kr 60-1:14",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 27.108,
+            "l2": 27.108,
+            "lds": [
+              5.1,
+              5.1
+            ]
+          }
+        },
+        {
+          "nr": 1308,
+          "bezeichnung": "Kr 54-1:14",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 27.108,
+            "l2": 27.108,
+            "lds": [
+              5.1,
+              5.1
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "Kr 1:18.5",
@@ -597,7 +2636,54 @@
         "lt": 32.4088,
         "lKr": 64.8176,
         "c": 1.7499
-      }
+      },
+      "varianten": [
+        {
+          "nr": 1298,
+          "bezeichnung": "Kr 54-1:18.5",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 32.409,
+            "l2": 32.409,
+            "lds": [
+              9.9,
+              9.9
+            ]
+          }
+        },
+        {
+          "nr": 1300,
+          "bezeichnung": "Kr 60-1:18.5",
+          "profil": "60E2A1",
+          "klasse": "sonderbauform",
+          "schwellen": "beton",
+          "masse": {
+            "l1": 32.409,
+            "l2": 32.409,
+            "lds": [
+              9.9,
+              9.9
+            ]
+          }
+        },
+        {
+          "nr": 1309,
+          "bezeichnung": "Kr 54-1:18.5",
+          "profil": "54E4",
+          "klasse": "sonderbauform",
+          "schwellen": "holz",
+          "masse": {
+            "l1": 32.409,
+            "l2": 32.409,
+            "lds": [
+              9.9,
+              9.9
+            ]
+          }
+        }
+      ]
     },
     {
       "label": "EBKW 1:9 – 500.860",

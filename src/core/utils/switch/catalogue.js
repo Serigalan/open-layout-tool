@@ -276,3 +276,35 @@ export function bauform(stemSignedR, branchSignedR) {
   if (branchSignedR == null) return 'abw_straight'
   return Math.sign(stemSignedR) === Math.sign(branchSignedR) ? 'ibw' : 'abw'
 }
+
+// ── Variants (Paket WD) ──────────────────────────────────────────────────────
+//
+// A form is its geometry; the DB switch table (800.0120, 05/2024) builds most
+// of them several ways — rail profile 49E5, 54E4 or 60E2A1, concrete or
+// timber sleepers, as a Regelform or a Sonderbauform — and each such row is a
+// variant (decision 345). A variant changes nothing of the geometry and not the
+// ldS either (decision 342): what it adds is its DB number, how many sleepers
+// it has and where the ones outside WA–ldS lie (`klammer`, decision 347), and
+// the table's measures as a check.
+
+/** The variants the catalogue states for a form, in the table's order; [] where it states none. */
+export const switchVariants = (form) => form?.varianten ?? []
+
+// A track's rail type and the table's profile name the same rail by its
+// weight: 60E2 on the track is the 60E2A1 of the table.
+const railWeight = (name) => String(name ?? '').match(/^\d+/)?.[0] ?? null
+
+/**
+ * The variant a turnout laid on a rail profile is built as (decision 347): the
+ * first of those with the track's profile, concrete before timber and a
+ * Regelform before a Sonderbauform — and where no variant has the profile, the
+ * form's first. Null for a form without variants.
+ */
+export function switchVariantFor(form, rail) {
+  const variants = switchVariants(form)
+  if (!variants.length) return null
+  const weight = railWeight(rail)
+  const rank = (v) => (v.schwellen === 'beton' ? 0 : 2) + (v.klasse === 'regel' ? 0 : 1)
+  const fitting = variants.filter(v => weight && railWeight(v.profil) === weight)
+  return [...fitting].sort((a, b) => rank(a) - rank(b))[0] ?? variants[0]
+}

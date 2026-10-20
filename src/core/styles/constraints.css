@@ -218,3 +218,20 @@
   cursor: pointer;
   user-select: none;
 }
+
+/* The variants of a switch form (Paket WD): a count that opens the rows of the
+   DB switch table the form is built as, nested under its row. */
+.constraints-variants-toggle {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.constraints-variants > td {
+  padding: 4px 0 10px 16px;
+  background: var(--color-surface-alt, transparent);
+}
