@@ -76,6 +76,31 @@ def _deficiency(v, radius, cant):
     return math.floor(CANT_DEF_COEFF * v * v / r - (cant or 0.0) * math.copysign(1.0, radius) + 0.5)
 
 
+def _same_geometry(a, b):
+    """Does `b` run on as `a` does — no transition, the same curvature?"""
+    return (a is not None and b is not None and not _is_transition(a) and not _is_transition(b)
+            and abs(_curv(a.get("radius")) - _curv(b.get("radius"))) < CURVATURE_EPS)
+
+
+def _run_length(els, i):
+    """The element's length as LP.EL.01 reads it: with its neighbours of the
+    same curvature, which are one straight or one arc on the ground
+    (Entscheidung 356)."""
+    el = els[i]
+    length = el.get("length") or 0.0
+    if _is_transition(el):
+        return length
+    j = i - 1
+    while j >= 0 and _same_geometry(els[j], el):
+        length += els[j].get("length") or 0.0
+        j -= 1
+    j = i + 1
+    while j < len(els) and _same_geometry(els[j], el):
+        length += els[j].get("length") or 0.0
+        j += 1
+    return length
+
+
 def element_scope(els, i):
     el = els[i]
     prev = els[i - 1] if i > 0 else None
@@ -89,7 +114,7 @@ def element_scope(els, i):
     duf = abs(side(el.get("r2"), end) - side(el.get("r1"), start)) if _is_transition(el) else 0.0
     return {
         "element.design_speed": v,
-        "element.length": el.get("length") or 0.0,
+        "element.length": _run_length(els, i),
         "element.cant": abs(el.get("cant") or 0.0),
         "element.radius": abs(el.get("radius") or 0.0),
         "element.transition_form": _form(el) or "",

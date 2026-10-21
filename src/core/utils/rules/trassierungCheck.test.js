@@ -140,6 +140,25 @@ describe('what the checker finds', () => {
     expect(firing(checkTrack(els).perElement[0])).toContain('LP.EL.01:error')
   })
 
+  it('an element as long as the run of its own curvature (Entscheidung 356)', () => {
+    // Two straights of 10 m are one straight of 20 m on the ground; beside an
+    // arc each is its own element again.
+    const straights = [
+      { elementType: 0, length: 10, speed: 100, cant: 0 },
+      { elementType: 0, length: 10, speed: 100, cant: 0 },
+    ]
+    expect(firing(checkTrack(straights).perElement[0])).not.toContain('LP.EL.01:error')
+    const arcs = [
+      { elementType: 1, length: 10, speed: 100, radius: 3000, cant: 0 },
+      { elementType: 1, length: 10, speed: 100, radius: 3000, cant: 0 },
+      { elementType: 1, length: 10, speed: 100, radius: 2500, cant: 0 },
+    ]
+    const out = checkTrack(arcs).perElement
+    expect(firing(out[0])).not.toContain('LP.EL.01:error')
+    expect(firing(out[2])).toContain('LP.EL.01:error')
+    expect(elementScope(arcs, 1)['element.length']).toBe(20)
+  })
+
   it('a design speed off the 5 km/h step, and one outside the range at all', () => {
     const els = clean()
     els[2] = { ...els[2], speed: 102 }

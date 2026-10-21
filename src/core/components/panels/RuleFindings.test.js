@@ -62,7 +62,8 @@ describe('a whole chain at once', () => {
 
   it('leaves the count off where a rule was found in one place only', () => {
     const html = renderToStaticMarkup(createElement(RuleFindings, {
-      t, elements: [short(100), { elementType: 0, speed: 100, length: 100, cant: 0 }],
+      // An arc beside it: a straight next to it would run on as one straight (LP.EL.01 reads the run).
+      t, elements: [short(100), { elementType: 1, speed: 100, length: 100, radius: 5000, cant: 0 }],
     }))
     expect(html).toContain('LP.EL.01')
     expect(html).not.toContain('×)')

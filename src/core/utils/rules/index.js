@@ -15,7 +15,7 @@ export {
 } from './cant'
 export { bundledCatalogHash } from './catalogHash'
 export { BUNDLED_KATALOG_VERSION, flattenPhysics, GRENZWERTE, optimizerLimitRows, PHYSICS } from './constraintsView'
-export { minElementLength } from './elementLength'
+export { comparisonRadiusLimits, minElementLength } from './elementLength'
 export {
   CATALOG_ID, catalogLimit, catalogSpeedRange, evaluateRules, KATALOG, ruleById, rulesForScope,
   severityLabelKey, severityRank, worstSeverity,

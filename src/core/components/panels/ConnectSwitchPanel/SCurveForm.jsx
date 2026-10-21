@@ -242,6 +242,12 @@ export default function SCurveForm({ onCommitted }) {
   // ── Render ─────────────────────────────────────────────────────────────────
   if (phase === 'config') {
     const deg = (r) => (r * RAD2DEG).toFixed(3)
+    // Where a joint of the middle elements lies: at the start of the element
+    // it comes before, the last at the end of the last one.
+    const midCount = result?.midPieces?.length ?? 1
+    const jointText = (k) => (k < midCount
+      ? fill('scurve_joint_start', { n: String(k + 1) })
+      : fill('scurve_joint_end', { n: String(midCount) }))
     // WA's distance from the element change behind it, for the slider's label.
     const wa = (s) => {
       const d = s + (slider?.offset ?? 0)
@@ -318,8 +324,17 @@ export default function SCurveForm({ onCommitted }) {
                 n: String(result.midShort.index + 1), l: result.midShort.length.toFixed(2),
                 lmin: result.midShort.lMin.toFixed(2), v: String(speed),
               })
+              : result?.reason === 'mid_jump' && result.midJump ? fill('scurve_mid_jump_at', {
+                at: jointText(result.midJump.index), rw: result.midJump.rw.toFixed(0),
+                limit: result.midJump.limit.toFixed(0), v: String(speed),
+              })
               : t(REASON_MSG[result?.reason] ?? 'scurve_invalid')}
         </p>
+        {result?.valid && result.midJumpHints?.map(h => (
+          <p key={h.index} className="msg-hint">
+            {fill('scurve_mid_jump_hint', { at: jointText(h.index), rw: h.rw.toFixed(0), reg: h.reg.toFixed(0) })}
+          </p>
+        ))}
         {settled?.moved.length > 0 && (
           <p className="msg-hint">
             {fill('scurve_min_element_moved', { tracks: settled.moved.map(k => picks[k]?.name ?? '').join(', ') })}

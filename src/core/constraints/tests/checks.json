@@ -3022,6 +3022,249 @@
      "ok"
     ]
    ]
+  },
+  {
+   "name": "elements of one curvature run on",
+   "elements": [
+    {
+     "elementType": 0,
+     "length": 10,
+     "speed": 100,
+     "cant": 0
+    },
+    {
+     "elementType": 0,
+     "length": 10,
+     "speed": 100,
+     "cant": 0
+    },
+    {
+     "elementType": 2,
+     "transitionType": "clothoid",
+     "r1": null,
+     "r2": 3000,
+     "length": 60,
+     "speed": 100
+    },
+    {
+     "elementType": 1,
+     "radius": 3000,
+     "length": 10,
+     "speed": 100,
+     "cant": 0
+    },
+    {
+     "elementType": 1,
+     "radius": 3000,
+     "length": 10,
+     "speed": 100,
+     "cant": 0
+    },
+    {
+     "elementType": 1,
+     "radius": 2500,
+     "length": 10,
+     "speed": 100,
+     "cant": 0
+    }
+   ],
+   "findings": [
+    [
+     "#0",
+     "LP.ALL.01",
+     "ok"
+    ],
+    [
+     "#0",
+     "LP.ALL.02",
+     "ok"
+    ],
+    [
+     "#0",
+     "LP.EL.01",
+     "ok"
+    ],
+    [
+     "#0|#1",
+     "LP.UB.01",
+     "ok"
+    ],
+    [
+     "#1",
+     "LP.ALL.01",
+     "ok"
+    ],
+    [
+     "#1",
+     "LP.ALL.02",
+     "ok"
+    ],
+    [
+     "#1",
+     "LP.EL.01",
+     "ok"
+    ],
+    [
+     "#1|#2",
+     "LP.UB.01",
+     "ok"
+    ],
+    [
+     "#2",
+     "LP.ALL.01",
+     "ok"
+    ],
+    [
+     "#2",
+     "LP.ALL.02",
+     "ok"
+    ],
+    [
+     "#2",
+     "LP.EL.01",
+     "ok"
+    ],
+    [
+     "#2",
+     "LP.UB.05",
+     "ok"
+    ],
+    [
+     "#2",
+     "LP.UB.09",
+     "ok"
+    ],
+    [
+     "#2|#3",
+     "LP.UB.01",
+     "ok"
+    ],
+    [
+     "#3",
+     "LP.ALL.01",
+     "ok"
+    ],
+    [
+     "#3",
+     "LP.ALL.02",
+     "ok"
+    ],
+    [
+     "#3",
+     "LP.EL.01",
+     "ok"
+    ],
+    [
+     "#3",
+     "LP.KB.01",
+     "ok"
+    ],
+    [
+     "#3",
+     "LP.KB.02",
+     "ok"
+    ],
+    [
+     "#3",
+     "LP.KB.03",
+     "ok"
+    ],
+    [
+     "#3",
+     "LP.KB.04",
+     "hint"
+    ],
+    [
+     "#3|#4",
+     "LP.UB.01",
+     "ok"
+    ],
+    [
+     "#4",
+     "LP.ALL.01",
+     "ok"
+    ],
+    [
+     "#4",
+     "LP.ALL.02",
+     "ok"
+    ],
+    [
+     "#4",
+     "LP.EL.01",
+     "ok"
+    ],
+    [
+     "#4",
+     "LP.KB.01",
+     "ok"
+    ],
+    [
+     "#4",
+     "LP.KB.02",
+     "ok"
+    ],
+    [
+     "#4",
+     "LP.KB.03",
+     "ok"
+    ],
+    [
+     "#4",
+     "LP.KB.04",
+     "hint"
+    ],
+    [
+     "#4|#5",
+     "LP.KS.01",
+     "ok"
+    ],
+    [
+     "#4|#5",
+     "LP.KS.02",
+     "hint"
+    ],
+    [
+     "#4|#5",
+     "LP.UB.01",
+     "ok"
+    ],
+    [
+     "#5",
+     "LP.ALL.01",
+     "ok"
+    ],
+    [
+     "#5",
+     "LP.ALL.02",
+     "ok"
+    ],
+    [
+     "#5",
+     "LP.EL.01",
+     "error"
+    ],
+    [
+     "#5",
+     "LP.KB.01",
+     "ok"
+    ],
+    [
+     "#5",
+     "LP.KB.02",
+     "ok"
+    ],
+    [
+     "#5",
+     "LP.KB.03",
+     "ok"
+    ],
+    [
+     "#5",
+     "LP.KB.04",
+     "hint"
+    ]
+   ]
   }
  ]
 }

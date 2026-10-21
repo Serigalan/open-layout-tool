@@ -18,7 +18,7 @@ The vertical (Höhenplan) half of the catalogue is applied in `elevation/gradien
 | `trassierungCheck.js` | Fills the rule scope from an element chain and checks a track: per element, per boundary, per cant ramp (`checkTrack`, `hasRuleError`) |
 | `cant.js` | Cant and cant deficiency: limits (LP.KB.01/02/05/06), the 5 mm step, Regelüberhöhung, the cant a dialog proposes, the speed a curve permits |
 | `speed.js` | The radius and cant that govern an element's physics; every element's speed raised to what its geometry admits |
-| `elementLength.js` | `l_min` of LP.EL.01 at a speed |
+| `elementLength.js` | `l_min` of LP.EL.01 and the comparison radius of LP.KS.01 (Regelwert, Ermessensgrenze) at a speed |
 | `transitionLength.js` | Regellänge and Mindestlänge of a transition, found from the length rules; the formula each rule shows |
 | `regelwerkDefaults.js` | The few values the dialogs need synchronously, read from the catalogue |
 | `ruleFields.js` | Which form field a finding belongs to |
@@ -79,6 +79,10 @@ disagreement with the layout.
   speed is not a slow one, and judging it as 39 km/h would produce a page of errors about a number nobody
   entered.
 - At a boundary and for rules over several elements the larger speed of the elements involved counts.
+- LP.EL.01 reads an element's length as the **run of its own curvature**: straights next to each other, or
+  arcs of one radius, are one element on the ground (a straight split at a switch end, the straight end
+  piece of a turnout's branch running on into the connecting straight). Transitions stand alone. The
+  Python port (`pruefung.py`) does the same (Entscheidung 356).
 - Cant is stored signed with the curve; the rules read its magnitude. Over a reverse transition the cross
   level really travels from one rail to the other, so the ramp height and the change of deficiency are
   **signed sums**, not differences of magnitudes (a too-short reverse clothoid passed before).

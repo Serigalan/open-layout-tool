@@ -64,6 +64,25 @@ const sideDeficiency = (v, radius, cant) => (radius ? Math.sign(radius) * defici
  */
 export const isCheckable = (el) => !!el?.speed
 
+/** Does element `b` run on as `a` does — no transition, the same curvature? */
+const sameGeometry = (a, b) => !!a && !!b && !isTransition(a) && !isTransition(b)
+  && Math.abs(curvature(a.radius) - curvature(b.radius)) < CURVATURE_EPS
+
+/**
+ * The length of the element as LP.EL.01 reads it: with its neighbours of the
+ * same curvature, which are one straight or one arc on the ground — two
+ * straights split at a switch end, a straight run on through the end piece of
+ * a turnout's branch (Entscheidung 356).
+ */
+function runLength(elements, i) {
+  const el = elements[i]
+  let length = el.length ?? 0
+  if (isTransition(el)) return length
+  for (let j = i - 1; j >= 0 && sameGeometry(elements[j], el); j--) length += elements[j].length ?? 0
+  for (let j = i + 1; j < elements.length && sameGeometry(elements[j], el); j++) length += elements[j].length ?? 0
+  return length
+}
+
 /**
  * The scope an element rule reads. Names are the catalogue's, flat and dotted,
  * exactly as its `inputs[].from` states them.
@@ -83,7 +102,7 @@ export function elementScope(elements, i) {
     : 0
   return {
     'element.design_speed': v,
-    'element.length': el.length ?? 0,
+    'element.length': runLength(elements, i),
     // The store keeps cant signed, following the curve; the rulebook's u is
     // the magnitude of the cross level (LP.KB.03 says outright that negative
     // cant is not treated).

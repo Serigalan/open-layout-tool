@@ -190,6 +190,7 @@ export const REASON_MSG = {
   mid_unknowns:     'scurve_mid_unknowns',
   mid_no_solution:  'scurve_mid_no_solution',
   mid_element_short: 'scurve_mid_element_short',
+  mid_jump:         'scurve_mid_jump',
 }
 
 /** Below this a turnout still counts as lying on its element [m]. */

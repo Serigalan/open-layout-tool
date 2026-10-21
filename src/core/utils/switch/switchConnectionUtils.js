@@ -2,7 +2,7 @@ import {
   utmToWgs84, arcCoordsFromRadiusUtm, projectOnArcUtm, SAGITTA_ELEMENT, SAGITTA_TRACK,
   computeClothoidUtm, arcElement, straightElement, transitionElement,
 } from '../geometry'
-import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, computeCantDefSigned, minElementLength } from '../rules'
+import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, comparisonRadiusLimits, computeCantDefSigned, minElementLength } from '../rules'
 import {
   SWITCH_TYPES, SWITCH_CONNECTION_STAGES, STRAIGHT_CURVATURE, switchStraightLength, switchBranchLength, switchBranchSections,
 } from './catalogue'
@@ -402,12 +402,13 @@ function buildConnection(sw, frame, speed, mids = null) {
   const defMid = mid
     ? Math.max(0, ...mid.flatMap(piece => [piece.r1, piece.r2].map(r => (r ? computeCantDefSigned(speed, r, cantMid) : 0))))
     : signedRg ? computeCantDefSigned(speed, signedRg, cantMid) : 0
-  // With several elements each has to be one (LP.EL.01 at the connection's
-  // speed); one alone keeps the form's minimum (Entscheidung 306).
-  const lMin = mid && mid.length > 1 ? minElementLength(speed) : null
-  const shortAt = lMin == null ? -1 : mid.findIndex(piece => piece.length < lMin - 1e-3)
-  const shortPiece = shortAt >= 0
-  const midShort = shortPiece ? { index: shortAt, length: mid[shortAt].length, lMin } : null
+  // What lies between the two branches is held to the alignment rules at the
+  // connection's speed (Entscheidung 356): every element to l_min (LP.EL.01),
+  // a straight together with the straight end pieces of the branches it runs
+  // on from, and every curvature jump at its ends and between its elements to
+  // the comparison radius (LP.KS.01).
+  const midCheck = checkMidRun(chain1, mid ?? [{ length: Lg, r1: signedRg, r2: signedRg }], chain2, speed)
+  const midShort = midCheck.short
   const defB1  = defOf(chain1, cant1Start, cant1End)
   const defB2  = defOf(chain2, cant2Start, cant2End)
   const worstCant = Math.max(
@@ -415,8 +416,9 @@ function buildConnection(sw, frame, speed, mids = null) {
 
   const reason =
     !Number.isFinite(Lg)                                  ? 'no_solution'
-      : Lg < sw.minl                                      ? 'too_short'
-        : shortPiece                                      ? 'mid_element_short'
+      : midCheck.overlap                                  ? 'too_short'
+        : midShort                                        ? 'mid_element_short'
+        : midCheck.jump                                   ? 'mid_jump'
         : Math.abs(cantLds1 - cantLds2) > CANT_TOL        ? 'cant_mismatch'
           : worstCant > MAX_SWITCH_CANT                   ? 'cant_over'
             : Math.max(defB1, defB2) > MAX_SWITCH_CANT_DEF ? 'branch_too_sharp'
@@ -426,7 +428,7 @@ function buildConnection(sw, frame, speed, mids = null) {
   return {
     sw, R: sw.R, w, side, delta, s2,
     TP1: toe1, B1E, B2A, TP2,
-    Lg, signedRg, mid, midShort,
+    Lg, signedRg, mid, midShort, midJump: midCheck.jump, midJumpHints: midCheck.hints,
     chain1, chain2,
     // The branch radius each turnout is built with: the form's own arc, which
     // is the piece at the toe. A straight end piece says nothing about the form.
@@ -439,6 +441,73 @@ function buildConnection(sw, frame, speed, mids = null) {
     bearing2A: bearingOf(t2),                 // at B2A, the way the connection runs
     valid: reason === null, reason,
   }
+}
+
+/** Shorter than this a middle element has no room: the two branches meet or overlap [m]. */
+const MID_ROOM = 1e-3
+
+/** Two curvatures this close are one [1/m] — trassierungCheck's CURVATURE_EPS. */
+const SAME_CURVATURE = 1e-6
+
+const curvatureAt = (r) => (r ? 1 / r : 0)
+
+/**
+ * The elements between the two branches as LP.EL.01 and LP.KS.01 see them
+ * (Entscheidung 356). A piece of constant curvature runs on into a neighbour
+ * of the same curvature — a straight between two branches that end in
+ * straight pieces is one straight from arc to arc — so the length held to
+ * l_min is that of the run. The comparison radius is read wherever a middle
+ * element meets a branch or another middle element with a jump in curvature;
+ * a transition takes its neighbours' curvatures and makes none.
+ *
+ * `chain1`, `mid` and `chain2` are routes ({ length, r1, r2 }) in the direction
+ * the connection runs. Returns
+ *
+ *   overlap  a middle element without room (the branches meet or overlap)
+ *   short    { index, length, lMin } — the first middle element whose run is under l_min
+ *   jump     { index, rw, limit } — the first joint under the Ermessensgrenze,
+ *            joint `index` lying before middle element `index` (mid.length: after the last)
+ *   hints    [{ index, rw, reg }] — joints under the Regelwert only
+ */
+export function checkMidRun(chain1, mid, chain2, speed) {
+  const overlap = mid.some(p => !(p.length >= MID_ROOM))
+  const all = [...chain1, ...mid, ...chain2]
+  const at0 = chain1.length
+  const constant = (p) => (p.r1 ?? null) === (p.r2 ?? null)
+    || Math.abs(curvatureAt(p.r1) - curvatureAt(p.r2)) < SAME_CURVATURE
+  const sameAs = (p, k) => constant(p) && Math.abs(curvatureAt(p.r1) - k) < SAME_CURVATURE
+  const runLength = (i) => {
+    const p = all[i]
+    if (!constant(p)) return p.length
+    const k = curvatureAt(p.r1)
+    let length = p.length
+    for (let j = i - 1; j >= 0 && sameAs(all[j], k); j--) length += all[j].length
+    for (let j = i + 1; j < all.length && sameAs(all[j], k); j++) length += all[j].length
+    return length
+  }
+
+  const lMin = minElementLength(speed)
+  let short = null
+  if (!overlap && lMin != null) {
+    const i = mid.findIndex((_, k) => runLength(at0 + k) < lMin - MID_ROOM)
+    if (i >= 0) short = { index: i, length: runLength(at0 + i), lMin }
+  }
+
+  const limits = comparisonRadiusLimits(speed)
+  let jump = null
+  const hints = []
+  if (limits) {
+    for (let k = 0; k <= mid.length; k++) {
+      const a = all[at0 + k - 1], b = all[at0 + k]
+      if (!a || !b) continue
+      const step = Math.abs(curvatureAt(a.r2) - curvatureAt(b.r1))
+      if (step <= SAME_CURVATURE) continue
+      const rw = 1 / step
+      if (rw < limits.discretion - MID_ROOM) { jump ??= { index: k, rw, limit: limits.discretion } }
+      else if (rw < limits.reg - MID_ROOM) hints.push({ index: k, rw, reg: limits.reg })
+    }
+  }
+  return { overlap, short, jump, hints }
 }
 
 /**
@@ -602,7 +671,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null) {
     tp1Wgs, b1eWgs, b2aWgs, tp2Wgs,
     delta: c.delta, s1: frame.s1, s2: c.s2, flipped2: frame.flipped2, side: c.side,
     R: c.R, w: c.w, L1: c.L1, L2: c.L2, Lg: c.Lg,
-    signedR1, signedR2, signedRg, midPieces, midShort: c.midShort,
+    signedR1, signedR2, signedRg, midPieces, midShort: c.midShort, midJump: c.midJump, midJumpHints: c.midJumpHints,
     chain1: c.chain1, chain2: c.chain2, branch1, branch2, bearing2A: c.bearing2A,
     stemR1: stemRadius(frame.stem1, frame.s1),
     stemR2: stemRadius(frame.stem2, c.s2),

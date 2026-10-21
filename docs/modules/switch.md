@@ -34,7 +34,8 @@ measure changed in the file is changed wherever the form is drawn, listed or exp
 reads: `R` and `ratio` (1:n) make the body; `branch` lists the sections of a branch that is more than one
 arc (e.g. an arc followed by a straight end piece); `symmetric` marks a form without a through route
 (215 – 1:4,8); `dLcs` is the Weichenmarke; `lds` the distance from the switch end (WE) to the last through
-sleeper (ldS), used for heights; `minl` the shortest intermediate element a connection needs; `verbindung`
+sleeper (ldS), used for heights; `minl` the shortest intermediate straight 800.0120 names (kept for the
+viewer — a connection is held to LP.EL.01, see below); `verbindung`
 the fallback stage and rank a form has in a connection (the tool's own choice, marked as such in the
 catalogue).
 
@@ -166,9 +167,10 @@ two parallel straights this is the classical intermediate straight; on convergin
 of radius `Lg/δ`; in curves and on transitions the same construction.
 
 **Forms per speed.** For a design speed the forms of that speed are tried through the catalogue's three
-fallback stages, flatter before sharper. A form fails when the intermediate element is shorter than `minl`,
-when a curve or bent branch exceeds the permitted cant deficiency, or when the cant at the two ends of the
-middle element differs — the middle element carries one value, a step would be a ramp of no length.
+fallback stages, flatter before sharper. A form fails when the branches leave no room between them, when
+the intermediate element breaks LP.EL.01 or LP.KS.01 (below), when a curve or bent branch exceeds the
+permitted cant deficiency, or when the cant at the two ends of the middle element differs — the middle
+element carries one value, a step would be a ramp of no length.
 
 **Up to three intermediate elements** (`midChain.js`). Instead of one arc the dialog may ask for one to
 three elements, each a straight, an arc or a transition, each with length (and an arc's radius) given or
@@ -177,8 +179,12 @@ of their neighbours. The default — one arc with length and radius open — is 
 
 **Checks.** All intermediate elements carry the cant of the middle (the rounded mean of both tracks' cant
 at the ldS — the two tracks must carry the same cant there, not at the toe); every arc and transition end
-is held to the permitted cant deficiency; one element must be at least the form's `minl`, two or three
-their sum and each `l_min` (LP.EL.01 at the connection's speed, from 40 km/h). The pieces of track left
+is held to the permitted cant deficiency. Every intermediate element must be at least `l_min` (LP.EL.01 at
+the connection's speed), measured as the run of its own curvature: a straight between two branches that
+end in straight pieces (190 – 1:9, 500 – 1:14, …) is one straight from arc to arc, so the 1:9 crossover
+at 4.0 m spacing (2.99 m between the switch ends) holds. At every joint of an intermediate element with a
+jump in curvature the comparison radius (LP.KS.01) must reach the Ermessensgrenze; under the Regelwert the
+dialog says so (`checkMidRun`, Entscheidung 356). The pieces of track left
 before the toe and behind the switch end, on both tracks, must be zero or at least `l_min`; the toe is put
 on the element change behind it where it can be.
 

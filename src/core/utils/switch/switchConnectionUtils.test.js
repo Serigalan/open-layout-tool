@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   SWITCH_TYPES, CONNECTION_SPEEDS, solveSwitchConnection, computeSwitchConnections,
-  buildConnectionElements,
+  buildConnectionElements, checkMidRun,
 } from './switchConnectionUtils'
 import {
   switchArcLength, switchStraightLength, switchBranchLength, branchRadius, SWITCH_CONNECTION_STAGES,
@@ -233,8 +233,9 @@ describe('two tracks in a curve', () => {
 
 describe('one straight track and one curved', () => {
   it('closes on the curve it has to meet', () => {
+    // 5 m apart: at 4.5 m the middle element would be under l_min at 60 km/h.
     const R2 = 4000
-    const p2 = P(ORIGIN.easting - 4.5, ORIGIN.northing)
+    const p2 = P(ORIGIN.easting - 5, ORIGIN.northing)
     const centre = centreOf(p2, 0, R2)
     const g1 = stem(ORIGIN, 0, null)
     const g2 = stem(p2, 0, R2)
@@ -386,8 +387,8 @@ describe('the two tracks need not be the same kind of element', () => {
   })
 
   it('arc against straight, either way round', () => {
-    const a = solveSwitchConnection(stem(ORIGIN, 0, 2500, 0), stem(at(ORIGIN, -4.5), 0, null), SPEED)
-    const b = solveSwitchConnection(stem(ORIGIN, 0, null), stem(at(ORIGIN, -4.5), 0, 2500, 0), SPEED)
+    const a = solveSwitchConnection(stem(ORIGIN, 0, 2500, 0), stem(at(ORIGIN, -5), 0, null), SPEED)
+    const b = solveSwitchConnection(stem(ORIGIN, 0, null), stem(at(ORIGIN, -5), 0, 2500, 0), SPEED)
     expect(a.valid).toBe(true)
     expect(b.valid).toBe(true)
   })
@@ -501,7 +502,10 @@ describe('a connection built from a form with a straight end piece', () => {
   })
 
   it('falls back to the sharper form where the flatter one has no room', () => {
-    const tight = solveSwitchConnection(g1, stem(P(ORIGIN.easting - 4, ORIGIN.northing), 0, null), 40)
+    // 3.6 m apart and opening by a degree: the 1:9 form's branches leave no
+    // room between them, the steeper 1:7.5 leaves enough.
+    const tight = solveSwitchConnection(g1, stem(P(ORIGIN.easting - 3.6, ORIGIN.northing), -1, null), 40)
+    expect(tight.valid).toBe(true)
     expect(tight.switchType.label).toBe('190 – 1:7.5')
   })
 })
@@ -602,5 +606,50 @@ describe('a connection with a chain of elements between the branches', () => {
     ]
     const res = solveSwitchConnection(g1, parallel, SPEED, 0, mids)
     expect(res.reason).toBe('mid_element_short')
+  })
+})
+
+// ── the middle element against the alignment rules (Entscheidung 356) ───────
+
+describe('what the middle element is held to', () => {
+  const arc = (r, length = 20) => ({ length, r1: r, r2: r })
+  const straight = (length) => ({ length, r1: null, r2: null })
+
+  it('counts a straight together with the straight end pieces it runs on from', () => {
+    // 190 – 1:9: arc, then 6.092 m straight to WE, on both turnouts.
+    const out = checkMidRun([arc(-190), straight(6.092)], [straight(3)], [straight(6.092), arc(190)], 40)
+    expect(out.short).toBeNull()
+    expect(out.overlap).toBe(false)
+  })
+
+  it('holds a straight between two arcs to l_min on its own', () => {
+    const out = checkMidRun([arc(-300)], [straight(3)], [arc(300)], 50)
+    expect(out.short).toEqual({ index: 0, length: 3, lMin: 5 })
+  })
+
+  it('finds no room where the branches meet or overlap', () => {
+    expect(checkMidRun([arc(-300)], [straight(-0.5)], [arc(300)], 50).overlap).toBe(true)
+  })
+
+  it('reads the comparison radius at the joints of the middle element', () => {
+    // At 60 km/h: Regelwert 490 m, Ermessensgrenze 400 m.
+    const reverse = checkMidRun([arc(-500)], [arc(1000)], [arc(500)], 60)
+    expect(reverse.jump.index).toBe(0)
+    expect(reverse.jump.rw).toBeCloseTo(1 / (1 / 500 + 1 / 1000), 9)
+    expect(reverse.jump.limit).toBe(400)
+    // A straight beside the form's arc keeps the form's radius as r_w.
+    expect(checkMidRun([arc(-500)], [straight(20)], [arc(500)], 60).jump).toBeNull()
+    // Between the two: under the Regelwert only, a hint.
+    const hint = checkMidRun([arc(-500)], [arc(10000)], [arc(500)], 60)
+    expect(hint.jump).toBeNull()
+    expect(hint.hints.map(h => h.index)).toEqual([0])
+  })
+
+  it('builds the 1:9 crossover at 4.0 m track spacing, 40 km/h', () => {
+    // The DB's most common crossover: 2.99 m between the two switch ends.
+    const res = solveSwitchConnection(stem(ORIGIN, 0, null), stem(P(ORIGIN.easting - 4, ORIGIN.northing), 0, null), 40)
+    expect(res.valid).toBe(true)
+    expect(res.switchType.label).toBe('190 – 1:9')
+    expect(res.Lg).toBeCloseTo(2.99, 2)
   })
 })
