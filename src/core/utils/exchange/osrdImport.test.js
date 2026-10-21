@@ -6,6 +6,7 @@ import { computeSwitchGeometryUtm } from '../switch/symbol'
 import { switchRouteVaries } from '../switch/route'
 import { crossingAngle, computeCrossingGeometryUtm, crossingElements } from '../switch/crossing'
 import { newSwitchFields } from '../track/switchModel'
+import { arcFrom, straightFrom, transitionCantEnds, transitionElement } from '../geometry'
 
 
 /**
@@ -176,5 +177,23 @@ describe('the planning status through the exchange file', () => {
     expect(back.tracks.find(t => t.id === 'branch').status).toBe('new')
     expect(back.tracks.find(t => t.id === 'through').status).toBeUndefined()
     expect(back.switches[0].status).toBe('removal')
+  })
+})
+
+describe('cant ramps not between a straight and an arc (decision 355)', () => {
+  // A transition into R 500 up to 40 mm, a ramp on the arc's radius on to 80,
+  // the arc itself at 80.
+  const straight = straightFrom(START, 90, 50)
+  const into = transitionElement({ easting: straight.endNode[0], northing: straight.endNode[1], zone: EPSG },
+    straight.endBearing ?? straight.bearing, 40, null, 500, { transitionType: 'clothoid' })
+  const ramp = transitionElement({ ...into.endUtm, zone: EPSG }, into.endBearing, 20, 500, 500, { transitionType: 'clothoid' })
+  const arc = arcFrom({ ...ramp.endUtm, zone: EPSG }, ramp.endBearing, 30, 500, { cant: 80 })
+  const elements = [straight, { ...into.element, cantEnd: 40 }, { ...ramp.element, cantStart: 40 }, arc]
+
+  it('keep the ends of each transition through the exchange file', () => {
+    const { tracks } = parseOsrdRailJson(buildInfra([{ id: 't', name: 'T', epsg: EPSG, elements }], [], [], {}))
+    const back = tracks[0].elements
+    expect(back.map((el, i) => (el.elementType === 2 ? transitionCantEnds(back, i) : el.cant ?? 0)))
+      .toEqual([0, { start: 0, end: 40 }, { start: 40, end: 80 }, 80])
   })
 })

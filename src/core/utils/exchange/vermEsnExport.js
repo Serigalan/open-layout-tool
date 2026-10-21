@@ -1,8 +1,8 @@
 import { zipSync, strToU8 } from 'fflate'
-import { transitionCantEnds } from '../geometry'
 import { tangentLength, heightDatumLabel, reverseTrack, trackLabel } from '../track'
 import { lagesystemForEpsg } from './mdbImport'
 import { routeProfile } from '../elevation'
+import { fileCants } from './fileCants'
 
 /**
  * Verm.ESN files of the project's tracks — the counterpart of vermEsnImport,
@@ -10,7 +10,7 @@ import { routeProfile } from '../elevation'
  *
  * **TRA**, 78 bytes a record, little-endian: radius at begin and end, easting,
  * northing, bearing (rad, grid, from north clockwise), station (float64 each),
- * type (int16), length, cant at begin and end [mm, magnitude] (float64), a
+ * type (int16), length, cant at begin and end [mm, relative to the curve: + raises the outer rail] (float64), a
  * float32 that is 0 throughout. Radii are signed, positive to the right, 0 for
  * a straight end. The first record is a header whose type field counts the
  * elements; behind the elements a record of length 0 closes the axis at its
@@ -55,6 +55,8 @@ function kinkGon(el) {
  */
 export function traRecords(track) {
   const els = track.elements ?? []
+  // Each end's cant relative to the curve it lies in, as the import reads it.
+  const cants = fileCants(els)
   const out = []
   let station = 0
   els.forEach((el, i) => {
@@ -64,23 +66,21 @@ export function traRecords(track) {
       easting: el.startNode[0], northing: el.startNode[1],
       bearing: norm2pi((el.bearing ?? 0) * DEG2RAD), station, length,
     }
+    const { start: cantB, end: cantE } = cants[i]
     if (el.elementType === 2) {
-      const { start, end } = transitionCantEnds(els, i)
       out.push({
         ...base, type: el.transitionType === 'bloss' ? TYPE_BLOSS : TYPE_CLOTHOID,
-        radiusB: el.r1 ?? 0, radiusE: el.r2 ?? 0, cantB: Math.abs(start), cantE: Math.abs(end),
+        radiusB: el.r1 ?? 0, radiusE: el.r2 ?? 0, cantB, cantE,
       })
     } else if (el.radius) {
-      const cant = Math.abs(el.cant ?? 0)
-      out.push({ ...base, type: TYPE_ARC, radiusB: el.radius, radiusE: el.radius, cantB: cant, cantE: cant })
+      out.push({ ...base, type: TYPE_ARC, radiusB: el.radius, radiusE: el.radius, cantB, cantE })
     } else {
       // A straight with a kink at its end states the angle the alignment
       // leaves in, as 200 gon plus the deflection (vermEsnImport, type 5).
       const kink = kinkGon(el)
-      const cant = Math.abs(el.cant ?? 0)
       out.push({
         ...base, type: kink ? TYPE_KINK : TYPE_STRAIGHT,
-        radiusB: kink ? 200 + kink : 0, radiusE: kink ? 200 + kink : 0, cantB: cant, cantE: cant,
+        radiusB: kink ? 200 + kink : 0, radiusE: kink ? 200 + kink : 0, cantB, cantE,
       })
     }
     station += length

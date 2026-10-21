@@ -1,9 +1,9 @@
 import { unzipSync } from 'fflate'
-import { cantSign } from '../rules'
 import { generateId, nextTrackName, rebuildCoords } from '../track'
 import { gradientStretch } from './proviImport'
 import { arcFrom, straightFrom, transitionElement } from '../geometry'
 import { axisLine, END_TOL, endMismatch, gradientOnTrack } from './vermEsnKmGradient'
+import { isRamp, withFileCants } from './fileCants'
 
 const RECORD_SIZE = 78
 const GRA_RECORD_SIZE = 36   // the header is one record long, too
@@ -56,6 +56,13 @@ export function parseRecords(arrayBuffer) {
  * Types 3 and 6 are silently ignored, as are zero-length records. The last
  * element record is always ignored — it only marks the alignment's end point.
  *
+ * Every record states the cant at its start and end, relative to its curve
+ * (fileCants): an arc or straight takes it as its `cant`, a transition as
+ * `cantStart`/`cantEnd` where its neighbours do not imply the same — so a
+ * ramp the file lays into a transition of one radius, or between two others,
+ * is kept. An arc or straight whose two ends differ is a ramp too and comes in
+ * as a transition of that one radius (decision 355).
+ *
  * Each element must start where the previous one ends (tolerance 0.3 mm);
  * violations are reported in `errors`. Returns { elements, errors, startStation,
  * stations } — `startStation` is the axis station [m] the first element begins
@@ -68,6 +75,7 @@ export function buildElements(records, epsg) {
   const elements = []
   const errors = []
   const stations = []
+  const cants = []   // the file's cant at both ends of each element, curve-relative
   let prevIdx = -1
   let startStation = null
 
@@ -96,8 +104,17 @@ export function buildElements(records, epsg) {
 
     const start      = { easting: rec.easting, northing: rec.northing, zone: crs }
     const bearingDeg = ((rec.bearing * RAD2DEG) % 360 + 360) % 360   // bearing stored in radians (grid)
+    cants.push({ start: rec.cantB, end: rec.cantE })
+    const ramp = isRamp(cants[cants.length - 1])
 
-    if (rec.type === 0 || rec.type === 5) {
+    if ((rec.type === 0 || rec.type === 1) && ramp) {
+      // ── A cant ramp on a straight or an arc: a transition of that one radius
+      const r = rec.type === 1 ? (rec.radiusB !== 0 ? rec.radiusB : rec.radiusE) : null
+      elements.push(transitionElement(start, bearingDeg, rec.length, r, r, {
+        transitionType: 'clothoid', length: r3(rec.length), speed: 0,
+      }).element)
+
+    } else if (rec.type === 0 || rec.type === 5) {
       // ── Straight (type 5: with a kink at its end) ──────────────────────────
       const sv = straightFrom(start, bearingDeg, rec.length)
       const kinkEndBearing = rec.type === 5
@@ -106,7 +123,6 @@ export function buildElements(records, epsg) {
       elements.push({
         ...sv,
         speed:       0,
-        ...(rec.cantB ? { cant: rec.cantB } : {}),
         ...(kinkEndBearing !== undefined ? { endBearing: kinkEndBearing } : {}),
       })
 
@@ -117,17 +133,12 @@ export function buildElements(records, epsg) {
       elements.push({
         ...arc,
         speed:       0,
-        // Arcs carry a constant cant (cantB == cantE). The file stores it as a
-        // magnitude, so the sign comes from the curve direction.
-        cant:        cantSign(signedR) * Math.abs(rec.cantB),
         radius:      r3(signedR),
       })
 
     } else if (rec.type === 2 || rec.type === 4) {
       // ── Transition curve: type 2 = clothoid, type 4 = Bloss ────────────────
       // radiusB = 0 → entry from straight; radiusE = 0 → exit to straight.
-      // cantB → cantE is a ramp, not a scalar — deliberately not stored; it is
-      // implied by the adjacent elements' cants.
       const transitionType = rec.type === 4 ? 'bloss' : 'clothoid'
       const r1 = rec.radiusB !== 0 ? rec.radiusB : null
       const r2 = rec.radiusE !== 0 ? rec.radiusE : null
@@ -137,7 +148,7 @@ export function buildElements(records, epsg) {
     }
   }
 
-  return { elements, errors, startStation, stations }
+  return { elements: withFileCants(elements, cants), errors, startStation, stations }
 }
 
 // ── Gradient (.GRA) ─────────────────────────────────────────────────────────

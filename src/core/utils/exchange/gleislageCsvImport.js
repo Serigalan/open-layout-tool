@@ -1,5 +1,5 @@
 import { resolveEndBearing, transformPlanePoint, gkZone, arcFrom, straightFrom, transitionElement } from '../geometry'
-import { cantSign } from '../rules'
+import { isRamp, withFileCants } from './fileCants'
 
 const GON2DEG = 0.9
 
@@ -251,32 +251,29 @@ export function buildElement(rec, crs) {
  * Returns { tracks, errors }.
  */
 /**
- * Attach cants to the elements of one chain, matched by point address.
+ * Attach cants to the elements of one chain, matched by point address, in
+ * place.
  *
- * Constant sections put their value on the element (signed by the curve it sits
- * in — the export stores magnitudes only). Ramps belong to transition curves,
- * where cant is not a scalar but a gradient; the app derives those ends from the
- * neighbours instead, so the ramp record is used purely as a cross-check.
- * Reports length disagreements and ramps that contradict their neighbours.
+ * Every record states the cant at both ends of its element, relative to the
+ * curve it sits in (fileCants): constant sections put it on the arc or
+ * straight, ramps on the transition as its `cantStart`/`cantEnd` wherever the
+ * neighbours do not imply the same — so a ramp that is not simply the one
+ * between a straight and an arc keeps its ends (decision 355). A ramp on an
+ * arc or straight makes it a transition of that one radius. Reports length
+ * disagreements and ramps that contradict their neighbours.
  */
-function applyCants(chain, elements, cantByAddress, errors, label) {
+function applyCants(chain, elements, cantByAddress, errors, label, crs) {
   let matched = 0
-  chain.forEach((rec, i) => {
+  const ends = chain.map((rec, i) => {
     const cant = cantByAddress.get(addrKey(rec.anf, rec.end))
-    if (!cant) return
+    if (!cant) return { start: 0, end: 0 }
     matched++
     if (Math.abs(cant.length - rec.length) > CANT_LENGTH_TOL) {
       errors.push(`${label}, Element ${i + 1} (${rec.typ}): Länge weicht von der Überhöhung ab – `
         + `${rec.length.toFixed(3)} m vs. ${cant.length.toFixed(3)} m`)
     }
-    const el = elements[i]
-    if (cant.typ === CANT_CONSTANT) {
-      const u = cant.u1
-      if (el.elementType === 1) el.cant = cantSign(el.radius) * Math.abs(u)
-      else if (u) el.cant = u          // straight with cant — no curve to take a sign from
-      return
-    }
-    // Ramp: check it lines up with the constant sections on either side.
+    if (cant.typ === CANT_CONSTANT) return { start: cant.u1, end: cant.u1 }
+    // Ramp: check it lines up with the sections on either side.
     const before = chain[i - 1] && cantByAddress.get(addrKey(chain[i - 1].anf, chain[i - 1].end))
     const after  = chain[i + 1] && cantByAddress.get(addrKey(chain[i + 1].anf, chain[i + 1].end))
     if (before && Math.abs(before.u2 - cant.u1) > 0.5) {
@@ -287,7 +284,15 @@ function applyCants(chain, elements, cantByAddress, errors, label) {
       errors.push(`${label}, Element ${i + 1}: Rampenende ${cant.u2} mm passt nicht zum `
         + `Nachfolger (${after.u1} mm)`)
     }
+    const el = elements[i]
+    if (el.elementType !== 2 && isRamp({ start: cant.u1, end: cant.u2 }) && !el.endBearing) {
+      const r = el.elementType === 1 ? el.radius : null
+      elements[i] = transitionElement({ easting: el.startNode[0], northing: el.startNode[1], zone: crs },
+        el.bearing, el.length, r, r, { transitionType: 'clothoid', speed: el.speed ?? 0 }).element
+    }
+    return { start: cant.u1, end: cant.u2 }
   })
+  elements.splice(0, elements.length, ...withFileCants(elements, ends))
   return matched
 }
 
@@ -399,7 +404,7 @@ export function buildTracksFromCsv(rows, strecke, cantRows = null, opts = {}) {
     if (elements.length) {
       if (cantByAddress.size) {
         cantMatched += applyCants(chain, elements, cantByAddress, errors,
-          `Strecke ${strecke}, Gleis ${ci + 1}`)
+          `Strecke ${strecke}, Gleis ${ci + 1}`, crs)
       }
       // What the caller knows about this chain beyond its geometry: the MDB
       // import adds the gradient of the file (mdbGradient) with its height

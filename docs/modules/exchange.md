@@ -21,6 +21,7 @@ converted on the server.
 | `railJsonImport.js` | in | What a parsed RailJSON adds to a project: fresh ids, renamed tracks, repointed switches and buffer stops, passthrough of unmodelled objects |
 | `vermEsnImport.js` | in | Verm.ESN TRA (axis) and GRA (gradient) records → elements and heights; a zip of pairs as a batch |
 | `vermEsnKmGradient.js` | in | A gradient stationed along the kilometrage line carried over to the track at right angles |
+| `fileCants.js` | both | The cant at both ends of each element, between a file's curve-relative values and the model's |
 | `vermEsnExport.js` | out | Tracks and routes as TRA + GRA, zipped with a text naming plane and height datum |
 | `proviImport.js` | in | ProVI archives: axes (`A…`), gradients (`T…`), turnouts on axes |
 | `gleislageCsvImport.js` | in | The Gleislage CSV export (and cant CSV) |
@@ -61,7 +62,7 @@ converted on the server.
 ### Alignment exchange file and OSRD RailJSON
 
 Both carry the same element chain — what a polyline cannot express: type, station, length, signed radii, cant
-at both ends of a ramp (from the neighbours, or the cut transition's own `cantStart`/`cantEnd`), design speed,
+at both ends of a ramp (from the neighbours, or the transition's own `cantStart`/`cantEnd`), design speed,
 and for a kinked straight its deflection angle. The **OSRD export** writes OSRD's own `track_sections` (with
 its derived curves and slopes) and puts the design data into a DB alignment extension (native CRS anchor, gon
 bearings, the element chain). The **exchange file** is RailJSON-shaped but carries the design data itself on
@@ -78,8 +79,8 @@ already and renamed where the name is taken; buffer stops and switches follow.
 ### Verm.ESN
 
 **TRA**, 78 bytes per record, little-endian: radius at begin and end, easting, northing, bearing (rad, grid,
-from north clockwise), station (float64), type (int16), length, cant at begin and end (mm, magnitude,
-float64), a float32. Types: 0 straight, 1 arc, 2 clothoid, 4 Bloss, 5 straight with a kink at its end (the
+from north clockwise), station (float64), type (int16), length, cant at begin and end (mm, relative to the
+element's curve — positive raises the outer rail, negative the inner one —, float64), a float32. Types: 0 straight, 1 arc, 2 clothoid, 4 Bloss, 5 straight with a kink at its end (the
 junction angle in gon in `radiusB`: `endBearing = bearing + (radiusB − 200) gon`); 3 and 6 are ignored. A
 header record counts the elements; the last record only closes the axis. **GRA**, 36 bytes per record:
 station, height, vertical curve radius (negative over a crest), tangent length, point number. Neither file
@@ -114,6 +115,17 @@ constructing, not three shapes), `UB`/`UV` transitions (`TYP 2` clothoid, `TYP 8
 curve), `WE` a switch whose routes are stationed along the host and branch axes. Over the test archive (176
 axes, 5 000 elements, 229 switches) every rebuilt element ends within 0.6 mm of the next main point. Turnouts
 are offered for placement where both routes exist as axes.
+
+**Cant at both ends** (`fileCants.js`, decision 355). The files state the cant at the start and the end of
+every element, and it does not only change across a transition between a straight and an arc: the test axes
+(`memory/testdata/Test_Achsen`) ramp it inside transitions of one radius, between two straights (a reverse
+ramp through 0), hold it across a change of radius, and cant a turnout's branch against its own curve. The
+import signs each value by the raised rail: by the element's curve, and where it has none (a straight, a ramp
+between two straights) by the cant it continues. An arc or straight takes its value as `cant`; a transition
+keeps `cantStart`/`cantEnd` wherever its neighbours do not already imply them; an arc or straight whose two
+ends differ is a ramp and comes in as a transition of that one radius. The export writes the values back
+relative to the curve, and the six test axes read back to the 0.001 mm. The Gleislage CSV (and through it
+the MDB's cant records) and the exchange file keep the ends the same way.
 
 ### Gleislage CSV
 
@@ -198,6 +210,8 @@ where it is silent or guesses, the delivered files decide.
 - **Derived turnouts need an end on a track and an angle**; no derived crossings.
 - **Import reports outside the record.**
 - **Routes export as one axis or not at all.**
+- **Cant at both ends of every element**, curve-relative in the files, by the raised rail in the model;
+  a transition states its own ends only where the neighbours do not.
 
 ## Tests
 

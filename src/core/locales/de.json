@@ -2102,5 +2102,11 @@
   "track_visibility_km_line": "Strecke {line}",
   "track_visibility_km_source_vermesn": "Verm.ESN",
   "track_visibility_km_source_mdb": "MDB",
-  "track_visibility_km_source_db": "DB-Daten"
+  "track_visibility_km_source_db": "DB-Daten",
+  "table_cant_start": "Ü Anfang",
+  "table_cant_end": "Ü Ende",
+  "table_cant_ends_hint": "Überhöhung am Anfang und am Ende des Elements, vorzeichenbehaftet nach der gehobenen Schiene (+ links gehoben). Bei einem Übergangsbogen einzugeben – leer folgt er dem Nachbarelement (grau); bei Gerade und Bogen nur angezeigt, geändert wird dort die Spalte Überhöhung.",
+  "table_cant_end_own": "Eigener Wert dieses Übergangsbogens – leeren, um dem Nachbarelement zu folgen ({mm} mm).",
+  "table_cant_end_implied": "Folgt dem Nachbarelement – ein eigener Wert hält die Überhöhung hier fest, z. B. für eine Rampe innerhalb eines Bogens.",
+  "table_cant_end_fixed": "Gleichbleibende Überhöhung des Elements – in der Spalte Überhöhung änderbar."
 }

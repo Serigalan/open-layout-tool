@@ -42,7 +42,7 @@ function elementType(el) {
  *
  * Cant lives on arcs as a scalar; across a transition it is a ramp, so its two
  * ends are taken from the neighbouring elements — or from the transition's own
- * ends where it was cut (see transitionCantEnds). Values equal to 0 are omitted,
+ * ends where it states them (see transitionCantEnds). Values equal to 0 are omitted,
  * as is a design speed of 0 (unknown).
  */
 export function horizontalElements(track) {

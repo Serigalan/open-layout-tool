@@ -97,9 +97,11 @@ Every element has `startNode` and `endNode` (`[E, N]` in the track's plane). Con
 - **Bearing** in degrees, 0 = grid north, clockwise.
 - **Signed radius**: positive = right-hand curve (clockwise seen in the running direction), negative =
   left; `null` or 0 is straight. Internally curvature κ = −1/R.
-- **Cant** (`cant`, mm) is signed by the raised rail; it sits on arcs. A transition carries none: its
-  ends take the cant of the neighbouring elements (`transitionCantEnds`), except where a cut (a turnout
-  laid into it) left a piece without those neighbours — then the piece keeps `cantStart`/`cantEnd`.
+- **Cant** (`cant`, mm) is signed by the raised rail; it sits on arcs (and a canted straight). A transition
+  ramps it: its ends take the cant of the neighbouring elements (`transitionCantEnds`) unless it states
+  its own `cantStart`/`cantEnd` — typed in the element table, brought by an import whose ramp is not simply
+  the one between its neighbours (a ramp inside an arc, a reverse ramp between two straights), or kept by a
+  piece a cut left without those neighbours (decision 355).
 - **End bearing** is not stored where the design values give it (arc: `bearing + length/R`, transition:
   the integrated heading). It is kept only where it differs — a kinked straight, an imported tangent
   (`derivedEndBearing`, see [data format](../data-format.md)).

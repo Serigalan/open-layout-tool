@@ -2102,5 +2102,11 @@
   "track_visibility_km_line": "Line {line}",
   "track_visibility_km_source_vermesn": "Verm.ESN",
   "track_visibility_km_source_mdb": "MDB",
-  "track_visibility_km_source_db": "DB data"
+  "track_visibility_km_source_db": "DB data",
+  "table_cant_start": "Cant start",
+  "table_cant_end": "Cant end",
+  "table_cant_ends_hint": "Cant at the start and at the end of the element, signed by the raised rail (+ left raised). Typed for a transition – left empty it follows the neighbouring element (grey); shown only for straights and arcs, changed there in the Cant column.",
+  "table_cant_end_own": "This transition's own value – clear it to follow the neighbouring element ({mm} mm).",
+  "table_cant_end_implied": "Follows the neighbouring element – a value of its own holds the cant here, e.g. for a ramp inside an arc.",
+  "table_cant_end_fixed": "The element's constant cant – changed in the Cant column."
 }

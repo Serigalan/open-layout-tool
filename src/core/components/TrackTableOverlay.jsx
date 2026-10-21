@@ -3,7 +3,7 @@ import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
 import { useTracks, useProject } from '../hooks/useStore'
 import { planElementChange, mergeElementEdits } from '../utils/commands'
 import { elementStations } from '../utils/track'
-import { boundaryScope, checkTrack, clampCant, maxSpeeds } from '../utils/rules'
+import { boundaryScope, cantLimit, checkTrack, clampCant, maxSpeeds } from '../utils/rules'
 import { filterForElement, FILTER_NONE, mapIsLive } from '../map/pick'
 import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
@@ -253,6 +253,11 @@ export default function TrackTableOverlay({
     if (!Number.isFinite(value)) return value
     if (key === 'speed') return Math.min(Math.max(0, value), capValue ?? Infinity)
     if (key === 'cant') return clampCant(value, el)
+    // A transition's end keeps the side it is typed with — a turnout's branch
+    // may be canted against its own curve — and to the 0.001 mm the model holds.
+    if (key === 'cantStart' || key === 'cantEnd') {
+      return Math.sign(value) * Math.min(cantLimit(el), Math.round(Math.abs(value) * 1000) / 1000)
+    }
     return value
   }
 

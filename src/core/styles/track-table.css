@@ -163,6 +163,13 @@
   background: #fffaf0 !important;
 }
 
+/* A transition's end that follows its neighbour: the value it follows stands
+   as the placeholder, set apart from one the transition states itself. */
+.track-table-input-implied::placeholder {
+  color: #8a8a8a;
+  font-style: italic;
+}
+
 .track-table-input:disabled {
   background: var(--color-surface-alt);
   color: #999;

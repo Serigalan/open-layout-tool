@@ -111,8 +111,8 @@ Collections, each keyed by its own id (which is also how the merge compares them
 | `r1`, `r2` | — | — | m, signed, `null` = straight end |
 | `transitionType` | — | — | `clothoid` \| `bloss` |
 | `endBearing` | only for a kink | only if it differs from `bearing + length/R` | only if it differs from the integrated one |
-| `cant` | — | mm, signed by the raised rail | — (ramps between its neighbours) |
-| `cantStart`, `cantEnd` | — | — | mm, only on a cut transition |
+| `cant` | mm, signed (a canted straight) | mm, signed by the raised rail | — (ramps between its ends) |
+| `cantStart`, `cantEnd` | — | — | mm, signed; absent = the neighbour's `cant` |
 
 Optional on any element: `speed` (design speed, km/h; 0 or absent = unknown, not checked), `cantException`
 (the written justification for 100–120 mm cant in a turnout), and on the elements of a switch's route the mark

@@ -250,6 +250,31 @@ describe.skipIf(!realFiles.length)('the Verm.ESN files of line 5550 (memory/test
   })
 })
 
+// Cant changing elsewhere than across a transition between a straight and an
+// arc (user upload 2026-10-21): ramps in transitions of one radius, between two
+// straights, a cant held across a change of radius, and a turnout's branch
+// canted against its own curve.
+const cantFiles = ['55501R', '55501S', '55502L', '55502S', 'W12', 'W34']
+  .map(f => join(TESTDATA, 'Test_Achsen', `${f}.TRA`)).filter(existsSync)
+
+describe.skipIf(!cantFiles.length)('the Verm.ESN test axes with cant ramps (memory/testdata/Test_Achsen)', () => {
+  it.each(cantFiles)('%s keeps the cant at both ends of every element', (path) => {
+    const bytes = readFileSync(path)
+    const source = parseRecords(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
+    const { elements, errors } = buildElements(source, 5684)
+    expect(errors).toEqual([])
+    const out = parseRecords(bufferOf(traBytes({ epsg: 5684, elements })))
+    const kept = source.slice(1).filter(r => r.length > 0.001 && [0, 1, 2, 4, 5].includes(r.type))
+    kept.pop()   // the closing record is no element
+    kept.forEach((s, i) => {
+      const r = out[i + 1]
+      expect(r.length).toBeCloseTo(s.length, 3)
+      expect(r.cantB).toBeCloseTo(s.cantB, 3)
+      expect(r.cantE).toBeCloseTo(s.cantE, 3)
+    })
+  })
+})
+
 describe.skipIf(!hasPekBestand)('PEK Bestand', () => {
   it('every track reads back to its own chain within a tenth of a millimetre', () => {
     const { tracks } = loadPekBestand()
