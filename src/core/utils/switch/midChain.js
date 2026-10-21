@@ -11,8 +11,9 @@ import { STRAIGHT_CURVATURE } from './catalogue'
 // either end of the chain), so it is never more than its length.
 //
 // A spec: [{ type: 'straight' | 'arc' | 'transition', length: number|null,
-// radius: number|null }] — radius as a magnitude, the side it bends to is
-// part of the solution.
+// radius: number|null, side?: ±1 }] — radius as a magnitude, the side it bends
+// to part of the solution unless `side` fixes it (the sign of its project
+// radius, as an adopted answer of the Python solver states it).
 
 /** The one element the connection always had: an arc whose length and radius both follow. */
 export const DEFAULT_MIDS = [{ type: 'arc', length: null, radius: null }]
@@ -87,18 +88,22 @@ const CLOSE_TOL = 1e-8
  * form's answer (`s2Start`, `lgStart`, the middle element's length, and
  * `deltaStart`, its turn [rad]) and a few variations of it; the first that
  * closes with every length positive is taken, the sides the given radii bend
- * to tried in the order most likely first.
+ * to tried in the order most likely first. A `seed` ({ s2, values }, the open
+ * values in midUnknowns' order) is tried before all of them.
  *
  * Returns { s2, pieces } or null.
  */
-export function solveMidChain({ mids, start, endAt, s2Start = 0, lgStart, deltaStart = 0 }) {
+export function solveMidChain({ mids, start, endAt, s2Start = 0, lgStart, deltaStart = 0, seed = null }) {
   const open = midUnknowns(mids)
   if (open.length !== MID_OPEN) return null
   const givenArcs = mids.filter(m => m.type === 'arc' && m.radius != null).length
   const turn = Math.sign(deltaStart) || 1
-  // Every combination of sides, the one that turns with the connection first.
+  // Every combination of sides, the one that turns with the connection first;
+  // a side the spec fixes stays.
+  const fixed = mids.filter(m => m.type === 'arc' && m.radius != null).map(m => m.side ?? null)
   const signSets = [...Array(2 ** givenArcs).keys()]
-    .map(bits => [...Array(givenArcs).keys()].map(b => ((bits >> b) & 1 ? -turn : turn)))
+    .map(bits => [...Array(givenArcs).keys()].map(b => fixed[b] ?? ((bits >> b) & 1 ? -turn : turn)))
+    .filter((set, i, all) => all.findIndex(other => other.join() === set.join()) === i)
 
   const given = mids.reduce((sum, m) => sum + (m.length ?? 0), 0)
   const openLengths = open.filter(u => u.field === 'length').length
@@ -106,11 +111,12 @@ export function solveMidChain({ mids, start, endAt, s2Start = 0, lgStart, deltaS
   const each = openLengths ? Math.max(lg - given, lg / 2) / openLengths : 0
   const kGuess = lg > 0 ? deltaStart / lg : 0
   const starts = [kGuess, 0, -kGuess, 2 * kGuess].map(k =>
-    open.map(u => (u.field === 'length' ? each : k)))
+    [s2Start, ...open.map(u => (u.field === 'length' ? each : k))])
+  if (seed?.values?.length === open.length && Number.isFinite(seed.s2)) starts.unshift([seed.s2, ...seed.values])
 
   for (const signs of signSets) {
     for (const init of starts) {
-      const found = newton(mids, signs, start, endAt, [s2Start, ...init])
+      const found = newton(mids, signs, start, endAt, init)
       if (found) return found
     }
   }

@@ -168,11 +168,11 @@ export function stems(picks) {
 // A construction that closes but puts a turnout off the element it was picked
 // on is no connection either: the commit parts that element, and a turnout
 // beyond its end would be cut into a track it does not lie on.
-export function solveConnection({ picks, speed, shift, mids = null }) {
+export function solveConnection({ picks, speed, shift, mids = null, seed = null }) {
   const [g1, g2] = picks
   if (!g1 || !g2 || !speed) return null
   const { g1: a, g2: b } = stems(picks)
-  const res = solveSwitchConnection(a, b, speed, shift, mids)
+  const res = solveSwitchConnection(a, b, speed, shift, mids, seed)
   if (!res?.valid || turnoutsOnElements(picks, a.dir ?? 1, shift, res)) return res
   return { ...res, valid: false, reason: 'off_element' }
 }
@@ -274,9 +274,9 @@ export function connectionRemnants(picks, shift, res, speed) {
  * The second toe goes wherever the construction puts it, so it is found, not
  * computed.
  */
-function shiftForSecondToe({ picks, speed, mids }, target, from, lo, hi) {
+function shiftForSecondToe({ picks, speed, mids, seed }, target, from, lo, hi) {
   const off = (s) => {
-    const res = solveConnection({ picks, speed, shift: s, mids })
+    const res = solveConnection({ picks, speed, shift: s, mids, seed })
     return res?.valid ? turnoutSpan(picks, 1, s, res).toe - target : null
   }
   const span = hi - lo
@@ -315,8 +315,8 @@ function shiftForSecondToe({ picks, speed, mids }, target, from, lo, hi) {
  * Returns { shift, result, moved: [k…], remnants } — `shift` the one the
  * connection is built at, `moved` the turnouts pushed onto their nodes.
  */
-export function settleConnection({ picks, speed, shift, mids = null }) {
-  let res = solveConnection({ picks, speed, shift, mids })
+export function settleConnection({ picks, speed, shift, mids = null, seed = null }) {
+  let res = solveConnection({ picks, speed, shift, mids, seed })
   if (!res?.valid) return { shift, result: res, moved: [], remnants: [] }
   const moved = []
   const shortBefore = (k, r, s) => connectionRemnants(picks, s, r, speed).find(x => x.track === k && x.side === 'before' && x.short)
@@ -335,7 +335,7 @@ export function settleConnection({ picks, speed, shift, mids = null }) {
     const { node } = turnoutSpan(picks, 0, shift, res)
     if (openEnd(0, node)) return fail(shift, res, first)
     const s = (node - picks[0].along) * (stems(picks).g1.dir ?? 1)
-    const r = solveConnection({ picks, speed, shift: s, mids })
+    const r = solveConnection({ picks, speed, shift: s, mids, seed })
     if (!r?.valid) return fail(shift, res, first)
     shift = s
     res = r
@@ -351,8 +351,8 @@ export function settleConnection({ picks, speed, shift, mids = null }) {
     const dir1 = stems(picks).g1.dir ?? 1
     const sA = -dir1 * picks[0].along
     const sB = dir1 * (picks[0].route.length - picks[0].along)
-    const s = shiftForSecondToe({ picks, speed, mids }, node, shift, Math.min(sA, sB), Math.max(sA, sB))
-    const r = s == null ? null : solveConnection({ picks, speed, shift: s, mids })
+    const s = shiftForSecondToe({ picks, speed, mids, seed }, node, shift, Math.min(sA, sB), Math.max(sA, sB))
+    const r = s == null ? null : solveConnection({ picks, speed, shift: s, mids, seed })
     if (!r?.valid) return fail(shift, res, second)
     shift = s
     res = r
@@ -376,8 +376,12 @@ export function settleConnection({ picks, speed, shift, mids = null }) {
  * The ends are exact: an element end where the stretch runs up to it, else
  * the edge of what holds, found to a micron — so a toe can be
  * put right onto its element's node.
+ *
+ * Where `around` holds, the stretch is the one around it, however narrow —
+ * the shift an answer of the Python solver was adopted at (Entscheidung 357),
+ * which the scan may step over.
  */
-export function computeShiftBounds({ picks, speed, mids = null }) {
+export function computeShiftBounds({ picks, speed, mids = null, seed = null, around = null }) {
   const [p1] = picks
   const dir1 = stems(picks).g1.dir ?? 1
   // The shifts that put the first toe on either end of its element.
@@ -388,7 +392,7 @@ export function computeShiftBounds({ picks, speed, mids = null }) {
   if (!(span > 0)) return { min: 0, max: 0 }
   const n = Math.ceil(span / Math.max(1, span / 200))
 
-  const probe = (s) => !!solveConnection({ picks, speed, shift: s, mids })?.valid
+  const probe = (s) => !!solveConnection({ picks, speed, shift: s, mids, seed })?.valid
   // The edge between an invalid shift `bad` and a valid one `good`, on the valid side.
   const edge = (bad, good) => {
     while (Math.abs(good - bad) > 1e-6) {
@@ -396,6 +400,20 @@ export function computeShiftBounds({ picks, speed, mids = null }) {
       if (probe(m)) good = m; else bad = m
     }
     return good
+  }
+
+  if (around != null && around >= lo1 && around <= hi1 && probe(around)) {
+    const step = span / n
+    const reach = (dir, end) => {
+      let good = around
+      for (;;) {
+        const next = dir > 0 ? Math.min(end, good + step) : Math.max(end, good - step)
+        if (next === good) return good
+        if (!probe(next)) return edge(next, good)
+        good = next
+      }
+    }
+    return { min: reach(-1, lo1), max: reach(1, hi1) }
   }
 
   const c = Math.min(hi1, Math.max(lo1, 0))
@@ -433,19 +451,19 @@ export function waOffset(picks) {
  * `bounds` — or null where that node is its track's open end or no connection
  * stands there.
  */
-function secondToeOnNode({ picks, speed, mids }, bounds) {
+function secondToeOnNode({ picks, speed, mids, seed }, bounds) {
   if (bounds.max <= bounds.min) return null
-  const res = solveConnection({ picks, speed, shift: bounds.min, mids })
-    ?? solveConnection({ picks, speed, shift: bounds.max, mids })
+  const res = solveConnection({ picks, speed, shift: bounds.min, mids, seed })
+    ?? solveConnection({ picks, speed, shift: bounds.max, mids, seed })
   if (!res?.valid) return null
   const { node } = turnoutSpan(picks, 1, bounds.min, res)
   if (picks[1].trackEnds?.[node === 0 ? 0 : 1]) return null
   // Often the node is what ends the range: beyond it the turnout leaves its element.
   for (const s of [bounds.min, bounds.max]) {
-    const r = solveConnection({ picks, speed, shift: s, mids })
+    const r = solveConnection({ picks, speed, shift: s, mids, seed })
     if (r?.valid && Math.abs(turnoutSpan(picks, 1, s, r).toe - node) < NODE_TOL) return s
   }
-  return shiftForSecondToe({ picks, speed, mids }, node, 0, bounds.min, bounds.max)
+  return shiftForSecondToe({ picks, speed, mids, seed }, node, 0, bounds.min, bounds.max)
 }
 
 /**
@@ -454,9 +472,9 @@ function secondToeOnNode({ picks, speed, mids }, bounds) {
  * second toe goes wherever the construction puts it, so it is found, not
  * computed.
  */
-function secondToeCrossings({ picks, speed, mids }, targets, lo, hi) {
+function secondToeCrossings({ picks, speed, mids, seed }, targets, lo, hi) {
   const toe = (s) => {
-    const res = solveConnection({ picks, speed, shift: s, mids })
+    const res = solveConnection({ picks, speed, shift: s, mids, seed })
     return res?.valid ? turnoutSpan(picks, 1, s, res).toe : null
   }
   const span = hi - lo
@@ -490,10 +508,10 @@ function secondToeCrossings({ picks, speed, mids }, targets, lo, hi) {
  * `bounds`, ascending: where the toe (WA) or the switch end (WE) of either
  * turnout falls on a node of the element it is laid into.
  */
-export function shiftSnaps({ picks, speed, mids = null }, bounds) {
+export function shiftSnaps({ picks, speed, mids = null, seed = null }, bounds) {
   if (!(bounds.max > bounds.min)) return []
-  const atMin = solveConnection({ picks, speed, shift: bounds.min, mids })
-  const res = atMin?.valid ? atMin : solveConnection({ picks, speed, shift: bounds.max, mids })
+  const atMin = solveConnection({ picks, speed, shift: bounds.min, mids, seed })
+  const res = atMin?.valid ? atMin : solveConnection({ picks, speed, shift: bounds.max, mids, seed })
   if (!res?.valid) return []
   const through = res.throughLength
   const [p1, p2] = picks
@@ -506,7 +524,7 @@ export function shiftSnaps({ picks, speed, mids = null }, bounds) {
   }
   // Turnout 2 opens against it: its WE lies the through length behind its WA.
   const targets = [0, p2.route.length].flatMap(node => [node, node + dir2 * through])
-  out.push(...secondToeCrossings({ picks, speed, mids }, targets, bounds.min, bounds.max))
+  out.push(...secondToeCrossings({ picks, speed, mids, seed }, targets, bounds.min, bounds.max))
   return uniqueStations(out).filter(s => s >= bounds.min - 1e-9 && s <= bounds.max + 1e-9)
 }
 
@@ -517,13 +535,13 @@ export function shiftSnaps({ picks, speed, mids = null }, bounds) {
  * its track's open end is no element change. Where neither stands, the shift
  * nearest to the click.
  */
-export function preferredShift({ picks, speed, mids = null }, bounds) {
-  const ok = (s) => s != null && settleConnection({ picks, speed, shift: s, mids }).result?.valid
+export function preferredShift({ picks, speed, mids = null, seed = null }, bounds) {
+  const ok = (s) => s != null && settleConnection({ picks, speed, shift: s, mids, seed }).result?.valid
   const candidates = []
   const d0 = waOffset(picks)
   const node1 = (stems(picks).g1.dir ?? 1) > 0 ? 0 : 1
   if (!picks[0].trackEnds?.[node1] && -d0 >= bounds.min - 1e-6) candidates.push(-d0)
-  const s2 = secondToeOnNode({ picks, speed, mids }, bounds)
+  const s2 = secondToeOnNode({ picks, speed, mids, seed }, bounds)
   if (s2 != null) candidates.push(s2)
   const fit = candidates.filter(ok).sort((a, b) => Math.abs(a) - Math.abs(b))
   return fit.length ? fit[0] : Math.min(bounds.max, Math.max(bounds.min, 0))

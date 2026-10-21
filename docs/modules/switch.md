@@ -188,6 +188,16 @@ dialog says so (`checkMidRun`, Entscheidung 356). The pieces of track left
 before the toe and behind the switch end, on both tracks, must be zero or at least `l_min`; the toe is put
 on the element change behind it where it can be.
 
+**Python solver** (Entscheidungen 357–358). Where no shift of the slider gives a connection, the server
+build offers a search in the optimizer service (`/crossover`, `crossover.py`): both toes free on their
+elements and one to three middle elements. The geometry stays here — `connectionBranchEnds` samples
+both branch ends (point, tangent, curvature, end run, cant at the ldS, the turnout's own checks) every
+0.5 m within 300 m of the picks, for every form of the fallback chain; the service interpolates them and
+closes element sequences with least squares and SLSQP under the dialog's limits. An answer is adopted as
+a shift and a spec with two values open, a `side` for each given radius and a `seed` (second toe and
+open values) the iteration starts from (`commands/crossover.js`); the slider's range is then the stretch
+around the adopted shift (`computeShiftBounds({ around })`).
+
 ## Connecting to an open track end
 
 "Weiche/Kreuzung an Gleis anschließen" (`connectToTrack.js`): a turnout (or crossing) is laid into a host

@@ -11,6 +11,9 @@
                           axis every centimetre and the settings, answer:
                           reconnect_payload's best splices within the
                           tolerance — "Bestehende Elemente neu verbinden", Paket N
+    POST /crossover       body: both branch ends of a switch connection sampled
+                          over the picked elements and the limits, answer:
+                          crossover_payload's solutions (Paket WV)
     POST /mdb             body: an Access file, answer: its Satzarten as JSON
     POST /terrain         body: {"lnglat": [[lng, lat], ...]} (or, as first
                           built, {"points": [[e, n], ...]} in EPSG:25832),
@@ -47,6 +50,7 @@ from .grenzen import DEFAULT_STUFE, STUFEN, grenzen_for
 from .mdb import MdbError, convert as mdb_convert
 from .regelwerk import DEFAULT_REGELWERK_ID, catalog_hash, list_regelwerke
 from .reconnect import reconnect_payload
+from .crossover import crossover_payload
 from .splice import splice_payload
 from .terrain import sample as terrain_sample, to_lnglat
 
@@ -80,6 +84,9 @@ MAX_ALIGN_BODY = 3 * 1024 * 1024
 # Reconnecting: the old axis every centimetre as whole millimetres, some 14
 # bytes a point — 5 km of it.
 MAX_RECONNECT_BODY = 8 * 1024 * 1024
+# Solving a switch connection: both branch ends every half metre over up to
+# 600 m, for up to three forms, some 150 bytes a sample.
+MAX_CROSSOVER_BODY = 4 * 1024 * 1024
 
 MAX_ITER = 150
 MAX_ELEMENTS = 2000
@@ -427,11 +434,32 @@ class Handler(BaseHTTPRequestHandler):
                          len(result.get("solutions") or []), time.monotonic() - started)
         self._respond(200, result)
 
+    def _do_crossover(self):
+        """Solving a switch connection (Paket WV): a search over the toes and
+        the middle elements, a few seconds to half a minute — held to the slots
+        and the deadline like a reconnect. Nothing that fits is an answer (200
+        with its error key)."""
+        try:
+            payload = json.loads(self._read_body(MAX_CROSSOVER_BODY).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            raise ServiceError(400, "invalid_payload") from None
+        if not _slots.acquire(timeout=TIMEOUT):
+            raise ServiceError(503, "busy")
+        try:
+            started = time.monotonic()
+            result = run_child(crossover_payload, payload)
+        finally:
+            _slots.release()
+        self.log_message("crossover %d forms → %d solutions in %.1fs", len(payload.get("forms") or []),
+                         len(result.get("solutions") or []), time.monotonic() - started)
+        self._respond(200, result)
+
     def do_POST(self):                                         # noqa: N802
         route = self.path.rstrip("/")
-        if route in ("/align", "/reconnect"):
+        if route in ("/align", "/reconnect", "/crossover"):
             try:
-                self._do_align() if route == "/align" else self._do_reconnect()
+                {"/align": self._do_align, "/reconnect": self._do_reconnect,
+                 "/crossover": self._do_crossover}[route]()
             except ServiceError as exc:
                 if exc.code == "internal":
                     self.log_message("%s failure: %s", route[1:], exc.message or "?")

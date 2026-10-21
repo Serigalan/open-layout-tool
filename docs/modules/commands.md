@@ -15,6 +15,7 @@ input, show previews and findings, and claim names and numbers.
 | `tracks.js` | Create element, connect straight/curve, parallels | New tracks; straights, arcs and transitions appended at a track end; parallel tracks |
 | `switches.js` | Switch on track, crossing on track | A turnout or crossing laid into a track at a station: split track, carved through route, new branch tracks, switch record |
 | `sCurve.js` | Switch connection (Weichenverbindung) | Both turnouts and the connecting track between two tracks, for a toe position (shift) on track 1; the range of valid shifts and the snaps |
+| `crossover.js` | Switch connection, Python solver | The request for `/crossover` (both branch ends sampled, the limits) and an answer adopted as shift, middle elements and seed |
 | `connectSwitch.js` | Connect a turnout to a track | The turnout on the host and the refitted connecting element (see `switch/connectToTrack.js`) |
 | `connectCrossing.js` | Connect a crossing to a track | The same for one end of a crossing's cross route |
 | `connectRemedies.js` | both of the above | What can be changed where the rules reject the refitted element: lower speed, a transition before the arc |

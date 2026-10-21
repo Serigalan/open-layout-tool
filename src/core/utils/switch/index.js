@@ -29,8 +29,8 @@ export {
 } from './route'
 export { nearestValid, settleStation, uniqueStations, validIntervals } from './stationSlider'
 export {
-  buildConnectionElements, computeSwitchConnections, CONNECTION_SPEEDS, orientStemToward,
-  solveSwitchConnection, SWITCH_TYPES,
+  buildConnectionElements, computeSwitchConnections, connectionBranchEnds, CONNECTION_SPEEDS,
+  orientStemToward, solveSwitchConnection, SWITCH_TYPES,
 } from './switchConnectionUtils'
 export { planSwitchDeletion, switchParts } from './switchDelete'
 export {

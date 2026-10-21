@@ -43,6 +43,7 @@ anything renders:
 | `cloudProviders`, `useCloudServer`, `useServerRun`, `useCloudRegistration`, `crossSectionTools`, `workspaceAddons` | point clouds on the server, long runs, re-referencing, the 3D window link |
 | `regelwerkService` | the rule catalogues as the service has them (with drift check) |
 | `spliceWithClearance` | splice with a spacing to a neighbouring track, computed by the service |
+| `crossoverSolver` | a switch connection the dialog's slider finds none for, searched by the service (`/crossover`) |
 | `saveProjectMeta` | title and description written to the server's project list too |
 | `localStoreSections` | the working copies in the storage dialog |
 
@@ -130,6 +131,7 @@ A small HTTP service (`service.py`) around the package `olt_optimizer`, behind t
 | `POST /optimize` | Optimizes a track or an element: maximizes the bottleneck speed `v = √(R·(u + u_f)/11.8)` over radii, cant and the lateral shift of intermediate straights within a corridor to the existing axis; differential evolution with Nelder–Mead polish, warm-started from the per-curve baseline; every rule of the catalogue as a constraint at the chosen level (Regelwert or Ermessensgrenze) |
 | `POST /splice` | The splice — with a spacing to a neighbouring track (`clearance.py`): the largest radius that keeps the track spacing plus the widening from cant (both clearance outlines tilted by their cant about the lower rail) |
 | `POST /reconnect` | Reconnect existing elements: the splice construction nearest the old axis (`reconnect.py`) |
+| `POST /crossover` | Solve a switch connection: toes of both turnouts and one to three middle elements, from both branch ends as the app samples them (`crossover.py`, Paket WV) |
 | `POST /align` | Alignment and gradient fit from axis points (`alignment_fit.py`, `gradient_fit.py`) |
 | `POST /mdb` | Converts an Access file (via mdbtools) into its Satzarten as JSON |
 | `POST /terrain` | DGM1 heights of the Länder that publish fixed-URL tiles (`terrain.py`) |
