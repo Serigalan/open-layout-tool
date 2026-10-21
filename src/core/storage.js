@@ -550,41 +550,63 @@ export function clearImportReports() {
  * about again; a track is shown unless it is named here.
  *
  * The set is the same object until it changes, as useSyncExternalStore wants.
+ * The project's kilometrage lines are hidden the same way, by line number, in
+ * an entry of their own (decision 354).
  */
 export const HIDDEN_KEY_PREFIX = 'olt_hidden_tracks_'
-const hiddenKey = () => HIDDEN_KEY_PREFIX + (_project?.id ?? 'none')
-let _hidden = { key: null, ids: new Set() }
+export const HIDDEN_KM_KEY_PREFIX = 'olt_hidden_kmlines_'
 
-/** Read the hidden tracks afresh next time — their entry was deleted from outside. */
-export function forgetHiddenTracks() {
-  _hidden = { key: null, ids: new Set() }
-}
-
-export function hiddenTracks() {
-  const key = hiddenKey()
-  if (_hidden.key !== key) {
-    let ids = []
-    try { ids = JSON.parse(localStorage.getItem(key) ?? '[]') } catch { /* none kept, or no storage */ }
-    _hidden = { key, ids: new Set(Array.isArray(ids) ? ids : []) }
+/** A set of ids kept on this device for the open project, under `prefix` + its id. */
+function deviceIdSet(prefix) {
+  let held = { key: null, ids: new Set() }
+  const keyOf = () => prefix + (_project?.id ?? 'none')
+  return {
+    forget() { held = { key: null, ids: new Set() } },
+    get() {
+      const key = keyOf()
+      if (held.key !== key) {
+        let ids = []
+        try { ids = JSON.parse(localStorage.getItem(key) ?? '[]') } catch { /* none kept, or no storage */ }
+        held = { key, ids: new Set(Array.isArray(ids) ? ids : []) }
+      }
+      return held.ids
+    },
+    set(ids, on) {
+      const next = new Set(this.get())
+      for (const id of ids) {
+        if (on) next.add(id)
+        else next.delete(id)
+      }
+      const key = keyOf()
+      held = { key, ids: next }
+      try {
+        if (next.size) localStorage.setItem(key, JSON.stringify([...next]))
+        else localStorage.removeItem(key)
+      } catch { /* kept for this session only */ }
+      notify()
+    },
   }
-  return _hidden.ids
 }
+
+const _hiddenTracks = deviceIdSet(HIDDEN_KEY_PREFIX)
+const _hiddenKmLines = deviceIdSet(HIDDEN_KM_KEY_PREFIX)
+
+/** Read the hidden tracks and lines afresh next time — their entry was deleted from outside. */
+export function forgetHiddenTracks() {
+  _hiddenTracks.forget()
+  _hiddenKmLines.forget()
+}
+
+export const hiddenTracks = () => _hiddenTracks.get()
 
 /** Hide (`hidden` true) or show the tracks `trackIds` on the map. */
-export function setTracksHidden(trackIds, hidden) {
-  const next = new Set(hiddenTracks())
-  for (const id of trackIds) {
-    if (hidden) next.add(id)
-    else next.delete(id)
-  }
-  const key = hiddenKey()
-  _hidden = { key, ids: next }
-  try {
-    if (next.size) localStorage.setItem(key, JSON.stringify([...next]))
-    else localStorage.removeItem(key)
-  } catch { /* kept for this session only */ }
-  notify()
-}
+export const setTracksHidden = (trackIds, hidden) => _hiddenTracks.set(trackIds, hidden)
+
+/** The line numbers (strings) of the project's kilometrage lines hidden on the map. */
+export const hiddenKmLines = () => _hiddenKmLines.get()
+
+/** Hide (`hidden` true) or show the project's kilometrage lines `lineNumbers` on the map. */
+export const setKmLinesHidden = (lineNumbers, hidden) => _hiddenKmLines.set(lineNumbers.map(String), hidden)
 
 /**
  * The open project as a file ({ version, projects }), dehydrated. Its image

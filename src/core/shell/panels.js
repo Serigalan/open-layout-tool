@@ -44,6 +44,7 @@ export const PANELS = [
     props: (s) => ({
       tracksOpen: s.overlay?.kind === 'projectTracks',
       onShowTracks: (on) => (on ? s.openOverlay({ kind: 'projectTracks' }) : s.closeOverlay('projectTracks')),
+      kmLocalOn: s.kmOverlays.local, onKmOverlayChange: s.setKmOverlay,
     }),
     // The tracks come up with the panel, over the map (decision 324).
     onEnter: (s) => s.openOverlay({ kind: 'projectTracks' }),

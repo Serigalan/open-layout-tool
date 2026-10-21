@@ -85,7 +85,7 @@ function stopErrorWatch() {
  * not serve leaves the labels silently blank — so the style is asked what it
  * uses itself, and only a style without any glyphs at all is given ours.
  */
-function textFont(map) {
+export function textFont(map) {
   const style = map.getStyle()
   if (!style?.glyphs) {
     map.setGlyphs(FALLBACK_GLYPHS)

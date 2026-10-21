@@ -8,6 +8,7 @@ import {
   commitSwitchConnection, deleteTracks, remapSwitchTrackIds, loadIdLog,
   openStoredProject, currentStoredProject, currentStoredMeta, closeStoredProject, flushPendingWrites, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
+  hiddenKmLines, setKmLinesHidden,
   setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms, commitImport, historySteps, travelHistory,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/track/trackEndMarks'
@@ -487,6 +488,16 @@ describe('tracks hidden on the map', () => {
     expect([...hiddenTracks()]).toEqual(['a'])
     setTracksHidden(['a'], false)
     expect(localStorage.getItem('olt_hidden_tracks_h1')).toBeNull()
+  })
+
+  it('so are the kilometrage lines, by line number, in an entry of their own', () => {
+    openProject({ id: 'h3', tracks: [{ id: 'a', elements: [] }], switches: [], kmLines: [{ lineNumber: 6340, runs: [] }] })
+    setKmLinesHidden([6340, 6311], true)
+    expect([...hiddenKmLines()]).toEqual(['6340', '6311'])
+    expect(hiddenTracks().size).toBe(0)
+    expect(JSON.parse(localStorage.getItem('olt_hidden_kmlines_h3'))).toEqual(['6340', '6311'])
+    setKmLinesHidden(['6340', '6311'], false)
+    expect(localStorage.getItem('olt_hidden_kmlines_h3')).toBeNull()
   })
 })
 

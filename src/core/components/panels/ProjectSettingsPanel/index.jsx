@@ -22,7 +22,7 @@ import TrackVisibilityForm from './TrackVisibilityForm'
  * each a page of the panel. The app's own settings (language, colour) stay in
  * the settings panel.
  */
-export default function ProjectSettingsPanel({ tracksOpen, onShowTracks }) {
+export default function ProjectSettingsPanel({ tracksOpen, onShowTracks, kmLocalOn, onKmOverlayChange }) {
   const { t, fill } = useI18n()
   const project = useProject()
   const [page, setPage] = useState('main')
@@ -47,7 +47,7 @@ export default function ProjectSettingsPanel({ tracksOpen, onShowTracks }) {
     <>
       <BackButton onBack={() => setPage('main')} />
       <h2>{t('track_visibility')}<InfoTip text={t('track_visibility_hint')} /></h2>
-      <TrackVisibilityForm />
+      <TrackVisibilityForm kmLocalOn={kmLocalOn} onKmLocalChange={(on) => onKmOverlayChange?.('local', on)} />
     </>
   )
 

@@ -1,4 +1,4 @@
-import { REPORT_KEY_PREFIX, HIDDEN_KEY_PREFIX, forgetHiddenTracks } from './storage'
+import { REPORT_KEY_PREFIX, HIDDEN_KEY_PREFIX, HIDDEN_KM_KEY_PREFIX, forgetHiddenTracks } from './storage'
 import { extensionsOf } from './extensions'
 import { SETTINGS_KEY } from './utils/common'
 import {
@@ -46,7 +46,9 @@ export function bytesText(bytes, language) {
 export function classifyKey(key) {
   if (key === SETTINGS_KEY) return { kind: 'settings', ref: null }
   if (key.startsWith(REPORT_KEY_PREFIX)) return { kind: 'reports', ref: key.slice(REPORT_KEY_PREFIX.length) }
-  if (key.startsWith(HIDDEN_KEY_PREFIX)) return { kind: 'hidden', ref: key.slice(HIDDEN_KEY_PREFIX.length) }
+  for (const prefix of [HIDDEN_KEY_PREFIX, HIDDEN_KM_KEY_PREFIX]) {
+    if (key.startsWith(prefix)) return { kind: 'hidden', ref: key.slice(prefix.length) }
+  }
   return { kind: 'other', ref: null }
 }
 

@@ -89,8 +89,8 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
     },
   })
   const mapCtx = { map, mapVersion }
-  const km = useKmOverlays(map)
-  useKmLineHover(map, km.kmOverlays.db || km.kmOverlays.other, t)
+  const km = useKmOverlays(map, project?.kmLines)
+  useKmLineHover(map, km.kmOverlays.db || km.kmOverlays.other, t, km.localLines)
 
   // A panel is always open, the information first — for an empty project with
   // its first steps (R10.13). It is a page of the settings (decision 325).

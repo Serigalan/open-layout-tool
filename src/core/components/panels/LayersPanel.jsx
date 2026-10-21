@@ -3,6 +3,7 @@ import {
   BASEMAPS, DEFAULT_BASEMAP, LANDESVERMESSUNG_STATES, LANDESVERMESSUNG_THUMBNAIL, lvBasemapId, lvStatesOf,
 } from '../../basemaps'
 import { KM_COLOR, KM_OTHER_COLOR, KM_JUMP_COLOR } from '../../map/kmLineLayer'
+import { useHiddenKmLines, useProject } from '../../hooks/useStore'
 import { OverlayThumbnail } from '../icons'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -12,6 +13,7 @@ const GROUPS = ['worldwide', 'france', 'germany']
 const KM_OVERLAY_ENTRIES = [
   ['db', 'overlay_km_lines'],
   ['other', 'overlay_km_lines_other'],
+  ['local', 'overlay_km_lines_local'],
 ]
 
 /**
@@ -60,6 +62,8 @@ function OptionTile({ label, checked, disabled, onChange }) {
  */
 export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays, onKmOverlayChange, kmLinesError }) {
   const { t, fill, language } = useI18n()
+  const project = useProject()
+  const hiddenKm = useHiddenKmLines()
   const [lvOpen, setLvOpen] = useState(false)
   const [kmOpen, setKmOpen] = useState(false)
 
@@ -76,6 +80,9 @@ export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays
     : fill('basemap_landesvermessung_count', { n: lvStates.length })
 
   const kmOn = KM_OVERLAY_ENTRIES.filter(([key]) => kmOverlays[key])
+  // The project's own lines: how many there are, and how many of them are hidden.
+  const localNumbers = (project?.kmLines ?? []).map(l => String(l.lineNumber))
+  const localHidden = localNumbers.filter(n => hiddenKm.has(n)).length
   const kmSublabel = kmOn.length ? kmOn.map(([, labelKey]) => t(labelKey)).join(', ') : t('layers_off')
 
   return (
@@ -144,6 +151,14 @@ export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays
                 onChange={(on) => onKmOverlayChange(key, on)}
               />
             ))}
+            {kmOverlays.local && (
+              <p className="msg-hint msg-small layer-option-note">
+                {!localNumbers.length ? t('overlay_km_lines_local_none')
+                  : fill(localHidden ? 'overlay_km_lines_local_hidden' : 'overlay_km_lines_local_shown', {
+                    lines: localNumbers.join(', '), n: localHidden, total: localNumbers.length,
+                  })}
+              </p>
+            )}
           </FoldRow>
         </div>
         {kmLinesError && <p className="overlay-error">{t('overlay_km_lines_missing')}</p>}

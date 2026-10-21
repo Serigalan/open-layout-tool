@@ -2067,7 +2067,7 @@
   "local_store_entries": "Settings and views",
   "local_store_settings": "Settings (language, colour, layers, terrain source)",
   "local_store_reports": "Import reports",
-  "local_store_hidden": "Hidden tracks",
+  "local_store_hidden": "Hidden tracks and kilometrage lines",
   "local_store_other": "Other",
   "local_store_legacy": "Leftovers of an earlier version",
   "local_store_legacy_line": "{n} records, no longer read",
@@ -2089,5 +2089,18 @@
   "local_projects_delete_ask": "Delete project “{title}” for good? There is no other copy.",
   "local_store_intro_local": "What the app keeps in this browser on this device. The projects exist nowhere else – export them as files to keep them.",
   "local_store_delete_all_ask_local": "Delete everything the app keeps in this browser – projects, point clouds and settings?",
-  "local_open_failed": "The project could not be opened."
+  "local_open_failed": "The project could not be opened.",
+  "overlay_km_lines_local": "Local kilometrage lines (project)",
+  "overlay_km_lines_local_none": "The project holds no kilometrage lines of its own.",
+  "overlay_km_lines_local_shown": "Line {lines}",
+  "overlay_km_lines_local_hidden": "{n} of {total} hidden – one by one under Project settings → Show/hide tracks",
+  "km_local": "project",
+  "track_visibility_km": "Kilometrage lines",
+  "track_visibility_km_hint": "The kilometrage lines the project holds itself – from an import (Verm.ESN, MDB) or the stretch of the DB line its tracks name. The ticked ones are drawn while “Local kilometrage lines” is switched on under Layers; a tick while it is off switches it on with that line alone. Only for the view on this device.",
+  "track_visibility_km_none": "The project holds no kilometrage lines of its own.",
+  "track_visibility_km_off": "Switched off under Layers – a tick switches them on with that line.",
+  "track_visibility_km_line": "Line {line}",
+  "track_visibility_km_source_vermesn": "Verm.ESN",
+  "track_visibility_km_source_mdb": "MDB",
+  "track_visibility_km_source_db": "DB data"
 }

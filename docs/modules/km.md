@@ -4,7 +4,8 @@
 
 The DB lines (Strecken) with their kilometrage, as reference data: which line a track lies on, the line
 number and name it takes, the track name built from the kilometrage of its middle, and the kilometrage of
-any point. The map overlay that draws the lines is `src/core/map/kmLineLayer.js`.
+any point. The map overlay that draws the lines is `src/core/map/kmLineLayer.js`; the project's own lines
+(`project.kmLines`) are drawn by `src/core/map/localKmLayer.js`.
 
 ## Files
 
@@ -46,7 +47,16 @@ conflict.
 **Lines from a file.** The MDB import brings the kilometrage line of the delivery itself (Satzart 24, see
 [exchange](exchange.md)), to the millimetre and with its own jumps. It is kept like a fetched line but marked
 `source: 'mdb'`; it replaces the shipped line of that number, and `ensureKmLines` fetches nothing over it,
-however far the tracks grow. A line no track names any more goes like any other.
+however far the tracks grow. A line no track names any more goes like any other. The Verm.ESN import brings
+the line a gradient is stationed along (`source: 'vermesn'`) the same way.
+
+**The project's lines on the map** (decision 354). Layers → Line kilometrage has a third switch, *Local
+kilometrage lines (project)*: it draws every line in `project.kmLines` — fetched or imported — in a colour of
+its own above the DB overlays, with a mark every hectometre, kilometre labels from zoom 12, hectometre labels
+from 15, the line number along the line and the kilometrage under the cursor. Project settings → Show/hide
+tracks lists them, one tick each; like hidden tracks, the hidden line numbers are kept on this device per
+project (`olt_hidden_kmlines_<project id>`), outside the record. A tick is what the map shows: with the switch
+off, ticking a line switches it on with that line alone.
 
 **Why WGS84 here.** Everything else in the app is plane data. The km lines are foreign reference data, not
 design geometry, and one line serves tracks whose planes may differ — there is no one plane to keep it in.
@@ -61,6 +71,7 @@ the server rightly answers with the whole 48 MB file. `KmTileSource` asks once m
 - **Only the stretch around the project is stored**, under a deterministic id.
 - **A line from an imported file is not replaced by the shipped one.**
 - **The DB network and the rest as two overlays** from one archive.
+- **The project's own lines as a third, local overlay**, each line shown or hidden on this device.
 
 ## Tests
 

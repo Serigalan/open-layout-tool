@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import maplibregl from 'maplibre-gl'
 import { kmAt } from '../map/kmLineLayer'
+import { localKmAt } from '../map/localKmLayer'
 import { formatKm } from '../utils/km'
 import { mapIsLive } from '../map/pick'
 
@@ -8,11 +9,13 @@ import { mapIsLive } from '../map/pick'
  * Hook: reads the kilometrage off the DB kilometrage overlay wherever the
  * cursor is near one of its lines and shows it in a tooltip sitting on the
  * line. Runs only while the overlay is switched on — which is the only time
- * anyone is asking for a kilometrage.
+ * anyone is asking for a kilometrage. The project's own lines shown
+ * (`localLines`, decision 354) answer first: they are what the project is
+ * stationed along.
  */
-export default function useKmLineHover(map, enabled, t) {
+export default function useKmLineHover(map, enabled, t, localLines = null) {
   useEffect(() => {
-    if (!enabled || !map?.current) return
+    if (!(enabled || localLines?.length) || !map?.current) return
     const m = map.current
 
     const popup = new maplibregl.Popup({
@@ -31,7 +34,18 @@ export default function useKmLineHover(map, enabled, t) {
     }
 
     const onMove = (e) => {
-      const hit = kmAt(m, e)
+      const local = localKmAt(m, e, localLines)
+      if (local) {
+        popup
+          .setLngLat(local.lngLat)
+          .setText(`${t('km_line_short')} ${local.lineNumber} · km ${formatKm(local.km)} · ${t('km_local')}`)
+        if (!shown) {
+          popup.addTo(m)
+          shown = true
+        }
+        return
+      }
+      const hit = enabled ? kmAt(m, e) : null
       if (!hit) { hide(); return }
       // A line outside the DB network says so; the network's own lines speak
       // for themselves.
@@ -52,5 +66,5 @@ export default function useKmLineHover(map, enabled, t) {
       m.off('mouseout', hide)
       if (mapIsLive(map, m)) hide()
     }
-  }, [map, enabled, t])
+  }, [map, enabled, t, localLines])
 }

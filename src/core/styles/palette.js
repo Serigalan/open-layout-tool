@@ -71,6 +71,8 @@ export const PALETTE = Object.freeze({
   kmLine: '#0f766e',
   kmLineOther: '#78716c',
   kmJump: '#b3261e',
+  // The project's own kilometrage lines (decision 354)
+  kmLineLocal: '#a21caf',
 })
 
 /** The colours a project may be drawn in (Settings). */

@@ -556,6 +556,9 @@
 }
 
 /* Show all / hide all above the track list of Gleise ein-/ausblenden. */
+/* What the project's own kilometrage lines shown come to, below their tile. */
+.layer-option-note { margin: 2px 0 0; }
+
 .track-visibility-actions {
   display: flex;
   flex-wrap: wrap;

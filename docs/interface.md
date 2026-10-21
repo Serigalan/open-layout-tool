@@ -87,7 +87,8 @@ later ones only replace data. Tracks hidden on this device are left out with wha
 sources are tiled at zoom 22 (~1.5 mm grid) instead of MapLibre's default 18 (~2.4 cm). Highlight colours keep a
 minimum colour distance from the project colour the user picked. Element end markers are signed-distance-field
 icons, sharp at any size and angle. `pick.js` answers what lies under a point; panels add preview layers with
-`usePreview` that disappear when they unmount. `kmLineLayer.js` draws the kilometrage overlays, `topologyLayer.js`
+`usePreview` that disappear when they unmount. `kmLineLayer.js` draws the DB kilometrage overlays, `localKmLayer.js`
+the project's own lines (`project.kmLines`, each hideable on this device), `topologyLayer.js`
 the topology view. Every effect checks that the map it captured is still the map (leaving to the start page
 removes it before effect cleanups run).
 
