@@ -2018,7 +2018,6 @@
   "bands_no_speed": "No speed given.",
   "bands_hint_view": "The wheel zooms, dragging pans, a double click shows the whole track. Click an element in the cant or speed band to change its value.",
   "bands_selected": "{n} elements",
-  "bands_cant_transition": "A transition has no cant of its own — it ramps between the elements it joins.",
   "bands_speed_max": "Maximum",
   "bands_speed_max_hint": "The highest speed the radius and cant of each picked element allow (in 5 km/h steps). A straight takes that of the curves beside it.",
   "bands_findings": "Errors and notes",
@@ -2105,8 +2104,10 @@
   "track_visibility_km_source_db": "DB data",
   "table_cant_start": "Cant start",
   "table_cant_end": "Cant end",
-  "table_cant_ends_hint": "Cant at the start and at the end of the element, signed by the raised rail (+ left raised). Typed for a transition – left empty it follows the neighbouring element (grey); shown only for straights and arcs, changed there in the Cant column.",
+  "table_cant_ends_hint": "Cant at the start and at the end of the element, signed by the raised rail (+ left raised). Typed for a transition – left empty it follows the neighbouring element (grey); shown only for straights and arcs – where the cant changes along one (from an import), both values stand here.",
   "table_cant_end_own": "This transition's own value – clear it to follow the neighbouring element ({mm} mm).",
   "table_cant_end_implied": "Follows the neighbouring element – a value of its own holds the cant here, e.g. for a ramp inside an arc.",
-  "table_cant_end_fixed": "The element's constant cant – changed in the Cant column."
+  "table_cant_end_fixed": "The element's cant at this end – shown only; changed in the Cant column, where a value holds along the whole element.",
+  "bands_cant_ends_hint": "Magnitude in mm, the raised rail stays the same; emptied, the end follows the neighbouring element again. No design step – a ramp passes through the values between. A sign against the curve is typed in the Trackeditor.",
+  "table_cant_ramp_note": "The cant changes along this element from {from} to {to} mm (from the import); this is the value the deficiency and V_max go by. A value typed here holds along the whole element."
 }

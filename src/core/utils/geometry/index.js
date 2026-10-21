@@ -9,7 +9,7 @@
 export { epsgMismatches, nodeGaps, untrueLengths } from './chainChecks'
 export {
   clothoidRadiusAt, computeClothoidUtm, curvatureOf, projectOnTransitionUtm, radiusOfCurvature,
-  sampleTransitionUtm, transitionBearingAtUtm, transitionCantEnds, transitionPointAtUtm,
+  cantEnds, sampleTransitionUtm, transitionBearingAtUtm, transitionCantEnds, transitionPointAtUtm, withCantRamp,
 } from './clothoidUtils'
 export {
   crsCentre, crsDatum, crsLabel, crsName, crsSystem, crsSystemName, EPSG_OPTIONS, epsgForLngLat,

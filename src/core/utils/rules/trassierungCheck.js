@@ -16,7 +16,7 @@
 import {
   evaluateRules, rulesForElement, rulesForScope, severityRank, worstSeverity,
 } from './regelkatalog'
-import { transitionCantEnds } from '../geometry'
+import { cantEnds } from '../geometry'
 import { computeCantDefSigned } from './cant'
 import { CANT_DEFICIENCY_COEFF } from './regelwerkDefaults'
 
@@ -41,10 +41,8 @@ const curvatureAtEnd = (el) => curvature(isTransition(el) ? el.r2 : el.radius)
 // what floating point leaves behind after a chain has been rebuilt.
 const CURVATURE_EPS = 1e-6
 
-/** The signed cant [mm] at both ends of an element; a transition ramps between them. */
-const cantEndsOf = (elements, i) => (isTransition(elements[i])
-  ? transitionCantEnds(elements, i)
-  : { start: elements[i].cant ?? 0, end: elements[i].cant ?? 0 })
+/** The signed cant [mm] at both ends of an element; it ramps between them. */
+const cantEndsOf = cantEnds
 
 /** Cant deficiency [mm] at one end, as the rest of the app computes it. 0 without curvature. */
 const deficiency = (v, radius, cant) => (radius ? computeCantDefSigned(v, radius, cant) : 0)
@@ -132,10 +130,11 @@ export function boundaryScope(elements, i) {
  * The scope the ramp rule reads. Both answers follow from how this app models
  * a ramp rather than from any one layout:
  *
- * - it *is* the transition — cant is stated at the ends of an element and
- *   nowhere else, so a change of cant has an element of its own by
- *   construction (a cant that jumps at a joint is not a ramp at all, and is
- *   what LP.UB.01 is for);
+ * - it is an element — cant is stated at the ends of an element and nowhere
+ *   else, so a change of cant has an element of its own by construction (a
+ *   cant that jumps at a joint is not a ramp at all, and is what LP.UB.01 is
+ *   for); on a transition it is the rule's case, on an arc or a straight whose
+ *   cant changes along it (decision 355) the Sonderfall LP.UB.02 names;
  * - and it is always **straight**: every reader of the cant between two ends
  *   interpolates linearly (crossSectionUtils, switchPlacement). That matches
  *   the clothoid and does not match the Bloß curve, which asks for a curved
@@ -171,8 +170,8 @@ export function checkTrack(elements = []) {
   })
 
   const ramps = elements.map((el, i) => {
-    // Only where there is a ramp: a transition that changes the cant.
-    if (!isCheckable(el) || !isTransition(el)) return null
+    // Only where there is a ramp: an element the cant changes over.
+    if (!isCheckable(el)) return null
     const scope = elementScope(elements, i)
     if (!(scope['physics.delta_u'] > 0)) return null
     return {

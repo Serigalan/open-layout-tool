@@ -1,5 +1,5 @@
-import { transitionCantEnds } from '../geometry'
-import { worstSeverity, clampCant } from '../rules'
+import { cantEnds, transitionCantEnds } from '../geometry'
+import { worstSeverity, cantLimit, cantSign, clampCant } from '../rules'
 
 // The bands of a track drawn under each other over its station: curvature,
 // cant and speed, each a polyline of { s, v } — a value of null breaks it.
@@ -53,18 +53,15 @@ export function curvatureBand(elements) {
 /**
  * Cant [mm], signed as the store signs it: positive raises the left rail —
  * the outer rail of a right curve — so it is drawn above the zero line like
- * the curvature it goes with. A transition ramps between its ends' cant
- * (transitionCantEnds), linearly, as the cross section reads it.
+ * the curvature it goes with. Each element ramps between its ends' cant
+ * (cantEnds) — a transition, or an arc or straight the cant changes along —
+ * linearly, as the cross section reads it.
  */
 export function cantBand(elements) {
   const out = []
-  for (const { el, elIdx, from, to } of elementSpans(elements)) {
-    if (el.elementType === 2) {
-      const { start, end } = transitionCantEnds(elements, elIdx)
-      out.push({ s: from, v: start ?? 0 }, { s: to, v: end ?? 0 })
-    } else {
-      out.push({ s: from, v: el.cant ?? 0 }, { s: to, v: el.cant ?? 0 })
-    }
+  for (const { elIdx, from, to } of elementSpans(elements)) {
+    const { start, end } = cantEnds(elements, elIdx)
+    out.push({ s: from, v: start }, { s: to, v: end })
   }
   return out
 }
@@ -168,16 +165,9 @@ export function bandFindings(check) {
 // ── Values set in a band ─────────────────────────────────────────────────────
 
 /**
- * Can `el` take a value typed in this band? Any element a speed; a cant only
- * a straight or an arc — a transition carries none of its own, it ramps
- * between the cant of the elements it joins.
- */
-export const bandEditable = (band, el) =>
-  (band === 'speed' || (band === 'cant' && el?.elementType !== 2))
-
-/**
  * The elements with `value` set in `band` on those at `indices` that can take
- * it (bandEditable) — under the rules the element table writes by: the speed
+ * it — any element a speed, a straight or an arc a cant (a transition's cant is
+ * at its two ends, withCantEnds) — under the rules the element table writes by: the speed
  * not below 0, the cant on its design step, within its element's limit and
  * signed by the curve (clampCant). The cant is typed as a magnitude; a
  * straight keeps the side it had. An empty value (null) clears the field: an
@@ -186,11 +176,46 @@ export const bandEditable = (band, el) =>
 export function withBandValue(elements, indices, band, value) {
   const at = new Set(indices)
   return elements.map((el, i) => {
-    if (!at.has(i) || !bandEditable(band, el)) return el
+    if (!at.has(i) || (band === 'cant' && el.elementType === 2)) return el
     const { [band]: _old, ...rest } = el
-    if (value == null) return rest
+    if (value == null) {
+      if (band !== 'cant') return rest
+      const { cantStart: _s, cantEnd: _e, ...flat } = rest
+      return flat
+    }
     if (band === 'speed') return { ...el, speed: Math.max(0, value) }
+    // A cant typed for an arc or a straight holds along all of it: a ramp it had goes.
+    const { cantStart: _s, cantEnd: _e, ...flat } = el
     const typed = (el.radius ? 1 : (Math.sign(el.cant ?? 0) || 1)) * Math.abs(value)
-    return { ...el, cant: clampCant(typed, el) }
+    return { ...flat, cant: clampCant(typed, el) }
+  })
+}
+
+/**
+ * The elements with the cant at the ends of the transitions at `indices` set
+ * as the band types it (decision 355): `ends` { start, end }, each a magnitude
+ * [mm], null to follow the neighbouring element again, or undefined to leave
+ * that end as it is. The side is the one the end raises now, else its curve's;
+ * the value within the element's limit, to the 0.001 mm the model keeps — no
+ * design step, a ramp passes through the values between two.
+ */
+export function withCantEnds(elements, indices, ends) {
+  const at = new Set(indices)
+  return elements.map((el, i) => {
+    if (!at.has(i) || el.elementType !== 2) return el
+    let out = el
+    for (const [key, field] of [['start', 'cantStart'], ['end', 'cantEnd']]) {
+      const value = ends[key]
+      if (value === undefined) continue
+      if (value === null) {
+        const { [field]: _old, ...rest } = out
+        out = rest
+        continue
+      }
+      const r = key === 'start' ? (el.r1 ?? el.r2) : (el.r2 ?? el.r1)
+      const side = Math.sign(transitionCantEnds(elements, i)[key]) || (r ? cantSign(r) : 1)
+      out = { ...out, [field]: side * Math.min(cantLimit(el), Math.round(Math.abs(value) * 1000) / 1000) || 0 }
+    }
+    return out
   })
 }

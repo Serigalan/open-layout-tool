@@ -3,7 +3,7 @@ import { updateTrack } from '../storage'
 import { useProject, useSwitches, useTracks } from '../hooks/useStore'
 import {
   trackProfile, verticalCurves, gradientAt, curvatureBand, cantBand, speedBand, bandValueAt,
-  bandRuns, bandRange, elementSpans, bandFindings, bandEditable, withBandValue, pointAtStation,
+  bandRuns, bandRange, elementSpans, bandFindings, withBandValue, withCantEnds, pointAtStation,
 } from '../utils/track'
 import { checkTrack, ruleById, severityLabelKey, worstSeverity, maxSpeeds } from '../utils/rules'
 import { checkVertical, trackHeightAt } from '../utils/elevation'
@@ -12,7 +12,7 @@ import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { useI18n } from '../locales/i18nContext'
 import usePreview from '../map/usePreview'
-import { utmToWgs84 } from '../utils/geometry'
+import { transitionCantEnds, utmToWgs84 } from '../utils/geometry'
 import { PALETTE } from '../styles/palette'
 import { clamp, niceStep, stepDecimals, ticks } from '../utils/common'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
@@ -91,8 +91,10 @@ const gradeLabel = (perMille) => {
  * The cant and the speed are set here too: a click on an element in either
  * band picks it (Ctrl/Shift-click more of them, in the same band), and the
  * header takes the value — by the element table's rules (withBandValue), one
- * undo step per change. A transition takes no cant of its own. The picked
- * elements are marked on the map.
+ * undo step per change. A transition's cant is set at its two ends, Anfang
+ * and Ende, each read from its own field or, without one, from the
+ * neighbouring element (withCantEnds, decision 355). The picked elements are
+ * marked on the map.
  *
  * What the rules say can be shown over the bands: the alignment catalogue's
  * findings in the band of the quantity each rule is about (bandFindings) —
@@ -114,9 +116,12 @@ export default function BandsOverlay({ trackId, onClose }) {
   const overlay = useOverlayHeight(bodyRef, { min: MIN_OVERLAY_PX, fallback: 400 })
   const [view, setView] = useState(null)       // { key, x0, k }: station at the left edge, px per m
   const [cursor, setCursor] = useState(null)   // station [m] under the cursor
-  const [picked, setPicked] = useState(null)   // { trackId, band, indices } being edited
+  // { trackId, band, indices, ends, drafts } being edited — `ends` for
+  // transitions in the cant band, set at both ends; `drafts` what their two
+  // fields showed when picked, so only an end that was typed in is written.
+  const [picked, setPicked] = useState(null)
   const [draft, setDraft] = useState('')
-  const [note, setNote] = useState(null)       // why a click picked nothing
+  const [draftEnd, setDraftEnd] = useState('')   // a transition's cant at its end
   const [showFindings, setShowFindings] = useState(true)
 
   // Recomputed on every render, like the profile: a few points per element.
@@ -152,21 +157,45 @@ export default function BandsOverlay({ trackId, onClose }) {
     const vs = indices.map(i => shownValue(band, els[i]))
     return vs.length && vs.every(x => x === vs[0]) && vs[0] != null ? String(vs[0]) : ''
   }
+  // A transition's cant at one end, as the band types it: the magnitude, shared or empty.
+  const commonEnd = (key, indices, els = elements) => {
+    const vs = indices.map(i => Math.abs(transitionCantEnds(els, i)[key]))
+    return vs.length && vs.every(x => x === vs[0]) ? String(vs[0]) : ''
+  }
   const pick = (band, i, add) => {
-    if (!bandEditable(band, elements[i])) { setNote(t('bands_cant_transition')); return }
-    setNote(null)
-    const base = add && sel?.band === band ? sel.indices : []
+    // Transitions and the others are set differently, so a pick of the other kind starts afresh.
+    const ends = band === 'cant' && elements[i].elementType === 2
+    const base = add && sel?.band === band && !!sel.ends === ends ? sel.indices : []
     const indices = base.includes(i) ? base.filter(j => j !== i) : [...base, i]
     if (!indices.length) return unpick()
-    setPicked({ trackId, band, indices })
-    setDraft(common(band, indices))
+    const drafts = ends ? { start: commonEnd('start', indices), end: commonEnd('end', indices) } : null
+    setPicked({ trackId, band, indices, ends, drafts })
+    setDraft(ends ? drafts.start : common(band, indices))
+    setDraftEnd(ends ? drafts.end : '')
   }
-  const unpick = () => { setPicked(null); setDraft(''); setNote(null) }
+  const unpick = () => { setPicked(null); setDraft(''); setDraftEnd('') }
+  const editKeys = (e) => {
+    if (e.key === 'Enter') apply()
+    if (e.key === 'Escape') { e.preventDefault(); unpick() }
+  }
   const write = (next) => {
     if (next.some((el, i) => el !== elements[i])) updateTrack({ ...track, elements: next })
   }
+  // A field left as it was picked stays as it is; emptied, the end follows its neighbour again.
+  const typedEnd = (raw, was) => (raw === was ? undefined : raw.trim() === '' ? null : Number(raw.trim()))
   const apply = () => {
     if (!sel) return
+    if (sel.ends) {
+      const value = { start: typedEnd(draft, sel.drafts.start), end: typedEnd(draftEnd, sel.drafts.end) }
+      if ([value.start, value.end].some(v => v != null && !Number.isFinite(v))) return
+      const next = withCantEnds(elements, sel.indices, value)
+      write(next)
+      const drafts = { start: commonEnd('start', sel.indices, next), end: commonEnd('end', sel.indices, next) }
+      setPicked({ ...sel, drafts })
+      setDraft(drafts.start)
+      setDraftEnd(drafts.end)
+      return
+    }
     const raw = draft.trim()
     const value = raw === '' ? null : Number(raw)
     if (value != null && !Number.isFinite(value)) return
@@ -485,10 +514,23 @@ export default function BandsOverlay({ trackId, onClose }) {
                   ? `${bands.spans[sel.indices[0]].from.toFixed(1)}–${bands.spans[sel.indices[0]].to.toFixed(1)} m`
                   : fill('bands_selected', { n: sel.indices.length })}
               </span>
-              <NumberInput className="track-table-input" step="5" min="0" value={draft} autoFocus
-                placeholder={t('elevation_mixed')}
-                onChange={e => setDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') apply(); if (e.key === 'Escape') { e.preventDefault(); unpick() } }} />
+              {sel.ends ? (
+                // A transition: its cant at the start and at the end.
+                <>
+                  <span title={t('bands_cant_ends_hint')}>{t('table_cant_start')}</span>
+                  <NumberInput className="track-table-input" min="0" value={draft} autoFocus
+                    placeholder={t('elevation_mixed')} title={t('bands_cant_ends_hint')}
+                    onChange={e => setDraft(e.target.value)} onKeyDown={editKeys} />
+                  <span title={t('bands_cant_ends_hint')}>{t('table_cant_end')}</span>
+                  <NumberInput className="track-table-input" min="0" value={draftEnd}
+                    placeholder={t('elevation_mixed')} title={t('bands_cant_ends_hint')}
+                    onChange={e => setDraftEnd(e.target.value)} onKeyDown={editKeys} />
+                </>
+              ) : (
+                <NumberInput className="track-table-input" step="5" min="0" value={draft} autoFocus
+                  placeholder={t('elevation_mixed')}
+                  onChange={e => setDraft(e.target.value)} onKeyDown={editKeys} />
+              )}
               <span>{EDIT_UNIT[sel.band]}</span>
               {sel.band === 'speed' && (
                 <button className="track-table-save-btn" title={t('bands_speed_max_hint')} onClick={applyMaxSpeed}>
@@ -498,8 +540,6 @@ export default function BandsOverlay({ trackId, onClose }) {
               <button className="track-table-save-btn" onClick={apply}>{t('elevation_apply')}</button>
               <CloseButton onClick={unpick} />
             </div>
-          ) : note ? (
-            <span className="profile-hint">{note}</span>
           ) : readout()}
           <label className="profile-edit bands-findings-toggle">
             <input type="checkbox" checked={showFindings} onChange={e => setShowFindings(e.target.checked)} />

@@ -2,7 +2,7 @@ import {
   generateId, switchDesignation, nextSwitchNumber, nextTrackName, rebuildCoords, trackLabel,
   newSwitchFields, switchElementMark, splitElementAt, splitTrackAtJoint, carveSwitchRoute,
 } from '../track'
-import { nodeUtm, transitionCantEnds, wgs84ToUTM, utmToWgs84, transformGridBearing } from '../geometry'
+import { cantEnds, nodeUtm, wgs84ToUTM, utmToWgs84, transformGridBearing } from '../geometry'
 import {
   switchElementRoute, switchRouteVaries, computeSwitchGeometryUtm, solveSwitchConnection,
   buildConnectionElements, orientStemToward, uniqueStations,
@@ -72,17 +72,17 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, side, sw, spee
 export function connectionPick(track, elIdx, along) {
   const el = track.elements[elIdx]
   const coords = el.geometry?.coordinates ?? []
-  // A transition carries no cant of its own; what runs over it is the ramp
-  // its neighbours state (transitionCantEnds).
-  const ramp = el.elementType === 2 ? transitionCantEnds(track.elements, elIdx) : null
+  // The cant at the element's ends: a transition's ramp, or an arc's or a
+  // straight's own (cantEnds).
+  const ramp = cantEnds(track.elements, elIdx)
   return {
     trackId: track.id, elIdx,
     startUtm: nodeUtm(el.startNode, coords[0], track.epsg),
     endUtm: nodeUtm(el.endNode, coords[coords.length - 1], track.epsg),
     bearing: el.bearing,
     route: switchElementRoute(el), along,
-    cantStart: ramp ? ramp.start : (el.cant ?? 0),
-    cantEnd:   ramp ? ramp.end   : (el.cant ?? 0),
+    cantStart: ramp.start,
+    cantEnd:   ramp.end,
     zone: track.epsg, name: track.name || trackLabel(track),
     speed: el.speed || null,
     trackEnds: [elIdx === 0, elIdx === track.elements.length - 1],

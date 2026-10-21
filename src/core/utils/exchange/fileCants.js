@@ -1,12 +1,14 @@
-import { transitionCantEnds } from '../geometry'
+import { cantEnds, transitionCantEnds, withCantRamp } from '../geometry'
 import { cantSign } from '../rules'
 
 // The exchange files (the Verm.ESN TRA, the Gleislage cant CSV) state the cant
 // at both ends of every element, relative to the curve it lies in: positive
 // raises the outer rail, negative the inner one — a turnout's branch bending
 // away from a canted main line. The app keeps it signed by the raised rail
-// (rules/cant.js): on an arc or a straight as its one `cant`, on a transition
-// as `cantStart`/`cantEnd` wherever the neighbours do not already state it
+// (rules/cant.js): on an arc or a straight as its one `cant`, or both ends
+// where the cant changes along it (withCantRamp) — an element of one radius is
+// an arc or a straight, whatever its cant does —, on a transition as
+// `cantStart`/`cantEnd` wherever the neighbours do not already state them
 // (transitionCantEnds). Where an element has no curve to go by — a straight,
 // a ramp between two straights — the side follows from the cant it meets
 // (decision 355).
@@ -61,20 +63,18 @@ export function signedCants(elements, ends) {
 
 /**
  * `elements` with the file's cants `ends` (as signedCants reads them) put on
- * them, as new objects: an arc or straight its `cant` — the file's start;
- * where its two ends differ it is a ramp, which the caller has made a
- * transition of that one radius first (isRamp) — and a transition
- * `cantStart`/`cantEnd` wherever its neighbours do not state the same already.
+ * them, as new objects: an arc or straight its `cant`, or its two ends where
+ * they differ (withCantRamp), and a transition `cantStart`/`cantEnd` wherever
+ * its neighbours do not state the same already.
  */
 export const withFileCants = (elements, ends) => withSignedCants(elements, signedCants(elements, ends))
 
 /** `elements` with the cants `signed` ([{ start, end }], by the raised rail) put on them, as withFileCants does. */
 export function withSignedCants(elements, signed) {
   const out = elements.map((el, i) => {
+    if (el.elementType !== 2) return withCantRamp(el, r3(signed[i].start), r3(signed[i].end))
     const { cant: _cant, cantStart: _s, cantEnd: _e, ...rest } = el
-    if (el.elementType === 2) return rest
-    const cant = r3(signed[i].start)
-    return el.elementType === 1 || cant ? { ...rest, cant } : rest
+    return rest
   })
   return out.map((el, i) => {
     if (el.elementType !== 2) return el
@@ -88,9 +88,6 @@ export function withSignedCants(elements, signed) {
   })
 }
 
-/** Do the two ends of a file element state different cants — a ramp on an arc or a straight? */
-export const isRamp = (end) => Math.abs((end?.start ?? 0) - (end?.end ?? 0)) > SAME
-
 /**
  * The cants of `elements` as a file states them: [{ start, end }] per
  * element, relative to the curve each lies in (the inverse of signedCants).
@@ -98,7 +95,7 @@ export const isRamp = (end) => Math.abs((end?.start ?? 0) - (end?.end ?? 0)) > S
  */
 export function fileCants(elements) {
   return elements.map((el, i) => {
-    const ends = el.elementType === 2 ? transitionCantEnds(elements, i) : { start: el.cant ?? 0, end: el.cant ?? 0 }
+    const ends = cantEnds(elements, i)
     const side = { start: curveSide(el, 'start'), end: curveSide(el, 'end') }
     if (!side.start && !side.end) {
       const d = Math.sign(ends.start) || Math.sign(ends.end) || 1

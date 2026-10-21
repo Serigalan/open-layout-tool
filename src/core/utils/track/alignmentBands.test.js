@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { curvatureBand, cantBand, speedBand, bandValueAt, bandRuns, bandRange, withBandValue, bandFindings } from './alignmentBands'
+import { curvatureBand, cantBand, speedBand, bandValueAt, bandRuns, bandRange, withBandValue, withCantEnds, bandFindings } from './alignmentBands'
 
 // Straight 100 m, clothoid 50 m into a right arc R 500 of 200 m with 80 mm
 // cant, a Bloss transition 40 m out of it, and a straight of 60 m.
@@ -84,6 +84,31 @@ describe('withBandValue', () => {
     const next = withBandValue([{ elementType: 0, length: 10, cant: -20 }], [0], 'cant', 500)
     expect(next[0].cant).toBeLessThan(0)
     expect(Math.abs(next[0].cant)).toBeLessThanOrEqual(170)
+  })
+})
+
+describe('withCantEnds', () => {
+  // A left-hand arc at −60, a ramp on its radius to −80, the next arc at −80.
+  const els = [
+    { elementType: 1, length: 10, radius: -400, cant: -60 },
+    { elementType: 2, length: 10, r1: -400, r2: -400 },
+    { elementType: 1, length: 10, radius: -400, cant: -80 },
+  ]
+  it('sets the ends a transition is given, on the side they raise, to the 0.001 mm', () => {
+    const next = withCantEnds(els, [0, 1], { start: 21.8751, end: undefined })
+    expect(next[0]).toBe(els[0])
+    expect(next[1].cantStart).toBe(-21.875)
+    expect(next[1]).not.toHaveProperty('cantEnd')
+  })
+  it('keeps a cant against the curve on its side, and lets an end follow its neighbour again', () => {
+    const against = [{ ...els[1], cantStart: 17.2, cantEnd: 5 }]
+    const next = withCantEnds(against, [0], { start: 10, end: null })
+    expect(next[0].cantStart).toBe(10)
+    expect(next[0]).not.toHaveProperty('cantEnd')
+  })
+  it('is what the band draws', () => {
+    const next = withCantEnds(els, [1], { start: 50, end: 70 })
+    expect(cantBand(next).map(p => p.v)).toEqual([-60, -60, -50, -70, -80, -80])
   })
 })
 

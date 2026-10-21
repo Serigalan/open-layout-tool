@@ -118,13 +118,14 @@ are offered for placement where both routes exist as axes.
 
 **Cant at both ends** (`fileCants.js`, decision 355). The files state the cant at the start and the end of
 every element, and it does not only change across a transition between a straight and an arc: the test axes
-(`memory/testdata/Test_Achsen`) ramp it inside transitions of one radius, between two straights (a reverse
-ramp through 0), hold it across a change of radius, and cant a turnout's branch against its own curve. The
-import signs each value by the raised rail: by the element's curve, and where it has none (a straight, a ramp
-between two straights) by the cant it continues. An arc or straight takes its value as `cant`; a transition
-keeps `cantStart`/`cantEnd` wherever its neighbours do not already imply them; an arc or straight whose two
-ends differ is a ramp and comes in as a transition of that one radius. The export writes the values back
-relative to the curve, and the six test axes read back to the 0.001 mm. The Gleislage CSV (and through it
+(`memory/testdata/Test_Achsen`) ramp it in records of one radius at both ends (Verm.ESN lays them as type 2),
+between two straights (a reverse ramp through 0), hold it across a change of radius, and cant a turnout's
+branch against its own curve. The import signs each value by the raised rail: by the element's curve, and
+where it has none (a straight, a ramp between two straights) by the cant it continues. A record of one
+radius is an arc (both 0: a straight), whatever its cant does; where its two ends differ it keeps both as
+`cantStart`/`cantEnd`. A transition keeps its own ends wherever its neighbours do not already imply them.
+The export writes the values back relative to the curve, an arc or straight with a ramp as a type 2 record of
+its one radius, as the files have it; the six test axes and the two of line 5550 read back record for record. The Gleislage CSV (and through it
 the MDB's cant records) and the exchange file keep the ends the same way.
 
 ### Gleislage CSV
@@ -211,7 +212,7 @@ where it is silent or guesses, the delivered files decide.
 - **Import reports outside the record.**
 - **Routes export as one axis or not at all.**
 - **Cant at both ends of every element**, curve-relative in the files, by the raised rail in the model;
-  a transition states its own ends only where the neighbours do not.
+  a transition states its own ends only where the neighbours do not; one radius is an arc, ramp or not.
 
 ## Tests
 

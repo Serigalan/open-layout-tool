@@ -1,5 +1,5 @@
 import { resolveEndBearing, transformPlanePoint, gkZone, arcFrom, straightFrom, transitionElement } from '../geometry'
-import { isRamp, withFileCants } from './fileCants'
+import { withFileCants } from './fileCants'
 
 const GON2DEG = 0.9
 
@@ -215,7 +215,11 @@ export function buildElement(rec, crs) {
   const start = { easting: rec.start[0], northing: rec.start[1], zone: crs }
   const bearing = ((rec.bearing % 360) + 360) % 360
 
-  if (rec.typ === TYPE_ARC) {
+  // A transition of one radius at both ends changes nothing but the cant: an
+  // arc, or with no radius a straight (decision 355).
+  const oneRadius = (rec.typ === TYPE_CLOTHOID || rec.typ === TYPE_BLOSS) && Math.abs((rec.p2 || 0) - (rec.p3 || 0)) < 0.0005
+  if (oneRadius && !rec.p2) return straightFrom(start, bearing, rec.length, { speed: 0 })
+  if (rec.typ === TYPE_ARC || oneRadius) {
     const signedR = rec.p2 || rec.p3
     const arc = arcFrom(start, bearing, rec.length, signedR, { speed: 0 })
     return { ...arc }
@@ -258,11 +262,11 @@ export function buildElement(rec, crs) {
  * curve it sits in (fileCants): constant sections put it on the arc or
  * straight, ramps on the transition as its `cantStart`/`cantEnd` wherever the
  * neighbours do not imply the same — so a ramp that is not simply the one
- * between a straight and an arc keeps its ends (decision 355). A ramp on an
- * arc or straight makes it a transition of that one radius. Reports length
- * disagreements and ramps that contradict their neighbours.
+ * between a straight and an arc keeps its ends (decision 355), on an arc or a
+ * straight too. Reports length disagreements and ramps that contradict their
+ * neighbours.
  */
-function applyCants(chain, elements, cantByAddress, errors, label, crs) {
+function applyCants(chain, elements, cantByAddress, errors, label) {
   let matched = 0
   const ends = chain.map((rec, i) => {
     const cant = cantByAddress.get(addrKey(rec.anf, rec.end))
@@ -283,12 +287,6 @@ function applyCants(chain, elements, cantByAddress, errors, label, crs) {
     if (after && Math.abs(after.u1 - cant.u2) > 0.5) {
       errors.push(`${label}, Element ${i + 1}: Rampenende ${cant.u2} mm passt nicht zum `
         + `Nachfolger (${after.u1} mm)`)
-    }
-    const el = elements[i]
-    if (el.elementType !== 2 && isRamp({ start: cant.u1, end: cant.u2 }) && !el.endBearing) {
-      const r = el.elementType === 1 ? el.radius : null
-      elements[i] = transitionElement({ easting: el.startNode[0], northing: el.startNode[1], zone: crs },
-        el.bearing, el.length, r, r, { transitionType: 'clothoid', speed: el.speed ?? 0 }).element
     }
     return { start: cant.u1, end: cant.u2 }
   })
@@ -404,7 +402,7 @@ export function buildTracksFromCsv(rows, strecke, cantRows = null, opts = {}) {
     if (elements.length) {
       if (cantByAddress.size) {
         cantMatched += applyCants(chain, elements, cantByAddress, errors,
-          `Strecke ${strecke}, Gleis ${ci + 1}`, crs)
+          `Strecke ${strecke}, Gleis ${ci + 1}`)
       }
       // What the caller knows about this chain beyond its geometry: the MDB
       // import adds the gradient of the file (mdbGradient) with its height

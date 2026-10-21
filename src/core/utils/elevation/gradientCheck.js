@@ -20,7 +20,7 @@
 
 import { catalogLimit, evaluateRules, rulesForScope, severityRank, worstSeverity } from '../rules'
 import { tangentLength, trackKind, portsOf, portTrack, portEnd, LINE_CATEGORIES } from '../track'
-import { transitionCantEnds } from '../geometry'
+import { cantEnds } from '../geometry'
 import { switchBodySpans } from './switchGradient'
 
 const DEFAULT_LINE_CATEGORY = 'main'
@@ -60,19 +60,19 @@ function stretchGrades(heights) {
 
 /**
  * Where each element begins and ends along the track, with its design speed
- * and whether it is a cant ramp — a transition
- * the cant changes over (the app ramps the cant on the transition and nowhere
- * else, see trassierungCheck's rampScope).
+ * and whether it is a cant ramp — an element the cant changes over (a
+ * transition, or an arc or straight whose cant changes along it, see
+ * trassierungCheck's rampScope).
  */
 function elementSpans(elements) {
   let start = 0
   return (elements ?? []).map((el, i) => {
-    const ends = el.elementType === 2 ? transitionCantEnds(elements, i) : null
+    const ends = cantEnds(elements, i)
     const span = {
       from: start,
       to: start + (el.length ?? 0),
       speed: el.speed ?? 0,
-      ramp: !!ends && Math.abs((ends.end ?? 0) - (ends.start ?? 0)) > 0,
+      ramp: Math.abs(ends.end - ends.start) > 0,
     }
     start = span.to
     return span

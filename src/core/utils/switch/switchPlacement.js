@@ -1,5 +1,5 @@
 import {
-  nodeUtm, reverseElement, resolveEndBearing, projectOnArcUtm, transitionCantEnds,
+  cantEnds, nodeUtm, reverseElement, resolveEndBearing, projectOnArcUtm,
   projectOnTransitionUtm,
 } from '../geometry'
 import { elementAtStation, pointAtStationUtm } from '../track'
@@ -134,10 +134,11 @@ export function placeSwitchOnTrack(track, station, reversed, length) {
       pieces.push(switchRouteSlice(route, from, to))
 
       // Cant along the element as the turnout runs over it: its own on a
-      // straight or an arc, the ramp it lies in on a transition. Stored signed
-      // by the raised rail, so it changes sign with the direction.
-      const ramp    = el.elementType === 2 ? transitionCantEnds(els, idx) : null
-      const cantOwn = (s) => (ramp ? ramp.start + (ramp.end - ramp.start) * s / el.length : (el.cant ?? 0))
+      // straight or an arc (a ramp where it changes along it), the ramp it lies
+      // in on a transition. Stored signed by the raised rail, so it changes
+      // sign with the direction.
+      const ramp    = cantEnds(els, idx)
+      const cantOwn = (s) => ramp.start + (ramp.end - ramp.start) * s / el.length
       const cantRun = (s) => dir * cantOwn(reversed ? el.length - s : s)
       spans.push({ elIdx: idx, s0: covered, length: take, from, to, cantStart: cantRun(from), cantEnd: cantRun(to) })
 

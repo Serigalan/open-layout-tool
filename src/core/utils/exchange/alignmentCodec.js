@@ -4,7 +4,7 @@
 // scalars a polyline cannot express — and differ only in where it sits and
 // what surrounds it. The import (osrdImport) reads either.
 
-import { transitionCantEnds } from '../geometry'
+import { cantEnds } from '../geometry'
 import {
   portsOf, portTrack, portEnd, BUFFER_STOP, BUFFER_STOP_LENGTH, BUFFER_STOP_TYPES,
   DEFAULT_BUFFER_STOP_TYPE, bufferStopStations,
@@ -40,17 +40,13 @@ function elementType(el) {
  * The element chain of a track: type, station, length and the design scalars —
  * signed radii, cants and design speed.
  *
- * Cant lives on arcs as a scalar; across a transition it is a ramp, so its two
- * ends are taken from the neighbouring elements — or from the transition's own
- * ends where it states them (see transitionCantEnds). Values equal to 0 are omitted,
+ * Cant is stated at both ends of every element (cantEnds): an arc's one value,
+ * or its two where the cant changes along it; a transition's from the
+ * neighbouring elements, or its own where it states them. Values equal to 0 are omitted,
  * as is a design speed of 0 (unknown).
  */
 export function horizontalElements(track) {
   const els = track.elements ?? []
-  const cantEnds = (el, i) => el.elementType === 2
-    ? transitionCantEnds(els, i)
-    : { start: el.cant ?? 0, end: el.cant ?? 0 }
-
   let station = 0
   return els.map((el, i) => {
     const type = elementType(el)
@@ -71,7 +67,7 @@ export function horizontalElements(track) {
       out.radius_start_m = exact(el.r1 ?? null)
       out.radius_end_m   = exact(el.r2 ?? null)
     }
-    const { start, end } = cantEnds(el, i)
+    const { start, end } = cantEnds(els, i)
     if (start) out.cant_start_mm = start
     if (end)   out.cant_end_mm   = end
     if (el.speed) out.design_speed_kmh = el.speed

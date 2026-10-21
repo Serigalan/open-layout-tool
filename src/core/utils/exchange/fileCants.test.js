@@ -41,6 +41,16 @@ describe('the cants of an exchange file', () => {
     expect(step[1].cantEnd).toBe(-40)
   })
 
+  it('keep an arc an arc where its cant changes along it, the worse end as its cant', () => {
+    // W34: a right-hand arc ramping to −5.696 mm (canted against its curve), and a left-hand one up to −40.
+    const [right, left] = withFileCants([arc(310), arc(-400)], [{ start: 0, end: -5.696 }, { start: 30, end: 40 }])
+    expect(right).toMatchObject({ elementType: 1, cantStart: 0, cantEnd: -5.696, cant: -5.696 })
+    expect(left).toMatchObject({ elementType: 1, cantStart: -30, cantEnd: -40, cant: -30 })
+    const flat = withFileCants([arc(-400)], [{ start: 30, end: 30 }])[0]
+    expect(flat.cant).toBe(-30)
+    expect(flat).not.toHaveProperty('cantStart')
+  })
+
   it('go out as they came in', () => {
     const built = withFileCants(w12, w12File)
     expect(fileCants(built)).toEqual(w12File)

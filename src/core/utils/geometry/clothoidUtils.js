@@ -246,18 +246,53 @@ export function projectOnTransitionUtm(startUtm, pointUtm, bearing, length, r1, 
 }
 
 /**
- * Cant at the two ends of a transition [mm, signed like `cant`]. A transition
- * carries none of its own: across it the cant ramps between the elements it
- * joins, so each end takes the cant of its neighbour there. A transition that
- * was cut — a turnout laid into it — no longer has both of those beside it
- * (the cut ends the track, or the next piece is a transition too), so its
- * pieces keep the ramp's value at their ends as cantStart / cantEnd, which win
- * over the neighbours.
+ * Cant at the two ends of a transition [mm, signed like `cant`]. Across it the
+ * cant ramps between the elements it joins, so each end takes the cant of its
+ * neighbour there — unless it states its own as cantStart / cantEnd, which
+ * win: a cut transition (a turnout laid into it) keeps the ramp's value at its
+ * pieces' ends, an import or the element table may give it any (decision 355).
  */
 export function transitionCantEnds(elements, i) {
   const el = elements[i]
   return {
-    start: el.cantStart ?? elements[i - 1]?.cant ?? 0,
-    end:   el.cantEnd   ?? elements[i + 1]?.cant ?? 0,
+    start: el.cantStart ?? endCant(elements[i - 1], 'end'),
+    end:   el.cantEnd   ?? endCant(elements[i + 1], 'start'),
   }
+}
+
+/**
+ * The cant an element states at `end` itself — its own end where it has one
+ * (an arc or a straight the cant changes along, a transition's own), else its
+ * one `cant`; 0 for a transition without one of its own, or no element.
+ */
+function endCant(el, end) {
+  if (!el) return 0
+  return (end === 'start' ? el.cantStart : el.cantEnd) ?? el.cant ?? 0
+}
+
+/**
+ * Cant at the two ends of any element [mm, signed like `cant`]: a
+ * transition's as transitionCantEnds reads them; an arc or a straight carries
+ * one `cant`, or — where the cant changes along it, as an import may bring —
+ * its own cantStart / cantEnd, between which it ramps linearly (decision 355).
+ */
+export function cantEnds(elements, i) {
+  const el = elements[i]
+  if (el.elementType === 2) return transitionCantEnds(elements, i)
+  return { start: endCant(el, 'start'), end: endCant(el, 'end') }
+}
+
+/**
+ * An arc or a straight with the cant `start` at its start and `end` at its
+ * end: one `cant` where they agree, else both as cantStart / cantEnd and, as
+ * its `cant`, the one the physics goes by — on an arc the end that helps the
+ * curve least, so the deficiency and the speed it allows are the worst along
+ * it; on a straight its start (decision 355).
+ */
+export function withCantRamp(el, start, end) {
+  const { cantStart: _s, cantEnd: _e, cant: _c, ...rest } = el
+  if (Math.abs(start - end) <= 0.001) return start || el.radius ? { ...rest, cant: start || 0 } : rest
+  const side = el.radius < 0 ? -1 : 1
+  const cant = el.radius && side * end < side * start ? end : start
+  return { ...rest, cant, cantStart: start, cantEnd: end }
 }

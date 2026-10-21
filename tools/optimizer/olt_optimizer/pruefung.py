@@ -45,14 +45,27 @@ def _k_end(el):
     return _curv(el.get("r2") if _is_transition(el) else el.get("radius"))
 
 
+def _own_end(el, key):
+    """The cant an element states at one end itself (cantStart / cantEnd), else its one cant."""
+    if el is None:
+        return 0.0
+    value = el.get(key)
+    return value if value is not None else (el.get("cant") or 0.0)
+
+
 def _cant_ends(els, i):
+    # Every element may state the cant at its ends (decision 355): an arc or a
+    # straight where it changes along it, a transition where its neighbours do
+    # not imply it — as geometry.cantEnds reads them.
     el = els[i]
     if not _is_transition(el):
-        c = el.get("cant") or 0.0
-        return c, c
-    start = el.get("cantStart", (els[i - 1].get("cant") if i > 0 else None) or 0.0)
-    end = el.get("cantEnd", (els[i + 1].get("cant") if i + 1 < len(els) else None) or 0.0)
-    return start, end
+        return _own_end(el, "cantStart"), _own_end(el, "cantEnd")
+    prev = els[i - 1] if i > 0 else None
+    nxt = els[i + 1] if i + 1 < len(els) else None
+    start = el.get("cantStart")
+    end = el.get("cantEnd")
+    return (start if start is not None else _own_end(prev, "cantEnd"),
+            end if end is not None else _own_end(nxt, "cantStart"))
 
 
 def _deficiency(v, radius, cant):
@@ -136,8 +149,9 @@ def check_track(katalog, els, only=None):
         base = element_scope(els, i)
         for rid, sev in _apply(katalog, katalog.rules_for_element(etype, _form(el)), base, ctx):
             findings.append((f"#{i}", rid, sev))
-        if _is_transition(el) and base["physics.delta_u"] > 0:
-            ramp = {"model.ramp_on_transition": True, "model.ramp_form_matches": _form(el) == "clothoid"}
+        if base["physics.delta_u"] > 0:
+            # A ramp on an arc or a straight is LP.UB.02's Sonderfall (decision 355).
+            ramp = {"model.ramp_on_transition": _is_transition(el), "model.ramp_form_matches": _form(el) == "clothoid"}
             for rid, sev in _apply(katalog, katalog.rules_for_scope("cant_ramp"), ramp):
                 findings.append((f"#{i}", rid, sev))
     for i in range(len(els) - 1):

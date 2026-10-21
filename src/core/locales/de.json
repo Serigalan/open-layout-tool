@@ -2018,7 +2018,6 @@
   "bands_no_speed": "Keine Geschwindigkeit angegeben.",
   "bands_hint_view": "Mausrad zoomt, Ziehen verschiebt, Doppelklick zeigt das ganze Gleis. Klick auf ein Element im Überhöhungs- oder Geschwindigkeitsband ändert dessen Wert.",
   "bands_selected": "{n} Elemente",
-  "bands_cant_transition": "Ein Übergangsbogen hat keine eigene Überhöhung – sie verläuft zwischen den Elementen, die er verbindet.",
   "bands_speed_max": "Höchstwert",
   "bands_speed_max_hint": "Die höchste Geschwindigkeit, die Radius und Überhöhung jedes gewählten Elements zulassen (in 5-km/h-Stufen). Eine Gerade nimmt die der Bögen neben ihr.",
   "bands_findings": "Fehler und Hinweise",
@@ -2105,8 +2104,10 @@
   "track_visibility_km_source_db": "DB-Daten",
   "table_cant_start": "Ü Anfang",
   "table_cant_end": "Ü Ende",
-  "table_cant_ends_hint": "Überhöhung am Anfang und am Ende des Elements, vorzeichenbehaftet nach der gehobenen Schiene (+ links gehoben). Bei einem Übergangsbogen einzugeben – leer folgt er dem Nachbarelement (grau); bei Gerade und Bogen nur angezeigt, geändert wird dort die Spalte Überhöhung.",
+  "table_cant_ends_hint": "Überhöhung am Anfang und am Ende des Elements, vorzeichenbehaftet nach der gehobenen Schiene (+ links gehoben). Bei einem Übergangsbogen einzugeben – leer folgt er dem Nachbarelement (grau); bei Gerade und Bogen nur angezeigt – ändert sich die Überhöhung darin (aus dem Import), stehen hier beide Werte.",
   "table_cant_end_own": "Eigener Wert dieses Übergangsbogens – leeren, um dem Nachbarelement zu folgen ({mm} mm).",
   "table_cant_end_implied": "Folgt dem Nachbarelement – ein eigener Wert hält die Überhöhung hier fest, z. B. für eine Rampe innerhalb eines Bogens.",
-  "table_cant_end_fixed": "Gleichbleibende Überhöhung des Elements – in der Spalte Überhöhung änderbar."
+  "table_cant_end_fixed": "Überhöhung des Elements an diesem Ende – nur Anzeige; geändert wird die Spalte Überhöhung, ein Wert dort gilt über das ganze Element.",
+  "bands_cant_ends_hint": "Betrag in mm, die gehobene Schiene bleibt dieselbe; geleert folgt das Ende wieder dem Nachbarelement. Ohne Raster – eine Rampe läuft durch die Werte dazwischen. Vorzeichen gegen die Krümmung im Trackeditor.",
+  "table_cant_ramp_note": "Die Überhöhung ändert sich in diesem Element von {from} auf {to} mm (aus dem Import); hier steht der Wert, nach dem Fehlbetrag und V_max gehen. Ein eingegebener Wert gilt über das ganze Element."
 }

@@ -7,8 +7,8 @@
 // the module's own business. See docs/modules/track.md.
 
 export {
-  bandEditable, bandFindings, bandRange, bandRuns, bandValueAt, cantBand, curvatureBand,
-  elementSpans, speedBand, withBandValue,
+  bandFindings, bandRange, bandRuns, bandValueAt, cantBand, curvatureBand,
+  elementSpans, speedBand, withBandValue, withCantEnds,
 } from './alignmentBands'
 export { bufferStopFeatures, FACE_HALF_WIDTH } from './bufferStopGeometry'
 export { DEFAULT_HEIGHT_EPSG, HEIGHT_DATUMS, heightDatumLabel } from './heightDatums'

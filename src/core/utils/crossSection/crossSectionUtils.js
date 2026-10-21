@@ -15,7 +15,7 @@
  * crosses, and the terrain along it, are found where the section is drawn.
  */
 
-import { transitionCantEnds, transformPlanePoint, utmToWgs84 } from '../geometry'
+import { cantEnds, transitionCantEnds, transformPlanePoint, utmToWgs84 } from '../geometry'
 import { edgeOffsets, elementStations, pointOnElement, DEFAULT_PLATFORM_HEIGHT } from '../track'
 import { QUERSCHNITT_KATALOG } from './gaugeProfiles'
 import { clamp } from '../common'
@@ -194,7 +194,10 @@ export function sectionAtStation(track, station) {
         radius: Math.abs(k) > 1e-9 ? 1 / k : null,
       }
     }
-    return { elIdx: i, station: start + s, cant: el.cant ?? 0, radius: el.radius ?? null }
+    // An arc or a straight the cant changes along ramps it linearly too.
+    const { start: c1, end: c2 } = cantEnds(els, i)
+    const t = len > 0 ? s / len : 0
+    return { elIdx: i, station: start + s, cant: c1 + t * (c2 - c1), radius: el.radius ?? null }
   }
   return null
 }

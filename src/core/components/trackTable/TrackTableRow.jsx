@@ -1,4 +1,4 @@
-import { crsLabel, transitionCantEnds } from '../../utils/geometry'
+import { cantEnds, crsLabel } from '../../utils/geometry'
 import {
   cantDefLevel, computeCantDefSigned, maxSpeedFor, CANT_STEP, governing, ruleById,
   severityLabelKey,
@@ -28,9 +28,11 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
   const defTip = defNote(fill, el, level, cantDef, vMax)
   const edit = (key) => (raw) => onEdit(key, raw)
   const dimension = t('table_switch_dimension')
-  // The cant at the element's two ends: a transition's own where it states
-  // one, else what its neighbours imply (decision 355).
-  const ends = isTransition(el) ? transitionCantEnds(elements, i) : null
+  // The cant at the element's two ends (decision 355): a transition's own
+  // where it states one, else what its neighbours imply; an arc's or a
+  // straight's one cant, or its own two where the cant changes along it.
+  const ends = cantEnds(elements, i)
+  const rampOnArc = !isTransition(el) && (el.cantStart != null || el.cantEnd != null)
   const endCell = (key, implied) => {
     const neighbour = (key === 'cantStart' ? elements[i - 1]?.cant : elements[i + 1]?.cant) ?? 0
     return (
@@ -71,15 +73,15 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
           high, so it carries the same mark. */}
       <td title={defTip}><EditCell value={el.speed} onCommit={edit('speed')} className={defClass(level)} /></td>
       {/* A transition's cant is not one number: its two ends follow. */}
-      <td title={cantNote(fill, el)}>
+      <td title={rampOnArc ? fill('table_cant_ramp_note', { from: num(ends.start), to: num(ends.end) }) : cantNote(fill, el)}>
         {isTransition(el)
           ? <TextCell value="–" className={cantClass(el)} />
           : <EditCell value={el.cant} onCommit={edit('cant')} step={CANT_STEP} className={cantClass(el)} />}
       </td>
       {/* The cant at the start and the end: a transition's to type — empty, it
           follows its neighbours —, the others' read off their one cant. */}
-      {ends ? endCell('cantStart', ends.start) : <td title={t('table_cant_end_fixed')}><TextCell value={num(el.cant ?? 0)} /></td>}
-      {ends ? endCell('cantEnd', ends.end) : <td title={t('table_cant_end_fixed')}><TextCell value={num(el.cant ?? 0)} /></td>}
+      {isTransition(el) ? endCell('cantStart', ends.start) : <td title={t('table_cant_end_fixed')}><TextCell value={num(ends.start)} /></td>}
+      {isTransition(el) ? endCell('cantEnd', ends.end) : <td title={t('table_cant_end_fixed')}><TextCell value={num(ends.end)} /></td>}
       {/* Only a switch route knows the 100 mm limit, so only there is there
           anything to justify — including a route laid into a cant ramp, whose
           own cant cell is not editable. */}

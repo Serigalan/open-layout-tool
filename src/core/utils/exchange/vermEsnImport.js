@@ -3,7 +3,7 @@ import { generateId, nextTrackName, rebuildCoords } from '../track'
 import { gradientStretch } from './proviImport'
 import { arcFrom, straightFrom, transitionElement } from '../geometry'
 import { axisLine, END_TOL, endMismatch, gradientOnTrack } from './vermEsnKmGradient'
-import { isRamp, withFileCants } from './fileCants'
+import { withFileCants } from './fileCants'
 
 const RECORD_SIZE = 78
 const GRA_RECORD_SIZE = 36   // the header is one record long, too
@@ -58,10 +58,10 @@ export function parseRecords(arrayBuffer) {
  *
  * Every record states the cant at its start and end, relative to its curve
  * (fileCants): an arc or straight takes it as its `cant`, a transition as
- * `cantStart`/`cantEnd` where its neighbours do not imply the same — so a
- * ramp the file lays into a transition of one radius, or between two others,
- * is kept. An arc or straight whose two ends differ is a ramp too and comes in
- * as a transition of that one radius (decision 355).
+ * `cantStart`/`cantEnd` where its neighbours do not imply the same. The file
+ * lays a cant ramp of one radius into a type 2 record with the same radius at
+ * both ends: that is an arc (or, both 0, a straight) whose cant changes along
+ * it, and comes in as one with its two ends (decision 355).
  *
  * Each element must start where the previous one ends (tolerance 0.3 mm);
  * violations are reported in `errors`. Returns { elements, errors, startStation,
@@ -105,19 +105,14 @@ export function buildElements(records, epsg) {
     const start      = { easting: rec.easting, northing: rec.northing, zone: crs }
     const bearingDeg = ((rec.bearing * RAD2DEG) % 360 + 360) % 360   // bearing stored in radians (grid)
     cants.push({ start: rec.cantB, end: rec.cantE })
-    const ramp = isRamp(cants[cants.length - 1])
+    // A transition of one radius at both ends changes nothing but the cant.
+    const oneRadius = (rec.type === 2 || rec.type === 4) && Math.abs(rec.radiusB - rec.radiusE) < 0.0005
+    const type = oneRadius ? (rec.radiusB ? 1 : 0) : rec.type
 
-    if ((rec.type === 0 || rec.type === 1) && ramp) {
-      // ── A cant ramp on a straight or an arc: a transition of that one radius
-      const r = rec.type === 1 ? (rec.radiusB !== 0 ? rec.radiusB : rec.radiusE) : null
-      elements.push(transitionElement(start, bearingDeg, rec.length, r, r, {
-        transitionType: 'clothoid', length: r3(rec.length), speed: 0,
-      }).element)
-
-    } else if (rec.type === 0 || rec.type === 5) {
+    if (type === 0 || type === 5) {
       // ── Straight (type 5: with a kink at its end) ──────────────────────────
       const sv = straightFrom(start, bearingDeg, rec.length)
-      const kinkEndBearing = rec.type === 5
+      const kinkEndBearing = type === 5
         ? ((sv.bearing + (rec.radiusB - 200) * 0.9) % 360 + 360) % 360   // gon → degrees
         : undefined
       elements.push({
@@ -126,7 +121,7 @@ export function buildElements(records, epsg) {
         ...(kinkEndBearing !== undefined ? { endBearing: kinkEndBearing } : {}),
       })
 
-    } else if (rec.type === 1) {
+    } else if (type === 1) {
       // ── Circular arc ───────────────────────────────────────────────────────
       const signedR = rec.radiusB !== 0 ? rec.radiusB : rec.radiusE
       const arc = arcFrom(start, bearingDeg, rec.length, signedR)
@@ -136,7 +131,7 @@ export function buildElements(records, epsg) {
         radius:      r3(signedR),
       })
 
-    } else if (rec.type === 2 || rec.type === 4) {
+    } else if (type === 2 || type === 4) {
       // ── Transition curve: type 2 = clothoid, type 4 = Bloss ────────────────
       // radiusB = 0 → entry from straight; radiusE = 0 → exit to straight.
       const transitionType = rec.type === 4 ? 'bloss' : 'clothoid'

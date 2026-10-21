@@ -321,3 +321,15 @@ describe.skipIf(!hasPekBestand)('PEK Bestand', () => {
     expect(worst).toBeLessThan(1e-4)
   })
 })
+
+describe.skipIf(!cantFiles.length)('a cant ramp of one radius', () => {
+  it('is an arc or a straight, not a transition (decision 355)', () => {
+    const path = cantFiles.find(p => p.endsWith('55501R.TRA'))
+    const bytes = readFileSync(path)
+    const { elements } = buildElements(parseRecords(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)), 5684)
+    // #14: R −950 at both ends, 21.875 → 40.625 mm; #18/#19: the reverse ramp between two straights.
+    expect(elements[13]).toMatchObject({ elementType: 1, radius: -950, cantStart: -21.875, cantEnd: -40.625 })
+    expect(elements[17]).toMatchObject({ elementType: 0, cantStart: -15.018, cantEnd: 0 })
+    expect(elements[18]).toMatchObject({ elementType: 0, cantStart: 0, cantEnd: 15.018 })
+  })
+})

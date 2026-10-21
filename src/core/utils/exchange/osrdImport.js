@@ -11,7 +11,7 @@ import {
   newSwitchFields, switchElementMark, LINK_KIND, TYPE_CODES, SIDE_CODES, LINE_CATEGORIES, STATUSES,
 } from '../track'
 import { kindForOsrdType, bufferStopsToEndMarks } from './alignmentCodec'
-import { isRamp, withSignedCants } from './fileCants'
+import { withSignedCants } from './fileCants'
 
 const GON2DEG = 9 / 10
 
@@ -381,15 +381,7 @@ export function parseOsrdRailJson(data) {
       const cant = { start: Number(item.cant_start_mm) || 0, end: Number(item.cant_end_mm) || 0 }
       cants.push(cant)
 
-      if ((item.type === 'curve' || item.type === 'straight') && isRamp(cant) && !Number(item.kink_gon)) {
-        // A cant ramp on an arc or a straight: a transition of that one radius (decision 355).
-        const r = item.type === 'curve' ? Number(item.radius_m) : null
-        const t = transitionElement(cursor, bearing, length, r, r, { transitionType: 'clothoid', speed })
-        elements.push(t.element)
-        cursor = t.endUtm
-        bearing = t.endBearing
-
-      } else if (item.type === 'curve') {
+      if (item.type === 'curve') {
         const radius = Number(item.radius_m)
         const arc = arcFrom(cursor, bearing, length, radius, { speed, cant: Number(item.cant_start_mm) || 0 })
         elements.push({ ...arc })
@@ -425,7 +417,8 @@ export function parseOsrdRailJson(data) {
       errors.push(`${label}: keine verwertbaren Elemente.`)
       return
     }
-    // A transition keeps the cants at its ends where its neighbours do not imply them.
+    // Each element keeps the cant at its ends: an arc or a straight both where
+    // they differ, a transition where its neighbours do not imply them.
     elements.splice(0, elements.length, ...withSignedCants(elements, cants))
 
     // Closing checks against the alignment's own statements

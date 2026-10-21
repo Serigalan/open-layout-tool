@@ -3,7 +3,7 @@ import { nextTrackName, rebuildCoords } from './trackModel'
 import {
   computeStraightValuesUtm, computeCurvedValuesUtm, arcCoordsFromRadiusUtm, nodeUtm, utmToWgs84,
   SAGITTA_ELEMENT, SAGITTA_TRACK, computeClothoidUtm, transitionBearingAtUtm, clothoidRadiusAt,
-  transitionCantEnds,
+  transitionCantEnds, withCantRamp,
 } from '../geometry'
 import { splitHeights } from './heightUtils'
 
@@ -92,11 +92,14 @@ function splitElement(el, epsg, cut, ramp = null) {
   }
   const svA = values(sUtm, jUtm)
   const svB = values(jUtm, eUtm)
-  return {
-    cutWgs, svA, svB,
-    a: mkHalf(svA, halfCoords(sUtm, jUtm, gStart, cutWgs)),
-    b: mkHalf(svB, halfCoords(jUtm, eUtm, cutWgs, gEnd)),
-  }
+  const a = mkHalf(svA, halfCoords(sUtm, jUtm, gStart, cutWgs))
+  const b = mkHalf(svB, halfCoords(jUtm, eUtm, cutWgs, gEnd))
+  // An arc or a straight the cant changes along: each half keeps the ramp's
+  // value at its own ends (decision 355).
+  if (el.cantStart == null && el.cantEnd == null) return { cutWgs, svA, svB, a, b }
+  const u1 = el.cantStart ?? el.cant ?? 0, u2 = el.cantEnd ?? el.cant ?? 0
+  const uCut = el.length > 0 ? u1 + (u2 - u1) * svA.length / el.length : u1
+  return { cutWgs, svA, svB, a: withCantRamp(a, u1, uCut), b: withCantRamp(b, uCut, u2) }
 }
 
 /**

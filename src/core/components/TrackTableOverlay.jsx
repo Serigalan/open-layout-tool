@@ -234,13 +234,19 @@ export default function TrackTableOverlay({
     }
   }
 
-  // Write one metadata field onto one element of the edited track.
+  // Write one metadata field onto one element of the edited track. A cant
+  // typed for an arc or a straight holds along all of it: a ramp it had goes.
   function setMeta(row, key, value) {
     setNotice(null)
     setChanged(prev => (prev.includes(track.id) ? prev : [...prev, track.id]))
+    const put = (el) => {
+      if (key !== 'cant' || el.elementType === 2) return { ...el, [key]: value }
+      const { cantStart: _s, cantEnd: _e, ...flat } = el
+      return { ...flat, cant: value }
+    }
     setTracks(prev => prev.map(tr => tr.id !== track.id ? tr : {
       ...tr,
-      elements: (tr.elements ?? []).map((el, idx) => idx === row ? { ...el, [key]: value } : el),
+      elements: (tr.elements ?? []).map((el, idx) => idx === row ? put(el) : el),
     }))
   }
 

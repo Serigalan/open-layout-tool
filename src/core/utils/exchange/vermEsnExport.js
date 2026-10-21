@@ -72,6 +72,10 @@ export function traRecords(track) {
         ...base, type: el.transitionType === 'bloss' ? TYPE_BLOSS : TYPE_CLOTHOID,
         radiusB: el.r1 ?? 0, radiusE: el.r2 ?? 0, cantB, cantE,
       })
+    } else if (Math.abs(cantB - cantE) > 0.001 && (el.radius || !kinkGon(el))) {
+      // An arc or a straight the cant changes along goes out as the files lay
+      // such a ramp: a clothoid record of that one radius at both ends (decision 355).
+      out.push({ ...base, type: TYPE_CLOTHOID, radiusB: el.radius ?? 0, radiusE: el.radius ?? 0, cantB, cantE })
     } else if (el.radius) {
       out.push({ ...base, type: TYPE_ARC, radiusB: el.radius, radiusE: el.radius, cantB, cantE })
     } else {

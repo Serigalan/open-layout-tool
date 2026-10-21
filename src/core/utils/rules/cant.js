@@ -159,12 +159,13 @@ export function clampCant(value, el) {
 }
 
 /**
- * The cant magnitudes an element carries. An arc has the one; a transition ramps
- * between two, and a turnout laid into one is built on that ramp — so both ends
- * are read, or a switch element on a ramp would answer for a cant it is not on.
+ * The cant magnitudes an element carries. An arc has the one, unless the cant
+ * changes along it; a transition ramps between two, and a turnout laid into
+ * one is built on that ramp — so both ends are read where the element states
+ * them, or a switch element on a ramp would answer for a cant it is not on.
  */
-const cantsOf = (el) => (el?.elementType === 2 && (el.cantStart != null || el.cantEnd != null)
-  ? [el.cantStart ?? 0, el.cantEnd ?? 0]
+const cantsOf = (el) => (el?.cantStart != null || el?.cantEnd != null
+  ? [el.cantStart ?? el.cant ?? 0, el.cantEnd ?? el.cant ?? 0]
   : [el?.cant ?? 0])
 
 /** The greatest cant magnitude anywhere along this element. */
