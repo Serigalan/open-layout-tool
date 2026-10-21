@@ -69,16 +69,31 @@ const valuesOf = (pieces, open) => open.map(u => (u.field === 'length'
  * first toe, the middle elements as a spec with two of their values sought —
  * the rest given as the solver found them — and the seed the iteration starts
  * from. The pair left open is the first whose spec closes again at that
- * shift; null where none does.
+ * shift; the values given are rounded as one would type them (a length to
+ * the millimetre, a radius to the decimetre), or kept exact where the rounded
+ * spec does not close. Null where none does.
  *
  * A solution: { s1, s2, pieces: [{ type, length, kappa }] } (kappa math-signed,
  * an arc's own, else null).
  */
 export function adoptCrossover({ picks, speed, solution }) {
   const { s1, s2, pieces } = solution
-  const full = pieces.map(p => (p.type === 'arc'
+  const exact = pieces.map(p => (p.type === 'arc'
     ? { type: 'arc', length: p.length, radius: 1 / Math.abs(p.kappa), side: -Math.sign(p.kappa) }
     : { type: p.type, length: p.length, radius: null }))
+  const round = (v, digits) => Number(v.toFixed(digits))
+  const rounded = exact.map(m => ({
+    ...m, length: round(m.length, 3), radius: m.radius == null ? null : round(m.radius, 1),
+  }))
+  for (const full of [rounded, exact]) {
+    const adopted = adoptSpec({ picks, speed, s1, s2, pieces, full })
+    if (adopted) return adopted
+  }
+  return null
+}
+
+/** The first pair of values of `full` left open that closes again at s1 — or null. */
+function adoptSpec({ picks, speed, s1, s2, pieces, full }) {
   const slots = full.flatMap((m, i) => [
     { i, field: 'length' },
     ...(m.type === 'arc' ? [{ i, field: 'k' }] : []),

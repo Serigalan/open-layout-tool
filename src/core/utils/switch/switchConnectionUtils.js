@@ -525,7 +525,8 @@ export function checkMidRun(chain1, mid, chain2, speed) {
   const lMin = minElementLength(speed)
   let short = null
   if (!overlap && lMin != null) {
-    const i = mid.findIndex((_, k) => runLength(at0 + k) < lMin - MID_ROOM)
+    // As strictly as the track check reads it afterwards: no tolerance below l_min.
+    const i = mid.findIndex((_, k) => runLength(at0 + k) < lMin - 1e-9)
     if (i >= 0) short = { index: i, length: runLength(at0 + i), lMin }
   }
 

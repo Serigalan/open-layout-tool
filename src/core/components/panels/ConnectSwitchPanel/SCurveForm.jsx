@@ -20,6 +20,7 @@ import AdvancedInfo from '../../form/AdvancedInfo'
 import CommitBar from '../../form/CommitBar'
 import CancelButton from '../../form/CancelButton'
 import MidChainFields from './MidChainFields'
+import CrossoverSolver from './CrossoverSolver'
 
 // ── Preview layers (managed by usePreview) ────────────────────────────
 const SCURVE_PREVIEW_SOURCE = 'scurve-preview-source'
@@ -103,6 +104,11 @@ export default function SCurveForm({ onCommitted }) {
   // A chain is solved by iteration over the whole slider range: typing goes on
   // while it runs, and the solution follows the last value typed.
   const solvedMids = useDeferredValue(mids)
+  // An answer of the Python solver adopted (Entscheidung 357): where its
+  // iteration starts, and the shift it was adopted at — the slider's range is
+  // the stretch around it.
+  const [seed, setSeed] = useState(null)
+  const [adoptAt, setAdoptAt] = useState(null)
 
   const picksRef = useRef(picks)
   const speed    = CONNECTION_SPEEDS[speedIdx] ?? 0
@@ -159,22 +165,23 @@ export default function SCurveForm({ onCommitted }) {
     if (phase !== 'config' || !picks[0] || !picks[1] || !speed) return null
     // Within SLIDER_REACH of the first click either way (Entscheidung 313):
     // shift 0 is where track 1 was clicked.
-    const whole = computeShiftBounds({ picks, speed, mids: solvedMids })
+    const whole = computeShiftBounds({ picks, speed, mids: solvedMids, seed, around: adoptAt })
     // Where the connection stands nowhere near the click, the whole range.
+    // An adopted answer keeps its whole stretch: it may stand far from the click.
     const near = { min: Math.max(whole.min, -SLIDER_REACH), max: Math.min(whole.max, SLIDER_REACH) }
-    const bounds = near.max >= near.min ? near : whole
+    const bounds = adoptAt == null && near.max >= near.min ? near : whole
     const track1 = loadTracks().find(tr => tr.id === picks[0].trackId)
     const elStart = track1 ? elementStations(track1)[picks[0].elIdx]?.start ?? 0 : 0
     const dir1 = stems(picks).g1.dir ?? 1
     return {
       bounds,
-      snaps: shiftSnaps({ picks, speed, mids: solvedMids }, bounds),
-      preferred: preferredShift({ picks, speed, mids: solvedMids }, bounds),
+      snaps: shiftSnaps({ picks, speed, mids: solvedMids, seed }, bounds),
+      preferred: preferredShift({ picks, speed, mids: solvedMids, seed }, bounds),
       offset: waOffset(picks),
       toStation: (sh) => elStart + picks[0].along + dir1 * sh,
       toShift: (st) => (st - elStart - picks[0].along) * dir1,
     }
-  }, [phase, picks, speed, solvedMids])
+  }, [phase, picks, speed, solvedMids, seed, adoptAt])
 
   // The shift asked for, held inside the range the connection stands over.
   const shift = slider
@@ -187,8 +194,8 @@ export default function SCurveForm({ onCommitted }) {
   const connections = useMemo(() => {
     if (!picks[0] || !picks[1]) return []
     const { g1, g2 } = stems(picks)
-    return computeSwitchConnections(g1, g2, shift, solvedMids)
-  }, [picks, shift, solvedMids])
+    return computeSwitchConnections(g1, g2, shift, solvedMids, seed)
+  }, [picks, shift, solvedMids, seed])
 
   // ── The connection itself ─────────────────────────────────────────────────
   // Closed-form and pure, so it is derived from the picks, the speed and the
@@ -197,9 +204,9 @@ export default function SCurveForm({ onCommitted }) {
   // element's node (settleConnection, LP.EL.01).
   const settled = useMemo(() => (
     phase === 'config' && picks[0] && picks[1] && speed
-      ? settleConnection({ picks, speed, shift, mids: solvedMids })
+      ? settleConnection({ picks, speed, shift, mids: solvedMids, seed })
       : null
-  ), [phase, picks, speed, shift, solvedMids])
+  ), [phase, picks, speed, shift, solvedMids, seed])
   const result = settled?.result ?? null
 
   // ── Preview (the map is the only thing outside React here) ────────────────
@@ -214,6 +221,22 @@ export default function SCurveForm({ onCommitted }) {
 
   const handleSpeedChange = (i) => {
     setSpeedIdx(i)
+    setSeed(null)
+    setAdoptAt(null)
+  }
+  // The middle elements as the user types them: an adopted answer's seed and
+  // stretch no longer apply.
+  const changeMids = (next) => {
+    setMids(next)
+    setSeed(null)
+    setAdoptAt(null)
+  }
+  const adoptSolution = ({ shift: s, mids: m, seed: sd }) => {
+    setCarveError(null)
+    setMids(m)
+    setSeed(sd)
+    setAdoptAt(s)
+    setShift(s)
   }
 
   const reset = () => {
@@ -224,6 +247,8 @@ export default function SCurveForm({ onCommitted }) {
     setPickStatus(null)
     setCarveError(null)
     setMids(DEFAULT_MIDS)
+    setSeed(null)
+    setAdoptAt(null)
   }
   const handleCancel = () => { reset(); onCommitted?.() }
 
@@ -259,9 +284,12 @@ export default function SCurveForm({ onCommitted }) {
           <div className="form-field">
             <label>{t('field_speed')}</label>
             <select value={speedIdx} onChange={e => { setCarveError(null); handleSpeedChange(Number(e.target.value)) }}>
+              {/* A speed without a connection where the slider stands stays
+                  selectable: the reason shows, and the Python solver may still
+                  find one (Entscheidung 357). */}
               {CONNECTION_SPEEDS.map((sp, i) => (
-                <option key={sp} value={i} disabled={connections[i] && !connections[i].valid}>
-                  {sp} km/h
+                <option key={sp} value={i}>
+                  {connections[i] && !connections[i].valid ? fill('scurve_speed_none_here', { v: String(sp) }) : `${sp} km/h`}
                 </option>
               ))}
             </select>
@@ -285,7 +313,7 @@ export default function SCurveForm({ onCommitted }) {
             )
           })()}
 
-          <MidChainFields mids={mids} onChange={(next) => { setCarveError(null); setMids(next) }}
+          <MidChainFields mids={mids} onChange={(next) => { setCarveError(null); changeMids(next) }}
             solved={result?.midPieces?.map(p => p.route)
               ?? (result?.valid ? [{ length: result.Lg, r1: result.signedRg, r2: result.signedRg }] : null)} />
 
@@ -335,6 +363,9 @@ export default function SCurveForm({ onCommitted }) {
             {fill('scurve_mid_jump_hint', { at: jointText(h.index), rw: h.rw.toFixed(0), reg: h.reg.toFixed(0) })}
           </p>
         ))}
+        {slider && !result?.valid && !(slider.bounds.max > slider.bounds.min) && (
+          <CrossoverSolver picks={picks} speed={speed} stationOf={slider.toStation} onAdopt={adoptSolution} />
+        )}
         {settled?.moved.length > 0 && (
           <p className="msg-hint">
             {fill('scurve_min_element_moved', { tracks: settled.moved.map(k => picks[k]?.name ?? '').join(', ') })}

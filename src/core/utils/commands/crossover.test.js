@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { adoptCrossover, crossoverRequest } from './crossover'
 import { computeShiftBounds, solveConnection } from './sCurve'
 import { minElementLength } from '../rules/elementLength'
+import { checkTrack } from '../rules/trassierungCheck'
+import { buildConnectionElements } from '../switch/switchConnectionUtils'
 
 const EPSG = 25832
 const P = (e, n) => ({ easting: e, northing: n, zone: EPSG })
@@ -63,7 +65,22 @@ describe('the Python solver of a switch connection (Entscheidungen 357–358)', 
     const res = solveConnection({ picks, speed: SPEED, shift: adopted.shift, mids: adopted.mids, seed: adopted.seed })
     expect(res.valid).toBe(true)
     expect(res.s2).toBeCloseTo(ANSWER.s2, 2)
-    expect(res.midPieces[1].route.length).toBeCloseTo(ANSWER.pieces[1].length, 2)
+    expect(res.midPieces[1].route.length).toBeCloseTo(ANSWER.pieces[1].length, 1)
+    // A given value reads as one would type it.
+    for (const m of adopted.mids) {
+      if (m.length != null) expect(m.length).toBe(Number(m.length.toFixed(3)))
+      if (m.radius != null) expect(m.radius).toBe(Number(m.radius.toFixed(1)))
+    }
+  })
+
+  it('builds a track the rule check finds no error of length or jump in', () => {
+    const adopted = adoptCrossover({ picks, speed: SPEED, solution: ANSWER })
+    const res = solveConnection({ picks, speed: SPEED, shift: adopted.shift, mids: adopted.mids, seed: adopted.seed })
+    const { branch1, midEls, branch2 } = buildConnectionElements(res, SPEED)
+    const out = checkTrack([...branch1, ...midEls, ...branch2])
+    const errors = [...out.elements, ...out.boundaries].flatMap(e => e.results ?? [])
+      .filter(r => r.severity === 'error' && ['LP.EL.01', 'LP.KS.01'].includes(r.id))
+    expect(errors).toEqual([])
   })
 
   it('gives the slider the stretch around the adopted shift', () => {

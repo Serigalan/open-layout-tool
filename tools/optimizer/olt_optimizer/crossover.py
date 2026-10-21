@@ -69,9 +69,12 @@ K_MAX = 1 / 50.0
 # How close a solution has to close [m, rad] — the app closes it to 1e-8 m again.
 CLOSE_POS = 1e-4
 CLOSE_ANGLE = 1e-6
-# Margins kept inside the limits, so the app's own rounding stays on the right side.
+# Margins kept inside the limits, so the app's own rounding — and the values
+# it rounds when it adopts an answer — stay on the right side.
 CANT_DEF_MARGIN = 0.5
 CANT_TOL_MARGIN = 0.05
+LENGTH_MARGIN = 0.01        # [m] above l_min
+RW_MARGIN = 1e-3            # relative, above the Ermessensgrenze
 # The middle elements together at most this long [m]: past it a connection is
 # a stretch of new line, not a crossover (Entscheidung 357).
 MAX_LENGTH = 200.0
@@ -193,7 +196,7 @@ class Problem:
         self.l_min = float(limits.get("lMin") or 0.0)
         reg, disc = limits.get("rwReg"), limits.get("rwDiscretion")
         self.k_reg = 1.0 / float(reg) if reg else None
-        self.k_disc = 1.0 / float(disc) if disc else None
+        self.k_disc = 1.0 / (float(disc) * (1.0 + RW_MARGIN)) if disc else None
         self.max_def = float(limits.get("maxCantDef") or 0.0)
         self.def_coeff = float(limits.get("cantDefCoeff") or 11.8)
         self.cant_tol = float(limits.get("cantTol") or 1.0)
@@ -253,7 +256,7 @@ class Problem:
         b1, b2, pieces, _ = state or self.state(tpl, z)
         g, w = [], []
         if self.l_min > 0:
-            g += [run - self.l_min for run in self.runs(tpl, b1, b2, pieces)]
+            g += [run - self.l_min - LENGTH_MARGIN for run in self.runs(tpl, b1, b2, pieces)]
             w += [1.0] * len(pieces)
         if self.k_disc is not None:
             for dk in self.joints(tpl, b1, b2, pieces):

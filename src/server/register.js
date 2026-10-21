@@ -2,7 +2,7 @@ import { extend, provide } from '../core/extensions'
 import {
   ReconnectIcon, OptimizeTrackModeIcon, OptimizeElementModeIcon, AxisFitModeIcon,
 } from '../core/components/icons'
-import { fetchRegelwerk, fetchRegelwerke, spliceOnServer } from './optimizerService'
+import { crossoverOnServer, fetchRegelwerk, fetchRegelwerke, spliceOnServer } from './optimizerService'
 import ServiceStatus from './ServiceStatus'
 import { dgm1Source } from './terrainDgm1'
 import { serverClouds } from './cloudsOnServer'
@@ -29,6 +29,9 @@ import {
 // splice held to a spacing to another track, which the service computes (decision 295).
 provide('spliceWithClearance', spliceOnServer)
 extend('panelTools', { panel: 'splice', id: 'reconnect', icon: ReconnectIcon, titleKey: 'reconnect_title', Component: ReconnectTool })
+
+// A switch connection the slider finds none for, searched by the service (Entscheidung 357).
+provide('crossoverSolver', crossoverOnServer)
 
 // The optimizer and the alignment fit in the check panel.
 extend('panelTools', { panel: 'check', id: 'track', section: 'check_optimize', icon: OptimizeTrackModeIcon, titleKey: 'optimize_mode_track', Component: OptimizeTrackTool })

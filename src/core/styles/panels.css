@@ -1087,6 +1087,16 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 .mid-chain-solved { margin: 2px 0 4px; }
 .mid-chain-add { margin: 6px 0 2px; }
 
+/* Switch connection: the Python solver's answers (Entscheidung 357). */
+.crossover-solver { margin: 8px 0; }
+.crossover-solutions { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.crossover-solution {
+  display: flex; gap: 8px; align-items: center; justify-content: space-between;
+  border: 1px solid var(--color-border); border-radius: 4px; padding: 6px 8px;
+}
+.crossover-solution-text { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); min-width: 0; }
+.crossover-solution-text strong { font-weight: 600; overflow-wrap: anywhere; }
+
 /* Position slider of the switch dialogs (Entscheidungen 309–311). */
 .station-slider-track { position: relative; margin-top: 6px; padding: 0 8px; }
 .station-slider-track input[type=range] { width: 100%; box-sizing: border-box; margin: 0; display: block; }
