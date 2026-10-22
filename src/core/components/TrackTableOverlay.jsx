@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
-import { useTracks, useProject } from '../hooks/useStore'
-import { elementRoles, planElementChange, planIntermediateChange, mergeElementEdits, withRole } from '../utils/commands'
-import { elementStations, mergeChain, rebuildCoords } from '../utils/track'
+import { useTracks, useProject, useRoutes } from '../hooks/useStore'
+import {
+  planElementChange, planIntermediateChange, mergeElementEdits, withRole, inRun, rowOf, tableParts, tableRoles,
+  tableRows, trackEdit, writeRows,
+} from '../utils/commands'
+import { mergeChain, rebuildCoords } from '../utils/track'
 import { withCantEdit } from '../utils/geometry'
 import { coupleSwitchCants } from '../utils/switch'
 import { boundaryScope, cantLimit, checkTrack, clampCant, maxSpeeds, ruleMaxSpeedsOf } from '../utils/rules'
@@ -13,12 +16,16 @@ import useMapPick from '../map/useMapPick'
 import TrackTableRow from './trackTable/TrackTableRow'
 import { ruleGroups } from './trackTable/rowText'
 import { useOverlayHeight } from './chart/useChartViewport'
+import { useI18n } from '../locales/i18nContext'
 import { TrackTableBar, TrackTableHead } from './trackTable/TrackTableHeader'
 
 // Fields that reshape the element geometry (and the downstream chain).
 const GEOM_KEYS = new Set(['length', 'bearing', 'radius'])
 // The cant of an element: one, or one at each end (Entscheidung 373).
 const CANT_KEYS = new Set(['cant', 'cantStart', 'cantEnd'])
+
+// The table's columns — a route's track heading spans all of them.
+const TABLE_COLUMNS = 17
 
 // Line speed the table starts with — clearing the field lifts it again.
 const DEFAULT_SPEED_CAP = 160
@@ -51,9 +58,15 @@ function withStandingReasons(tracks, ids) {
  * components, the speed rules live in utils/rules/speed). It edits a working
  * copy of every track — a geometry edit reaches the tracks connected behind
  * the element — and writes it back on Save.
+ *
+ * Or of a route (`routeId`, Entscheidung 381): its tracks one after the other
+ * in its direction, a track it runs against turned round (commands/tableView).
+ * Each row is one element of one track, and what is typed there goes onto
+ * that element, turned back into its track's direction.
  */
 export default function TrackTableOverlay({
-  track, initialRow, onPickTrack, onDirtyChange, onClose}) {
+  track, routeId = null, initialRow, onPickTrack, onDirtyChange, onClose}) {
+  const { fill } = useI18n()
   const map = useMap()
   const project = useProject()
   // Keep the full track set as working state — a geometry edit propagates to
@@ -92,7 +105,9 @@ export default function TrackTableOverlay({
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
-  const [draftTrackId, setDraftTrackId] = useState(track.id)
+  // What the table shows: a track, or a route by its id.
+  const viewKey = routeId ? `route:${routeId}` : track?.id
+  const [draftTrackId, setDraftTrackId] = useState(viewKey)
   // The row a click on the map asked for. Which track the table shows is App's
   // to decide, so a click on another one leaves through onPickTrack and comes
   // back as a new `track` prop — the row it meant waits here for it.
@@ -129,12 +144,24 @@ export default function TrackTableOverlay({
     setNotice(dirty ? 'table_edits_dropped' : null)
   }
 
-  if (draftTrackId !== track.id) {
-    setDraftTrackId(track.id)
+  if (draftTrackId !== viewKey) {
+    setDraftTrackId(viewKey)
     setActiveRow(pendingRow ?? 0)
     setPendingRow(null)
     setReachError(null)
   }
+
+  // The rows: the elements of the track, or of the route's tracks in its
+  // direction — each row the track element it stands for (`rows`), the
+  // stations along the view from 0. From the working copy, so they follow an
+  // unsaved length straight away.
+  const routes = useRoutes()
+  const route = routeId ? routes.find(r => r.id === routeId) ?? null : null
+  const { parts, gaps } = tableParts({ trackId: track?.id, route }, tracks, loadSwitches())
+  const { elements, rows, stations, length: viewLength } = tableRows(parts, tracks)
+  const activeTrackId = rows[activeRow]?.trackId ?? null
+  const activeIndex = rows[activeRow]?.index ?? null
+  const viewTrackIds = parts.map(p => p.trackId)
 
   // Draw the active row's element in red on the map — the tracks-selected-layer
   // is the app's own selection highlight, the same one the edit forms drive.
@@ -142,9 +169,9 @@ export default function TrackTableOverlay({
   useEffect(() => {
     const m = map?.current
     if (!m?.getLayer(TRACKS_SELECTED_LAYER)) return
-    m.setFilter(TRACKS_SELECTED_LAYER, activeRow == null ? FILTER_NONE : filterForElement(track.id, activeRow))
+    m.setFilter(TRACKS_SELECTED_LAYER, activeTrackId == null ? FILTER_NONE : filterForElement(activeTrackId, activeIndex))
     return () => { if (mapIsLive(map, m) && m.getLayer(TRACKS_SELECTED_LAYER)) m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE) }
-  }, [map, track.id, activeRow])
+  }, [map, activeTrackId, activeIndex])
 
   // …and frame it. The geometry comes from the store, not from the working copy:
   // the store is what the map draws, so the viewport matches the red line even
@@ -158,7 +185,7 @@ export default function TrackTableOverlay({
     const picked = pickedOnMap.current
     pickedOnMap.current = null
     if (picked === activeRow) return
-    const el = loadTracks().find(tr => tr.id === track.id)?.elements?.[activeRow]
+    const el = loadTracks().find(tr => tr.id === activeTrackId)?.elements?.[activeIndex]
     const coords = el?.geometry?.coordinates
     if (!coords?.length) return
 
@@ -178,7 +205,7 @@ export default function TrackTableOverlay({
       maxZoom: 18,
       duration: 400,
     })
-  }, [map, project.id, track.id, activeRow])
+  }, [map, project.id, viewKey, activeRow, activeTrackId, activeIndex])
 
   // The row a click on the map picked, scrolled to the middle of what the
   // overlay shows below its column heads — the header stays where it is.
@@ -187,26 +214,28 @@ export default function TrackTableOverlay({
     const want = centreRow.current
     if (!box || want == null || want !== activeRow) return
     centreRow.current = null
-    const row = box.querySelectorAll('tbody tr')[want]
+    const row = box.querySelector(`tbody tr[data-row="${want}"]`)
     if (!row) return
     const head = box.querySelector('thead')?.offsetHeight ?? 0
     const view = box.getBoundingClientRect()
     const at = row.getBoundingClientRect()
     const top = box.scrollTop + (at.top - view.top) - head - (view.height - head - at.height) / 2
     box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
-  }, [activeRow, track.id, centreAsked])
+  }, [activeRow, viewKey, centreAsked])
 
   // While the table is up it takes the clicks on the map itself, because it is
   // the one that can tell a row from a track: a click on the track it shows
   // activates that element's row, a click on another one hands that track back
   // to App, which swaps the table over to it — carrying the row that was meant.
+  // A route's table counts every one of its tracks as its own.
   // The hover layer is left alone here; App draws the whole open track on it.
-  useMapPick({ prefer: track.id, onPick: ({ trackId, elementIndex }) => {
-    if (trackId === track.id) {
-      pickedOnMap.current = elementIndex
-      centreRow.current = elementIndex
+  useMapPick({ prefer: activeTrackId ?? viewTrackIds[0], onPick: ({ trackId, elementIndex }) => {
+    const row = rowOf(rows, trackId, elementIndex)
+    if (row >= 0) {
+      pickedOnMap.current = row
+      centreRow.current = row
       setCentreAsked(n => n + 1)
-      setActiveRow(elementIndex)
+      setActiveRow(row)
       return
     }
     const picked = loadTracks().find(tr => tr.id === trackId)
@@ -218,9 +247,6 @@ export default function TrackTableOverlay({
     onPickTrack(picked)
   } })
 
-  const current  = tracks.find(tr => tr.id === track.id) ?? track
-  const elements = current.elements ?? []
-
   // What the rule catalogue says about this chain (AP R.7). It belongs here of
   // all places: this table is where the speed, the cant and the radius a rule
   // reads are typed, so the verdict lands in the same row as its cause —
@@ -231,17 +257,13 @@ export default function TrackTableOverlay({
   // The highest speed the rules let each element carry, worked out once per chain.
   const vmaxes = ruleMaxSpeedsOf(elements)
   // What may be typed where: Fest-, Folge- and Zwischenelement (Entscheidung 375).
-  const roles = elementRoles(elements)
-  // Where each element starts along the track, and how long the whole of it is
-  // — from the working copy, so both follow an unsaved length straight away.
-  const stations = elementStations(current)
+  const roles = tableRoles(rows, tracks)
   // The joint each element starts with: its comparison radius r_w (LP.UB.01)
   // and the boundary rules' verdict there, where they judged it.
   const boundaryAt = new Map(check.boundaries.map(b => [b.index, b]))
   const jointAt = (i) => (i > 0
     ? { rw: boundaryScope(elements, i - 1)['physics.r_w'], ...(boundaryAt.get(i - 1) ?? {}) }
     : null)
-  const trackLength = stations.length ? stations[stations.length - 1].end : 0
 
   // Every switch of the project by its id: an element of a switch route is
   // named by the record, which is where the kind and the form it was built from
@@ -253,12 +275,23 @@ export default function TrackTableOverlay({
   // recomputes coordinates/nodes/end bearing and re-chains); speed/cant are plain
   // metadata written straight onto the element. Values the geometry cannot carry
   // (length ≤ 0, radius 0 = infinite curvature) are rejected rather than stored.
+  //
+  // Every edit lands on the track element the row stands for (`at`): in a
+  // route's track it runs against, a cant turned back into the track's
+  // direction (trackEdit), a geometry edit and a role worked out on the track
+  // turned round (inRun), so that what follows is what follows along the route.
   function commit(row, key, raw) {
     const isEmpty = raw === '' || raw == null
+    const at = rows[row]
+    if (!at) return
+    const own = (k, v) => trackEdit(at, k, v)
     if (key === 'role') {
-      const { elements: next, error } = withRole(elements, row, raw)
-      setReachError(error)
-      if (!error) editElements(() => next)
+      const out = inRun(at, tracks, [], (ts, _sw, index) => {
+        const { elements: next, error } = withRole(ts.find(tr => tr.id === at.trackId)?.elements ?? [], index, raw)
+        return { error, tracks: error ? ts : ts.map(tr => (tr.id === at.trackId ? { ...tr, elements: next } : tr)) }
+      })
+      setReachError(out.error)
+      if (!out.error) editTrack(at.trackId, () => out.tracks.find(tr => tr.id === at.trackId).elements)
       return
     }
     if (GEOM_KEYS.has(key)) {
@@ -280,9 +313,9 @@ export default function TrackTableOverlay({
       // first, and a change that reaches too far is refused rather than written
       // (AP 5.1). The cell falls back to the stored value on its own, since the
       // tracks it reads from are the ones that did not change.
-      const plan = role.role === 'intermediate'
-        ? planIntermediateChange(tracks, track.id, row, value)
-        : planElementChange(tracks, loadSwitches(), track.id, row, { [key]: value })
+      const plan = inRun(at, tracks, loadSwitches(), (ts, sws, index) => (role.role === 'intermediate'
+        ? planIntermediateChange(ts, at.trackId, index, value)
+        : planElementChange(ts, sws, at.trackId, index, { [key]: value })))
       if (plan.error) { setReachError(plan.error); return }
       setReachError(null)
       setNotice(null)
@@ -297,8 +330,8 @@ export default function TrackTableOverlay({
       // A Hinweis stands once its reason is written (Entscheidung 374); an
       // emptied reason is gone, and with the last one the field.
       const { id, text } = raw
-      editElements(els => els.map((el, idx) => {
-        if (idx !== row) return el
+      editTrack(at.trackId, els => els.map((el, idx) => {
+        if (idx !== at.index) return el
         const { [id]: _old, ...others } = el.reasons ?? {}
         const reasons = text ? { ...others, [id]: text } : others
         const { reasons: _r, ...rest } = el
@@ -308,7 +341,7 @@ export default function TrackTableOverlay({
       // The justification is a free text, and the text *is* the exception:
       // emptying the field takes the limit straight back to 100 mm, and the cant
       // that stands there is then marked as over it rather than quietly trimmed.
-      setMeta(row, key, isEmpty ? undefined : String(raw).trim() || undefined)
+      setMeta(at, key, isEmpty ? undefined : String(raw).trim() || undefined)
     } else if (CANT_KEYS.has(key)) {
       // No cant typed is no cant (Entscheidung 373), and what an end now has
       // the element beyond the joint takes too — the cant stays continuous.
@@ -317,7 +350,9 @@ export default function TrackTableOverlay({
       // …and so does the other route of a turnout it lies in, with the tracks
       // that run on from there (Entscheidung 376) — in the working copy, so
       // the table shows it and Save writes it.
-      const edited = tracks.map(tr => (tr.id !== track.id ? tr : { ...tr, elements: withCantEdit(tr.elements ?? [], row, key, value) }))
+      const typed = own(key, value)
+      const edited = tracks.map(tr => (tr.id !== at.trackId ? tr
+        : { ...tr, elements: withCantEdit(tr.elements ?? [], at.index, typed.key, typed.value) }))
       const coupled = coupleSwitchCants(tracks, edited, loadSwitches())
       setNotice(null)
       setChanged(prev => [...new Set([...prev, ...coupled.filter((tr, k) => tr !== tracks[k]).map(tr => tr.id)])])
@@ -325,20 +360,20 @@ export default function TrackTableOverlay({
     } else {
       const value = isEmpty ? undefined : clampMeta(key, Number(raw), elements[row])
       if (value != null && !Number.isFinite(value)) return
-      setMeta(row, key, value)
+      setMeta(at, key, value)
     }
   }
 
-  // The edited track's elements replaced by what `change` makes of them.
-  function editElements(change) {
+  // One track's elements replaced by what `change` makes of them.
+  function editTrack(trackId, change) {
     setNotice(null)
-    setChanged(prev => (prev.includes(track.id) ? prev : [...prev, track.id]))
-    setTracks(prev => prev.map(tr => tr.id !== track.id ? tr : { ...tr, elements: change(tr.elements ?? []) }))
+    setChanged(prev => (prev.includes(trackId) ? prev : [...prev, trackId]))
+    setTracks(prev => prev.map(tr => tr.id !== trackId ? tr : { ...tr, elements: change(tr.elements ?? []) }))
   }
 
-  // Write one metadata field onto one element of the edited track.
-  function setMeta(row, key, value) {
-    editElements(els => els.map((el, idx) => idx === row ? { ...el, [key]: value } : el))
+  // Write one metadata field onto the track element a row stands for.
+  function setMeta(at, key, value) {
+    editTrack(at.trackId, els => els.map((el, idx) => idx === at.index ? { ...el, [key]: value } : el))
   }
 
   // Speed and cant follow the same bounds the create/connect forms enforce: no
@@ -360,24 +395,47 @@ export default function TrackTableOverlay({
 
   // Speed column filled with the highest value the geometry allows. Only the
   // metadata changes, so the element chain stands as it is; Save persists it.
+  // Over the whole view: a route's joints between its tracks count too.
   function handleMaxSpeeds() {
-    editElements(els => maxSpeeds(els, capValue))
+    const next = writeRows(tracks, rows, maxSpeeds(elements, capValue))
+    const ids = next.filter((tr, k) => tr !== tracks[k]).map(tr => tr.id)
+    setNotice(null)
+    if (!ids.length) return
+    setChanged(prev => [...new Set([...prev, ...ids])])
+    setTracks(next)
   }
 
   // Consecutive elements alike in type, radius and cant become one element
-  // (Entscheidung 378) — speed, role and reasons are the first's. Only the
-  // track on screen, and nothing moves: the merged element runs node to node
-  // over the ones it replaces. Save writes it.
+  // (Entscheidung 378) — speed, role and reasons are the first's. Each track
+  // on screen on its own (a route's tracks stay apart), and nothing moves: the
+  // merged element runs node to node over the ones it replaces. Save writes it.
   function handleMerge() {
-    const merged = mergeChain(elements, current.epsg, { equal: true })
     setReachError(null)
-    if (!merged.mergedFrom) { setNotice('table_merge_none'); return }
-    setChanged(prev => (prev.includes(track.id) ? prev : [...prev, track.id]))
-    setTracks(prev => prev.map(tr => (tr.id !== track.id ? tr
-      : { ...tr, elements: merged.elements, coordinates: rebuildCoords(merged.elements) })))
-    setActiveRow(row => (row == null ? row : Math.min(row, merged.elements.length - 1)))
-    setNotice({ key: 'table_merge_done', vars: { from: String(merged.mergedFrom), into: String(merged.mergedInto) } })
+    let from = 0, into = 0
+    const merged = new Map()
+    for (const id of new Set(viewTrackIds)) {
+      const tr = tracks.find(t => t.id === id)
+      const m = tr && mergeChain(tr.elements ?? [], tr.epsg, { equal: true })
+      if (!m?.mergedFrom) continue
+      from += m.mergedFrom
+      into += m.mergedInto
+      merged.set(id, m.elements)
+    }
+    if (!from) { setNotice('table_merge_none'); return }
+    setChanged(prev => [...new Set([...prev, ...merged.keys()])])
+    setTracks(prev => prev.map(tr => (!merged.has(tr.id) ? tr
+      : { ...tr, elements: merged.get(tr.id), coordinates: rebuildCoords(merged.get(tr.id)) })))
+    setActiveRow(row => (row == null ? row : Math.min(row, rows.length - 1 - (from - into))))
+    setNotice({ key: 'table_merge_done', vars: { from: String(from), into: String(into) } })
   }
+
+  const trackName = (id) => {
+    const tr = tracks.find(t => t.id === id)
+    return tr?.name || id.slice(0, 8)
+  }
+  const title = route
+    ? (gaps.length ? fill('table_route_title_gaps', { name: route.name, n: String(gaps.length) }) : route.name)
+    : trackName(track.id)
 
   function handleSave() {
     if (!dirty) return
@@ -401,7 +459,7 @@ export default function TrackTableOverlay({
   return (
     <div className="track-table-overlay" style={overlay.style}>
       <div className="profile-resize" onPointerDown={overlay.onResizeStart} />
-      <TrackTableBar title={current.name || current.id.slice(0, 8)} length={trackLength}
+      <TrackTableBar title={title} length={viewLength}
         cap={cap} onCap={setCap} onMaxSpeeds={handleMaxSpeeds} onMerge={handleMerge}
         reachError={reachError} notice={notice} reached={reached}
         dirty={dirty} changed={changed.length} onSave={handleSave} onClose={onClose} />
@@ -410,12 +468,22 @@ export default function TrackTableOverlay({
           <TrackTableHead />
           {/* Keyed by the track, so a half-typed cell of the previous one does
               not carry over into the same row of the next. */}
-          <tbody key={track.id}>
+          <tbody key={viewKey}>
             {elements.map((el, i) => (
-              <TrackTableRow key={i} elements={elements} i={i} sw={switchById.get(el.switchId)}
-                station={stations[i]?.start} rules={check.perElement[i]} joint={jointAt(i)} vmax={vmaxes[i]} role={roles[i]} epsg={current.epsg}
-                active={i === activeRow} onActivate={() => setActiveRow(i)}
-                onEdit={(key, raw) => commit(i, key, raw)} />
+              <Fragment key={i}>
+                {/* A route names each of its tracks above its first row. */}
+                {route && rows[i].trackId !== rows[i - 1]?.trackId && (
+                  <tr className="track-table-part">
+                    <td colSpan={TABLE_COLUMNS}>
+                      {fill(rows[i].reversed ? 'table_route_part_reversed' : 'table_route_part', { name: trackName(rows[i].trackId) })}
+                    </td>
+                  </tr>
+                )}
+                <TrackTableRow elements={elements} i={i} sw={switchById.get(el.switchId)}
+                  station={stations[i]?.start} rules={check.perElement[i]} joint={jointAt(i)} vmax={vmaxes[i]} role={roles[i]} epsg={rows[i].epsg}
+                  active={i === activeRow} onActivate={() => setActiveRow(i)}
+                  onEdit={(key, raw) => commit(i, key, raw)} />
+              </Fragment>
             ))}
           </tbody>
         </table>

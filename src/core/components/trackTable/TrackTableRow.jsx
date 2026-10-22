@@ -46,7 +46,7 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
   return (
     // Clicking anywhere in the row activates it; onFocus covers tabbing into
     // one of its cells (React focus events bubble).
-    <tr className={active ? 'track-table-row-active' : undefined} onClick={onActivate} onFocus={onActivate}>
+    <tr data-row={i} className={active ? 'track-table-row-active' : undefined} onClick={onActivate} onFocus={onActivate}>
       <td>{i + 1}</td>
       <RuleCell index={i} entry={rules} el={el}
         onReason={(id, text) => onEdit('reason', { id, text })} onCantException={edit('cantException')} />

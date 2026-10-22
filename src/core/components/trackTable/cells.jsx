@@ -52,7 +52,11 @@ export function EditCell({
   value, onCommit, disabled = false, step, type = 'number', wide = false, className = '', placeholder, digits = null,
 }) {
   const { language } = useI18n()
+  // What is typed — only once something is: a cell that merely has the focus
+  // shows the value as it stands, so a change that reaches it from another
+  // row (a cant carried over a joint) is not written back over on blur.
   const [draft, setDraft] = useState(null)
+  const [focused, setFocused] = useState(false)
   const droppedRef = useRef(false)   // Escape took the typing back: the blur commits nothing
   // Numbers as the interface language writes them, typed with comma or point (R10.8).
   const numeric = type === 'number'
@@ -63,13 +67,14 @@ export function EditCell({
     <input className={inputClass(wide, className)} type={numeric ? 'text' : type} inputMode={numeric ? 'decimal' : undefined}
       disabled={disabled} data-step={step}
       placeholder={placeholder}
-      value={draft ?? shown}
-      onFocus={() => setDraft(full)}
+      value={draft ?? (focused ? full : shown)}
+      onFocus={() => setFocused(true)}
       onChange={e => setDraft(e.target.value)}
       onBlur={() => {
         if (!droppedRef.current && draft != null && draft !== full) onCommit(numeric ? parseNumText(draft) : draft)
         droppedRef.current = false
         setDraft(null)
+        setFocused(false)
       }}
       onKeyDown={e => {
         // Escape takes the typing back, and only that (R10.2).

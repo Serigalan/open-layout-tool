@@ -189,6 +189,8 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
     showTrackTable: (track, row) => (track
       ? openOverlay({ kind: 'trackTable', track, initialRow: row ?? null })
       : closeOverlay('trackTable')),
+    // …or a route's (Entscheidung 381): its tracks one after the other.
+    showRouteTable: (routeId) => openOverlay({ kind: 'trackTable', track: null, routeId, initialRow: null }),
     setCompare,
     color, setColor,
     settingsPage, setSettingsPage,
@@ -276,12 +278,16 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
     }
   }, [language, map])
 
-  // The track the element table shows is outlined on the map.
-  const tableTrackId = overlay?.kind === 'trackTable' ? overlay.track.id : null
+  // The track the element table shows is outlined on the map — a route's, all of them.
+  const tableRoute = overlay?.kind === 'trackTable' && overlay.routeId
+    ? (project?.routes ?? []).find(r => r.id === overlay.routeId) : null
+  const tableTrackIds = overlay?.kind !== 'trackTable' ? ''
+    : (tableRoute?.trackIds ?? (overlay.track ? [overlay.track.id] : [])).join('|')
   useEffect(() => {
     if (!map.current?.getLayer(TRACKS_HOVER_LAYER)) return
-    map.current.setFilter(TRACKS_HOVER_LAYER, tableTrackId ? ['==', ['get', 'trackId'], tableTrackId] : FILTER_NONE)
-  }, [tableTrackId, map])
+    const ids = tableTrackIds ? tableTrackIds.split('|') : []
+    map.current.setFilter(TRACKS_HOVER_LAYER, ids.length ? ['in', ['get', 'trackId'], ['literal', ids]] : FILTER_NONE)
+  }, [tableTrackIds, map])
 
   // Ctrl+Z outside a field takes the last project step back.
   useEffect(() => {
@@ -350,7 +356,7 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
           <MapLegend color={color} />
 
           <Suspense fallback={null}>
-          {overlay?.kind === 'trackTable' && <TrackTableOverlay track={overlay.track}
+          {overlay?.kind === 'trackTable' && <TrackTableOverlay track={overlay.track} routeId={overlay.routeId ?? null}
             initialRow={overlay.initialRow} onPickTrack={(track) => openOverlay({ kind: 'trackTable', track, initialRow: null })}
             onDirtyChange={setTableDirty} onClose={() => closeOverlay('trackTable')} />}
           {overlay?.kind === 'profile' && <ElevationOverlay trackId={overlay.trackId} routeId={overlay.routeId ?? null}

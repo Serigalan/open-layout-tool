@@ -91,6 +91,17 @@
   font-weight: 600;
 }
 
+/* A route's table names each of its tracks above its first row. */
+.track-table tbody tr.track-table-part td {
+  background: var(--color-surface-alt);
+  color: var(--color-text-soft);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  position: sticky;
+  left: 0;
+}
+
 .track-table-input {
   width: 80px;
   padding: 3px 6px;

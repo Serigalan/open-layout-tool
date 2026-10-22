@@ -103,7 +103,7 @@ removes it before effect cleanups run).
   under the locked button. Reasons that leave nothing to build (no solution, no room, overlapping
   branches, invalid input, a spacing or tolerance the user asked for) never offer it. What is committed
   this way stays a finding of the track check.
-- Overlays: `TrackTableOverlay` (element table with live rule column; edits a working copy of every track a
+- Overlays: `TrackTableOverlay` (element table of a track or a route — decision 381 — with live rule column; edits a working copy of every track a
   change reaches and writes it back on Save; the rule column's errors and Hinweise open a dialog,
   `trackTable/RuleCell`, the errors listed, each Hinweis with a field for its reason — `reasons`, and a
   turnout's `cantException` for LP.KB.05 —, green once all are written; reasons for findings that no longer

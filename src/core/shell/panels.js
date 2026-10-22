@@ -96,8 +96,10 @@ export const PANELS = [
     id: 'edit', group: 'edit', icon: EditElementIcon, titleKey: 'edit', place: 'top', Component: EditElementPanel,
     overlay: 'trackTable',
     props: (s) => ({
-      trackTableId: s.overlay?.kind === 'trackTable' ? s.overlay.track.id : undefined,
+      trackTableId: s.overlay?.kind === 'trackTable' ? s.overlay.track?.id : undefined,
+      trackTableRouteId: s.overlay?.kind === 'trackTable' ? s.overlay.routeId : undefined,
       onShowTrackTable: s.showTrackTable,
+      onShowRouteTable: s.showRouteTable,
       onCloseConstraints: s.closePopup,
     }),
   },

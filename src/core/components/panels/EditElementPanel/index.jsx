@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { loadTracks } from '../../../storage'
 import GroupedTrackList from '../GroupedTrackList'
+import RouteList from '../RouteList'
 import EditLengthForm from './EditLengthForm'
 import EditPropertiesForm from './EditPropertiesForm'
 import ChangeDirectionForm from './ChangeDirectionForm'
@@ -22,7 +23,7 @@ import useMapPick from '../../../map/useMapPick'
 import BackButton from '../BackButton'
 import InfoTip from '../../form/InfoTip'
 
-export default function EditElementPanel({ trackTableId, onShowTrackTable, onCloseConstraints }) {
+export default function EditElementPanel({ trackTableId, trackTableRouteId, onShowTrackTable, onShowRouteTable, onCloseConstraints }) {
   const { t } = useI18n()
   const [page, setPage] = useState('menu')
   const [crossover, setCrossover] = useState(null)   // switchIds of a connection just laid again in a cant
@@ -39,7 +40,7 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
   // one that would be. Once a table is open it takes the clicks itself — it can
   // tell one of its rows from another track, which this cannot, and two
   // handlers on one click would only fight over it.
-  useMapPick({ active: page === 'edit_tracks' && !trackTableId, hover: 'track', onPick: ({ trackId, elementIndex }) => {
+  useMapPick({ active: page === 'edit_tracks' && !trackTableId && !trackTableRouteId, hover: 'track', onPick: ({ trackId, elementIndex }) => {
     const picked = loadTracks().find(tr => tr.id === trackId)
     if (picked) onShowTrackTable?.(picked, elementIndex)
   } })
@@ -79,6 +80,8 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
         {backButton(() => onShowTrackTable?.(null))}
         <h2>{t('edit_element_edit_tracks')}</h2>
         <p>{t('edit_tracks_hint')}</p>
+        {/* A route's tracks in one table (Entscheidung 381). */}
+        <RouteList activeId={trackTableRouteId} onPick={(route) => onShowRouteTable?.(route.id)} />
         <GroupedTrackList tracks={tracks}
           isActive={(track) => track.id === trackTableId}
           onPick={(track) => onShowTrackTable?.(track)} />

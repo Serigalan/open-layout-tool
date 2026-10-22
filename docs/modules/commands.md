@@ -24,6 +24,7 @@ input, show previews and findings, and claim names and numbers.
 | `reconnect.js` | Reconnect existing elements (Neu verbinden) | The stretch between two clicks, the old axis every 1 cm, the request to the service and the track written back |
 | `editGeometry.js` | Track editor (element table) | Planning and applying length/bearing/radius changes and how far they reach; a Zwischenelement laid anew between its neighbours |
 | `elementRoles.js` | Track editor (element table) | Fest-, Folge- and Zwischenelement: the roles elements state and the ones that follow from them, what each lets be typed |
+| `tableView.js` | Track editor (element table) | The rows of a track or a route: a route's tracks in its direction, one it runs against turned round; each row's track element, values and edits turned back (`inRun`, `trackEdit`, `writeRows`) |
 | `optimizeApply.js` | Optimize track (server) | The optimizer request and the track a result makes, keeping the gradient |
 | `optimizeReport.js` | Optimize track (server) | The reason the optimizer gives for a changed row, as text |
 
@@ -96,6 +97,13 @@ tracks** — past that nobody can hold in their head what a typed number moves. 
 transition next to an arc follows the arc's new radius at its end, keeping its length, where it joined
 tangentially and outside turnouts. Length and radius are shown to 3 decimals and kept at full precision; only
 a real change is taken over. A kinked straight keeps its kink.
+
+**A route in the track editor** (`tableView.js`, decision 381): the table shows a route's tracks one after the
+other in the route's direction; a track it runs against is turned round (order, bearings, radius and cant signs,
+cant start/end). A cant, a speed or a reason goes onto the track element turned back; a length, a radius and a
+role are worked out on the track turned round and turned back (`inRun`, switch ports flipped with it), so a
+Folgeelement moves what follows along the route and the joint before it stays. V_max reads the whole route,
+including the joints between its tracks; merging alike elements stays within each track.
 
 **Delete elements** (done by the store itself, `storage.deleteElements`): any number of elements on several tracks in one step;
 what is left of a track falls apart into connected pieces (the first keeps the name); where the axis is cut,
