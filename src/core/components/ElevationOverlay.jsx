@@ -30,6 +30,7 @@ import CloseButton from './form/CloseButton'
 import InfoTip from './form/InfoTip'
 import NumberInput from './form/NumberInput'
 import ElevationTable from './ElevationTable'
+import ConfirmModal from './ConfirmModal'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
 const NO_POINTS = []
@@ -283,7 +284,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   // its free side (`freeKey`, 'ga' or 'gb' in the route's direction), the one
   // on the other (`fixedKey`) staying.
   const roles = new Map()
-  const RANK = { wa: 3, lds: 2, middle: 1, continuation: 0 }
+  const RANK = { locked: 4, wa: 3, lds: 2, middle: 1, continuation: 0 }
   const byTrack = heightRoles(project)
   for (const part of parts) {
     for (const [index, role] of byTrack.get(part.trackId) ?? []) {
@@ -293,10 +294,15 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       roles.set(i, { ...role, part, ...(role.kind === 'continuation' ? { freeKey: ahead ? 'ga' : 'gb', fixedKey: ahead ? 'gb' : 'ga' } : {}) })
     }
   }
-  // Shown only — height, station and the point itself.
+  // Shown only — height, station and the point itself. A point locked by
+  // hand (Entscheidung 382) is one too, but may still be deleted, after asking.
   const locked = new Map([...roles].filter(([, r]) => r.kind !== 'continuation'))
+  /** The role the coupling gives a point, under a lock where there is one. */
+  const coupled = (i) => (roles.get(i)?.kind === 'locked' ? roles.get(i).was : roles.get(i))
   /** Does the coupling hold the point's curve and reason as well (toe, ldS)? */
-  const curveHeld = (i) => ['wa', 'lds'].includes(roles.get(i)?.kind)
+  const curveHeld = (i) => ['wa', 'lds'].includes(coupled(i)?.kind)
+  /** Is the point locked by hand? */
+  const lockedByHand = (i) => roles.get(i)?.kind === 'locked'
   /** The track and its own station at a station of the route. */
   const onTrackAt = (s) => (resolved ? routeAt(resolved, s) : null)
   /** The height built at a station of the route — on a turnout's branch, the plane of the turnout. */
@@ -310,7 +316,10 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   }
   const swName = (sw) => sw.name ?? sw.label ?? ''
   const roleNote = (role) => (!role ? null
-    : role.kind === 'wa' ? fill('elevation_role_wa', { name: swName(role.sw) })
+    : role.kind === 'locked' ? [t('elevation_role_locked'), roleNote(role.was)].filter(Boolean).join('\n')
+      : role.frozen ? [coupledNote(role), fill('elevation_role_frozen', { name: swName(role.sw) })].join('\n')
+        : coupledNote(role))
+  const coupledNote = (role) => (role.kind === 'wa' ? fill('elevation_role_wa', { name: swName(role.sw) })
       : role.kind === 'lds' ? fill(role.side === 'main' ? 'elevation_role_lds_main' : 'elevation_role_lds_branch', { name: swName(role.sw) })
         : role.kind === 'middle' ? fill('elevation_role_middle', { a: swName(role.sw), b: swName(role.other) })
           : fill('elevation_role_continuation', { name: swName(role.sw) }))
@@ -609,16 +618,47 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       </>
     )
   }
-  const deletable = selectedPoints.filter(p => isInner(p) && !locked.has(p.index))
-  const remove = () => {
+  // A point locked by hand goes only after asking, and its lock with it
+  // (Entscheidung 382); one the coupling sets does not go at all.
+  const deletable = selectedPoints.filter(p => isInner(p)
+    && (!locked.has(p.index) || (lockedByHand(p.index) && !coupled(p.index))))
+  const [askDelete, setAskDelete] = useState(false)
+  const remove = (confirmed = false) => {
     if (!resolved || !deletable.length) return
+    const unlock = deletable.some(p => lockedByHand(p.index))
+    if (unlock && !confirmed) { setAskDelete(true); return }
+    setAskDelete(false)
     const drop = new Map()
     for (const p of deletable) drop.set(p.owner.trackId, new Set([...(drop.get(p.owner.trackId) ?? []), p.owner.index]))
     setHeightsForTracks(new Map([...drop].map(([id, gone]) => [id,
-      (parts.find(x => x.trackId === id).track.heights ?? []).filter((_, i) => !gone.has(i))])))
+      (parts.find(x => x.trackId === id).track.heights ?? []).filter((_, i) => !gone.has(i))])), { unlock })
     keepView(-deletable.length)
     select([])
   }
+
+  // ── Locking points (Entscheidung 382) ─────────────────────────────────────
+  // The selection locked, or — where all of it is locked already — unlocked.
+  // A lock holds the point's height and station, and where it is one the
+  // coupling sets for a turnout, that turnout's gradient.
+  const allLocked = selectedPoints.length > 0 && selectedPoints.every(p => lockedByHand(p.index))
+  const toggleLock = () => {
+    if (!resolved || !selectedPoints.length) return
+    const entries = selectedPoints.map(p => ({ trackId: p.owner.trackId, index: p.owner.index, locked: allLocked ? null : true }))
+    setHeightsForTracks(jointHeightUpdates(tracks, switches, entries), { unlock: allLocked })
+  }
+  /** One point locked or unlocked — the table's lock column. */
+  const toggleLockAt = (i) => {
+    const p = points[i]
+    if (!resolved || !p) return
+    const unlock = lockedByHand(i)
+    setHeightsForTracks(jointHeightUpdates(tracks, switches,
+      [{ trackId: p.owner.trackId, index: p.owner.index, locked: unlock ? null : true }]), { unlock })
+  }
+  const lockButton = selectedPoints.length > 0 && (
+    <button className="track-table-save-btn" title={t('elevation_lock_hint')} onClick={toggleLock}>
+      {t(allLocked ? 'elevation_unlock' : 'elevation_lock')}
+    </button>
+  )
 
   // ── Splitting the gradient with a new point ──────────────────────────────
   /**
@@ -978,6 +1018,11 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
             <circle cx={X(hover.station)} cy={Y(hover.z)} r="4" fill={PALETTE.white}
               stroke="var(--color-primary)" strokeWidth="1.5" strokeDasharray="2 2" pointerEvents="none" />
           )}
+          {points.filter(p => lockedByHand(p.index) || roles.get(p.index)?.frozen).map(p => (
+            // A lock above its point; a point a lock holds through its turnout, a smaller one.
+            <text key={`lk${p.index}`} x={X(p.station)} y={Y(p.z) - 22} fontSize={lockedByHand(p.index) ? 12 : 9}
+              textAnchor="middle" pointerEvents="none" opacity={lockedByHand(p.index) ? 1 : 0.6}>🔒</text>
+          ))}
           {points.map(p => {
             const on = isSelected(p)
             return (
@@ -1049,6 +1094,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           ) : selectedPoints.length && selectedPoints.every(p => curveHeld(p.index)) ? (
             <div className="profile-edit">
               <span className="profile-hint">{roleNote(roles.get(selectedPoints[0].index))}</span>
+              {lockButton}
               <CloseButton onClick={() => select([])} />
             </div>
           ) : selectedPoints.length ? (
@@ -1100,8 +1146,9 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                 </>
               )}
               {rvNote && <span className="form-error">{rvNote}</span>}
+              {lockButton}
               <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
-                title={t('elevation_delete_hint')} onClick={remove}>
+                title={t('elevation_delete_hint')} onClick={() => remove()}>
                 {fill('elevation_delete', { n: deletable.length })}
               </button>
               {selectedPoints.length === 1 && paired.has(selectedPoints[0].index) && (
@@ -1169,11 +1216,14 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           )
           : viewKind === 'table' && points.length ? (
             <ElevationTable points={points} length={profile.length} onWrite={writePoint}
-              mode={given} roles={roles} noteAt={pointNote}
+              mode={given} roles={roles} noteAt={pointNote} onLock={(i) => { select([i]); toggleLockAt(i) }}
               stretchAt={stretchAt} curveAt={curveAt} stretchNote={stretchNote} curveNote={curveNote}
               selection={selection} onSelect={select} />
           ) : drawing()}
       </div>
+      {askDelete && (
+        <ConfirmModal message={t('elevation_delete_locked_ask')} onConfirm={() => remove(true)} onCancel={() => setAskDelete(false)} />
+      )}
     </div>
   )
 }

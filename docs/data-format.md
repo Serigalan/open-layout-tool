@@ -98,7 +98,8 @@ Collections, each keyed by its own id (which is also how the merge compares them
   (default 7837, DHHN2016).
 - `heights` — the vertical alignment as a tangent polygon: `station` [m from BEGIN], `z` [m, top of the
   unraised rail], `rv` [m] vertical curve radius at that point, `la` [m] curve length that governs `rv`,
-  `reason` [text] why a gradient changes inside a turnout. Absent = no gradient.
+  `reason` [text] why a gradient changes inside a turnout, `locked` [true] the point keeps its height and
+  station (decision 382). Absent = no gradient.
 - `rails`, `sleepers` — superstructure as station ranges; absent = 54 E4 on B70 throughout.
 
 ### Element

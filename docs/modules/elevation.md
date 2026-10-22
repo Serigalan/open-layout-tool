@@ -14,6 +14,7 @@ in cant, the profile along a route, and ground heights from terrain models.
 | `gradientCheck.js` | HP.LN (gradients) and HP.AR (vertical curves) applied to a track; the Regelwert radius; radii governed by a curve length |
 | `switchGradient.js` | The turnout plane: the branch's height from the main route's height, gradient and cant; pairs of height points on one sleeper |
 | `switchChain.js` | The coupling points at WA and ldS, the continuation behind the ldS, crossovers ≤ 20 m; `coupleSwitchHeights`, run by the store after every write |
+| `heightLocks.js` | Locked height points: `lockBreach`, what a write would change that a lock holds — the store refuses it |
 | `crossoverGradient.js` | Fitting both tracks of a crossover into one plane: in cant (heights from cant, or cant from heights), on the straight level |
 | `routeProfile.js` | The profile of a route — its tracks' points over route stations — and a track as a route of one part |
 | `elevationSource.js` | Ground heights: registered point sources (DGM1 via the service in the main build), DGM5 tiles, MapTiler tiles |
@@ -120,6 +121,17 @@ entered but follow from points outside:
 The store runs `coupleSwitchHeights` after every write that touches a turnout, in the same undo step;
 `heightRoles` tells the profile which points it may let the user change. Turnouts are coupled only where
 both main route and branch have a gradient over WA–ldS — none is invented. Crossings are not coupled.
+
+**Locked points** (`heightLocks.js`, decision 382). A point with `locked` keeps its height and its station:
+the profile and its table show it only (a lock column toggles it; deleting it asks first and takes the lock
+with it). Where it is one of the points the coupling sets for a turnout (toe, ldS, the point between the ldS
+of a crossover, a point on its continuation), the turnout is *frozen* — and with it the other turnout of a
+crossover ≤ 20 m: `heightRoles` marks its points `frozen`, and gives the free ends of the lines through its
+toe and ldS (Q and P) a continuation role, so they move only along that line. The store calls `lockBreach`
+after every write, the coupling done, and refuses the write — said in the step notice — where a locked
+height went or changed, or a frozen turnout's height at its toe or an ldS did. A write that reshapes a
+frozen turnout's tracks is not held there (the alignment comes first); a locked point keeps its height
+through it. `setHeightsForTracks(…, { unlock: true })` lets a write take locks away.
 
 ## Crossovers in cant (`crossoverGradient.js`)
 

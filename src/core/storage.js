@@ -7,7 +7,7 @@ import {
   reverseTrack, generateId, remapEndMarks, flipEndMarks, pruneEndMarks, endKey, repairRoutes,
 } from './utils/track'
 import { coupleSwitchCants, rebuildSwitchSymbol } from './utils/switch'
-import { coupleSwitchGradients, coupleSwitchHeights, lengthGovernedRadii } from './utils/elevation'
+import { coupleSwitchGradients, coupleSwitchHeights, lengthGovernedRadii, lockBreach } from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -82,7 +82,7 @@ export function currentProject() {
  * false; nothing at all — not even an undo step — when no project is open.
  * Returns whether a project was there to change.
  */
-function mutate(fn, { undo = true } = {}) {
+function mutate(fn, { undo = true, unlock = false } = {}) {
   if (!_project) return false
   const before = _project, logBefore = _idLog
   const next = fn(_project)
@@ -95,6 +95,16 @@ function mutate(fn, { undo = true } = {}) {
   // the gradients of a turnout read its cant.
   const repaired = withCoupledCants(before, withPrunedMarks(repairRoutes(before, next)))
   const after = withLengthRadii(before, withCoupledGradients(before, withLengthRadii(before, repaired)))
+  // What a lock holds stays (Entscheidung 382): a write that would change it,
+  // the coupling done, is refused as a whole — and said so, where every step is.
+  const parted = new Set(_idLog.slice(logBefore.length).map(e => e.from))
+  const breach = lockBreach(before, after, { unlock, parted })
+  if (breach) {
+    _idLog = logBefore
+    recordStep('refused', before, before, { breach })
+    notify()
+    return false
+  }
   if (undo) { pushUndo(before, logBefore); _redoStack = [] }
   if (undo && _undoDepth === 0) recordStep('do', before, after)
   setProject(after)
@@ -915,9 +925,10 @@ export function setTrackHeights(trackId, heights, opts = {}) {
 /**
  * The same for several tracks at once (`byTrack`: trackId → heights), as one
  * undo step — the height where tracks meet belongs to all of them. False
- * when none of the tracks is there.
+ * when none of the tracks is there, or where a lock refuses it; `unlock`
+ * lets the write take locks away (Entscheidung 382).
  */
-export function setHeightsForTracks(byTrack, { undo = true } = {}) {
+export function setHeightsForTracks(byTrack, { undo = true, unlock = false } = {}) {
   let written = false
   const done = mutate(p => {
     const tracks = (p.tracks ?? []).map(t => {
@@ -929,7 +940,7 @@ export function setHeightsForTracks(byTrack, { undo = true } = {}) {
       return rest
     })
     return written ? { ...p, tracks } : p
-  }, { undo })
+  }, { undo, unlock })
   return written && done
 }
 

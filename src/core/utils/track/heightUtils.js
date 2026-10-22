@@ -411,11 +411,11 @@ export function jointGroup(tracks, switches, ref) {
   return [...group.values()]
 }
 
-/** A height point with the stated fields of `entry` applied: z, rv, la and reason (null removes any of them). */
+/** A height point with the stated fields of `entry` applied: z, rv, la, reason and its lock (null removes any of them). */
 function patchedPoint(q, entry) {
   const out = { ...q }
   if (entry.z !== undefined) out.z = entry.z
-  for (const key of ['rv', 'la', 'reason']) {
+  for (const key of ['rv', 'la', 'reason', 'locked']) {
     if (entry[key] === undefined) continue
     if (entry[key] == null) delete out[key]; else out[key] = entry[key]
   }

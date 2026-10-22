@@ -337,6 +337,13 @@
   width: 96px;
 }
 
+/* The lock of a point (Entscheidung 382): a toggle in the table's first column. */
+.profile-lock-btn {
+  background: none; border: 0; cursor: pointer; padding: 0 2px; font-size: 13px; opacity: 0.35;
+}
+.profile-lock-btn.on, .profile-lock-btn:hover { opacity: 1; }
+.profile-lock-cell { text-align: center; }
+
 .profile-table-error {
   margin: 6px 12px;
 }

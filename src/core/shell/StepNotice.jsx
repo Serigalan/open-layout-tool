@@ -44,6 +44,15 @@ export default function StepNotice() {
   }, [map, idsKey, step?.serial])
 
   if (!step || closed === step.serial) return null
+  // A write a lock refused (Entscheidung 382): what holds it, and nothing to take back.
+  if (step.kind === 'refused') {
+    return (
+      <div className="step-notice step-notice-refused" role="alert">
+        <span className="step-notice-text">{refusalText(fill, step)}</span>
+        <CloseButton className="step-notice-close" onClick={() => setClosed(step.serial)} />
+      </div>
+    )
+  }
   // An undo is told as the step it took back.
   const { key, params } = step.kind === 'undo' ? describeStep(step.after, step.before) : describeStep(step.before, step.after)
   const what = fill(key, params)
@@ -60,4 +69,16 @@ export default function StepNotice() {
       <CloseButton className="step-notice-close" onClick={() => setClosed(step.serial)} />
     </div>
   )
+}
+
+/** Why a lock refused a write: the locked point, or the turnout a lock holds, by track and station. */
+function refusalText(fill, step) {
+  const { breach, before } = step
+  const track = before.tracks?.find(t => t.id === breach.trackId)
+  const where = { track: track?.name || breach.trackId?.slice(0, 8) || '–', station: (breach.station ?? 0).toFixed(2) }
+  if (breach.kind === 'turnout') {
+    const sw = before.switches?.find(x => x.switchId === breach.switchId)
+    return fill('lock_refused_turnout', { ...where, name: sw?.name ?? sw?.label ?? '' })
+  }
+  return fill('lock_refused_point', where)
 }

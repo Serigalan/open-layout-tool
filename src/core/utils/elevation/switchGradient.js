@@ -230,11 +230,13 @@ const byStation = (a, b) => a.station - b.station
 /** What a point's partner takes over besides its height: its curve, the length that counts for it, and its reason. */
 export const carried = (p) => ({
   ...(p.rv != null ? { rv: p.rv } : {}), ...(p.la != null ? { la: p.la } : {}), ...(p.reason ? { reason: p.reason } : {}),
+  ...(p.locked ? { locked: true } : {}),
 })
 const samePoints = (a, b) => a.length === b.length && a.every((p, i) => {
   const q = b[i]
   return Math.abs(p.station - q.station) < 1e-9 && Math.abs(p.z - q.z) < 1e-9
     && (p.rv ?? null) === (q.rv ?? null) && (p.la ?? null) === (q.la ?? null) && (p.reason ?? null) === (q.reason ?? null)
+    && !!p.locked === !!q.locked
 })
 /** The point a track already has on a sleeper, if any. */
 const pointOn = (h, station) => h.find(p => Math.abs(p.station - station) <= STATION_TOL)

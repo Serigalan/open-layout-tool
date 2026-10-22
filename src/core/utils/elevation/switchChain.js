@@ -39,7 +39,7 @@
 
 import {
   heightAt, gradientAt, jointGroup, roundHeight, turnoutDivergingPort, turnoutLinePort, portTrack,
-  portEnd,
+  portEnd, trackLength,
 } from '../track'
 import {
   carried, couplingOf, isTurnout, ldsPlaneHeight, ldsPlaneTerms, pairedHeights, roundMm, STATION_TOL, switchCouplings, touchedTurnouts, Z_TOL,
@@ -733,6 +733,17 @@ export function heightRoles(project, opts) {
     return lastRoles.result
   }
   const ix = indexOf(project.tracks, project.switches, opts)
+  const out = couplingRoles(ix, project, opts)
+  const frozen = frozenOf(ix, project, out)
+  if (frozen.size || project.tracks.some(t => t.heights?.some(p => p.locked))) {
+    withLocks(ix, project, out, frozen, { ...opts, crossLead: crossoverLeads(ix, null, project, opts) })
+  }
+  lastRoles = { tracks: project.tracks, switches: project.switches, formOf: opts?.formOf, result: out }
+  return out
+}
+
+/** The roles the coupling gives, before any lock (heightRoles). */
+function couplingRoles(ix, project, opts) {
   opts = { ...opts, crossLead: crossoverLeads(ix, null, project, opts) }
   const out = new Map()
   const put = (trackId, index, role, strong = true) => {
@@ -777,8 +788,104 @@ export function heightRoles(project, opts) {
       if (h?.length >= 2) put(port.trackId, port.endpoint === 'BEGIN' ? 0 : h.length - 1, { kind: 'wa', sw: e.sw })
     }
   }
-  lastRoles = { tracks: project.tracks, switches: project.switches, formOf: opts?.formOf, result: out }
   return out
+}
+
+// ── Locked points (Entscheidung 382) ────────────────────────────────────────
+
+/**
+ * The turnouts whose gradient a locked point holds: those one of whose
+ * coupled points (toe, ldS, the point between the ldS of a crossover, a point
+ * on its continuation) is locked — and the other turnout of a crossover with
+ * 20 m or less between its ldS, whose toe the first one sets. A Set of
+ * entries.
+ */
+function frozenOf(ix, project, roles) {
+  const frozen = new Set()
+  for (const [trackId, byIndex] of roles) {
+    const h = heightsOf(project, trackId) ?? []
+    for (const [index, role] of byIndex) {
+      if (!h[index]?.locked) continue
+      for (const sw of [role.sw, role.other].filter(Boolean)) {
+        const e = ix.byId.get(sw.switchId)
+        if (e) frozen.add(e)
+      }
+    }
+  }
+  for (const e of [...frozen]) {
+    const o = crossoverPartner(ix, project, e)
+    if (o && crossoverGap(e, o) <= CROSSOVER_SPAN) frozen.add(o)
+  }
+  return frozen
+}
+
+/**
+ * Locks laid over the roles, in place: a locked point is shown only
+ * (`{ kind: 'locked', was }`, `was` the role the coupling gave it); every
+ * point the coupling sets for a turnout a lock holds says so (`frozen`), and
+ * the free ends of the lines through its toe and ldS — the points that fix
+ * that line — move only along it, as a continuation does (decision 271).
+ */
+function withLocks(ix, project, out, frozen, opts) {
+  const put = (trackId, index, role) => {
+    if (!out.has(trackId)) out.set(trackId, new Map())
+    out.get(trackId).set(index, role)
+  }
+  for (const e of frozen) {
+    for (const index of [mainToeIndex(project, e), mainLdsIndex(project, e)]) {
+      if (index < 0) continue
+      const chain = chainThrough(ix, project, { trackId: e.main.trackId, index })
+      const r = solveChain(ix, project, chain, opts)
+      if (!r) continue
+      for (const end of [chain.S, chain.E]) {
+        if (!end || end.cls.kind !== 'free' || out.get(end.trackId)?.has(end.index)) continue
+        put(end.trackId, end.index, { ...continuationRole(project, e, { point: end, line: r.line }), frozen: true })
+      }
+    }
+  }
+  const ids = new Set([...frozen].map(e => e.sw.switchId))
+  for (const byIndex of out.values()) {
+    for (const [index, role] of byIndex) {
+      if (!role.frozen && [role.sw, role.other].some(sw => sw && ids.has(sw.switchId))) byIndex.set(index, { ...role, frozen: true })
+    }
+  }
+  for (const t of project.tracks) {
+    (t.heights ?? []).forEach((p, index) => {
+      if (p.locked) put(t.id, index, { kind: 'locked', was: out.get(t.id)?.get(index) ?? null })
+    })
+  }
+}
+
+/**
+ * What a lock holds in a project, to check a write against (heightLocks):
+ * every locked point's height, and the turnouts a lock holds by their ids.
+ */
+export function lockedHeights(project, opts) {
+  const zs = []
+  for (const t of project?.tracks ?? []) for (const p of t.heights ?? []) if (p.locked) zs.push({ trackId: t.id, station: p.station, z: p.z })
+  if (!zs.length) return { points: zs, frozen: new Set() }
+  const ix = indexOf(project.tracks, project.switches, opts)
+  const frozen = frozenOf(ix, project, couplingRoles(ix, project, opts))
+  return { points: zs, frozen: new Set([...frozen].map(e => e.sw.switchId)) }
+}
+
+/**
+ * Where a turnout's gradient is read for a lock: its toe and its two ldS,
+ * [{ trackId, station }], and the tracks they lie on — null where the
+ * project does not couple it.
+ */
+export function turnoutHeightStations(project, switchId, opts) {
+  const e = indexOf(project.tracks, project.switches, opts).byId.get(switchId)
+  if (!e) return null
+  const main = project.tracks.find(x => x.id === e.main.trackId)
+  return {
+    tracks: [e.approach, e.main, e.branch].filter(Boolean).map(p => p.trackId),
+    at: [
+      { trackId: e.main.trackId, station: e.main.endpoint === 'BEGIN' ? 0 : trackLength(main) },
+      { trackId: e.main.trackId, station: e.ldsMain },
+      { trackId: e.branch.trackId, station: e.ldsBranch },
+    ],
+  }
 }
 
 /**

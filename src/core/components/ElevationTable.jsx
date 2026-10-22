@@ -73,10 +73,11 @@ function ValueCell({ value, digits, step, editable, onCommit, className, title }
  * is written back by `onWrite(point, { station, z }, { rv?, la? })` to the track it
  * belongs to. A point at the end of its track — where tracks meet, also
  * between two tracks of a route — keeps its station; `roles` (route index →
- * role) are what the coupling at the ldS holds.
+ * role) are what the coupling at the ldS holds, and a lock (Entscheidung 382):
+ * the first column locks or unlocks a point (`onLock(index)`).
  */
 export default function ElevationTable({
-  points, length, mode, roles, noteAt,
+  points, length, mode, roles, noteAt, onLock,
   stretchAt, curveAt, stretchNote, curveNote, selection, onSelect, onWrite,
 }) {
   const { t, fill } = useI18n()
@@ -114,6 +115,7 @@ export default function ElevationTable({
         <thead>
           <tr>
             <th>#</th>
+            <th title={t('elevation_lock_hint')}>🔒</th>
             <th>{t('elevation_station')} [m]</th>
             <th>{t('elevation_height')} [m]</th>
             <th>{t('elevation_grade_before')} [‰]</th>
@@ -135,14 +137,21 @@ export default function ElevationTable({
             })
             const before = stretchAt.get(i), after = stretchAt.get(i + 1), curve = curveAt.get(i)
             const tl = tangentLength(points, i)
-            // Toe and ldS carry no curve of their own.
-            const inner = !['wa', 'lds'].includes(role?.kind) && i > 0 && i < n - 1
+            // Toe and ldS carry no curve of their own — locked or not.
+            const kind = role?.kind === 'locked' ? role.was?.kind : role?.kind
+            const inner = !['wa', 'lds'].includes(kind) && i > 0 && i < n - 1
+            const isLocked = role?.kind === 'locked'
             const governs = p.la != null ? fill('elevation_vcurve_length_governs', { la: p.la.toFixed(2) }) : null
             return (
               <tr key={i} className={selection.includes(i) ? 'track-table-row-active' : undefined}
                 title={noteAt(i) ?? (joint ? t('elevation_table_joint') : undefined)}
                 onClick={() => onSelect([i])}>
                 <td>{i + 1}</td>
+                <td className="profile-lock-cell">
+                  <button type="button" className={`profile-lock-btn${isLocked ? ' on' : ''}`} aria-pressed={isLocked}
+                    title={t(isLocked ? 'elevation_unlock' : 'elevation_lock')}
+                    onClick={e => { e.stopPropagation(); onLock?.(i) }}>{isLocked ? '🔒' : '🔓'}</button>
+                </td>
                 <ValueCell value={p.station} digits={3} step={0.1} {...cell('s')} />
                 <ValueCell value={p.z} digits={4} step={0.001} {...cell('z')} />
                 <ValueCell value={g.before == null ? null : g.before * 1000} digits={2} step={0.1} {...cell('gb')}

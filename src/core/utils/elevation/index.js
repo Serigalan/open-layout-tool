@@ -17,4 +17,5 @@ export {
 } from './gradientCheck'
 export { routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute } from './routeProfile'
 export { coupleSwitchGradients, coupleSwitchHeights, heightRoles, pendingTurnouts } from './switchChain'
+export { lockBreach } from './heightLocks'
 export { coupledPoints, couplingOf, heightContext, planeDeviations, switchLds, trackHeightAt } from './switchGradient'

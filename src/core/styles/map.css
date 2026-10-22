@@ -69,6 +69,9 @@
 .step-notice-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .step-notice .link-btn { white-space: nowrap; color: var(--color-primary); }
 .step-notice-close { background: none; border: 0; cursor: pointer; color: var(--color-text-soft); padding: 0 2px; font-size: 14px; }
+/* A write a lock refused (Entscheidung 382): it says why, in full. */
+.step-notice-refused { border-color: var(--color-warn); }
+.step-notice-refused .step-notice-text { white-space: normal; }
 
 /* The legend while a preview is on the map (R10.10), top left. */
 .map-legend {
