@@ -63,11 +63,13 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
           : <EditCell value={el.length} onCommit={edit('length')} digits={3} />}
       </td>
       <td title={el.switchBranch && !isTransition(el) && el.radius ? dimension : undefined}>
+        {/* One width down the whole column, wide enough for a transition's
+            r₁ → r₂ to three decimals, so the column does not jump between rows. */}
         {isTransition(el)
-          ? <TextCell value={radiusText(el, language)} wide />
+          ? <TextCell value={radiusText(el, language)} className="track-table-input-radius" />
           : el.switchBranch
-            ? <TextCell value={el.radius ? lengthText(el.radius, language) : '–'} />
-            : <EditCell value={el.radius} onCommit={edit('radius')} disabled={!el.radius} digits={3} />}
+            ? <TextCell value={el.radius ? lengthText(el.radius, language) : '–'} className="track-table-input-radius" />
+            : <EditCell value={el.radius} onCommit={edit('radius')} disabled={!el.radius} digits={3} className="track-table-input-radius" />}
       </td>
       {/* The speed is the cell to change when the deficiency it makes is too
           high, so it carries the same mark. */}

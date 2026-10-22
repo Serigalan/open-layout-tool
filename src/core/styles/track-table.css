@@ -109,6 +109,14 @@
   width: 160px;
 }
 
+/* The radius column: one width for every row — an arc's signed radius and a
+   transition's r₁ → r₂, each to three decimals (−12 345,678 → −12 345,678). */
+.track-table-input-radius {
+  width: 150px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* The one ladder of severities the rule catalogue answers with (AP R.7),
    as colour: grey → amber → orange → violet → red. It is shared, not owned by
    any one view — the element table's cell, a creation dialog's findings and
