@@ -1,12 +1,12 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { loadTracks, loadSwitches, commitSwitchConnection } from '../../../storage'
+import { loadTracks, loadSwitches, commitSwitchConnection, commitSwitchConnectionEdit } from '../../../storage'
 import { elementStations, stationFromClick } from '../../../utils/track'
 import { wgs84ToUTM } from '../../../utils/geometry'
 import { SWITCH_TYPES, CONNECTION_SPEEDS, computeSwitchConnections, DEFAULT_MIDS } from '../../../utils/switch'
 import { ZOOM_LINE_WIDTH } from '../../../map/style'
 import { useI18n } from '../../../locales/i18nContext'
 import {
-  REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, isUsableStem, preferredShift,
+  REASON_MSG, buildSCurve, computeShiftBounds, connectionPick, editCommit, isUsableStem, preferredShift,
   settleConnection, shiftSnaps, stems, waOffset, SLIDER_REACH,
 } from '../../../utils/commands'
 import StationSlider from '../../form/StationSlider'
@@ -89,29 +89,40 @@ function buildPointsGeoJSON(result) {
   }
 }
 
-export default function SCurveForm({ onCommitted }) {
+/**
+ * The switch connection dialog. `edit` ({ found, apart, start } of
+ * commands/crossoverEdit) opens it on a connection that exists (Entscheidung
+ * 364): on the two tracks taken apart, the picks where the toes stood, its
+ * middle elements as they are — the turnouts' form and the speed fixed. The
+ * commit then replaces the old connection.
+ */
+export default function SCurveForm({ onCommitted, edit = null }) {
   const { t, fill } = useI18n()
-  const [phase, setPhase]   = useState('select_first')  // select_first | select_second | config
-  const [picks, setPicks]   = useState([])
+  const [phase, setPhase]   = useState(edit ? 'config' : 'select_first')  // select_first | select_second | config
+  const [picks, setPicks]   = useState(edit?.apart.picks ?? [])
   const [speedIdx, setSpeedIdx] = useState(DEFAULT_TYPE)   // selected design speed (index into CONNECTION_SPEEDS)
-  const [shiftRaw, setShift] = useState(null)           // start-point offset along line 1 [m]; null: the preferred one
+  const [shiftRaw, setShift] = useState(edit?.start.shift ?? null)   // start-point offset along line 1 [m]; null: the preferred one
   const [pickStatus, setPickStatus] = useState(null)    // { msg, error } — selection phases only
   // Straight the turnouts' through routes need beside the junction [m], set
   // when the commit found too little of it (see carveThrough).
   const [carveError, setCarveError] = useState(null)
   // The elements between the two branches (Entscheidung 305).
-  const [mids, setMids] = useState(DEFAULT_MIDS)
+  const [mids, setMids] = useState(edit?.start.mids ?? DEFAULT_MIDS)
   // A chain is solved by iteration over the whole slider range: typing goes on
   // while it runs, and the solution follows the last value typed.
   const solvedMids = useDeferredValue(mids)
   // An answer of the Python solver adopted (Entscheidung 357): where its
   // iteration starts, and the shift it was adopted at — the slider's range is
   // the stretch around it.
-  const [seed, setSeed] = useState(null)
+  const [seed, setSeed] = useState(edit?.start.seed ?? null)
   const [adoptAt, setAdoptAt] = useState(null)
 
   const picksRef = useRef(picks)
-  const speed    = CONNECTION_SPEEDS[speedIdx] ?? 0
+  // An edited connection keeps its form and its speed.
+  const form     = edit?.found.form ?? null
+  const speed    = edit ? edit.found.speed : CONNECTION_SPEEDS[speedIdx] ?? 0
+  // The tracks the dialog works on: an edited connection's taken apart.
+  const tracksNow = () => edit?.apart.tracks ?? loadTracks()
 
   useEffect(() => { picksRef.current = picks }, [picks])
 
@@ -168,25 +179,27 @@ export default function SCurveForm({ onCommitted }) {
     // shift 0 is where track 1 was clicked.
     // Where no valid connection stands, the stretch over which one only the
     // rulebook refuses does, to commit it anyway (Entscheidung 361).
-    const valid = computeShiftBounds({ picks, speed, mids: solvedMids, seed, around: adoptAt })
+    const valid = computeShiftBounds({ picks, speed, mids: solvedMids, seed, form, around: adoptAt })
     const lenient = !(valid.max > valid.min)
-    const whole = lenient ? computeShiftBounds({ picks, speed, mids: solvedMids, seed, lenient }) : valid
+    const whole = lenient ? computeShiftBounds({ picks, speed, mids: solvedMids, seed, form, lenient }) : valid
     // Where the connection stands nowhere near the click, the whole range.
     // An adopted answer keeps its whole stretch: it may stand far from the click.
     const near = { min: Math.max(whole.min, -SLIDER_REACH), max: Math.min(whole.max, SLIDER_REACH) }
     const bounds = adoptAt == null && near.max >= near.min ? near : whole
-    const track1 = loadTracks().find(tr => tr.id === picks[0].trackId)
+    const track1 = tracksNow().find(tr => tr.id === picks[0].trackId)
     const elStart = track1 ? elementStations(track1)[picks[0].elIdx]?.start ?? 0 : 0
     const dir1 = stems(picks).g1.dir ?? 1
     return {
       bounds, lenient,
-      snaps: shiftSnaps({ picks, speed, mids: solvedMids, seed, lenient }, bounds),
-      preferred: preferredShift({ picks, speed, mids: solvedMids, seed, lenient }, bounds),
+      snaps: shiftSnaps({ picks, speed, mids: solvedMids, seed, form, lenient }, bounds),
+      preferred: preferredShift({ picks, speed, mids: solvedMids, seed, form, lenient }, bounds),
       offset: waOffset(picks),
       toStation: (sh) => elStart + picks[0].along + dir1 * sh,
       toShift: (st) => (st - elStart - picks[0].along) * dir1,
     }
-  }, [phase, picks, speed, solvedMids, seed, adoptAt])
+    // tracksNow follows `edit`, which is fixed for the dialog's life
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, picks, speed, solvedMids, seed, adoptAt, form])
 
   // The shift asked for, held inside the range the connection stands over.
   const shift = slider
@@ -209,9 +222,9 @@ export default function SCurveForm({ onCommitted }) {
   // element's node (settleConnection, LP.EL.01).
   const settled = useMemo(() => (
     phase === 'config' && picks[0] && picks[1] && speed
-      ? settleConnection({ picks, speed, shift, mids: solvedMids, seed })
+      ? settleConnection({ picks, speed, shift, mids: solvedMids, seed, form })
       : null
-  ), [phase, picks, speed, shift, solvedMids, seed])
+  ), [phase, picks, speed, shift, solvedMids, seed, form])
   const result = settled?.result ?? null
   // A connection to show and build: valid, or refused by the rulebook alone.
   const stands = !!(result?.valid || result?.overridable)
@@ -261,10 +274,16 @@ export default function SCurveForm({ onCommitted }) {
 
   // `force`: built although the rulebook refuses it (Entscheidung 361).
   const handleCommit = (force = false) => {
-    const commit = buildSCurve({ result, picks, tracks: loadTracks(), switches: loadSwitches(), speed, force })
+    const commit = edit
+      ? buildSCurve({
+        result, picks, tracks: edit.apart.tracks, switches: edit.apart.switches, speed, force,
+        identities: edit.found.turnouts.map(tu => tu.sw), connTrack: edit.found.conn,
+      })
+      : buildSCurve({ result, picks, tracks: loadTracks(), switches: loadSwitches(), speed, force })
     if (!commit) return
     if (commit.carveError) { setCarveError(commit.carveError); return }
-    commitSwitchConnection(commit)
+    if (edit) commitSwitchConnectionEdit(editCommit(edit.found, edit.apart, commit))
+    else commitSwitchConnection(commit)
     // Laid in a cant, the two tracks have to be fitted to each other: the
     // panel asks next whether their heights may be changed (decision 159).
     const canted = picks.some(p => p.cantStart || p.cantEnd)
@@ -289,7 +308,10 @@ export default function SCurveForm({ onCommitted }) {
     return (
       <>
         <div className="element-form">
-          <div className="form-field">
+          {edit && (
+            <ReadOnlyField label={t('crossover_edit_form')} value={`${form.label} · ${speed} km/h`} />
+          )}
+          {!edit && <div className="form-field">
             <label>{t('field_speed')}</label>
             <select value={speedIdx} onChange={e => { setCarveError(null); handleSpeedChange(Number(e.target.value)) }}>
               {/* A speed without a connection where the slider stands stays
@@ -301,7 +323,7 @@ export default function SCurveForm({ onCommitted }) {
                 </option>
               ))}
             </select>
-          </div>
+          </div>}
 
           {slider && (() => {
             const ends = [slider.toStation(slider.bounds.min), slider.toStation(slider.bounds.max)].sort((a, b) => a - b)
@@ -372,7 +394,7 @@ export default function SCurveForm({ onCommitted }) {
           </p>
         ))}
         {slider && !result?.valid && slider.lenient && (
-          <CrossoverSolver picks={picks} speed={speed} stationOf={slider.toStation} onAdopt={adoptSolution} />
+          <CrossoverSolver picks={picks} speed={speed} form={form} stationOf={slider.toStation} onAdopt={adoptSolution} />
         )}
         {settled?.moved.length > 0 && (
           <p className="msg-hint">

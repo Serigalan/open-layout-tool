@@ -208,6 +208,10 @@ first `ruleOnly` one stands in for the last one tried, and the result is `overri
 valid the slider spans the shifts at which one is overridable (`computeShiftBounds({ lenient })`,
 `shiftSnaps`/`preferredShift` alike), and `buildSCurve({ force })` builds it.
 
+**Edited** (Entscheidung 364). `solveSwitchConnection(..., form)` and `connectionBranchEnds(..., { form })`
+take one form instead of the speed's fallback chain: an existing connection is laid again with its own
+turnouts' form (see `commands/crossoverEdit.js`).
+
 ## Connecting to an open track end
 
 "Weiche/Kreuzung an Gleis anschließen" (`connectToTrack.js`): a turnout (or crossing) is laid into a host

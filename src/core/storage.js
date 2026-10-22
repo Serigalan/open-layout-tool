@@ -1127,6 +1127,19 @@ export function commitSwitchConnection({ removeTrackIds = [], addTracks, addSwit
 }
 
 /**
+ * Commit an edited switch connection (commands/crossoverEdit, Entscheidung
+ * 364) as one undo step: both turnouts deleted in order — each line joined
+ * back into its track —, then the connection laid again, which takes the old
+ * connecting track's place.
+ */
+export function commitSwitchConnectionEdit({ deletions, connection }) {
+  return withUndo(() => {
+    for (const plan of deletions) commitSwitchDeletion(plan)
+    return commitSwitchConnection(connection)
+  })
+}
+
+/**
  * Add what an import brought — tracks, switches, end marks, and fields of the
  * project record such as the RailJSON passthrough — as one undo step. A
  * project that names no coordinate system yet names the one most of its

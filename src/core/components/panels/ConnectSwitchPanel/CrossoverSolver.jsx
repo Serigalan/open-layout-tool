@@ -24,7 +24,7 @@ function pieceText(t, piece) {
  *
  * `stationOf(shift)` names the first toe's station along track 1.
  */
-export default function CrossoverSolver({ picks, speed, stationOf, onAdopt }) {
+export default function CrossoverSolver({ picks, speed, form = null, stationOf, onAdopt }) {
   const { t, fill } = useI18n()
   const solver = provided('crossoverSolver', null)
   // { picks, speed, running | none | solutions | error, failed? } — a run
@@ -45,7 +45,7 @@ export default function CrossoverSolver({ picks, speed, stationOf, onAdopt }) {
     ctl.current = controller
     setRun({ running: true })
     try {
-      const answer = await solver(crossoverRequest({ picks, speed }), { signal: controller.signal })
+      const answer = await solver(crossoverRequest({ picks, speed, form }), { signal: controller.signal })
       setRun(answer?.solutions?.length ? { solutions: answer.solutions } : { none: true })
     } catch (err) {
       if (err?.name === 'AbortError') return
@@ -54,7 +54,7 @@ export default function CrossoverSolver({ picks, speed, stationOf, onAdopt }) {
   }
   const cancel = () => { ctl.current?.abort(); setRun(null) }
   const adopt = (solution, i) => {
-    const adopted = adoptCrossover({ picks, speed, solution })
+    const adopted = adoptCrossover({ picks, speed, solution, form })
     if (!adopted) { setRun(r => ({ ...r, failed: i })); return }
     setRun(null)
     onAdopt(adopted)

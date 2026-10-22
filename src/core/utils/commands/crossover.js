@@ -26,11 +26,12 @@ const CANT_TOL = 1
  * Coordinates relative to the first branch end at the pick, so the service
  * works with metres, not UTM eastings. A sample is `ok` where its turnout
  * keeps its own checks and leaves no piece of its element shorter than l_min
- * (connectionRemnants).
+ * (connectionRemnants). `form`: the one form to sample (a connection edited,
+ * Entscheidung 364), else the speed's fallback chain.
  */
-export function crossoverRequest({ picks, speed }) {
+export function crossoverRequest({ picks, speed, form = null }) {
   const { g1, g2 } = stems(picks)
-  const { flipped2, forms } = connectionBranchEnds(g1, g2, speed, { step: SAMPLE_STEP, reach: SEARCH_REACH })
+  const { flipped2, forms } = connectionBranchEnds(g1, g2, speed, { step: SAMPLE_STEP, reach: SEARCH_REACH, form })
   const origin = forms.flatMap(f => f.first)[0] ?? { x: 0, y: 0 }
   const remnantsOk = (k, s, through) => !connectionRemnants(
     picks, k === 0 ? s : 0, { s2: k === 1 ? s : 0, flipped2, throughLength: through }, speed,
@@ -76,7 +77,7 @@ const valuesOf = (pieces, open) => open.map(u => (u.field === 'length'
  * A solution: { s1, s2, pieces: [{ type, length, kappa }] } (kappa math-signed,
  * an arc's own, else null).
  */
-export function adoptCrossover({ picks, speed, solution }) {
+export function adoptCrossover({ picks, speed, solution, form = null, lenient = false }) {
   const { s1, s2, pieces } = solution
   const exact = pieces.map(p => (p.type === 'arc'
     ? { type: 'arc', length: p.length, radius: 1 / Math.abs(p.kappa), side: -Math.sign(p.kappa) }
@@ -86,14 +87,14 @@ export function adoptCrossover({ picks, speed, solution }) {
     ...m, length: round(m.length, 3), radius: m.radius == null ? null : round(m.radius, 1),
   }))
   for (const full of [rounded, exact]) {
-    const adopted = adoptSpec({ picks, speed, s1, s2, pieces, full })
+    const adopted = adoptSpec({ picks, speed, form, lenient, s1, s2, pieces, full })
     if (adopted) return adopted
   }
   return null
 }
 
 /** The first pair of values of `full` left open that closes again at s1 — or null. */
-function adoptSpec({ picks, speed, s1, s2, pieces, full }) {
+function adoptSpec({ picks, speed, form, lenient, s1, s2, pieces, full }) {
   const slots = full.flatMap((m, i) => [
     { i, field: 'length' },
     ...(m.type === 'arc' ? [{ i, field: 'k' }] : []),
@@ -111,8 +112,8 @@ function adoptSpec({ picks, speed, s1, s2, pieces, full }) {
       ...(pair.some(u => u.i === i && u.field === 'k') ? { radius: null, side: undefined } : {}),
     }))
     const seed = { ds: s2 - s1, values: valuesOf(pieces, midUnknowns(mids)) }
-    const settled = settleConnection({ picks, speed, shift: s1, mids, seed })
-    if (settled.result?.valid) return { shift: settled.shift, mids, seed }
+    const settled = settleConnection({ picks, speed, shift: s1, mids, seed, form })
+    if (settled.result?.valid || (lenient && settled.result?.overridable)) return { shift: settled.shift, mids, seed }
   }
   return null
 }

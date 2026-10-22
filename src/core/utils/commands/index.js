@@ -9,6 +9,7 @@
 export { buildCrossingConnect, crossingConnectOutcome, crossingConnectSolutions } from './connectCrossing'
 export { connectRemedies } from './connectRemedies'
 export { adoptCrossover, crossoverRequest } from './crossover'
+export { editCommit, editStart, switchConnectionOf, takeApart } from './crossoverEdit'
 export { buildSwitchConnect, switchConnectOutcome, switchConnectSolutions } from './connectSwitch'
 export { mergeElementEdits, planElementChange } from './editGeometry'
 export { optimizedTrack, optimizeErrorText, optimizeRequest } from './optimizeApply'

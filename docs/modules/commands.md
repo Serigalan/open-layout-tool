@@ -16,6 +16,7 @@ input, show previews and findings, and claim names and numbers.
 | `switches.js` | Switch on track, crossing on track | A turnout or crossing laid into a track at a station: split track, carved through route, new branch tracks, switch record |
 | `sCurve.js` | Switch connection (Weichenverbindung) | Both turnouts and the connecting track between two tracks, for a toe position (shift) on track 1; the range of valid shifts and the snaps |
 | `crossover.js` | Switch connection, Python solver | The request for `/crossover` (both branch ends sampled, the limits) and an answer adopted as shift, middle elements and seed |
+| `crossoverEdit.js` | Edit switch connection | Which track is a switch connection, the connection taken apart in memory (the turnouts deleted, their lines joined), where the dialog starts on it, and the commit that replaces it |
 | `connectSwitch.js` | Connect a turnout to a track | The turnout on the host and the refitted connecting element (see `switch/connectToTrack.js`) |
 | `connectCrossing.js` | Connect a crossing to a track | The same for one end of a crossing's cross route |
 | `connectRemedies.js` | both of the above | What can be changed where the rules reject the refitted element: lower speed, a transition before the arc |
@@ -50,6 +51,17 @@ number. A crossing needs straight track either side of its crossing point.
 element change behind the turnout; the remaining pieces on both tracks must be zero or at least `l_min`. The
 connecting track is the branch of both turnouts. If the tracks are canted, the dialog then offers to fit
 the crossover's heights (`elevation`).
+
+**Editing a switch connection** (`crossoverEdit.js`, Entscheidung 364): a track that begins and ends at a
+route (B1/B2) of two turnouts of one catalogue form, with one to three elements of its own between their
+routes, is one (`switchConnectionOf`). `takeApart` removes it in memory and deletes both turnouts as the
+delete dialog does (`planSwitchDeletion`, each line joined back into its track), and puts the picks where
+the toes stood — toe and switch end projected onto the joined tracks. `editStart` gives the dialog the
+middle elements as they are, two values open so that they close at shift 0 (`adoptCrossover({ lenient })`;
+one element alone is the closed-form arc). The dialog then runs on those tracks with the form fixed
+(`form` through every solve, `crossoverRequest({ form })`); `buildSCurve({ identities, connTrack })` keeps
+the switch ids, names and numbers and the connecting track, `editCommit` puts the two deletions before it,
+and `storage.commitSwitchConnectionEdit` runs all of it as one undo step.
 
 **Splice** (`splice.js` + `splice` module): a picked straight or arc may be re-shaped; a transition only at a
 track end, as the point it ends in (`joinAt`), and the splice builds on from there leaving it as it is. The

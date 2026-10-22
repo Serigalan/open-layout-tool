@@ -104,6 +104,13 @@ function fallbackChain(speed) {
 }
 
 /**
+ * The forms a connection may be built from: `form` alone where one is fixed —
+ * a connection edited keeps its turnouts' form (Entscheidung 364) —, else the
+ * fallback chain of the speed.
+ */
+const formsFor = (speed, form = null) => (form ? [form] : fallbackChain(speed))
+
+/**
  * A stem is the element a turnout of the connection sits on, as the route it is
  * — `{ length, r1, r2 }`, so a straight, an arc and a transition are one thing
  * (switchElementRoute). It is read from the element's own start, which is where
@@ -650,7 +657,7 @@ function endRun(chain) {
  *
  * Returns { flipped2, forms: [{ sw, through, first: [...], second: [...] }] }.
  */
-export function connectionBranchEnds(g1, g2, speed, { step = 0.5, reach = 300 } = {}) {
+export function connectionBranchEnds(g1, g2, speed, { step = 0.5, reach = 300, form = null } = {}) {
   const frame = connectionFrame(g1, g2, 0)
   const { stem1, stem2, side } = frame
   const grid = (whole) => {
@@ -659,7 +666,7 @@ export function connectionBranchEnds(g1, g2, speed, { step = 0.5, reach = 300 } 
     const n = Math.max(1, Math.ceil((range[1] - range[0]) / step))
     return [...Array(n + 1).keys()].map(i => range[0] + (range[1] - range[0]) * i / n)
   }
-  const forms = fallbackChain(speed).map(sw => {
+  const forms = formsFor(speed, form).map(sw => {
     const Lb = switchBranchLength(sw)
     const through = switchStraightLength(sw)
     const formChain = formChainOf(sw, side)
@@ -731,15 +738,16 @@ export function computeSwitchConnections(g1, g2, s = 0, mids = null, seed = null
  * @param {number} s     shift of the first toe along track 1 [m]
  * @param {object[]} [mids] the elements between the branches (switch/midChain); one arc by default
  * @param {object} [seed] where a chain's iteration starts ({ ds, values }, see buildConnection)
+ * @param {object} [form] the one form to build it from (a connection edited, Entscheidung 364); the speed's fallback chain without
  */
-export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null, seed = null) {
+export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null, seed = null, form = null) {
   const zone  = g1.startUtm.zone
   const frame = connectionFrame(g1, g2, s)
 
   // Where no form builds a valid connection, the first one only the rulebook
   // refuses stands in for the last one tried: it can be committed anyway
   // (Entscheidung 361).
-  const chain = fallbackChain(speed)
+  const chain = formsFor(speed, form)
   let c = null
   let refused = null
   for (const sw of chain) {
