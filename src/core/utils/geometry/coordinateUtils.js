@@ -263,11 +263,26 @@ function offGridProjString(crs) {
  * stands.
  */
 function project(fromDef, toDef, point, fromCrs = null, toCrs = null) {
-  const out = proj4(fromDef, toDef, point)
+  const out = converter(fromDef, toDef).forward(point)
   if (Number.isFinite(out[0]) && Number.isFinite(out[1])) return out
   const from = offGridProjString(fromCrs) ?? fromDef
   const to   = offGridProjString(toCrs)   ?? toDef
-  return from === fromDef && to === toDef ? out : proj4(from, to, point)
+  return from === fromDef && to === toDef ? out : converter(from, to).forward(point)
+}
+
+/**
+ * proj4's converter between two definitions, parsed once. proj4 parses both
+ * strings on every call it is handed them, which is most of a point's cost;
+ * the map draws tens of thousands. The key is the strings themselves: a grid
+ * loaded later changes the string (shiftFor names only loaded grids), so it
+ * never meets a converter parsed without it.
+ */
+const converters = new Map()
+function converter(fromDef, toDef) {
+  const key = `${fromDef}\u0000${toDef}`
+  let c = converters.get(key)
+  if (!c) converters.set(key, (c = proj4(fromDef, toDef)))
+  return c
 }
 
 /**

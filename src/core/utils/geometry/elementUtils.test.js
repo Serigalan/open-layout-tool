@@ -6,7 +6,11 @@ import {
   endPointCurvedUtm,
   reverseElement,
   arcCenter,
+  displayCoords,
 } from './elementUtils'
+import { arcElement, transitionElement } from './elementFactory'
+import { wgs84ToUTM } from './coordinateUtils'
+import { transitionPointAtUtm } from './clothoidUtils'
 
 const EPSG = 25832
 const START = { easting: 500000, northing: 5600000, zone: EPSG }
@@ -111,5 +115,47 @@ describe('reverseElement is self-inverse', () => {
     expect(rev.r2).toBeNull()
     expect(rev.cantStart).toBe(-90)
     expect(rev.cantEnd).toBe(-0)
+  })
+})
+
+describe('displayCoords draws curves finely enough to be looked at from close up', () => {
+  const plane = (coords) => coords.map(c => wgs84ToUTM(c, EPSG))
+  // Largest distance of a chord's midpoint from the arc around (cx, cy).
+  const worstSagitta = (pts, cx, cy, r) => Math.max(...pts.slice(1).map((p, i) => {
+    const mE = (p.easting + pts[i].easting) / 2, mN = (p.northing + pts[i].northing) / 2
+    return r - Math.hypot(mE - cx, mN - cy)
+  }))
+
+  it('an arc within 5 mm, its stored ends kept exactly', () => {
+    const el = arcElement(START, endPointCurvedUtm(START, 0, 120, 500), 500)
+    const coords = displayCoords(el, EPSG)
+    const stored = el.geometry.coordinates
+    expect(coords[0]).toEqual(stored[0])
+    expect(coords.at(-1)).toEqual(stored.at(-1))
+    expect(coords.length).toBeGreaterThan(stored.length)
+    const { cx, cy } = arcCenter(START.easting, START.northing, el.endNode[0], el.endNode[1], 500)
+    const pts = plane(coords)
+    for (const p of pts) expect(Math.abs(Math.hypot(p.easting - cx, p.northing - cy) - 500)).toBeLessThan(1e-4)
+    expect(worstSagitta(pts, cx, cy, 500)).toBeLessThan(0.005 + 1e-4)
+  })
+
+  it("a turnout's arc at least every 2 m, as its body is", () => {
+    // A 27 m branch on R 500: the stored polyline has one vertex inside.
+    const el = { ...arcElement(START, endPointCurvedUtm(START, 0, 27, 500), 500), switchId: 'w1' }
+    expect(el.geometry.coordinates).toHaveLength(3)
+    expect(displayCoords(el, EPSG)).toHaveLength(Math.ceil(el.length / 2) + 1)
+  })
+
+  it('a transition on its own curve', () => {
+    const { element } = transitionElement(START, 30, 80, null, 300)
+    const coords = displayCoords(element, EPSG)
+    expect(coords.length).toBeGreaterThan(element.geometry.coordinates.length)
+    expect(coords.at(-1)).toEqual(element.geometry.coordinates.at(-1))
+    // Vertices are evenly spaced along the curve: vertex k sits at station 80·k/n.
+    const n = coords.length - 1
+    const k = Math.floor(n / 2)
+    const p = plane([coords[k]])[0]
+    const on = transitionPointAtUtm(START, 30, 80, null, 300, 'clothoid', 80 * k / n)
+    expect(Math.hypot(p.easting - on.easting, p.northing - on.northing)).toBeLessThan(1e-4)
   })
 })

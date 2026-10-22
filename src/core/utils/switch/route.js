@@ -1,6 +1,6 @@
 import {
   utmToWgs84, bearingAfterUtm, transitionPointAtUtm, transitionBearingAtUtm, sampleTransitionUtm,
-  clothoidRadiusAt, curvatureOf, radiusOfCurvature,
+  clothoidRadiusAt, curvatureOf, radiusOfCurvature, SWITCH_ROUTE_STEP,
 } from '../geometry'
 import { STRAIGHT_CURVATURE, asRadius, bauform, branchRadius } from './catalogue'
 
@@ -315,20 +315,12 @@ function utmEndCurved(utm, bearing, arcLength, signedR) {
   }
 }
 
-/**
- * Step [m] a switch route's polyline is drawn with. A turnout is only tens of
- * metres long and is always looked at from close up, so its routes are stepped
- * at a fixed distance rather than by the sagitta a whole track is drawn with:
- * at a 500 m radius that rule gives a 42 m branch two segments, and the body
- * then reads as a kink instead of a curve.
- */
-const SWITCH_STEP = 2
-
-/** Segments such a route gets — one rule for map, preview and plan export, so
- *  all three draw the same curve. A straight is its two ends; a route curved
- *  at either end (a clothoid may start or end straight) is stepped. */
+/** Segments a switch route gets, stepped by SWITCH_ROUTE_STEP — one rule for
+ *  map, preview and plan export, so all three draw the same curve. A straight
+ *  is its two ends; a route curved at either end (a clothoid may start or end
+ *  straight) is stepped. */
 export function switchRouteSegments(length, signedR, signedREnd = signedR) {
-  return signedR || signedREnd ? Math.max(2, Math.ceil(length / SWITCH_STEP)) : 1
+  return signedR || signedREnd ? Math.max(2, Math.ceil(length / SWITCH_ROUTE_STEP)) : 1
 }
 
 /** Simpson sub-intervals per step of a clothoid route — puts every point on the curve. */

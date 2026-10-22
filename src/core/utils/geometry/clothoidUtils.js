@@ -79,6 +79,16 @@ export function sampleTransitionUtm(startUtm, bearing, length, signedR1, signedR
 }
 
 /**
+ * Plane points of a transition, as many as the sagitta `maxDeviation` asks at
+ * its smallest radius and at least `minSteps` segments — each on the exact
+ * curve (SUBDIV Simpson sub-intervals per step).
+ */
+export function transitionPlanePoints(startUtm, bearing, length, signedR1, signedR2, type, maxDeviation, minSteps = 2) {
+  const steps = Math.max(minSteps, clothoidSteps(toKappa(signedR1), toKappa(signedR2), length, maxDeviation))
+  return sampleTransitionUtm(startUtm, bearing, length, signedR1, signedR2, type, { steps, subdiv: SUBDIV })
+}
+
+/**
  * Compute a transition curve (clothoid or Bloss) from radius R1 to R2, from a
  * start point in the track's plane.
  *
@@ -104,8 +114,7 @@ export function computeClothoidUtm(startUtm, bearing, length, signedR1, signedR2
   const kappa1 = toKappa(signedR1)
   const kappa2 = toKappa(signedR2)
 
-  const steps = clothoidSteps(kappa1, kappa2, length, maxDeviation)
-  const pts   = sampleTransitionUtm(startUtm, bearing, length, signedR1, signedR2, type, { steps, subdiv: SUBDIV })
+  const pts = transitionPlanePoints(startUtm, bearing, length, signedR1, signedR2, type, maxDeviation)
 
   const coords = planeCoordsToWgs84(pts, startUtm.zone)
   const [endE, endN] = pts[pts.length - 1]

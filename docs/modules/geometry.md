@@ -18,7 +18,7 @@ map, offsets whole tracks into parallels and carries a track from one plane into
 | `elementUtils.js` | Straight and arc arithmetic in the plane: arc centre, end points, tangent bearings, projection of a point onto a straight or an arc, reversing an element, the derived end bearing |
 | `elementFactory.js` | The only place elements are made: `straightElement`, `arcElement`, `transitionElement` and their `…From` variants |
 | `elementReconstruct.js` | Derives the display geometry (WGS84 polylines) of stored elements on load |
-| `geometryPrecision.js` | The sampling constants: sagitta of drawn arcs, vertex spacing of straights, GeoJSON tile zoom |
+| `geometryPrecision.js` | The sampling constants: sagitta of computed and of drawn arcs, step of switch routes, vertex spacing of straights, GeoJSON tile zoom |
 | `parallelUtils.js` | Offsets a whole track sideways into a continuous parallel track |
 | `planeTransform.js` | Carries a track into another plane by refitting each element to its transformed nodes |
 | `chainChecks.js` | The invariants an element chain must hold (node gaps, tangent breaks, untrue lengths, foreign EPSG) |
@@ -77,6 +77,11 @@ Not shipped, on purpose: Sachsen's RD/83 grid (4.25 MB, ~188 MB heap) — no imp
 chain from a DHDN one (the DB's Lagesystem letter `A` covers both), so all `A` data is read as DHDN on
 BeTA2007; and Baden-Württemberg's BWTA2017 (73 MB). Bavaria's own transformation was withdrawn in 2024.
 
+**Converters are parsed once.** proj4 parses both definitions on every call it is handed them as strings,
+which was most of a point's cost; `project()` keeps one converter per pair of definitions. A grid loaded
+later changes the definition (only loaded grids are named in it), so it never meets a converter parsed
+without it.
+
 **Outside a grid** proj4 returns `[NaN, NaN]` silently. `project()` converts such a point again with the
 7-parameter shift: a metre of error past the grid's edge is worth more than a NaN that surfaces far away as
 a track that will not draw.
@@ -111,9 +116,19 @@ Every element has `startNode` and `endNode` (`[E, N]` in the track's plane). Con
 All elements are made by `elementFactory.js` from plane points and design values, and carry two derived
 polylines in WGS84: `geometry` (fine, sagitta 5 cm) and, for arcs and transitions, `renderCoords` (coarse,
 20 cm). `reconstructElements` derives exactly the same on every load, so a fresh element and a reloaded
-one look alike. Straights are stored as two points; for the map `displayCoords` inserts a vertex every
-100 m, because Web Mercator draws the chord, and a 1 km east–west straight at 50° N bends 23 mm away from
-its chord.
+one look alike. The map draws neither: `displayCoords` derives its own polyline from the plane nodes and
+the design values, kept with the track in the map's cache so only edited tracks are sampled again.
+
+- **Arcs and transitions** to a sagitta of 5 mm (`SAGITTA_DISPLAY`). The map zooms to 22, where a pixel is
+  about 2.4 cm at 50° N: the 5 cm of `geometry` are two pixels there, and a turnout's 27 m branch on R 500
+  is a single kink. The GeoJSON source thins the line again for every lower zoom (Douglas–Peucker per
+  tile), so the extra vertices are drawn only in the tiles of a close view.
+- **An element of a turnout's route** besides at least every 2 m (`SWITCH_ROUTE_STEP`) — the step the
+  switch body is drawn with, so the line runs along the body's edge.
+- **Straights** are stored as two points; a vertex every 100 m, because Web Mercator draws the chord, and a
+  1 km east–west straight at 50° N bends 23 mm away from its chord.
+
+The stored end points are kept, so the joins between elements stay exact.
 
 ## How it computes
 

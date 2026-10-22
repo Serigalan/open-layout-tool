@@ -1,6 +1,6 @@
 import { wgs84ToUTM, utmToWgs84 } from './coordinateUtils'
-import { STRAIGHT_VERTEX_SPACING } from './geometryPrecision'
-import { transitionBearingAtUtm } from './clothoidUtils'
+import { SAGITTA_DISPLAY, STRAIGHT_VERTEX_SPACING, SWITCH_ROUTE_STEP } from './geometryPrecision'
+import { transitionBearingAtUtm, transitionPlanePoints } from './clothoidUtils'
 
 // Every function here works in the track's own projected plane on
 // { easting, northing, zone } points (zone = the track's epsg). WGS84 is only
@@ -96,8 +96,8 @@ export function arcCoordsFromRadiusUtm(startUtm, endUtm, signedR, maxDeviation =
     ?.map(([e, n]) => utmToWgs84(e, n, startUtm.zone)) ?? null
 }
 
-/** The same arc polyline in the plane: [[E, N], …]. */
-export function arcPlanePoints(startUtm, endUtm, signedR, maxDeviation = 0.2) {
+/** The same arc polyline in the plane: [[E, N], …], at least `minSegments` segments. */
+export function arcPlanePoints(startUtm, endUtm, signedR, maxDeviation = 0.2, minSegments = 2) {
   const ac = arcCenter(startUtm.easting, startUtm.northing, endUtm.easting, endUtm.northing, signedR)
   if (!ac) return null
   const { cx, cy, absR } = ac
@@ -108,7 +108,7 @@ export function arcPlanePoints(startUtm, endUtm, signedR, maxDeviation = 0.2) {
     ? -((norm(a1) - norm(a2) + 2 * Math.PI) % (2 * Math.PI))
     :   (norm(a2) - norm(a1) + 2 * Math.PI) % (2 * Math.PI)
   const maxAngle = 2 * Math.acos(1 - maxDeviation / absR)
-  const n = Math.max(2, Math.ceil(Math.abs(sweep) / maxAngle))
+  const n = Math.max(minSegments, Math.ceil(Math.abs(sweep) / maxAngle))
   const points = []
   for (let i = 0; i <= n; i++) {
     const angle = a1 + (i / n) * sweep
@@ -118,30 +118,44 @@ export function arcPlanePoints(startUtm, endUtm, signedR, maxDeviation = 0.2) {
 }
 
 /**
- * Polyline an element is drawn with (WGS84). Arcs and transitions already carry
- * a dense polyline and come back as stored. A straight is stored as its two end
- * points only, and a Web Mercator map draws that chord as a straight line —
- * which the true straight (straight in the track's plane) is not: at 50° N an
- * east–west 1 km straight bends 23 mm away from its chord, growing with the
- * square of the length. So a straight longer than `spacing` gets intermediate
- * vertices every ≤ `spacing` metres, stepped along the element in its own plane
- * from the stored nodes. The stored end points are kept as they are, so the
- * joins with the neighbouring elements are untouched.
+ * Polyline an element is drawn with on the map (WGS84). The stored polylines
+ * are sampled for computing (SAGITTA_ELEMENT) and are too coarse to look at
+ * from close up, so the map gets its own, derived from the plane nodes and the
+ * design values:
+ *  - an arc or transition to SAGITTA_DISPLAY; an element of a turnout's route
+ *    besides at least every SWITCH_ROUTE_STEP metres, as the switch body is, so
+ *    the line runs along the body's edge;
+ *  - a straight is stored as its two end points only, and a Web Mercator map
+ *    draws that chord as a straight line — which the true straight (straight in
+ *    the track's plane) is not: at 50° N an east–west 1 km straight bends 23 mm
+ *    away from its chord, growing with the square of the length. So a straight
+ *    longer than `spacing` gets intermediate vertices every ≤ `spacing` metres.
+ * The stored end points are kept as they are, so the joins with the
+ * neighbouring elements are untouched.
  */
 export function displayCoords(el, epsg, spacing = STRAIGHT_VERTEX_SPACING) {
   const coords = el.geometry?.coordinates ?? []
-  if (el.radius != null || el.elementType === 2 || coords.length !== 2 || !epsg) return coords
+  if (coords.length < 2 || !epsg) return coords
   const [sE, sN] = el.startNode ?? []
   const [eE, eN] = el.endNode ?? []
   if (![sE, sN, eE, eN].every(Number.isFinite)) return coords
-  const n = Math.ceil(Math.hypot(eE - sE, eN - sN) / spacing)
-  if (n < 2) return coords
-  const out = [coords[0]]
-  for (let i = 1; i < n; i++) {
-    out.push(utmToWgs84(sE + (eE - sE) * i / n, sN + (eN - sN) * i / n, epsg))
+  const startUtm = { easting: sE, northing: sN, zone: epsg }
+  const endUtm   = { easting: eE, northing: eN, zone: epsg }
+  const minSegments = el.switchId ? Math.max(2, Math.ceil((el.length ?? 0) / SWITCH_ROUTE_STEP)) : 2
+  let plane
+  if (el.radius) {
+    plane = arcPlanePoints(startUtm, endUtm, el.radius, SAGITTA_DISPLAY, minSegments)
+  } else if (el.elementType === 2 && el.r1 !== undefined) {
+    if (!(el.length > 0) || !Number.isFinite(el.bearing)) return coords
+    plane = transitionPlanePoints(startUtm, el.bearing, el.length, el.r1, el.r2 ?? null,
+      el.transitionType ?? 'clothoid', SAGITTA_DISPLAY, minSegments)
+  } else if (coords.length === 2) {
+    const n = Math.ceil(Math.hypot(eE - sE, eN - sN) / spacing)
+    if (n < 2) return coords
+    plane = Array.from({ length: n + 1 }, (_, i) => [sE + (eE - sE) * i / n, sN + (eN - sN) * i / n])
   }
-  out.push(coords[1])
-  return out
+  if (!plane) return coords
+  return [coords[0], ...plane.slice(1, -1).map(([e, n]) => utmToWgs84(e, n, epsg)), coords[coords.length - 1]]
 }
 
 export function endPointStraightUtm(startUtm, bearing_deg, length_m) {

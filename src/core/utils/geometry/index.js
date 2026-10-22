@@ -24,7 +24,9 @@ export {
   endPointStraightUtm, nodeUtm, projectOnArcUtm, projectOnBearingUtm, resolveEndBearing,
   reverseElement, signedRadiusFrom3PointsUtm,
 } from './elementUtils'
-export { GEOJSON_MAXZOOM, SAGITTA_ELEMENT, SAGITTA_TRACK, STRAIGHT_VERTEX_SPACING } from './geometryPrecision'
+export {
+  GEOJSON_MAXZOOM, SAGITTA_ELEMENT, SAGITTA_TRACK, STRAIGHT_VERTEX_SPACING, SWITCH_ROUTE_STEP,
+} from './geometryPrecision'
 export { loadedRegionalGrids, loadGridsFor, loadNtv2Grid, loadRegionalGrids } from './ntv2Grid'
 export { offsetTrackElements } from './parallelUtils'
 export { transformTrackToPlane } from './planeTransform'
