@@ -1,5 +1,6 @@
 import { transitionCantEnds } from '../geometry'
-import { maxSpeedFor } from './cant'
+import { catalogSpeedRange, severityRank } from './regelkatalog'
+import { elementVerdict } from './trassierungCheck'
 
 // Speed is designed in 5 km/h steps, like cant is in 5 mm ones.
 export const SPEED_STEP = 5
@@ -32,39 +33,74 @@ export function governing(elements, i) {
   return null
 }
 
+const isError = (r) => severityRank(r.severity) >= severityRank('error')
+
 /**
- * Every element's speed raised to what its geometry admits. A curved element —
- * an arc, or a transition, where the tighter end governs — is capped by the cant
- * deficiency its radius and cant leave room for, rounded DOWN onto the 5 km/h
- * design step so the limit is never overshot. A straight has no curvature of its
- * own to limit it: it takes the faster of the curves it runs between, looking
- * past any straights in between since those carry no limit either. An element
- * with no curve on either side keeps the speed it had — nothing bounds it.
+ * The highest design speed the rule catalogue lets element `i` carry
+ * (Entscheidung 372): the fastest speed on the 5 km/h step inside the range
+ * the catalogue speaks about (LP.ALL.01), and at most `cap` where one is
+ * given, at which nothing it says about the element itself — its own rules,
+ * its ramp, the joints at both its ends — is an error. Hinweise, Warnungen,
+ * Zustimmung and Sonderfall are allowed: they ask for a reason, not for
+ * another speed. Each speed is judged with the element's neighbours at that
+ * speed too, so a joint is read at the speed the element runs through it
+ * (LP.KS.01 takes the faster side); the neighbour's own speed is the
+ * neighbour's business. Every speed is tried, not only down to the first
+ * that fails: a transition's ramp of the deficiency (LP.UB.05) can fail
+ * slow and hold fast, where the cant is in excess of the speed.
  *
- * `cap` is the line speed, the ceiling nothing may exceed. It is applied last,
- * so it also trims an element the geometry leaves unbounded; null means the
- * geometry alone decides. Elements that keep their speed are returned as they
- * are.
+ * An error that stands at every speed (a cant off the 5 mm step, a cant jump
+ * at a joint) is no reason for any speed and does not count — it is returned
+ * as `fixed`, the rule ids, for the table to show.
+ *
+ * Returns { speed, fixed } — `speed` null where no speed is free of the others.
+ */
+export function ruleMaxSpeed(elements, i, { cap = null, context = null } = {}) {
+  const el = elements[i]
+  if (!el) return { speed: null, fixed: [] }
+  // One copy of the chain, its three elements around `i` set to each speed in turn.
+  const view = elements.slice()
+  const near = [i - 1, i, i + 1].filter(j => j >= 0 && j < elements.length)
+  const lo = Math.ceil(catalogSpeedRange.min / SPEED_STEP) * SPEED_STEP
+  const hi = Math.floor(catalogSpeedRange.max / SPEED_STEP) * SPEED_STEP
+  const errors = []
+  for (let v = hi; v >= lo; v -= SPEED_STEP) {
+    for (const j of near) view[j] = { ...elements[j], speed: v }
+    errors.push({ v, ids: new Set(elementVerdict(view, i, { context }).filter(isError).map(r => `${r.at}:${r.id}`)) })
+  }
+  const fixed = [...errors[errors.length - 1].ids].filter(id => errors.every(e => e.ids.has(id)))
+  const free = errors.find(e => (cap == null || e.v <= cap) && [...e.ids].every(id => fixed.includes(id)))
+  return { speed: free?.v ?? null, fixed: [...new Set(fixed.map(id => id.slice(id.indexOf(':') + 1)))] }
+}
+
+const speedsOf = new WeakMap()
+
+/**
+ * ruleMaxSpeed for every element of a chain, without a cap — worked out once
+ * per chain (the array is the model's, replaced on every change), since each
+ * element costs the whole catalogue at every speed step.
+ */
+export function ruleMaxSpeedsOf(elements) {
+  let hit = speedsOf.get(elements)
+  if (!hit) {
+    hit = elements.map((el, i) => ruleMaxSpeed(elements, i))
+    speedsOf.set(elements, hit)
+  }
+  return hit
+}
+
+/**
+ * Every element's speed raised to what the rule catalogue lets it carry under
+ * the line speed `cap` (ruleMaxSpeed) — null lets the rules alone decide. An
+ * element no speed is free for keeps the speed it had, trimmed to the cap.
+ * Since each element's highest speed holds the joints at both its ends at
+ * that speed, and a joint is judged at the faster side, setting them all at
+ * once adds no error. Elements that keep their speed are returned as they are.
  */
 export function maxSpeeds(elements, cap) {
-  // Pass one: the curves. null marks an element the curvature does not limit.
-  const curved = elements.map((el, i) => {
-    const g = governing(elements, i)
-    if (!g) return null
-    const v = maxSpeedFor(el, g.radius, g.cant)
-    return v == null ? null : Math.floor(v / SPEED_STEP) * SPEED_STEP
-  })
-
-  // Pass two: the straights, from the nearest curve on either side.
   return elements.map((el, i) => {
-    let v = curved[i]
-    if (v == null) {
-      for (let j = i - 1; j >= 0; j--) if (curved[j] != null) { v = curved[j]; break }
-      for (let j = i + 1; j < elements.length; j++) if (curved[j] != null) { v = Math.max(v ?? 0, curved[j]); break }
-    }
-    // Nothing bounds this one: it keeps its speed, and only the cap may trim it.
-    if (v == null) return cap != null && el.speed > cap ? { ...el, speed: cap } : el
-    const speed = cap == null ? v : Math.min(v, cap)
+    const speed = ruleMaxSpeed(elements, i, { cap }).speed
+    if (speed == null) return cap != null && el.speed > cap ? { ...el, speed: cap } : el
     return el.speed === speed ? el : { ...el, speed }
   })
 }

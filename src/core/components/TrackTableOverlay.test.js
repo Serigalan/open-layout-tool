@@ -137,17 +137,30 @@ describe('the length of a switch route', () => {
   })
 })
 
-describe('V_max', () => {
-  it('is designed against u_f = 130 mm, not the 150 an element may reach', () => {
-    const { cell } = renderTable()
-    // R 500, cant 100: 130 mm admits 98 km/h, the old 150 mm would say 103.
-    expect(cell(0, 'V_max').text).toBe('98')
+describe('V_max (Entscheidung 372)', () => {
+  const alone = (el) => ({ id: `t-${projects}`, name: 'Gleis 5', epsg: 5678, elements: [el] })
+
+  it('is the fastest speed on the 5 km/h step the rule catalogue finds no error at', () => {
+    // R 500, cant 100: u_f 113 mm at 95 km/h, 136 at 100 — past LP.KB.02's 130.
+    expect(renderTable(alone(arc({ radius: 500, cant: 100, length: 400 }))).cell(0, 'V_max').text).toBe('95')
+  })
+
+  it('reads the joints at both ends — a curvature jump holds the arc to its comparison radius', () => {
+    // The same arc running straight into a straight (LP.KS.01, r_w = 500 m): 65 km/h.
+    expect(renderTable().cell(0, 'V_max').text).toBe('65')
   })
 
   it('holds a switch route to the switch’s own, lower deficiency', () => {
-    const { cell } = renderTable()
-    // R −500 with −40 mm of cant following the curve, at the 110 mm of a route.
-    expect(cell(2, 'V_max').text).toBe('79')
+    // R −500 with −40 mm of cant following the curve: 93 mm at 75 km/h, 111 at 80 — past LP.KB.06's 110.
+    const route = arc({ radius: -500, cant: -40, length: 400, switchBranch: true, switchId: 'sw1', switchRoute: 'branch' })
+    expect(renderTable(alone(route)).cell(0, 'V_max').text).toBe('75')
+  })
+
+  it('does not let an error no speed removes hold it down, and marks it', () => {
+    const { cell } = renderTable({ id: 't-step', name: 'Gleis 5', epsg: 5678, elements: [arc({ radius: 500, cant: 63, length: 400 })] })
+    expect(cell(0, 'V_max').mark).toBe('input-error')
+    expect(cell(0, 'V_max').note).toContain('LP.KB.03')
+    expect(Number(cell(0, 'V_max').text)).toBeGreaterThan(0)
   })
 })
 
@@ -203,7 +216,7 @@ describe('a deficiency the speed is too high for', () => {
     expect(cell(0, 'Fehlbetrag').text).toBe('136')
     expect(cell(0, 'Fehlbetrag').mark).toBe('input-error')
     expect(cell(0, 'Speed').mark).toBe('input-error')
-    expect(cell(0, 'Speed').note).toContain('V_max wäre 98 km/h')
+    expect(cell(0, 'Speed').note).toContain('V_max wäre 65 km/h')
   })
 
   it('lets a deficiency stand above 150 km/h that is an error below it', () => {

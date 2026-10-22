@@ -7,22 +7,22 @@
 // the module's own business. See docs/modules/rules.md.
 
 export {
-  AUTO_CANT_MODEL, CANT_STEP, cantDefLevel, cantDefLimit, cantExceedsLimit, cantExceptionFields,
+  AUTO_CANT_MODEL, CANT_STEP, cantDefLevel, cantExceedsLimit, cantExceptionFields,
   cantExceptionOf, cantFromInput, cantLimit, cantSign, clampCant, computeAutoC, computeCantDef,
   computeCantDefSigned, computeSwitchCant, limitCantDef, MAX_CANT, MAX_SWITCH_CANT,
-  MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION, maxSpeedFor, regelCant, roundCant,
+  MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION, regelCant, roundCant,
   switchCantError, worstCantOf,
 } from './cant'
 export { bundledCatalogHash } from './catalogHash'
 export { BUNDLED_KATALOG_VERSION, flattenPhysics, GRENZWERTE, optimizerLimitRows, PHYSICS } from './constraintsView'
 export { comparisonRadiusLimits, minElementLength } from './elementLength'
 export {
-  CATALOG_ID, catalogLimit, catalogSpeedRange, evaluateRules, KATALOG, ruleById, rulesForScope,
+  CATALOG_ID, catalogLimit, evaluateRules, KATALOG, ruleById, rulesForScope,
   severityLabelKey, severityRank, worstSeverity,
 } from './regelkatalog'
 export { CANT_DEFICIENCY_COEFF } from './regelwerkDefaults'
 export { fieldFindings } from './ruleFields'
-export { governing, maxSpeeds, SPEED_STEP } from './speed'
+export { governing, maxSpeeds, ruleMaxSpeedsOf, SPEED_STEP } from './speed'
 export {
   connectTransitionLengths, lengthRuleFormula, transitionChain, transitionHasError,
   transitionLengths,

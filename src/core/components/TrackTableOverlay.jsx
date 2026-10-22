@@ -3,7 +3,7 @@ import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
 import { useTracks, useProject } from '../hooks/useStore'
 import { planElementChange, mergeElementEdits } from '../utils/commands'
 import { elementStations } from '../utils/track'
-import { boundaryScope, cantLimit, checkTrack, clampCant, maxSpeeds } from '../utils/rules'
+import { boundaryScope, cantLimit, checkTrack, clampCant, maxSpeeds, ruleMaxSpeedsOf } from '../utils/rules'
 import { filterForElement, FILTER_NONE, mapIsLive } from '../map/pick'
 import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
@@ -173,6 +173,8 @@ export default function TrackTableOverlay({
   // to the React compiler to hold on to rather than memoised by hand: a manual
   // useMemo here is what makes it give up on the whole component.
   const check = checkTrack(elements)
+  // The highest speed the rules let each element carry, worked out once per chain.
+  const vmaxes = ruleMaxSpeedsOf(elements)
   // Where each element starts along the track, and how long the whole of it is
   // — from the working copy, so both follow an unsaved length straight away.
   const stations = elementStations(current)
@@ -311,7 +313,7 @@ export default function TrackTableOverlay({
           <tbody key={track.id}>
             {elements.map((el, i) => (
               <TrackTableRow key={i} elements={elements} i={i} sw={switchById.get(el.switchId)}
-                station={stations[i]?.start} rules={check.perElement[i]} joint={jointAt(i)} epsg={current.epsg}
+                station={stations[i]?.start} rules={check.perElement[i]} joint={jointAt(i)} vmax={vmaxes[i]} epsg={current.epsg}
                 active={i === activeRow} onActivate={() => setActiveRow(i)}
                 onEdit={(key, raw) => commit(i, key, raw)} />
             ))}

@@ -1,4 +1,4 @@
-import { catalogSpeedRange, cantDefLimit, MAX_SWITCH_CANT_DEF, SPEED_STEP } from '../../utils/rules'
+import { SPEED_STEP } from '../../utils/rules'
 import { useI18n } from '../../locales/i18nContext'
 import { lengthText } from './rowText'
 import CloseButton from '../form/CloseButton'
@@ -49,7 +49,7 @@ export function TrackTableBar({ title, length, cap, onCap, onMaxSpeeds, reachErr
 
 /** The column heads. */
 export function TrackTableHead() {
-  const { t, fill } = useI18n()
+  const { t } = useI18n()
   return (
     <thead>
       <tr>
@@ -67,9 +67,7 @@ export function TrackTableHead() {
         <th title={t('table_cant_ends_hint')}>{t('table_cant_end')} (mm)</th>
         <th>{t('table_cant_exception')}</th>
         <th>{t('table_cant_def')} (mm)</th>
-        {/* One limit per speed, so the column's tooltip names the step rather
-            than a single number (LP.KB.02). */}
-        <th title={fill('table_max_speed_hint', { mm: String(cantDefLimit(catalogSpeedRange.min)), fast: String(cantDefLimit(catalogSpeedRange.max)), sw: String(MAX_SWITCH_CANT_DEF) })}>
+        <th title={t('table_max_speed_hint')}>
           {t('table_max_speed')} (km/h)
         </th>
         <th title={t('table_crs_hint')}>{t('table_crs')}</th>

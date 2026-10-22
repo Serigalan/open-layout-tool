@@ -208,6 +208,53 @@ export function rampScope(elements, i) {
 
 const inSwitch = (el) => el?.switchId != null
 
+/** What the element rules say about element `i` — null where its speed is unknown. */
+function elementEntry(elements, i, context) {
+  const el = elements[i]
+  if (!isCheckable(el)) return null
+  const type = TYPE_BY_ELEMENT_TYPE[el.elementType] ?? 'straight'
+  const options = { physics: PHYSICS, inContext: (id) => id === 'switch_area' && inSwitch(el) }
+  return { index: i, ...evaluateRules(rulesForElement(type, formOf(el)), elementScope(elements, i, context), options) }
+}
+
+/** What the ramp rules say about element `i` — only where the cant changes over it. */
+function rampEntry(elements, i) {
+  if (!isCheckable(elements[i])) return null
+  if (!(elementScope(elements, i)['physics.delta_u'] > 0)) return null
+  return { index: i, ...evaluateRules(rulesForScope('cant_ramp'), rampScope(elements, i), { physics: PHYSICS }) }
+}
+
+/** What the boundary rules say about the joint between elements `i` and `i + 1`. */
+function boundaryEntry(elements, i) {
+  const el = elements[i]
+  const next = elements[i + 1]
+  if (!el || !next || !isCheckable(el) || !isCheckable(next)) return null
+  const both = inSwitch(el) && inSwitch(next) && el.switchId === next.switchId
+  const options = {
+    physics: PHYSICS,
+    inContext: (id) => id === 'switch_area' && (inSwitch(el) || inSwitch(next)),
+    // A curvature jump inside one turnout is the turnout's own business —
+    // the catalogue excludes it and points at a catalogue of its own.
+    excluded: both ? ['switch_internal'] : [],
+  }
+  return { index: i, ...evaluateRules(rulesForScope('boundary'), boundaryScope(elements, i), options) }
+}
+
+/**
+ * Every rule that speaks about element `i` itself: its own, its ramp's and
+ * those of the joints at both its ends — what changing its speed can change.
+ * Each result carries `at`: 'element', 'ramp', 'start' or 'end'.
+ */
+export function elementVerdict(elements, i, { context = null } = {}) {
+  const parts = [
+    ['element', elementEntry(elements, i, context)],
+    ['ramp', rampEntry(elements, i)],
+    ['start', i > 0 ? boundaryEntry(elements, i - 1) : null],
+    ['end', boundaryEntry(elements, i)],
+  ]
+  return parts.flatMap(([at, entry]) => (entry?.results ?? []).map(r => ({ ...r, at })))
+}
+
 /**
  * Every rule of the catalogue applied to one element chain.
  *
@@ -220,40 +267,10 @@ const inSwitch = (el) => el?.switchId != null
  * only part of its track (runBeside), for LP.EL.01.
  */
 export function checkTrack(elements = [], { context = null } = {}) {
-  const perElementResults = elements.map((el, i) => {
-    if (!isCheckable(el)) return { index: i, severity: null, results: [], unchecked: true }
-    const type = TYPE_BY_ELEMENT_TYPE[el.elementType] ?? 'straight'
-    const options = { physics: PHYSICS, inContext: (id) => id === 'switch_area' && inSwitch(el) }
-    return {
-      index: i,
-      ...evaluateRules(rulesForElement(type, formOf(el)), elementScope(elements, i, context), options),
-    }
-  })
-
-  const ramps = elements.map((el, i) => {
-    // Only where there is a ramp: an element the cant changes over.
-    if (!isCheckable(el)) return null
-    const scope = elementScope(elements, i)
-    if (!(scope['physics.delta_u'] > 0)) return null
-    return {
-      index: i,
-      ...evaluateRules(rulesForScope('cant_ramp'), rampScope(elements, i), { physics: PHYSICS }),
-    }
-  }).filter(Boolean)
-
-  const boundaries = elements.slice(0, -1).map((el, i) => {
-    const next = elements[i + 1]
-    if (!isCheckable(el) || !isCheckable(next)) return null
-    const both = inSwitch(el) && inSwitch(next) && el.switchId === next.switchId
-    const options = {
-      physics: PHYSICS,
-      inContext: (id) => id === 'switch_area' && (inSwitch(el) || inSwitch(next)),
-      // A curvature jump inside one turnout is the turnout's own business —
-      // the catalogue excludes it and points at a catalogue of its own.
-      excluded: both ? ['switch_internal'] : [],
-    }
-    return { index: i, ...evaluateRules(rulesForScope('boundary'), boundaryScope(elements, i), options) }
-  }).filter(Boolean)
+  const perElementResults = elements.map((el, i) => elementEntry(elements, i, context)
+    ?? { index: i, severity: null, results: [], unchecked: true })
+  const ramps = elements.map((el, i) => rampEntry(elements, i)).filter(Boolean)
+  const boundaries = elements.slice(0, -1).map((el, i) => boundaryEntry(elements, i)).filter(Boolean)
 
   const byIndex = (list) => new Map(list.map(entry => [entry.index, entry]))
   const rampAt = byIndex(ramps)

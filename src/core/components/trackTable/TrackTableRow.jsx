@@ -1,6 +1,6 @@
 import { cantEnds, crsLabel } from '../../utils/geometry'
 import {
-  cantDefLevel, computeCantDefSigned, maxSpeedFor, CANT_STEP, governing, ruleById,
+  cantDefLevel, computeCantDefSigned, CANT_STEP, governing, ruleById,
   severityLabelKey,
 } from '../../utils/rules'
 import { useI18n } from '../../locales/i18nContext'
@@ -18,12 +18,13 @@ import {
  * with — its comparison radius and what the boundary rules said there, shown
  * in the last column on the line between this row and the one before.
  */
-export default function TrackTableRow({ elements, i, sw, station, rules, joint, epsg, active, onActivate, onEdit }) {
+export default function TrackTableRow({ elements, i, sw, station, rules, joint, vmax, epsg, active, onActivate, onEdit }) {
   const { t, fill, language, num } = useI18n()
   const el = elements[i]
   const g = governing(elements, i)
   const cantDef = g ? computeCantDefSigned(el.speed ?? 0, g.radius, g.cant) : 0
-  const vMax = g ? maxSpeedFor(el, g.radius, g.cant) : null
+  // What the rule catalogue lets the element carry (ruleMaxSpeed, Entscheidung 372).
+  const vMax = vmax?.speed ?? null
   const level = cantDefLevel(el, cantDef)
   const defTip = defNote(fill, el, level, cantDef, vMax)
   const edit = (key) => (raw) => onEdit(key, raw)
@@ -91,7 +92,11 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
           : <TextCell value="–" />}
       </td>
       <td title={defTip}><TextCell value={num(cantDef)} className={defClass(level)} /></td>
-      <td><TextCell value={vMax ?? '–'} /></td>
+      {/* An error no speed removes does not hold V_max down, but it is not
+          forgotten either: the cell says which. */}
+      <td title={vmax?.fixed.length ? fill('table_max_speed_fixed', { rules: vmax.fixed.join(', ') }) : undefined}>
+        <TextCell value={vMax ?? '–'} className={vmax?.fixed.length ? 'input-error' : ''} />
+      </td>
       {/* The plane the whole track is stated in — one code per track, so the
           column says which frame these eastings and northings are in. */}
       <td title={crsLabel(epsg)}><TextCell value={epsg ?? '–'} /></td>

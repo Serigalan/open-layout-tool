@@ -17,7 +17,7 @@ The vertical (Höhenplan) half of the catalogue is applied in `elevation/gradien
 | `regelkatalog.js` | Reads the catalogue: severities, rules by scope, tables, `evaluateRules`, `catalogLimit` (a rule's threshold as a number) |
 | `trassierungCheck.js` | Fills the rule scope from an element chain and checks a track: per element, per boundary, per cant ramp (`checkTrack`, `hasRuleError`) |
 | `cant.js` | Cant and cant deficiency: limits (LP.KB.01/02/05/06), the 5 mm step, Regelüberhöhung, the cant a dialog proposes, the speed a curve permits |
-| `speed.js` | The radius and cant that govern an element's physics; every element's speed raised to what its geometry admits |
+| `speed.js` | The radius and cant that govern an element's physics; the highest speed the catalogue lets an element carry (V_max), and every element's speed raised to it |
 | `elementLength.js` | `l_min` of LP.EL.01 and the comparison radius of LP.KS.01 (Regelwert, Ermessensgrenze) at a speed |
 | `transitionLength.js` | Regellänge and Mindestlänge of a transition, found from the length rules; the formula each rule shows |
 | `regelwerkDefaults.js` | The few values the dialogs need synchronously, read from the catalogue |
@@ -96,6 +96,17 @@ disagreement with the layout.
 - A transition's cant ramp is always straight in this model (cant lives at element ends and is interpolated
   linearly), so it matches a clothoid and not a Bloss curve; LP.UB.02 reports a Bloss curve as a special
   case, which is a true statement about the model.
+
+**V_max.** `ruleMaxSpeed(elements, i)` (`speed.js`, Entscheidung 372) is the fastest design speed on the
+5 km/h step within LP.ALL.01 at which `elementVerdict` — the element's own rules, its ramp and the joints
+at both its ends — holds no error; every finding below an error is allowed, since it asks for a reason, not
+another speed. Each speed is tried with the element's two neighbours at that speed too, so a joint is read at
+the speed the element runs through it. All speeds are tried, not only down to the first that fails: a
+transition's change of deficiency (LP.UB.05) can fail slow and hold fast where the cant is in excess of the
+speed. An error that stands at every speed (cant off the 5 mm step, a cant jump at a joint) does not count
+and is returned as `fixed`. `maxSpeeds(elements, cap)` sets every element to it under the line speed — since
+each element's speed holds both its joints at that speed and a joint is judged at the faster side, setting
+all at once adds no error. `ruleMaxSpeedsOf` keeps the answers per chain (about 3 ms an element).
 
 **What blocks a dialog.** Every create and connect dialog asks `hasRuleError` on the elements it would write,
 and **only an error blocks** — `special_case` and hints do not; an element without speed is not judged. That

@@ -203,8 +203,8 @@ export default function BandsOverlay({ trackId, onClose }) {
     write(next)
     setDraft(common(sel.band, sel.indices, next))
   }
-  // The picked elements at the speed their radius and cant allow
-  // (maxSpeeds, without a line speed): those the geometry does not bound keep theirs.
+  // The picked elements at the highest speed the rule catalogue lets them
+  // carry (maxSpeeds, without a line speed): those no speed is free for keep theirs.
   const applyMaxSpeed = () => {
     if (sel?.band !== 'speed') return
     const most = maxSpeeds(elements, null)
