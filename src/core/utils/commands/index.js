@@ -10,7 +10,7 @@ export { buildCrossingConnect, crossingConnectOutcome, crossingConnectSolutions 
 export { connectRemedies } from './connectRemedies'
 export { adoptCrossover, crossoverRequest } from './crossover'
 export { editCommit, editStart, switchConnectionOf, takeApart } from './crossoverEdit'
-export { buildSwitchConnect, switchConnectOutcome, switchConnectSolutions } from './connectSwitch'
+export { buildSwitchConnect, switchConnectChainSolutions, switchConnectOutcome, switchConnectSolutions } from './connectSwitch'
 export { elementRoles, rolesFor, withRole } from './elementRoles'
 export { mergeElementEdits, planElementChange, planIntermediateChange } from './editGeometry'
 export { optimizedTrack, optimizeErrorText, optimizeRequest } from './optimizeApply'

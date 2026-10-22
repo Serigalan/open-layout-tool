@@ -17,6 +17,7 @@ the importers, the merge and the Node project server use the same code.
 | `heightDatums.js` | Height point spacing and the vertical datums (DHHN2016, DHHN92, EGM96, EGM2008) |
 | `identifierUtils.js` | Ids, track type fields (line track / station track), switch numbering and designations |
 | `trackSplitUtils.js` | Splitting an element or a track at a point (straight, arc, clothoid), carving a switch route out of a track |
+| `mergeElements.js` | Runs of elements that are one element merged into one (`mergeChain`): pieces a carve left (switch deletion), or, with `equal`, consecutive elements alike in kind, radius (to 1 mm) and cant — the element table's merge |
 | `trackLinkUtils.js` | Links: the node where one track ends and the next begins in another plane |
 | `topology.js` | The state of every track end (switch, link, joint, buffer stop, boundary, open); which tracks continue from an end |
 | `trackEndMarks.js` | Buffer stops and planning-area boundaries at free track ends |
@@ -50,7 +51,9 @@ Splitting (`splitElementAt`, `splitTrackAtJoint`) cuts a straight into two colli
 two arcs of its own radius and a clothoid into two clothoids of its own parameter — at a station, because a
 clothoid's curvature runs with the station. A Bloss curve cannot be cut (its pieces would be no Bloss
 curves); callers reject one first. The cut is computed in the plane, so the junction lies exactly on the
-line. `joinTracks` is the inverse; reversing a track flips every element (bearing + 180°, radii and cant
+line. `joinTracks` is the inverse, and `mergeChain` makes the pieces one element again where they differ in
+nothing but the cut; with `{ equal: true }` it merges any run alike in kind, radius and cant that meets
+without a kink, the rest of the fields from the first (Entscheidung 378). Reversing a track flips every element (bearing + 180°, radii and cant
 change sign, r1/r2 swap) and mirrors its heights.
 
 After any split, join or reversal, everything that names a track end — switch ports, end marks — is

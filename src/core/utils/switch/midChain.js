@@ -96,14 +96,9 @@ const CLOSE_TOL = 1e-8
 export function solveMidChain({ mids, start, endAt, s2Start = 0, lgStart, deltaStart = 0, seed = null }) {
   const open = midUnknowns(mids)
   if (open.length !== MID_OPEN) return null
-  const givenArcs = mids.filter(m => m.type === 'arc' && m.radius != null).length
-  const turn = Math.sign(deltaStart) || 1
   // Every combination of sides, the one that turns with the connection first;
   // a side the spec fixes stays.
-  const fixed = mids.filter(m => m.type === 'arc' && m.radius != null).map(m => m.side ?? null)
-  const signSets = [...Array(2 ** givenArcs).keys()]
-    .map(bits => [...Array(givenArcs).keys()].map(b => fixed[b] ?? ((bits >> b) & 1 ? -turn : turn)))
-    .filter((set, i, all) => all.findIndex(other => other.join() === set.join()) === i)
+  const signSets = midSignSets(mids, Math.sign(deltaStart) || 1)
 
   const given = mids.reduce((sum, m) => sum + (m.length ?? 0), 0)
   const openLengths = open.filter(u => u.field === 'length').length
@@ -116,20 +111,42 @@ export function solveMidChain({ mids, start, endAt, s2Start = 0, lgStart, deltaS
 
   for (const signs of signSets) {
     for (const init of starts) {
-      const found = newton(mids, signs, start, endAt, init)
+      const found = chainNewton(mids, signs, start, endAt, init)
       if (found) return found
     }
   }
   return null
 }
 
-function newton(mids, signs, start, endAt, x0) {
+/**
+ * The sides the given radii of a spec may bend to, each a list of ±1 in the
+ * order of those arcs: what the spec fixes stays, the rest both ways, the
+ * side `turn` first.
+ */
+export function midSignSets(mids, turn = 1) {
+  const fixed = mids.filter(m => m.type === 'arc' && m.radius != null).map(m => m.side ?? null)
+  return [...Array(2 ** fixed.length).keys()]
+    .map(bits => fixed.map((side, b) => side ?? ((bits >> b) & 1 ? -turn : turn)))
+    .filter((set, i, all) => all.findIndex(other => other.join() === set.join()) === i)
+}
+
+/**
+ * Damped Newton over three unknowns: the station s that `endAt` reads and the
+ * spec's open values (midUnknowns' order) — or, with `sFixed`, the open
+ * values alone at that station, three of them. `x0` holds the unknowns in
+ * that order. With `patience`, a run that has not halved its miss in that
+ * many steps gives up — it is sliding towards a minimum that is no root.
+ * Returns { s2, pieces } or null.
+ */
+export function chainNewton(mids, signs, start, endAt, x0, { sFixed = null, patience = null } = {}) {
   const open = midUnknowns(mids)
-  const lengthAt = open.map(u => u.field === 'length')
+  const free = sFixed == null
+  const lengthAt = [...(free ? [false] : []), ...open.map(u => u.field === 'length')]
+  const sOf = (x) => (free ? x[0] : sFixed)
   const residual = (x) => {
-    const end = endAt(x[0])
+    const end = endAt(sOf(x))
     if (!end) return null
-    const pieces = midPieces(mids, x.slice(1), signs, start.k, end.k)
+    const pieces = midPieces(mids, free ? x.slice(1) : x, signs, start.k, end.k)
     if (pieces.some(p => !(p.length > 1e-6) && (p.r1 !== p.r2))) return null
     const scale = Math.max(10, pieces.reduce((s, p) => s + Math.abs(p.length), 0))
     const p = switchChainPointUtm(start.utm, start.bearing, pieces)
@@ -140,11 +157,14 @@ function newton(mids, signs, start, endAt, x0) {
   let x = [...x0]
   let r = residual(x)
   if (!r) return null
+  const misses = []
   for (let it = 0; it < 50; it++) {
     if (norm(r.f) < CLOSE_TOL) break
+    misses.push(norm(r.f))
+    if (patience && it >= patience && misses[it] > misses[it - patience] / 2) return null
     // Jacobian by differences, one column per unknown.
     const J = [0, 1, 2].map(j => {
-      const h = j === 0 ? 1e-4 : lengthAt[j - 1] ? 1e-5 * Math.max(1, Math.abs(x[j])) : 1e-8
+      const h = free && j === 0 ? 1e-4 : lengthAt[j] ? 1e-5 * Math.max(1, Math.abs(x[j])) : 1e-8
       const xh = [...x]; xh[j] += h
       const rh = residual(xh)
       return rh ? rh.f.map((v, k) => (v - r.f[k]) / h) : null
@@ -165,7 +185,7 @@ function newton(mids, signs, start, endAt, x0) {
   }
   if (norm(r.f) >= 1e-6) return null
   if (r.pieces.some(p => !(p.length > 1e-3))) return null
-  return { s2: x[0], pieces: r.pieces }
+  return { s2: sOf(x), pieces: r.pieces }
 }
 
 /** x with J·x = f, J given as its three columns — or null where J is singular. */

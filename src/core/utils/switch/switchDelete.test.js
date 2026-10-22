@@ -11,8 +11,9 @@ import { newSwitchFields, switchElementMark } from '../track/switchModel'
 import { splitElementAt, carveSwitchRoute } from '../track/trackSplitUtils'
 import { dehydrateProjects, hydrateProjects, parseProjectsPayload, projectsPayload } from '../project/persistenceUtils'
 import { joinHeights, splitHeights } from '../track/heightUtils'
+import { mergeableRun, mergeChain } from '../track/mergeElements'
 import {
-  switchParts, planSwitchDeletion, keptRoutes, mergeableRun, mergeChain,
+  switchParts, planSwitchDeletion, keptRoutes,
 } from './switchDelete'
 import {
   expectValidTrack, expectNodesJoin, expectLengthsTrue,

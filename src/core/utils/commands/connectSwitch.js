@@ -1,10 +1,10 @@
 import { buildSwitchOnTrack, switchOnTrackPlacement, switchOnTrackRemnant, switchOnTrackRouteEnd } from './switches'
 import {
-  connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitCount, refitTrackEnd,
+  connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitCount, refitTrackEnd, solveEndChain,
   switchStraightLength, switchBranchLength, switchRoutePointUtm,
 } from '../switch'
 import { elementAtStation, trackLength, portTrack, withPort } from '../track'
-import { reverseElement } from '../geometry'
+import { curvatureOf, reverseElement } from '../geometry'
 import { checkTrack, severityRank } from '../rules'
 
 // "Weiche an Gleis anschließen" (Entscheidungen 302–304): a turnout laid into
@@ -17,8 +17,9 @@ const SCAN_STEP = 2
 
 /**
  * The turnout at toe station `x` as the search needs it: where its new route
- * — the branch, or the straight of a swapped one — ends and the bearing the
- * connecting element has to arrive there on, against the route. Null where the
+ * — the branch, or the straight of a swapped one — ends, the bearing the
+ * connecting element has to arrive there on, against the route, and the
+ * curvature in that direction (`kIn`, what a transition there runs to). Null where the
  * turnout cannot lie at x. With `full`, also the placement it came from, which
  * the commit builds from.
  */
@@ -26,15 +27,17 @@ function routeEndAt({ track, reversed, sw, side }, x, full = false) {
   const straightLen = switchStraightLength(sw)
   if (!full) {
     const end = switchOnTrackRouteEnd({ track, reversed, sw, side, straightLen }, x)
-    return end && { port: end.utm, bearingIn: (end.bearing + 180) % 360 }
+    return end && { port: end.utm, bearingIn: (end.bearing + 180) % 360, kIn: -end.k }
   }
   const p = switchOnTrackPlacement({ track, toeStation: x, reversed, sw, side, straightLen })
   if (p.error || !p.geom) return null
   const g = p.geom
   const end = g.swapped
-    ? { utm: g.swapped.straightUtm, bearing: g.swapped.mainEndBearing }
-    : { utm: g.curvedUtm, bearing: g.branchEndBearing }
-  return { port: end.utm, bearingIn: (end.bearing + 180) % 360, placement: p }
+    ? { utm: g.swapped.straightUtm, bearing: g.swapped.mainEndBearing, segments: g.swapped.stemSegments }
+    : { utm: g.curvedUtm, bearing: g.branchEndBearing, segments: g.branchSegments }
+  return {
+    port: end.utm, bearingIn: (end.bearing + 180) % 360, kIn: -curvatureOf(end.segments.at(-1)?.r2 ?? null), placement: p,
+  }
 }
 
 /** The point of the host at `station`, and one `ahead` metres further along it. */
@@ -96,6 +99,43 @@ export function switchConnectSolutions({ track, clickStation, anchor, sw, lead =
   solutions.sort((a, b) => Math.abs(a.x - near) - Math.abs(b.x - near))
   const own = (s) => s.side === sideOf(track, s.x, s.reversed, anchor.fixedUtm)
   return { solutions, preferred: solutions.find(own) ?? solutions[0] ?? null }
+}
+
+/**
+ * The same with the elements at the open end laid anew to a spec
+ * (Entscheidung 377): per opening direction and side the chain solveEndChain
+ * finds — the turnout at `station` where that is given, else sliding near
+ * the click. Each way costs a solve, so only the way `only` ({ reversed,
+ * side }) where the dialog has one; else both directions on the side the
+ * connected track lies on, and the other side only where those find none.
+ *
+ * Returns { solutions, preferred } as switchConnectSolutions, each
+ * solution's fit `{ pieces }`; { error } where the spec leaves the wrong
+ * number of values open.
+ */
+export function switchConnectChainSolutions({ track, clickStation, anchor, sw, mids, station = null, only = null }) {
+  const solveWay = (reversed, side) => {
+    const args = { track, reversed, sw, side }
+    const endAt = (x) => {
+      const at = routeEndAt(args, x)
+      return at && { utm: at.port, bearing: at.bearingIn, k: at.kIn }
+    }
+    const found = solveEndChain({ anchor, mids, endAt, station, near: clickStation })
+    if (!found || found.error) return found
+    const at = routeEndAt(args, found.x, true)
+    return at ? { reversed, side, x: found.x, fit: { pieces: found.pieces }, at } : null
+  }
+  // The side is seen in the direction the turnout opens in.
+  const own = (reversed) => sideOf(track, clickStation, reversed, anchor.fixedUtm)
+  const other = (reversed) => (own(reversed) === 'left' ? 'right' : 'left')
+  const ways = (sideFor) => [false, true].map(reversed => solveWay(reversed, sideFor(reversed)))
+  let found = only ? [solveWay(only.reversed, only.side)] : ways(own)
+  const failed = found.find(f => f?.error)
+  if (failed) return { error: failed.error, solutions: [], preferred: null }
+  if (!only && !found.some(Boolean)) found = ways(other)
+  const solutions = found.filter(Boolean)
+    .sort((a, b) => Math.abs(a.x - clickStation) - Math.abs(b.x - clickStation))
+  return { solutions, preferred: solutions[0] ?? null }
 }
 
 /**

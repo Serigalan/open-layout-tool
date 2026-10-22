@@ -1,18 +1,22 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { loadTracks, loadSwitches, loadEndMarks, commitSwitchConnection } from '../../../storage'
 import { wgs84ToUTM } from '../../../utils/geometry'
-import { SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, clickStation, connectionAnchor } from '../../../utils/switch'
+import {
+  SWITCH_PICK_TYPES, DEFAULT_SWITCH_TYPE_IDX, clickStation, connectionAnchor, END_CHAIN_OPEN, endChainDefault,
+  endChainOpen, negR,
+} from '../../../utils/switch'
 import {
   computeSwitchCant, computeCantDef, computeCantDefSigned, switchCantError, MAX_SWITCH_CANT_DEF,
 } from '../../../utils/rules'
-import { buildSwitchConnect, switchConnectOutcome, switchConnectSolutions } from '../../../utils/commands'
-import { trackLabel } from '../../../utils/track'
+import { buildSwitchConnect, switchConnectChainSolutions, switchConnectOutcome, switchConnectSolutions } from '../../../utils/commands'
+import { trackLabel, trackLength } from '../../../utils/track'
 import SwitchNumberField from '../SwitchNumberField'
 import SwitchCantField from './SwitchCantField'
 import SwitchFormField from './SwitchFormField'
 import useSwitchNumber from '../../../hooks/useSwitchNumber'
 import RuleFindings from '../RuleFindings'
 import ConnectRemedies from './ConnectRemedies'
+import MidChainFields from './MidChainFields'
 import { SWITCH_LINES_SOURCE, SWITCH_FILL_SOURCE, SWITCH_PREVIEW_LAYERS, buildLinesGeoJSON, buildFillGeoJSON } from '../../../map/switchPreview'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject } from '../../../hooks/useStore'
@@ -41,6 +45,11 @@ import { elementText } from './connectText'
  * Form, speed, cant and number as in "Weiche auf Gleis". Direction and side
  * start on the solution nearest to the click on the side the connected track
  * lies on; switching them shows the nearest solution there.
+ *
+ * With two elements (Entscheidung 377) the last two at the open end are laid
+ * anew, each of a chosen type, its length and radius given or sought as in the
+ * switch connection; the turnout's toe is a fourth such value — three are
+ * sought.
  */
 export default function SwitchConnectForm({ onCommitted }) {
   const { t, fill } = useI18n()
@@ -57,6 +66,12 @@ export default function SwitchConnectForm({ onCommitted }) {
   const [cantEdit, setCantEdit] = useState(null) // { key, value }
   const [cantReason, setCantReason] = useState('')
   const [commitError, setCommitError] = useState(null)
+  // How many elements at the open end change (Entscheidung 377), and with two
+  // the spec of them and the toe's station as typed ('' = sought) — both for
+  // the end they were made at (`key`).
+  const [count, setCount] = useState(1)
+  const [chainEdit, setChainEdit] = useState(null) // { key, mids }
+  const [toeEdit, setToeEdit] = useState(null)     // { key, value }
   const switchNo = useSwitchNumber(project.id)
   const preview = usePreview(SWITCH_PREVIEW_LAYERS, { resetFilters: [TRACKS_HOVER_LAYER], resetCursor: true })
 
@@ -103,18 +118,35 @@ export default function SwitchConnectForm({ onCommitted }) {
   const anchored = useMemo(() => {
     if (!track || !target) return null
     if (Number(track.epsg) !== Number(target.epsg)) return { error: 'switch_connect_other_plane' }
-    return connectionAnchor(target, end.endpoint, { tracks: loadTracks(), switches: loadSwitches(), endMarks: loadEndMarks() })
-  }, [track, target, end])
+    return connectionAnchor(target, end.endpoint, { tracks: loadTracks(), switches: loadSwitches(), endMarks: loadEndMarks(), count })
+  }, [track, target, end, count])
   const anchor = anchored?.anchor ?? null
 
-  const found = useMemo(() => (anchor && track
-    ? switchConnectSolutions({ track, clickStation: stem.station, anchor, sw })
-    : null), [anchor, track, stem, sw])
+  // ── Two elements: the spec, the toe, how many values are sought ──────────
+  const chainKey = `${end?.trackId}|${end?.endpoint}`
+  const chainDefault = useMemo(() => (count === 2 && anchor ? endChainDefault(anchor) : null), [count, anchor])
+  const mids = chainEdit?.key === chainKey ? chainEdit.mids : chainDefault
+  const toeText = toeEdit?.key === chainKey ? toeEdit.value : ''
+  const toeValue = toeText === '' ? null : Number(toeText)
+  const toeStation = Number.isFinite(toeValue) && track && toeValue >= 0 && toeValue <= trackLength(track) ? toeValue : null
+  const chainOpen = mids ? endChainOpen(mids) + (toeText === '' ? 1 : 0) : 0
+  const deferredMids = useDeferredValue(mids)
+  const deferredToe = useDeferredValue(toeStation)
+  const deferredOpen = deferredMids ? endChainOpen(deferredMids) + (deferredToe == null ? 1 : 0) : 0
+
+  const found = useMemo(() => {
+    if (!anchor || !track) return null
+    if (count === 1) return switchConnectSolutions({ track, clickStation: stem.station, anchor, sw })
+    if (!deferredMids || deferredOpen !== END_CHAIN_OPEN) return null
+    return switchConnectChainSolutions({
+      track, clickStation: stem.station, anchor, sw, mids: deferredMids, station: deferredToe, only: choice,
+    })
+  }, [anchor, track, stem, sw, count, deferredMids, deferredOpen, deferredToe, choice])
   const combo = choice ?? (found?.preferred ? { reversed: found.preferred.reversed, side: found.preferred.side } : null)
   const baseSolution = found && combo
     ? found.solutions.find(s => s.reversed === combo.reversed && s.side === combo.side) ?? null
     : null
-  const adjustKey = `${end?.trackId}|${end?.endpoint}|${switchTypeIdx}|${combo?.reversed}|${combo?.side}`
+  const adjustKey = `${end?.trackId}|${end?.endpoint}|${switchTypeIdx}|${combo?.reversed}|${combo?.side}|${count}`
   const adjust = adjusted?.key === adjustKey ? adjusted : null
   const solution = adjust?.lead ? adjust.solution : baseSolution
   const speedLimit = adjust?.speedLimit ?? null
@@ -184,6 +216,7 @@ export default function SwitchConnectForm({ onCommitted }) {
 
   const reset = () => {
     preview.clear(); setStem(null); setEnd(null); setChoice(null); setAdjusted(null); setPickError(null); setCommitError(null)
+    setChainEdit(null); setToeEdit(null)
   }
   const handleCancel = () => { reset(); onCommitted?.() }
 
@@ -194,7 +227,10 @@ export default function SwitchConnectForm({ onCommitted }) {
   const hard = []
   const rules = []
   if (anchored?.error) hard.push(t(anchored.error))
-  else if (found && !solution) hard.push(t('switch_connect_no_solution'))
+  else if (count === 2 && chainOpen !== END_CHAIN_OPEN) hard.push(t('connect_chain_unknowns'))
+  else if (count === 2 && toeText !== '' && toeStation == null) hard.push(t('switch_connect_toe_off'))
+  else if (found?.error) hard.push(t(found.error))
+  else if (found && !solution) hard.push(t(count === 2 ? 'switch_connect_chain_no_solution' : 'switch_connect_no_solution'))
   if (remnant?.short) {
     rules.push(fill('switch_on_track_min_element_short', {
       l: remnant.run.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
@@ -239,6 +275,16 @@ export default function SwitchConnectForm({ onCommitted }) {
   }
 
   const set = (next) => { setCommitError(null); setChoice({ ...combo, ...next }) }
+  // The solved pieces run from the fixed node; the rows stand in the track's
+  // order and direction.
+  const pieces = solution?.fit.pieces ?? null
+  const solvedRows = !pieces ? null : end.endpoint === 'END' ? pieces
+    : [...pieces].reverse().map(p => ({ length: p.length, r1: negR(p.r2), r2: negR(p.r1) }))
+  const rowLabels = mids?.map((_, i) => {
+    const n = String(anchor.elIdx + i + 1)
+    const atOpen = end.endpoint === 'END' ? i === mids.length - 1 : i === 0
+    return fill(atOpen ? 'switch_connect_chain_el_open' : 'switch_connect_chain_el', { n })
+  })
   return (
     <>
       <SwitchOrientationPicker reversed={combo?.reversed ?? false} side={combo?.side ?? 'left'} onChange={next => set(next)} />
@@ -253,23 +299,50 @@ export default function SwitchConnectForm({ onCommitted }) {
         </div>
         <SwitchCantField cant={cant} onCant={value => setCantEdit({ key: cantKey, value })}
           inherited={!plain} magnitude={worstCant} reason={cantReason} onReason={setCantReason} />
+        <div className="form-field">
+          <label>{t('switch_connect_count')}</label>
+          <select value={count} onChange={e => { setCommitError(null); setChoice(null); setCount(Number(e.target.value)) }}>
+            <option value={1}>{t('switch_connect_count_1')}</option>
+            <option value={2}>{t('switch_connect_count_2')}</option>
+          </select>
+        </div>
+        {count === 2 && (
+          <div className="form-field">
+            <label>{t('switch_connect_toe')}</label>
+            <NumberInput step="any" min="0" value={toeText} placeholder={t('scurve_mid_sought')}
+              onChange={e => { setCommitError(null); setToeEdit({ key: chainKey, value: e.target.value }) }} unit="m" />
+          </div>
+        )}
         <AdvancedInfo>
           <ReadOnlyField label={t('switch_connect_stem')} value={trackLabel(track)} />
           <ReadOnlyField label={t('switch_connect_target')} value={trackLabel(target)} />
           <ReadOnlyField label={t('switch_on_track_station')}
             value={solution ? `${solution.x.toFixed(3)} m (${fill('switch_connect_moved', { d: (solution.x - stem.station).toFixed(2) })})` : '–'} />
-          <ReadOnlyField label={t('switch_connect_element_before')} value={elementText(t, target?.elements?.[anchor?.elIdx])} />
-          <ReadOnlyField label={t('switch_connect_element_after')} value={elementText(t, outcome?.element)} />
+          {count === 1 && (
+            <>
+              <ReadOnlyField label={t('switch_connect_element_before')} value={elementText(t, target?.elements?.[anchor?.elIdx])} />
+              <ReadOnlyField label={t('switch_connect_element_after')} value={elementText(t, outcome?.element)} />
+            </>
+          )}
           <ReadOnlyField type="number" label={plain ? t('cant_def') : t('switch_branch_cant_def')} value={cantDef} />
         </AdvancedInfo>
       </FormSection>
+
+      {count === 2 && mids && (
+        <MidChainFields mids={mids} solved={solvedRows} title={t('switch_connect_chain')} labels={rowLabels}
+          onChange={next => { setCommitError(null); setChainEdit({ key: chainKey, mids: next }) }}
+          status={{
+            ok: chainOpen === END_CHAIN_OPEN,
+            text: fill('switch_connect_chain_open', { n: String(chainOpen), need: String(END_CHAIN_OPEN) }),
+          }} />
+      )}
 
       <FormSection title={t('switch_meta_data')}>
         <SwitchNumberField number={switchNo.number} onChange={switchNo.setNumber}
           name={switchNo.name} taken={switchNo.taken} />
       </FormSection>
 
-      {found && found.solutions.length > 1 && (
+      {count === 1 && found && found.solutions.length > 1 && (
         <p className="msg-hint">{fill('switch_connect_more', { n: String(found.solutions.length) })}</p>
       )}
       {outcome && <RuleFindings elements={outcome.chain} judge={outcome.judged} fields={false} />}
@@ -282,7 +355,7 @@ export default function SwitchConnectForm({ onCommitted }) {
           <button type="button" className="link-btn" onClick={() => setAdjusted(null)}>{t('connect_adjusted_reset')}</button>
         </p>
       )}
-      {outcome?.ruleError && outcomeFor && (
+      {count === 1 && outcome?.ruleError && outcomeFor && (
         <ConnectRemedies key={`${adjustKey}|${solution?.x}|${speedLimit}`} anchor={anchor}
           current={{ lead: adjust?.lead ?? 0, speedLimit }} outcome={outcome} outcomeFor={outcomeFor} onAdopt={adopt} />
       )}

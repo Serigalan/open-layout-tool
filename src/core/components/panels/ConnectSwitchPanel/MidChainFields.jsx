@@ -36,8 +36,14 @@ function solvedText(t, type, route) {
  *
  * `mids` is the spec (switch/midChain), `solved` the solution's pieces in the
  * same order, where there is one.
+ *
+ * "Weiche an Gleis anschließen" with two elements (Entscheidung 377) uses the
+ * same rows for the elements at the open end: `labels` names each row and
+ * fixes their number (no adding or removing), `title` heads the section and
+ * `status` ({ text, ok }) replaces the line under the list. Radii there are
+ * signed in the track's direction.
  */
-export default function MidChainFields({ mids, onChange, solved }) {
+export default function MidChainFields({ mids, onChange, solved, title = null, labels = null, status = null }) {
   const { t, fill } = useI18n()
   const set = (i, patch) => onChange(mids.map((m, j) => (j === i ? { ...m, ...patch } : m)))
   const num = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) || Number(v) <= 0 ? null : Number(v))
@@ -48,16 +54,16 @@ export default function MidChainFields({ mids, onChange, solved }) {
   const open = midUnknowns(mids).length
 
   return (
-    <FormSection title={t('scurve_mids')}>
+    <FormSection title={title ?? t('scurve_mids')}>
       {mids.map((m, i) => (
         <div key={i} className="mid-chain-row">
           <div className="form-field">
-            <label>{fill('scurve_mid_n', { n: String(i + 1) })}</label>
+            <label>{labels?.[i] ?? fill('scurve_mid_n', { n: String(i + 1) })}</label>
             <div className="mid-chain-type">
               <select value={m.type} onChange={e => set(i, { type: e.target.value, ...(e.target.value === 'arc' ? {} : { radius: null, side: undefined }) })}>
                 {TYPES.map(type => <option key={type} value={type}>{t(`scurve_mid_type_${type}`)}</option>)}
               </select>
-              {mids.length > 1 && (
+              {!labels && mids.length > 1 && (
                 <button type="button" className="mid-chain-remove" aria-label={t('scurve_mid_remove')}
                   title={t('scurve_mid_remove')} onClick={() => onChange(mids.filter((_, j) => j !== i))}>×</button>
               )}
@@ -78,15 +84,19 @@ export default function MidChainFields({ mids, onChange, solved }) {
           {solved?.[i] && <p className="msg-hint mid-chain-solved">= {solvedText(t, m.type, solved[i])}</p>}
         </div>
       ))}
-      {mids.length < MAX_MIDS && (
+      {!labels && mids.length < MAX_MIDS && (
         <button type="button" className="panel-btn secondary mid-chain-add"
           onClick={() => onChange([...mids, { type: 'straight', length: null, radius: null }])}>
           + {t('scurve_mid_add')}
         </button>
       )}
-      <p className={open === MID_OPEN ? 'msg-hint' : 'form-error'}>
-        {fill('scurve_mid_open', { n: String(open), need: String(MID_OPEN) })}
-      </p>
+      {status
+        ? <p className={status.ok ? 'msg-hint' : 'form-error'}>{status.text}</p>
+        : (
+          <p className={open === MID_OPEN ? 'msg-hint' : 'form-error'}>
+            {fill('scurve_mid_open', { n: String(open), need: String(MID_OPEN) })}
+          </p>
+        )}
     </FormSection>
   )
 }

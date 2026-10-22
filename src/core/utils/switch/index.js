@@ -12,8 +12,8 @@ export {
   switchMark, switchTypeByLabel,
 } from './catalogue'
 export {
-  connectionAnchor, connectionRoots, fitConnectingElement, joinRouteIntoTrack, refitCount,
-  refitTrackEnd,
+  connectionAnchor, connectionRoots, END_CHAIN_OPEN, endChainDefault, endChainOpen, fitConnectingElement,
+  joinRouteIntoTrack, refitCount, refitTrackEnd, solveEndChain,
 } from './connectToTrack'
 export {
   computeCrossingGeometryUtm, crossingAngle, crossingElements, crossingEndDistance,

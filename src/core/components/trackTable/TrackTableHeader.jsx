@@ -6,10 +6,11 @@ import NumberInput from '../form/NumberInput'
 
 /**
  * The bar above the table: the track and its length, the line speed and the
- * button that fills the speed column up to it, what the edits reached (or why
- * the last one was refused), Save and close.
+ * button that fills the speed column up to it, the one that merges alike
+ * elements, what the edits reached (or why the last one was refused), Save and
+ * close.
  */
-export function TrackTableBar({ title, length, cap, onCap, onMaxSpeeds, reachError, notice, reached, dirty, changed, onSave, onClose }) {
+export function TrackTableBar({ title, length, cap, onCap, onMaxSpeeds, onMerge, reachError, notice, reached, dirty, changed, onSave, onClose }) {
   const { t, fill, language } = useI18n()
   return (
     <div className="track-table-header">
@@ -26,8 +27,13 @@ export function TrackTableBar({ title, length, cap, onCap, onMaxSpeeds, reachErr
         <button className="track-table-vmax-btn" onClick={onMaxSpeeds} title={t('table_set_max_speeds_hint')}>
           {t('table_set_max_speeds')}
         </button>
+        <button className="track-table-vmax-btn" onClick={onMerge} title={t('table_merge_hint')}>
+          {t('table_merge')}
+        </button>
         {reachError && <span className="track-table-reach-error">{t(reachError)}</span>}
-        {!reachError && notice && <span className="track-table-reach">{t(notice)}</span>}
+        {!reachError && notice && (
+          <span className="track-table-reach">{typeof notice === 'string' ? t(notice) : fill(notice.key, notice.vars)}</span>
+        )}
         {!reachError && !notice && reached.trackIds.length > 1 && (
           <span className="track-table-reach">
             {fill('table_edit_reach', { tracks: String(reached.trackIds.length), switches: String(reached.switchIds.length) })}

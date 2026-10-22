@@ -34,6 +34,7 @@ export {
   closeGaps, extendRoute, nextRouteName, partStation, repairRoute, repairRoutes, resolveRoute,
   routeAt, routePointAt, routeStationOf,
 } from './routes'
+export { mergeChain } from './mergeElements'
 export { switchMatches, trackMatches } from './search'
 export {
   DEFAULT_SWITCH_KIND, elementBelongsToSwitch, elementOnSwitchRoute, isLinkSwitch,

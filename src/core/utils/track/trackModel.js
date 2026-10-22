@@ -108,7 +108,7 @@ export function reverseTrack(track) {
  * was (see switchDelete.planSwitchDeletion, which reverses the piece that meets
  * it backwards). The elements are taken as they are: the joint may be a kink,
  * and merging what is continuous across it is a separate step
- * (switchDelete.mergeChain).
+ * (mergeElements.mergeChain).
  *
  * The result keeps `head`'s id and metadata — `tail`'s id is the one that goes,
  * so every switch port naming it has to be repointed (`remapSwitches`). The

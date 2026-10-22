@@ -23,7 +23,7 @@ ports, element marks — is in the `track` module; what the dialogs commit is in
 | `switchCants.js` | The cant of a turnout's two routes kept together after every write (`coupleSwitchCants`) |
 | `switchConnectionUtils.js` | The switch connection: two turnouts facing each other on two tracks and the element(s) between them |
 | `midChain.js` | One to three elements between the two branches of a switch connection, two of their values sought |
-| `connectToTrack.js` | Connecting a turnout's branch or a crossing's leg to an open track end by refitting the element there |
+| `connectToTrack.js` | Connecting a turnout's branch or a crossing's leg to an open track end by refitting the element there, or the last two laid anew |
 | `stationSlider.js` | The valid stretches and snap points of the position slider |
 | `switchDelete.js` | Which routes stay as ordinary track when a switch is deleted, and the plan for doing it |
 | `weichenRegelwerk.js` | The form tables grouped for the rulebook viewer |
@@ -268,6 +268,17 @@ what remains is the direction miss at the port as a function of x. That function
 whole host for roots; each opening direction gives its solutions and the one nearest the click is taken.
 The branch and the connected track become one track (`joinRouteIntoTrack`), which keeps the connected
 track's name, data and direction.
+
+**Two elements** (Entscheidung 377). `connectionAnchor(…, { count: 2 })` anchors at the node before the
+last two elements; `solveEndChain` lays them anew as a spec like the switch connection's middle elements
+(`midChain`: per element straight, arc or transition, length and an arc's radius given or sought) from that
+node, its tangent and curvature, to the port. Three values are sought — the spec's open ones and the toe's
+station unless the dialog fixes it — by `chainNewton` from the old elements; a transition at either end
+runs from the neighbour's curvature or to the branch's at the switch end. `endChainDefault` keeps types and
+radii and seeks both lengths and the toe. The new elements keep their old fields; where the type changed, a
+new transition ramps its cant between its neighbours and a new straight or arc takes the
+cant it meets. `switchConnectChainSolutions` (commands) solves only the side the track lies on, the other
+only where that has none, or the one direction and side the dialog asks for.
 
 Refused: an end that is not open, a connecting element inside a switch or a Bloss curve, no root, a
 length ≤ 0, a toe without room, leftover pieces under `l_min`, and any rule error on the refitted track.

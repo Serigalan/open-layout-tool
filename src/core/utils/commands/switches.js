@@ -5,7 +5,7 @@ import {
 
 import {
   bearingAfterUtm, computeCurvedValuesUtm, computeStraightValuesUtm, utmToWgs84, arcElement,
-  straightElement, withCantRamp,
+  straightElement, withCantRamp, curvatureOf,
 } from '../geometry'
 import {
   computeCrossingGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius,
@@ -72,7 +72,8 @@ export function switchOnTrackPlacement({ track, toeStation, reversed, sw, side, 
 /**
  * Where the new route of a turnout laid into `track` at `toeStation` ends —
  * the branch's end, or for a swapped turnout (computeSwitchGeometryUtm) the
- * straight's — and its tangent there: `{ utm, bearing }`, or null where the
+ * straight's — its tangent there and the curvature it ends with, in its own
+ * direction: `{ utm, bearing, k }`, or null where the
  * turnout cannot lie. The same answer switchOnTrackPlacement's geometry gives,
  * without building the symbol and its polylines: a search that asks it at
  * every metre of a track needs only this (connectSwitch).
@@ -82,7 +83,7 @@ export function switchOnTrackRouteEnd({ track, reversed, sw, side, straightLen }
   if (sw.symmetric) {
     const p = switchOnTrackPlacement({ track, toeStation, reversed, sw, side, straightLen })
     if (p.error || !p.geom) return null
-    return { utm: p.geom.curvedUtm, bearing: p.geom.branchEndBearing }
+    return { utm: p.geom.curvedUtm, bearing: p.geom.branchEndBearing, k: curvatureOf(p.geom.branchSegments.at(-1)?.r2 ?? null) }
   }
   const { error, place } = placeOnTrack({ track, toeStation, reversed, sw, side, straightLen })
   if (error) return null
@@ -93,11 +94,12 @@ export function switchOnTrackRouteEnd({ track, reversed, sw, side, straightLen }
   // form with its routes swapped: the new route is the straight from the toe.
   if (!plain && branch.every(pc => pc.r1 == null && pc.r2 == null)) {
     const straight = [{ length: straightLen, r1: null, r2: null }]
-    return { utm: switchChainPointUtm(place.toeUtm, place.bearing, straight), bearing: place.bearing }
+    return { utm: switchChainPointUtm(place.toeUtm, place.bearing, straight), bearing: place.bearing, k: 0 }
   }
   return {
     utm: switchChainPointUtm(place.toeUtm, place.bearing, branch),
     bearing: switchChainBearingAt(place.bearing, branch),
+    k: curvatureOf(branch.at(-1)?.r2 ?? null),
   }
 }
 

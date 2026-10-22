@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
 import { useTracks, useProject } from '../hooks/useStore'
 import { elementRoles, planElementChange, planIntermediateChange, mergeElementEdits, withRole } from '../utils/commands'
-import { elementStations } from '../utils/track'
+import { elementStations, mergeChain, rebuildCoords } from '../utils/track'
 import { withCantEdit } from '../utils/geometry'
 import { coupleSwitchCants } from '../utils/switch'
 import { boundaryScope, cantLimit, checkTrack, clampCant, maxSpeeds, ruleMaxSpeedsOf } from '../utils/rules'
@@ -81,7 +81,8 @@ export default function TrackTableOverlay({
   // and what makes the table dirty.
   const [changed, setChanged] = useState([])
   // A one-off word to the user about something that happened to the table
-  // rather than in it (so far: an undo took its edits away).
+  // rather than in it: an undo took its edits away, or what a merge did — a
+  // key, or { key, vars } where it counts something.
   const [notice, setNotice] = useState(null)
 
   const dirty = changed.length > 0
@@ -363,6 +364,21 @@ export default function TrackTableOverlay({
     editElements(els => maxSpeeds(els, capValue))
   }
 
+  // Consecutive elements alike in type, radius and cant become one element
+  // (Entscheidung 378) — speed, role and reasons are the first's. Only the
+  // track on screen, and nothing moves: the merged element runs node to node
+  // over the ones it replaces. Save writes it.
+  function handleMerge() {
+    const merged = mergeChain(elements, current.epsg, { equal: true })
+    setReachError(null)
+    if (!merged.mergedFrom) { setNotice('table_merge_none'); return }
+    setChanged(prev => (prev.includes(track.id) ? prev : [...prev, track.id]))
+    setTracks(prev => prev.map(tr => (tr.id !== track.id ? tr
+      : { ...tr, elements: merged.elements, coordinates: rebuildCoords(merged.elements) })))
+    setActiveRow(row => (row == null ? row : Math.min(row, merged.elements.length - 1)))
+    setNotice({ key: 'table_merge_done', vars: { from: String(merged.mergedFrom), into: String(merged.mergedInto) } })
+  }
+
   function handleSave() {
     if (!dirty) return
     // Onto the store as it stands now, and only what this table changed —
@@ -386,7 +402,7 @@ export default function TrackTableOverlay({
     <div className="track-table-overlay" style={overlay.style}>
       <div className="profile-resize" onPointerDown={overlay.onResizeStart} />
       <TrackTableBar title={current.name || current.id.slice(0, 8)} length={trackLength}
-        cap={cap} onCap={setCap} onMaxSpeeds={handleMaxSpeeds}
+        cap={cap} onCap={setCap} onMaxSpeeds={handleMaxSpeeds} onMerge={handleMerge}
         reachError={reachError} notice={notice} reached={reached}
         dirty={dirty} changed={changed.length} onSave={handleSave} onClose={onClose} />
       <div className="track-table-scroll" ref={scrollRef}>

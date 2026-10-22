@@ -8,6 +8,7 @@ import {
 } from '../geometry'
 import { switchChainBearingAt, switchChainPointUtm, switchRouteBearingAt, switchRoutePointUtm } from './route'
 import { STRAIGHT_CURVATURE } from './catalogue'
+import { chainNewton, midSignSets, midUnknowns } from './midChain'
 
 // Connecting a turnout's branch, or a crossing's cross leg, to an open track
 // end (Entscheidungen 302–304, 307–308).
@@ -45,24 +46,29 @@ const ROOT_TOL = 1e-6
  * Returns { anchor } or { error } — the key of why this end cannot be
  * connected to (Entscheidung 304).
  */
-export function connectionAnchor(track, endpoint, { tracks, switches, endMarks } = {}) {
+export function connectionAnchor(track, endpoint, { tracks, switches, endMarks, count = 1 } = {}) {
   const els = track?.elements ?? []
   if (!els.length) return { error: 'connect_end_none' }
+  if (els.length < count) return { error: 'connect_end_too_few' }
   const end = classifyTrackEnds(tracks ?? [track], switches ?? [], endMarks ?? [])
     .find(e => e.trackId === track.id && e.endpoint === endpoint)
   if (!end || !isOpenState(end.state)) return { error: 'connect_end_not_open' }
   const atEnd = endpoint === 'END'
-  const elIdx = atEnd ? els.length - 1 : 0
-  const el = els[elIdx]
-  if ((switches ?? []).some(sw => elementBelongsToSwitch(el, sw)) || el.switchBranch) return { error: 'connect_end_in_switch' }
-  if (el.elementType === 2 && (el.transitionType ?? 'clothoid') !== 'clothoid') return { error: 'connect_end_bloss' }
+  // The first of the elements that change, in the track's order.
+  const elIdx = atEnd ? els.length - count : 0
+  const own = els.slice(elIdx, elIdx + count)
+  if (own.some(el => (switches ?? []).some(sw => elementBelongsToSwitch(el, sw)) || el.switchBranch)) {
+    return { error: 'connect_end_in_switch' }
+  }
+  if (own.some(el => el.elementType === 2 && (el.transitionType ?? 'clothoid') !== 'clothoid')) return { error: 'connect_end_bloss' }
   // Read from the fixed node towards the open end: at the end of the track
-  // the element as it runs, at its start the element turned round.
-  const run = atEnd ? el : reverseElement(el)
+  // the elements as they run, at its start turned round.
+  const runs = atEnd ? own : own.map(reverseElement).reverse()
+  const run = runs[0]
   const kind = run.elementType === 2 ? 'transition' : run.elementType === 1 ? 'arc' : 'straight'
   // The tangent at the fixed node is the neighbour's, where there is one: the
   // refitted element continues the track, not whatever kink it had there.
-  const neighbour = els[atEnd ? elIdx - 1 : elIdx + 1]
+  const neighbour = els[atEnd ? elIdx - 1 : elIdx + count]
   const bearing = !neighbour ? run.bearing
     : atEnd ? resolveEndBearing(neighbour, track.epsg) : (neighbour.bearing + 180) % 360
   // The neighbour as it runs towards the fixed node: what a transition put in
@@ -77,14 +83,21 @@ export function connectionAnchor(track, endpoint, { tracks, switches, endMarks }
       fixedUtm: { easting: run.startNode[0], northing: run.startNode[1], zone: track.epsg },
       bearing,
       r1: kind === 'transition' ? (run.r1 ?? null) : kind === 'arc' ? run.radius : null,
-      oldLength: el.length,
+      oldLength: own.reduce((sum, e) => sum + e.length, 0),
+      count,
+      // The old elements as they run from the fixed node: what the refitted
+      // ones start from and keep their fields of (Entscheidung 377).
+      runs,
       r0: before ? endRadius(before) : null,
       cant0: before ? endCant(before) : 0,
       // The cant a refitted arc keeps where no transition comes between
       // (Entscheidung 315): the neighbour's at the fixed node. Null where none
       // fixes it — no neighbour, or a transition that ramps into what follows.
       cantOn: !before ? null : before.elementType === 2 ? (before.cantEnd ?? null) : (before.cant ?? 0),
-      neighbourIdx: neighbour ? (atEnd ? elIdx - 1 : elIdx + 1) : null,
+      neighbourIdx: neighbour ? (atEnd ? elIdx - 1 : elIdx + count) : null,
+      // The curvature at the fixed node a transition there starts from: the
+      // neighbour's, or without one the element's own.
+      k0: curvatureOf(before ? endRadius(before) : run.elementType === 2 ? (run.r1 ?? null) : (run.radius ?? null)),
     },
   }
 }
@@ -249,6 +262,88 @@ export function connectionRoots(anchor, portAt, { from, to, step = 0.5, near = (
     .sort((a, b) => Math.abs(a.x - near) - Math.abs(b.x - near))
 }
 
+/** Newton steps a start at an open end gets to halve its miss before the next start is tried. */
+const PATIENCE = 6
+
+/** How many values a chain at an open end needs open: three conditions (position, direction) at the port. */
+export const END_CHAIN_OPEN = 3
+
+/** The type a spec names for an element (switch/midChain). */
+const specType = (el) => (el.elementType === 2 ? 'transition' : el.elementType === 1 ? 'arc' : 'straight')
+
+/**
+ * The spec (switch/midChain) the dialog starts from for the elements at an
+ * open end (Entscheidung 377), in the track's order: each element its own
+ * type and radius, both lengths sought, and the turnout sliding — the
+ * one-element connection's rule (lengths and the turnout move) over two.
+ */
+export function endChainDefault(anchor) {
+  const inTrack = anchor.endpoint === 'END' ? anchor.runs : [...anchor.runs].reverse().map(reverseElement)
+  return inTrack.map((el) => {
+    const type = specType(el)
+    const given = type === 'arc' ? el.radius : null
+    return { type, length: null, radius: given == null ? null : Math.abs(given), ...(given == null ? {} : { side: Math.sign(given) }) }
+  })
+}
+
+/** How many values a spec in the track's order leaves open. */
+export const endChainOpen = (mids) => midUnknowns(mids).length
+
+/**
+ * The spec in the track's order as it runs from the fixed node: at the
+ * track's start the order turned round and every side with it.
+ */
+const runSpec = (anchor, mids) => (anchor.endpoint === 'END' ? mids
+  : [...mids].reverse().map(m => (m.side ? { ...m, side: -m.side } : m)))
+
+/**
+ * The elements at an open end laid anew to a spec (Entscheidung 377): from
+ * the fixed node, on its tangent and from its curvature, to the port that
+ * `endAt(x)` gives for the turnout at station x ({ utm, bearing, k }: where
+ * the chain has to end, the bearing it arrives on and the curvature there in
+ * its direction, which a transition at the end runs to). Exactly three
+ * values are sought: the spec's open ones and, unless `station` fixes it,
+ * x. Damped Newton from the old elements and a few variations of them, the
+ * turnout starting at `near`; the first that closes with every length
+ * positive is taken.
+ *
+ * `mids` in the track's order, radii as magnitudes with the side they bend
+ * to in the track's direction. Returns { x, pieces } — pieces in the order
+ * they run from the fixed node — or null; { error } where the count of open
+ * values is wrong.
+ */
+export function solveEndChain({ anchor, mids, endAt, station = null, near }) {
+  const spec = runSpec(anchor, mids)
+  const open = midUnknowns(spec)
+  const free = station == null
+  if (open.length + (free ? 1 : 0) !== END_CHAIN_OPEN) return { error: 'connect_chain_unknowns' }
+  const start = { utm: anchor.fixedUtm, bearing: anchor.bearing, k: anchor.k0 }
+  // One port per station: Newton asks for the same one again and again.
+  const ends = new Map()
+  const endOf = (x) => {
+    if (!ends.has(x)) ends.set(x, endAt(x))
+    return ends.get(x)
+  }
+  const oldK = anchor.runs.map(el => curvatureOf(el.elementType === 1 ? el.radius : null))
+  const value = (u, scaleL, k) => (u.field === 'length'
+    ? anchor.runs[u.i].length * scaleL
+    : k ?? (oldK[u.i] || 1 / 1000))
+  // The old elements first, at the click; the first start that closes is
+  // taken — the starts nearest to what is there come first.
+  const variations = [[1, null], [1, 0], [0.5, null], [1.5, null]]
+  const sStarts = free ? [near, near - 20, near + 20] : [station]
+  for (const signs of midSignSets(spec)) {
+    for (const [scaleL, k] of variations) {
+      for (const s0 of sStarts) {
+        const x0 = [...(free ? [s0] : []), ...open.map(u => value(u, scaleL, k))]
+        const hit = chainNewton(spec, signs, start, endOf, x0, { sFixed: free ? null : station, patience: PATIENCE })
+        if (hit) return { x: hit.s2, pieces: hit.pieces }
+      }
+    }
+  }
+  return null
+}
+
 /** The fields of an element that say where it lies; everything else it keeps when refitted. */
 const SHAPE_FIELDS = new Set([
   'elementType', 'startNode', 'endNode', 'bearing', 'endBearing', 'length', 'radius',
@@ -295,18 +390,57 @@ function refittedElements(track, anchor, fit, port) {
 }
 
 /**
+ * The elements at an open end laid anew as `pieces` (solveEndChain) from the
+ * fixed node, the last ending exactly on `port` (Entscheidung 377). Each
+ * keeps what its old element carried (speed, role, cant, …); where the type
+ * changed, the cant follows it: a new transition ramps between its
+ * neighbours (its own ends kept, where it had them), a new straight or arc
+ * takes the cant it meets at its start (Entscheidung 315's rule). Returned in
+ * the track's order.
+ */
+function chainElements(anchor, pieces, port) {
+  let start = anchor.fixedUtm, bearing = anchor.bearing
+  let cantIn = anchor.cantOn ?? anchor.cant0 ?? 0
+  const built = pieces.map((piece, i) => {
+    const last = i === pieces.length - 1
+    const old = anchor.runs[i]
+    const end = last ? port : switchChainPointUtm(start, bearing, [piece])
+    const isTransition = piece.r1 !== piece.r2
+    const el = isTransition
+      ? transitionElement(start, bearing, piece.length, piece.r1, piece.r2, { endUtm: end }).element
+      : piece.r1 ? arcElement(start, end, piece.r1) : straightElement(start, end)
+    const keep = Object.fromEntries(Object.entries(old).filter(([k]) => !SHAPE_FIELDS.has(k)))
+    const { cant: _c, cantStart: _s, cantEnd: _e, ...plain } = keep
+    const kind = isTransition ? 2 : piece.r1 ? 1 : 0
+    const fields = kind === (old.elementType ?? 0) ? keep
+      : isTransition ? { ...plain, ...(keep.cantStart !== undefined ? { cantStart: keep.cantStart, cantEnd: keep.cantEnd } : {}) }
+        : { ...plain, cant: cantIn }
+    const made = { ...el, ...fields }
+    cantIn = made.elementType === 2 ? (made.cantEnd ?? cantIn) : (made.cantEnd ?? made.cant ?? 0)
+    start = end
+    bearing = switchRouteBearingAt(bearing, piece)
+    return made
+  })
+  return anchor.endpoint === 'END' ? built : built.map(reverseElement).reverse()
+}
+
+/**
  * The track with its connecting element refitted to `fit` (fitConnectingElement)
  * ending on `port`. Its heights stay with the part that does not move: at the
  * end of the track the points beyond the new length go, at its start every
  * station moves by the change of length and the points before the new start go.
  * `speedLimit` caps the speed of the refitted element and of its neighbour (a
- * remedy, as the splice's).
+ * remedy, as the splice's). A fit with `pieces` (solveEndChain) lays the
+ * anchor's `count` elements anew instead.
  */
 export function refitTrackEnd(track, anchor, fit, port, { speedLimit = null } = {}) {
   const cap = (el) => (speedLimit > 0 && (el.speed ?? 0) > speedLimit ? { ...el, speed: speedLimit } : el)
-  const made = refittedElements(track, anchor, fit, port).map(cap)
+  const made = (fit.pieces ? chainElements(anchor, fit.pieces, port) : refittedElements(track, anchor, fit, port)).map(cap)
+  const count = anchor.count ?? 1
   const elements = track.elements.flatMap((e, i) => (
-    i === anchor.elIdx ? made : i === anchor.neighbourIdx ? [cap(e)] : [e]))
+    i === anchor.elIdx ? made
+      : i > anchor.elIdx && i < anchor.elIdx + count ? []
+        : i === anchor.neighbourIdx ? [cap(e)] : [e]))
   const delta = made.reduce((sum, e) => sum + e.length, 0) - anchor.oldLength
   const total = trackLength(track) + delta
   const heights = (track.heights ?? [])
@@ -316,8 +450,11 @@ export function refitTrackEnd(track, anchor, fit, port, { speedLimit = null } = 
   return { ...rest, elements, coordinates: rebuildCoords(elements), ...(heights.length ? { heights } : {}) }
 }
 
-/** How many elements the refitted end is made of: the arc, and the transition before it where there is one. */
-export const refitCount = (fit) => (fit.lead ? 2 : 1)
+/**
+ * How many elements the refitted end is made of: the arc, and the transition
+ * before it where there is one — or the chain laid anew (Entscheidung 377).
+ */
+export const refitCount = (fit) => (fit.pieces ? fit.pieces.length : fit.lead ? 2 : 1)
 
 /**
  * The refitted track and the new route of a turnout or crossing as one track
