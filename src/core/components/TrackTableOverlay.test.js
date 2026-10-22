@@ -164,6 +164,30 @@ describe('V_max (Entscheidung 372)', () => {
   })
 })
 
+describe('the cant: one, or one at each end — never both (Entscheidung 373)', () => {
+  const clothoid = (props) => ({ elementType: 2, bearing: 30.1, length: 60, speed: 100, geometry: GEOM, transitionType: 'clothoid', ...props })
+  const track = {
+    id: 't-cant', name: 'Gleis 6', epsg: 5678,
+    elements: [straight({}), clothoid({ r1: null, r2: 500 }), arc({ radius: 500, cant: 60 }), arc({ radius: 800, cant: 40, cantStart: 40, cantEnd: 20 })],
+  }
+
+  it('shows an element of one cant in the cant column, and 0 where it has none', () => {
+    const { cell } = renderTable(track)
+    expect(cell(0, 'Überhöhung')).toMatchObject({ text: '0', editable: true })
+    expect(cell(2, 'Überhöhung')).toMatchObject({ text: '60', editable: true })
+    for (const column of ['Ü Anfang', 'Ü Ende']) expect(cell(2, column)).toMatchObject({ text: '', editable: false })
+  })
+
+  it('shows a transition and an arc with a ramp at their two ends, and the cant column empty', () => {
+    const { cell } = renderTable(track)
+    expect(cell(1, 'Überhöhung')).toMatchObject({ text: '', editable: false })
+    expect(cell(1, 'Ü Anfang')).toMatchObject({ text: '0', editable: true })
+    expect(cell(1, 'Ü Ende')).toMatchObject({ text: '60', editable: true })
+    expect(cell(3, 'Überhöhung')).toMatchObject({ text: '', editable: false })
+    expect([cell(3, 'Ü Anfang').text, cell(3, 'Ü Ende').text]).toEqual(['40', '20'])
+  })
+})
+
 describe('the CRS column', () => {
   it('states the plane the track’s coordinates are in, and names it in full', () => {
     const { cell } = renderTable()

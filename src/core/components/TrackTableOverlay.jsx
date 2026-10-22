@@ -3,6 +3,7 @@ import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
 import { useTracks, useProject } from '../hooks/useStore'
 import { planElementChange, mergeElementEdits } from '../utils/commands'
 import { elementStations } from '../utils/track'
+import { withCantEdit } from '../utils/geometry'
 import { boundaryScope, cantLimit, checkTrack, clampCant, maxSpeeds, ruleMaxSpeedsOf } from '../utils/rules'
 import { filterForElement, FILTER_NONE, mapIsLive } from '../map/pick'
 import { useMap } from '../map/MapContext'
@@ -14,6 +15,8 @@ import { TrackTableBar, TrackTableHead } from './trackTable/TrackTableHeader'
 
 // Fields that reshape the element geometry (and the downstream chain).
 const GEOM_KEYS = new Set(['length', 'bearing', 'radius'])
+// The cant of an element: one, or one at each end (Entscheidung 373).
+const CANT_KEYS = new Set(['cant', 'cantStart', 'cantEnd'])
 
 // Line speed the table starts with — clearing the field lifts it again.
 const DEFAULT_SPEED_CAP = 160
@@ -229,6 +232,12 @@ export default function TrackTableOverlay({
       // emptying the field takes the limit straight back to 100 mm, and the cant
       // that stands there is then marked as over it rather than quietly trimmed.
       setMeta(row, key, isEmpty ? undefined : String(raw).trim() || undefined)
+    } else if (CANT_KEYS.has(key)) {
+      // No cant typed is no cant (Entscheidung 373), and what an end now has
+      // the element beyond the joint takes too — the cant stays continuous.
+      const value = isEmpty ? 0 : clampMeta(key, Number(raw), elements[row])
+      if (!Number.isFinite(value)) return
+      editElements(els => withCantEdit(els, row, key, value))
     } else {
       const value = isEmpty ? undefined : clampMeta(key, Number(raw), elements[row])
       if (value != null && !Number.isFinite(value)) return
@@ -236,20 +245,16 @@ export default function TrackTableOverlay({
     }
   }
 
-  // Write one metadata field onto one element of the edited track. A cant
-  // typed for an arc or a straight holds along all of it: a ramp it had goes.
-  function setMeta(row, key, value) {
+  // The edited track's elements replaced by what `change` makes of them.
+  function editElements(change) {
     setNotice(null)
     setChanged(prev => (prev.includes(track.id) ? prev : [...prev, track.id]))
-    const put = (el) => {
-      if (key !== 'cant' || el.elementType === 2) return { ...el, [key]: value }
-      const { cantStart: _s, cantEnd: _e, ...flat } = el
-      return { ...flat, cant: value }
-    }
-    setTracks(prev => prev.map(tr => tr.id !== track.id ? tr : {
-      ...tr,
-      elements: (tr.elements ?? []).map((el, idx) => idx === row ? put(el) : el),
-    }))
+    setTracks(prev => prev.map(tr => tr.id !== track.id ? tr : { ...tr, elements: change(tr.elements ?? []) }))
+  }
+
+  // Write one metadata field onto one element of the edited track.
+  function setMeta(row, key, value) {
+    editElements(els => els.map((el, idx) => idx === row ? { ...el, [key]: value } : el))
   }
 
   // Speed and cant follow the same bounds the create/connect forms enforce: no
@@ -272,11 +277,7 @@ export default function TrackTableOverlay({
   // Speed column filled with the highest value the geometry allows. Only the
   // metadata changes, so the element chain stands as it is; Save persists it.
   function handleMaxSpeeds() {
-    setNotice(null)
-    setChanged(prev => (prev.includes(track.id) ? prev : [...prev, track.id]))
-    setTracks(prev => prev.map(tr => tr.id !== track.id
-      ? tr
-      : { ...tr, elements: maxSpeeds(tr.elements ?? [], capValue) }))
+    editElements(els => maxSpeeds(els, capValue))
   }
 
   function handleSave() {

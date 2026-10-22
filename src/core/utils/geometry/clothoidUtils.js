@@ -353,9 +353,14 @@ export function storedTrackCants(elements = []) {
  * an end that differs stays its own.
  */
 export function loadedTrackCants(elements = []) {
-  const out = elements.map(el => (el.elementType === 2
+  return followingCants(elements.map(el => (el.elementType === 2
     ? { ...el, cantStart: el.cantStart ?? 0, cantEnd: el.cantEnd ?? 0 }
-    : loadedCants(el)))
+    : loadedCants(el))))
+}
+
+/** A transition's ends left out where they are what its neighbours give it anyway. */
+function followingCants(elements) {
+  const out = elements.slice()
   out.forEach((el, i) => {
     if (el.elementType !== 2) return
     let next = el
@@ -370,6 +375,59 @@ export function loadedTrackCants(elements = []) {
     out[i] = next
   })
   return out
+}
+
+/**
+ * Does the element state its cant at its two ends — a transition always, an
+ * arc or a straight where the cant changes along it — rather than as one
+ * `cant`? What the element table shows and lets be typed for it (Entscheidung
+ * 373): one or the other, never both.
+ */
+export const hasCantEnds = (el) => el?.elementType === 2 || el?.cantStart != null || el?.cantEnd != null
+
+/** An element with its cant at `end` ('start' or 'end') set to `value`: one with ends as a ramp, the other its one cant. */
+function withEndCant(el, end, value) {
+  if (el.elementType === 2) return { ...el, [end === 'start' ? 'cantStart' : 'cantEnd']: value }
+  if (!hasCantEnds(el)) return { ...el, cant: value }
+  const start = end === 'start' ? value : (el.cantStart ?? el.cant ?? 0)
+  const last = end === 'end' ? value : (el.cantEnd ?? el.cant ?? 0)
+  return withCantRamp(el, start, last)
+}
+
+/**
+ * The elements with one cant typed in the element table (Entscheidung 373):
+ * `key` 'cant' (an element of one cant), 'cantStart' or 'cantEnd' (one that
+ * states its ends), `value` the cant [mm] as it is to be stored. The cant
+ * stays continuous: what an element now has at an end, the element beyond
+ * that joint takes at its end there — an element of one cant all along, and
+ * so on to the next joint; one with ends only at that end, where the carrying
+ * stops. A transition's end that is now its neighbour's is left to follow it.
+ */
+export function withCantEdit(elements, i, key, value) {
+  const out = elements.slice()
+  const el = out[i]
+  if (!el) return elements
+  const carry = (from, step, v) => {
+    for (let j = from; j >= 0 && j < out.length; j += step) {
+      const near = step < 0 ? 'end' : 'start'
+      const own = hasCantEnds(out[j])
+      out[j] = withEndCant(out[j], near, v)
+      if (own) return
+    }
+  }
+  if (key === 'cant') {
+    if (hasCantEnds(el)) return elements
+    out[i] = withEndCant(el, 'start', value)
+    carry(i - 1, -1, value)
+    carry(i + 1, 1, value)
+  } else {
+    if (!hasCantEnds(el)) return elements
+    const end = key === 'cantStart' ? 'start' : 'end'
+    out[i] = withEndCant(el, end, value)
+    if (end === 'start') carry(i - 1, -1, value)
+    else carry(i + 1, 1, value)
+  }
+  return followingCants(out)
 }
 
 /**

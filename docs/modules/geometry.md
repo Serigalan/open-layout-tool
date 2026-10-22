@@ -110,7 +110,14 @@ Every element has `startNode` and `endNode` (`[E, N]` in the track's plane). Con
   with `cantStart`/`cantEnd` of its own (`withCantRamp`), its `cant` then the end that helps the curve
   least, which the physics goes by (decision 355). That `cant` is the model's only: a record states
   `cant` where the cant is the same at both ends and `cantStart` + `cantEnd` where it changes, never both
-  (`storedCants` on save, `loadedCants` derives the `cant` again on load; decision 369).
+  (`storedTrackCants` on save, `loadedTrackCants` derives the `cant` again on load; decision 369). A record
+  states a transition's two ends always, an absent cant is 0; the load leaves out the ends its neighbours
+  give it anyway, so in the model it follows them (decision 371).
+- **A typed cant** (`withCantEdit`, decision 373): an element shows either its one `cant` or its two ends
+  (`hasCantEnds`: a transition, or an arc or straight with a ramp). What an end now has, the element beyond
+  the joint takes there — an element of one cant all along, and on over its next joint; one with ends only at
+  that end, where the carrying stops. So a changed transition end changes the arc beyond it and the
+  transition at that arc's other end, and the cant stays continuous (LP.UB.01).
 - **End bearing** is not stored where the design values give it (arc: `bearing + length/R`, transition:
   the integrated heading). It is kept only where it differs — a kinked straight, an imported tangent
   (`derivedEndBearing`, see [data format](../data-format.md)).

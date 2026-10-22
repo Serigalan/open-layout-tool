@@ -2134,10 +2134,10 @@
   "track_visibility_km_source_db": "DB-Daten",
   "table_cant_start": "Ü Anfang",
   "table_cant_end": "Ü Ende",
-  "table_cant_ends_hint": "Überhöhung am Anfang und am Ende des Elements, vorzeichenbehaftet nach der gehobenen Schiene (+ links gehoben). Bei einem Übergangsbogen einzugeben – leer folgt er dem Nachbarelement (grau); bei Gerade und Bogen nur angezeigt – ändert sich die Überhöhung darin (aus dem Import), stehen hier beide Werte.",
-  "table_cant_end_own": "Eigener Wert dieses Übergangsbogens – leeren, um dem Nachbarelement zu folgen ({mm} mm).",
-  "table_cant_end_implied": "Folgt dem Nachbarelement – ein eigener Wert hält die Überhöhung hier fest, z. B. für eine Rampe innerhalb eines Bogens.",
-  "table_cant_end_fixed": "Überhöhung des Elements an diesem Ende – nur Anzeige; geändert wird die Spalte Überhöhung, ein Wert dort gilt über das ganze Element.",
-  "bands_cant_ends_hint": "Betrag in mm, die gehobene Schiene bleibt dieselbe; geleert folgt das Ende wieder dem Nachbarelement. Ohne Raster – eine Rampe läuft durch die Werte dazwischen. Vorzeichen gegen die Krümmung im Trackeditor.",
-  "table_cant_ramp_note": "Die Überhöhung ändert sich in diesem Element von {from} auf {to} mm (aus dem Import); hier steht der Wert, nach dem Fehlbetrag und V_max gehen. Ein eingegebener Wert gilt über das ganze Element."
+  "table_cant_edit": "Überhöhung über das ganze Element. Eine Änderung geht über die Elementgrenzen weiter: die Elemente mit einer Überhöhung daneben nehmen sie auch, ein Übergangsbogen an diesem Ende.",
+  "table_cant_end_edit": "Überhöhung an diesem Ende. Eine Änderung geht über die Elementgrenze weiter: ein Element mit einer Überhöhung dahinter nimmt sie ganz, und damit auch der Übergangsbogen an seinem anderen Ende.",
+  "table_cant_by_ends": "Dieses Element hat je eine Überhöhung an Anfang und Ende – siehe Ü Anfang und Ü Ende.",
+  "table_cant_by_one": "Dieses Element hat eine Überhöhung über die ganze Länge – siehe Spalte Überhöhung.",
+  "table_cant_ends_hint": "Überhöhung am Anfang und am Ende des Elements, vorzeichenbehaftet nach der gehobenen Schiene (+ links gehoben). Ein Element hat entweder eine Überhöhung (Spalte Überhöhung) oder je eine an Anfang und Ende (Übergangsbogen, oder ein Bogen bzw. eine Gerade, in dem sich die Überhöhung ändert) – nie beides. Keine Überhöhung ist 0.",
+  "bands_cant_ends_hint": "Betrag in mm, die gehobene Schiene bleibt dieselbe; geleert folgt das Ende wieder dem Nachbarelement. Ohne Raster – eine Rampe läuft durch die Werte dazwischen. Vorzeichen gegen die Krümmung im Trackeditor."
 }
