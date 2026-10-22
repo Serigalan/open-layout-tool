@@ -3,7 +3,7 @@ import { loadTracks, commitSwitchConnection, currentProject } from '../../../sto
 import { computeAutoC, severityRank } from '../../../utils/rules'
 import {
   buildSplice, clearanceRequest, neighbourAxis, secondPickRefusal, settleLengths, spliceFromAnswer,
-  spliceKeptCant, splicePick, spliceRequest,
+  picksAtSpeed, spliceKeptCant, splicePick, spliceRequest,
 } from '../../../utils/commands'
 import { gaugeProfile } from '../../../utils/crossSection'
 import { utmToWgs84 } from '../../../utils/geometry'
@@ -75,11 +75,15 @@ const trackName = (track) => (track ? track.name || trackLabel(track) : '')
  */
 export default function SpliceElementPanel() {
   const { t, fill } = useI18n()
-  const [picks, setPicks] = useState([])   // the two picks, in the order they were clicked
+  const [clicked, setClicked] = useState([])   // the two picks, in the order they were clicked
   // The solution chosen among several, by the ends it joins (null: the best).
   const [chosen, setChosen] = useState(null)
   const [s, setS] = useState(DEFAULTS)
   const set = (key, value) => setS(prev => ({ ...prev, [key]: value }))
+  // The picks as the splice reads them: one faster than the dialog's speed
+  // carries that speed on what stays of it — that piece is part of what the
+  // splice writes, and is judged at the speed asked for.
+  const picks = useMemo(() => picksAtSpeed(clicked, s.speed), [clicked, s.speed])
   // The radius is a magnitude here, so the cant is one too. It follows speed
   // and radius unless the user overrode it for that pair.
   const [pickStatus, setPickStatus] = useState(null)   // { msg, error }
@@ -128,15 +132,15 @@ export default function SpliceElementPanel() {
       const pick = splicePick(loadTracks().find(tr => tr.id === trackId), elementIndex)
       if (!pick) return
       if (pick.error) { setPickStatus({ msg: t(pick.error), error: true }); return }
-      if (picks.length === 1) {
-        const why = secondPickRefusal(picks[0], pick)
+      if (clicked.length === 1) {
+        const why = secondPickRefusal(clicked[0], pick)
         if (why === 'same') return
         if (why) { setPickStatus({ msg: t(why), error: true }); return }
       }
       // Which one departs is the splice's to find, not the order of the clicks.
-      setPicks(picks.length === 1 ? [picks[0], pick] : [pick])
+      setClicked(clicked.length === 1 ? [clicked[0], pick] : [pick])
       // The faster of the two, the rules judging the stricter case (Entscheidung 181).
-      if (picks.length === 1) set('speed', Math.max(picks[0].speed ?? 0, pick.speed ?? 0) || '')
+      if (clicked.length === 1) set('speed', Math.max(clicked[0].speed ?? 0, pick.speed ?? 0) || '')
       setChosen(null)
       setPickStatus(null)
     },
@@ -145,10 +149,10 @@ export default function SpliceElementPanel() {
   // The neighbour's axis near the two picks, read once per track picked.
   const refTrack = keeping ? loadTracks().find(tr => tr.id === refTrackId) ?? null : null
   const axis = useMemo(
-    () => (refTrack ? neighbourAxis(refTrack, picks[0].epsg, picks[0], picks[1]) : null),
+    () => (refTrack ? neighbourAxis(refTrack, clicked[0].epsg, clicked[0], clicked[1]) : null),
     // the track and the picks are what the axis is read from
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [refTrackId, picks])
+    [refTrackId, clicked])
 
   // The preview and the commit read the same answer, so they cannot disagree.
   // An answer counts only for the request it was given to. The key names the
@@ -229,7 +233,7 @@ export default function SpliceElementPanel() {
   const transitionRules = s.transitionOn.some(Boolean) ? solution?.result?.lengths ?? splice?.lengths ?? null : null
 
   const reset = () => {
-    preview.clear(); setPicks([]); setChosen(null); setPickStatus(null); setRefTrackId(null); setPickingRef(false)
+    preview.clear(); setClicked([]); setChosen(null); setPickStatus(null); setRefTrackId(null); setPickingRef(false)
   }
 
   // Ways out of a curvature jump the rules reject, searched once asked for
@@ -251,11 +255,10 @@ export default function SpliceElementPanel() {
     }
   }
   // A proposal taken over: the cant stays what it was solved with, though
-  // speed or radius — the inputs it follows — change with it.
+  // speed or radius — the inputs it follows — change with it. A lower speed
+  // reaches the picks faster than it through picksAtSpeed.
   const adoptRemedy = (r) => {
     if (r.kind === 'speed') {
-      setPicks(prev => prev.map(p => ((p.speed ?? 0) > r.speed
-        ? { ...p, speed: r.speed, speedBefore: p.speedBefore ?? p.speed } : p)))
       const speed = Number(s.speed) > r.speed ? r.speed : s.speed
       set('speed', speed)
       setCant(cant, cantKey(speed, radius))

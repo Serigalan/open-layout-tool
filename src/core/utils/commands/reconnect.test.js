@@ -102,6 +102,9 @@ describe('the request', () => {
       }
     }
     expect(req).toMatchObject({ tolerance: 0.1, speed: 100, radius: 0, transition: 'clothoid' })
+    expect(req.dep.speed).toBe(picks[0].speed)
+    // A neighbour faster than the panel's speed goes at it.
+    expect(reconnectRequest(picks, axisPoints(track, 1, 5), { tolerance: 0.1, speed: 40 }).dep.speed).toBe(40)
     expect(req.lMin).toBeGreaterThan(0)
     expect('clearance' in req).toBe(false)
     // With a neighbour to keep clear of, its axis, the minimum and the outline go along (Entscheidung 201).
@@ -139,6 +142,10 @@ describe('the track written back', () => {
     expect(Math.abs(arc.radius)).toBe(sol.reconnect.radius)
     // The neighbours re-shaped keep their own speed.
     expect(out.elements[1]).toMatchObject({ elementType: 0, speed: 80 })
+    // …down to the panel's, where it is lower: judged and built at it.
+    const { track: slow } = buildReconnect({ track, range: r, solution: sol, speed: 60 })
+    expect(slow.elements[1]).toMatchObject({ elementType: 0, speed: 60 })
+    expect(slow.elements[0].speed).toBe(80)
     // Starts and ends where the old one did.
     expect(out.elements[0].startNode).toEqual(track.elements[0].startNode)
     const [e, n] = out.elements.at(-1).endNode

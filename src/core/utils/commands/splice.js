@@ -93,6 +93,17 @@ export function secondPickRefusal(first, pick) {
 }
 
 /**
+ * The picks at the dialog's `speed`: one faster carries it on what stays of
+ * it — that piece is part of the stretch the splice writes, and is judged and
+ * built at the speed the dialog asks for (`speedBefore` its own) — one slower
+ * keeps its own. Without a speed, the picks as they are.
+ */
+export function picksAtSpeed(picks, speed) {
+  const v = Number(speed) || 0
+  return picks.map(p => (v > 0 && (p.speed ?? 0) > v ? { ...p, speed: v, speedBefore: p.speed } : p))
+}
+
+/**
  * The cant proposed for the arc a splice inserts where no transition comes
  * between it and a pick (Entscheidung 315): it stays as that pick's — the
  * first one clicked where neither side has one —, a magnitude. Null where a
@@ -390,8 +401,8 @@ function mergedChain({ dep, arr, result }, depTrack, arrTrack, { speed, cant }) 
   const plane = ({ role: _role, speed: _speed, cant: _cant, ...el }) => el
   const keepCant = (el, orig) => (orig?.cant != null && el.radius != null
     ? { cant: cantSign(el.radius) * Math.abs(orig.cant) } : {})
-  // A pick whose speed the dialog lowered (`speedBefore`, a remedy for a
-  // curvature jump) carries the lower one on what stays of it.
+  // A pick whose speed the dialog lowered (`speedBefore`, picksAtSpeed)
+  // carries the lower one on what stays of it.
   const lowered = (pick) => (pick.speedBefore != null ? { speed: pick.speed } : {})
   // What is built on from a transition picked at its track's end is new, with
   // that transition's speed and the cant of its curvature (AP S.7).

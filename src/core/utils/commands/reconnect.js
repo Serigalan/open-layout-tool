@@ -1,7 +1,7 @@
 import { rebuildCoords, trackLabel, heightAt } from '../track'
 import { resolveEndBearing, nodeUtm, endPointCurvedUtm, endPointStraightUtm, sampleTransitionUtm } from '../geometry'
 import { cantSign, AUTO_CANT_MODEL, minElementLength } from '../rules'
-import { spliceFromAnswer } from './splice'
+import { picksAtSpeed, spliceFromAnswer } from './splice'
 
 // Reconnecting existing elements (Paket N): a stretch of one track is taken
 // out and its two neighbours joined again by the splice construction, the
@@ -147,6 +147,8 @@ export function stretchDefaults(track, range) {
  * clearance outline of the project's profile.
  */
 export function reconnectRequest(picks, points, { tolerance, speed, transitionType, radius }, clearance = null) {
+  // A neighbour faster than the panel's speed is judged at it (picksAtSpeed).
+  const [dep, arr] = picksAtSpeed(picks, speed)
   const pick = (p) => ({
     start: [p.startUtm.easting, p.startUtm.northing],
     end: [p.endUtm.easting, p.endUtm.northing],
@@ -156,7 +158,7 @@ export function reconnectRequest(picks, points, { tolerance, speed, transitionTy
     joinAt: p.joinAt,
   })
   return {
-    dep: pick(picks[0]), arr: pick(picks[1]),
+    dep: pick(dep), arr: pick(arr),
     points: { e0: points.e0, n0: points.n0, de: points.de, dn: points.dn },
     tolerance: Number(tolerance) || 0,
     speed: Number(speed) || 0,
@@ -215,7 +217,8 @@ function restationedHeights(heights, map, length) {
  * The track as it is after reconnecting (Entscheidung 191): what lies before
  * the stretch, the service's chain, what lies behind it — the same id, name
  * and data. The re-shaped neighbours keep what they carried (speed, a
- * re-signed cant); what the chain inserts takes the panel's speed and an
+ * re-signed cant) — a speed above the panel's comes down to it, as the
+ * request judged them —; what the chain inserts takes the panel's speed and an
  * inserted arc the cant the search chose for its radius. A neighbour kept
  * fixed stays itself and what is built on from it is new.
  *
@@ -232,16 +235,18 @@ export function buildReconnect({ track, range, solution, speed }) {
   const plane = ({ role: _role, speed: _speed, cant: _cant, ...el }) => el
   const keepCant = (el, orig) => (orig?.cant != null && el.radius != null
     ? { cant: cantSign(el.radius) * Math.abs(orig.cant) } : {})
+  const v = Number(speed) || 0
+  const slowed = (orig) => (v > 0 && (orig.speed ?? 0) > v ? { speed: v } : {})
   const builtOn = (el, orig) => ({
-    ...plane(el), speed: orig.speed,
+    ...plane(el), speed: orig.speed, ...slowed(orig),
     ...(el.elementType === 1 ? { cant: cantSign(el.radius) * Math.abs(orig.cant ?? 0) } : {}),
   })
   // The neighbours' own marks and data stay on what is left of them; a
   // switch's mark never travels to what is built on from it.
   const own = ({ switchId: _a, switchBranch: _b, switchRoute: _c, ...el }) => el
   const mid = chain.map(el => {
-    if (el.role === 'dep') return range.dep.fixed ? builtOn(el, depOrig) : { ...own(depOrig), ...plane(el), ...keepCant(el, depOrig) }
-    if (el.role === 'arr') return range.arr.fixed ? builtOn(el, arrOrig) : { ...own(arrOrig), ...plane(el), ...keepCant(el, arrOrig) }
+    if (el.role === 'dep') return range.dep.fixed ? builtOn(el, depOrig) : { ...own(depOrig), ...plane(el), ...keepCant(el, depOrig), ...slowed(depOrig) }
+    if (el.role === 'arr') return range.arr.fixed ? builtOn(el, arrOrig) : { ...own(arrOrig), ...plane(el), ...keepCant(el, arrOrig), ...slowed(arrOrig) }
     const inserted = { ...plane(el), speed: Number(speed) || 0 }
     return el.elementType === 1 ? { ...inserted, cant: cantSign(el.radius) * cant } : inserted
   })

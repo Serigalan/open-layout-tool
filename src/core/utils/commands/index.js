@@ -23,7 +23,7 @@ export {
 } from './sCurve'
 export {
   buildSplice, clearanceRequest, neighbourAxis, neighbourAxisNear, secondPickRefusal,
-  settleLengths, spliceFromAnswer, spliceKeptCant, splicePick, spliceRequest,
+  picksAtSpeed, settleLengths, spliceFromAnswer, spliceKeptCant, splicePick, spliceRequest,
 } from './splice'
 export {
   buildCrossingOnTrack, buildSwitchOnTrack, crossingOnTrackPlacement, crossingOnTrackSlider,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { solveSplice } from './solveSplice'
-import { buildSplice, spliceFromAnswer, splicePick, spliceRequest } from '../commands/splice'
+import { buildSplice, picksAtSpeed, spliceFromAnswer, splicePick, spliceRequest } from '../commands/splice'
 import { straightElement, straightFrom, arcFrom, transitionElement } from '../geometry/elementFactory'
 import { bearingAfterUtm, endPointCurvedUtm, endPointStraightUtm } from '../geometry/elementUtils'
 import { rebuildCoords } from '../track/trackModel'
@@ -164,5 +164,41 @@ describe('the merged track', () => {
     expectValidTrack(merged)
     expect(merged.elements.map(e => e.elementType)).toEqual([0, 2, 1, 1, 0])
     expect(merged.elements[2].length).toBeCloseTo(50, 4)
+  })
+})
+
+describe('the speed the dialog asks for', () => {
+  // Track a runs east to x = 200 from x = 90, track b north from y = 100 at
+  // x = 400, both at 80 km/h. An R 300 between them leaves 10 m of track a
+  // before it: short of l_min at 80 km/h (12 m), enough at 60 (6 m).
+  const P = (x, y) => ({ easting: 500000 + x, northing: 5700000 + y, zone: 25832 })
+  const tr = (id, el) => ({ id, name: id, epsg: 25832, elements: [el], coordinates: rebuildCoords([el]) })
+  const a = tr('a', straightElement(P(90, 0), P(200, 0), { speed: 80 }))
+  const b = tr('b', straightElement(P(400, 100), P(400, 700), { speed: 80 }))
+  const settings = { radius: 300, transitionOn: [false, false], transitions: [0, 0], transitionType: 'clothoid', arcJoin: 'straight', speed: 60, cant: 0 }
+  const lengthErrors = (picks) => solveSplice(spliceRequest(picks[0], picks[1], settings)).solutions[0].findings
+    .filter(f => f.id === 'LP.EL.01' && f.severity === 'error')
+
+  it('is the speed what stays of a faster pick is judged at', () => {
+    const picks = [splicePick(a, 0), splicePick(b, 0)]
+    expect(lengthErrors(picks)).toHaveLength(1)
+    const atSpeed = picksAtSpeed(picks, 60)
+    expect(atSpeed.map(p => [p.speed, p.speedBefore])).toEqual([[60, 80], [60, 80]])
+    expect(lengthErrors(atSpeed)).toEqual([])
+  })
+
+  it('leaves a slower pick, and every pick without a speed asked for', () => {
+    const picks = [splicePick(a, 0), { ...splicePick(b, 0), speed: 40 }]
+    expect(picksAtSpeed(picks, 60).map(p => p.speed)).toEqual([60, 40])
+    expect(picksAtSpeed(picks, '').map(p => p.speed)).toEqual([80, 40])
+  })
+
+  it('is built on what stays of the picks', () => {
+    const atSpeed = picksAtSpeed([splicePick(a, 0), splicePick(b, 0)], 60)
+    const answer = solveSplice(spliceRequest(atSpeed[0], atSpeed[1], settings))
+    const solution = spliceFromAnswer(answer, atSpeed).solutions[0]
+    const [merged] = buildSplice({ tracks: [a, b], solution, speed: 60, cant: 0, newId: () => 'm' }).addTracks
+    expect(merged.elements.map(e => e.speed)).toEqual([60, 60, 60])
+    expect(merged.elements[0].length).toBeCloseTo(10, 6)
   })
 })
