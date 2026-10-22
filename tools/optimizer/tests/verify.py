@@ -1100,5 +1100,16 @@ ok("Krümmungssprung: steht die Gerade auf 100 km/h, bleibt der Bogen liegen (13
    not any(r["changed"] for r in j_fast_res["report"]))
 
 
+# Eine Rampe auf einem Bogen steht in der Datei nur als cantStart/cantEnd
+# (Entscheidung 369): die Prüfung liest ihre eine Überhöhung daraus wie
+# geometry.withCantRamp — das Ende, das dem Bogen am wenigsten hilft.
+from olt_optimizer.pruefung import element_scope                                        # noqa: E402
+_rampe = {"elementType": 1, "radius": -950.0, "length": 12.0, "speed": 80.0, "cantStart": -21.875, "cantEnd": -40.625}
+_mit = element_scope([{**_rampe, "cant": -21.875}], 0)
+_ohne = element_scope([_rampe], 0)
+ok("Bogenrampe ohne cant: Überhöhung und Fehlbetrag wie mit dem abgeleiteten cant",
+   _ohne["element.cant"] == _mit["element.cant"] == 21.875 and _ohne["physics.u_f"] == _mit["physics.u_f"])
+
+
 print()
 sys.exit(1 if FAILED else 0)

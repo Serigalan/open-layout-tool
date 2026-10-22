@@ -291,6 +291,9 @@ export function cantEnds(elements, i) {
   return { start: endCant(el, 'start'), end: endCant(el, 'end') }
 }
 
+/** Two cants this close are one [mm] — the thousandth a record keeps. */
+const SAME_CANT = 0.001
+
 /**
  * An arc or a straight with the cant `start` at its start and `end` at its
  * end: one `cant` where they agree, else both as cantStart / cantEnd and, as
@@ -300,8 +303,38 @@ export function cantEnds(elements, i) {
  */
 export function withCantRamp(el, start, end) {
   const { cantStart: _s, cantEnd: _e, cant: _c, ...rest } = el
-  if (Math.abs(start - end) <= 0.001) return start || el.radius ? { ...rest, cant: start || 0 } : rest
+  if (Math.abs(start - end) <= SAME_CANT) return start || el.radius ? { ...rest, cant: start || 0 } : rest
   const side = el.radius < 0 ? -1 : 1
   const cant = el.radius && side * end < side * start ? end : start
   return { ...rest, cant, cantStart: start, cantEnd: end }
+}
+
+/**
+ * An element's cant as a record keeps it (Entscheidung 369): `cant` says the
+ * cant is the same at both ends, `cantStart` + `cantEnd` that it changes along
+ * the element — never both. An arc or a straight whose two ends agree keeps one
+ * `cant`; one with a ramp keeps its two ends, and its `cant` (the one the
+ * physics goes by, withCantRamp) is derived again on load (loadedCants). A
+ * transition keeps its ends as it states them, also two equal ones, since a
+ * `cant` on it would not say which ends are its own; a stray `cant` beside them
+ * goes.
+ */
+export function storedCants(el) {
+  const { cant: _c, ...rest } = el
+  const hasStart = el.cantStart != null, hasEnd = el.cantEnd != null
+  if (el.elementType === 2) return hasStart || hasEnd ? rest : el
+  if (!hasStart || !hasEnd) return el
+  const { cantStart, cantEnd, ...bare } = rest
+  if (Math.abs(cantStart - cantEnd) > SAME_CANT) return rest
+  return cantStart || el.radius ? { ...bare, cant: cantStart } : bare
+}
+
+/**
+ * An element's cant as the model reads it, from a record (storedCants): an arc
+ * or a straight with a ramp gets its `cant` back — the end that helps the curve
+ * least (withCantRamp).
+ */
+export function loadedCants(el) {
+  if (el.elementType === 2 || el.cant != null || el.cantStart == null || el.cantEnd == null) return el
+  return withCantRamp(el, el.cantStart, el.cantEnd)
 }

@@ -108,7 +108,9 @@ Every element has `startNode` and `endNode` (`[E, N]` in the track's plane). Con
   `cantStart`/`cantEnd` — typed in the element table, brought by an import, or kept by a piece a cut left
   without those neighbours. An element of one radius whose cant changes along it is an arc (or a straight)
   with `cantStart`/`cantEnd` of its own (`withCantRamp`), its `cant` then the end that helps the curve
-  least, which the physics goes by (decision 355).
+  least, which the physics goes by (decision 355). That `cant` is the model's only: a record states
+  `cant` where the cant is the same at both ends and `cantStart` + `cantEnd` where it changes, never both
+  (`storedCants` on save, `loadedCants` derives the `cant` again on load; decision 369).
 - **End bearing** is not stored where the design values give it (arc: `bearing + length/R`, transition:
   the integrated heading). It is kept only where it differs — a kinked straight, an imported tangent
   (`derivedEndBearing`, see [data format](../data-format.md)).

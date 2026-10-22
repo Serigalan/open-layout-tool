@@ -53,6 +53,22 @@ def _own_end(el, key):
     return value if value is not None else (el.get("cant") or 0.0)
 
 
+def _cant(el):
+    """The one cant of an element. A record states it as `cant` where it is the
+    same at both ends and as `cantStart` + `cantEnd` where it ramps (decision
+    369); then it is the end that helps the curve least, as
+    geometry.withCantRamp derives it."""
+    if el.get("cant") is not None or _is_transition(el):
+        return el.get("cant") or 0.0
+    start, end = el.get("cantStart"), el.get("cantEnd")
+    if start is None or end is None:
+        return 0.0
+    radius = el.get("radius")
+    if radius and math.copysign(1.0, radius) * end < math.copysign(1.0, radius) * start:
+        return end
+    return start
+
+
 def _cant_ends(els, i):
     # Every element may state the cant at its ends (decision 355): an arc or a
     # straight where it changes along it, a transition where its neighbours do
@@ -122,12 +138,12 @@ def element_scope(els, i, context=None):
     return {
         "element.design_speed": v,
         "element.length": _run_length(els, i, context),
-        "element.cant": abs(el.get("cant") or 0.0),
+        "element.cant": abs(_cant(el)),
         "element.radius": abs(el.get("radius") or 0.0),
         "element.transition_form": _form(el) or "",
         "prev.design_speed": prev["speed"] if prev and prev.get("speed") is not None else v,
         "next.design_speed": nxt["speed"] if nxt and nxt.get("speed") is not None else v,
-        "physics.u_f": _deficiency(v, el["radius"], el.get("cant") or 0.0) if el.get("radius") else 0.0,
+        "physics.u_f": _deficiency(v, el["radius"], _cant(el)) if el.get("radius") else 0.0,
         "physics.delta_u": du,
         "physics.delta_u_f": duf,
         "physics.ramp_slope": 1000.0 * (el.get("length") or 0.0) / du if du > 0 else math.inf,

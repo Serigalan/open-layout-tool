@@ -268,4 +268,32 @@ describe('a record as it is kept', () => {
     expect(el.bearing).toBe(84.123456789)
     expect(t.heights[0]).toEqual({ station: 12.345679, z: 101.2346, rv: 2000 })
   })
+  // The user's own example: an arc with a ramp kept `cant` beside its two ends.
+  describe('the cant: `cant` or `cantStart` + `cantEnd`, never both (Entscheidung 369)', () => {
+    const load = (el) => hydrateProjects([{ id: 'p', tracks: [{ id: 't', epsg: 25832, elements: [el] }] }])[0].tracks[0].elements[0]
+
+    it('keeps an arc\'s ramp as its two ends, and the load derives its one cant again', () => {
+      const ramped = { ...arc, radius: -950, cant: -21.875, cantStart: -21.875, cantEnd: -40.625 }
+      const [el] = kept(ramped).elements
+      expect(el).not.toHaveProperty('cant')
+      expect(el).toMatchObject({ cantStart: -21.875, cantEnd: -40.625 })
+      expect(load(el)).toMatchObject({ cant: -21.875, cantStart: -21.875, cantEnd: -40.625 })
+    })
+
+    it('keeps two equal ends as one cant', () => {
+      const [el] = kept({ ...arc, cant: 30, cantStart: 30, cantEnd: 30 }).elements
+      expect(el.cant).toBe(30)
+      expect(el).not.toHaveProperty('cantStart')
+      expect(el).not.toHaveProperty('cantEnd')
+    })
+
+    it('leaves one cant alone, and a transition\'s ends without a cant beside them', () => {
+      expect(kept({ ...arc, cant: 30 }).elements[0]).toMatchObject({ cant: 30 })
+      const transition = { elementType: 2, transitionType: 'clothoid', startNode: [0, 0], endNode: [60, 0], bearing: 90, length: 60, r1: null, r2: 500, cant: 40, cantStart: 0, cantEnd: 40 }
+      const [el] = kept(transition).elements
+      expect(el).not.toHaveProperty('cant')
+      expect(el).toMatchObject({ cantStart: 0, cantEnd: 40 })
+      expect(kept({ ...transition, cantStart: 40 }).elements[0]).toMatchObject({ cantStart: 40, cantEnd: 40 })
+    })
+  })
 })

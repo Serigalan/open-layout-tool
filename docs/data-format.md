@@ -111,8 +111,11 @@ Collections, each keyed by its own id (which is also how the merge compares them
 | `r1`, `r2` | — | — | m, signed, `null` = straight end |
 | `transitionType` | — | — | `clothoid` \| `bloss` |
 | `endBearing` | only for a kink | only if it differs from `bearing + length/R` | only if it differs from the integrated one |
-| `cant` | mm, signed (a canted straight) | mm, signed by the raised rail | — (ramps between its ends) |
-| `cantStart`, `cantEnd` | mm, only where the cant changes along it | mm, only where the cant changes along it (`cant` then the end that helps the curve least) | mm, signed; absent = the neighbour's cant at that end |
+| `cant` | mm, signed (a canted straight) — the same at both ends | mm, signed by the raised rail — the same at both ends | — (ramps between its ends) |
+| `cantStart`, `cantEnd` | mm, only where the cant changes along it, and then no `cant` | mm, only where the cant changes along it, and then no `cant` (the load derives it: the end that helps the curve least) | mm, signed; absent = the neighbour's cant at that end |
+
+An element states its cant as `cant` **or** as `cantStart` + `cantEnd`, never both: `cant` says the cant is
+the same at both ends (decision 369).
 
 Optional on any element: `speed` (design speed, km/h; 0 or absent = unknown, not checked), `cantException`
 (the written justification for 100–120 mm cant in a turnout), and on the elements of a switch's route the mark

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { loadSwitches, loadTracks, commitImport, updateTrack } from '../../../storage'
 import { rebuildCoords, trackLabel } from '../../../utils/track'
 import { parseTracksPayload, PayloadError } from '../../../utils/project'
-import { reconstructElements } from '../../../utils/geometry'
+import { loadedCants, reconstructElements, storedCants } from '../../../utils/geometry'
 import { downloadJSON, readFileText } from '../../../utils/common'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject, useTracks } from '../../../hooks/useStore'
@@ -13,14 +13,14 @@ import ExchangeSection from './ExchangeSection'
 
 /** Display geometry rebuilt from the element scalars (native CRS per element). */
 function reconstructTrack(track) {
-  const elements = reconstructElements(track.elements, track.epsg)
+  const elements = reconstructElements(track.elements.map(loadedCants), track.epsg)
   return { ...track, elements, coordinates: rebuildCoords(elements) }
 }
 
-/** Without geometry: what a track file carries is the element scalars. */
+/** Without geometry: what a track file carries is the element scalars, the cant as a record keeps it. */
 const forFile = ({ elements, coordinates: _c, ...track }) => ({
   ...track,
-  elements: (elements ?? []).map(({ geometry: _g, renderCoords: _rc, ...rest }) => rest),
+  elements: (elements ?? []).map(({ geometry: _g, renderCoords: _rc, ...rest }) => storedCants(rest)),
 })
 
 /**

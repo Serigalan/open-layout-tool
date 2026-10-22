@@ -1,4 +1,4 @@
-import { reconstructElements, derivedEndBearing } from '../geometry'
+import { reconstructElements, derivedEndBearing, loadedCants, storedCants } from '../geometry'
 import { rebuildSwitchSymbol } from '../switch'
 import { rebuildPlatformSymbol, isModelledSwitch, rebuildCoords } from '../track'
 
@@ -28,6 +28,10 @@ import { rebuildPlatformSymbol, isModelledSwitch, rebuildCoords } from '../track
  *     — which ports a kind has, switchModel.portsOf says.
  *   – the vertical alignment is the track's own (`track.heights`, stationed
  *     along the track), a platform is stationed along its track too.
+ *   – the cant of an element is `cant` where it is the same at both ends and
+ *     `cantStart` + `cantEnd` where it changes along it, never both
+ *     (Entscheidung 369); the load gives an arc or a straight with a ramp its
+ *     `cant` back, the end that helps the curve least (geometry.loadedCants).
  *   – numbers are kept to what they mean: positions, lengths, radii and
  *     stations to 1 µm, heights to 0.1 mm, angles to 10⁻⁹ °. Not coarser for
  *     the plane: nodes and design values must agree to the 10⁻⁶ ° the chain
@@ -150,7 +154,8 @@ const turnBetween = (a, b) => Math.abs((((a - b) % 360) + 540) % 360 - 180)
 
 /** One element as it is kept: nothing derived, numbers to what they mean. */
 function keptElement({ renderCoords: _rc, geometry: _g, ...el }) {
-  const out = { ...el }
+  // `cant` or `cantStart` + `cantEnd`, never both (Entscheidung 369).
+  const out = storedCants(el)
   if (out.endBearing != null) {
     const derived = derivedEndBearing(out) ?? out.bearing
     if (derived != null && turnBetween(out.endBearing, derived) < SAME_END_BEARING) delete out.endBearing
@@ -182,7 +187,7 @@ function keptHeight(h) {
 export function hydrateProjects(projects) {
   for (const p of projects ?? []) {
     for (const track of p.tracks ?? []) {
-      const elements = (track.elements ?? []).map(el => {
+      const elements = (track.elements ?? []).map(loadedCants).map(el => {
         if (el.endBearing != null) return el
         const derived = derivedEndBearing(el)
         return derived == null ? el : { ...el, endBearing: derived }
