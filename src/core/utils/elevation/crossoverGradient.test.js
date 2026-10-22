@@ -261,12 +261,12 @@ describe('a crossover on the straight', () => {
   const st = (x0, y, len, extra = {}) => ({
     elementType: 0, startNode: [x0, y], endNode: [x0 + len, y], bearing: 90, length: len, speed: 100, ...extra,
   })
-  function straightLayout() {
+  function straightLayout(cant2 = 0) {
     const m1 = { switchId: 'w1', switchRoute: 'main' }, m2 = { switchId: 'w2', switchRoute: 'main' }
     const tracks = [
       { id: 't1a', name: 'T1 a', epsg: 25832, elements: [st(-300, 0, 300)], heights: sloped(300, 100) },
       { id: 't1b', name: 'T1 b', epsg: 25832, elements: [st(0, 0, 30, m1), st(30, 0, 470)], heights: sloped(500, 100) },
-      { id: 't2a', name: 'T2 a', epsg: 25832, elements: [st(-300, 4, 400), st(100, 4, 30, m2)], heights: sloped(430, 100.3) },
+      { id: 't2a', name: 'T2 a', epsg: 25832, elements: [st(-300, 4, 400, { cant: cant2 }), st(100, 4, 30, { ...m2, cant: cant2 })], heights: sloped(430, 100.3) },
       { id: 't2b', name: 'T2 b', epsg: 25832, elements: [st(130, 4, 400)], heights: sloped(400, 100.3) },
       { id: 'c', name: 'conn', epsg: 25832, elements: [connection([0, 0], [130, 4])] },
     ]
@@ -293,5 +293,16 @@ describe('a crossover on the straight', () => {
     expect(zOf(after, 't2a', 300) - zOf(after, 't1b', 0)).toBeCloseTo(0, 3)
     expect(zOf(after, 't2b', 0) - zOf(after, 't1b', 130)).toBeCloseTo(0, 3)
     expect(zOf(after, 't1b', 0)).toBeCloseTo(100.15, 3)
+  })
+
+  it('fits the heights where a track carries a cant it cannot be given anew, and says so', () => {
+    const p = straightLayout(15)
+    const [x] = findCrossovers(p.tracks, p.switches)
+    const plan = planCrossoverGradient(p.tracks, p.switches, x, { mode: 'heights', cant: 0, limits: [WIDE, WIDE] })
+    expect(plan.ok).toBe(true)
+    expect(plan.warnings).toContain('cant_not_on_arc')
+    expect(plan.elements.size).toBe(0)
+    const after = applied(p, plan)
+    expect(zOf(after, 't2a', 300) - zOf(after, 't1b', 0)).toBeCloseTo(0, 3)
   })
 })

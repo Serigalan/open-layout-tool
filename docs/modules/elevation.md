@@ -141,7 +141,8 @@ where HP.AR.01 asks, and the straight is drawn out until the curves lie outside 
 
 On the straight (no radius in the frame, decision 379) the same fit runs with u = 0 — or the cant the tracks
 carry — so both tracks are brought level across the crossover; *cant from heights* is not offered there,
-there is no curve to cant. After a switch connection is laid or edited the dialog asks whenever it lies in a
+there is no curve to cant. Where a line has no arc across the crossover (a straight, a transition whose cant
+ramps) its cant is left as it is and only the heights are fitted, with a warning (decision 380). After a switch connection is laid or edited the dialog asks whenever it lies in a
 cant or both tracks have a gradient.
 
 ## Routes

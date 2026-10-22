@@ -1339,7 +1339,7 @@
   "crossover_err_limits": "The limits do not reach: up to {need} m difference in height is needed.",
   "crossover_err_cant_wrong_side": "The heights would mean a cant towards the inside of the curve ({uExact} mm).",
   "crossover_err_no_range": "The range has to reach at least 1 m before and behind the crossover.",
-  "crossover_err_cant_not_on_arc": "The crossover does not lie in a circular arc — the cant cannot be set here.",
+  "crossover_warn_cant_not_on_arc": "Where the crossover does not lie in a circular arc (straight, transition with a cant ramp) the cant stays as it is there — only the heights are fitted.",
   "elevation_switch_no_lds": "Switch {name} ({label}): no last through sleeper in the switch catalogue – not coupled, switch area up to the switch end",
   "elevation_couple_hint": "Toe and last through sleeper do not lie on the line through the points before and behind, the points in the switch do not lie in pairs on the sleepers, or the point behind the last through sleeper is not on the continuation. That happens with the next change to one of their tracks, or here – heights may change.",
   "elevation_couple_status": "{n} switches are not coupled yet.",

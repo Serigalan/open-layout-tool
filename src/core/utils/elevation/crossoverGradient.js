@@ -464,7 +464,9 @@ export function planCrossoverGradient(tracks, switches, crossover, { mode, cant,
     for (const [id, h] of w.writes) heights.set(id, h)
   }
 
-  // The cant of the curve both lines run through over the crossover.
+  // The cant of the curve both lines run through over the crossover. Where a
+  // line has no arc there — a straight, a transition whose cant ramps — its
+  // cant stays as it is and only the heights are fitted (decision 380).
   const elements = new Map()
   for (const [line, zone] of [[line1, zone1], [line2, zone2]]) {
     const mid = (zone[0] + zone[1]) / 2
@@ -472,7 +474,7 @@ export function planCrossoverGradient(tracks, switches, crossover, { mode, cant,
     const now = sectionAtStation(seg.track, stationOf(seg, mid))?.cant ?? 0
     if (Math.abs(Math.abs(now) - Math.abs(uSigned)) < 0.5) continue
     const run = curveRun(line, mid)
-    if (!run) return { ok: false, reason: 'cant_not_on_arc' }
+    if (!run) { warnings.add('cant_not_on_arc'); continue }
     for (const { track, i, el } of run) {
       const els = elements.get(track.id) ?? [...track.elements]
       els[i] = { ...el, cant: cantSign(el.radius) * Math.abs(uSigned) }

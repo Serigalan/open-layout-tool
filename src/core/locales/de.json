@@ -1339,7 +1339,7 @@
   "crossover_err_limits": "Die Grenzen reichen nicht: nötig sind bis {need} m Höhenunterschied.",
   "crossover_err_cant_wrong_side": "Die Gleislage ergäbe eine Überhöhung zur Bogeninnenseite ({uExact} mm).",
   "crossover_err_no_range": "Der Bereich muss vor und hinter der Weichenverbindung mindestens 1 m lang sein.",
-  "crossover_err_cant_not_on_arc": "Die Weichenverbindung liegt nicht in einem Kreisbogen — die Überhöhung lässt sich hier nicht setzen.",
+  "crossover_warn_cant_not_on_arc": "Wo die Weichenverbindung nicht in einem Kreisbogen liegt (Gerade, Übergangsbogen mit Überhöhungsrampe), bleibt die Überhöhung dort, wie sie ist — angeglichen werden nur die Höhen.",
   "elevation_switch_no_lds": "Weiche {name} ({label}): ldS nicht im Weichenkatalog – nicht gekoppelt, Weichenbereich bis WE",
   "elevation_couple_hint": "WA und ldS liegen noch nicht auf der Geraden durch die Punkte davor und dahinter, die Punkte im Weichenbereich nicht paarweise auf den Schwellen oder der Punkt hinter der ldS nicht auf der Fortführung. Das geschieht bei der nächsten Änderung an einem ihrer Gleise oder hier – Höhen können sich dabei ändern.",
   "elevation_couple_status": "{n} Weichen sind noch nicht gekoppelt.",
