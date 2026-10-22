@@ -14,7 +14,7 @@ in cant, the profile along a route, and ground heights from terrain models.
 | `gradientCheck.js` | HP.LN (gradients) and HP.AR (vertical curves) applied to a track; the Regelwert radius; radii governed by a curve length |
 | `switchGradient.js` | The turnout plane: the branch's height from the main route's height, gradient and cant; pairs of height points on one sleeper |
 | `switchChain.js` | The coupling points at WA and ldS, the continuation behind the ldS, crossovers ≤ 20 m; `coupleSwitchHeights`, run by the store after every write |
-| `crossoverGradient.js` | Fitting both tracks of a crossover in cant into one plane (heights from cant, or cant from heights) |
+| `crossoverGradient.js` | Fitting both tracks of a crossover into one plane: in cant (heights from cant, or cant from heights), on the straight level |
 | `routeProfile.js` | The profile of a route — its tracks' points over route stations — and a track as a route of one part |
 | `elevationSource.js` | Ground heights: registered point sources (DGM1 via the service in the main build), DGM5 tiles, MapTiler tiles |
 | `elevationFill.js` | Keeping joints at one height when tracks are re-read from the terrain |
@@ -138,6 +138,11 @@ is named. Shape: over the crossover (first WA to last ldS and what lies across f
 straight, in one gradient through its turnout and the track before its toe, offset as needed; from the ends
 of the marked stretch it ramps linearly to that offset. Gradient changes are rounded with the Regelwert
 where HP.AR.01 asks, and the straight is drawn out until the curves lie outside the turnouts (HP.AR.06).
+
+On the straight (no radius in the frame, decision 379) the same fit runs with u = 0 — or the cant the tracks
+carry — so both tracks are brought level across the crossover; *cant from heights* is not offered there,
+there is no curve to cant. After a switch connection is laid or edited the dialog asks whenever it lies in a
+cant or both tracks have a gradient.
 
 ## Routes
 

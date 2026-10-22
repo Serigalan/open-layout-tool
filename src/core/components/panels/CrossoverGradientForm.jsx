@@ -38,14 +38,16 @@ const signed = (m) => (Math.abs(m) < 0.0005 ? '±0.000 m' : `${m > 0 ? '+' : ''}
 const nameOf = (track) => track?.name || trackLabel(track)
 
 /**
- * Fitting the gradient of a crossover in cant (decisions 159–163): how far
+ * Fitting the gradient of a crossover in cant (decisions 159–163), and on the
+ * straight, where there is no curve to cant, bringing its two tracks level —
+ * cant 0, or what the tracks carry (decision 379): how far
  * each of its two tracks may be raised and lowered and over which stretch —
  * marked on the map — and whether the heights follow a wanted cant or the cant
  * follows the heights. What it would do is worked out on every change
  * (crossoverGradient) and stated before it is applied, as one undo step.
  *
- * `ask` puts the question first, as after a crossover has just been laid in a
- * curve: may the heights of the two tracks be changed at all?
+ * `ask` puts the question first, as after a crossover has just been laid:
+ * may the heights of the two tracks be changed at all?
  */
 export default function CrossoverGradientForm({ switchIds, ask = false, onDone }) {
   const { t, fill } = useI18n()
@@ -59,7 +61,7 @@ export default function CrossoverGradientForm({ switchIds, ask = false, onDone }
     [tracks, switches, crossover])
 
   const [asked, setAsked] = useState(!ask)
-  const [mode, setMode] = useState('heights')
+  const [modeChoice, setMode] = useState('heights')
   const [cantDraft, setCantDraft] = useState(null)
   const [lim, setLim] = useState([DEFAULT_LIMIT, DEFAULT_LIMIT])
   const [picking, setPicking] = useState(null)   // index of the track whose range is being marked
@@ -69,6 +71,10 @@ export default function CrossoverGradientForm({ switchIds, ask = false, onDone }
     before: num(l.before), after: num(l.after),
   }))
   const cant = cantDraft ?? (frame ? String(crossoverCant(frame)) : '')
+  // On a straight there is no curve to give a cant from the heights: the
+  // heights follow the cant (0, or what the tracks carry).
+  const straight = frame != null && frame.radius == null
+  const mode = straight ? 'heights' : modeChoice
   const plan = useMemo(() => (frame && asked
     ? planCrossoverGradient(tracks, switches, crossover, { mode, cant: num(cant), limits })
     : null),
@@ -136,7 +142,7 @@ export default function CrossoverGradientForm({ switchIds, ask = false, onDone }
     return (
       <div className="element-form">
         <p>{title}</p>
-        <p>{fill('crossover_ask', { cant: crossoverCant(frame) })}</p>
+        <p>{fill(straight ? 'crossover_ask_straight' : 'crossover_ask', { cant: crossoverCant(frame) })}</p>
         <CommitBar onCommit={() => setAsked(true)} commitLabel={t('crossover_ask_yes')}
           onCancel={onDone} cancelLabel={t('crossover_ask_no')} />
       </div>
@@ -168,10 +174,12 @@ export default function CrossoverGradientForm({ switchIds, ask = false, onDone }
             <NumberInput step="5" min="0" value={cant} onChange={e => setCantDraft(e.target.value)} />
           </div>
         )}
-        <label className="crossover-option">
-          <input type="radio" checked={mode === 'cant'} onChange={() => setMode('cant')} />
-          {t('crossover_mode_cant')}
-        </label>
+        {straight ? <p className="msg-hint">{t('crossover_straight_hint')}</p> : (
+          <label className="crossover-option">
+            <input type="radio" checked={mode === 'cant'} onChange={() => setMode('cant')} />
+            {t('crossover_mode_cant')}
+          </label>
+        )}
       </FormSection>
 
       {[0, 1].map(i => (

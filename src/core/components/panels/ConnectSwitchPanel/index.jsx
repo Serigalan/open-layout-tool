@@ -45,7 +45,7 @@ export default function ConnectSwitchPanel({ detailTarget = null, onShowDetail }
       <BackButton onBack={back} />
       <h2>{t('scurve_title')}</h2>
       <SCurveForm onCommitted={(laid) => {
-        if (laid?.canted) { setCrossover(laid.switchIds); setPage('crossover_gradient') } else setPage('menu')
+        if (laid?.fit) { setCrossover(laid.switchIds); setPage('crossover_gradient') } else setPage('menu')
       }} />
     </>
   )

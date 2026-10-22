@@ -282,13 +282,15 @@ export default function SCurveForm({ onCommitted, edit = null }) {
       : buildSCurve({ result, picks, tracks: loadTracks(), switches: loadSwitches(), speed, force })
     if (!commit) return
     if (commit.carveError) { setCarveError(commit.carveError); return }
+    // Laid in a cant, the two tracks have to be fitted to each other, and on
+    // the straight where both have a gradient they are brought level: the
+    // panel asks next whether their heights may be changed (decisions 159, 379).
+    const graded = picks.every(p => (tracksNow().find(tr => tr.id === p.trackId)?.heights?.length ?? 0) >= 2)
+    const fit = graded || picks.some(p => p.cantStart || p.cantEnd)
     if (edit) commitSwitchConnectionEdit(editCommit(edit.found, edit.apart, commit))
     else commitSwitchConnection(commit)
-    // Laid in a cant, the two tracks have to be fitted to each other: the
-    // panel asks next whether their heights may be changed (decision 159).
-    const canted = picks.some(p => p.cantStart || p.cantEnd)
     reset()
-    onCommitted?.({ switchIds: commit.addSwitches.map(sw => sw.switchId), canted })
+    onCommitted?.({ switchIds: commit.addSwitches.map(sw => sw.switchId), fit })
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────

@@ -117,7 +117,7 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
       {backButton()}
       <h2>{t('crossover_edit_title')}</h2>
       <SwitchConnectionEdit onCommitted={(laid) => {
-        if (laid?.canted) { setCrossover(laid.switchIds); setPage('crossover_gradient') } else setPage('menu')
+        if (laid?.fit) { setCrossover(laid.switchIds); setPage('crossover_gradient') } else setPage('menu')
       }} />
     </>
   )
