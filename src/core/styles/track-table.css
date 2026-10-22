@@ -110,9 +110,9 @@
 }
 
 /* The radius column: one width for every row — an arc's signed radius and a
-   transition's r₁ → r₂, each to three decimals (−12 345,678 → −12 345,678). */
+   transition's r₁ → r₂ (−1 200 → ∞, 1 234,567 → 900). */
 .track-table-input-radius {
-  width: 150px;
+  width: 124px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

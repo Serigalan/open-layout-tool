@@ -100,6 +100,12 @@ export default function TrackTableOverlay({
   // off the map from one picked in the table. Opening the table itself from a
   // map click is the same case, so it starts out already holding that row.
   const pickedOnMap = useRef(initialRow ?? null)
+  // …and the row the table still has to bring into view for it: a click on
+  // the map scrolls the table to its row, centred in the overlay. Kept apart
+  // from the one above, which the map's own fit takes back at once.
+  const centreRow = useRef(initialRow ?? null)
+  // Counts the clicks, so a click on the row that is active already scrolls too.
+  const [centreAsked, setCentreAsked] = useState(0)
 
   // An undo moves the store back under the table. The working copy is a snapshot
   // of every track (planElementChange rebuilds them all), so it would otherwise
@@ -173,6 +179,22 @@ export default function TrackTableOverlay({
     })
   }, [map, project.id, track.id, activeRow])
 
+  // The row a click on the map picked, scrolled to the middle of what the
+  // overlay shows below its column heads — the header stays where it is.
+  useEffect(() => {
+    const box = scrollRef.current
+    const want = centreRow.current
+    if (!box || want == null || want !== activeRow) return
+    centreRow.current = null
+    const row = box.querySelectorAll('tbody tr')[want]
+    if (!row) return
+    const head = box.querySelector('thead')?.offsetHeight ?? 0
+    const view = box.getBoundingClientRect()
+    const at = row.getBoundingClientRect()
+    const top = box.scrollTop + (at.top - view.top) - head - (view.height - head - at.height) / 2
+    box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  }, [activeRow, track.id, centreAsked])
+
   // While the table is up it takes the clicks on the map itself, because it is
   // the one that can tell a row from a track: a click on the track it shows
   // activates that element's row, a click on another one hands that track back
@@ -181,12 +203,16 @@ export default function TrackTableOverlay({
   useMapPick({ prefer: track.id, onPick: ({ trackId, elementIndex }) => {
     if (trackId === track.id) {
       pickedOnMap.current = elementIndex
+      centreRow.current = elementIndex
+      setCentreAsked(n => n + 1)
       setActiveRow(elementIndex)
       return
     }
     const picked = loadTracks().find(tr => tr.id === trackId)
     if (!picked || !onPickTrack) return
     pickedOnMap.current = elementIndex
+    centreRow.current = elementIndex
+    setCentreAsked(n => n + 1)
     setPendingRow(elementIndex)
     onPickTrack(picked)
   } })
