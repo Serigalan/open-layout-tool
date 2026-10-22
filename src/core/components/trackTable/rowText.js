@@ -1,6 +1,6 @@
 import { switchKindLabelKey, switchRouteLabelKey } from '../../utils/track'
 import {
-  ruleById, severityLabelKey, cantExceedsLimit, cantExceptionOf, cantLimit, limitCantDef,
+  ruleById, severityLabelKey, severityRank, cantExceedsLimit, cantExceptionOf, cantLimit, limitCantDef,
 } from '../../utils/rules'
 import { formatNum } from '../../locales/i18n'
 
@@ -75,24 +75,44 @@ export const defNote = (fill, el, level, cantDef, vMax) => (level
   : undefined)
 
 /**
- * What the catalogue said about one row. The cell carries the worst of it,
- * the tooltip every rule that fired — an id, its step and the rule's own
- * title, because "Warnung" alone says nothing about what to change.
+ * The rule a turnout's cant over 100 mm falls under (LP.KB.05): its reason is
+ * the element's `cantException`, which also raises the limit to 120 mm.
  */
-export const ruleClass = (entry) => `track-table-rule rule-sev-${entry?.severity ?? 'none'}`
+export const SWITCH_CANT_RULE = 'LP.KB.05'
 
-export function ruleText(t, entry) {
-  if (!entry || entry.unchecked) return '–'
-  return entry.severity === 'ok' ? '✓' : t(severityLabelKey(entry.severity))
+/**
+ * What the catalogue said about one row, in the two kinds the table tells
+ * apart (Entscheidung 374): `errors` — what has to change — and `hints` —
+ * every finding between ok and error (Hinweis, Warnung, Zustimmung,
+ * Sonderfall), each standing once a reason is written for it. Each hint
+ * carries its `reason`, '' where none is written.
+ */
+export function ruleGroups(entry, el) {
+  const fired = (entry?.results ?? []).filter(r => r.severity && r.severity !== 'ok')
+  const errors = fired.filter(r => severityRank(r.severity) >= severityRank('error'))
+  const seen = new Set()
+  const hints = fired.filter(r => severityRank(r.severity) < severityRank('error'))
+    .filter(r => !seen.has(r.id) && seen.add(r.id))
+    .map(r => ({ ...r, reason: reasonOf(el, r.id) }))
+  return { errors, hints, justified: hints.every(h => h.reason) }
 }
+
+/** The reason written for rule `id` on an element, trimmed — '' where there is none. */
+export function reasonOf(el, id) {
+  if (id === SWITCH_CANT_RULE) return cantExceptionOf(el)
+  const text = el?.reasons?.[id]
+  return typeof text === 'string' ? text.trim() : ''
+}
+
+/** One finding as a line: its id, its step and the rule's own title. */
+export const findingText = (t, result) =>
+  `${result.id} · ${t(severityLabelKey(result.severity))}: ${ruleById(result.id)?.title ?? ''}`
 
 export function ruleNote(t, entry) {
   if (!entry || entry.unchecked) return t('table_rules_unchecked')
   const fired = entry.results.filter(result => result.severity !== 'ok')
   if (!fired.length) return t('table_rules_ok')
-  return fired
-    .map(result => `${result.id} · ${t(severityLabelKey(result.severity))}: ${ruleById(result.id)?.title ?? ''}`)
-    .join('\n')
+  return fired.map(result => findingText(t, result)).join('\n')
 }
 
 /**

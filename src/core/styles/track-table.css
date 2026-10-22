@@ -131,6 +131,66 @@
   font-size: var(--fs-xs);
 }
 
+/* The rule column's buttons (Entscheidung 374): the errors, and the Hinweise
+   — red until each has its reason, then green. Text-like, so a column of
+   them still reads at a glance. */
+.track-table-rule-cell {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.track-table-rule-btn {
+  font: inherit;
+  font-weight: 600;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+.track-table-rule-btn:hover {
+  background: var(--color-surface-alt);
+}
+
+/* The dialog the buttons open: one finding per item, a reason under each Hinweis. */
+.modal.rule-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.rule-dialog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.rule-dialog-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rule-dialog-head {
+  font-weight: 600;
+  font-size: var(--fs-s);
+}
+
+.rule-dialog-reason {
+  font: inherit;
+  font-size: var(--fs-s);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  resize: vertical;
+}
+
 /* The same verdict beside a creation dialog's fields, before the element
    exists. It reads like the dialog's other messages — the family and size of
    .form-error, one line per finding — and not as a bulleted list: a panel

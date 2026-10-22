@@ -5,9 +5,10 @@ import {
 } from '../../utils/rules'
 import { useI18n } from '../../locales/i18nContext'
 import { EditCell, TextCell } from './cells'
+import RuleCell from './RuleCell'
 import {
   isTransition, typeLabel, switchNote, hintNote, cantNote, cantClass, defClass, defNote,
-  ruleClass, ruleText, ruleNote, degText, lengthText, radiusText, comparisonRadiusText,
+  degText, lengthText, radiusText, comparisonRadiusText,
 } from './rowText'
 
 /**
@@ -46,7 +47,8 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
     // one of its cells (React focus events bubble).
     <tr className={active ? 'track-table-row-active' : undefined} onClick={onActivate} onFocus={onActivate}>
       <td>{i + 1}</td>
-      <td className={ruleClass(rules)} title={ruleNote(t, rules)}>{ruleText(t, rules)}</td>
+      <RuleCell index={i} entry={rules} el={el}
+        onReason={(id, text) => onEdit('reason', { id, text })} onCantException={edit('cantException')} />
       <td><TextCell value={lengthText(station, language)} /></td>
       <td title={hintNote(fill, el) ?? switchNote(t, el, sw)}>
         <TextCell value={typeLabel(t, el, sw)} wide className={el.switchHint ? 'track-table-input-exception' : ''} />
@@ -77,14 +79,6 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
         </td>}
       {byEnds ? endCell('cantStart', ends.start) : empty(t('table_cant_by_one'))}
       {byEnds ? endCell('cantEnd', ends.end) : empty(t('table_cant_by_one'))}
-      {/* Only a switch route knows the 100 mm limit, so only there is there
-          anything to justify — including a route laid into a cant ramp, whose
-          own cant cell is not editable. */}
-      <td title={el.switchBranch ? cantNote(fill, el) : undefined}>
-        {el.switchBranch
-          ? <EditCell value={el.cantException} onCommit={edit('cantException')} type="text" wide placeholder="–" className={cantClass(el)} />
-          : <TextCell value="–" />}
-      </td>
       <td title={defTip}><TextCell value={num(cantDef)} className={defClass(level)} /></td>
       {/* An error no speed removes does not hold V_max down, but it is not
           forgotten either: the cell says which. */}

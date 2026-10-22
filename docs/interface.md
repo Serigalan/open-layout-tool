@@ -104,7 +104,10 @@ removes it before effect cleanups run).
   branches, invalid input, a spacing or tolerance the user asked for) never offer it. What is committed
   this way stays a finding of the track check.
 - Overlays: `TrackTableOverlay` (element table with live rule column; edits a working copy of every track a
-  change reaches and writes it back on Save), `ElevationOverlay` + `ElevationTable` (graphic and table view of the
+  change reaches and writes it back on Save; the rule column's errors and Hinweise open a dialog,
+  `trackTable/RuleCell`, the errors listed, each Hinweis with a field for its reason — `reasons`, and a
+  turnout's `cantException` for LP.KB.05 —, green once all are written; reasons for findings that no longer
+  stand are dropped on Save; decision 374), `ElevationOverlay` + `ElevationTable` (graphic and table view of the
   height profile, with the coupling roles from `elevation`), `CrossSectionOverlay`, `BandsOverlay` (curvature,
   cant, speed, rule findings), `TopologyGraphOverlay`, `PlanPreviewOverlay`, `ProjectTracksOverlay`,
   `RegelwerkOverlay` / `PhysicsOverlay` (read-only rulebooks), `collab/CompareOverlay` (two states on the map).

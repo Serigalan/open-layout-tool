@@ -285,9 +285,37 @@ describe('the rule column', () => {
     const { cell } = renderTable()
     // 100 km/h through R 500 on 100 mm of cant: 136 mm of deficiency, past the
     // 130 the rulebook allows — and the Regelüberhöhung there is 130, not 100.
-    expect(cell(0, 'Regeln').text).toBe('Fehler')
+    expect(cell(0, 'Regeln').text).toContain('Fehler (')
+    expect(cell(0, 'Regeln').text).toContain('Hinweise (')
     expect(cell(0, 'Regeln').note).toContain('LP.KB.02')
     expect(cell(0, 'Regeln').note).toContain('LP.KB.04')
+  })
+
+  // R 1000 with 30 mm of cant at 100 km/h: LP.KB.04 says the Regelüberhöhung is 65 — a Hinweis, no error.
+  const hinted = (reasons) => ({
+    id: `t-hint-${projects}`, name: 'Gleis 7', epsg: 5678,
+    elements: [arc({ radius: 1000, cant: 30, length: 400, ...(reasons ? { reasons } : {}) })],
+  })
+  const buttons = (html) => [...html.matchAll(/<button[^>]*class="track-table-rule-btn ([^"]*)"[^>]*>([^<]*)<\/button>/g)].map(m => [m[2], m[1]])
+
+  it('shows the Hinweise red until each has its reason (Entscheidung 374)', () => {
+    const { html } = renderTable(hinted())
+    expect(buttons(html)).toEqual([['Hinweise (1)', 'rule-sev-error']])
+  })
+
+  it('turns them green with a tick once they are all justified', () => {
+    const { html } = renderTable(hinted({ 'LP.KB.04': 'Bestandsüberhöhung, Anpassung erst mit Umbau' }))
+    expect(buttons(html)).toEqual([['✓ Hinweise (1)', 'rule-sev-ok']])
+  })
+
+  it('lets a switch route open the dialog for its cant exception even where nothing fired', () => {
+    const route = arc({ radius: 1000, cant: 65, length: 400, switchBranch: true, switchId: 'sw1', switchRoute: 'branch', speed: 60 })
+    const { html } = renderTable({ id: 't-sw', name: 'Gleis 8', epsg: 5678, elements: [route] })
+    expect(buttons(html).length).toBe(1)
+  })
+
+  it('has no column of its own for the cant exception any more', () => {
+    expect(renderTable().columns.some(c => c.startsWith('Ausnahme'))).toBe(false)
   })
 
   it('ticks a row that keeps every rule it was measured against', () => {

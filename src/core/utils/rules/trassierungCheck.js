@@ -276,9 +276,12 @@ export function checkTrack(elements = [], { context = null } = {}) {
   const rampAt = byIndex(ramps)
   const boundaryAt = byIndex(boundaries)
 
+  // Each result says where it stands — on the element, its ramp, or the joint at its start.
+  const placed = (part, at) => (part?.results ?? []).map(r => ({ ...r, at }))
   const perElement = perElementResults.map((entry) => {
-    const own = [entry, rampAt.get(entry.index), boundaryAt.get(entry.index - 1)].filter(Boolean)
-    const results = own.flatMap(part => part.results ?? [])
+    const results = [
+      ...placed(entry, 'element'), ...placed(rampAt.get(entry.index), 'ramp'), ...placed(boundaryAt.get(entry.index - 1), 'start'),
+    ]
     return {
       index: entry.index,
       unchecked: !!entry.unchecked,

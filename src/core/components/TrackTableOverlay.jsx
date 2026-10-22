@@ -10,6 +10,7 @@ import { useMap } from '../map/MapContext'
 import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import useMapPick from '../map/useMapPick'
 import TrackTableRow from './trackTable/TrackTableRow'
+import { ruleGroups } from './trackTable/rowText'
 import { useOverlayHeight } from './chart/useChartViewport'
 import { TrackTableBar, TrackTableHead } from './trackTable/TrackTableHeader'
 
@@ -20,6 +21,29 @@ const CANT_KEYS = new Set(['cant', 'cantStart', 'cantEnd'])
 
 // Line speed the table starts with — clearing the field lifts it again.
 const DEFAULT_SPEED_CAP = 160
+
+/**
+ * The tracks `ids` of `tracks` with each element's reasons kept only for the
+ * Hinweise that stand on it now: a reason for a finding the edits took away
+ * would justify nothing, and come back unasked if the finding did.
+ */
+function withStandingReasons(tracks, ids) {
+  const edited = new Set(ids)
+  return tracks.map(tr => {
+    if (!edited.has(tr.id) || !(tr.elements ?? []).some(el => el.reasons)) return tr
+    const check = checkTrack(tr.elements)
+    return {
+      ...tr,
+      elements: tr.elements.map((el, i) => {
+        if (!el.reasons) return el
+        const standing = new Set(ruleGroups(check.perElement[i], el).hints.map(h => h.id))
+        const kept = Object.entries(el.reasons).filter(([id]) => standing.has(id))
+        const { reasons: _r, ...rest } = el
+        return kept.length ? { ...rest, reasons: Object.fromEntries(kept) } : rest
+      }),
+    }
+  })
+}
 
 /**
  * The element table of one track (R5.2: the rows, cells and bar are their own
@@ -227,6 +251,17 @@ export default function TrackTableOverlay({
       // A geometry change re-shapes every track it reaches, not just this one.
       setChanged(prev => [...new Set([...prev, ...plan.touchedTrackIds])])
       setTracks(plan.tracks)
+    } else if (key === 'reason') {
+      // A Hinweis stands once its reason is written (Entscheidung 374); an
+      // emptied reason is gone, and with the last one the field.
+      const { id, text } = raw
+      editElements(els => els.map((el, idx) => {
+        if (idx !== row) return el
+        const { [id]: _old, ...others } = el.reasons ?? {}
+        const reasons = text ? { ...others, [id]: text } : others
+        const { reasons: _r, ...rest } = el
+        return Object.keys(reasons).length ? { ...rest, reasons } : rest
+      }))
     } else if (key === 'cantException') {
       // The justification is a free text, and the text *is* the exception:
       // emptying the field takes the limit straight back to 100 mm, and the cant
@@ -287,7 +322,7 @@ export default function TrackTableOverlay({
     // of the project, so writing it back whole would take the store with it.
     // The switches the edits reached get their symbols rebuilt in the same step
     // — they are derived from these very tracks.
-    const next = mergeElementEdits(loadTracks(), tracks,
+    const next = mergeElementEdits(loadTracks(), withStandingReasons(tracks, changed),
       { changed, reshaped: reached.trackIds })
     commitTrackEdit(next, reached.switchIds)
     // Start again from what was written: the working copy is the store's again,

@@ -65,7 +65,6 @@ export function TrackTableHead() {
         <th>{t('table_cant')} (mm)</th>
         <th title={t('table_cant_ends_hint')}>{t('table_cant_start')} (mm)</th>
         <th title={t('table_cant_ends_hint')}>{t('table_cant_end')} (mm)</th>
-        <th>{t('table_cant_exception')}</th>
         <th>{t('table_cant_def')} (mm)</th>
         <th title={t('table_max_speed_hint')}>
           {t('table_max_speed')} (km/h)
