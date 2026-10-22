@@ -212,48 +212,84 @@ export function switchChainSlice(chain, a, b) {
 
 /**
  * Branch of a switch whose through route, running from the toe, is the chain
- * `stem`. The form is given as its own chain (switchFormChain) — one entry per
- * section, each with its length and signed radius — and each piece of the branch
- * takes the curvature of both: κ_branch = κ_stem + κ_form, as switchBranchRoute
- * does for one.
+ * `stem` — the track under the turnout from WA to WE, its through length long.
+ * The form is given as its own chain (switchFormChain) — one entry per section,
+ * each with its length and signed radius — and each piece of the branch takes
+ * the curvature of both: κ_branch = κ_stem + κ_form, as switchBranchRoute does
+ * for one.
  *
- * So the branch parts wherever *either* side parts: where the elements under the
- * turnout part, and where the form's sections do. A form of a single arc — every
- * one the tables hold — has no interior boundary of its own, and the branch then
- * parts exactly where the stem's elements do. A clothoid section's curvature
- * runs from `signedR` to `signedREnd`.
+ * The stem's curvature is read at the station abreast (switchAbreast,
+ * Entscheidung 370): branch and through route differ in length by centimetres,
+ * and read at its own station the branch's end would take the stem's curvature
+ * short of WE — on a clothoid running out into a straight a 500 – 1:12 would
+ * end on R 500.21 instead of the form's R 500 beside the straight. Abreast, WA
+ * meets WA and WE meets WE: at both the branch is the stem plus the form.
+ *
+ * So the branch parts wherever *either* side parts: where the elements under
+ * the turnout part, and where the form's sections do. A form of a single arc —
+ * every one the tables hold — has no interior boundary of its own, and the
+ * branch then parts exactly where the stem's elements do. A clothoid section's
+ * curvature runs from `signedR` to `signedREnd`.
  */
 export function switchBranchChain(formChain, stem) {
   const sections = Array.isArray(formChain) ? formChain : [formChain]
   const total    = sections.reduce((sum, section) => sum + section.length, 0)
-  // Taken to the form's own dimension first, so a stem chain that adds up a hair
-  // short of it (float noise off the elements) is made up on its last piece
-  // rather than leaving the branch short.
-  const onStem = switchChainTo(stem, total)
-  const out = []
-  let s = 0
-  for (const section of sections) {
-    // A clothoid section of the form (`signedREnd`, decision 344) adds a
-    // curvature that runs linearly along it; added to the stem's, which runs
-    // linearly along each piece too, every piece is a clothoid again.
-    const varies = 'signedREnd' in section && section.signedREnd !== section.signedR
-    const k0 = curvatureOf(section.signedR)
-    const k1 = varies ? curvatureOf(section.signedREnd) : k0
-    let u = 0                          // where the piece starts within the section
-    for (const piece of switchChainSlice(onStem, s, s + section.length)) {
-      if (!varies) {
-        out.push(switchBranchRoute(section.signedR, piece, piece.length))
-      } else {
-        const kForm = (v) => k0 + (k1 - k0) * v / section.length
-        out.push({
-          length: piece.length,
-          r1: radiusOfCurvature(curvatureOf(piece.r1) + kForm(u)),
-          r2: radiusOfCurvature(curvatureOf(piece.r2) + kForm(u + piece.length)),
-        })
-      }
-      u += piece.length
+  const pieces   = toChain(stem).filter(piece => piece.length > SLICE_EPS)
+  if (!pieces.length || !(total > 0)) return []
+  const through  = pieces.reduce((sum, piece) => sum + piece.length, 0)
+  const joints   = switchChainJoints(pieces)
+  const abreast  = (u) => switchAbreast(u, joints, total, through)
+
+  // Where the branch parts: its ends, the form's sections, and abreast of
+  // every element change under the turnout.
+  const starts = []
+  let at = 0
+  for (const section of sections) { starts.push(at); at += section.length }
+  const cuts = [0, total, ...starts, ...joints.map(j => switchAbreast(j, joints, through, total))]
+    .filter(u => u >= 0 && u <= total)
+    .sort((x, y) => x - y)
+    .filter((u, i, all) => i === 0 || u - all[i - 1] > SLICE_EPS)
+  if (total - cuts[cuts.length - 1] > SLICE_EPS) cuts.push(total)
+  else cuts[cuts.length - 1] = total
+
+  // The piece of a chain holding station `x`, and its start station.
+  const holding = (chain, x) => {
+    let s0 = 0
+    for (const [i, piece] of chain.entries()) {
+      if (x <= s0 + piece.length || i === chain.length - 1) return { piece, s0 }
+      s0 += piece.length
     }
-    s += section.length
+    return { piece: chain[0], s0: 0 }
+  }
+  // Curvature of a piece running from k1 to k2 at `x` along it; its own ends exactly.
+  const along = (k1, k2, length, x) => {
+    if (x <= SLICE_EPS) return k1
+    if (x >= length - SLICE_EPS) return k2
+    return k1 + (k2 - k1) * x / length
+  }
+  const formChainStations = sections.map((section, i) => ({ ...section, s0: starts[i] }))
+
+  const out = []
+  for (let i = 1; i < cuts.length; i++) {
+    const u0 = cuts[i - 1], u1 = cuts[i]
+    const mid = (u0 + u1) / 2
+    const { piece, s0 } = holding(pieces, abreast(mid))
+    const section = holding(formChainStations, mid).piece
+    const sectionVaries = 'signedREnd' in section && section.signedREnd !== section.signedR
+    // A constant stem piece under a constant section: the branch radius itself.
+    if (!switchRouteVaries(piece) && !sectionVaries) {
+      out.push(switchBranchRoute(section.signedR, piece, u1 - u0))
+      continue
+    }
+    const kStem = (u) => along(curvatureOf(piece.r1), curvatureOf(piece.r2), piece.length, abreast(u) - s0)
+    const kForm = (u) => (sectionVaries
+      ? along(curvatureOf(section.signedR), curvatureOf(section.signedREnd), section.length, u - section.s0)
+      : curvatureOf(section.signedR))
+    out.push({
+      length: u1 - u0,
+      r1: radiusOfCurvature(kStem(u0) + kForm(u0)),
+      r2: radiusOfCurvature(kStem(u1) + kForm(u1)),
+    })
   }
   return out
 }
@@ -278,7 +314,8 @@ export function switchChainJoints(chain) {
  * (`joints`, switchChainJoints of the stem). Up to the last of those the
  * stations agree; past it the rest of the one route is stretched onto the rest
  * of the other, so WA meets WA and the switch end meets the switch end — both
- * tracks carry one cant there, exactly.
+ * tracks carry one cant there, exactly, and the branch the stem's curvature
+ * plus the form's (switchBranchChain, Entscheidung 370).
  */
 export function switchAbreast(u, joints, fromLength, toLength) {
   const last = joints.filter(j => j < Math.min(fromLength, toLength)).reduce((a, b) => Math.max(a, b), 0)

@@ -114,17 +114,60 @@ describe('switchFormChain', () => {
 })
 
 describe('switchBranchChain — the sequence gives back what the single radius gave', () => {
-  for (const [stemName, stem] of Object.entries(STEMS)) {
+  // The stem a turnout lies on: its through length from the toe.
+  const under = (stem, form) => switchChainTo(stem, switchStraightLength(form))
+  for (const stemName of ['straight', 'arcRight', 'arcLeft']) {
     for (const side of ['left', 'right']) {
       it(`${stemName} stem, ${side}-hand branch, all forms`, () => {
         for (const form of ARC_FORMS) {
           const formSignedR = side === 'left' ? -form.R : form.R
-          const expected = branchChainBeforeSections(formSignedR, stem, switchArcLength(form.R, form.ratio))
-          expect(switchBranchChain(switchFormChain(form, side), stem)).toEqual(expected)
+          const expected = branchChainBeforeSections(formSignedR, STEMS[stemName], switchArcLength(form.R, form.ratio))
+          expect(switchBranchChain(switchFormChain(form, side), under(STEMS[stemName], form))).toEqual(expected)
         }
       })
     }
   }
+
+  // Where the stem's curvature changes under the turnout, the branch takes it
+  // abreast (Entscheidung 370): the stem plus the form at WA and at WE, the
+  // branch parting abreast of each element change.
+  const k = (r) => (r == null ? 0 : 1 / r)
+  const kStemAt = (chain, x) => {
+    let s0 = 0
+    for (const p of chain) {
+      if (x <= s0 + p.length + 1e-9) return k(p.r1) + (k(p.r2) - k(p.r1)) * (x - s0) / p.length
+      s0 += p.length
+    }
+    return NaN
+  }
+  for (const stemName of ['clothoid', 'chain']) {
+    for (const side of ['left', 'right']) {
+      it(`${stemName} stem, ${side}-hand branch, all forms: the stem plus the form at WA and WE`, () => {
+        for (const form of ARC_FORMS) {
+          const stem = under(STEMS[stemName], form)
+          const kForm = k(side === 'left' ? -form.R : form.R)
+          const chain = switchBranchChain(switchFormChain(form, side), stem)
+          const T = switchStraightLength(form)
+          expect(chain.reduce((sum, p) => sum + p.length, 0)).toBeCloseTo(switchArcLength(form.R, form.ratio), 9)
+          expect(k(chain[0].r1)).toBeCloseTo(kStemAt(stem, 0) + kForm, 12)
+          expect(k(chain[chain.length - 1].r2)).toBeCloseTo(kStemAt(stem, T) + kForm, 12)
+          // Each piece's curvature runs on into the next one's.
+          for (let i = 1; i < chain.length; i++) expect(k(chain[i].r1)).toBeCloseTo(k(chain[i - 1].r2), 12)
+          expect(chain).toHaveLength(stem.length)
+        }
+      })
+    }
+  }
+
+  it('a clothoid running out into a straight at WE: the form\'s own radius at the branch\'s end', () => {
+    // The SBSS case: a 500 – 1:12 laid backwards into a clothoid from R 697.2
+    // at its toe to straight at its switch end.
+    const form = switchTypeByLabel('500 – 1:12')
+    const stem = [{ length: switchStraightLength(form), r1: -697.205904, r2: null }]
+    const chain = switchBranchChain(switchFormChain(form, 'right'), stem)
+    expect(chain).toHaveLength(1)
+    expect(chain[0].r2).toBeCloseTo(500, 9)
+  })
 })
 
 describe('switchBranchChain — a form with a straight end piece', () => {

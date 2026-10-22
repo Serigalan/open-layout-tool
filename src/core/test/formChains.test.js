@@ -274,6 +274,23 @@ describe('the branch a switch dialog commits', () => {
     })
   })
 
+  it('laid backwards into a clothoid that runs out into a straight at WE: the form\'s own radius there (Entscheidung 370)', () => {
+    // The SBSS case: the toe 1 form-length into a clothoid from straight, WE on
+    // the joint with the straight before it.
+    const sw = SWITCH_TYPES.find(f => f.label === '500 – 1:12')
+    const T = switchStraightLength(sw)
+    const st = { ...straightFrom(START, 30, 100), speed: SPEED }
+    const cl = { ...transitionElement(endOf(st), 30, 58, null, 500).element, speed: SPEED }
+    const arc = { ...arcFrom(endOf(cl), cl.endBearing, 100, 500), speed: SPEED }
+    const track = { ...trackOf([st, cl, arc], EPSG, { name: 'line.001' }, 'host') }
+    for (const side of ['left', 'right']) {
+      const placement = switchOnTrackPlacement({ track, toeStation: 100 + T, reversed: true, sw, side, straightLen: T })
+      expect(placement.error).toBeNull()
+      const branch = placement.geom.branchSegments
+      expect(Math.abs(branch[branch.length - 1].r2)).toBeCloseTo(500, 9)
+    }
+  })
+
   it('the branch runs the form’s own length however the stem is made up', () => {
     const { g, elements } = laid([
       { length: straightLen * 0.5, r1: null, r2: null },

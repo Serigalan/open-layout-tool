@@ -89,8 +89,15 @@ the stem's plus the form's:
 κ_branch(s) = κ_stem(s) + κ_form          (κ = 1/R, signed)
 ```
 
+The stem's station is the one abreast of the branch's (`switchAbreast`, Entscheidung 370): the branch is a few
+centimetres shorter or longer than the through route, so up to the last element change under the turnout
+the stations agree and past it the rest of the branch is stretched onto the rest of the through route. WA
+meets WA and WE meets WE — a 500 – 1:12 whose stem runs out into a straight at WE ends on R 500 exactly, not
+on the stem's curvature read a few centimetres short of WE (500.21 m in the user's case). The stem
+`switchBranchChain` takes is therefore the track from WA to WE, the through length long.
+
 On a stem of constant curvature that is one radius (`branchRadius`); on a clothoid stem the sum still runs
-linearly in s, so the branch is a clothoid of the stem's own parameter (`switchBranchRoute`). The result
+linearly in s, so the branch is a clothoid again (`switchBranchChain`). The result
 is the bauform: `plain` (straight stem), `ibw` (inner-bent: branch and stem turn the same way), `abw`
 (outer-bent) or `abw_straight` — the limiting case where the branch comes out straight. That case is built
 as the plain form with its routes swapped (`swapped: true`, see `track`): the curved line is the branch,
@@ -284,6 +291,8 @@ unmarked and joined back with their neighbours into one track; what does not sta
   same code.
 - **Form angle and radius are never free variables** in a connection; only positions are.
 - **A switch connection needs equal cant at the ldS**, not at the toe; one cant on the middle element.
+- **The branch's curvature is the stem's abreast plus the form's** (Entscheidung 370), so at WA and at WE it
+  is exactly the bending rule, whatever the two routes' lengths.
 - **The branch's cant is the through route's abreast**, piece by piece and equal at WE (Entscheidung 367),
   not a line from the cant at WA to the cant at WE.
 - **A connection's turnout runs on over an element change** like any turnout laid into a track (Entscheidung

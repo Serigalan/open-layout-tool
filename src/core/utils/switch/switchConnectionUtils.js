@@ -345,12 +345,14 @@ function formChainOf(sw, side) {
  * stem it covers, so on a straight it is the form's arc, in a curve the bent
  * one, and on a transition a clothoid of the stem's own parameter. It parts
  * where the form's sections part and where the elements under the turnout do.
- * Null off the element it was picked on: there is no stem to lay it in.
+ * The stem is read over the through length `through`, WA to WE, which the
+ * branch takes its curvature from abreast (switchBranchChain).
+ * Null where no stem lies under it.
  *
  * Returns { chain1, bear1, B1E, t1 } — `t1` the math angle at its end.
  */
-function firstBranch(formChain, stem1, s1, Lb) {
-  const chain1 = switchBranchChain(formChain, stemUnder(stem1, s1, Lb))
+function firstBranch(formChain, stem1, s1, through) {
+  const chain1 = switchBranchChain(formChain, stemUnder(stem1, s1, through))
   if (!chain1.length) return null
   const bear1 = stemBearing(stem1, s1)
   const B1E   = switchChainPointUtm(stemPoint(stem1, s1), bear1, chain1)
@@ -360,16 +362,16 @@ function firstBranch(formChain, stem1, s1, Lb) {
 /**
  * Branch 2 with its toe `s2` along track 2. Turnout 2 opens against the way
  * the connection runs, so its own stem is track 2 read backwards; its branch
- * turns the same way in the plane, which is the same form side again. Null off
- * the element it was picked on.
+ * turns the same way in the plane, which is the same form side again. Null
+ * where no stem lies under it.
  *
  * Returns { TP2, bearOwn, chain2own, B2A, t2 } — `t2` the math angle at B2A
  * the way the connection runs.
  */
-function secondBranch(formChain, stem2, s2, Lb) {
+function secondBranch(formChain, stem2, s2, through) {
   const back2 = reverseStem(stem2)
   // In turnout 2's own frame the toe sits at −s₂ from the pick.
-  const chain2own = switchBranchChain(formChain, stemUnder(back2, -s2, Lb))
+  const chain2own = switchBranchChain(formChain, stemUnder(back2, -s2, through))
   if (!chain2own.length) return null
   const TP2 = stemPoint(stem2, s2)
   const bearOwn = stemBearing(back2, -s2)
@@ -404,17 +406,18 @@ function buildConnection(sw, frame, speed, mids = null, seed = null) {
   const { toe1, psiToe1, stem1, stem2, s1, side } = frame
   const w   = Math.atan(1 / sw.ratio)
   const Lb  = switchBranchLength(sw)              // the form's branch, bent or not
+  const through = switchStraightLength(sw)
   const formChain = formChainOf(sw, side)
 
   // Branch 1 does not depend on s₂.
-  const one = firstBranch(formChain, stem1, s1, Lb)
+  const one = firstBranch(formChain, stem1, s1, through)
   if (!one) return { sw, valid: false, reason: 'no_solution', Lg: NaN, s2: null }
   const { chain1, B1E, t1 } = one
   const b1E = B1E.easting, b1N = B1E.northing
 
   /** Everything that depends on where turnout 2 sits. */
   const at = (s2) => {
-    const two = secondBranch(formChain, stem2, s2, Lb)
+    const two = secondBranch(formChain, stem2, s2, through)
     // A station off track 2's element has no stem under the turnout: no residual.
     if (!two) return { residual: NaN, Lg: NaN }
     const { B2A, t2 } = two
@@ -490,7 +493,6 @@ function buildConnection(sw, frame, speed, mids = null, seed = null) {
   // where the element beside it ramps, constant where it is (Entscheidung 367):
   // read at the through route's station abreast (switchAbreast), so at the
   // switch end both tracks carry exactly one cant.
-  const through = switchStraightLength(sw)
   const joints1 = switchChainJoints(stemUnder(stem1, s1, through))
   const joints2 = switchChainJoints(stemUnder(reverseStem(stem2), -s2, through))
   const cantOn1 = (u) => stemCant(stem1, s1 + switchAbreast(u, joints1, Lb, through))
@@ -748,14 +750,13 @@ export function connectionBranchEnds(g1, g2, speed, { step = 0.5, reach = 300, f
     return [...Array(n + 1).keys()].map(i => range[0] + (range[1] - range[0]) * i / n)
   }
   const forms = formsFor(speed, form).map(sw => {
-    const Lb = switchBranchLength(sw)
     const through = switchStraightLength(sw)
     const formChain = formChainOf(sw, side)
     const toLds = through + (Number.isFinite(sw.lds) ? sw.lds : 0)
     const branchOk = (chain, uA, uB) => Math.max(Math.abs(uA), Math.abs(uB)) <= MAX_SWITCH_CANT
       && branchDeficiency(chain, uA, uB, speed) <= MAX_SWITCH_CANT_DEF
     const first = grid(onElementRange(stem1, through, 1)).map(s => {
-      const one = firstBranch(formChain, stem1, s, Lb)
+      const one = firstBranch(formChain, stem1, s, through)
       if (!one) return null
       const uA = stemCant(stem1, s), uB = stemCant(stem1, s + through)
       return {
@@ -765,7 +766,7 @@ export function connectionBranchEnds(g1, g2, speed, { step = 0.5, reach = 300, f
       }
     }).filter(Boolean)
     const second = grid(onElementRange(stem2, through, -1)).map(s => {
-      const two = secondBranch(formChain, stem2, s, Lb)
+      const two = secondBranch(formChain, stem2, s, through)
       if (!two) return null
       const uA = stemCant(stem2, s - through), uB = stemCant(stem2, s)
       const chain2 = [...two.chain2own].reverse()
