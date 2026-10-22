@@ -89,6 +89,9 @@ names its plane or height datum, so the export adds a text naming them.
 A **batch** reads a zip: each TRA becomes a track named after its file, and the GRA of the same file name
 (case and folders ignored) gives its heights. Plane and height datum are chosen once for all pairs. A TRA
 whose elements do not join is left out as the single import refuses it; a GRA without a TRA is reported.
+Each track can also come in a second time as a reference axis (Bestandsachse, see `survey`) of the same name
+and gradient, to compare the edited track with — in the same undo step; an axis over 2 km becomes several
+reference axes of about equal length (`survey/referenceStretches`).
 
 A TRA whose name ends in a digit and `S` (`6340S`, `6311-001S`) is a **kilometrage line**, not a track. A
 gradient is often stationed along it rather than along its track: each point is then laid off on the line

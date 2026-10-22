@@ -10,7 +10,9 @@ export {
   insertStraight, moveStraightEnd, parseAxisPointFile, straightRanges, surveyAxis, trackFromFit,
 } from './alignmentFit'
 export { surveyDefect, surveyFromTrace, surveyPoints, surveyStats, withoutPoints } from './axisSurvey'
-export { axisOutline, axisRange, buildReferenceAxis, REFERENCE_MAX_LENGTH, referenceAxisDefect } from './referenceAxis'
+export {
+  axisOutline, axisRange, buildReferenceAxis, REFERENCE_MAX_LENGTH, referenceAxisDefect, referenceStretches,
+} from './referenceAxis'
 export {
   comparedLine, deviationAt, heightsComparable, nearestAxis, referenceProfile, shiftSummary,
   shiftValues, shiftValuesCsv,

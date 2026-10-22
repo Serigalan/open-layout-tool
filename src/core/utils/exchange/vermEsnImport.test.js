@@ -154,6 +154,14 @@ describe('Verm.ESN batch — TRA and GRA pairs from one zip', () => {
     expect(files.map(f => [f.name, f.imported, f.count, f.heights > 0])).toEqual([['5550L', true, 2, true], ['5550R.001', true, 2, false]])
   })
 
+  it('hands on per file what a reference axis of it needs: its track, start station, length and gradient', () => {
+    const { pairs } = readVermEsnArchive(zip)
+    const { tracks, files } = buildVermEsnBatch(pairs, { epsg: 5683, heightEpsg: 7837 })
+    expect(files.map(f => [f.trackId, f.startStation, f.length])).toEqual([[tracks[0].id, 1000, 150], [tracks[1].id, 1000, 150]])
+    expect(files[0].gradient.map(p => p.station)).toEqual(parseGradient(pairs[0].gra).map(p => p.station))
+    expect(files[1].gradient).toBeNull()
+  })
+
   it('leaves out a TRA whose elements do not join, as the single import refuses it', () => {
     const buf = traBuffer([{ station: 0, length: 100 }, { station: 100, length: 50 }, { station: 150, length: 0 }])
     new DataView(buf).setFloat64(78 + 24, 5700100.5, true)   // second element 0.5 m off

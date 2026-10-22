@@ -1140,12 +1140,14 @@ export function commitSwitchConnectionEdit({ deletions, connection }) {
 }
 
 /**
- * Add what an import brought — tracks, switches, end marks, and fields of the
- * project record such as the RailJSON passthrough — as one undo step. A
+ * Add what an import brought — tracks, switches, end marks, kilometrage lines,
+ * reference axes, and fields of the project record such as the RailJSON passthrough — as one undo step. A
  * project that names no coordinate system yet names the one most of its
  * tracks lie in afterwards (decision 322).
  */
-export function commitImport({ addTracks = [], addSwitches = [], addEndMarks = [], addKmLines = [], patch = null }) {
+export function commitImport({
+  addTracks = [], addSwitches = [], addEndMarks = [], addKmLines = [], addReferenceAxes = [], patch = null,
+}) {
   // A kilometrage line from the import replaces the project's line of that number.
   const replaced = new Set(addKmLines.map(l => String(l.lineNumber)))
   return mutate(p => withImportSystem({
@@ -1154,6 +1156,7 @@ export function commitImport({ addTracks = [], addSwitches = [], addEndMarks = [
     tracks: [...(p.tracks ?? []), ...addTracks],
     switches: [...(p.switches ?? []), ...addSwitches],
     endMarks: [...(p.endMarks ?? []), ...addEndMarks],
+    ...(addReferenceAxes.length ? { referenceAxes: [...(p.referenceAxes ?? []), ...addReferenceAxes] } : {}),
     ...(addKmLines.length
       ? { kmLines: [...(p.kmLines ?? []).filter(l => !replaced.has(String(l.lineNumber))), ...addKmLines] }
       : {}),

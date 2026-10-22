@@ -418,7 +418,10 @@ export function batchReferences(pairs, kmAxes, epsg) {
  *
  * Returns { tracks, kmLines, files } — `kmLines` the project entries
  * (kmLineEntries) of the lines used; `files` one per pair as { name, traFile,
- * graFile, imported, count, heights, reference, errors, notes }.
+ * graFile, imported, trackId, count, heights, reference, startStation, length,
+ * gradient, errors, notes } — `startStation` the station the axis begins at
+ * and `gradient` its points in the track's own stationing or null, as a
+ * reference axis of the same file takes them (survey buildReferenceAxis).
  */
 export function buildVermEsnBatch(pairs, { epsg, heightEpsg = null, takenNames = [], kmAxes = [], references = new Map() }) {
   const names = new Set(takenNames)
@@ -429,8 +432,8 @@ export function buildVermEsnBatch(pairs, { epsg, heightEpsg = null, takenNames =
     const axis = readAxis(pair.tra, epsg)
     const { elements, errors } = axis
     const file = {
-      name: pair.name, traFile: pair.traFile, graFile: pair.graFile, imported: false, count: 0, heights: 0,
-      reference: null, errors, notes: [],
+      name: pair.name, traFile: pair.traFile, graFile: pair.graFile, imported: false, trackId: null, count: 0, heights: 0,
+      reference: null, startStation: axis.startStation, length: axis.length, gradient: null, errors, notes: [],
     }
     files.push(file)
     if (errors.length || !elements.length) continue
@@ -452,12 +455,16 @@ export function buildVermEsnBatch(pairs, { epsg, heightEpsg = null, takenNames =
     names.add(name)
     const km = reference?.ref ? kmAxes.find(k => k.name === reference.ref) : null
     if (km) used.add(km)
+    const id = generateId()
     tracks.push({
-      id: generateId(), name, epsg: Number(epsg), coordinates: rebuildCoords(elements), elements,
+      id, name, epsg: Number(epsg), coordinates: rebuildCoords(elements), elements,
       ...(km ? { lineNumber: kmLineNumber(km.name) } : {}),
       ...(heights ? { heights, heightEpsg: Number(heightEpsg) } : {}),
     })
-    Object.assign(file, { name, imported: true, count: elements.length, heights: heights?.length ?? 0, reference: km?.name ?? null })
+    Object.assign(file, {
+      name, imported: true, trackId: id, count: elements.length, heights: heights?.length ?? 0,
+      reference: km?.name ?? null, gradient: reference?.points ?? null,
+    })
   }
   return { tracks, kmLines: kmLineEntries([...used]), files }
 }

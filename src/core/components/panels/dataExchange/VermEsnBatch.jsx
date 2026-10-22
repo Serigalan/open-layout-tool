@@ -5,6 +5,7 @@ import {
   batchReferences, buildVermEsnBatch, gradientHeightCode, readKmLines, readVermEsnArchive,
 } from '../../../utils/exchange'
 import { readFileBuffer } from '../../../utils/common'
+import { REFERENCE_MAX_LENGTH, buildReferenceAxis, referenceStretches } from '../../../utils/survey'
 import { useI18n } from '../../../locales/i18nContext'
 import { useProject, useTracks } from '../../../hooks/useStore'
 import FilePickButton from '../../form/FilePickButton'
@@ -18,14 +19,19 @@ import InfoTip from '../../form/InfoTip'
  * TRAs named like a kilometrage line (`6340S`) are lines, not tracks: a
  * gradient may be stationed along one of them, which is found per track by how
  * well its ends meet the track's and can be changed before the import.
+ * Each track can come in a second time as a reference axis (Bestandsachse,
+ * Paket V) — the same axis and gradient as points, the one to compare the
+ * edited track with; one longer than REFERENCE_MAX_LENGTH as several, cut
+ * where referenceStretches says.
  */
 export default function VermEsnBatch({ epsg }) {
-  const { t, fill } = useI18n()
+  const { t, fill, num } = useI18n()
   const project = useProject()
   const tracks = useTracks()
   const [heightEpsg, setHeightEpsg] = useState('')   // chosen, never preset
   const [batch, setBatch] = useState(null)           // { name, pairs, kmLines, orphans, duplicates, codes }
   const [chosen, setChosen] = useState(() => new Map())   // track name → km line name, '' for the track
+  const [asReference, setAsReference] = useState(false)   // each track also as a reference axis
   const [errors, setErrors] = useState([])
   const [notes, setNotes] = useState([])
   const [done, setDone] = useState(null)
@@ -65,17 +71,37 @@ export default function VermEsnBatch({ epsg }) {
       takenNames: tracks.map(tr => tr.name).filter(Boolean),
       kmAxes: km.axes, references: new Map([...references.keys()].map(name => [name, refOf(name) || null])),
     })
-    if (built.length) commitImport({ addTracks: built, addKmLines: kmLines })
+    const axes = []
+    const axisNotes = []
+    for (const f of asReference ? files.filter(f => f.imported) : []) {
+      const track = built.find(tr => tr.id === f.trackId)
+      const stretches = referenceStretches(f.startStation, f.startStation + f.length)
+      for (const { from, to } of stretches) {
+        axes.push(buildReferenceAxis({
+          name: stretches.length > 1 ? `${f.name} ${num(from, { digits: 0 })}–${num(to, { digits: 0 })}` : f.name,
+          epsg: Number(epsg), elements: track.elements, startStation: f.startStation, from, to,
+          gradient: f.gradient, heightEpsg: f.gradient ? Number(heightEpsg) : null, tra: f.traFile, gra: f.graFile,
+        }))
+      }
+      if (stretches.length > 1) {
+        axisNotes.push(fill('data_exchange_vermesn_batch_reference_split', {
+          name: f.name, n: stretches.length, max: num(REFERENCE_MAX_LENGTH, { digits: 0 }),
+        }))
+      }
+    }
+    if (built.length) commitImport({ addTracks: built, addKmLines: kmLines, addReferenceAxes: axes })
     const failed = files.filter(f => !f.imported)
-    setDone(built.length ? fill('data_exchange_vermesn_batch_done', {
-      tracks: built.length, heights: files.filter(f => f.heights > 0).length,
-    }) : null)
+    const counts = { tracks: built.length, heights: files.filter(f => f.heights > 0).length, axes: axes.length }
+    setDone(built.length
+      ? fill(asReference ? 'data_exchange_vermesn_batch_done_axes' : 'data_exchange_vermesn_batch_done', counts)
+      : null)
     setErrors(failed.map(f => fill('data_exchange_vermesn_batch_refused', {
       file: f.traFile, reason: f.errors.length ? f.errors.join('; ') : t('data_exchange_vermesn_tra_empty'),
     })))
     setNotes([
       ...(kmLines.length ? [fill('data_exchange_vermesn_km_lines', { lines: kmLines.map(l => l.lineNumber).join(', ') })] : []),
       ...files.flatMap(f => f.notes.map(note => `${f.graFile}: ${note}`)),
+      ...axisNotes,
     ])
     setBatch(null)
   }
@@ -149,6 +175,11 @@ export default function VermEsnBatch({ epsg }) {
           </div>
         </div>
       )}
+      <label className="transition-curve-row">
+        <input type="checkbox" checked={asReference} onChange={e => setAsReference(e.target.checked)} />
+        <span>{t('data_exchange_vermesn_batch_reference')}</span>
+        <InfoTip text={t('data_exchange_vermesn_batch_reference_hint')} />
+      </label>
       <button className="panel-btn panel-btn-full mt-6" disabled={!ready} onClick={importIt}>
         {batch ? fill('data_exchange_vermesn_batch_import_n', { n: batch.pairs.length }) : t('data_exchange_import')}
       </button>

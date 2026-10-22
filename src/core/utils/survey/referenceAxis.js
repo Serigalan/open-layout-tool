@@ -23,6 +23,26 @@ export const REFERENCE_MAX_LENGTH = 2000
 
 const mm = (v) => Math.round(v * 1000)
 
+/**
+ * An axis from station `from` to `to` cut into stretches a reference axis can
+ * hold: as few as there must be, of about equal length, each at most `max`
+ * long and parting at a round ten metres where that keeps them within it —
+ * [{ from, to }], one where the axis is no longer than `max`.
+ */
+export function referenceStretches(from, to, max = REFERENCE_MAX_LENGTH) {
+  const n = Math.max(1, Math.ceil((to - from) / max - 1e-9))
+  const out = []
+  let at = from
+  for (let k = 1; k < n; k++) {
+    const round = Math.round((from + (to - from) * k / n) / 10) * 10
+    const cut = Math.max(Math.min(round, at + max), to - (n - k) * max)
+    out.push({ from: at, to: cut })
+    at = cut
+  }
+  out.push({ from: at, to })
+  return out
+}
+
 /** Differences to the value before, the first against 0 — whole numbers in, whole numbers out. */
 function deltas(values) {
   const out = new Array(values.length)

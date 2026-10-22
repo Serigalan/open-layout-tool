@@ -3,7 +3,8 @@ import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
-  REFERENCE_MAX_LENGTH, axisOutline, axisRange, buildReferenceAxis, referenceAxisDefect, referencePoints, sampleAlong,
+  REFERENCE_MAX_LENGTH, axisOutline, axisRange, buildReferenceAxis, referenceAxisDefect, referencePoints, referenceStretches,
+  sampleAlong,
 } from './referenceAxis'
 import { straightElement, arcFrom, transitionElement } from '../geometry/elementFactory'
 import { endPointStraightUtm } from '../geometry/elementUtils'
@@ -50,6 +51,28 @@ describe('sampling an axis', () => {
     for (let i = 0; i < e.length; i += 1237) {
       const p = pointAt(els, offset + i * 0.01)
       expect(Math.hypot(e[i] - p.easting, n[i] - p.northing)).toBeLessThan(2e-4)
+    }
+  })
+})
+
+describe('cutting a long axis into stretches', () => {
+  it('keeps an axis up to the longest stretch whole', () => {
+    expect(referenceStretches(0, 1476.3)).toEqual([{ from: 0, to: 1476.3 }])
+    expect(referenceStretches(165115.2, 165115.2 + REFERENCE_MAX_LENGTH)).toHaveLength(1)
+  })
+
+  it('cuts a longer one into as few stretches of about equal length as there must be, at round ten metres', () => {
+    expect(referenceStretches(0, 4013.4)).toEqual([{ from: 0, to: 1340 }, { from: 1340, to: 2680 }, { from: 2680, to: 4013.4 }])
+    expect(referenceStretches(12.5, 3589.1)).toEqual([{ from: 12.5, to: 1800 }, { from: 1800, to: 3589.1 }])
+  })
+
+  it('never lets the rounding carry a stretch beyond the longest', () => {
+    for (const [from, to] of [[3, 4000], [0, 3999.9], [7.4, 4005.4], [0, 6000]]) {
+      const parts = referenceStretches(from, to)
+      expect(parts[0].from).toBe(from)
+      expect(parts[parts.length - 1].to).toBe(to)
+      for (const p of parts) expect(p.to - p.from).toBeLessThanOrEqual(REFERENCE_MAX_LENGTH + 1e-9)
+      parts.slice(1).forEach((p, i) => expect(p.from).toBe(parts[i].to))
     }
   })
 })

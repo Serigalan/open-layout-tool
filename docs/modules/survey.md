@@ -39,7 +39,8 @@ survey is marked and can be shifted along or traced again (see `pointCloud`).
 
 A reference axis is the axis of a surveyed track as **points every centimetre, nothing else** — its elements
 are not kept. It is read from Verm.ESN (TRA, optional GRA with the gradient including vertical curves), at
-most 2 km of axis in the project (a range by its own stationing is chosen for a longer one). Point *i* lies
+most 2 km of axis in the project (a range by its own stationing is chosen for a longer one; the batch import
+cuts a longer one into stretches of about equal length, parting at round ten metres). Point *i* lies
 at station `s0 + i·step`; easting, northing and height are whole millimetres, each stored as the difference
 to the point before. Collection `referenceAxes`, merged as a whole object.
 
