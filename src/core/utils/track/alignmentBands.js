@@ -1,4 +1,4 @@
-import { cantEnds, transitionCantEnds } from '../geometry'
+import { cantEnds, transitionCantEnds, withCantEdit } from '../geometry'
 import { worstSeverity, cantLimit, cantSign, clampCant } from '../rules'
 
 // The bands of a track drawn under each other over its station: curvature,
@@ -171,25 +171,35 @@ export function bandFindings(check) {
  * not below 0, the cant on its design step, within its element's limit and
  * signed by the curve (clampCant). The cant is typed as a magnitude; a
  * straight keeps the side it had. An empty value (null) clears the field: an
- * unknown speed, no cant. Elements left as they were are returned as they are.
+ * unknown speed, or no cant, which is 0. A cant holds along the whole element
+ * (a ramp it had goes) and runs on over its joints as the element table's does
+ * (withCantEdit, Entscheidung 373). Elements left as they were are returned as
+ * they are.
  */
 export function withBandValue(elements, indices, band, value) {
+  if (band === 'cant') {
+    let out = elements
+    for (const i of indices) {
+      const el = out[i]
+      if (!el || el.elementType === 2) continue
+      const { cantStart: _s, cantEnd: _e, ...flat } = el
+      const typed = (el.radius ? 1 : (Math.sign(el.cant ?? 0) || 1)) * Math.abs(value ?? 0)
+      const cant = clampCant(typed, el) || 0
+      out = withCantEdit(out.map((e, j) => (j === i ? flat : e)), i, 'cant', cant)
+    }
+    return out.map((el, i) => (el === elements[i] || !sameCant(el, elements[i]) ? el : elements[i]))
+  }
   const at = new Set(indices)
   return elements.map((el, i) => {
-    if (!at.has(i) || (band === 'cant' && el.elementType === 2)) return el
+    if (!at.has(i)) return el
     const { [band]: _old, ...rest } = el
-    if (value == null) {
-      if (band !== 'cant') return rest
-      const { cantStart: _s, cantEnd: _e, ...flat } = rest
-      return flat
-    }
-    if (band === 'speed') return { ...el, speed: Math.max(0, value) }
-    // A cant typed for an arc or a straight holds along all of it: a ramp it had goes.
-    const { cantStart: _s, cantEnd: _e, ...flat } = el
-    const typed = (el.radius ? 1 : (Math.sign(el.cant ?? 0) || 1)) * Math.abs(value)
-    return { ...flat, cant: clampCant(typed, el) }
+    if (value == null) return rest
+    return { ...el, speed: Math.max(0, value) }
   })
 }
+
+/** Do two states of an element carry the same cant fields? */
+const sameCant = (a, b) => ['cant', 'cantStart', 'cantEnd'].every(k => a[k] === b[k])
 
 /**
  * The elements with the cant at the ends of the transitions at `indices` set
@@ -197,25 +207,26 @@ export function withBandValue(elements, indices, band, value) {
  * [mm], null to follow the neighbouring element again, or undefined to leave
  * that end as it is. The side is the one the end raises now, else its curve's;
  * the value within the element's limit, to the 0.001 mm the model keeps — no
- * design step, a ramp passes through the values between two.
+ * design step, a ramp passes through the values between two. A typed end runs
+ * on over its joint as the element table's does (withCantEdit, Entscheidung 373).
  */
 export function withCantEnds(elements, indices, ends) {
-  const at = new Set(indices)
-  return elements.map((el, i) => {
-    if (!at.has(i) || el.elementType !== 2) return el
-    let out = el
+  let out = elements
+  for (const i of indices) {
+    const el = out[i]
+    if (!el || el.elementType !== 2) continue
     for (const [key, field] of [['start', 'cantStart'], ['end', 'cantEnd']]) {
       const value = ends[key]
       if (value === undefined) continue
       if (value === null) {
-        const { [field]: _old, ...rest } = out
-        out = rest
+        const { [field]: _old, ...rest } = out[i]
+        out = out.map((e, j) => (j === i ? rest : e))
         continue
       }
       const r = key === 'start' ? (el.r1 ?? el.r2) : (el.r2 ?? el.r1)
-      const side = Math.sign(transitionCantEnds(elements, i)[key]) || (r ? cantSign(r) : 1)
-      out = { ...out, [field]: side * Math.min(cantLimit(el), Math.round(Math.abs(value) * 1000) / 1000) || 0 }
+      const side = Math.sign(transitionCantEnds(out, i)[key]) || (r ? cantSign(r) : 1)
+      out = withCantEdit(out, i, field, side * Math.min(cantLimit(el), Math.round(Math.abs(value) * 1000) / 1000) || 0)
     }
-    return out
-  })
+  }
+  return out
 }

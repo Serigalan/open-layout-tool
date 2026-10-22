@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { cantEnds } from '../geometry/clothoidUtils'
 import { curvatureBand, cantBand, speedBand, bandValueAt, bandRuns, bandRange, withBandValue, withCantEnds, bandFindings } from './alignmentBands'
 
 // Straight 100 m, clothoid 50 m into a right arc R 500 of 200 m with 80 mm
@@ -94,10 +95,11 @@ describe('withCantEnds', () => {
     { elementType: 2, length: 10, r1: -400, r2: -400 },
     { elementType: 1, length: 10, radius: -400, cant: -80 },
   ]
-  it('sets the ends a transition is given, on the side they raise, to the 0.001 mm', () => {
+  it('sets the ends a transition is given, on the side they raise, to the 0.001 mm — and the arc before takes it', () => {
     const next = withCantEnds(els, [0, 1], { start: 21.8751, end: undefined })
-    expect(next[0]).toBe(els[0])
-    expect(next[1].cantStart).toBe(-21.875)
+    expect(cantEnds(next, 1)).toEqual({ start: -21.875, end: -80 })
+    // The cant runs on over the joint (Entscheidung 373): the arc before has that cant now, the transition follows it.
+    expect(next[0].cant).toBe(-21.875)
     expect(next[1]).not.toHaveProperty('cantEnd')
   })
   it('keeps a cant against the curve on its side, and lets an end follow its neighbour again', () => {
@@ -106,9 +108,27 @@ describe('withCantEnds', () => {
     expect(next[0].cantStart).toBe(10)
     expect(next[0]).not.toHaveProperty('cantEnd')
   })
-  it('is what the band draws', () => {
+  it('is what the band draws, the neighbours carrying the ends on', () => {
     const next = withCantEnds(els, [1], { start: 50, end: 70 })
-    expect(cantBand(next).map(p => p.v)).toEqual([-60, -60, -50, -70, -80, -80])
+    expect(cantBand(next).map(p => p.v)).toEqual([-50, -50, -50, -70, -70, -70])
+  })
+})
+
+describe('a cant set in the band runs on over the joints (Entscheidung 373)', () => {
+  const chain = [
+    { elementType: 0, length: 10 },
+    { elementType: 2, length: 10, r1: null, r2: 500, cantStart: 0, cantEnd: 60 },
+    { elementType: 1, length: 10, radius: 500, cant: 60 },
+    { elementType: 2, length: 10, r1: 500, r2: null, cantStart: 60, cantEnd: 0 },
+  ]
+  it('takes an arc\'s cant to the transitions at both its ends', () => {
+    const next = withBandValue(chain, [2], 'cant', 80)
+    expect([1, 2, 3].map(i => cantEnds(next, i))).toEqual([{ start: 0, end: 80 }, { start: 80, end: 80 }, { start: 80, end: 0 }])
+  })
+  it('clears a cant to 0, which the transitions take too', () => {
+    const next = withBandValue(chain, [2], 'cant', null)
+    expect(cantEnds(next, 1).end).toBe(0)
+    expect(cantEnds(next, 3).start).toBe(0)
   })
 })
 
