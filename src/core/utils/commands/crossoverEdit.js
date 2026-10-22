@@ -1,5 +1,5 @@
 import { elementStations, portEnd, portTrack, remapSwitches, stationOnTrack } from '../track'
-import { DEFAULT_MIDS, planSwitchDeletion, switchParts, SWITCH_TYPES } from '../switch'
+import { DEFAULT_MIDS, midUnknowns, planSwitchDeletion, switchParts, SWITCH_PICK_TYPES } from '../switch'
 import { adoptCrossover } from './crossover'
 import { connectionPick, settleConnection } from './sCurve'
 
@@ -29,7 +29,7 @@ const portAt = (sw, trackId, endpoint) => ['A', ...ROUTE_PORTS]
 /**
  * The switch connection track `trackId` is — or why it is none: { error } with
  * a locale key. It begins at a route of one turnout and ends at a route of
- * another, of one form the connection dialog knows, and between the two
+ * another, of one form a turnout can be laid in with, and between the two
  * turnouts' own elements lie one to EDIT_MAX_MIDS elements of its own.
  *
  * Returns { conn, turnouts: [first, second] — each { sw, port, linePort,
@@ -57,7 +57,9 @@ export function switchConnectionOf({ trackId, tracks, switches }) {
   const mids = conn.elements.slice(first.own.length, conn.elements.length - second.own.length)
   if (!first.own.length || !second.own.length || mids.some(el => el.switchId)) return { error: 'crossover_edit_error_none' }
   if (mids.length < 1 || mids.length > EDIT_MAX_MIDS) return { error: 'crossover_edit_error_mids' }
-  const form = SWITCH_TYPES.find(f => f.label === first.sw.label)
+  // Any form a turnout can be laid in with (SWITCH_PICK_TYPES): the
+  // construction lays every one of them, not only those it chooses itself.
+  const form = SWITCH_PICK_TYPES.find(f => f.label === first.sw.label)
   if (!form || second.sw.label !== first.sw.label) return { error: 'crossover_edit_error_form' }
   return { conn, turnouts, mids, form, speed: form.speed }
 }
@@ -146,27 +148,42 @@ export function takeApart(found, { tracks, switches }) {
  * stood (shift 0), the middle elements as they are, two of their values left
  * open so that they close again there — the connection as it is, whether the
  * rulebook accepts it or not. One element alone is the dialog's own arc,
- * length and radius open, which closes on a straight as well. Null where
- * they do not close there.
+ * length and radius open, which closes on a straight as well.
  *
- * Returns { shift, mids, seed }.
+ * A connection the construction does not lay as it is — a turnout across an
+ * element change of its track, cants that disagree at the ldS, a chain that
+ * does not close at the toes — still opens (`closes` false): its elements as
+ * they are, the first two lengths open, the old values where the iteration
+ * starts; the dialog says why, and the slider, the elements and the Python
+ * solver find where it does.
+ *
+ * Returns { shift, mids, seed, closes }.
  */
 export function editStart(found, apart) {
+  const ask = { picks: apart.picks, speed: found.speed, form: found.form }
   if (found.mids.length === 1) {
-    const { result, shift } = settleConnection({ picks: apart.picks, speed: found.speed, shift: 0, form: found.form })
-    return result?.valid || result?.overridable ? { shift, mids: DEFAULT_MIDS, seed: null } : null
+    const { result, shift } = settleConnection({ ...ask, shift: 0 })
+    const closes = !!(result?.valid || result?.overridable)
+    return { shift: closes ? shift : 0, mids: DEFAULT_MIDS, seed: null, closes }
   }
   // The middle elements as an answer of the Python solver states them; the
-  // toes stand where the picks are.
+  // toes stand where the picks are. Exact first: the connection as it is.
   const pieces = found.mids.map(el => (el.elementType === 2
     ? { type: 'transition', length: el.length }
     : el.radius == null
       ? { type: 'straight', length: el.length, kappa: 0 }
       : { type: 'arc', length: el.length, kappa: -1 / el.radius }))
-  return adoptCrossover({
-    picks: apart.picks, speed: found.speed, form: found.form, lenient: true,
-    solution: { s1: 0, s2: 0, pieces },
-  })
+  const adopted = adoptCrossover({ ...ask, lenient: true, exactFirst: true, solution: { s1: 0, s2: 0, pieces } })
+  if (adopted) return { ...adopted, closes: true }
+  const asIs = found.mids.map((el, i) => ({
+    type: pieces[i].type,
+    // The first two lengths open, the rest as it is.
+    length: i < 2 ? null : el.length,
+    radius: pieces[i].type === 'arc' ? Math.abs(el.radius) : null,
+    ...(pieces[i].type === 'arc' ? { side: Math.sign(el.radius) } : {}),
+  }))
+  const values = midUnknowns(asIs).map(u => found.mids[u.i].length)
+  return { shift: 0, mids: asIs, seed: { ds: 0, values }, closes: false }
 }
 
 /**

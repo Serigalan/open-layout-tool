@@ -77,7 +77,7 @@ const valuesOf = (pieces, open) => open.map(u => (u.field === 'length'
  * A solution: { s1, s2, pieces: [{ type, length, kappa }] } (kappa math-signed,
  * an arc's own, else null).
  */
-export function adoptCrossover({ picks, speed, solution, form = null, lenient = false }) {
+export function adoptCrossover({ picks, speed, solution, form = null, lenient = false, exactFirst = false }) {
   const { s1, s2, pieces } = solution
   const exact = pieces.map(p => (p.type === 'arc'
     ? { type: 'arc', length: p.length, radius: 1 / Math.abs(p.kappa), side: -Math.sign(p.kappa) }
@@ -86,7 +86,7 @@ export function adoptCrossover({ picks, speed, solution, form = null, lenient = 
   const rounded = exact.map(m => ({
     ...m, length: round(m.length, 3), radius: m.radius == null ? null : round(m.radius, 1),
   }))
-  for (const full of [rounded, exact]) {
+  for (const full of exactFirst ? [exact, rounded] : [rounded, exact]) {
     const adopted = adoptSpec({ picks, speed, form, lenient, s1, s2, pieces, full })
     if (adopted) return adopted
   }

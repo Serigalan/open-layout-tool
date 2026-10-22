@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import SCurveForm from './SCurveForm'
-import SwitchConnectionEdit from './SwitchConnectionEdit'
 import SwitchOnTrackForm from './SwitchOnTrackForm'
 import SwitchConnectForm from './SwitchConnectForm'
 import CrossingOnTrackForm from './CrossingOnTrackForm'
@@ -46,16 +45,6 @@ export default function ConnectSwitchPanel({ detailTarget = null, onShowDetail }
       <BackButton onBack={back} />
       <h2>{t('scurve_title')}</h2>
       <SCurveForm onCommitted={(laid) => {
-        if (laid?.canted) { setCrossover(laid.switchIds); setPage('crossover_gradient') } else setPage('menu')
-      }} />
-    </>
-  )
-
-  if (page === 'scurve_edit') return (
-    <>
-      <BackButton onBack={back} />
-      <h2>{t('crossover_edit_title')}</h2>
-      <SwitchConnectionEdit onCommitted={(laid) => {
         if (laid?.canted) { setCrossover(laid.switchIds); setPage('crossover_gradient') } else setPage('menu')
       }} />
     </>
@@ -120,10 +109,6 @@ export default function ConnectSwitchPanel({ detailTarget = null, onShowDetail }
         <button className="create-element-btn" onClick={() => setPage('scurve')}>
           <SwitchConnectionIcon />
           {t('scurve_title')}
-        </button>
-        <button className="create-element-btn" onClick={() => setPage('scurve_edit')}>
-          <SwitchConnectionIcon />
-          {t('crossover_edit_title')}
         </button>
         <hr className="divider divider-wide" />
         <button className="create-element-btn" onClick={() => setPage('crossing_ontrack')}>

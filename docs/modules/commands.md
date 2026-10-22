@@ -52,13 +52,17 @@ element change behind the turnout; the remaining pieces on both tracks must be z
 connecting track is the branch of both turnouts. If the tracks are canted, the dialog then offers to fit
 the crossover's heights (`elevation`).
 
-**Editing a switch connection** (`crossoverEdit.js`, Entscheidung 364): a track that begins and ends at a
-route (B1/B2) of two turnouts of one catalogue form, with one to three elements of its own between their
-routes, is one (`switchConnectionOf`). `takeApart` removes it in memory and deletes both turnouts as the
+**Editing a switch connection** (`crossoverEdit.js`, Entscheidung 364; in the Edit panel): a track that
+begins and ends at a route (B1/B2) of two turnouts of one form a turnout can be laid in with
+(`SWITCH_PICK_TYPES`), with one to three elements of its own between their routes, is one
+(`switchConnectionOf`). `takeApart` removes it in memory and deletes both turnouts as the
 delete dialog does (`planSwitchDeletion`, each line joined back into its track), and puts the picks where
 the toes stood — toe and switch end projected onto the joined tracks. `editStart` gives the dialog the
-middle elements as they are, two values open so that they close at shift 0 (`adoptCrossover({ lenient })`;
-one element alone is the closed-form arc). The dialog then runs on those tracks with the form fixed
+middle elements as they are, two values open so that they close at shift 0 (`adoptCrossover({ lenient,
+exactFirst })`; one element alone is the closed-form arc). Where the construction does not lay it as it
+lies — a turnout across an element change, cants that disagree at the ldS, a connection made by "Weiche
+an Gleis anschließen" that does not close — it opens all the same (`closes` false): elements as they are,
+the first two lengths open, the old values as seed; the dialog names the reason. The dialog then runs on those tracks with the form fixed
 (`form` through every solve, `crossoverRequest({ form })`); `buildSCurve({ identities, connTrack })` keeps
 the switch ids, names and numbers and the connecting track, `editCommit` puts the two deletions before it,
 and `storage.commitSwitchConnectionEdit` runs all of it as one undo step.

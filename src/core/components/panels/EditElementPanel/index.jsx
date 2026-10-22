@@ -10,10 +10,12 @@ import DeleteSwitchForm from './DeleteSwitchForm'
 import SwitchStatusForm from './SwitchStatusForm'
 import RoutesForm from './RoutesForm'
 import BufferStopForm from '../CreateElementPanel/BufferStopForm'
+import SwitchConnectionEdit from '../ConnectSwitchPanel/SwitchConnectionEdit'
+import CrossoverGradientForm from '../CrossoverGradientForm'
 import {
   EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
   ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon,
-  BufferStopIcon, RouteIcon,
+  BufferStopIcon, RouteIcon, SwitchConnectionIcon,
 } from '../../icons'
 import { useI18n } from '../../../locales/i18nContext'
 import useMapPick from '../../../map/useMapPick'
@@ -23,6 +25,7 @@ import InfoTip from '../../form/InfoTip'
 export default function EditElementPanel({ trackTableId, onShowTrackTable, onCloseConstraints }) {
   const { t } = useI18n()
   const [page, setPage] = useState('menu')
+  const [crossover, setCrossover] = useState(null)   // switchIds of a connection just laid again in a cant
 
   // A constraints popup no longer covers this panel's own menu (it only fills
   // the map pane now), so its submenu buttons stay reachable while one is
@@ -109,6 +112,24 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
     </>
   )
 
+  if (page === 'switch_connection') return (
+    <>
+      {backButton()}
+      <h2>{t('crossover_edit_title')}</h2>
+      <SwitchConnectionEdit onCommitted={(laid) => {
+        if (laid?.canted) { setCrossover(laid.switchIds); setPage('crossover_gradient') } else setPage('menu')
+      }} />
+    </>
+  )
+
+  if (page === 'crossover_gradient' && crossover) return (
+    <>
+      {backButton()}
+      <h2>{t('crossover_title')}</h2>
+      <CrossoverGradientForm switchIds={crossover} ask onDone={() => setPage('menu')} />
+    </>
+  )
+
   if (page === 'switch_status') return (
     <>
       {backButton()}
@@ -171,6 +192,10 @@ export default function EditElementPanel({ trackTableId, onShowTrackTable, onClo
           {t('routes')}
         </button>
         <span className="create-element-section">{t('edit_switch')}</span>
+        <button className="create-element-btn" onClick={() => goto('switch_connection')}>
+          <SwitchConnectionIcon />
+          {t('crossover_edit_title')}
+        </button>
         <button className="create-element-btn" onClick={() => goto('switch_status')}>
           <EditPropertiesIcon />
           {t('switch_status')}

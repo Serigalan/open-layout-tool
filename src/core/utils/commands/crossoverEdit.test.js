@@ -138,6 +138,30 @@ describe('a switch connection, edited (Entscheidung 364)', () => {
       .toBeCloseTo(out.result.midPieces.map(m => m.route.length).reduce((a, b) => a + b), 3)
   })
 
+  it('opens as it lies where the construction does not lay it so, its elements as they are', () => {
+    const found = switchConnectionOf({ trackId: conn.id, ...project })
+    const apart = takeApart(found, project)
+    // Two straights between the branches, and the first turnout on an
+    // element of 30 m: shorter than its through route, it does not lie on it.
+    const crooked = { ...found, mids: [found.mids[0], found.mids[0]].map(el => ({ ...el, length: 5, radius: null })) }
+    const short = { ...apart.picks[0], along: 15, route: { ...apart.picks[0].route, length: 30 } }
+    const off = { ...apart, picks: [short, apart.picks[1]] }
+    const start = editStart(crooked, off)
+    expect(start.closes).toBe(false)
+    expect(start.shift).toBe(0)
+    expect(start.mids).toEqual([{ type: 'straight', length: null, radius: null }, { type: 'straight', length: null, radius: null }])
+    expect(start.seed).toEqual({ ds: 0, values: [5, 5] })
+    expect(editStart(found, apart).closes).toBe(true)
+  })
+
+  it('takes every form a turnout can be laid in with', () => {
+    const fb = project.switches.map(sw => ({ ...sw, label: '1200 – 1:19.277' }))
+    const found = switchConnectionOf({ trackId: conn.id, tracks: project.tracks, switches: fb })
+    expect(found.error).toBeUndefined()
+    expect(found.form.label).toBe('1200 – 1:19.277')
+    expect(found.speed).toBe(100)
+  })
+
   it('names why it cannot be edited', () => {
     // More than three elements between the turnouts' routes.
     const found = switchConnectionOf({ trackId: conn.id, ...project })
