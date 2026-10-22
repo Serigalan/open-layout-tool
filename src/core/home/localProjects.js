@@ -64,7 +64,7 @@ export function summaryOf({ id, project, createdAt, updatedAt }) {
 }
 
 /**
- * Every record is stored with the format it is in (oltjson-1.0, decision 333);
+ * Every record is stored with the format it is in (oltjson-1.1, decision 333);
  * one without is from before it and is not opened — it was not converted.
  */
 async function put(record) {
@@ -102,7 +102,7 @@ export async function createLocalProject({ title, description = '', image = null
 }
 
 /**
- * The projects of a file (oltjson-1.0, as exported here or from a
+ * The projects of a file (oltjson-1.1, as exported here or from a
  * server variant) as projects of their own — each a new id, so a file read
  * in twice is two projects, each naming the coordinate system most of its
  * tracks lie in where it names none (decision 322). Throws the PayloadError of
@@ -120,7 +120,7 @@ export async function importLocalProjects(data, fallbackTitle = '') {
   return projects.length
 }
 
-/** The file of one project (oltjson-1.0), its picture embedded. */
+/** The file of one project (oltjson-1.1), its picture embedded. */
 export async function exportLocalProject(id) {
   const record = await get(id)
   if (!record) return null

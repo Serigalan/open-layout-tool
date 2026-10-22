@@ -1,12 +1,13 @@
-import { reconstructElements, derivedEndBearing, loadedCants, storedCants } from '../geometry'
+import { reconstructElements, derivedEndBearing, loadedTrackCants, storedTrackCants } from '../geometry'
 import { rebuildSwitchSymbol } from '../switch'
 import { rebuildPlatformSymbol, isModelledSwitch, rebuildCoords } from '../track'
 
 /**
- * oltjson-1.0 — the one format of a project (decision 333): what a file holds,
- * what the browser and the server keep, and what the app works on in memory.
+ * oltjson-1.1 — the one format of a project (decision 333, version 1.1 since
+ * Entscheidung 371): what a file holds, what the browser and the server keep,
+ * and what the app works on in memory.
  *
- *   { format: 'oltjson', version: '1.0', projects: [...] }
+ *   { format: 'oltjson', version: '1.1', projects: [...] }
  *
  * One record per project. The app's model *is* this record, plus the display
  * geometry the load derives from it (hydrateProjects) and the save strips
@@ -30,8 +31,20 @@ import { rebuildPlatformSymbol, isModelledSwitch, rebuildCoords } from '../track
  *     along the track), a platform is stationed along its track too.
  *   – the cant of an element is `cant` where it is the same at both ends and
  *     `cantStart` + `cantEnd` where it changes along it, never both
- *     (Entscheidung 369); the load gives an arc or a straight with a ramp its
- *     `cant` back, the end that helps the curve least (geometry.loadedCants).
+ *     (Entscheidung 369); a transition always states both its ends, and an
+ *     absent cant is 0 (Entscheidung 371). The load gives an arc or a straight
+ *     with a ramp its `cant` back, the end that helps the curve least, and
+ *     leaves a transition the ends its neighbours give it anyway, so it follows
+ *     them (geometry.loadedTrackCants).
+ *   – how the element table may change an element (Entscheidung 371): `role`
+ *     'follow' from this element on (Folgeelement — it and every one after it
+ *     take length and radius, each starting where the one before ends) or
+ *     'intermediate' (Zwischenelement — its radius is typed, it and the two
+ *     elements beside it are worked out anew, everything else stays); absent,
+ *     the element is a Festelement. `reasons` { ruleId: text } the written
+ *     justification for each Hinweis of the rule catalogue on the element (a
+ *     boundary rule's on the element after the joint); the one for cant in a
+ *     turnout over 100 mm stays `cantException`.
  *   – numbers are kept to what they mean: positions, lengths, radii and
  *     stations to 1 µm, heights to 0.1 mm, angles to 10⁻⁹ °. Not coarser for
  *     the plane: nodes and design values must agree to the 10⁻⁶ ° the chain
@@ -46,8 +59,8 @@ import { rebuildPlatformSymbol, isModelledSwitch, rebuildCoords } from '../track
  * whether a record is complete.
  */
 const FORMAT = 'oltjson'
-const FORMAT_VERSION = '1.0'
-/** The format's name as it is spoken of: oltjson-1.0. */
+const FORMAT_VERSION = '1.1'
+/** The format's name as it is spoken of: oltjson-1.1. */
 export const FORMAT_NAME = `${FORMAT}-${FORMAT_VERSION}`
 
 /**
@@ -65,6 +78,14 @@ export class PayloadError extends Error {
 export const projectsPayload = (records) => ({ format: FORMAT, version: FORMAT_VERSION, projects: records })
 
 const isPort = (p) => p == null || (typeof p === 'object' && !Array.isArray(p))
+
+/** The roles an element may state (absent: a Festelement). */
+const ELEMENT_ROLES = ['follow', 'intermediate']
+
+/** Does an element state its role and its reasons as the format has them? */
+const keptRoleAndReasons = (el) => (el.role == null || ELEMENT_ROLES.includes(el.role))
+  && (el.reasons == null || (typeof el.reasons === 'object' && !Array.isArray(el.reasons)
+    && Object.values(el.reasons).every(r => typeof r === 'string')))
 
 /**
  * Unwrap an imported payload ({ format, version, projects }) — and refuse it
@@ -94,6 +115,7 @@ export function parseProjectsPayload(data) {
     for (const track of p.tracks ?? []) {
       for (const el of track.elements ?? []) {
         if (el.switchBranch && !el.switchId) throw new PayloadError('invalid_payload')
+        if (!keptRoleAndReasons(el)) throw new PayloadError('invalid_payload')
       }
     }
   }
@@ -127,6 +149,7 @@ export function parseTracksPayload(data, { switchIds = new Set() } = {}) {
       if (!Number.isFinite(el.length) || el.length < 0) throw new PayloadError('invalid_payload')
       if (el.switchBranch && !el.switchId) throw new PayloadError('invalid_payload')
       if (el.switchId && !switchIds.has(el.switchId)) throw new PayloadError('switch_missing')
+      if (!keptRoleAndReasons(el)) throw new PayloadError('invalid_payload')
     }
   }
   return tracks
@@ -152,10 +175,20 @@ const SAME_END_BEARING = 1e-7   // °
 
 const turnBetween = (a, b) => Math.abs((((a - b) % 360) + 540) % 360 - 180)
 
-/** One element as it is kept: nothing derived, numbers to what they mean. */
+/** The reasons an element keeps: each trimmed, an empty one dropped, none at all no field. */
+function keptReasons(el) {
+  const { reasons, ...rest } = el
+  const kept = Object.entries(reasons ?? {}).map(([id, text]) => [id, String(text ?? '').trim()]).filter(([, text]) => text)
+  return kept.length ? { ...rest, reasons: Object.fromEntries(kept) } : rest
+}
+
+/**
+ * One element as it is kept: nothing derived, numbers to what they mean. Its
+ * cant comes in from the track (storedTrackCants), which a transition needs to
+ * state the ends its neighbours give it.
+ */
 function keptElement({ renderCoords: _rc, geometry: _g, ...el }) {
-  // `cant` or `cantStart` + `cantEnd`, never both (Entscheidung 369).
-  const out = storedCants(el)
+  const out = keptReasons(el)
   if (out.endBearing != null) {
     const derived = derivedEndBearing(out) ?? out.bearing
     if (derived != null && turnBetween(out.endBearing, derived) < SAME_END_BEARING) delete out.endBearing
@@ -187,7 +220,7 @@ function keptHeight(h) {
 export function hydrateProjects(projects) {
   for (const p of projects ?? []) {
     for (const track of p.tracks ?? []) {
-      const elements = (track.elements ?? []).map(loadedCants).map(el => {
+      const elements = loadedTrackCants(track.elements ?? []).map(el => {
         if (el.endBearing != null) return el
         const derived = derivedEndBearing(el)
         return derived == null ? el : { ...el, endBearing: derived }
@@ -204,7 +237,7 @@ export function hydrateProjects(projects) {
   return projects ?? []
 }
 
-/** The records as they are kept (oltjson-1.0): derived data stripped, numbers rounded. */
+/** The records as they are kept (oltjson-1.1): derived data stripped, numbers rounded. */
 export function dehydrateProjects(projects) {
   return (projects ?? []).map((p) => {
     if (!p.tracks && !p.switches && !p.platforms) return p
@@ -213,7 +246,8 @@ export function dehydrateProjects(projects) {
       ...(p.tracks ? {
         tracks: p.tracks.map(({ coordinates: _coords, ...track }) => ({
           ...track,
-          elements: (track.elements ?? []).map(keptElement),
+          // `cant` or `cantStart` + `cantEnd`, never both (Entscheidung 369).
+          elements: storedTrackCants(track.elements ?? []).map(keptElement),
           ...(track.heights ? { heights: track.heights.map(keptHeight) } : {}),
         })),
       } : {}),

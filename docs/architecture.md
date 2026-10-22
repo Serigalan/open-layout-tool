@@ -82,7 +82,7 @@ own module, and a worker only the server build needs lives in `src/server` (the 
 ## Data flow
 
 1. **Start.** The NTv2 base grids are loaded first (hydration converts historic datums), then the store.
-2. **Open.** A project record (oltjson-1.0, see [data format](data-format.md)) passes `parseProjectsPayload`, is
+2. **Open.** A project record (oltjson-1.1, see [data format](data-format.md)) passes `parseProjectsPayload`, is
    hydrated (display geometry derived) and becomes the store's open project.
 3. **Edit.** A panel gathers input, calls a command (`utils/commands`), checks the result against the rules and
    hands it to a store function. The store applies it immutably, applies consequences (turnout height coupling,

@@ -52,7 +52,7 @@ export function openDb() {
   return _dbPromise
 }
 
-// A working copy is stored with the format its records are in (oltjson-1.0,
+// A working copy is stored with the format its records are in (oltjson-1.1,
 // decision 333). One from before it is not read: it was not converted, and
 // what the server keeps of that state is not opened either.
 const current = (record) => record?.format === FORMAT_NAME

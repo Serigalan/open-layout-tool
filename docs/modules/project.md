@@ -2,7 +2,7 @@
 
 `src/core/utils/project/` · needs `geometry`, `track`, `switch`, `survey`
 
-The project record as one thing: its format oltjson-1.0 (the door every payload passes, hydration on load,
+The project record as one thing: its format oltjson-1.1 (the door every payload passes, hydration on load,
 dehydration on save), the project settings (coordinate system, line category), the validation every merge
 result and every server revision must pass, and the short description of what one undo step did. The format
 itself — every field, and why it is shaped as it is — is described in [the data format](../data-format.md).
@@ -11,7 +11,7 @@ itself — every field, and why it is shaped as it is — is described in [the d
 
 | File | What it does |
 |---|---|
-| `persistenceUtils.js` | oltjson-1.0: `projectsPayload`, `parseProjectsPayload` (the door), `hydrateProjects` (derive on load), `dehydrateProjects` (strip and round on save), `parseTracksPayload` (track files) |
+| `persistenceUtils.js` | oltjson-1.1: `projectsPayload`, `parseProjectsPayload` (the door), `hydrateProjects` (derive on load), `dehydrateProjects` (strip and round on save), `parseTracksPayload` (track files) |
 | `projectSettings.js` | The project's coordinate system and line category; moving tracks into another plane with everything a switch joins to them |
 | `validateProject.js` | Whether a record holds together: errors and warnings, stably keyed; `newFindings` |
 | `stepLabel.js` | What one step did, in a few words, worked out from the two states |
@@ -19,7 +19,7 @@ itself — every field, and why it is shaped as it is — is described in [the d
 ## Load, save, refuse
 
 `parseProjectsPayload` is **the one place that decides** whether a payload is taken: it must say
-`format: 'oltjson'`, `version: '1.0'`, hold `projects`, every switch must be a modelled record (`switchId`,
+`format: 'oltjson'`, `version: '1.1'`, hold `projects`, every switch must be a modelled record (`switchId`,
 `kind`, `formVersion`, `ports` an object of port objects) and every switch-marked element must carry its
 switch's id. Anything else is refused with `unsupported_version` or `invalid_payload` — **never converted**.
 Everything behind the door may take the model for granted instead of guarding each field.

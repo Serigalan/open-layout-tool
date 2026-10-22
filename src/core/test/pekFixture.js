@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { storedTrackCants } from '../utils/geometry/clothoidUtils'
 
 /**
  * The PEK data set Halle–Könnern (22 tracks, 13 switches, 9 platforms) — real
@@ -9,9 +10,10 @@ import { join } from 'node:path'
  * it is not there.
  *
  * The file is from before this tool's own format; it is brought to the
- * oltjson-1.0 record the way an import would need it: every switch a
+ * oltjson-1.1 record the way an import would need it: every switch a
  * `switchId`, `kind`, `formVersion` and its `ports`, every switch element the
- * id of the switch its `switchName` names — and no name of its own after that.
+ * id of the switch its `switchName` names — and no name of its own after that
+ * —, every transition both its cant ends, which it took from its neighbours.
  */
 const CANDIDATES = [
   process.env.OLT_PEK_FIXTURE,
@@ -53,6 +55,7 @@ export function loadPek() {
         delete el.switchLabel
         delete el.absLength
       }
+      track.elements = storedTrackCants(track.elements ?? [])
     }
     cached = JSON.stringify(project)
   }
@@ -61,7 +64,7 @@ export function loadPek() {
 
 /**
  * The same line as it stands, at larger scale (113 tracks, 69 switches, two
- * double-track networks with crossovers) — an oltjson-1.0 file, as the app
+ * double-track networks with crossovers) — an oltjson-1.1 file, as the app
  * exports it. Looked for under OLT_PEK_BESTAND_FIXTURE or the project
  * notes; tests that need it are skipped where it is not there.
  */

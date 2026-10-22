@@ -3,12 +3,12 @@ import { gunzipSync, gzipSync } from 'node:zlib'
 import { ApiError } from './errors.js'
 
 /**
- * What `revision.schema_version` says of a record: 1 is oltjson-1.x (decision
- * 333). Rows of the layout before it (2) are not read — they were not
- * converted (decision 333), and opening one says so instead of failing
- * somewhere in the browser.
+ * What `revision.schema_version` says of a record: 2 is oltjson-1.1
+ * (Entscheidung 371), 1 was oltjson-1.0 (decision 333). Rows of a layout
+ * before it are not read — they are not converted (decisions 333 and 371),
+ * and opening one says so instead of failing somewhere in the browser.
  */
-const STORED_FORMAT = 1
+const STORED_FORMAT = 2
 
 
 const pack = (payload) => gzipSync(Buffer.from(JSON.stringify(payload)))

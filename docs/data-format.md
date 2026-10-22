@@ -1,6 +1,6 @@
-# The project format: oltjson-1.0
+# The project format: oltjson-1.1
 
-Every project of the Open Layout Tool exists in exactly one form, **oltjson-1.0** — in an exported file, in
+Every project of the Open Layout Tool exists in exactly one form, **oltjson-1.1** — in an exported file, in
 the browser (local projects and working copies), in the server's revisions and, plus derived display data, as
 the model the app works on in memory. This page specifies the format and gives the reasons for its shape.
 The code is `src/core/utils/project/persistenceUtils.js` (see [project](modules/project.md)).
@@ -10,13 +10,15 @@ The code is `src/core/utils/project/persistenceUtils.js` (see [project](modules/
 ```json
 {
   "format": "oltjson",
-  "version": "1.0",
+  "version": "1.1",
   "projects": [ { …one record… } ]
 }
 ```
 
 A file may hold several records; the app writes one per project. A payload is accepted only when `format` and
-`version` are exactly these — anything else is refused (`unsupported_version`), never converted. A payload that
+`version` are exactly these — anything else is refused (`unsupported_version`), never converted; oltjson-1.0
+files, local records and server revisions do not open any more (decision 371, as 1.0 did with what came
+before it). A payload that
 names the format but does not hold it (switches without `switchId`/`kind`/`formVersion`/`ports`, a switch-marked
 element without `switchId`) is refused as `invalid_payload`. That check is the one door: everything behind it may
 take the model for granted.
@@ -26,7 +28,7 @@ take the model for granted.
 | Exported file (`.json`) | the envelope above; a project image embedded as data URL `image` |
 | Local build | IndexedDB `olt-local`: `projects` (the whole record, image as data URL) and `summaries` for the list |
 | Server build, browser | IndexedDB `olt` › `workingCopies`: the record being edited plus its base revision and that revision's record |
-| Project server | table `revision`: the dehydrated record gzip-compressed in `payload`, `schema_version` 1 = oltjson-1.x; the image as a blob referenced by `imageHash` |
+| Project server | table `revision`: the dehydrated record gzip-compressed in `payload`, `schema_version` 2 = oltjson-1.1 (1 was oltjson-1.0, refused as `format_outdated`); the image as a blob referenced by `imageHash` |
 | In memory | the same record, hydrated (derived display data added), immutable |
 
 ## The record
@@ -112,10 +114,27 @@ Collections, each keyed by its own id (which is also how the merge compares them
 | `transitionType` | — | — | `clothoid` \| `bloss` |
 | `endBearing` | only for a kink | only if it differs from `bearing + length/R` | only if it differs from the integrated one |
 | `cant` | mm, signed (a canted straight) — the same at both ends | mm, signed by the raised rail — the same at both ends | — (ramps between its ends) |
-| `cantStart`, `cantEnd` | mm, only where the cant changes along it, and then no `cant` | mm, only where the cant changes along it, and then no `cant` (the load derives it: the end that helps the curve least) | mm, signed; absent = the neighbour's cant at that end |
+| `cantStart`, `cantEnd` | mm, only where the cant changes along it, and then no `cant` | mm, only where the cant changes along it, and then no `cant` (the load derives it: the end that helps the curve least) | mm, signed; always both |
+| `role` | `follow` \| `intermediate`, absent = Festelement | the same | the same |
+| `reasons` | `{ ruleId: text }` | the same | the same |
 
 An element states its cant as `cant` **or** as `cantStart` + `cantEnd`, never both: `cant` says the cant is
-the same at both ends (decision 369).
+the same at both ends (decision 369). A transition always states both its ends, also where they are its
+neighbours' — the file says every cant there is, and **an absent cant is 0** (decision 371). In memory a
+transition whose end is its neighbour's leaves that end out and follows the neighbour (`loadedTrackCants`).
+
+`role` says how the element table may change the element (decision 371). Absent, it is a **Festelement**:
+length and radius stay. `follow` makes it a **Folgeelement** and every element after it one too: length and
+radius are typed, each element starts where the one before ends, everything behind follows. `intermediate`
+makes it a **Zwischenelement**: its radius is typed, and it is worked out anew between the two elements beside
+it (transitions do not count as those), which keep their radius and direction and take a new length — the
+first starts where it did, the second ends where it did, nothing else moves. Only the element the user set
+states its role; the ones it governs follow from it.
+
+`reasons` holds the written justification for each Hinweis the rule catalogue gives the element — every
+finding between `ok` and `error` (Hinweis, Warnung, Zustimmung, Sonderfall), keyed by rule id; a boundary
+rule's on the element after the joint. The justification for 100–120 mm cant in a turnout stays
+`cantException`, since it also raises the limit.
 
 Optional on any element: `speed` (design speed, km/h; 0 or absent = unknown, not checked), `cantException`
 (the written justification for 100–120 mm cant in a turnout), and on the elements of a switch's route the mark

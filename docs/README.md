@@ -12,7 +12,7 @@ whoever maintains or reviews the tool. User guidance is in the app (*Leitfaden*,
 ## Overview
 
 - [Architecture](architecture.md) — layers, builds, modules and their order, data flow, conventions, testing
-- [Data format](data-format.md) — oltjson-1.0, field by field, and why it is shaped this way
+- [Data format](data-format.md) — oltjson-1.1, field by field, and why it is shaped this way
 - [Interface layer](interface.md) — store, shell, panels, overlays, map, translations
 - [Server parts](server.md) — browser server parts, the project server, the Python service
 

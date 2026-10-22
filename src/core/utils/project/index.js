@@ -1,4 +1,4 @@
-// project — the project record as a whole: the oltjson-1.0 format (load,
+// project — the project record as a whole: the oltjson-1.1 format (load,
 // save, hydrate), project settings, validation, what one step did.
 //
 // This file is the module's public face: code outside src/core/utils/project/

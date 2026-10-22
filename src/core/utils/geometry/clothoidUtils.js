@@ -319,7 +319,7 @@ export function withCantRamp(el, start, end) {
  * `cant` on it would not say which ends are its own; a stray `cant` beside them
  * goes.
  */
-export function storedCants(el) {
+function storedCants(el) {
   const { cant: _c, ...rest } = el
   const hasStart = el.cantStart != null, hasEnd = el.cantEnd != null
   if (el.elementType === 2) return hasStart || hasEnd ? rest : el
@@ -330,11 +330,54 @@ export function storedCants(el) {
 }
 
 /**
+ * A track's elements with their cant as a record keeps it (oltjson-1.1,
+ * Entscheidung 371): an arc or a straight as storedCants keeps it, a
+ * transition always with both its ends — what transitionCantEnds reads,
+ * whether it states them itself or takes them from its neighbours — so the
+ * file says every cant there is, and an absent one is 0.
+ */
+export function storedTrackCants(elements = []) {
+  return elements.map((el, i) => {
+    if (el.elementType !== 2) return storedCants(el)
+    const { cant: _c, ...rest } = el
+    const ends = transitionCantEnds(elements, i)
+    return { ...rest, cantStart: ends.start || 0, cantEnd: ends.end || 0 }
+  })
+}
+
+/**
+ * A track's elements as the model reads them from a record (storedTrackCants):
+ * each as loadedCants gives it, and a transition — an end it does not state
+ * being 0, as the record has it — without the ends its neighbours give it
+ * anyway, so that in the model it follows them when their cant changes; only
+ * an end that differs stays its own.
+ */
+export function loadedTrackCants(elements = []) {
+  const out = elements.map(el => (el.elementType === 2
+    ? { ...el, cantStart: el.cantStart ?? 0, cantEnd: el.cantEnd ?? 0 }
+    : loadedCants(el)))
+  out.forEach((el, i) => {
+    if (el.elementType !== 2) return
+    let next = el
+    if (next.cantStart != null && Math.abs(next.cantStart - endCant(out[i - 1], 'end')) <= SAME_CANT) {
+      const { cantStart: _s, ...rest } = next
+      next = rest
+    }
+    if (next.cantEnd != null && Math.abs(next.cantEnd - endCant(out[i + 1], 'start')) <= SAME_CANT) {
+      const { cantEnd: _e, ...rest } = next
+      next = rest
+    }
+    out[i] = next
+  })
+  return out
+}
+
+/**
  * An element's cant as the model reads it, from a record (storedCants): an arc
  * or a straight with a ramp gets its `cant` back — the end that helps the curve
  * least (withCantRamp).
  */
-export function loadedCants(el) {
+function loadedCants(el) {
   if (el.elementType === 2 || el.cant != null || el.cantStart == null || el.cantEnd == null) return el
   return withCantRamp(el, el.cantStart, el.cantEnd)
 }

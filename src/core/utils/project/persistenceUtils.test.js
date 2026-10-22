@@ -165,17 +165,28 @@ describe('parseProjectsPayload', () => {
     expect(parseProjectsPayload(payloadOf(project())).projects).toHaveLength(1)
   })
 
-  it('says what it takes: { format: oltjson, version: 1.0 }', () => {
-    expect(payloadOf(project())).toMatchObject({ format: 'oltjson', version: '1.0' })
-    expect(FORMAT_NAME).toBe('oltjson-1.0')
+  it('says what it takes: { format: oltjson, version: 1.1 }', () => {
+    expect(payloadOf(project())).toMatchObject({ format: 'oltjson', version: '1.1' })
+    expect(FORMAT_NAME).toBe('oltjson-1.1')
   })
 
   it('refuses another format or another version of it by that alone', () => {
-    for (const other of [{ version: 2 }, { version: '1.1' }, { format: 'railjson' }, { format: undefined }]) {
+    for (const other of [{ version: 2 }, { version: '1.0' }, { version: '1.2' }, { format: 'railjson' }, { format: undefined }]) {
       const payload = { ...payloadOf(switchProject()), ...other }
       expect(() => parseProjectsPayload(payload)).toThrow(PayloadError)
       expect(() => parseProjectsPayload(payload)).toThrow('unsupported_version')
     }
+  })
+
+  it('refuses an element role or reasons the format does not have (Entscheidung 371)', () => {
+    for (const bad of [{ role: 'fixed' }, { role: 3 }, { reasons: 'text' }, { reasons: ['a'] }, { reasons: { 'LP.KS.02': 4 } }]) {
+      const payload = payloadOf(project())
+      Object.assign(payload.projects[0].tracks[0].elements[0], bad)
+      expect(() => parseProjectsPayload(payload), JSON.stringify(bad)).toThrow('invalid_payload')
+    }
+    const payload = payloadOf(project())
+    Object.assign(payload.projects[0].tracks[0].elements[0], { role: 'follow', reasons: { 'LP.KS.02': 'Bestand' } })
+    expect(parseProjectsPayload(payload).projects).toHaveLength(1)
   })
 
   it('refuses ports that are not { trackId, endpoint } objects', () => {
@@ -239,7 +250,7 @@ describe('parseTracksPayload (R0.5)', () => {
   })
 })
 
-// ── What a record keeps (oltjson-1.0, decision 333) ──────────────────────────
+// ── What a record keeps (oltjson-1.1, decisions 333 and 371) ──────────────────────────
 
 describe('a record as it is kept', () => {
   const arc = { elementType: 1, startNode: [500000.1234567891, 5600000], endNode: [500100, 5600010], bearing: 84.12345678912345, length: 100.12345678912, radius: 500.0000004 }
@@ -294,6 +305,35 @@ describe('a record as it is kept', () => {
       expect(el).not.toHaveProperty('cant')
       expect(el).toMatchObject({ cantStart: 0, cantEnd: 40 })
       expect(kept({ ...transition, cantStart: 40 }).elements[0]).toMatchObject({ cantStart: 40, cantEnd: 40 })
+    })
+  })
+
+  describe('a transition states both its ends, an absent cant is 0 (Entscheidung 371)', () => {
+    const tr = (more = {}) => ({ elementType: 2, transitionType: 'clothoid', startNode: [0, 0], endNode: [60, 0], bearing: 90, length: 60, r1: null, r2: 500, ...more })
+    const chain = [{ ...arc, radius: null, elementType: 0, cant: 0 }, tr(), { ...arc, cant: 60 }]
+    const keptChain = (elements) => dehydrateProjects([{ id: 'p', tracks: [{ id: 't', epsg: 25832, elements }] }])[0].tracks[0].elements
+    const loadChain = (elements) => hydrateProjects([{ id: 'p', tracks: [{ id: 't', epsg: 25832, elements }] }])[0].tracks[0].elements
+
+    it('writes the ends a transition takes from its neighbours', () => {
+      expect(keptChain(chain)[1]).toMatchObject({ cantStart: 0, cantEnd: 60 })
+    })
+
+    it('loads them back as the neighbours\' — the transition follows them again', () => {
+      const back = loadChain(keptChain(chain))
+      expect(back[1]).not.toHaveProperty('cantStart')
+      expect(back[1]).not.toHaveProperty('cantEnd')
+    })
+
+    it('reads an end the record does not state as 0, not as the neighbour\'s', () => {
+      const back = loadChain([chain[0], tr(), chain[2]])
+      expect(back[1]).toMatchObject({ cantEnd: 0 })
+      expect(back[1]).not.toHaveProperty('cantStart')
+    })
+
+    it('keeps an element\'s role and its reasons, trimmed, an empty reason dropped', () => {
+      const [el] = keptChain([{ ...arc, role: 'follow', reasons: { 'LP.KS.02': ' Bestand ', 'LP.KB.04': '  ' } }])
+      expect(el).toMatchObject({ role: 'follow', reasons: { 'LP.KS.02': 'Bestand' } })
+      expect(keptChain([{ ...arc, reasons: { 'LP.KB.04': '' } }])[0]).not.toHaveProperty('reasons')
     })
   })
 })
