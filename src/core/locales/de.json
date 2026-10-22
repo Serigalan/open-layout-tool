@@ -2162,5 +2162,5 @@
   "table_cant_by_ends": "Dieses Element hat je eine Überhöhung an Anfang und Ende – siehe Ü Anfang und Ü Ende.",
   "table_cant_by_one": "Dieses Element hat eine Überhöhung über die ganze Länge – siehe Spalte Überhöhung.",
   "table_cant_ends_hint": "Überhöhung am Anfang und am Ende des Elements, vorzeichenbehaftet nach der gehobenen Schiene (+ links gehoben). Ein Element hat entweder eine Überhöhung (Spalte Überhöhung) oder je eine an Anfang und Ende (Übergangsbogen, oder ein Bogen bzw. eine Gerade, in dem sich die Überhöhung ändert) – nie beides. Keine Überhöhung ist 0.",
-  "bands_cant_ends_hint": "Betrag in mm, die gehobene Schiene bleibt dieselbe; geleert folgt das Ende wieder dem Nachbarelement. Ohne Raster – eine Rampe läuft durch die Werte dazwischen. Vorzeichen gegen die Krümmung im Trackeditor."
+  "bands_cant_ends_hint": "Betrag in mm, die gehobene Schiene bleibt dieselbe; geleert folgt das Ende wieder dem Nachbarelement. Ohne Raster – eine Rampe läuft durch die Werte dazwischen. Ein eingegebener Wert geht über die Elementgrenze weiter (das Element daneben nimmt ihn), und an einer Weiche nimmt ihn auch der andere Strang. Vorzeichen gegen die Krümmung im Trackeditor."
 }

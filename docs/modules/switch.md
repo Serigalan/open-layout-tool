@@ -20,6 +20,7 @@ ports, element marks — is in the `track` module; what the dialogs commit is in
 | `detail.js` | A turnout in detail: sleepers (with the bracket sleepers of its variant) and rails in the turnout's own frame, for a laid turnout or a catalogue form on helper tracks |
 | `detailScene.js` | A laid turnout in detail with its surroundings: the partners of a switch connection, the turnouts close by and the tracks there, in the turnout's frame |
 | `switchPlacement.js` | Where a turnout lies on a track: the toe at a station, the through route over as many elements as it covers; why it cannot lie somewhere |
+| `switchCants.js` | The cant of a turnout's two routes kept together after every write (`coupleSwitchCants`) |
 | `switchConnectionUtils.js` | The switch connection: two turnouts facing each other on two tracks and the element(s) between them |
 | `midChain.js` | One to three elements between the two branches of a switch connection, two of their values sought |
 | `connectToTrack.js` | Connecting a turnout's branch or a crossing's leg to an open track end by refitting the element there |
@@ -115,6 +116,23 @@ exactly one cant. "Weiche auf Gleis" and the switch connection read it the same 
 plus the LCS line (Weichenmarke) and the label, placed from the centre of area of the body so the same
 distance means the same gap for a 1:7 and a 1:26,5. All of it is derived from the tracks on every load and
 never stored.
+
+## The cant of a turnout's routes (decision 376)
+
+A turnout lies on one set of sleepers, so its two routes carry one cant side by side. Laying it reads the
+branch off the track beside it (decision 367); `coupleSwitchCants(before, after, switches)` keeps them together
+afterwards. The store runs it on every write, before the gradients are coupled (they read the cant), and the
+element table on its working copy. Where a write changed the cant along one route, the other takes it, element
+by element, at the station abreast (`switchAbreast` over the joints of the route the turnout was laid onto);
+both changed, the main route leads. Cant is signed by the raised rail as seen along a track, so a route whose
+track runs the other way from the toe takes it with the other sign. The track then carries it on over the
+route's ends to the next element that states its ends (`withCantsOver`), and the track up to the toe (port A)
+meets the toe with the same cant (`withCantAtEnd`); a cant changed at the end of that track starts the main
+route in turn. A track reached that way may hold a route of the next turnout — a crossover's connecting track,
+a track running on into another turnout — which is coupled in the next pass, until nothing changes (at most 24
+passes). In a station of straights without transitions, a cant therefore runs on through every track and
+turnout joined to it: there is no element where it could ramp. Only turnouts are coupled; crossings and slips
+are not.
 
 ## A turnout in detail
 

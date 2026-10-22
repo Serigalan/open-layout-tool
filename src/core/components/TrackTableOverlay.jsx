@@ -4,6 +4,7 @@ import { useTracks, useProject } from '../hooks/useStore'
 import { elementRoles, planElementChange, planIntermediateChange, mergeElementEdits, withRole } from '../utils/commands'
 import { elementStations } from '../utils/track'
 import { withCantEdit } from '../utils/geometry'
+import { coupleSwitchCants } from '../utils/switch'
 import { boundaryScope, cantLimit, checkTrack, clampCant, maxSpeeds, ruleMaxSpeedsOf } from '../utils/rules'
 import { filterForElement, FILTER_NONE, mapIsLive } from '../map/pick'
 import { useMap } from '../map/MapContext'
@@ -286,7 +287,14 @@ export default function TrackTableOverlay({
       // the element beyond the joint takes too — the cant stays continuous.
       const value = isEmpty ? 0 : clampMeta(key, Number(raw), elements[row])
       if (!Number.isFinite(value)) return
-      editElements(els => withCantEdit(els, row, key, value))
+      // …and so does the other route of a turnout it lies in, with the tracks
+      // that run on from there (Entscheidung 376) — in the working copy, so
+      // the table shows it and Save writes it.
+      const edited = tracks.map(tr => (tr.id !== track.id ? tr : { ...tr, elements: withCantEdit(tr.elements ?? [], row, key, value) }))
+      const coupled = coupleSwitchCants(tracks, edited, loadSwitches())
+      setNotice(null)
+      setChanged(prev => [...new Set([...prev, ...coupled.filter((tr, k) => tr !== tracks[k]).map(tr => tr.id)])])
+      setTracks(coupled)
     } else {
       const value = isEmpty ? undefined : clampMeta(key, Number(raw), elements[row])
       if (value != null && !Number.isFinite(value)) return

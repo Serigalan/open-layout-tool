@@ -395,6 +395,54 @@ function withEndCant(el, end, value) {
 }
 
 /**
+ * Carry the cant `v` over a joint into `out` (in place), from element `from`
+ * on in direction `step` (−1 backwards, +1 forwards): an element of one cant
+ * takes it all along and passes it on, one with ends takes it at the near end
+ * and stops it there.
+ */
+function carryCant(out, from, step, v) {
+  for (let j = from; j >= 0 && j < out.length; j += step) {
+    const own = hasCantEnds(out[j])
+    out[j] = withEndCant(out[j], step < 0 ? 'end' : 'start', v)
+    if (own) return
+  }
+}
+
+/**
+ * The elements of a track with the cant `v` at its end `endpoint` ('BEGIN' or
+ * 'END') — carried in from there over the elements of one cant to the first
+ * that states its ends (carryCant). What a track meeting a turnout's toe takes
+ * from it (Entscheidung 376).
+ */
+export function withCantAtEnd(elements, endpoint, v) {
+  if (!elements?.length) return elements
+  const out = elements.slice()
+  if (endpoint === 'END') carryCant(out, out.length - 1, -1, v)
+  else carryCant(out, 0, 1, v)
+  return followingCants(out)
+}
+
+/**
+ * The elements with the cant of the run `from`–`to` set at both ends of each
+ * — `ends` [[start, end], …] in the order of the elements — and carried on
+ * over the joints at either end of the run (carryCant). An element of one
+ * radius whose two ends agree keeps one `cant`; a transition states both.
+ * What a turnout's route takes from the other route beside it (switch
+ * coupleSwitchCants, Entscheidung 376).
+ */
+export function withCantsOver(elements, from, to, ends) {
+  const out = elements.slice()
+  for (let i = from; i <= to; i++) {
+    const [start, end] = ends[i - from]
+    const el = out[i]
+    out[i] = el.elementType === 2 ? { ...el, cantStart: start, cantEnd: end } : withCantRamp(el, start, end)
+  }
+  carryCant(out, from - 1, -1, ends[0][0])
+  carryCant(out, to + 1, 1, ends[ends.length - 1][1])
+  return followingCants(out)
+}
+
+/**
  * The elements with one cant typed in the element table (Entscheidung 373):
  * `key` 'cant' (an element of one cant), 'cantStart' or 'cantEnd' (one that
  * states its ends), `value` the cant [mm] as it is to be stored. The cant
@@ -407,14 +455,7 @@ export function withCantEdit(elements, i, key, value) {
   const out = elements.slice()
   const el = out[i]
   if (!el) return elements
-  const carry = (from, step, v) => {
-    for (let j = from; j >= 0 && j < out.length; j += step) {
-      const near = step < 0 ? 'end' : 'start'
-      const own = hasCantEnds(out[j])
-      out[j] = withEndCant(out[j], near, v)
-      if (own) return
-    }
-  }
+  const carry = (from, step, v) => carryCant(out, from, step, v)
   if (key === 'cant') {
     if (hasCantEnds(el)) return elements
     out[i] = withEndCant(el, 'start', value)

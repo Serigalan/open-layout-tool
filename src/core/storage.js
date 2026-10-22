@@ -6,7 +6,7 @@ import {
   flipSwitchEndpoints, makeTrack, nextTrackName, portTracks, referencesTrack, remapSwitches,
   reverseTrack, generateId, remapEndMarks, flipEndMarks, pruneEndMarks, endKey, repairRoutes,
 } from './utils/track'
-import { rebuildSwitchSymbol } from './utils/switch'
+import { coupleSwitchCants, rebuildSwitchSymbol } from './utils/switch'
 import { coupleSwitchGradients, coupleSwitchHeights, lengthGovernedRadii } from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
@@ -91,7 +91,9 @@ function mutate(fn, { undo = true } = {}) {
   // A curve whose length counts takes the radius its gradients ask for now
   // (decision 266) — before the turnouts are paired, which read the curves,
   // and again for the tracks the pairing moved.
-  const repaired = withPrunedMarks(repairRoutes(before, next))
+  // A turnout's two routes carry one cant (decision 376) — coupled first, since
+  // the gradients of a turnout read its cant.
+  const repaired = withCoupledCants(before, withPrunedMarks(repairRoutes(before, next)))
   const after = withLengthRadii(before, withCoupledGradients(before, withLengthRadii(before, repaired)))
   if (undo) { pushUndo(before, logBefore); _redoStack = [] }
   if (undo && _undoDepth === 0) recordStep('do', before, after)
@@ -274,6 +276,15 @@ export function withUndo(fn) {
  * a geometry changed) moves the branch; in the same step, so one undo takes
  * back both. Turnouts the write did not reach are left alone.
  */
+/**
+ * The project with the cant of every turnout's two routes coupled again where
+ * the write changed it along one of them (switch coupleSwitchCants).
+ */
+function withCoupledCants(before, project) {
+  const tracks = coupleSwitchCants(before.tracks, project.tracks, project.switches)
+  return tracks === project.tracks ? project : { ...project, tracks }
+}
+
 function withCoupledGradients(before, project) {
   return coupleSwitchHeights(before, project)
 }

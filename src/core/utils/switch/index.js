@@ -19,6 +19,7 @@ export {
   computeCrossingGeometryUtm, crossingAngle, crossingElements, crossingEndDistance,
   crossingLegFitsTrack, crossingLegRadius, crossingLegSignedRadius, piecesOnRadius,
 } from './crossing'
+export { coupleSwitchCants } from './switchCants'
 export { formDetail } from './detail'
 export { switchDetailScene } from './detailScene'
 export { DEFAULT_MIDS, MID_OPEN, midUnknowns } from './midChain'

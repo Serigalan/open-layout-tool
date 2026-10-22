@@ -117,7 +117,10 @@ Every element has `startNode` and `endNode` (`[E, N]` in the track's plane). Con
   (`hasCantEnds`: a transition, or an arc or straight with a ramp). What an end now has, the element beyond
   the joint takes there — an element of one cant all along, and on over its next joint; one with ends only at
   that end, where the carrying stops. So a changed transition end changes the arc beyond it and the
-  transition at that arc's other end, and the cant stays continuous (LP.UB.01).
+  transition at that arc's other end, and the cant stays continuous (LP.UB.01). The cant band writes the same
+  way. `withCantsOver` sets the cants of a run of elements and carries them on at both ends, `withCantAtEnd`
+  carries a cant in from a track end — what a turnout's coupled route and the track up to its toe take (switch
+  `coupleSwitchCants`, decision 376).
 - **End bearing** is not stored where the design values give it (arc: `bearing + length/R`, transition:
   the integrated heading). It is kept only where it differs — a kinked straight, an imported tangent
   (`derivedEndBearing`, see [data format](../data-format.md)).
