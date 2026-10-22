@@ -259,6 +259,34 @@ export function switchBranchChain(formChain, stem) {
 }
 
 /**
+ * The stations, from the toe, where the pieces of a chain part — its interior
+ * joints. Under a turnout these are the element changes of the track it lies
+ * in, where branch and through route part too (switchBranchChain).
+ */
+export function switchChainJoints(chain) {
+  const out = []
+  let s = 0
+  for (const piece of toChain(chain).slice(0, -1)) { s += piece.length; out.push(s) }
+  return out
+}
+
+/**
+ * The station of one route of a turnout abreast of station `u` of the other,
+ * the cant read across from it (Entscheidung 367): the routes run `fromLength`
+ * and `toLength` from the toe (branch and through route differ by centimetres),
+ * and part at the same stations where the elements under the turnout change
+ * (`joints`, switchChainJoints of the stem). Up to the last of those the
+ * stations agree; past it the rest of the one route is stretched onto the rest
+ * of the other, so WA meets WA and the switch end meets the switch end — both
+ * tracks carry one cant there, exactly.
+ */
+export function switchAbreast(u, joints, fromLength, toLength) {
+  const last = joints.filter(j => j < Math.min(fromLength, toLength)).reduce((a, b) => Math.max(a, b), 0)
+  if (u <= last || !(fromLength > last)) return u
+  return last + (u - last) * (toLength - last) / (fromLength - last)
+}
+
+/**
  * Bauform of a turnout from its two chains, both running from the toe. It is
  * unbent only where the stem is straight throughout; otherwise it is the bent
  * form it has where its stem is tightest, so a turnout that starts on a straight

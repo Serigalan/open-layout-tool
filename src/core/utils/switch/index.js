@@ -23,7 +23,7 @@ export { formDetail } from './detail'
 export { switchDetailScene } from './detailScene'
 export { DEFAULT_MIDS, MID_OPEN, midUnknowns } from './midChain'
 export {
-  negR, switchBranchChain, switchChainBauform, switchChainBearingAt, switchChainPointUtm,
+  negR, switchAbreast, switchBranchChain, switchChainBauform, switchChainJoints, switchChainBearingAt, switchChainPointUtm,
   switchChainTo, switchElementRoute, switchRouteBearingAt, switchRoutePointUtm, switchRouteVaries,
   utmEndRoute,
 } from './route'

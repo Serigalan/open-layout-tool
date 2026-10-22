@@ -96,6 +96,14 @@ is the bauform: `plain` (straight stem), `ibw` (inner-bent: branch and stem turn
 as the plain form with its routes swapped (`swapped: true`, see `track`): the curved line is the branch,
 the straight the through route.
 
+**Cant** (Entscheidung 367). Both routes lie on the same sleepers, so the branch carries the cant of the
+track beside it, piece by piece: a ramp where the element beside it ramps — a clothoid piece as
+`cantStart`/`cantEnd`, an arc or straight piece as its own ramp (`withCantRamp`) — and one `cant` where it
+does not. Branch and through route differ in length by centimetres, so the cant is read at the station
+abreast (`switchAbreast`): up to the last element change under the turnout the stations agree, past it the
+rest of the one route is stretched onto the rest of the other. At WA and at WE both tracks therefore carry
+exactly one cant. "Weiche auf Gleis" and the switch connection read it the same way.
+
 **Symbol.** The body is the area between the branch and the through route from the toe to the switch end,
 plus the LCS line (Weichenmarke) and the label, placed from the centre of area of the body so the same
 distance means the same gap for a 1:7 and a 1:26,5. All of it is derived from the tracks on every load and
@@ -274,6 +282,8 @@ unmarked and joined back with their neighbours into one track; what does not sta
   same code.
 - **Form angle and radius are never free variables** in a connection; only positions are.
 - **A switch connection needs equal cant at the ldS**, not at the toe; one cant on the middle element.
+- **The branch's cant is the through route's abreast**, piece by piece and equal at WE (Entscheidung 367),
+  not a line from the cant at WA to the cant at WE.
 - **A connection's turnout runs on over an element change** like any turnout laid into a track (Entscheidung
   366); only its toe is bound to the element picked, which is what the slider moves along.
 - **Bloss curves carry no turnout**, crossings need straight track.

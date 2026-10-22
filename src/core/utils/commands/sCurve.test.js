@@ -425,6 +425,28 @@ describe('a turnout of the connection across an element change (Entscheidung 366
     for (const sw of commit.addSwitches) expectSwitchRoutesCarved(sw, commit.addTracks)
   })
 
+  it('ramps the branch\'s cant beside the clothoid and carries none beside the straight (Entscheidung 367)', () => {
+    const branch = commit.addTracks[commit.addTracks.length - 1].elements.filter(el => el.switchId)
+    // Toe 45 m into the 60 m ramp from 40 mm: 10 mm, down to none at the element change.
+    expect(branch[0].cantStart).toBeCloseTo(-10, 6)
+    expect(branch[0].cantEnd).toBeCloseTo(0, 6)
+    expect(branch[1].cant ?? 0).toBe(0)
+    expect(branch[1].cantStart).toBeUndefined()
+  })
+
+  it('carries the cant of the through route at the switch end, where that lies in the ramp', () => {
+    // Toe 5 m into the clothoid: WE some 46.6 m in, still on the ramp. (Track 2
+    // carries no cant, so the ldS disagree — the cant along the branch is read
+    // all the same.)
+    const p = [connectionPick(t1, 1, 5), connectionPick(t2, 0, 400)]
+    const r = solveConnection({ picks: p, speed: 60, shift: 0, form })
+    const ramp = (s) => -40 * (1 - s / 60)
+    expect(r.cants1[0][0]).toBeCloseTo(ramp(5), 9)
+    // At the switch end: the through route's cant there, not the branch's own length read off the ramp.
+    expect(r.cants1.at(-1)[1]).toBeCloseTo(ramp(5 + switchStraightLength(form)), 9)
+    expect(r.cant1End).toBe(r.cants1.at(-1)[1])
+  })
+
   it('keeps the toe on the element picked', () => {
     // Moved 60 m back the toe stands on the arc before the element picked.
     const off = solveConnection({ picks, speed: 60, shift: -60, form })

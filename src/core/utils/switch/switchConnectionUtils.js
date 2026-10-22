@@ -1,6 +1,6 @@
 import {
   utmToWgs84, arcCoordsFromRadiusUtm, projectOnArcUtm, SAGITTA_ELEMENT, SAGITTA_TRACK,
-  computeClothoidUtm, arcElement, straightElement, transitionElement,
+  computeClothoidUtm, arcElement, straightElement, transitionElement, withCantRamp,
 } from '../geometry'
 import { MAX_SWITCH_CANT, MAX_SWITCH_CANT_DEF, comparisonRadiusLimits, computeCantDefSigned, minElementLength } from '../rules'
 import {
@@ -8,6 +8,7 @@ import {
 } from './catalogue'
 import {
   switchBranchChain, switchRouteVaries, switchRoutePointUtm, switchRouteBearingAt, switchRouteRadiusAt, switchRouteSlice, switchChainPointUtm, switchChainBearingAt, switchChainSegmentsUtm,
+  switchAbreast, switchChainJoints,
 } from './route'
 import { MID_OPEN, endCurvature, isDefaultMids, midUnknowns, solveMidChain } from './midChain'
 
@@ -484,16 +485,37 @@ function buildConnection(sw, frame, speed, mids = null, seed = null) {
   // branch takes its own stem's, as a turnout laid into a track does
   // (SwitchOnTrackForm), read at the station of the branch it belongs to. All
   // of it in the direction the three elements are built in.
-  const cant1Start = stemCant(stem1, s1)
-  const cant1End   = stemCant(stem1, s1 + Lb)
-  const cant2Start = stemCant(stem2, s2 - Lb)      // at B2A
-  const cant2End   = stemCant(stem2, s2)           // at TP2
+  //
+  // Along a branch the cant is the stem's beside it, piece by piece — a ramp
+  // where the element beside it ramps, constant where it is (Entscheidung 367):
+  // read at the through route's station abreast (switchAbreast), so at the
+  // switch end both tracks carry exactly one cant.
+  const through = switchStraightLength(sw)
+  const joints1 = switchChainJoints(stemUnder(stem1, s1, through))
+  const joints2 = switchChainJoints(stemUnder(reverseStem(stem2), -s2, through))
+  const cantOn1 = (u) => stemCant(stem1, s1 + switchAbreast(u, joints1, Lb, through))
+  // Branch 2 runs from B2A, `Lb − v` from its own toe.
+  const cantOn2 = (v) => stemCant(stem2, s2 - switchAbreast(Lb - v, joints2, Lb, through))
+  const pieceCants = (chain, at) => {
+    let u = 0
+    return chain.map((piece) => {
+      const ends = [at(u), at(u + piece.length)]
+      u += piece.length
+      return ends
+    })
+  }
+  const cants1 = pieceCants(chain1, cantOn1)
+  const cants2 = pieceCants(chain2, cantOn2)
+  const cant1Start = cants1[0][0]
+  const cant1End   = cants1[cants1.length - 1][1]
+  const cant2Start = cants2[0][0]                   // at B2A
+  const cant2End   = cants2[cants2.length - 1][1]   // at TP2
   // The element between them can only carry one value, so the two tracks have
   // to agree on it — at the last through sleeper (ldS) of either turnout, up to
   // which a turnout lies on its own track's sleepers. At WA they may differ
   // (Entscheidung 218). Where the form states no ldS, it is WE. Read along the
   // stem: an ldS beyond its last element takes the cant at its end.
-  const toLds    = switchStraightLength(sw) + (Number.isFinite(sw.lds) ? sw.lds : 0)
+  const toLds    = through + (Number.isFinite(sw.lds) ? sw.lds : 0)
   const cantLds1 = stemCant(stem1, s1 + toLds)
   const cantLds2 = stemCant(stem2, s2 - toLds)
   const cantMid  = Math.round((cantLds1 + cantLds2) / 2)
@@ -539,7 +561,7 @@ function buildConnection(sw, frame, speed, mids = null, seed = null) {
     // is the piece at the toe. A straight end piece says nothing about the form.
     signedR1: chain1[0].r1, signedR2: negR(chain2own[0].r1),
     L1: Lb, L2: Lb,
-    cant1Start, cant1End, cant2Start, cant2End, cantMid, cantLds1, cantLds2,
+    cant1Start, cant1End, cant2Start, cant2End, cants1, cants2, cantMid, cantLds1, cantLds2,
     cantDef: defMid, branchCantDef: Math.max(defB1, defB2),
     bearing1: bearingOf(psiToe1),
     bearing2:  bearOwn,                       // at TP2, towards B2A — where the split parts
@@ -735,7 +757,7 @@ export function connectionBranchEnds(g1, g2, speed, { step = 0.5, reach = 300, f
     const first = grid(onElementRange(stem1, through, 1)).map(s => {
       const one = firstBranch(formChain, stem1, s, Lb)
       if (!one) return null
-      const uA = stemCant(stem1, s), uB = stemCant(stem1, s + Lb)
+      const uA = stemCant(stem1, s), uB = stemCant(stem1, s + through)
       return {
         s, x: one.B1E.easting, y: one.B1E.northing, psi: one.t1,
         kappa: -endCurvature(one.chain1), tail: endRun(one.chain1),
@@ -745,7 +767,7 @@ export function connectionBranchEnds(g1, g2, speed, { step = 0.5, reach = 300, f
     const second = grid(onElementRange(stem2, through, -1)).map(s => {
       const two = secondBranch(formChain, stem2, s, Lb)
       if (!two) return null
-      const uA = stemCant(stem2, s - Lb), uB = stemCant(stem2, s)
+      const uA = stemCant(stem2, s - through), uB = stemCant(stem2, s)
       const chain2 = [...two.chain2own].reverse()
         .map(piece => ({ length: piece.length, r1: negR(piece.r2), r2: negR(piece.r1) }))
       return {
@@ -895,6 +917,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null, seed = 
     stemRoute2: stemUnder(reverseStem(frame.stem2), -c.s2, throughLength),
     cant1Start: c.cant1Start, cant1End: c.cant1End,
     cant2Start: c.cant2Start, cant2End: c.cant2End, cantMid: c.cantMid,
+    cants1: c.cants1, cants2: c.cants2,
     cantLds1: c.cantLds1, cantLds2: c.cantLds2,
     cantDef: c.cantDef, branchCantDef: c.branchCantDef,
     bearing1: c.bearing1, bearing2: c.bearing2,
@@ -957,10 +980,10 @@ function routeCoords(startUtm, bearing, route, sagitta, startWgs, endWgs) {
 
 /**
  * One element of a solved connection, as the route made it: a straight, an arc,
- * or the transition a turnout laid into a transition curve produces. `cant` is
- * the value at its two ends — one number on anything that carries one value, a
- * ramp on a transition, which is the only kind of element this model lets carry
- * two.
+ * or the transition a turnout laid into a transition curve produces. `cantA`
+ * and `cantB` are the values at its two ends: a transition ramps between them,
+ * an arc or a straight carries one `cant` where they agree and its own ramp
+ * where they do not (withCantRamp) — a branch beside a ramp ramps with it.
  */
 function connectionElement(a, b, bearing, route, speed, cantA, cantB, coords, renderCoords) {
   const geometry = { type: 'LineString', coordinates: coords }
@@ -972,9 +995,9 @@ function connectionElement(a, b, bearing, route, speed, cantA, cantB, coords, re
     }).element
   }
   const signedR = route.r1
-  const extra = { speed, ...(cantA ? { cant: cantA } : {}), geometry }
+  const extra = { speed, geometry }
   const el = signedR ? arcElement(a, b, signedR, { ...extra, renderCoords }) : straightElement(a, b, extra)
-  return { ...el }
+  return cantA || cantB ? withCantRamp(el, cantA, cantB) : el
 }
 
 /**
@@ -985,20 +1008,21 @@ function connectionElement(a, b, bearing, route, speed, cantA, cantB, coords, re
  *
  * A branch is a list, not one element: a form that ends in a straight piece
  * builds two, and a turnout lying across several elements of its host track
- * builds one per piece. The cant runs along the branch, so a piece takes it at
- * its own two ends.
+ * builds one per piece. Each piece takes the cant the solution read beside it
+ * at its two ends (`cants1`, `cants2`, Entscheidung 367); a result without them
+ * runs it linearly from the toe to the switch end.
  */
 export function buildConnectionElements(result, speed) {
   const { B1E, B2A, signedRg, branch1, branch2, midCoords, midCoordsRender, midPieces,
-          cant1Start, cant1End, cant2Start, cant2End, cantMid } = result
+          cant1Start, cant1End, cant2Start, cant2End, cants1, cants2, cantMid } = result
   const mid = { length: 0, r1: signedRg, r2: signedRg }
 
-  const branchEls = (pieces, cantA, cantB) => {
+  const branchEls = (pieces, cants, cantA, cantB) => {
     const total = pieces.reduce((sum, p) => sum + p.route.length, 0)
     const cantAt = (s) => (total > 0 ? cantA + (cantB - cantA) * s / total : cantA)
-    return pieces.map(p => connectionElement(
+    return pieces.map((p, i) => connectionElement(
       p.startUtm, p.endUtm, p.bearing, p.route, speed,
-      cantAt(p.s0), cantAt(p.s0 + p.route.length), p.coords, p.renderCoords))
+      cants?.[i]?.[0] ?? cantAt(p.s0), cants?.[i]?.[1] ?? cantAt(p.s0 + p.route.length), p.coords, p.renderCoords))
   }
 
   // Between the branches one element, or the chain of them (Entscheidung
@@ -1008,9 +1032,9 @@ export function buildConnectionElements(result, speed) {
       cantMid, cantMid, p.coords, p.renderCoords))
     : [connectionElement(B1E, B2A, null, mid, speed, cantMid, cantMid, midCoords, midCoordsRender)]
   return {
-    branch1: branchEls(branch1, cant1Start, cant1End),
+    branch1: branchEls(branch1, cants1, cant1Start, cant1End),
     midEl:   midEls[0],
     midEls,
-    branch2: branchEls(branch2, cant2Start, cant2End),
+    branch2: branchEls(branch2, cants2, cant2Start, cant2End),
   }
 }

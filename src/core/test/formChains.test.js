@@ -4,6 +4,7 @@ import { buildConnectCurved, buildConnectStraight, buildCurvedLineTrack, buildLi
 import { buildSwitchOnTrack, switchOnTrackPlacement } from '../utils/commands/switches'
 import { arcFrom, straightFrom, transitionElement } from '../utils/geometry/elementFactory'
 import { endPointStraightUtm, endPointCurvedUtm } from '../utils/geometry/elementUtils'
+import { cantEnds } from '../utils/geometry/clothoidUtils'
 import {
   ALL_SWITCH_TYPES, SWITCH_TYPES, hasCompoundBranch, switchBranchSections, switchStraightLength, switchVariants,
 } from '../utils/switch/catalogue'
@@ -229,6 +230,47 @@ describe('the branch a switch dialog commits', () => {
     it('leaves a line element alone — the rule is the turnout’s', () => {
       const line = straight().map(({ switchBranch: _b, switchRoute: _r, switchId: _i, ...el }) => ({ ...el, cant: 150 }))
       expect(() => expectSwitchCantAdmissible(line)).not.toThrow()
+    })
+  })
+
+  // The cant beside the branch (Entscheidung 367): the host's, piece by piece,
+  // and at the switch end exactly the through route's.
+  describe('the cant along its branch', () => {
+    const lay = (els, toeStation) => {
+      const track = { ...trackOf(els, EPSG, { name: 'line.001' }, 'host') }
+      const placement = switchOnTrackPlacement({ track, toeStation, reversed: false, sw: form, side: 'right', straightLen })
+      expect(placement.error).toBeNull()
+      const commit = buildSwitchOnTrack({
+        track, tracks: [track], place: placement.place, g: placement.geom, plain: placement.plain,
+        sw: form, straightLen, cant: 0, cantReason: '', speed: SPEED,
+        switchName: 'W 1', switchNumber: 1, name: 'branch.001', fields: { owner: 'DB', type: 'station_track' },
+      })
+      const branch = commit.addTracks[commit.addTracks.length - 1].elements
+      const main = commit.addTracks.flatMap(tr => tr.elements.map((el, i) => ({ el, i, tr }))).filter(x => x.el.switchRoute === 'main')
+      const we = main[main.length - 1]
+      return { branch, atWe: cantEnds(we.tr.elements, we.i).end }
+    }
+    const left = -900
+    const ramp = (s) => 60 * s / 80
+    const clothoid = () => ({ ...transitionElement(START, 30, 80, null, left).element, speed: SPEED, cantStart: 0, cantEnd: -60 })
+
+    it('meets the through route\'s cant at the switch end inside a ramp', () => {
+      const cl = clothoid()
+      const { branch, atWe } = lay([cl, { ...arcFrom(endOf(cl), cl.endBearing, 200, left), speed: SPEED, cant: -60 }], 10)
+      expect(atWe).toBeCloseTo(-ramp(10 + straightLen), 9)
+      expect(branch[branch.length - 1].cantEnd).toBeCloseTo(atWe, 9)
+      expect(branch[0].cantStart).toBeCloseTo(-ramp(10), 9)
+    })
+
+    it('ramps on an arc piece beside an arc whose cant ramps', () => {
+      const arc = { ...arcFrom(START, 30, 200, left), speed: SPEED, cantStart: -20, cantEnd: -60 }
+      const { branch, atWe } = lay([arc], 50)
+      const cantAt = (s) => -20 - 40 * s / 200
+      expect(branch).toHaveLength(1)
+      expect(branch[0].elementType).toBe(1)
+      expect(branch[0].cantStart).toBeCloseTo(cantAt(50), 9)
+      expect(branch[0].cantEnd).toBeCloseTo(cantAt(50 + straightLen), 9)
+      expect(branch[0].cantEnd).toBeCloseTo(atWe, 9)
     })
   })
 

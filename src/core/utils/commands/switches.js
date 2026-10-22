@@ -5,13 +5,14 @@ import {
 
 import {
   bearingAfterUtm, computeCurvedValuesUtm, computeStraightValuesUtm, utmToWgs84, arcElement,
-  straightElement,
+  straightElement, withCantRamp,
 } from '../geometry'
 import {
   computeCrossingGeometryUtm, crossingElements, crossingLegFitsTrack, crossingLegRadius,
   crossingLegSignedRadius, piecesOnRadius, computeSwitchGeometryUtm, switchBranchLength,
   switchFormChain, switchBranchChain, switchChainBearingAt, switchChainPointUtm, switchChainTo,
   switchRouteVaries, utmEndRoute, negR, placeSwitchOnTrack, uniqueStations, validIntervals,
+  switchAbreast, switchChainJoints,
 } from '../switch'
 import { cantExceptionFields, worstCantOf, minElementLength, runBeside } from '../rules'
 
@@ -191,20 +192,23 @@ export function switchOnTrackSlider(args, around = null) {
   return { intervals: validIntervals(s => switchOnTrackToeValid(args, s), from, to, 1, snaps), snaps }
 }
 
-/** Branch element from a piece of the branch with one radius (or none). */
-function constantBranchElement(seg, cant) {
+/**
+ * Branch element from a piece of the branch with one radius (or none), with
+ * the cant at its two ends: one `cant` where they agree, its own ramp where
+ * the track beside it ramps (withCantRamp).
+ */
+function constantBranchElement(seg, cantA, cantB = cantA) {
   const r  = seg.r1
   const bv = r
     ? computeCurvedValuesUtm(seg.startUtm, seg.endUtm, r)
     : computeStraightValuesUtm(seg.startUtm, seg.endUtm)
-  return {
+  return withCantRamp({
     elementType: r ? 1 : 0,
     startNode: bv.startNode, endNode: bv.endNode,
     bearing: bv.bearing,
     length: bv.length,
     ...(r ? { endBearing: bv.endBearing, radius: r } : {}),
-    cant,
-  }
+  }, cantA, cantB)
 }
 
 
@@ -271,6 +275,17 @@ export function buildSwitchOnTrack({
   const branchId = generateId()
   const newRoute = swapped ? 'main' : 'branch'
   const newSegments = swapped ? swapped.stemSegments : g.branchSegments
+  // The cant along the new route is the host track's beside it, read at the
+  // station abreast (switchAbreast, Entscheidung 367): the two part where the
+  // elements under the turnout change, and meet again at the switch end with
+  // one cant on both.
+  const newLength  = newSegments.reduce((sum, seg) => sum + seg.length, 0)
+  const joints     = switchChainJoints(place.pieces)
+  const hostAt     = (u) => switchAbreast(u, joints, newLength, lineLength)
+  const cantBeside = (u, seg) => {
+    const a = hostAt(seg.s0), b = hostAt(seg.s0 + seg.length)
+    return place.cantAt(hostAt(u), { s0: a, length: b - a })
+  }
   const branchEls = newSegments.map((seg) => {
     const base = switchRouteVaries(seg)
       ? {
@@ -279,9 +294,10 @@ export function buildSwitchOnTrack({
           endNode:   [seg.endUtm.easting, seg.endUtm.northing],
           bearing: seg.bearing, endBearing: seg.endBearing,
           length: seg.length,
-          cantStart: place.cantAt(seg.s0, seg), cantEnd: place.cantAt(seg.s0 + seg.length, seg),
+          cantStart: cantBeside(seg.s0, seg), cantEnd: cantBeside(seg.s0 + seg.length, seg),
         }
-      : constantBranchElement(seg, plain ? cant : place.cantAt(seg.s0, seg))
+      : plain ? constantBranchElement(seg, cant)
+        : constantBranchElement(seg, cantBeside(seg.s0, seg), cantBeside(seg.s0 + seg.length, seg))
     return justify({
       ...base,
       ...switchElementMark(identity, newRoute),
