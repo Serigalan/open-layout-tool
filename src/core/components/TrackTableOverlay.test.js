@@ -109,8 +109,8 @@ describe('the bearings', () => {
     expect(cell(0, 'Richtung').text).toBe('12,35')   // German: the decimal comma (R10.8)
   })
 
-  it('leaves the fields that do shape an element editable', () => {
-    const { cell } = renderTable()
+  it('leaves the fields that do shape an element editable on a Folgeelement', () => {
+    const { cell } = renderTable({ ...TRACK, id: 't-follow', elements: [{ ...TRACK.elements[0], role: 'follow' }, ...TRACK.elements.slice(1)] })
     expect(cell(0, 'Länge').editable).toBe(true)
     expect(cell(0, 'Radius').editable).toBe(true)
     expect(cell(0, 'Speed').editable).toBe(true)
@@ -130,8 +130,8 @@ describe('the length of a switch route', () => {
     expect(cell(1, 'Länge').text).toBe('33,2')
   })
 
-  it('leaves plain running line as long as it was editable', () => {
-    const { cell } = renderTable()
+  it('leaves plain running line as long as it was editable, on a Folgeelement', () => {
+    const { cell } = renderTable({ ...TRACK, id: 't-follow3', elements: TRACK.elements.map((e, i) => (i === 3 ? { ...e, role: 'follow' } : e)) })
     expect(cell(3, 'Länge').editable).toBe(true)
     expect(cell(3, 'Länge').note).toBe(undefined)
   })
@@ -188,6 +188,42 @@ describe('the cant: one, or one at each end — never both (Entscheidung 373)', 
   })
 })
 
+describe('the element role (Entscheidung 375)', () => {
+  // straight · arc · straight · straight
+  const track = (roles = {}) => ({
+    id: `t-role-${projects}`, name: 'Gleis 9', epsg: 5678,
+    elements: [straight({}), arc({ radius: 800, cant: 0 }), straight({}), straight({})].map((e, i) => (roles[i] ? { ...e, role: roles[i] } : e)),
+  })
+
+  it('makes every element a Festelement where none states a role: length and radius are locked', () => {
+    const { cell } = renderTable(track())
+    for (const i of [0, 1, 2, 3]) {
+      expect(cell(i, 'Elementtyp').text).toBe('fixed')
+      expect(cell(i, 'Länge').editable).toBe(false)
+      expect(cell(i, 'Radius').editable).toBe(false)
+    }
+    expect(cell(1, 'Länge').note).toBe(t('table_locked_fixed'))
+  })
+
+  it('makes every element after a Folgeelement one too, its role then not to choose', () => {
+    const { cell } = renderTable(track({ 1: 'follow' }))
+    expect(cell(0, 'Länge').editable).toBe(false)
+    expect([1, 2, 3].map(i => cell(i, 'Länge').editable)).toEqual([true, true, true])
+    expect(cell(1, 'Elementtyp').editable).toBe(true)
+    expect(cell(2, 'Elementtyp')).toMatchObject({ text: 'follow', editable: false })
+  })
+
+  it('gives a Zwischenelement its radius and locks its length and its neighbours\'', () => {
+    const { cell } = renderTable(track({ 1: 'intermediate' }))
+    expect(cell(1, 'Radius').editable).toBe(true)
+    expect(cell(1, 'Länge').editable).toBe(false)
+    expect(cell(0, 'Elementtyp')).toMatchObject({ text: 'follow', editable: false })
+    expect(cell(2, 'Elementtyp')).toMatchObject({ text: 'follow', editable: false })
+    expect(cell(3, 'Elementtyp')).toMatchObject({ text: 'fixed', editable: true })
+    expect(cell(0, 'Länge').note).toBe('Wird mit Zwischenelement 2 berechnet.')
+  })
+})
+
 describe('the CRS column', () => {
   it('states the plane the track’s coordinates are in, and names it in full', () => {
     const { cell } = renderTable()
@@ -226,8 +262,9 @@ describe('the radius of a switch route', () => {
     expect(cell(2, 'Radius').note).toBe('Von der Bauform der Weiche gesetzt – hier nicht änderbar')
   })
 
-  it('leaves the radius of plain running line editable', () => {
-    expect(renderTable().cell(0, 'Radius').editable).toBe(true)
+  it('leaves the radius of plain running line editable, on a Folgeelement', () => {
+    const track = { ...TRACK, id: 't-follow0', elements: [{ ...TRACK.elements[0], role: 'follow' }, ...TRACK.elements.slice(1)] }
+    expect(renderTable(track).cell(0, 'Radius').editable).toBe(true)
   })
 })
 

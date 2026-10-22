@@ -1,5 +1,6 @@
 // Geometry of an element edit: plan, apply and merge length/bearing/radius changes.
 import { rebuildCoords, truncateHeights } from '../track'
+import { intermediateSpan } from './elementRoles'
 import { nodeUtm, arcFrom, straightFrom, transitionElement } from '../geometry'
 import { switchParts } from '../switch'
 
@@ -181,6 +182,125 @@ export function planElementChange(tracks, switches, trackId, elIdx, { length, be
     ? 'table_edit_too_wide' : null
 
   return { tracks: finish(newTracks), touchedTrackIds, touchedSwitchIds, error }
+}
+
+const turn = (a, b) => ((((a - b) % 360) + 540) % 360) - 180
+
+/** Solve the 3×3 system m·x = v (Cramer); null where it is singular. */
+function solve3(m, v) {
+  const det = (q) => q[0][0] * (q[1][1] * q[2][2] - q[1][2] * q[2][1])
+    - q[0][1] * (q[1][0] * q[2][2] - q[1][2] * q[2][0])
+    + q[0][2] * (q[1][0] * q[2][1] - q[1][1] * q[2][0])
+  const d = det(m)
+  if (!Number.isFinite(d) || Math.abs(d) < 1e-12) return null
+  return [0, 1, 2].map(k => det(m.map((row, r) => row.map((x, c) => (c === k ? v[r] : x)))) / d)
+}
+
+/** How far a bearing error weighs against a position error in the solve [m per radian]. */
+const BEARING_WEIGHT = 1000
+/** Where the solve stops: the end within a micrometre and 10⁻⁹ rad of where it was. */
+const SOLVE_TOL = 1e-6
+
+/**
+ * The heights of a track one stretch of which, `from`–`oldTo`, now ends at
+ * `newTo` (the rest of it standing where it stood): the points before it stay,
+ * those behind it move on with the end, those on it are spread over its new
+ * length.
+ */
+function restationed(heights, from, oldTo, newTo) {
+  const d = newTo - oldTo
+  const k = (newTo - from) / ((oldTo - from) || 1)
+  return heights.map(p => (p.station <= from ? p
+    : p.station >= oldTo ? { ...p, station: p.station + d }
+      : { ...p, station: from + (p.station - from) * k }))
+}
+
+/**
+ * What giving the Zwischenelement `z` of track `trackId` the radius `radius`
+ * (null: a straight) would do (Entscheidung 375): it is worked out anew
+ * between the elements of its span (intermediateSpan) — the element before it
+ * keeps its start, direction and radius, the one after it keeps its end, end
+ * direction and radius, both take the length that makes the chain close; the
+ * transitions between keep their length, the one joining it runs into the
+ * new radius. Nothing outside the span moves, so no other track and no switch
+ * is reached. Returns what planElementChange does, `error` a locale key where
+ * no chain closes.
+ */
+export function planIntermediateChange(tracks, trackId, z, radius) {
+  const newTracks = tracks.map(t => (t.id === trackId ? { ...t, elements: (t.elements ?? []).map(e => ({ ...e })) } : t))
+  const track = newTracks.find(t => t.id === trackId)
+  const elements = track?.elements ?? []
+  const span = intermediateSpan(elements, z)
+  const refuse = (error) => ({ tracks, touchedTrackIds: [], touchedSwitchIds: [], error })
+  if (!track || span.error) return refuse(span.error ?? 'table_role_intermediate_kind')
+  if (radius != null && !(Number.isFinite(radius) && radius !== 0)) return refuse('table_intermediate_no_solution')
+  const { a, b } = span
+  const epsg = track.epsg
+  const old = elements[z]
+  const startA = nodeUtm(elements[a].startNode, elements[a].geometry?.coordinates?.[0], epsg)
+  const target = elements[b]
+  const targetBearing = target.endBearing ?? target.bearing
+
+  // The chain from the start of `a` with the lengths x = [l_a, l_z, l_b].
+  const chain = (x) => {
+    const out = []
+    let start = startA
+    let bearing = elements[a].bearing
+    for (let i = a; i <= b; i++) {
+      let el = elements[i]
+      const given = {}
+      if (i === a) given.length = x[0]
+      if (i === z) { given.length = x[1]; given.radius = radius }
+      if (i === b) given.length = x[2]
+      if (i === z - 1 && joinedTransition(el, 'r2', old.radius ?? null)) el = { ...el, r2: radius }
+      if (i === z + 1 && joinedTransition(el, 'r1', old.radius ?? null)) el = { ...el, r1: radius }
+      const built = buildElement(el, start, { bearing, ...given })
+      out.push(built)
+      start = endUtmOf(built, epsg)
+      bearing = built.endBearing ?? built.bearing
+    }
+    return out
+  }
+  const residual = (x) => {
+    const last = chain(x).at(-1)
+    return [
+      last.endNode[0] - target.endNode[0],
+      last.endNode[1] - target.endNode[1],
+      turn(last.endBearing ?? last.bearing, targetBearing) * Math.PI / 180 * BEARING_WEIGHT,
+    ]
+  }
+
+  // Newton from the lengths it has, the derivatives by a small step.
+  let x = [elements[a].length, old.length, target.length]
+  let ok = false
+  for (let it = 0; it < 60; it++) {
+    const f = residual(x)
+    if (Math.max(Math.abs(f[0]), Math.abs(f[1]), Math.abs(f[2]) / BEARING_WEIGHT * 1000) < SOLVE_TOL) { ok = true; break }
+    const h = 1e-4
+    const jac = [[], [], []]
+    for (let k = 0; k < 3; k++) {
+      const xs = x.slice()
+      xs[k] += h
+      const fk = residual(xs)
+      for (let r = 0; r < 3; r++) jac[r][k] = (fk[r] - f[r]) / h
+    }
+    const dx = solve3(jac, f.map(v => -v))
+    if (!dx) break
+    x = x.map((v, k) => v + dx[k])
+    if (x.some(v => !(v > 0) || !Number.isFinite(v))) break
+  }
+  if (!ok || x.some(v => !(v > 1e-6))) return refuse('table_intermediate_no_solution')
+
+  const built = chain(x)
+  const oldTo = elements.slice(0, b + 1).reduce((sum, e) => sum + (e.length ?? 0), 0)
+  const from = elements.slice(0, a).reduce((sum, e) => sum + (e.length ?? 0), 0)
+  built.forEach((el, k) => { elements[a + k] = el })
+  const newTo = elements.slice(0, b + 1).reduce((sum, e) => sum + (e.length ?? 0), 0)
+  if (track.heights) track.heights = restationed(track.heights, from, oldTo, newTo)
+  // The last element ends where it ended: its node is taken as it was, so the
+  // rest of the track joins it to the bit.
+  elements[b] = { ...elements[b], endNode: target.endNode }
+  return { tracks: finish(newTracks), touchedTrackIds: [trackId], touchedSwitchIds: [], error: null }
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadTracks, loadSwitches, commitTrackEdit } from '../storage'
 import { useTracks, useProject } from '../hooks/useStore'
-import { planElementChange, mergeElementEdits } from '../utils/commands'
+import { elementRoles, planElementChange, planIntermediateChange, mergeElementEdits, withRole } from '../utils/commands'
 import { elementStations } from '../utils/track'
 import { withCantEdit } from '../utils/geometry'
 import { boundaryScope, cantLimit, checkTrack, clampCant, maxSpeeds, ruleMaxSpeedsOf } from '../utils/rules'
@@ -202,6 +202,8 @@ export default function TrackTableOverlay({
   const check = checkTrack(elements)
   // The highest speed the rules let each element carry, worked out once per chain.
   const vmaxes = ruleMaxSpeedsOf(elements)
+  // What may be typed where: Fest-, Folge- and Zwischenelement (Entscheidung 375).
+  const roles = elementRoles(elements)
   // Where each element starts along the track, and how long the whole of it is
   // — from the working copy, so both follow an unsaved length straight away.
   const stations = elementStations(current)
@@ -225,7 +227,17 @@ export default function TrackTableOverlay({
   // (length ≤ 0, radius 0 = infinite curvature) are rejected rather than stored.
   function commit(row, key, raw) {
     const isEmpty = raw === '' || raw == null
+    if (key === 'role') {
+      const { elements: next, error } = withRole(elements, row, raw)
+      setReachError(error)
+      if (!error) editElements(() => next)
+      return
+    }
     if (GEOM_KEYS.has(key)) {
+      // Only what the element's role lets be typed (Entscheidung 375): a
+      // Festelement stays, a Zwischenelement takes a radius and is laid anew.
+      const role = roles[row]
+      if (!role?.[key]) return
       let value
       if (key === 'radius') {
         value = isEmpty ? null : Number(raw)            // cleared radius → straight
@@ -240,7 +252,9 @@ export default function TrackTableOverlay({
       // first, and a change that reaches too far is refused rather than written
       // (AP 5.1). The cell falls back to the stored value on its own, since the
       // tracks it reads from are the ones that did not change.
-      const plan = planElementChange(tracks, loadSwitches(), track.id, row, { [key]: value })
+      const plan = role.role === 'intermediate'
+        ? planIntermediateChange(tracks, track.id, row, value)
+        : planElementChange(tracks, loadSwitches(), track.id, row, { [key]: value })
       if (plan.error) { setReachError(plan.error); return }
       setReachError(null)
       setNotice(null)
@@ -349,7 +363,7 @@ export default function TrackTableOverlay({
           <tbody key={track.id}>
             {elements.map((el, i) => (
               <TrackTableRow key={i} elements={elements} i={i} sw={switchById.get(el.switchId)}
-                station={stations[i]?.start} rules={check.perElement[i]} joint={jointAt(i)} vmax={vmaxes[i]} epsg={current.epsg}
+                station={stations[i]?.start} rules={check.perElement[i]} joint={jointAt(i)} vmax={vmaxes[i]} role={roles[i]} epsg={current.epsg}
                 active={i === activeRow} onActivate={() => setActiveRow(i)}
                 onEdit={(key, raw) => commit(i, key, raw)} />
             ))}

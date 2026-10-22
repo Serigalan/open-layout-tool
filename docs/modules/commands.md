@@ -22,7 +22,8 @@ input, show previews and findings, and claim names and numbers.
 | `connectRemedies.js` | both of the above | What can be changed where the rules reject the refitted element: lower speed, a transition before the arc |
 | `splice.js` | Join two tracks (Zwei Gleise zusammenfügen) | What a picked element offers, the request, and the merged track built from the answer |
 | `reconnect.js` | Reconnect existing elements (Neu verbinden) | The stretch between two clicks, the old axis every 1 cm, the request to the service and the track written back |
-| `editGeometry.js` | Track editor (element table) | Planning and applying length/bearing/radius changes and how far they reach |
+| `editGeometry.js` | Track editor (element table) | Planning and applying length/bearing/radius changes and how far they reach; a Zwischenelement laid anew between its neighbours |
+| `elementRoles.js` | Track editor (element table) | Fest-, Folge- and Zwischenelement: the roles elements state and the ones that follow from them, what each lets be typed |
 | `optimizeApply.js` | Optimize track (server) | The optimizer request and the track a result makes, keeping the gradient |
 | `optimizeReport.js` | Optimize track (server) | The reason the optimizer gives for a changed row, as text |
 
@@ -113,3 +114,18 @@ each piece gets a height point on the built gradient (in a vertical curve its pi
 A test file beside each command (`tracks`, `switches`, `sCurve`, `connectSwitch`, `connectCrossing`,
 `connectRemedies`, `splice`, `reconnect`, `editGeometry`, `optimizeApply`); `splice.test.js` and
 `reconnect.test.js` use real answers of the service from `src/core/test/fixtures/`.
+
+## Element roles in the track editor (decision 375)
+
+The element table changes only what an element's role allows (`elementRoles`). A **Festelement** (no `role`)
+keeps length and radius. From the first element stating `role: 'follow'` on, every element is a
+**Folgeelement**: length and radius are typed, each element starts where the one before ends and
+`planElementChange` carries the change down the chain as before. A **Zwischenelement** (`role:
+'intermediate'`, an arc or a straight, not in a switch) has a span — the nearest element on each side that is
+not a transition (`intermediateSpan`) — whose elements follow it. Its radius is typed and
+`planIntermediateChange` lays the span anew: the element before keeps its start, direction and radius, the
+one after keeps its end, end direction and radius, the transitions between keep their lengths (the one
+joining the Zwischenelement runs into the new radius), and the three lengths that close the chain are found
+by Newton's method on end position and end bearing. Nothing outside the span moves; heights behind it move
+on with the new length, those on it are spread over it. A radius no chain closes with is refused. Only the
+element the user set states its role (`withRole`); a Folgeelement drops the roles after it.

@@ -57,6 +57,7 @@ export function TrackTableHead() {
         <th title={t('table_rules_hint')}>{t('table_rules')}</th>
         <th title={t('table_station_hint')}>{t('table_station')} (m)</th>
         <th>{t('table_type')}</th>
+        <th title={t('table_role_hint')}>{t('table_role')}</th>
         <th>{t('table_bearing')} (°)</th>
         <th>{t('table_end_bearing')} (°)</th>
         <th>{t('table_length')} (m)</th>

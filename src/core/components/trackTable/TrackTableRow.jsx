@@ -6,6 +6,7 @@ import {
 import { useI18n } from '../../locales/i18nContext'
 import { EditCell, TextCell } from './cells'
 import RuleCell from './RuleCell'
+import { rolesFor } from '../../utils/commands'
 import {
   isTransition, typeLabel, switchNote, hintNote, cantNote, cantClass, defClass, defNote,
   degText, lengthText, radiusText, comparisonRadiusText,
@@ -19,7 +20,7 @@ import {
  * with — its comparison radius and what the boundary rules said there, shown
  * in the last column on the line between this row and the one before.
  */
-export default function TrackTableRow({ elements, i, sw, station, rules, joint, vmax, epsg, active, onActivate, onEdit }) {
+export default function TrackTableRow({ elements, i, sw, station, rules, joint, vmax, role, epsg, active, onActivate, onEdit }) {
   const { t, fill, language, num } = useI18n()
   const el = elements[i]
   const g = governing(elements, i)
@@ -53,23 +54,25 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
       <td title={hintNote(fill, el) ?? switchNote(t, el, sw)}>
         <TextCell value={typeLabel(t, el, sw)} wide className={el.switchHint ? 'track-table-input-exception' : ''} />
       </td>
+      <RoleCell el={el} role={role} onChange={edit('role')} />
       <td><TextCell value={degText(el.bearing, language)} /></td>
       <td><TextCell value={degText(el.endBearing, language)} /></td>
       {/* A switch route's length is its form's dimension: retyping it would
-          move the turnout's ends while the record that states them stands still. */}
-      <td title={el.switchBranch ? dimension : undefined}>
-        {el.switchBranch
-          ? <TextCell value={lengthText(el.length, language)} />
-          : <EditCell value={el.length} onCommit={edit('length')} digits={3} />}
+          move the turnout's ends while the record that states them stands
+          still. Elsewhere the element's role decides (Entscheidung 375). */}
+      <td title={el.switchBranch ? dimension : lockNote(t, fill, role, 'length')}>
+        {role?.length && !el.switchBranch
+          ? <EditCell value={el.length} onCommit={edit('length')} digits={3} />
+          : <TextCell value={lengthText(el.length, language)} />}
       </td>
-      <td title={el.switchBranch && !isTransition(el) && el.radius ? dimension : undefined}>
+      <td title={el.switchBranch && !isTransition(el) && el.radius ? dimension : lockNote(t, fill, role, 'radius')}>
         {/* One width down the whole column, wide enough for a transition's
             r₁ → r₂ to three decimals, so the column does not jump between rows. */}
         {isTransition(el)
           ? <TextCell value={radiusText(el, language)} className="track-table-input-radius" />
-          : el.switchBranch
-            ? <TextCell value={el.radius ? lengthText(el.radius, language) : '–'} className="track-table-input-radius" />
-            : <EditCell value={el.radius} onCommit={edit('radius')} disabled={!el.radius} digits={3} className="track-table-input-radius" />}
+          : role?.radius && !el.switchBranch
+            ? <EditCell value={el.radius} onCommit={edit('radius')} digits={3} placeholder="∞" className="track-table-input-radius" />
+            : <TextCell value={el.radius ? lengthText(el.radius, language) : '–'} className="track-table-input-radius" />}
       </td>
       {/* The speed is the cell to change when the deficiency it makes is too
           high, so it carries the same mark. */}
@@ -102,6 +105,34 @@ export default function TrackTableRow({ elements, i, sw, station, rules, joint, 
       </td>
     </tr>
   )
+}
+
+/**
+ * The element's role (Entscheidung 375): Fest-, Folge- or Zwischenelement, to
+ * choose — unless it follows from another element's, which the cell names.
+ */
+function RoleCell({ el, role, onChange }) {
+  const { t, fill } = useI18n()
+  const forced = role?.by != null
+  const title = role?.error ? t(role.error)
+    : forced ? fill('table_role_by', { n: String(role.by + 1) })
+      : t('table_role_hint')
+  return (
+    <td title={title}>
+      <select className={`track-table-input track-table-role${role?.error ? ' input-error' : ''}`}
+        value={role?.role ?? 'fixed'} disabled={forced} onChange={e => onChange(e.target.value)}>
+        {(forced ? [role.role] : rolesFor(el)).map(r => <option key={r} value={r}>{t(`table_role_${r}`)}</option>)}
+      </select>
+    </td>
+  )
+}
+
+/** Why a length or a radius cannot be typed here, where it cannot. */
+function lockNote(t, fill, role, field) {
+  if (!role || role[field]) return undefined
+  if (role.role === 'fixed') return t('table_locked_fixed')
+  if (role.role === 'intermediate') return t('table_locked_intermediate_length')
+  return fill('table_locked_by', { n: String(role.by + 1) })
 }
 
 /** What the comparison radius cell says: which joint it is, and every boundary rule that fired there. */

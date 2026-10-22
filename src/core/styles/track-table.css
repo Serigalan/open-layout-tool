@@ -117,6 +117,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The element role (Entscheidung 375): Fest-, Folge-, Zwischenelement. */
+.track-table-role {
+  width: 172px;
+}
+
 /* The one ladder of severities the rule catalogue answers with (AP R.7),
    as colour: grey → amber → orange → violet → red. It is shared, not owned by
    any one view — the element table's cell, a creation dialog's findings and
