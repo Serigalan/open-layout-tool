@@ -1012,7 +1012,7 @@
   "scurve_mid_type_arc": "Arc",
   "scurve_mid_type_transition": "Transition curve",
   "scurve_mid_length": "Length",
-  "scurve_mid_radius_abs": "Radius (magnitude)",
+  "scurve_mid_radius_signed": "Radius (+ right, − left)",
   "scurve_mid_sought": "sought",
   "scurve_mid_add": "Element",
   "scurve_mid_remove": "Remove element",

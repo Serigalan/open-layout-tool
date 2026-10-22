@@ -191,7 +191,9 @@ element carries one value, a step would be a ramp of no length.
 
 **Up to three intermediate elements** (`midChain.js`). Instead of one arc the dialog may ask for one to
 three elements, each a straight, an arc or a transition, each with length (and an arc's radius) given or
-left open. Exactly two values are sought; the third unknown is s₂. Transitions run between the curvatures
+left open. A radius is given with its sign, as the element table shows one — + right, − left, in the
+direction the connection runs from the first turnout to the second — and that fixes the side it bends to
+(`side` in the spec, Entscheidung 368); an open radius finds its side. Exactly two values are sought; the third unknown is s₂. Transitions run between the curvatures
 of their neighbours. The default — one arc with length and radius open — is the closed construction above.
 
 **Checks.** All intermediate elements carry the cant of the middle (the rounded mean of both tracks' cant

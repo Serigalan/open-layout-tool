@@ -7,7 +7,13 @@ const TYPES = ['straight', 'arc', 'transition']
 const MAX_MIDS = 3
 
 const fmtM = (v) => `${v.toFixed(3)} m`
-const fmtR = (r) => (r == null ? '∞' : `${Math.abs(r).toFixed(1)} m`)
+const fmtR = (r) => (r == null ? '∞' : `${r.toFixed(1)} m`)
+
+/**
+ * The radius as the field shows it: signed like an element's, + right and
+ * − left in the direction the connection runs, where its side is fixed.
+ */
+const signedRadius = (m) => (m.radius == null ? null : m.side ? m.side * m.radius : m.radius)
 
 /** What a solved piece reads as: its length, and its radius or radii. */
 function solvedText(t, type, route) {
@@ -24,6 +30,10 @@ function solvedText(t, type, route) {
  * Exactly two have to be sought; the line under the list says how many are.
  * Under each element stands what the solution made of it.
  *
+ * A radius is typed with its sign, as the element table shows one: + bends
+ * right, − left, in the direction the connection runs from the first turnout
+ * to the second — the side it bends to is then fixed (Entscheidung 368).
+ *
  * `mids` is the spec (switch/midChain), `solved` the solution's pieces in the
  * same order, where there is one.
  */
@@ -31,6 +41,10 @@ export default function MidChainFields({ mids, onChange, solved }) {
   const { t, fill } = useI18n()
   const set = (i, patch) => onChange(mids.map((m, j) => (j === i ? { ...m, ...patch } : m)))
   const num = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) || Number(v) <= 0 ? null : Number(v))
+  const radius = (v) => {
+    const r = v === '' || v == null ? NaN : Number(v)
+    return Number.isFinite(r) && r !== 0 ? { radius: Math.abs(r), side: Math.sign(r) } : { radius: null, side: undefined }
+  }
   const open = midUnknowns(mids).length
 
   return (
@@ -40,7 +54,7 @@ export default function MidChainFields({ mids, onChange, solved }) {
           <div className="form-field">
             <label>{fill('scurve_mid_n', { n: String(i + 1) })}</label>
             <div className="mid-chain-type">
-              <select value={m.type} onChange={e => set(i, { type: e.target.value, ...(e.target.value === 'arc' ? {} : { radius: null }) })}>
+              <select value={m.type} onChange={e => set(i, { type: e.target.value, ...(e.target.value === 'arc' ? {} : { radius: null, side: undefined }) })}>
                 {TYPES.map(type => <option key={type} value={type}>{t(`scurve_mid_type_${type}`)}</option>)}
               </select>
               {mids.length > 1 && (
@@ -56,9 +70,9 @@ export default function MidChainFields({ mids, onChange, solved }) {
           </div>
           {m.type === 'arc' && (
             <div className="form-field">
-              <label>{t('scurve_mid_radius_abs')}</label>
-              <NumberInput step="any" value={m.radius ?? ''} placeholder={t('scurve_mid_sought')}
-                onChange={e => set(i, { radius: num(e.target.value) })} unit="m" />
+              <label>{t('scurve_mid_radius_signed')}</label>
+              <NumberInput step="any" value={signedRadius(m) ?? ''} placeholder={t('scurve_mid_sought')}
+                onChange={e => set(i, radius(e.target.value))} unit="m" />
             </div>
           )}
           {solved?.[i] && <p className="msg-hint mid-chain-solved">= {solvedText(t, m.type, solved[i])}</p>}

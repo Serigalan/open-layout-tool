@@ -546,6 +546,28 @@ describe('a connection with a chain of elements between the branches', () => {
     expectValidTrack(track)
   })
 
+  it('bends a given radius to the side its sign fixes (Entscheidung 368)', () => {
+    const free = solveSwitchConnection(g1, parallel, SPEED, 0, [
+      { type: 'arc', length: null, radius: 2000 },
+      { type: 'straight', length: 10, radius: null },
+      { type: 'arc', length: null, radius: 2000 },
+    ])
+    const sigma = Math.sign(free.midPieces[0].route.r1)
+    const fixed = (first, second) => solveSwitchConnection(g1, parallel, SPEED, 0, [
+      { type: 'arc', length: null, radius: 2000, side: first },
+      { type: 'straight', length: 10, radius: null },
+      { type: 'arc', length: null, radius: 2000, side: second },
+    ])
+    const same = fixed(sigma, -sigma)
+    expect(same.valid).toBe(true)
+    expect(Math.sign(same.midPieces[0].route.r1)).toBe(sigma)
+    expect(Math.sign(same.midPieces[2].route.r1)).toBe(-sigma)
+    // The other way round, where it closes at all, it bends as fixed.
+    const other = fixed(-sigma, sigma)
+    expect(Math.sign(other.midPieces[0].route.r1)).toBe(-sigma)
+    expect(Math.sign(other.midPieces[2].route.r1)).toBe(sigma)
+  })
+
   it('straight – arc – straight between converging tracks: the arc turns by what the tracks differ', () => {
     const skew = stem(P(ORIGIN.easting - 30, ORIGIN.northing), 4, null)
     const mids = [

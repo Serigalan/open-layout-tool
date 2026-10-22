@@ -1012,7 +1012,7 @@
   "scurve_mid_type_arc": "Bogen",
   "scurve_mid_type_transition": "Übergangsbogen",
   "scurve_mid_length": "Länge",
-  "scurve_mid_radius_abs": "Radius (Betrag)",
+  "scurve_mid_radius_signed": "Radius (+ rechts, − links)",
   "scurve_mid_sought": "gesucht",
   "scurve_mid_add": "Element",
   "scurve_mid_remove": "Element entfernen",
