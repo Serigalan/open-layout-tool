@@ -27,17 +27,19 @@ import { useI18n } from '../../locales/i18nContext'
  * a chain can carry the element it starts from for its joint without
  * reporting what that element already is; `fields: false` keeps the findings
  * off the dialog's fields, where they are about another element than the
- * one this list is about.
+ * one this list is about. `context` [before, after] is what lies beside the
+ * chain in its track (rules runBeside, endRun): LP.EL.01 reads an element's
+ * run of one curvature on into it (Entscheidung 363).
  *
  * Rendered as the panel's other messages are — one line per finding, in the
  * colour of its step (`rule-sev-*`, the one ladder the element table and the
  * catalogue's legend read from too), with no bullets: a panel keeps those for
  * what it is about to do, not for what it has to say about it.
  */
-export default function RuleFindings({ element, elements, judge = null, fields: toFields = true }) {
+export default function RuleFindings({ element, elements, judge = null, context = null, fields: toFields = true }) {
   const { t } = useI18n()
   const chain = elements ?? (element ? [element] : [])
-  const judged = checkTrack(chain).perElement.filter(entry => !judge || judge.includes(entry.index))
+  const judged = checkTrack(chain, { context }).perElement.filter(entry => !judge || judge.includes(entry.index))
   // The same findings at the fields they are about (R10.4), while this is shown.
   const scope = useContext(RuleFieldsContext)
   const fields = fieldFindings(judged.flatMap(entry => entry.results))

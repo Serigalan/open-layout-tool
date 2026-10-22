@@ -3,7 +3,7 @@ import {
   elementStations, pointOnElement,
 } from '../track'
 import { resolveEndBearing, reverseElement, nodeUtm, reconstructElements, transformPlanePoint } from '../geometry'
-import { cantSign, AUTO_CANT_MODEL, lengthRuleFormula, minElementLength } from '../rules'
+import { cantSign, AUTO_CANT_MODEL, lengthRuleFormula, minElementLength, runBeside } from '../rules'
 import { sectionAtStation } from '../crossSection'
 
 // Splicing two tracks into one (R5.5, AP 12.4): what a picked element offers
@@ -64,6 +64,19 @@ export function splicePick(track, elIdx) {
     length: el.length ?? 0,
     before: lengthOf(track.elements.slice(0, elIdx)),
     after: lengthOf(track.elements.slice(elIdx + 1)),
+    ...pickRuns(track.elements, elIdx),
+  }
+}
+
+/**
+ * The runs of an element's own curvature beside it in its track, before and
+ * after [m] (rules runBeside): what stays of it after a splice runs on into
+ * them, for LP.EL.01 (Entscheidung 363).
+ */
+export function pickRuns(elements, i) {
+  return {
+    runBefore: runBeside(elements, i, 'before')?.length ?? 0,
+    runAfter: runBeside(elements, i, 'after')?.length ?? 0,
   }
 }
 
@@ -147,6 +160,8 @@ export function spliceRequest(first, second, {
     length: p.length ?? 0,
     before: p.before ?? 0,
     after: p.after ?? 0,
+    ...(p.runBefore > 0 ? { runBefore: p.runBefore } : {}),
+    ...(p.runAfter > 0 ? { runAfter: p.runAfter } : {}),
     ...(p.joinAt ? { joinAt: p.joinAt } : {}),
   })
   return {

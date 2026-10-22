@@ -202,3 +202,29 @@ describe('the speed the dialog asks for', () => {
     expect(merged.elements[0].length).toBeCloseTo(10, 6)
   })
 })
+
+describe('what stays of a pick runs on into its track (Entscheidung 363)', () => {
+  // Test_Achsen 55501R in small: two straights of 10.25 m with different
+  // cant, the second picked; an R 300 from x = 100 leaves it 10.25 m long,
+  // short of l_min at 80 km/h (12 m) alone, one straight of 20.5 m with the
+  // first.
+  const P = (x, y) => ({ easting: 500000 + x, northing: 5700000 + y, zone: 25832 })
+  const els = [
+    straightElement(P(79.5, 0), P(89.75, 0), { speed: 80, cant: -15, cantStart: -15, cantEnd: 0 }),
+    straightElement(P(89.75, 0), P(200, 0), { speed: 80, cant: 0, cantStart: 0, cantEnd: 15 }),
+  ]
+  const a = { id: 'a', name: 'a', epsg: 25832, elements: els, coordinates: rebuildCoords(els) }
+  const bEl = straightElement(P(400, 100), P(400, 700), { speed: 80 })
+  const b = { id: 'b', name: 'b', epsg: 25832, elements: [bEl], coordinates: rebuildCoords([bEl]) }
+  const settings = { radius: 300, transitionOn: [false, false], transitions: [0, 0], transitionType: 'clothoid', arcJoin: 'straight', speed: 80, cant: 0 }
+  const lengthErrors = (dep) => solveSplice(spliceRequest(dep, splicePick(b, 0), settings)).solutions[0].findings
+    .filter(f => f.id === 'LP.EL.01' && f.severity === 'error')
+
+  it('is read with the straight before it, the cant aside', () => {
+    const dep = splicePick(a, 1)
+    expect(dep.runBefore).toBeCloseTo(10.25, 9)
+    expect(dep.runAfter).toBe(0)
+    expect(lengthErrors(dep)).toEqual([])
+    expect(lengthErrors({ ...dep, runBefore: 0 })).toHaveLength(1)
+  })
+})

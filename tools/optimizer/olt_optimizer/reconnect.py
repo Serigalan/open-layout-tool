@@ -254,7 +254,7 @@ class Search:
         squares fit tries many it never ranks."""
         sol = cand["sol"]
         if cand["within"] and "worst" not in sol:
-            _judge(sol)
+            _judge(sol, self.picks)
             if self.clearance:
                 sol["spacing"] = self.spacing(sol)
 
@@ -356,7 +356,7 @@ class Search:
         dev = _measure(self.ref, cand["poly"], "all")
         within = dev["max"] <= self.tol
         if "worst" not in sol:
-            _judge(sol)
+            _judge(sol, self.picks)
         if self.clearance and "spacing" not in sol:
             sol["spacing"] = self.spacing(sol)
         offsets = dev.pop("offsets")

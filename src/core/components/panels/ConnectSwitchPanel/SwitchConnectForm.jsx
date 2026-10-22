@@ -197,12 +197,12 @@ export default function SwitchConnectForm({ onCommitted }) {
   else if (found && !solution) hard.push(t('switch_connect_no_solution'))
   if (remnant?.short) {
     rules.push(fill('switch_on_track_min_element_short', {
-      l: remnant.length.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
+      l: remnant.run.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
     }))
   }
   if (remnant?.shortAhead) {
     rules.push(fill('switch_on_track_min_element_short_ahead', {
-      l: remnant.ahead.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
+      l: remnant.runAhead.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
     }))
   }
   if (outcome?.ruleError) rules.push(t('switch_connect_rule_error'))

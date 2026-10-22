@@ -72,22 +72,61 @@ const sameGeometry = (a, b) => !!a && !!b && !isTransition(a) && !isTransition(b
  * The length of the element as LP.EL.01 reads it: with its neighbours of the
  * same curvature, which are one straight or one arc on the ground — two
  * straights split at a switch end, a straight run on through the end piece of
- * a turnout's branch (Entscheidung 356).
+ * a turnout's branch (Entscheidung 356), two straights of different cant
+ * (Entscheidung 363).
+ *
+ * `context` [before, after] is what lies beside a chain that is only part of
+ * its track (runBeside): a run reaching the chain's end goes on into it.
  */
-function runLength(elements, i) {
+function runLength(elements, i, context = null) {
   const el = elements[i]
   let length = el.length ?? 0
   if (isTransition(el)) return length
-  for (let j = i - 1; j >= 0 && sameGeometry(elements[j], el); j--) length += elements[j].length ?? 0
-  for (let j = i + 1; j < elements.length && sameGeometry(elements[j], el); j++) length += elements[j].length ?? 0
+  let j = i - 1
+  for (; j >= 0 && sameGeometry(elements[j], el); j--) length += elements[j].length ?? 0
+  if (j < 0 && sameGeometry(context?.[0], el)) length += context[0].length ?? 0
+  j = i + 1
+  for (; j < elements.length && sameGeometry(elements[j], el); j++) length += elements[j].length ?? 0
+  if (j >= elements.length && sameGeometry(context?.[1], el)) length += context[1].length ?? 0
   return length
+}
+
+/**
+ * The run of one curvature beside element `i` of `elements` on `side`
+ * ('before' or 'after'): the neighbours that run on as it does, as one
+ * { elementType, radius, length } — or null where there is none, or the
+ * element is a transition. What a check of part of a track is given as its
+ * `context`, so that LP.EL.01 reads the run as the whole track does.
+ */
+export function runBeside(elements = [], i, side) {
+  const el = elements[i]
+  if (!el || isTransition(el)) return null
+  const step = side === 'before' ? -1 : 1
+  let length = 0
+  for (let j = i + step; j >= 0 && j < elements.length && sameGeometry(elements[j], el); j += step) {
+    length += elements[j].length ?? 0
+  }
+  return length > 0 ? { elementType: el.elementType, radius: el.radius ?? null, length } : null
+}
+
+/**
+ * The run of one curvature a track ends in — its last element with the
+ * neighbours before it that run on as it does —, as runBeside gives one: the
+ * `context` before an element a dialog adds at that end. Null where the track
+ * ends in a transition.
+ */
+export function endRun(elements = []) {
+  const i = elements.length - 1
+  const el = elements[i]
+  if (!el || isTransition(el)) return null
+  return { elementType: el.elementType, radius: el.radius ?? null, length: (el.length ?? 0) + (runBeside(elements, i, 'before')?.length ?? 0) }
 }
 
 /**
  * The scope an element rule reads. Names are the catalogue's, flat and dotted,
  * exactly as its `inputs[].from` states them.
  */
-export function elementScope(elements, i) {
+export function elementScope(elements, i, context = null) {
   const el = elements[i]
   const prev = elements[i - 1] ?? null
   const next = elements[i + 1] ?? null
@@ -102,7 +141,7 @@ export function elementScope(elements, i) {
     : 0
   return {
     'element.design_speed': v,
-    'element.length': runLength(elements, i),
+    'element.length': runLength(elements, i, context),
     // The store keeps cant signed, following the curve; the rulebook's u is
     // the magnitude of the cross level (LP.KB.03 says outright that negative
     // cant is not treated).
@@ -176,15 +215,18 @@ const inSwitch = (el) => el?.switchId != null
  * and cant ramps — and, for the element table, one entry per element that also
  * carries the joint it begins at: a boundary belongs to the two elements it
  * joins, and counting it at the start of the later one states it exactly once.
+ *
+ * `context` [before, after]: the runs of one curvature beside a chain that is
+ * only part of its track (runBeside), for LP.EL.01.
  */
-export function checkTrack(elements = []) {
+export function checkTrack(elements = [], { context = null } = {}) {
   const perElementResults = elements.map((el, i) => {
     if (!isCheckable(el)) return { index: i, severity: null, results: [], unchecked: true }
     const type = TYPE_BY_ELEMENT_TYPE[el.elementType] ?? 'straight'
     const options = { physics: PHYSICS, inContext: (id) => id === 'switch_area' && inSwitch(el) }
     return {
       index: i,
-      ...evaluateRules(rulesForElement(type, formOf(el)), elementScope(elements, i), options),
+      ...evaluateRules(rulesForElement(type, formOf(el)), elementScope(elements, i, context), options),
     }
   })
 
@@ -246,6 +288,6 @@ export function checkTrack(elements = []) {
  * a Bloß transition is still buildable. And an element whose design speed is
  * unknown is not judged at all, so it cannot block either.
  */
-export function hasRuleError(elements = []) {
-  return severityRank(checkTrack(elements).severity) >= severityRank('error')
+export function hasRuleError(elements = [], options = {}) {
+  return severityRank(checkTrack(elements, options).severity) >= severityRank('error')
 }

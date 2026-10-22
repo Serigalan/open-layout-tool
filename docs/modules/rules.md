@@ -81,8 +81,15 @@ disagreement with the layout.
 - At a boundary and for rules over several elements the larger speed of the elements involved counts.
 - LP.EL.01 reads an element's length as the **run of its own curvature**: straights next to each other, or
   arcs of one radius, are one element on the ground (a straight split at a switch end, the straight end
-  piece of a turnout's branch running on into the connecting straight). Transitions stand alone. The
-  Python port (`pruefung.py`) does the same (Entscheidung 356).
+  piece of a turnout's branch running on into the connecting straight), whatever cant each carries — two
+  straights with ramps of their own stay two elements and are one straight to the rule. Transitions stand
+  alone. The Python port (`pruefung.py`) does the same (Entscheidung 356).
+- A check of **part of a track** — what a dialog is about to write — is given what lies beside it:
+  `checkTrack(chain, { context: [before, after] })` (and `hasRuleError`, `RuleFindings`, `check_track(...,
+  context=)`) lets a run reaching the chain's end go on into it. `runBeside(elements, i, side)` reads the
+  run of an element's curvature beside it, `endRun(elements)` the one a track ends in. Splicing,
+  reconnecting, "Gerade/Bogen anschließen" and the pieces a turnout leaves of its element all use it, so
+  every dialog reads LP.EL.01 as the track check does (Entscheidung 363).
 - Cant is stored signed with the curve; the rules read its magnitude. Over a reverse transition the cross
   level really travels from one rail to the other, so the ramp height and the change of deficiency are
   **signed sums**, not differences of magnitudes (a too-short reverse clothoid passed before).

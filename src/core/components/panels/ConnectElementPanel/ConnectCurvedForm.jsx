@@ -5,7 +5,7 @@ import {
   wgs84ToUTM, toWgs, computeClothoidUtm, SAGITTA_ELEMENT,
 } from '../../../utils/geometry'
 import {
-  cantSign, computeAutoC, computeCantDefSigned, MAX_CANT, hasRuleError, transitionChain,
+  cantSign, computeAutoC, computeCantDefSigned, endRun, MAX_CANT, hasRuleError, transitionChain,
   transitionHasError,
 } from '../../../utils/rules'
 import RuleFindings from '../RuleFindings'
@@ -276,10 +276,13 @@ export default function ConnectCurvedForm({ onCommitted }) {
         const element = nextEl ?? {
           elementType: 1, radius: Number(signedRadius), cant: curveCant(Number(signedRadius), cant), speed, length: Number(arcLength),
         }
-        const blocked = hasRuleError([element]) || (!!transitionChainNow && transitionHasError(transitionChainNow))
+        // Straight on from where the track ends, the new element runs on in
+        // its run of one curvature (Entscheidung 363).
+        const context = transitionChainNow ? null : [endRun(selectedTrack?.elements), null]
+        const blocked = hasRuleError([element], { context }) || (!!transitionChainNow && transitionHasError(transitionChainNow))
         return (
           <>
-            <RuleFindings element={element} />
+            <RuleFindings element={element} context={context} />
             <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(!Number(signedRadius) && t('arc_radius_required'), blocked && t('commit_blocked_rules'))}
               onOverride={blocked && Number(signedRadius) ? handleCommit : null} className="" />
           </>

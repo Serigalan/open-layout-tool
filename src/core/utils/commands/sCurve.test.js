@@ -167,6 +167,15 @@ describe('minimum element length at the turnouts (LP.EL.01)', () => {
     expect(out.remnants.find(r => r.track === 0 && r.side === 'before').length).toBeCloseTo(0, 6)
   })
 
+  it('lets the piece before WA run on into a straight before its element (Entscheidung 363)', () => {
+    // The same 4 m, but the element runs on from 10 m of straight before it:
+    // one straight of 14 m to LP.EL.01, nothing to push.
+    const picks = [{ ...fast(P(500000, 5600000), 1000, 4), runs: [10, 0] }, far2]
+    expect(connectionRemnants(picks, 0, solveConnection({ picks, speed: SPEED, shift: 0 }), SPEED)
+      .find(r => r.track === 0 && r.side === 'before')).toMatchObject({ length: 4, run: 14, short: false })
+    expect(settleConnection({ picks, speed: SPEED, shift: 0 }).moved).toEqual([])
+  })
+
   it('finds the shift that puts the second toe onto its node', () => {
     const p1 = fast(P(500000, 5600000), 1000, 200)
     const at0 = solveConnection({ picks: [p1, far2], speed: SPEED, shift: 0 })

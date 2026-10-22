@@ -27,4 +27,4 @@ export {
   connectTransitionLengths, lengthRuleFormula, transitionChain, transitionHasError,
   transitionLengths,
 } from './transitionLength'
-export { boundaryScope, checkTrack, hasRuleError } from './trassierungCheck'
+export { boundaryScope, checkTrack, endRun, hasRuleError, runBeside } from './trassierungCheck'

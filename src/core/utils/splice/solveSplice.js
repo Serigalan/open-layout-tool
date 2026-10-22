@@ -541,6 +541,10 @@ function readPick(raw) {
     speed: Math.max(0, Number(raw.speed) || 0),
     before: Math.max(0, Number(raw.before) || 0),
     after: Math.max(0, Number(raw.after) || 0),
+    // The run of the pick's own curvature beside it, before and after [m]
+    // (rules runBeside): LP.EL.01 reads what stays of it with that run.
+    runBefore: Math.max(0, Number(raw.runBefore) || 0),
+    runAfter: Math.max(0, Number(raw.runAfter) || 0),
     joinAt: raw.joinAt === 'start' || raw.joinAt === 'end' ? raw.joinAt : null,
   }
   p.length = Number(raw.length) || lengthOf(p)
@@ -847,10 +851,12 @@ function joins(picks, spec) {
  * between them (AP S.4) — with the speed and cant each element will carry:
  * `findings` every result worse than ok as { at, index, id, severity }, `at`
  * '#i' for an element and '#i|#j' for a joint; `worst` the worst of them;
- * `judged` whether any element has a design speed.
+ * `judged` whether any element has a design speed. What stays of each pick
+ * runs on, for LP.EL.01, into the run of its curvature beside it on the side
+ * away from the splice (Entscheidung 363).
  */
-function judge(sol) {
-  const check = checkTrack(sol.elements)
+function judge(sol, picks) {
+  const check = checkTrack(sol.elements, { context: runContext(sol, picks) })
   const findings = []
   const add = (at, index, results) => {
     for (const r of results) {
@@ -866,6 +872,23 @@ function judge(sol) {
   sol.findings = findings
   sol.worst = findings.length ? worstSeverity(findings.map(f => f.severity)) : 'ok'
   sol.judged = sol.elements.some(el => el.speed)
+}
+
+/**
+ * The runs beside the stretch a solution writes, [before, after] in its
+ * direction, as checkTrack takes them: the departure's on the side away from
+ * the splice, the arrival's likewise — each with the pick's radius signed the
+ * way the stretch runs over it.
+ */
+function runContext(sol, picks) {
+  const dep = picks[sol.depPick], arr = picks[1 - sol.depPick]
+  const run = (p, reversed, length) => (length > 0
+    ? { elementType: p.radius == null ? 0 : 1, radius: p.radius == null ? null : (reversed ? -p.radius : p.radius), length }
+    : null)
+  return [
+    run(dep, sol.reverseDep, sol.reverseDep ? dep.runAfter : dep.runBefore),
+    run(arr, sol.reverseArr, sol.reverseArr ? arr.runBefore : arr.runAfter),
+  ]
 }
 
 /**
@@ -889,7 +912,7 @@ function solutions(picks, spec) {
       }
       if (loops(sol, picks)) continue
       const done = { ...sol, rebuilt: cost(sol, picks), alternative: k > 0, ...(twoArcs ? { arcJoin: sp.arcJoin } : {}) }
-      judge(done)
+      judge(done, picks)
       found.push(done)
     }
   })

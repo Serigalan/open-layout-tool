@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  boundaryScope, checkTrack, elementScope, formOf, hasRuleError, isCheckable, rampScope,
+  boundaryScope, checkTrack, elementScope, endRun, formOf, hasRuleError, isCheckable, rampScope, runBeside,
 } from './trassierungCheck'
 import { computeCantDefSigned } from './cant'
 
@@ -157,6 +157,39 @@ describe('what the checker finds', () => {
     expect(firing(out[0])).not.toContain('LP.EL.01:error')
     expect(firing(out[2])).toContain('LP.EL.01:error')
     expect(elementScope(arcs, 1)['element.length']).toBe(20)
+  })
+
+  it('two straights of different cant are one straight (Entscheidung 363)', () => {
+    // Test_Achsen 55501R: 10.25 m with a ramp from −15 to 0 mm, then 10.25 m
+    // from 0 to 15 mm, at 80 km/h (l_min 12 m).
+    const ramps = [
+      { elementType: 0, length: 10.25, speed: 80, cant: -15.018, cantStart: -15.018, cantEnd: 0 },
+      { elementType: 0, length: 10.25, speed: 80, cant: 0, cantStart: 0, cantEnd: 15.018 },
+    ]
+    expect(elementScope(ramps, 0)['element.length']).toBeCloseTo(20.5, 9)
+    expect(checkTrack(ramps).perElement.map(firing).flat()).not.toContain('LP.EL.01:error')
+  })
+
+  it('a chain that is part of its track runs on into what lies beside it (Entscheidung 363)', () => {
+    const track = [
+      { elementType: 1, length: 50, speed: 80, radius: 500, cant: 0 },
+      { elementType: 0, length: 10.25, speed: 80, cant: 0 },
+      { elementType: 0, length: 10.25, speed: 80, cant: 0 },
+      { elementType: 0, length: 4, speed: 80, cant: 0 },
+    ]
+    expect(runBeside(track, 2, 'before')).toEqual({ elementType: 0, radius: null, length: 10.25 })
+    expect(runBeside(track, 2, 'after')).toEqual({ elementType: 0, radius: null, length: 4 })
+    expect(runBeside(track, 0, 'before')).toBeNull()
+    expect(endRun(track)).toEqual({ elementType: 0, radius: null, length: 24.5 })
+    // The last straight alone is short at 80 km/h, with the run before it not.
+    const piece = [track[2]]
+    expect(firing(checkTrack(piece).perElement[0])).toContain('LP.EL.01:error')
+    const context = [runBeside(track, 2, 'before'), null]
+    expect(firing(checkTrack(piece, { context }).perElement[0])).not.toContain('LP.EL.01:error')
+    expect(hasRuleError(piece, { context })).toBe(false)
+    // A run of another curvature beside it is no help.
+    expect(firing(checkTrack(piece, { context: [{ elementType: 1, radius: 500, length: 50 }, null] }).perElement[0]))
+      .toContain('LP.EL.01:error')
   })
 
   it('a design speed off the 5 km/h step, and one outside the range at all', () => {

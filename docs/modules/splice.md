@@ -44,7 +44,9 @@ curvature) and must not **loop** (turn by more than half a circle beyond what th
 Each solution is judged as a whole by `checkTrack` — the rest of the departure, the inserted elements, the
 rest of the arrival and all joints, with the speed and cant each element will carry: what is inserted at the
 dialog's speed, the rest of a pick at its own — or at the dialog's where that is lower (`picksAtSpeed`,
-Entscheidung 362; reconnecting likewise). Order: the mildest
+Entscheidung 362; reconnecting likewise). What stays of a pick runs on, for LP.EL.01, into the run of its
+curvature beside it in its track (`runBefore`/`runAfter` of the pick, `checkTrack` context, Entscheidung
+363). Order: the mildest
 worst finding first (ok, hint, warning, …, error); then the way of joining asked for before the other; then
 the least rebuilt (track given up + change of the picks' lengths + new length). The best is proposed and
 shown on the map; the others can be stepped through where there are any.

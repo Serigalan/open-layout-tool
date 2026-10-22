@@ -10,10 +10,15 @@ const EPSG = 25832
 const START = { easting: 500000, northing: 5600000, zone: EPSG }
 const FORM = SWITCH_TYPES.find(f => f.label === '760 – 1:14')
 
-/** A straight track of two 100 m elements at design speed `speed`. */
+/**
+ * A track of two 100 m elements at design speed `speed`: a straight and a
+ * flat arc (R 20 000) — of different curvature, so a piece of either ends at
+ * the node between them. Two straights would be one straight to LP.EL.01
+ * (Entscheidung 363).
+ */
 function twoStraights(speed) {
   const a = straightFrom(START, 30, 100)
-  const b = straightFrom({ easting: a.endNode[0], northing: a.endNode[1], zone: EPSG }, 30, 100)
+  const b = arcFrom({ easting: a.endNode[0], northing: a.endNode[1], zone: EPSG }, 30, 100, 20000)
   return trackOf([{ ...a, speed }, { ...b, speed }], EPSG, { name: 'line.001' }, 'host')
 }
 /** The dialog's settings; `speed` is the diverging track's (l_min 15 m at 100 km/h). */
@@ -49,6 +54,17 @@ describe('switch on track — the piece before the toe (LP.EL.01)', () => {
     expect(switchOnTrackRemnant(track, 10, true, 100)).toMatchObject({ elIdx: 0, length: 90, ahead: 10, shortAhead: true })
     expect(switchOnTrackRemnant(track, 100, false, 100)).toMatchObject({ ahead: 0, shortAhead: false })
     expect(switchOnTrackRemnant(track, 190, false, 30)).toMatchObject({ ahead: 10, shortAhead: false })
+  })
+
+  it('runs on into a neighbour of the same curvature: two straights are one (Entscheidung 363)', () => {
+    const a = straightFrom(START, 30, 100)
+    const b = straightFrom({ easting: a.endNode[0], northing: a.endNode[1], zone: EPSG }, 30, 100)
+    const line = trackOf([{ ...a, speed: 100 }, { ...b, speed: 100 }], EPSG, { name: 'line.002' }, 'line')
+    // 10 m of the second straight before WA and the 100 m of the first behind them.
+    expect(switchOnTrackRemnant(line, 110, false, 100)).toMatchObject({ length: 10, run: 110, short: false })
+    // Ahead, 10 m to the node and the next straight beyond it.
+    expect(switchOnTrackRemnant(line, 90, false, 100)).toMatchObject({ ahead: 10, runAhead: 110, shortAhead: false })
+    expect(switchOnTrackSlider(argsOf(line)).intervals).toHaveLength(1)
   })
 
   it('takes the speed of the diverging track, not the element\'s (Entscheidung 219)', () => {

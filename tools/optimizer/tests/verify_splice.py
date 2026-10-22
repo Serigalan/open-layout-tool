@@ -522,6 +522,29 @@ except ValueError:
     ok("an unknown shape: refused", True)
 
 
+# ── the run beside a pick (Entscheidung 363) ─────────────────────────────────
+# Track a's last 10 m (x = 90 … 100) before an R 300 at 80 km/h: short of
+# l_min (12 m) alone, enough with the 10.25 m straight before it in its track.
+short_dep = pick((P0[0] + 90, P0[1]), (P0[0] + 200, P0[1]), 90.0)
+base = {"arr": b, "radius": 300, "speed": 80}
+for p in (short_dep, b):
+    p["speed"] = 80
+
+
+def length_errors(res):
+    return [f for f in res["findings"] if f["id"] == "LP.EL.01" and f["severity"] == "error"]
+
+
+alone = splice_payload({**base, "dep": short_dep})
+ok("10 m of straight before the arc: short at 80 km/h", len(length_errors(alone)) == 1)
+run_on = splice_payload({**base, "dep": {**short_dep, "runBefore": 10.25}})
+ok("…with 10.25 m of straight before it in its track: one straight, long enough", length_errors(run_on) == [])
+before_side = splice_payload({**base, "dep": {**short_dep, "runAfter": 10.25}})
+ok("…a run on the side the splice cuts away does not count", len(length_errors(before_side)) == 1)
+for p in (short_dep, b):
+    p.pop("speed")
+
+
 # ── what a malformed request does ────────────────────────────────────────────
 try:
     splice_payload({"dep": {"start": [0, 0]}, "arr": b, "radius": 300})

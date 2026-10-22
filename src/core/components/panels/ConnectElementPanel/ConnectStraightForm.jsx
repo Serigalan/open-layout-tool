@@ -5,7 +5,7 @@ import {
 } from '../../../utils/geometry'
 import UtmCoordFields from '../../UtmCoordFields'
 import TransitionCurveSection from './TransitionCurveSection'
-import { connectTransitionLengths, transitionChain, transitionHasError, hasRuleError } from '../../../utils/rules'
+import { connectTransitionLengths, endRun, transitionChain, transitionHasError, hasRuleError } from '../../../utils/rules'
 import useDerivedField from '../../../hooks/useDerivedField'
 import RuleFindings from '../RuleFindings'
 import { useI18n } from '../../../locales/i18nContext'
@@ -255,10 +255,13 @@ export default function ConnectStraightForm({ onCommitted }) {
       {selectedTrack && appended && <NewStretchShiftValues id="shift-connect-straight" track={selectedTrack} elements={appended} />}
 
       {phase === 'done' && endPoint && (() => {
-        const blocked = hasRuleError([nextEl]) || (!!transitionChainNow && transitionHasError(transitionChainNow))
+        // Straight on from where the track ends, the new element runs on in
+        // its run of one curvature (Entscheidung 363).
+        const context = transitionChainNow ? null : [endRun(selectedTrack?.elements), null]
+        const blocked = hasRuleError([nextEl], { context }) || (!!transitionChainNow && transitionHasError(transitionChainNow))
         return (
           <>
-            <RuleFindings element={nextEl} />
+            <RuleFindings element={nextEl} context={context} />
             <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(blocked && t('commit_blocked_rules'))}
               onOverride={blocked ? handleCommit : null} className="" />
           </>

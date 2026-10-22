@@ -563,6 +563,10 @@ def _pick(raw):
         # joining it at the one or the other end gives up (`_cost`).
         "before": max(0.0, float(raw.get("before") or 0)),
         "after": max(0.0, float(raw.get("after") or 0)),
+        # The run of the pick's own curvature beside it, before and after [m]
+        # (trassierungCheck.runBeside): LP.EL.01 reads what stays of it with it.
+        "runBefore": max(0.0, float(raw.get("runBefore") or 0)),
+        "runAfter": max(0.0, float(raw.get("runAfter") or 0)),
         # The one end it may be joined at, where it is not the element itself
         # but a point at the end of its track (a transition, AP S.7).
         "joinAt": raw.get("joinAt") if raw.get("joinAt") in ("start", "end") else None,
@@ -879,7 +883,24 @@ def _katalog():
     return load_katalog()
 
 
-def _judge(sol):
+def _run_context(sol, picks):
+    """The runs beside the stretch a solution writes, [before, after] in its
+    direction (Entscheidung 363): the departure's on the side away from the
+    splice, the arrival's likewise, each with the pick's radius signed the way
+    the stretch runs over it."""
+    dep, arr = picks[sol["depPick"]], picks[1 - sol["depPick"]]
+
+    def run(p, reversed_, length):
+        if not length > 0:
+            return None
+        r = p["radius"]
+        return {"elementType": 0 if r is None else 1, "radius": None if r is None else (-r if reversed_ else r),
+                "length": length}
+    return [run(dep, sol["reverseDep"], dep["runAfter"] if sol["reverseDep"] else dep["runBefore"]),
+            run(arr, sol["reverseArr"], arr["runBefore"] if sol["reverseArr"] else arr["runAfter"])]
+
+
+def _judge(sol, picks):
     """What the catalogue finds on the whole stretch a solution writes — the
     rest of the departure, what is inserted, the rest of the arrival and the
     joints between them (Paket S, AP S.4) — with the speed and cant each
@@ -889,7 +910,7 @@ def _judge(sol):
     nothing is found. An element without a design speed is not judged."""
     k = _katalog()
     findings = []
-    for where, rid, severity in check_track(k, sol["elements"]):
+    for where, rid, severity in check_track(k, sol["elements"], context=_run_context(sol, picks)):
         if k.rank(severity) <= k.rank("ok"):
             continue
         findings.append({"at": where, "index": [int(x[1:]) for x in where.split("|")],
@@ -982,7 +1003,7 @@ def _solutions(picks, spec, build=None):
             sol["alternative"] = k > 0
             if two_arcs:
                 sol["arcJoin"] = sp["arcJoin"]
-            _judge(sol)
+            _judge(sol, picks)
             found.append(sol)
     if not found and not errors:
         raise SpliceError("splice_error_no_fit")

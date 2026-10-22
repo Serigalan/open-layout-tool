@@ -391,7 +391,7 @@ export default function SCurveForm({ onCommitted }) {
             {fill('scurve_min_element_short', {
               side: t(result.short.side === 'before' ? 'scurve_side_before_wa' : 'scurve_side_after_we'),
               track: picks[result.short.track]?.name ?? '',
-              l: result.short.length.toFixed(2),
+              l: result.short.run.toFixed(2),
               lmin: result.short.lMin.toFixed(2),
               v: String(result.short.v ?? ''),
             })}

@@ -7,7 +7,7 @@ import {
   switchElementRoute, switchRouteVaries, computeSwitchGeometryUtm, solveSwitchConnection,
   buildConnectionElements, orientStemToward, uniqueStations,
 } from '../switch'
-import { minElementLength } from '../rules'
+import { minElementLength, runBeside } from '../rules'
 
 // The S-curve between two line tracks (SCurveForm): solving the connection
 // for a shift, the range of shifts it stands over, and the commit.
@@ -86,6 +86,8 @@ export function connectionPick(track, elIdx, along) {
     zone: track.epsg, name: track.name || trackLabel(track),
     speed: el.speed || null,
     trackEnds: [elIdx === 0, elIdx === track.elements.length - 1],
+    // The runs of the element's curvature beside it, at its start and its end (Entscheidung 363).
+    runs: ['before', 'after'].map(side => runBeside(track.elements, elIdx, side)?.length ?? 0),
   }
 }
 
@@ -253,11 +255,13 @@ function turnoutSpan(picks, k, shift, res) {
  * none at all (the turnout on the node) or at least l_min of LP.EL.01: before
  * WA at the speed of the diverging track — the connection's `speed`
  * (Entscheidung 219) —, behind WE at the element's own (`pick.speed`); `short`
- * marks the ones that are neither, `v` is the speed each was read at.
+ * marks the ones that are neither, `v` is the speed each was read at. A piece
+ * runs on into the neighbours of its element's curvature beyond the node it
+ * ends in (`pick.runs`, Entscheidung 363): `run` is what LP.EL.01 reads.
  * `pick.trackEnds` says whether the element's start and end node are its
  * track's open ends ([start, end]).
  *
- * Returns [{ track: 0|1, side: 'before'|'after', length, v, lMin, short }].
+ * Returns [{ track: 0|1, side: 'before'|'after', length, run, v, lMin, short }].
  */
 export function connectionRemnants(picks, shift, res, speed) {
   const out = []
@@ -265,10 +269,16 @@ export function connectionRemnants(picks, shift, res, speed) {
     const { toe, far, len } = turnoutSpan(picks, k, shift, res)
     const before = far > toe ? toe : len - toe
     const after = far > toe ? len - far : far
-    for (const [side, length, v] of [['before', before, speed || null], ['after', after, picks[k].speed || null]]) {
+    // The runs beside the element at its start and at its end.
+    const [atStart, atEnd] = picks[k].runs ?? [0, 0]
+    for (const [side, length, v, beyond] of [
+      ['before', before, speed || null, far > toe ? atStart : atEnd],
+      ['after', after, picks[k].speed || null, far > toe ? atEnd : atStart],
+    ]) {
       const l = Math.max(0, length)
+      const run = l > NODE_TOL ? l + beyond : l
       const lMin = minElementLength(v)
-      out.push({ track: k, side, length: l, v, lMin, short: lMin != null && l > NODE_TOL && l < lMin - NODE_TOL })
+      out.push({ track: k, side, length: l, run, v, lMin, short: lMin != null && l > NODE_TOL && run < lMin - NODE_TOL })
     }
   }
   return out

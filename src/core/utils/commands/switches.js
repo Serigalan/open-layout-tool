@@ -13,7 +13,7 @@ import {
   switchFormChain, switchBranchChain, switchChainBearingAt, switchChainPointUtm, switchChainTo,
   switchRouteVaries, utmEndRoute, negR, placeSwitchOnTrack, uniqueStations, validIntervals,
 } from '../switch'
-import { cantExceptionFields, worstCantOf, minElementLength } from '../rules'
+import { cantExceptionFields, worstCantOf, minElementLength, runBeside } from '../rules'
 
 // What the switch dialogs commit (R4.2), as pure functions of their inputs —
 // each the argument for commitSwitchConnection, one undo step. The dialog
@@ -115,8 +115,12 @@ const NODE_TOL = 1e-3
  * nothing is asked (Entscheidung 217). `lMin` is null below the catalogue's
  * table (40 km/h): then it is not checked.
  *
- * Returns { elIdx, length, ahead, lMin, speed, short, shortAhead } — or null
- * off the track.
+ * Each piece runs on into the neighbours of its element's curvature beyond the
+ * node it ends in (Entscheidung 363): `run` and `runAhead` are what LP.EL.01
+ * reads.
+ *
+ * Returns { elIdx, length, ahead, run, runAhead, lMin, speed, short,
+ * shortAhead } — or null off the track.
  */
 export function switchOnTrackRemnant(track, toeStation, reversed, speed) {
   const hit = elementAtStation(track?.elements, toeStation)
@@ -126,10 +130,14 @@ export function switchOnTrackRemnant(track, toeStation, reversed, speed) {
   const length = onNode ? 0 : (reversed ? len - hit.s : hit.s)
   const ahead  = onNode ? 0 : len - length
   const lMin = minElementLength(speed || null)
-  const tooShort = (l) => lMin != null && l > NODE_TOL && l < lMin - NODE_TOL
+  // The piece away from the turnout lies toward the element's start, unless reversed.
+  const beyond = (side) => (runBeside(track.elements, hit.elIdx, side)?.length ?? 0)
+  const run = length > NODE_TOL ? length + beyond(reversed ? 'after' : 'before') : length
+  const runAhead = ahead > NODE_TOL ? ahead + beyond(reversed ? 'before' : 'after') : ahead
+  const tooShort = (l, r) => lMin != null && l > NODE_TOL && r < lMin - NODE_TOL
   return {
-    elIdx: hit.elIdx, length, ahead, lMin, speed: speed || null,
-    short: tooShort(length), shortAhead: tooShort(ahead),
+    elIdx: hit.elIdx, length, ahead, run, runAhead, lMin, speed: speed || null,
+    short: tooShort(length, run), shortAhead: tooShort(ahead, runAhead),
   }
 }
 

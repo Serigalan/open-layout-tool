@@ -1,7 +1,7 @@
 import { rebuildCoords, trackLabel, heightAt } from '../track'
 import { resolveEndBearing, nodeUtm, endPointCurvedUtm, endPointStraightUtm, sampleTransitionUtm } from '../geometry'
 import { cantSign, AUTO_CANT_MODEL, minElementLength } from '../rules'
-import { picksAtSpeed, spliceFromAnswer } from './splice'
+import { pickRuns, picksAtSpeed, spliceFromAnswer } from './splice'
 
 // Reconnecting existing elements (Paket N): a stretch of one track is taken
 // out and its two neighbours joined again by the splice construction, the
@@ -76,6 +76,7 @@ export function reconnectPick(track, idx, joinAt, fixed) {
     ...base, startUtm, endUtm, length: el.length ?? 0,
     bearing: resolveEndBearing(el, epsg),
     signedR: el.radius != null ? el.radius : null,
+    ...pickRuns(track.elements, idx),
   }
 }
 
@@ -155,6 +156,8 @@ export function reconnectRequest(picks, points, { tolerance, speed, transitionTy
     bearing: p.bearing, radius: p.signedR,
     cant: Math.abs(p.cant ?? 0), speed: p.speed ?? 0,
     length: p.length ?? 0, before: p.before ?? 0, after: p.after ?? 0,
+    ...(p.runBefore > 0 ? { runBefore: p.runBefore } : {}),
+    ...(p.runAfter > 0 ? { runAfter: p.runAfter } : {}),
     joinAt: p.joinAt,
   })
   return {

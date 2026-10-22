@@ -82,26 +82,33 @@ def _same_geometry(a, b):
             and abs(_curv(a.get("radius")) - _curv(b.get("radius"))) < CURVATURE_EPS)
 
 
-def _run_length(els, i):
+def _run_length(els, i, context=None):
     """The element's length as LP.EL.01 reads it: with its neighbours of the
     same curvature, which are one straight or one arc on the ground
-    (Entscheidung 356)."""
+    (Entscheidungen 356, 363). `context` [before, after]: the runs beside a
+    chain that is only part of its track (trassierungCheck.runBeside); a run
+    reaching the chain's end goes on into them."""
     el = els[i]
     length = el.get("length") or 0.0
     if _is_transition(el):
         return length
+    before, after = context or (None, None)
     j = i - 1
     while j >= 0 and _same_geometry(els[j], el):
         length += els[j].get("length") or 0.0
         j -= 1
+    if j < 0 and _same_geometry(before, el):
+        length += before.get("length") or 0.0
     j = i + 1
     while j < len(els) and _same_geometry(els[j], el):
         length += els[j].get("length") or 0.0
         j += 1
+    if j >= len(els) and _same_geometry(after, el):
+        length += after.get("length") or 0.0
     return length
 
 
-def element_scope(els, i):
+def element_scope(els, i, context=None):
     el = els[i]
     prev = els[i - 1] if i > 0 else None
     nxt = els[i + 1] if i + 1 < len(els) else None
@@ -114,7 +121,7 @@ def element_scope(els, i):
     duf = abs(side(el.get("r2"), end) - side(el.get("r1"), start)) if _is_transition(el) else 0.0
     return {
         "element.design_speed": v,
-        "element.length": _run_length(els, i),
+        "element.length": _run_length(els, i, context),
         "element.cant": abs(el.get("cant") or 0.0),
         "element.radius": abs(el.get("radius") or 0.0),
         "element.transition_form": _form(el) or "",
@@ -160,10 +167,12 @@ def _apply(katalog, rules, base, in_context=None, excluded=()):
     return out
 
 
-def check_track(katalog, els, only=None):
+def check_track(katalog, els, only=None, context=None):
     """[(where, rule id, severity)] for every rule applied to the chain.
     `only`: indices of the elements to judge (boundaries count where either
-    side is one of them); all of them when None."""
+    side is one of them); all of them when None. `context` [before, after]:
+    the runs of one curvature beside a chain that is only part of its track,
+    for LP.EL.01."""
     only = set(range(len(els))) if only is None else set(only)
     findings = []
     for i, el in enumerate(els):
@@ -171,7 +180,7 @@ def check_track(katalog, els, only=None):
             continue
         etype = TYPE_BY_ELEMENT_TYPE.get(el.get("elementType"), "straight")
         ctx = (lambda cid, el=el: cid == "switch_area" and _in_switch(el))
-        base = element_scope(els, i)
+        base = element_scope(els, i, context)
         for rid, sev in _apply(katalog, katalog.rules_for_element(etype, _form(el)), base, ctx):
             findings.append((f"#{i}", rid, sev))
         if base["physics.delta_u"] > 0:

@@ -259,13 +259,13 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   // The piece before WA (LP.EL.01, Entscheidung 217) — only where the turnout lies at all.
   const remnantErr = !placeError && remnant?.short
     ? fill('switch_on_track_min_element_short', {
-      l: remnant.length.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
+      l: remnant.run.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
     })
     : null
   // …and the piece of WA's element under the turnout, up to its next node (Entscheidung 301).
   const aheadErr = !placeError && !remnantErr && remnant?.shortAhead
     ? fill('switch_on_track_min_element_short_ahead', {
-      l: remnant.ahead.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
+      l: remnant.runAhead.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
     })
     : null
   const remnantUnchecked = !placeError && remnant && remnant.lMin == null && (remnant.length > 0 || remnant.ahead > 0)

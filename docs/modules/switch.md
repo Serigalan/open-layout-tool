@@ -185,8 +185,10 @@ end in straight pieces (190 – 1:9, 500 – 1:14, …) is one straight from arc
 at 4.0 m spacing (2.99 m between the switch ends) holds. At every joint of an intermediate element with a
 jump in curvature the comparison radius (LP.KS.01) must reach the Ermessensgrenze; under the Regelwert the
 dialog says so (`checkMidRun`, Entscheidung 356). The pieces of track left
-before the toe and behind the switch end, on both tracks, must be zero or at least `l_min`; the toe is put
-on the element change behind it where it can be.
+before the toe and behind the switch end, on both tracks, must be zero or at least `l_min` — measured with
+the run of the element's curvature beyond the node they end in (`connectionPick` `runs`, Entscheidung 363);
+the toe is put on the element change behind it where it can be. "Weiche auf Gleis" measures its pieces
+the same way (`switchOnTrackRemnant` `run`, `runAhead`).
 
 **Python solver** (Entscheidungen 357–358). Where no shift of the slider gives a connection, the server
 build offers a search in the optimizer service (`/crossover`, `crossover.py`): both toes free on their
