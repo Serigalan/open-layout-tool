@@ -7,9 +7,10 @@ import { hydrateProjects, dehydrateProjects } from '../project/persistenceUtils'
 import { expectNodesJoin, expectSwitchRoutesCarved, expectTangentsContinuous } from '../../test/chainInvariants'
 import { utmEndRoute } from '../switch/route'
 import { computeClothoidUtm, transitionPointAtUtm } from '../geometry/clothoidUtils'
-import { switchStraightLength } from '../switch/catalogue'
+import { switchBranchLength, switchStraightLength } from '../switch/catalogue'
 import { checkTrack } from '../rules/trassierungCheck'
-import { buildLineTrack, buildCurvedLineTrack } from './tracks'
+import { buildLineTrack, buildCurvedLineTrack, trackOf } from './tracks'
+import { arcFrom, straightFrom, transitionElement } from '../geometry/elementFactory'
 
 const EPSG  = 25832
 const P     = (e, n) => ({ easting: e, northing: n, zone: EPSG })
@@ -344,8 +345,8 @@ describe('a turnout of the connection laid into a transition curve', () => {
   ] }]))))[0]
   const picks = [connectionPick(project.tracks[0], 0, 60), connectionPick(project.tracks[1], 1, 60)]
   const speed = 60
-  const bounds = computeShiftBounds({ picks, speed })
-  const res = solveConnection({ picks, speed, shift: (bounds.min + bounds.max) / 2 })
+  // The second turnout whole on the clothoid: its toe 20 m into it.
+  const res = solveConnection({ picks, speed, shift: 80 })
   const commit = buildSCurve({ result: res, picks, tracks: project.tracks, switches: [], speed })
   // Track 2 as the commit parts it, in its own order.
   const line2 = commit.remap.find(r => r.oldId === 't2').newId.map(id => commit.addTracks.find(tr => tr.id === id))
@@ -379,6 +380,56 @@ describe('a turnout of the connection laid into a transition curve', () => {
     // The record still states the radius at the toe.
     const sw = commit.addSwitches.find(s => s.switchId === route.switchId)
     expect(Math.abs(sw.mainRadius)).toBeCloseTo(Math.abs(transitions[1].r2), 3)
+  })
+})
+
+describe('a turnout of the connection across an element change (Entscheidung 366)', () => {
+  // Track 1: a left-hand R 1000, a clothoid out of it over 60 m and a straight;
+  // the cant ramps from 40 mm to none over the clothoid. Track 2 a straight
+  // 4.5 m to the right of that straight. The first turnout's toe stands 45 m
+  // into the clothoid, so its through route runs on into the straight.
+  const form = SWITCH_TYPES.find(f => f.label === '500 – 1:12')
+  const arc = arcFrom(P(500000, 5600000), 10, 100, -1000)
+  const at = (el) => P(el.endNode[0], el.endNode[1])
+  const cl = transitionElement(at(arc), arc.endBearing, 60, -1000, null).element
+  const st = straightFrom(at(cl), cl.endBearing ?? cl.bearing, 400)
+  const t1 = trackOf([{ ...arc, speed: 80, cant: -40 }, { ...cl, speed: 80, cantStart: -40, cantEnd: 0 },
+    { ...st, speed: 80, cant: 0 }], EPSG, { name: 'line.001' }, 't1')
+  const b = st.bearing * Math.PI / 180
+  const from = P(st.startNode[0] + 4.5 * Math.cos(b) - 300 * Math.sin(b), st.startNode[1] - 4.5 * Math.sin(b) - 300 * Math.cos(b))
+  const t2 = trackOf([{ ...straightFrom(from, st.bearing, 700), speed: 80 }], EPSG, { name: 'line.002' }, 't2')
+  const picks = [connectionPick(t1, 1, 45), connectionPick(t2, 0, 400)]
+  const res = solveConnection({ picks, speed: 60, shift: 0, form })
+  const commit = buildSCurve({ result: res, picks, tracks: [t1, t2], switches: [], speed: 60 })
+
+  it('runs on into the straight: the branch parts where the track does, the form\'s own radius beside the straight', () => {
+    expect(res.valid).toBe(true)
+    expect(res.chain1.map(p => p.length)).toEqual([expect.closeTo(15, 9), expect.closeTo(switchBranchLength(form) - 15, 9)])
+    expect(res.chain1[0].r2).toBeCloseTo(500, 6)
+    expect(res.chain1[1]).toMatchObject({ r1: 500, r2: 500 })
+    const branch = commit.addTracks[commit.addTracks.length - 1].elements.filter(el => el.switchId)
+    expect(branch.map(el => el.elementType)).toEqual([2, 1, 1])
+    expect(branch[1].radius).toBe(500)
+  })
+
+  it('carves the through route over both elements, ending on the straight', () => {
+    expect(commit.carveError).toBeUndefined()
+    const line1 = commit.remap.find(r => r.oldId === 't1').newId.map(id => commit.addTracks.find(tr => tr.id === id))
+    const route = line1.flatMap(tr => tr.elements.filter(el => el.switchId))
+    expect(route.map(el => el.elementType)).toEqual([2, 0])
+    expect(route.reduce((sum, el) => sum + el.length, 0)).toBeCloseTo(switchStraightLength(form), 6)
+    for (const tr of commit.addTracks) {
+      expectNodesJoin(tr.elements)
+      expectTangentsContinuous(tr.elements, tr.epsg)
+    }
+    for (const sw of commit.addSwitches) expectSwitchRoutesCarved(sw, commit.addTracks)
+  })
+
+  it('keeps the toe on the element picked', () => {
+    // Moved 60 m back the toe stands on the arc before the element picked.
+    const off = solveConnection({ picks, speed: 60, shift: -60, form })
+    expect(off.valid).toBe(false)
+    expect(off.overridable).toBe(false)
   })
 })
 

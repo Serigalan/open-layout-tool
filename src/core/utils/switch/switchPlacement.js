@@ -31,6 +31,19 @@ function refusal(el) {
 }
 
 /**
+ * May a turnout lying on element `i` of `elements` run on over its node into
+ * the neighbour on `side` ('before' | 'after')? The neighbour is one it may lie
+ * on, and the joint carries the tangent on — what placeSwitchOnTrack asks of
+ * every element under a turnout.
+ */
+export function turnoutRunsOn(elements, i, side, epsg) {
+  const j = side === 'before' ? i - 1 : i + 1
+  const [a, b] = side === 'before' ? [elements[j], elements[i]] : [elements[i], elements[j]]
+  if (!a || !b || !(elements[j].length > 0) || refusal(elements[j])) return false
+  return angleBetween(b.bearing, resolveEndBearing(a, epsg)) <= KINK_TOL
+}
+
+/**
  * Station along the whole track of a point clicked beside its element `elIdx` —
  * the position a click states for everything that is placed onto a track: a
  * turnout's toe, a crossing's crossing point.

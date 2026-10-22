@@ -121,7 +121,17 @@ const formsFor = (speed, form = null) => (form ? [form] : fallbackChain(speed))
  *   along               the station the pick sits at
  *   cantStart, cantEnd  the cant at the element's two ends, its own direction
  *                       (the same value twice on anything but a transition)
+ *   pieces              the elements the turnout may run on over (below)
  *   dir                 +1 where the connection runs with the element, −1 against
+ *
+ * The toe stands on the element picked; the turnout may run on over its node
+ * into the elements beyond it, as a turnout laid into a track does (Entscheidung
+ * 366) — on a transition that runs out into a straight, the stretch beyond is
+ * that straight, not the clothoid carried on past its end. `pieces` are those
+ * elements, the one picked among them, each with its own start node, tangent,
+ * route and cant, and `s0` its start as a station along the element picked
+ * (negative before it). Without them the stem is the element alone, and past
+ * its ends it runs on as it is.
  *
  * Everything below is stated as a station `s` measured from the pick in the
  * direction the connection runs, which `dir` turns back into a station along the
@@ -130,37 +140,86 @@ const formsFor = (speed, form = null) => (form ? [form] : fallbackChain(speed))
  */
 const reverseStem = (g) => ({ ...g, dir: -(g.dir ?? 1) })
 
+/** The element picked as the only piece of its stem. */
+const ownPiece = (g) => ({
+  startUtm: g.startUtm, bearing: g.bearing, route: g.route, cantStart: g.cantStart, cantEnd: g.cantEnd, s0: 0,
+})
+
+/** The pieces of a stem, in the element's own direction. */
+const stemPieces = (g) => (g.pieces?.length ? g.pieces : [ownPiece(g)])
+
+/** Stations along the element picked where the stem begins and ends. */
+function stemExtent(g) {
+  const pieces = stemPieces(g)
+  const last = pieces[pieces.length - 1]
+  return [pieces[0].s0, last.s0 + last.route.length]
+}
+
+/**
+ * The piece that holds station `t` along the element picked, and `t` along
+ * it: before the stem the first, beyond it the last, each running on as it is.
+ */
+function pieceAt(g, t) {
+  const pieces = stemPieces(g)
+  const k = pieces.findIndex(p => t <= p.s0 + p.route.length)
+  const p = pieces[k < 0 ? pieces.length - 1 : k]
+  return { p, u: t - p.s0 }
+}
+
 /** Station along the element, `s` metres from the pick in the running direction. */
 const stemStation = (g, s) => g.along + (g.dir ?? 1) * s
 
 /** The point `s` from the pick, in the plane. */
-const stemPoint = (g, s) => switchRoutePointUtm(g.startUtm, g.bearing, g.route, stemStation(g, s))
+function stemPoint(g, s) {
+  const { p, u } = pieceAt(g, stemStation(g, s))
+  return switchRoutePointUtm(p.startUtm, p.bearing, p.route, u)
+}
 
 /** The tangent bearing `s` from the pick, in the running direction. */
 function stemBearing(g, s) {
-  const b = switchRouteBearingAt(g.bearing, g.route, stemStation(g, s))
+  const { p, u } = pieceAt(g, stemStation(g, s))
+  const b = switchRouteBearingAt(p.bearing, p.route, u)
   return (g.dir ?? 1) > 0 ? b : (b + 180) % 360
 }
 
 /** The signed radius `s` from the pick, in the running direction. */
 function stemRadius(g, s) {
-  const r = switchRouteRadiusAt(g.route, stemStation(g, s))
+  const { p, u } = pieceAt(g, stemStation(g, s))
+  const r = switchRouteRadiusAt(p.route, u)
   return (g.dir ?? 1) > 0 ? r : negR(r)
 }
 
-/** The cant `s` from the pick, in the running direction — a transition ramps. */
+/** The cant `s` from the pick, in the running direction — it ramps where an element does. */
 function stemCant(g, s) {
-  const L = g.route.length
-  const a = g.cantStart ?? 0, b = g.cantEnd ?? a
-  const u = L > 0 ? a + (b - a) * Math.min(L, Math.max(0, stemStation(g, s))) / L : a
-  return (g.dir ?? 1) > 0 ? u : -u
+  const [from, to] = stemExtent(g)
+  const { p, u } = pieceAt(g, Math.min(to, Math.max(from, stemStation(g, s))))
+  const L = p.route.length
+  const a = p.cantStart ?? 0, b = p.cantEnd ?? a
+  const c = L > 0 ? a + (b - a) * u / L : a
+  return (g.dir ?? 1) > 0 ? c : -c
 }
 
-/** The stretch of stem a turnout covers: from `s` forward by `length`, running direction. */
+/** Below this an overlap is float noise at an element change, not a piece [m]. */
+const PIECE_EPS = 1e-9
+
+/**
+ * The stretch of stem a turnout covers, from `s` forward by `length` in the
+ * running direction: a chain, one piece per element it lies on — a clothoid
+ * piece keeps its parameter (switchRouteSlice). The first and the last piece
+ * run on past the stem's ends as they are.
+ */
 function stemUnder(g, s, length) {
   const a = stemStation(g, s), b = stemStation(g, s + length)
-  const slice = switchRouteSlice(g.route, Math.min(a, b), Math.max(a, b))
-  return (g.dir ?? 1) > 0 ? slice : { length: slice.length, r1: negR(slice.r2), r2: negR(slice.r1) }
+  const lo = Math.min(a, b), hi = Math.max(a, b)
+  const pieces = stemPieces(g)
+  const out = []
+  pieces.forEach((p, k) => {
+    const from = k === 0 ? lo : Math.max(lo, p.s0)
+    const to   = k === pieces.length - 1 ? hi : Math.min(hi, p.s0 + p.route.length)
+    if (to - from > PIECE_EPS) out.push(switchRouteSlice(p.route, from - p.s0, to - p.s0))
+  })
+  return (g.dir ?? 1) > 0 ? out
+    : out.reverse().map(piece => ({ length: piece.length, r1: negR(piece.r2), r2: negR(piece.r1) }))
 }
 
 /**
@@ -219,19 +278,18 @@ function connectionFrame(g1, g2, s) {
  * The point of a stem abreast of `p`: its foot, found by stepping along the
  * tangent onto the normal through `p`. Off a straight one step is exact; on a
  * curve each step shrinks the miss by the ratio of offset to radius, so a few
- * reach any track spacing. Beyond the element a straight or an arc runs on as
- * it is, as everywhere in the construction; a transition curve cannot be
+ * reach any track spacing. Beyond the stem a straight or an arc runs on as it
+ * is, as everywhere in the construction; a transition curve cannot be
  * evaluated past its ends, so it runs on along its end tangent.
  */
 function footOnStem(g, p) {
-  const L = g.route.length
-  const varies = switchRouteVaries(g.route)
   const at = (s) => {
-    const station = stemStation(g, s)
-    const edge = varies ? Math.min(L, Math.max(0, station)) : station
-    const q = switchRoutePointUtm(g.startUtm, g.bearing, g.route, edge)
-    const rad = switchRouteBearingAt(g.bearing, g.route, edge) * DEG2RAD
-    const d = station - edge
+    const { p: piece, u } = pieceAt(g, stemStation(g, s))
+    const L = piece.route.length
+    const edge = switchRouteVaries(piece.route) ? Math.min(L, Math.max(0, u)) : u
+    const q = switchRoutePointUtm(piece.startUtm, piece.bearing, piece.route, edge)
+    const rad = switchRouteBearingAt(piece.bearing, piece.route, edge) * DEG2RAD
+    const d = u - edge
     const dir = g.dir ?? 1
     return {
       point: { easting: q.easting + d * Math.sin(rad), northing: q.northing + d * Math.cos(rad), zone: q.zone },
@@ -433,9 +491,8 @@ function buildConnection(sw, frame, speed, mids = null, seed = null) {
   // The element between them can only carry one value, so the two tracks have
   // to agree on it — at the last through sleeper (ldS) of either turnout, up to
   // which a turnout lies on its own track's sleepers. At WA they may differ
-  // (Entscheidung 218). Where the form states no ldS, it is WE. Read on the
-  // element the turnout was picked on: an ldS beyond its end takes the cant at
-  // that end.
+  // (Entscheidung 218). Where the form states no ldS, it is WE. Read along the
+  // stem: an ldS beyond its last element takes the cant at its end.
   const toLds    = switchStraightLength(sw) + (Number.isFinite(sw.lds) ? sw.lds : 0)
   const cantLds1 = stemCant(stem1, s1 + toLds)
   const cantLds2 = stemCant(stem2, s2 - toLds)
@@ -608,18 +665,20 @@ function solveStation(at, step, span = Math.max(50 * step, 500)) {
 }
 
 /**
- * The shifts [lo, hi] that keep a turnout's through route on the element its
- * stem `g` was picked on: the toe at `s`, the far end `opening · through`
- * along the connection from it (+1 for the first turnout, −1 for the second).
- * Null where it does not fit at all.
+ * The shifts [lo, hi] that keep a turnout of the connection where it may lie:
+ * its toe at `s` on the element its stem `g` was picked on, its far end
+ * `opening · through` along the connection from it (+1 for the first turnout,
+ * −1 for the second) on the stem — on that element or the ones it runs on over
+ * (Entscheidung 366). Null where it does not fit at all.
  */
 function onElementRange(g, through, opening) {
-  const L = g.route.length
   const dir = g.dir ?? 1
-  // The shifts that put a station along the element on either of its nodes.
-  const ends = [(0 - g.along) / dir, (L - g.along) / dir].sort((a, b) => a - b)
-  const lo = Math.max(ends[0], ends[0] - opening * through)
-  const hi = Math.min(ends[1], ends[1] - opening * through)
+  // The shifts that put a station along the element on either of two stations.
+  const shifts = (a, b) => [(a - g.along) / dir, (b - g.along) / dir].sort((x, y) => x - y)
+  const toe = shifts(0, g.route.length)
+  const far = shifts(...stemExtent(g)).map(x => x - opening * through)
+  const lo = Math.max(toe[0], far[0])
+  const hi = Math.min(toe[1], far[1])
   return hi >= lo ? [lo, hi] : null
 }
 

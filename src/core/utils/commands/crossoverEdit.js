@@ -87,10 +87,13 @@ function lineEnd(sw, linePort, tracks) {
   return nodeUtmOf(part.endpoint === 'END' ? el.startNode : el.endNode, part.track.epsg)
 }
 
+/** How far into its element a toe is looked for, past a node it stands on [m]. */
+const TOE_INTO = 1e-3
+
 /**
- * Where a turnout stood, on the track its deletion left: the element its
- * through route lay on and the toe's distance along it — the pick the dialog
- * would have made there. Read from the toe and the switch end projected onto
+ * Where a turnout stood, on the track its deletion left: the element its toe
+ * stood on and the toe's distance along it — the pick the dialog would have
+ * made there. Read from the toe and the switch end projected onto
  * the tracks the deletion rewrote.
  */
 function pickWhereItStood(toe, end, candidates) {
@@ -102,10 +105,12 @@ function pickWhereItStood(toe, end, candidates) {
     if (!best || a.dist + b.dist < best.dist) best = { track, toe: a.station, end: b.station, dist: a.dist + b.dist }
   }
   if (!best) return null
-  // The element under the middle of the through route: a toe on a node lies
-  // on the element its turnout opens into.
-  const mid = (best.toe + best.end) / 2
-  const row = elementStations(best.track).find(r => mid >= r.start - 1e-9 && mid <= r.end + 1e-9)
+  // The element the toe stands on — the through route may run on over its
+  // node into the elements beyond (Entscheidung 366); a toe on a node lies on
+  // the element its turnout opens into.
+  const ahead = best.end > best.toe ? 1 : -1
+  const at = best.toe + ahead * TOE_INTO
+  const row = elementStations(best.track).find(r => at >= r.start - 1e-9 && at <= r.end + 1e-9)
   if (!row) return null
   return connectionPick(best.track, row.index, Math.min(row.el.length, Math.max(0, best.toe - row.start)))
 }
@@ -150,9 +155,8 @@ export function takeApart(found, { tracks, switches }) {
  * rulebook accepts it or not. One element alone is the dialog's own arc,
  * length and radius open, which closes on a straight as well.
  *
- * A connection the construction does not lay as it is — a turnout across an
- * element change of its track, cants that disagree at the ldS, a chain that
- * does not close at the toes — still opens (`closes` false): its elements as
+ * A connection the construction does not lay as it is — cants that disagree
+ * at the ldS, a chain that does not close at the toes — still opens (`closes` false): its elements as
  * they are, the first two lengths open, the old values where the iteration
  * starts; the dialog says why, and the slider, the elements and the Python
  * solver find where it does.

@@ -36,7 +36,7 @@ export { planSwitchDeletion, switchParts } from './switchDelete'
 export {
   mainRouteLength, routeFrom, sleeperOffsets, sleeperThrough, switchLds, turnoutSleepers,
 } from './sleepers'
-export { clickStation, placeSwitchOnTrack } from './switchPlacement'
+export { clickStation, placeSwitchOnTrack, turnoutRunsOn } from './switchPlacement'
 export {
   computeSwitchGeometryUtm, crossingBodyUtm, crossingRoutesFromTracks, lcsLine, lcsLineUtm,
   rebuildSwitchSymbol, switchFillRing, switchLabelGeometry, switchRoutePointsUtm,

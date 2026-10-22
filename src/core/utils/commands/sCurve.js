@@ -5,7 +5,7 @@ import {
 import { cantEnds, nodeUtm, wgs84ToUTM, utmToWgs84, transformGridBearing } from '../geometry'
 import {
   switchElementRoute, switchRouteVaries, computeSwitchGeometryUtm, solveSwitchConnection,
-  buildConnectionElements, orientStemToward, uniqueStations,
+  buildConnectionElements, orientStemToward, uniqueStations, turnoutRunsOn,
 } from '../switch'
 import { minElementLength, runBeside } from '../rules'
 
@@ -64,30 +64,61 @@ function buildJunctionSwitch({ jWgs, jNode, zone, tangentBearing, side, sw, spee
 }
 
 /**
+ * How far beyond the element picked the stem reaches [m] — past the through
+ * length of every form: a turnout whose toe stands on the element may run on
+ * over that much of the track.
+ */
+const STEM_REACH = 200
+
+/**
  * A pick as the dialog takes one: element `elIdx` of `track`, clicked
  * `along` metres from its start — where it lies, the route the turnout is laid
  * on, the cant that runs over it, its design speed (for LP.EL.01) and which of
  * its nodes are the track's open ends.
+ *
+ * The toe stands on that element; the turnout may run on over its nodes into
+ * the elements beyond (Entscheidung 366), as far as a turnout may lie on them
+ * (turnoutRunsOn) and STEM_REACH reaches. `pieces` are all of them, the one
+ * picked among them, each stationed by `s0` from the picked element's start and
+ * with what the element states: speed, runs beside it, open track ends.
  */
 export function connectionPick(track, elIdx, along) {
-  const el = track.elements[elIdx]
-  const coords = el.geometry?.coordinates ?? []
-  // The cant at the element's ends: a transition's ramp, or an arc's or a
-  // straight's own (cantEnds).
-  const ramp = cantEnds(track.elements, elIdx)
+  const piece = (i, s0) => {
+    const el = track.elements[i]
+    const coords = el.geometry?.coordinates ?? []
+    // The cant at the element's ends: a transition's ramp, or an arc's or a
+    // straight's own (cantEnds).
+    const ramp = cantEnds(track.elements, i)
+    return {
+      elIdx: i, s0,
+      startUtm: nodeUtm(el.startNode, coords[0], track.epsg),
+      endUtm: nodeUtm(el.endNode, coords[coords.length - 1], track.epsg),
+      bearing: el.bearing,
+      route: switchElementRoute(el),
+      cantStart: ramp.start,
+      cantEnd:   ramp.end,
+      speed: el.speed || null,
+      trackEnds: [i === 0, i === track.elements.length - 1],
+      // The runs of the element's curvature beside it, at its start and its end (Entscheidung 363).
+      runs: ['before', 'after'].map(side => runBeside(track.elements, i, side)?.length ?? 0),
+    }
+  }
+  const own = piece(elIdx, 0)
+  const pieces = [own]
+  for (let i = elIdx, s0 = 0; s0 > -STEM_REACH && turnoutRunsOn(track.elements, i, 'before', track.epsg); i--) {
+    s0 -= track.elements[i - 1].length
+    pieces.unshift(piece(i - 1, s0))
+  }
+  for (let i = elIdx, s0 = own.route.length; s0 < own.route.length + STEM_REACH
+       && turnoutRunsOn(track.elements, i, 'after', track.epsg); i++) {
+    pieces.push(piece(i + 1, s0))
+    s0 += track.elements[i + 1].length
+  }
+  const { elIdx: _i, s0: _s, ...ownFields } = own
   return {
-    trackId: track.id, elIdx,
-    startUtm: nodeUtm(el.startNode, coords[0], track.epsg),
-    endUtm: nodeUtm(el.endNode, coords[coords.length - 1], track.epsg),
-    bearing: el.bearing,
-    route: switchElementRoute(el), along,
-    cantStart: ramp.start,
-    cantEnd:   ramp.end,
+    trackId: track.id, elIdx, along, ...ownFields,
     zone: track.epsg, name: track.name || trackLabel(track),
-    speed: el.speed || null,
-    trackEnds: [elIdx === 0, elIdx === track.elements.length - 1],
-    // The runs of the element's curvature beside it, at its start and its end (Entscheidung 363).
-    runs: ['before', 'after'].map(side => runBeside(track.elements, elIdx, side)?.length ?? 0),
+    pieces,
   }
 }
 
@@ -132,10 +163,11 @@ function splitAtToe(track, elIdx, station, junction, bearing, existingNames) {
     : splitElementAt(track, elIdx, cut, bearing, existingNames)
 }
 
-// What a turnout is bent onto: the radius at its toe, or on a transition the
-// piece of clothoid under its through route ({ r1, r2 } from the toe), so its
-// switch end and its symbol lie on the track.
-const bentOnto = (route, atToe) => (route && switchRouteVaries(route) ? { r1: route.r1, r2: route.r2 } : atToe)
+// What a turnout is bent onto: the radius at its toe, or where the track
+// under its through route changes — a transition, an element change — that
+// stretch as a chain from the toe, so its switch end and its symbol lie on
+// the track.
+const bentOnto = (chain, atToe) => (chain?.length > 1 || (chain?.length && switchRouteVaries(chain[0])) ? chain : atToe)
 
 // A plane point expressed in another CRS plane (as it is when already there).
 function toPlane(p, crs) {
@@ -144,16 +176,21 @@ function toPlane(p, crs) {
 }
 
 // Pick 2 expressed in pick 1's native plane. All solver math runs in line 1's
-// CRS; a second track in another CRS gets its point and its grid bearing
+// CRS; a second track in another CRS gets its points and its grid bearings
 // converted. The radius is carried across as it stands — the two grids differ in
 // scale by parts in ten thousand, which over a turnout is microns.
 function stemInPlane(g, crs) {
   const { startUtm, bearing, route, along, cantStart, cantEnd } = g
-  if (Number(g.zone) === Number(crs)) return { startUtm, bearing, route, along, cantStart, cantEnd }
+  const pieces = (g.pieces ?? []).map(({ startUtm: p, bearing: b, route: r, cantStart: a, cantEnd: e, s0 }) => ({
+    startUtm: p, bearing: b, route: r, cantStart: a, cantEnd: e, s0,
+  }))
+  if (Number(g.zone) === Number(crs)) return { startUtm, bearing, route, along, cantStart, cantEnd, pieces }
+  const inPlane = (p, b) => ({
+    startUtm: toPlane(p, crs), bearing: transformGridBearing(p.easting, p.northing, b, g.zone, crs),
+  })
   return {
-    startUtm: toPlane(startUtm, crs),
-    bearing: transformGridBearing(startUtm.easting, startUtm.northing, bearing, g.zone, crs),
-    route, along, cantStart, cantEnd,
+    ...inPlane(startUtm, bearing), route, along, cantStart, cantEnd,
+    pieces: pieces.map(p => ({ ...p, ...inPlane(p.startUtm, p.bearing) })),
   }
 }
 
@@ -167,15 +204,17 @@ export function stems(picks) {
 }
 
 // Solve the connection geometry for a given shift (pure — no React state).
-// A construction that closes but puts a turnout off the element it was picked
-// on is no connection either: the commit parts that element, and a turnout
-// beyond its end would be cut into a track it does not lie on.
+// A construction that closes but puts a turnout's toe off the element it was
+// picked on, or its through route off the stem it may run on over, is no
+// connection either — not even one to commit anyway (Entscheidung 361): the
+// commit parts that element, and a turnout beyond the stem would be cut into a
+// track it does not lie on.
 export function solveConnection({ picks, speed, shift, mids = null, seed = null, form = null }) {
   const [g1, g2] = picks
   if (!g1 || !g2 || !speed) return null
   const { g1: a, g2: b } = stems(picks)
   const res = solveSwitchConnection(a, b, speed, shift, mids, seed, form)
-  if (!res?.valid || turnoutsOnElements(picks, a.dir ?? 1, shift, res)) return res
+  if (!stands(res, true) || turnoutsOnElements(picks, a.dir ?? 1, shift, res)) return res
   return { ...res, valid: false, overridable: false, reason: 'off_element' }
 }
 
@@ -204,11 +243,22 @@ const stands = (res, lenient = false) => !!res && (res.valid || (lenient && !!re
 /** Below this a turnout still counts as lying on its element [m]. */
 const FIT_TOL = 1e-6
 
+/** The pieces of a pick's stem: the elements its turnout may lie on (connectionPick). */
+const pickPieces = (pick) => (pick.pieces?.length ? pick.pieces
+  : [{ s0: 0, route: pick.route, speed: pick.speed, runs: pick.runs, trackEnds: pick.trackEnds }])
+
+/** Stations along the element picked where its stem begins and ends. */
+function pickExtent(pick) {
+  const pieces = pickPieces(pick)
+  const last = pieces[pieces.length - 1]
+  return [pieces[0].s0, last.s0 + last.route.length]
+}
+
 /**
- * Does the turnout fit inside the element it was picked on? Its stem has to be
- * one element's worth of geometry — that is what makes the branch a single arc
- * and lets the through route be carved out of one element — so the whole of its
- * through route has to lie between that element's two nodes.
+ * Does the turnout lie where it may? Its toe on the element it was picked on,
+ * its through route on that element and the ones it runs on over (Entscheidung
+ * 366) — the stem the construction laid it on, which the commit carves the
+ * route from.
  *
  * `toe` is the toe's station along the element, `dir` which way the connection
  * runs along it (+1 with the element, −1 against), and `opening` which way the
@@ -217,7 +267,9 @@ const FIT_TOL = 1e-6
  */
 function turnoutOnElement(pick, toe, dir, opening, throughLength) {
   const far = toe + dir * opening * throughLength
-  return Math.min(toe, far) >= -FIT_TOL && Math.max(toe, far) <= pick.route.length + FIT_TOL
+  const [from, to] = pickExtent(pick)
+  return toe >= -FIT_TOL && toe <= pick.route.length + FIT_TOL
+    && far >= from - FIT_TOL && far <= to + FIT_TOL
 }
 
 /** Both turnouts of a solved connection on the elements they were picked on. */
@@ -267,13 +319,16 @@ export function connectionRemnants(picks, shift, res, speed) {
   const out = []
   for (const k of [0, 1]) {
     const { toe, far, len } = turnoutSpan(picks, k, shift, res)
-    const before = far > toe ? toe : len - toe
-    const after = far > toe ? len - far : far
+    const forward = far > toe
+    const before = forward ? toe : len - toe
     // The runs beside the element at its start and at its end.
     const [atStart, atEnd] = picks[k].runs ?? [0, 0]
+    // Behind WE: the piece of the element the switch end falls in, which may
+    // be one the turnout runs on into (Entscheidung 366).
+    const end = weElement(picks[k], far, forward)
     for (const [side, length, v, beyond] of [
-      ['before', before, speed || null, far > toe ? atStart : atEnd],
-      ['after', after, picks[k].speed || null, far > toe ? atEnd : atStart],
+      ['before', before, speed || null, forward ? atStart : atEnd],
+      ['after', end.length, end.speed, end.beyond],
     ]) {
       const l = Math.max(0, length)
       const run = l > NODE_TOL ? l + beyond : l
@@ -282,6 +337,25 @@ export function connectionRemnants(picks, shift, res, speed) {
     }
   }
   return out
+}
+
+/**
+ * The element of a pick's stem the switch end falls in, at station `far`
+ * along the element picked: what is left of it beyond WE, the speed it states
+ * and the run of its curvature beyond its node there. A switch end on a node
+ * leaves nothing of the element it ends.
+ */
+function weElement(pick, far, forward) {
+  const pieces = pickPieces(pick)
+  const p = forward
+    ? pieces.find(q => far <= q.s0 + q.route.length + NODE_TOL) ?? pieces[pieces.length - 1]
+    : [...pieces].reverse().find(q => far >= q.s0 - NODE_TOL) ?? pieces[0]
+  const [atStart, atEnd] = p.runs ?? [0, 0]
+  return {
+    length: forward ? p.s0 + p.route.length - far : far - p.s0,
+    speed: p.speed || null,
+    beyond: forward ? atEnd : atStart,
+  }
 }
 
 /**
@@ -538,12 +612,14 @@ export function shiftSnaps({ picks, speed, mids = null, seed = null, form = null
   const dir1 = stems(picks).g1.dir ?? 1
   const dir2 = res.flipped2 ? -1 : 1
   const out = []
+  // The nodes a switch end may fall on: those of the elements the turnout may
+  // run on over too (Entscheidung 366).
+  const nodes = (p) => [...pickPieces(p).map(q => q.s0), pickExtent(p)[1]]
   // Turnout 1 opens with the connection: WE lies the through length ahead of WA.
-  for (const node of [0, p1.route.length]) {
-    out.push((node - p1.along) * dir1, (node - dir1 * through - p1.along) * dir1)
-  }
+  for (const node of [0, p1.route.length]) out.push((node - p1.along) * dir1)
+  for (const node of nodes(p1)) out.push((node - dir1 * through - p1.along) * dir1)
   // Turnout 2 opens against it: its WE lies the through length behind its WA.
-  const targets = [0, p2.route.length].flatMap(node => [node, node + dir2 * through])
+  const targets = [0, p2.route.length, ...nodes(p2).map(node => node + dir2 * through)]
   out.push(...secondToeCrossings({ picks, speed, mids, seed, form, lenient }, targets, bounds.min, bounds.max))
   return uniqueStations(out).filter(s => s >= bounds.min - 1e-9 && s <= bounds.max + 1e-9)
 }

@@ -57,11 +57,12 @@ begins and ends at a route (B1/B2) of two turnouts of one form a turnout can be 
 (`SWITCH_PICK_TYPES`), with one to three elements of its own between their routes, is one
 (`switchConnectionOf`). `takeApart` removes it in memory and deletes both turnouts as the
 delete dialog does (`planSwitchDeletion`, each line joined back into its track), and puts the picks where
-the toes stood — toe and switch end projected onto the joined tracks. `editStart` gives the dialog the
+the toes stood — toe and switch end projected onto the joined tracks, the pick on the element of the toe, from
+which the turnout runs on over an element change as it lay (Entscheidung 366). `editStart` gives the dialog the
 middle elements as they are, two values open so that they close at shift 0 (`adoptCrossover({ lenient,
 exactFirst })`; one element alone is the closed-form arc). Where the construction does not lay it as it
-lies — a turnout across an element change, cants that disagree at the ldS, a connection made by "Weiche
-an Gleis anschließen" that does not close — it opens all the same (`closes` false): elements as they are,
+lies — cants that disagree at the ldS, a connection made by "Weiche an Gleis anschließen" that does not
+close — it opens all the same (`closes` false): elements as they are,
 the first two lengths open, the old values as seed; the dialog names the reason. The dialog then runs on those tracks with the form fixed
 (`form` through every solve, `crossoverRequest({ form })`); `buildSCurve({ identities, connTrack })` keeps
 the switch ids, names and numbers and the connecting track, `editCommit` puts the two deletions before it,

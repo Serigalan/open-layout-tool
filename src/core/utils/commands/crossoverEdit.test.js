@@ -142,9 +142,10 @@ describe('a switch connection, edited (Entscheidung 364)', () => {
     const found = switchConnectionOf({ trackId: conn.id, ...project })
     const apart = takeApart(found, project)
     // Two straights between the branches, and the first turnout on an
-    // element of 30 m: shorter than its through route, it does not lie on it.
+    // element of 30 m with nothing to run on into: shorter than its through
+    // route, it does not lie on it.
     const crooked = { ...found, mids: [found.mids[0], found.mids[0]].map(el => ({ ...el, length: 5, radius: null })) }
-    const short = { ...apart.picks[0], along: 15, route: { ...apart.picks[0].route, length: 30 } }
+    const short = { ...apart.picks[0], along: 15, route: { ...apart.picks[0].route, length: 30 }, pieces: null }
     const off = { ...apart, picks: [short, apart.picks[1]] }
     const start = editStart(crooked, off)
     expect(start.closes).toBe(false)

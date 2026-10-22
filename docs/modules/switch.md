@@ -149,6 +149,15 @@ branches. Each branch leaves its track at the form's own angle `w = atan(1/n)` a
 not — neither angle nor form radius is free; a solver that bent them would produce a curve no turnout can
 build.
 
+**The stem** (Entscheidung 366). Each turnout's toe stands on the element picked on its track, but the
+turnout may run on over that element's node into the elements beyond — as far as a turnout may lie on them
+(`turnoutRunsOn`: no switch, no Bloss curve, the tangent carried on) — exactly as "Weiche auf Gleis" lays one:
+`connectionPick` hands the solver those elements as `pieces`, each with its own start node, route and cant.
+A turnout whose toe stands in a transition that runs out into a straight is laid on that clothoid piece and
+then on the straight, so its branch is a clothoid and then the form's own arc (R 500 beside the straight for
+a 500 – 1:12), not the clothoid carried on past its end. The commit carves the through route over both
+elements; the piece behind WE is that of the element the switch end falls in.
+
 **The construction** (`switchConnectionUtils.js`). The unknowns are the toe stations s₁ (on track 1, given by
 the slider) and s₂ (on track 2, sought). Branch 1 is the form laid on the stem it covers at s₁. The middle
 element is *defined* as the arc leaving branch 1's end on its tangent and turning by `Δ = t₂ − t₁`, so it
@@ -265,6 +274,8 @@ unmarked and joined back with their neighbours into one track; what does not sta
   same code.
 - **Form angle and radius are never free variables** in a connection; only positions are.
 - **A switch connection needs equal cant at the ldS**, not at the toe; one cant on the middle element.
+- **A connection's turnout runs on over an element change** like any turnout laid into a track (Entscheidung
+  366); only its toe is bound to the element picked, which is what the slider moves along.
 - **Bloss curves carry no turnout**, crossings need straight track.
 - **Deleting follows one rule for all kinds** instead of a table per kind.
 - **A variant is not a form.** Profile and sleepers do not change the geometry, so they stand under the
