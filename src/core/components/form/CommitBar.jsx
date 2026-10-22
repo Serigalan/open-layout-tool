@@ -50,9 +50,16 @@ function useCompact(labels) {
  * (its title) — a locked button that does not say why is a dead end. Labels
  * default to Commit/Cancel. A `reason` alone locks it too, and is said under
  * the bar as well (R10.4).
+ *
+ * `onOverride`, given while Commit is locked, puts a "commit anyway" link
+ * under it (Entscheidung 361): what only the rulebook holds back may be
+ * committed all the same — the track check goes on reporting it. A form
+ * passes it only where every reason left is a rule's, never where there is
+ * nothing to build.
  */
 export default function CommitBar({
-  onCommit, onCancel, disabled: locked, reason = null, commitLabel, cancelLabel, danger = false, className = 'mt-8',
+  onCommit, onCancel, onOverride = null, disabled: locked, reason = null, commitLabel, cancelLabel, danger = false,
+  className = 'mt-8',
 }) {
   const { t } = useI18n()
   const disabled = locked ?? !!reason
@@ -72,12 +79,18 @@ export default function CommitBar({
           </button>
         )}
         <button type="button" className={`panel-btn commit-bar-btn${danger ? ' danger' : ''}`}
-          onClick={onCommit} disabled={disabled}
+          onClick={() => onCommit()} disabled={disabled}
           title={disabled && reason ? reason : compact ? commitText : undefined}>
           <span className="commit-bar-icon"><ConfirmIcon /></span>
           <span className="commit-bar-label">{commitText}</span>
         </button>
       </div>
+      {disabled && onOverride && (
+        <button type="button" className="link-btn commit-override" onClick={() => onOverride()}
+          title={t('commit_override_hint')}>
+          {t('commit_override')}
+        </button>
+      )}
       {disabled && reason && <p className="msg-hint msg-small commit-reason">{reason}</p>}
     </div>
   )

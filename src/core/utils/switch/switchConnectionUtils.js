@@ -460,6 +460,11 @@ function buildConnection(sw, frame, speed, mids = null, seed = null) {
             : Math.max(defB1, defB2) > MAX_SWITCH_CANT_DEF ? 'branch_too_sharp'
               : defMid > MAX_SWITCH_CANT_DEF              ? 'too_sharp'
                 : null
+  // Refused by the rulebook alone, whichever reason comes first: nothing that
+  // leaves it without a geometry to build — no answer, branches that overlap,
+  // cants at the ldS that disagree (Entscheidung 361).
+  const ruleOnly = reason !== null && Number.isFinite(Lg) && !midCheck.overlap
+    && !(Math.abs(cantLds1 - cantLds2) > CANT_TOL)
 
   return {
     sw, R: sw.R, w, side, delta, s2,
@@ -475,7 +480,7 @@ function buildConnection(sw, frame, speed, mids = null, seed = null) {
     bearing1: bearingOf(psiToe1),
     bearing2:  bearOwn,                       // at TP2, towards B2A — where the split parts
     bearing2A: bearingOf(t2),                 // at B2A, the way the connection runs
-    valid: reason === null, reason,
+    valid: reason === null, ruleOnly, reason,
   }
 }
 
@@ -731,13 +736,20 @@ export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null, seed = 
   const zone  = g1.startUtm.zone
   const frame = connectionFrame(g1, g2, s)
 
+  // Where no form builds a valid connection, the first one only the rulebook
+  // refuses stands in for the last one tried: it can be committed anyway
+  // (Entscheidung 361).
   const chain = fallbackChain(speed)
   let c = null
+  let refused = null
   for (const sw of chain) {
     c = buildConnection(sw, frame, speed, mids, seed)
     if (c.valid) break
+    if (!refused && c.ruleOnly) refused = c
   }
   if (!c) return null
+  if (!c.valid && refused) c = refused
+  const overridable = !c.valid && !!c.ruleOnly
 
   const gap = frame.gap
   const throughLength = switchStraightLength(c.sw)
@@ -749,7 +761,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null, seed = 
       TP1: frame.toe1, R: c.sw.R, w: Math.atan(1 / c.sw.ratio), delta: 0, Lg: NaN, signedRg: null,
       arc1Coords: null, arc2Coords: null, midCoords: [], allCoords: [],
       branch1: [], branch2: [],
-      valid: false, reason: c.reason, zone, gap, switchType: c.sw, throughLength,
+      valid: false, overridable: false, reason: c.reason, zone, gap, switchType: c.sw, throughLength,
       s2: null, flipped2: frame.flipped2,
       cant1Start: 0, cant1End: 0, cant2Start: 0, cant2End: 0, cantMid: 0,
     }
@@ -765,14 +777,15 @@ export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null, seed = 
   // Each branch as the pieces one element is built from, and as the one
   // polyline the preview draws. The pieces are built whatever the verdict —
   // a connection refused for its cant or its middle element still has the
-  // geometry a caller may want to look at; only the drawn polyline waits for
-  // a valid one, as it always has.
+  // geometry a caller may want to look at; the drawn polyline waits for one
+  // that is valid or only the rulebook refuses.
+  const drawn = c.valid || overridable
   const branch1 = chainPieces(TP1, c.bearing1,  c.chain1, zone, tp1Wgs, b1eWgs)
   const branch2 = chainPieces(B2A, c.bearing2A, c.chain2, zone, b2aWgs, tp2Wgs)
-  const arc1Coords       = c.valid ? joinCoords(branch1.map(p => p.coords)) : null
-  const arc1CoordsRender = c.valid ? joinCoords(branch1.map(p => p.renderCoords)) : null
-  const arc2Coords       = c.valid ? joinCoords(branch2.map(p => p.coords)) : null
-  const arc2CoordsRender = c.valid ? joinCoords(branch2.map(p => p.renderCoords)) : null
+  const arc1Coords       = drawn ? joinCoords(branch1.map(p => p.coords)) : null
+  const arc1CoordsRender = drawn ? joinCoords(branch1.map(p => p.renderCoords)) : null
+  const arc2Coords       = drawn ? joinCoords(branch2.map(p => p.coords)) : null
+  const arc2CoordsRender = drawn ? joinCoords(branch2.map(p => p.renderCoords)) : null
 
   // The middle element's polyline: its two ends when straight, an arc otherwise.
   // Both keep the neighbours' own WGS84 points, so the joins stay exact. A
@@ -786,9 +799,9 @@ export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null, seed = 
   // node is that branch's start, exactly, so the joint is shared.
   const midPieces = placed && placed.map((p, i) => (i === placed.length - 1 ? { ...p, endUtm: B2A } : p))
   const midCoords = midPieces ? joinCoords(midPieces.map(p => p.coords))
-    : c.valid && signedRg ? midArc(SAGITTA_ELEMENT) : [b1eWgs, b2aWgs]
+    : drawn && signedRg ? midArc(SAGITTA_ELEMENT) : [b1eWgs, b2aWgs]
   const midCoordsRender = midPieces ? joinCoords(midPieces.map(p => p.renderCoords))
-    : c.valid && signedRg ? midArc(SAGITTA_TRACK) : [b1eWgs, b2aWgs]
+    : drawn && signedRg ? midArc(SAGITTA_TRACK) : [b1eWgs, b2aWgs]
 
   const allCoords = [...(arc1Coords ?? []), ...midCoords.slice(1), ...((arc2Coords ?? []).slice(1))]
   const valid = c.valid && !!arc1Coords && !!arc2Coords
@@ -821,7 +834,7 @@ export function solveSwitchConnection(g1, g2, speed, s = 0, mids = null, seed = 
     arc1Coords, arc1CoordsRender, arc2Coords, arc2CoordsRender,
     midCoords, midCoordsRender,
     allCoords,
-    valid, reason: c.reason,
+    valid, overridable: overridable && !!arc1Coords && !!arc2Coords, reason: c.reason,
     zone,
     gap, laenge, switchType: c.sw, throughLength,
   }

@@ -188,28 +188,33 @@ export default function SwitchConnectForm({ onCommitted }) {
   const handleCancel = () => { reset(); onCommitted?.() }
 
   // ── What holds the commit back ─────────────────────────────────────────────
+  // `hard` has nothing to build; `rules` only the rulebook against it, which
+  // may be committed all the same (Entscheidung 361).
   const remnant = outcome?.remnant
-  const errors = []
-  if (anchored?.error) errors.push(t(anchored.error))
-  else if (found && !solution) errors.push(t('switch_connect_no_solution'))
+  const hard = []
+  const rules = []
+  if (anchored?.error) hard.push(t(anchored.error))
+  else if (found && !solution) hard.push(t('switch_connect_no_solution'))
   if (remnant?.short) {
-    errors.push(fill('switch_on_track_min_element_short', {
+    rules.push(fill('switch_on_track_min_element_short', {
       l: remnant.length.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
     }))
   }
   if (remnant?.shortAhead) {
-    errors.push(fill('switch_on_track_min_element_short_ahead', {
+    rules.push(fill('switch_on_track_min_element_short_ahead', {
       l: remnant.ahead.toFixed(2), lmin: remnant.lMin.toFixed(2), v: String(remnant.speed),
     }))
   }
-  if (outcome?.ruleError) errors.push(t('switch_connect_rule_error'))
+  if (outcome?.ruleError) rules.push(t('switch_connect_rule_error'))
   const cantErr = switchCantError(worstCant, cantReason)
-  if (cantErr) errors.push(t(`switch_cant_error_${cantErr}`))
-  if (cantDef > MAX_SWITCH_CANT_DEF || stemDef > MAX_SWITCH_CANT_DEF) errors.push(t('switch_cant_def_error'))
-  if (commitError) errors.push(commitError)
+  if (cantErr) rules.push(t(`switch_cant_error_${cantErr}`))
+  if (cantDef > MAX_SWITCH_CANT_DEF || stemDef > MAX_SWITCH_CANT_DEF) rules.push(t('switch_cant_def_error'))
+  if (commitError) hard.push(commitError)
+  const errors = [...hard, ...rules]
+  const overridable = !!solution && hard.length === 0 && rules.length > 0
 
-  const handleCommit = () => {
-    if (!solution || errors.length) return
+  const handleCommit = (force = false) => {
+    if (!solution || hard.length || (rules.length && !force)) return
     if (!switchNo.claim()) return
     const commit = buildSwitchConnect({
       track, target, anchor, solution, tracks: loadTracks(), sw, cant, cantReason, speed,
@@ -284,7 +289,7 @@ export default function SwitchConnectForm({ onCommitted }) {
       {errors.map(msg => <p key={msg} className="form-error">{msg}</p>)}
 
       <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!solution || errors.length > 0}
-        reason={firstReason(...errors)} />
+        reason={firstReason(...errors)} onOverride={overridable ? () => handleCommit(true) : null} />
     </>
   )
 }

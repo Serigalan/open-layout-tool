@@ -881,6 +881,8 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 .form-error-list { margin: var(--space-4) 0; }
 .form-error-list p { margin: 0 0 var(--space-2); }
 .commit-reason { margin: 0; }
+/* Under Commit, on its side of the bar (Entscheidung 361). */
+.commit-override { align-self: flex-end; font-size: var(--fs-s); color: var(--color-danger); }
 
 /* A field a rule finds fault with (R10.4): framed in the colour of the step, the finding under it. */
 .field-rule { display: block; font-size: var(--fs-xs); margin-top: var(--space-1); }

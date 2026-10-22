@@ -142,6 +142,7 @@ check.
 - **Parsed expressions**, unknown names throw.
 - **Rule values are read from rules** (`catalogLimit`) — the dialogs create to the rulebook, not beside it.
 - **Only errors block**; warnings require justification, approvals are flagged, special cases are allowed.
+  An error blocks the plain Commit, not the user: "trotzdem übernehmen" commits it anyway (Entscheidung 361).
 - **Speedless elements are not judged.**
 - **The rulebooks are edited in the repository, not in the app.** The service is shared; a write path would
   change limits for everyone, and browser-only values would be numbers no drift check reads.

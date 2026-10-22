@@ -198,6 +198,14 @@ a shift and a spec with two values open, a `side` for each given radius and a `s
 open values) the iteration starts from (`commands/crossover.js`); the slider's range is then the stretch
 around the adopted shift (`computeShiftBounds({ around })`).
 
+**Committed anyway** (Entscheidung 361). A form refused only by the rules above — middle element
+(LP.EL.01, LP.KS.01), cant, cant deficiency, the pieces before WA and behind WE — still has a geometry:
+`buildConnection` says so as `ruleOnly`, whatever reason comes first; no answer, overlapping branches and
+cants that disagree at the ldS are never `ruleOnly`. Where no form of the fallback chain is valid, the
+first `ruleOnly` one stands in for the last one tried, and the result is `overridable`. Where no shift is
+valid the slider spans the shifts at which one is overridable (`computeShiftBounds({ lenient })`,
+`shiftSnaps`/`preferredShift` alike), and `buildSCurve({ force })` builds it.
+
 ## Connecting to an open track end
 
 "Weiche/Kreuzung an Gleis anschließen" (`connectToTrack.js`): a turnout (or crossing) is laid into a host

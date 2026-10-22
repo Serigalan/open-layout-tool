@@ -228,9 +228,11 @@ export default function SwitchOnTrackForm({ onCommitted }) {
 
   const handleCancel = () => { preview.clear(); resetPhase(); onCommitted?.() }
 
-  const handleCommit = () => {
+  // `force`: committed despite the rule errors below (Entscheidung 361).
+  const handleCommit = (force = false) => {
     setErrors([])
-    if (lineNumberError || !g || !place || !track || placeError || remnantErr || aheadErr) return
+    if (lineNumberError || !g || !place || !track || placeError) return
+    if (ruleBlocked && !force) return
     const tracks = loadTracks()
     const existingNames = new Set(tracks.map(tr => tr.name).filter(Boolean))
 
@@ -269,6 +271,8 @@ export default function SwitchOnTrackForm({ onCommitted }) {
   const remnantUnchecked = !placeError && remnant && remnant.lMin == null && (remnant.length > 0 || remnant.ahead > 0)
   const cantErr = switchCantError(worstCant, cantReason)
   const defErr  = cantDef > MAX_SWITCH_CANT_DEF || (stemDef ?? 0) > MAX_SWITCH_CANT_DEF
+  // What only the rulebook holds back may be committed all the same.
+  const ruleBlocked = !!(remnantErr || aheadErr || cantErr || defErr)
 
   if (phase === 'select') {
     return (
@@ -346,7 +350,8 @@ export default function SwitchOnTrackForm({ onCommitted }) {
       {cantErr && <p className="form-error">{t(`switch_cant_error_${cantErr}`)}</p>}
       {defErr  && <p className="form-error">{t('switch_cant_def_error')}</p>}
 
-      <CommitBar onCommit={handleCommit} onCancel={handleCancel} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), placeError, remnantErr, aheadErr, cantErr && t(`switch_cant_error_${cantErr}`), defErr && t('switch_cant_def_error'))} className="" />
+      <CommitBar onCommit={handleCommit} onCancel={handleCancel} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), placeError, remnantErr, aheadErr, cantErr && t(`switch_cant_error_${cantErr}`), defErr && t('switch_cant_def_error'))}
+        onOverride={ruleBlocked && !lineNumberError && !placeError && g && place ? () => handleCommit(true) : null} className="" />
     </>
   )
 }

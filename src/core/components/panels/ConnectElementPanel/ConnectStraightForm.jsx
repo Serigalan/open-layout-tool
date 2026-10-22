@@ -259,7 +259,8 @@ export default function ConnectStraightForm({ onCommitted }) {
         return (
           <>
             <RuleFindings element={nextEl} />
-            <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(blocked && t('commit_blocked_rules'))} className="" />
+            <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(blocked && t('commit_blocked_rules'))}
+              onOverride={blocked ? handleCommit : null} className="" />
           </>
         )
       })()}

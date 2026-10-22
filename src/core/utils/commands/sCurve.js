@@ -174,7 +174,7 @@ export function solveConnection({ picks, speed, shift, mids = null, seed = null 
   const { g1: a, g2: b } = stems(picks)
   const res = solveSwitchConnection(a, b, speed, shift, mids, seed)
   if (!res?.valid || turnoutsOnElements(picks, a.dir ?? 1, shift, res)) return res
-  return { ...res, valid: false, reason: 'off_element' }
+  return { ...res, valid: false, overridable: false, reason: 'off_element' }
 }
 
 // Why a shift has no connection, in the words the panel shows.
@@ -192,6 +192,12 @@ export const REASON_MSG = {
   mid_element_short: 'scurve_mid_element_short',
   mid_jump:         'scurve_mid_jump',
 }
+
+/**
+ * Does the connection `res` stand: valid — or, `lenient`, refused by the
+ * rulebook alone, which may be committed anyway (Entscheidung 361)?
+ */
+const stands = (res, lenient = false) => !!res && (res.valid || (lenient && !!res.overridable))
 
 /** Below this a turnout still counts as lying on its element [m]. */
 const FIT_TOL = 1e-6
@@ -274,10 +280,10 @@ export function connectionRemnants(picks, shift, res, speed) {
  * The second toe goes wherever the construction puts it, so it is found, not
  * computed.
  */
-function shiftForSecondToe({ picks, speed, mids, seed }, target, from, lo, hi) {
+function shiftForSecondToe({ picks, speed, mids, seed, lenient = false }, target, from, lo, hi) {
   const off = (s) => {
     const res = solveConnection({ picks, speed, shift: s, mids, seed })
-    return res?.valid ? turnoutSpan(picks, 1, s, res).toe - target : null
+    return stands(res, lenient) ? turnoutSpan(picks, 1, s, res).toe - target : null
   }
   const span = hi - lo
   if (!(span > 0)) return null
@@ -322,7 +328,7 @@ export function settleConnection({ picks, speed, shift, mids = null, seed = null
   const shortBefore = (k, r, s) => connectionRemnants(picks, s, r, speed).find(x => x.track === k && x.side === 'before' && x.short)
   const fail = (s, r, piece) => ({
     shift: s, moved, remnants: connectionRemnants(picks, s, r, speed),
-    result: { ...r, valid: false, reason: 'min_element_length', short: piece },
+    result: { ...r, valid: false, overridable: true, reason: 'min_element_length', short: piece },
   })
 
   // The first turnout: its toe onto the node behind it.
@@ -380,8 +386,12 @@ export function settleConnection({ picks, speed, shift, mids = null, seed = null
  * Where `around` holds, the stretch is the one around it, however narrow —
  * the shift an answer of the Python solver was adopted at (Entscheidung 357),
  * which the scan may step over.
+ *
+ * `lenient` counts a connection only the rulebook refuses as standing too: the
+ * range the slider gets where no valid one stands, to commit one anyway
+ * (Entscheidung 361). shiftSnaps and preferredShift take it alike.
  */
-export function computeShiftBounds({ picks, speed, mids = null, seed = null, around = null }) {
+export function computeShiftBounds({ picks, speed, mids = null, seed = null, around = null, lenient = false }) {
   const [p1] = picks
   const dir1 = stems(picks).g1.dir ?? 1
   // The shifts that put the first toe on either end of its element.
@@ -392,7 +402,7 @@ export function computeShiftBounds({ picks, speed, mids = null, seed = null, aro
   if (!(span > 0)) return { min: 0, max: 0 }
   const n = Math.ceil(span / Math.max(1, span / 200))
 
-  const probe = (s) => !!solveConnection({ picks, speed, shift: s, mids, seed })?.valid
+  const probe = (s) => stands(solveConnection({ picks, speed, shift: s, mids, seed }), lenient)
   // The edge between an invalid shift `bad` and a valid one `good`, on the valid side.
   const edge = (bad, good) => {
     while (Math.abs(good - bad) > 1e-6) {
@@ -451,19 +461,19 @@ export function waOffset(picks) {
  * `bounds` — or null where that node is its track's open end or no connection
  * stands there.
  */
-function secondToeOnNode({ picks, speed, mids, seed }, bounds) {
+function secondToeOnNode({ picks, speed, mids, seed, lenient = false }, bounds) {
   if (bounds.max <= bounds.min) return null
   const res = solveConnection({ picks, speed, shift: bounds.min, mids, seed })
     ?? solveConnection({ picks, speed, shift: bounds.max, mids, seed })
-  if (!res?.valid) return null
+  if (!stands(res, lenient)) return null
   const { node } = turnoutSpan(picks, 1, bounds.min, res)
   if (picks[1].trackEnds?.[node === 0 ? 0 : 1]) return null
   // Often the node is what ends the range: beyond it the turnout leaves its element.
   for (const s of [bounds.min, bounds.max]) {
     const r = solveConnection({ picks, speed, shift: s, mids, seed })
-    if (r?.valid && Math.abs(turnoutSpan(picks, 1, s, r).toe - node) < NODE_TOL) return s
+    if (stands(r, lenient) && Math.abs(turnoutSpan(picks, 1, s, r).toe - node) < NODE_TOL) return s
   }
-  return shiftForSecondToe({ picks, speed, mids, seed }, node, 0, bounds.min, bounds.max)
+  return shiftForSecondToe({ picks, speed, mids, seed, lenient }, node, 0, bounds.min, bounds.max)
 }
 
 /**
@@ -472,10 +482,10 @@ function secondToeOnNode({ picks, speed, mids, seed }, bounds) {
  * second toe goes wherever the construction puts it, so it is found, not
  * computed.
  */
-function secondToeCrossings({ picks, speed, mids, seed }, targets, lo, hi) {
+function secondToeCrossings({ picks, speed, mids, seed, lenient = false }, targets, lo, hi) {
   const toe = (s) => {
     const res = solveConnection({ picks, speed, shift: s, mids, seed })
-    return res?.valid ? turnoutSpan(picks, 1, s, res).toe : null
+    return stands(res, lenient) ? turnoutSpan(picks, 1, s, res).toe : null
   }
   const span = hi - lo
   if (!(span > 0)) return []
@@ -508,11 +518,11 @@ function secondToeCrossings({ picks, speed, mids, seed }, targets, lo, hi) {
  * `bounds`, ascending: where the toe (WA) or the switch end (WE) of either
  * turnout falls on a node of the element it is laid into.
  */
-export function shiftSnaps({ picks, speed, mids = null, seed = null }, bounds) {
+export function shiftSnaps({ picks, speed, mids = null, seed = null, lenient = false }, bounds) {
   if (!(bounds.max > bounds.min)) return []
   const atMin = solveConnection({ picks, speed, shift: bounds.min, mids, seed })
-  const res = atMin?.valid ? atMin : solveConnection({ picks, speed, shift: bounds.max, mids, seed })
-  if (!res?.valid) return []
+  const res = stands(atMin, lenient) ? atMin : solveConnection({ picks, speed, shift: bounds.max, mids, seed })
+  if (!stands(res, lenient)) return []
   const through = res.throughLength
   const [p1, p2] = picks
   const dir1 = stems(picks).g1.dir ?? 1
@@ -524,7 +534,7 @@ export function shiftSnaps({ picks, speed, mids = null, seed = null }, bounds) {
   }
   // Turnout 2 opens against it: its WE lies the through length behind its WA.
   const targets = [0, p2.route.length].flatMap(node => [node, node + dir2 * through])
-  out.push(...secondToeCrossings({ picks, speed, mids, seed }, targets, bounds.min, bounds.max))
+  out.push(...secondToeCrossings({ picks, speed, mids, seed, lenient }, targets, bounds.min, bounds.max))
   return uniqueStations(out).filter(s => s >= bounds.min - 1e-9 && s <= bounds.max + 1e-9)
 }
 
@@ -535,13 +545,13 @@ export function shiftSnaps({ picks, speed, mids = null, seed = null }, bounds) {
  * its track's open end is no element change. Where neither stands, the shift
  * nearest to the click.
  */
-export function preferredShift({ picks, speed, mids = null, seed = null }, bounds) {
-  const ok = (s) => s != null && settleConnection({ picks, speed, shift: s, mids, seed }).result?.valid
+export function preferredShift({ picks, speed, mids = null, seed = null, lenient = false }, bounds) {
+  const ok = (s) => s != null && stands(settleConnection({ picks, speed, shift: s, mids, seed }).result, lenient)
   const candidates = []
   const d0 = waOffset(picks)
   const node1 = (stems(picks).g1.dir ?? 1) > 0 ? 0 : 1
   if (!picks[0].trackEnds?.[node1] && -d0 >= bounds.min - 1e-6) candidates.push(-d0)
-  const s2 = secondToeOnNode({ picks, speed, mids, seed }, bounds)
+  const s2 = secondToeOnNode({ picks, speed, mids, seed, lenient }, bounds)
   if (s2 != null) candidates.push(s2)
   const fit = candidates.filter(ok).sort((a, b) => Math.abs(a) - Math.abs(b))
   return fit.length ? fit[0] : Math.min(bounds.max, Math.max(bounds.min, 0))
@@ -551,15 +561,16 @@ export function preferredShift({ picks, speed, mids = null, seed = null }, bound
  * The commit of the S-curve dialog (R4.2): the two picked line tracks parted
  * at the turnouts, their through routes carved, the connection track between
  * them and the two switch records — the argument for commitSwitchConnection.
- * Null where `result` is no valid connection of two distinct tracks;
+ * Null where `result` is no valid connection of two distinct tracks — with
+ * `force`, one only the rulebook refuses is built all the same (Entscheidung 361);
  * { carveError } where a through route finds no room on its track.
  *
  * `result` is the solved connection (solveConnection at the chosen shift),
  * `picks` the two picked elements, `tracks`/`switches` the project's.
  */
-export function buildSCurve({ result, picks, tracks, switches, speed }) {
+export function buildSCurve({ result, picks, tracks, switches, speed, force = false }) {
   const res = result
-  if (!res || !res.valid) return null
+  if (!stands(res, force)) return null
 
   const [g1, g2] = picks
   const t1 = tracks.find(tr => tr.id === g1?.trackId)

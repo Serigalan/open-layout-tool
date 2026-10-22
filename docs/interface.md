@@ -97,6 +97,12 @@ removes it before effect cleanups run).
 - `components/panels/` — one folder or file per panel; forms gather input, show previews, findings and
   remedies, and call a command (`utils/commands`) on "apply". `form/` holds shared form parts (number input,
   station slider, switch orientation picker, rule-field markers, commit bar, info tip).
+- **Commit anyway** (Entscheidung 361). Where only the rulebook holds Commit back — a rule check with an
+  error, a piece shorter than l_min, a cant or cant deficiency over its limit, the comparison radius of a
+  switch connection — the form passes `onOverride` and the commit bar puts a link "trotzdem übernehmen"
+  under the locked button. Reasons that leave nothing to build (no solution, no room, overlapping
+  branches, invalid input, a spacing or tolerance the user asked for) never offer it. What is committed
+  this way stays a finding of the track check.
 - Overlays: `TrackTableOverlay` (element table with live rule column; edits a working copy of every track a
   change reaches and writes it back on Save), `ElevationOverlay` + `ElevationTable` (graphic and table view of the
   height profile, with the coupling roles from `elevation`), `CrossSectionOverlay`, `BandsOverlay` (curvature,

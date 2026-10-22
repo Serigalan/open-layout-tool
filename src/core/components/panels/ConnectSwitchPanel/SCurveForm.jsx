@@ -157,7 +157,8 @@ export default function SCurveForm({ onCommitted }) {
   })
 
   // ── Where the slider may stand: both turnouts on the elements they were
-  // picked on, the connection valid throughout. It is stated as WA's station
+  // picked on, the connection valid throughout — or, where it is valid
+  // nowhere, refused by the rulebook alone (Entscheidung 361). It is stated as WA's station
   // from the begin of track 1 and snaps where WA or WE of either turnout fall
   // on an element change (Entscheidungen 309–310); untouched it stands where
   // WA lies on an element change (Entscheidung 170).
@@ -165,7 +166,11 @@ export default function SCurveForm({ onCommitted }) {
     if (phase !== 'config' || !picks[0] || !picks[1] || !speed) return null
     // Within SLIDER_REACH of the first click either way (Entscheidung 313):
     // shift 0 is where track 1 was clicked.
-    const whole = computeShiftBounds({ picks, speed, mids: solvedMids, seed, around: adoptAt })
+    // Where no valid connection stands, the stretch over which one only the
+    // rulebook refuses does, to commit it anyway (Entscheidung 361).
+    const valid = computeShiftBounds({ picks, speed, mids: solvedMids, seed, around: adoptAt })
+    const lenient = !(valid.max > valid.min)
+    const whole = lenient ? computeShiftBounds({ picks, speed, mids: solvedMids, seed, lenient }) : valid
     // Where the connection stands nowhere near the click, the whole range.
     // An adopted answer keeps its whole stretch: it may stand far from the click.
     const near = { min: Math.max(whole.min, -SLIDER_REACH), max: Math.min(whole.max, SLIDER_REACH) }
@@ -174,9 +179,9 @@ export default function SCurveForm({ onCommitted }) {
     const elStart = track1 ? elementStations(track1)[picks[0].elIdx]?.start ?? 0 : 0
     const dir1 = stems(picks).g1.dir ?? 1
     return {
-      bounds,
-      snaps: shiftSnaps({ picks, speed, mids: solvedMids, seed }, bounds),
-      preferred: preferredShift({ picks, speed, mids: solvedMids, seed }, bounds),
+      bounds, lenient,
+      snaps: shiftSnaps({ picks, speed, mids: solvedMids, seed, lenient }, bounds),
+      preferred: preferredShift({ picks, speed, mids: solvedMids, seed, lenient }, bounds),
       offset: waOffset(picks),
       toStation: (sh) => elStart + picks[0].along + dir1 * sh,
       toShift: (st) => (st - elStart - picks[0].along) * dir1,
@@ -208,16 +213,18 @@ export default function SCurveForm({ onCommitted }) {
       : null
   ), [phase, picks, speed, shift, solvedMids, seed])
   const result = settled?.result ?? null
+  // A connection to show and build: valid, or refused by the rulebook alone.
+  const stands = !!(result?.valid || result?.overridable)
 
   // ── Preview (the map is the only thing outside React here) ────────────────
   useEffect(() => {
-    if (result?.valid) {
+    if (stands) {
       preview.set(SCURVE_PREVIEW_SOURCE, buildPreviewGeoJSON(result))
       preview.set(SCURVE_POINTS_SOURCE, buildPointsGeoJSON(result))
     } else {
       preview.clear()
     }
-  }, [result, preview])
+  }, [result, stands, preview])
 
   const handleSpeedChange = (i) => {
     setSpeedIdx(i)
@@ -252,8 +259,9 @@ export default function SCurveForm({ onCommitted }) {
   }
   const handleCancel = () => { reset(); onCommitted?.() }
 
-  const handleCommit = () => {
-    const commit = buildSCurve({ result, picks, tracks: loadTracks(), switches: loadSwitches(), speed })
+  // `force`: built although the rulebook refuses it (Entscheidung 361).
+  const handleCommit = (force = false) => {
+    const commit = buildSCurve({ result, picks, tracks: loadTracks(), switches: loadSwitches(), speed, force })
     if (!commit) return
     if (commit.carveError) { setCarveError(commit.carveError); return }
     commitSwitchConnection(commit)
@@ -315,13 +323,13 @@ export default function SCurveForm({ onCommitted }) {
 
           <MidChainFields mids={mids} onChange={(next) => { setCarveError(null); changeMids(next) }}
             solved={result?.midPieces?.map(p => p.route)
-              ?? (result?.valid ? [{ length: result.Lg, r1: result.signedRg, r2: result.signedRg }] : null)} />
+              ?? (stands ? [{ length: result.Lg, r1: result.signedRg, r2: result.signedRg }] : null)} />
 
           <AdvancedInfo>
             <ReadOnlyField label={t('scurve_line1')} value={picks[0]?.name ?? ''} />
             <ReadOnlyField label={t('scurve_line2')} value={picks[1]?.name ?? ''} />
             <ReadOnlyField label={t('scurve_gap')} value={result ? `${result.gap.toFixed(2)} m` : ''} />
-            {result?.valid && (<>
+            {stands && (<>
             <ReadOnlyField label={t('scurve_switch_type')} value={result.switchType.label} />
             <ReadOnlyField label={t('scurve_angle')} value={`1:${result.switchType.ratio}  (${deg(result.w)}°)`} />
             <ReadOnlyField label={t('scurve_delta')} value={`${deg(result.delta)}°`} />
@@ -363,7 +371,7 @@ export default function SCurveForm({ onCommitted }) {
             {fill('scurve_mid_jump_hint', { at: jointText(h.index), rw: h.rw.toFixed(0), reg: h.reg.toFixed(0) })}
           </p>
         ))}
-        {slider && !result?.valid && !(slider.bounds.max > slider.bounds.min) && (
+        {slider && !result?.valid && slider.lenient && (
           <CrossoverSolver picks={picks} speed={speed} stationOf={slider.toStation} onAdopt={adoptSolution} />
         )}
         {settled?.moved.length > 0 && (
@@ -395,7 +403,8 @@ export default function SCurveForm({ onCommitted }) {
           </p>
         )}
 
-        <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!result?.valid} />
+        <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!result?.valid}
+          onOverride={result?.overridable ? () => handleCommit(true) : null} />
       </>
     )
   }

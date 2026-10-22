@@ -9,6 +9,7 @@ import { utmEndRoute } from '../switch/route'
 import { computeClothoidUtm, transitionPointAtUtm } from '../geometry/clothoidUtils'
 import { switchStraightLength } from '../switch/catalogue'
 import { checkTrack } from '../rules/trassierungCheck'
+import { buildLineTrack, buildCurvedLineTrack } from './tracks'
 
 const EPSG  = 25832
 const P     = (e, n) => ({ easting: e, northing: n, zone: EPSG })
@@ -369,5 +370,56 @@ describe('a turnout of the connection laid into a transition curve', () => {
     // The record still states the radius at the toe.
     const sw = commit.addSwitches.find(s => s.switchId === route.switchId)
     expect(Math.abs(sw.mainRadius)).toBeCloseTo(Math.abs(transitions[1].r2), 3)
+  })
+})
+
+describe('a connection only the rulebook refuses (Entscheidung 361)', () => {
+  // Track 1 straight north, track 2 an R 800 bending away from it, 4.5 m
+  // apart at its start: at 80 km/h the one arc between the branches jumps in
+  // curvature below the comparison radius wherever the slider stands
+  // (LP.KS.01) — refused, but there is a connection to build.
+  const S2 = P(499995.5, 5599900)
+  const t1 = buildLineTrack({ start: P(500000, 5600000), end: P(500000, 5600300), speed: 80, id: 't1' })
+  const t2 = buildCurvedLineTrack({
+    start: S2, end: { ...utmEndRoute(S2, 1, 300, -800), zone: EPSG }, signedR: -800, speed: 80, cant: 0, id: 't2',
+  })
+  const picks = [connectionPick(t1, 0, 150), connectionPick(t2, 0, 140)]
+  const speed = 80
+
+  it('has no valid stretch, but one the slider can stand on to commit it anyway', () => {
+    const valid = computeShiftBounds({ picks, speed })
+    expect(valid.max > valid.min).toBe(false)
+    const lenient = computeShiftBounds({ picks, speed, lenient: true })
+    expect(lenient.max - lenient.min).toBeGreaterThan(10)
+    const shift = preferredShift({ picks, speed, lenient: true }, lenient)
+    expect(shift).toBeGreaterThanOrEqual(lenient.min)
+    expect(shift).toBeLessThanOrEqual(lenient.max)
+    const { result } = settleConnection({ picks, speed, shift })
+    expect(result.valid).toBe(false)
+    expect(result.overridable).toBe(true)
+    expect(result.allCoords.length).toBeGreaterThan(2)
+  })
+
+  it('is built only when forced, and the track check goes on reporting it', () => {
+    const bounds = computeShiftBounds({ picks, speed, lenient: true })
+    const { result } = settleConnection({ picks, speed, shift: (bounds.min + bounds.max) / 2 })
+    const tracks = [t1, t2]
+    expect(buildSCurve({ result, picks, tracks, switches: [], speed })).toBeNull()
+    const commit = buildSCurve({ result, picks, tracks, switches: [], speed, force: true })
+    expect(commit.addSwitches).toHaveLength(2)
+    const errors = commit.addTracks.flatMap(tr => checkTrack(tr.elements).boundaries.flatMap(b => b.results ?? []))
+      .filter(r => r.severity === 'error')
+    expect(errors.map(r => r.id)).toContain('LP.KS.01')
+  })
+
+  it('is not offered where the branches overlap: nothing to build', () => {
+    const close = [connectionPick(t1, 0, 150),
+      connectionPick(buildLineTrack({ start: P(499997.5, 5599900), end: P(499997.5, 5600300), speed: 80, id: 't3' }), 0, 250)]
+    const res = solveConnection({ picks: close, speed: 60, shift: 0 })
+    expect(res.valid).toBe(false)
+    expect(res.overridable).toBe(false)
+    const bounds = computeShiftBounds({ picks: close, speed: 60, lenient: true })
+    expect(bounds.max > bounds.min).toBe(false)
+    expect(buildSCurve({ result: res, picks: close, tracks: [t1], switches: [], speed: 60, force: true })).toBeNull()
   })
 })

@@ -2012,6 +2012,8 @@
   "notice_redone": "Redone: {step}",
   "arc_radius_required": "An arc needs a radius other than 0.",
   "commit_blocked_rules": "A rule check reports an error – see the findings above",
+  "commit_override": "commit anyway",
+  "commit_override_hint": "Commits despite the rule breach – the track check goes on reporting it",
   "search_tracks": "Name, line, station…",
   "search_none": "No match.",
   "search_switches": "Find a switch: name or form…",

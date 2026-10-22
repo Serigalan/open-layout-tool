@@ -144,14 +144,18 @@ export default function CrossingConnectForm({ onCommitted }) {
   const reset = () => { preview.clear(); setStem(null); setEnd(null); setSide(null); setAdjusted(null); setPickError(null); setCommitError(null) }
   const handleCancel = () => { reset(); onCommitted?.() }
 
-  const errors = []
-  if (anchored?.error) errors.push(t(anchored.error))
-  else if (found && !solution) errors.push(t('crossing_connect_no_solution'))
-  if (outcome?.ruleError) errors.push(t('switch_connect_rule_error'))
-  if (commitError) errors.push(commitError)
+  // `hard` has nothing to build; a rule error alone may be committed all the
+  // same (Entscheidung 361).
+  const hard = []
+  if (anchored?.error) hard.push(t(anchored.error))
+  else if (found && !solution) hard.push(t('crossing_connect_no_solution'))
+  if (commitError) hard.push(commitError)
+  const ruleError = !!outcome?.ruleError
+  const errors = [...hard, ...(ruleError ? [t('switch_connect_rule_error')] : [])]
+  const overridable = !!solution && hard.length === 0 && ruleError
 
-  const handleCommit = () => {
-    if (!solution || errors.length) return
+  const handleCommit = (force = false) => {
+    if (!solution || hard.length || (ruleError && !force)) return
     if (!switchNo.claim()) return
     const commit = buildCrossingConnect({
       track, target, anchor, solution, tracks: loadTracks(), form,
@@ -228,7 +232,7 @@ export default function CrossingConnectForm({ onCommitted }) {
       {errors.map(msg => <p key={msg} className="form-error">{msg}</p>)}
 
       <CommitBar onCommit={handleCommit} onCancel={handleCancel} disabled={!solution || errors.length > 0}
-        reason={firstReason(...errors)} />
+        reason={firstReason(...errors)} onOverride={overridable ? () => handleCommit(true) : null} />
     </>
   )
 }

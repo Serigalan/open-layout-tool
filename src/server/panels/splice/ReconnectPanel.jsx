@@ -233,12 +233,14 @@ export default function ReconnectPanel() {
       : read.error ? { msg: t(read.error), error: true } : null
   const refName = refTrackId ? (() => { const r = loadTracks().find(tr => tr.id === refTrackId); return r ? r.name || trackLabel(r) : '' })() : null
   const spacingMsg = keeping && solution ? spacingMessage(t, fill, spacing, refName) : null
-  // Asked for, a spacing must be kept (Entscheidung 201) — and a neighbour named for it.
-  const reason = !solution ? null
+  // Asked for, a spacing must be kept (Entscheidung 201) — and a neighbour named
+  // for it. A rule error alone may be committed anyway (Entscheidung 361).
+  const hardReason = !solution ? null
     : !info.within ? fill('reconnect_beyond', { tol: num(Number(s.tolerance) * 100, { digits: 1, unit: 'cm' }) })
       : s.clearanceOn && !keeping ? t('reconnect_clearance_pick')
         : keeping && !spacing?.kept ? t('reconnect_clearance_short')
-          : ruleError ? t('splice_rule_error') : null
+          : null
+  const reason = hardReason ?? (solution && ruleError ? t('splice_rule_error') : null)
   const lengths = solution?.result?.lengths?.filter(l => l.length > 0) ?? []
 
   return (
@@ -323,7 +325,8 @@ export default function ReconnectPanel() {
           <SpliceFindings result={solution.result} />
         </>
       )}
-      <CommitBar onCommit={handleCommit} onCancel={reset} disabled={!solution || !!reason} reason={reason} />
+      <CommitBar onCommit={handleCommit} onCancel={reset} disabled={!solution || !!reason} reason={reason}
+        onOverride={solution && !hardReason && ruleError ? handleCommit : null} />
     </>
   )
 }

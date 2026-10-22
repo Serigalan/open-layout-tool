@@ -280,7 +280,8 @@ export default function ConnectCurvedForm({ onCommitted }) {
         return (
           <>
             <RuleFindings element={element} />
-            <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(!Number(signedRadius) && t('arc_radius_required'), blocked && t('commit_blocked_rules'))} className="" />
+            <CommitBar onCommit={handleCommit} onCancel={onCommitted} reason={firstReason(!Number(signedRadius) && t('arc_radius_required'), blocked && t('commit_blocked_rules'))}
+              onOverride={blocked && Number(signedRadius) ? handleCommit : null} className="" />
           </>
         )
       })()}

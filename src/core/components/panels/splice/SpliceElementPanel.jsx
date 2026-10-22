@@ -284,7 +284,8 @@ export default function SpliceElementPanel() {
   if (configuring) {
     const departure = solution?.dep ?? picks[0]
     // What the catalogue found on the stretch the solution writes: any error
-    // there holds the commit back (Entscheidung 52, 177).
+    // there holds the commit back (Entscheidung 52, 177) — unless committed
+    // anyway (Entscheidung 361).
     const ruleError = (solution?.result?.findings ?? []).some(f => severityRank(f.severity) >= severityRank('error'))
     const status = splice ? spliceMessage(t, fill, splice, solution) : { msg: t('splice_solving'), error: false }
     const refName = refTrackId ? trackName(loadTracks().find(tr => tr.id === refTrackId)) : null
@@ -339,7 +340,8 @@ export default function SpliceElementPanel() {
             heightNote={!merged.track.heights?.length ? t('shift_no_heights_track') : null} name={merged.track.name ?? ''} />
         )}
         <CommitBar onCommit={handleCommit} onCancel={reset} disabled={!solution || !spacingHolds || ruleError}
-          reason={solution && ruleError ? t('splice_rule_error') : null} />
+          reason={solution && ruleError ? t('splice_rule_error') : null}
+          onOverride={solution && spacingHolds && ruleError ? handleCommit : null} />
       </>
     )
   }

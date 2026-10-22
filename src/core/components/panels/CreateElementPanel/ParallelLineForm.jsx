@@ -304,7 +304,8 @@ export default function ParallelLineForm({ onDone }) {
         return (
         <>
           <RuleFindings element={element} />
-          <CommitBar onCommit={handleCommit} onCancel={onDone} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} className="" />
+          <CommitBar onCommit={handleCommit} onCancel={onDone} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))}
+            onOverride={blocked && !lineNumberError ? handleCommit : null} className="" />
         </>
         )
       })()}

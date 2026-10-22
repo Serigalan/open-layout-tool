@@ -124,7 +124,8 @@ export default function ParallelTrackForm({ onDone }) {
               the catalogue has to say about it is mostly what it had to say
               about the track it was drawn beside. */}
           {elements && <RuleFindings elements={elements} />}
-          <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={!elements || !!firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} className="" />
+          <CommitBar onCommit={handleCommit} onCancel={onDone} disabled={!elements || !!firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))} reason={firstReason(lineNumberError && t(`line_number_error_${lineNumberError}`), blocked && t('commit_blocked_rules'))}
+            onOverride={elements && blocked && !lineNumberError ? handleCommit : null} className="" />
         </>
       )}
     </>
