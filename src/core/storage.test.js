@@ -9,7 +9,7 @@ import {
   openStoredProject, currentStoredProject, currentStoredMeta, closeStoredProject, flushPendingWrites, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
   hiddenKmLines, setKmLinesHidden,
-  setTrackHeights, setHeightsForTracks, computeOtherTrack, commitReconnect, loadPlatforms, commitImport, historySteps, travelHistory,
+  setTrackHeights, setHeightsForTracks, setSwitchDesignMode, switchDesignMode, takeOverSwitchHeight, commitReconnect, loadPlatforms, commitImport, historySteps, travelHistory,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/track/trackEndMarks'
 import { endPointCurvedUtm, endPointStraightUtm } from './utils/geometry/elementUtils'
@@ -501,7 +501,7 @@ describe('tracks hidden on the map', () => {
   })
 })
 
-describe('the gradient of a turnout is worked out on request (decision 383)', () => {
+describe('the heights at a turnout\'s WA and ldS (decision 384)', () => {
   // A 500 – 1:12 laid at (1000, 1000), its body 30 m long: the main route
   // straight east, the branch on R 500 to the left. The catalogue puts the
   // ldS 6.334 m behind WE.
@@ -537,37 +537,55 @@ describe('the gradient of a turnout is worked out on request (decision 383)', ()
   const branch = () => loadTracks().find(t => t.id === 'b').heights
   const expected = (slope) => 100 + slope * LDS.q[0] + 0.06 * LDS.q[1] / 1.5
 
-  it('follows a height edited on the main route when asked to, and undoes in one step', () => {
+  const main = () => loadTracks().find(t => t.id === 'm').heights
+
+  it('opens in the design mode where the turnout does not fit, which ends only once it does', () => {
     openProject(project())
+    expect(switchDesignMode()).toBe(true)
     expect(branch()).toHaveLength(2)          // opened as it was: nothing written yet
-    setTrackHeights('m', [{ station: 0, z: 100 }, { station: 60, z: 101.2 }])
-    expect(branch()).toHaveLength(2)          // a write couples nothing on its own
-    expect(computeOtherTrack('s1', 'm')).toEqual({ ok: true })
-    expect(computeOtherTrack('s1', 'm')).toEqual({ same: true })
+    expect(setSwitchDesignMode(false).misfits.map(m => m.at)).toEqual(['lds'])
+    expect(takeOverSwitchHeight('s1', 'lds', 'main')).toEqual({ ok: true })
+    expect(takeOverSwitchHeight('s1', 'lds', 'main')).toEqual({ same: true })
     const ldsPoint = branch()[1]
     expect(ldsPoint.station).toBeCloseTo(LDS.branch, 2)
-    expect(ldsPoint.z).toBeCloseTo(expected(1.2 / 60), 3)
-    undo()
-    expect(branch()).toHaveLength(2)
-    expect(loadTracks().find(t => t.id === 'm').heights[1].z).toBe(101.2)
-    expect(computeOtherTrack('s1', 'x')).toEqual({ error: 'not_on_track' })
+    expect(ldsPoint.z).toBeCloseTo(expected(0.6 / 60), 3)
+    expect(setSwitchDesignMode(false)).toEqual({ ok: true })
+    expect(switchDesignMode()).toBe(false)
+    expect(takeOverSwitchHeight('x', 'lds', 'main')).toEqual({ error: 'not_coupled' })
   })
 
-  it('gives an edited ldS height on the branch back to the plane (decision 269)', () => {
+  it('couples the branch to a height edited on the main route, and undoes in one step', () => {
     openProject(project())
-    // Worked out from the main route, the main route gets its point on the ldS.
-    computeOtherTrack('s1', 'm')
-    const coupled = branch()
-    expect(coupled).toHaveLength(3)
-    const main = () => loadTracks().find(t => t.id === 'm').heights
-    expect(main()).toHaveLength(3)
-    expect(main()[1].station).toBeCloseTo(36.334, 3)
-    const was = main()
-    setHeightsForTracks(new Map([['b', coupled.map((p, i) => (i === 1 ? { ...p, z: p.z + 0.05 } : p))]]))
-    expect(branch()[1].z).toBeCloseTo(expected(0.6 / 60) + 0.05, 3)
-    computeOtherTrack('s1', 'b')
-    expect(branch()[1].z).toBeCloseTo(expected(0.6 / 60), 3)
-    expect(main()).toEqual(was)
+    takeOverSwitchHeight('s1', 'lds', 'main')
+    setSwitchDesignMode(false)
+    const was = branch()
+    setTrackHeights('m', [{ station: 0, z: 100 }, { station: 60, z: 101.2 }])
+    expect(main()[1].z).toBeCloseTo(100 + 1.2 / 60 * 36.334, 3)
+    expect(branch()[1].z).toBeCloseTo(expected(1.2 / 60), 3)
+    undo()
+    expect(branch()).toEqual(was)
+  })
+
+  it('lets the main route follow a branch edited behind its ldS', () => {
+    openProject(project())
+    takeOverSwitchHeight('s1', 'lds', 'main')
+    setSwitchDesignMode(false)
+    const p = branch()[2].z
+    setHeightsForTracks(new Map([['b', branch().map((q, i) => (i === 2 ? { ...q, z: p + 0.5 } : q))]]))
+    expect(switchDesignMode()).toBe(false)
+    expect(branch()[2].z).toBe(Math.round((p + 0.5) * 1e4) / 1e4)
+    // The main route has nothing before its toe, so the toe stays and its gradient turns.
+    expect(main()[0].z).toBe(100)
+    expect(main()[2].z).not.toBe(100.6)
+  })
+
+  it('switches the design mode on where a write leaves a turnout that the coupling cannot follow', () => {
+    openProject(project())
+    takeOverSwitchHeight('s1', 'lds', 'main')
+    setSwitchDesignMode(false)
+    // The branch loses the free point behind its ldS.
+    setHeightsForTracks(new Map([['b', branch().slice(0, 2)]]))
+    expect(switchDesignMode()).toBe(true)
   })
 })
 

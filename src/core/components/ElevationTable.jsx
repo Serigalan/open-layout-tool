@@ -8,14 +8,10 @@ import NumberInput from './form/NumberInput'
  * stays while it changes: the two of `mode` — at an end without the gradient
  * a mode names, the station or the height in its place; on a joint (a track
  * end other tracks meet) the station stays whatever is typed. Nothing on a
- * point the coupling at a turnout sets (`role`, switchChain.heightRoles); on a
- * point on a turnout's continuation its station and the gradient on its free
- * side, the one toward the turnout staying (decision 271).
+ * turnout's WA or ldS, which follow from the points either side, nor on a
+ * locked point (`role`, switchChain.heightRoles).
  */
 function editableAt(i, n, mode, { joint, role }) {
-  if (role?.kind === 'continuation') {
-    return joint ? new Map() : new Map([['s', role.fixedKey], [role.freeKey, role.fixedKey]])
-  }
   if (role) return new Map()
   const available = ['s', 'z', i > 0 && 'gb', i < n - 1 && 'ga'].filter(Boolean)
   if (joint) return new Map(available.filter(k => k !== 's').map(k => [k, 's']))

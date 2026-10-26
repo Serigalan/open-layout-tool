@@ -4,18 +4,16 @@
 
 The `track` module keeps a track's height points and the arithmetic along one track. This module is what
 ties heights to everything around them: the Höhenplan rules of DB Ril 800.0110 (HP.*), the plane a
-turnout lies in, the coupling of heights at a turnout's toe and last through sleeper, working out a
-switch's other tracks from the one given, the profile along a route, and ground heights from terrain
-models.
+turnout lies in, the heights at a turnout's toe and last through sleeper — coupled, or taken over one by
+one in the design mode —, the profile along a route, and ground heights from terrain models.
 
 ## Files
 
 | File | What it does |
 |---|---|
 | `gradientCheck.js` | HP.LN (gradients) and HP.AR (vertical curves) applied to a track; the Regelwert radius; radii governed by a curve length |
-| `switchGradient.js` | The turnout plane: the branch's height from the main route's height, gradient and cant; pairs of height points on one sleeper |
-| `switchChain.js` | The coupling points at WA and ldS, the continuation behind the ldS, crossovers; `turnoutOtherTracks`, a turnout's other tracks from the one given |
-| `otherTrack.js` | The button in the Höhenplan: `otherTrackHeights` for every kind of switch (crossings and slips in the given track's plane), `switchesOfTrack` for its list |
+| `switchGradient.js` | The turnout plane: the branch's height from the main route's height, gradient and cant (`ldsLift` on the ldS sleeper, `trackHeightAt` between WA and ldS) |
+| `switchChain.js` | WA and ldS: their lines, the coupling of a turnout's tracks there (`withSwitchHeights`, run by the store), `switchMisfits`, `takeOverHeight` for the design mode, `heightRoles` for the profile |
 | `heightLocks.js` | Locked height points: `lockBreach`, what a write would change that a lock holds — the store refuses it |
 | `routeProfile.js` | The profile of a route — its tracks' points over route stations — and a track as a route of one part |
 | `elevationSource.js` | Ground heights: registered point sources (DGM1 via the service in the main build), DGM5 tiles, MapTiler tiles |
@@ -96,55 +94,49 @@ z_Q = z_P + g·a + u/1500 · y          (on a square sleeper a = 0: z_Q = z_P + 
 branch to the raised side lies higher — e.g. main route at 105.75 m, u = 50 mm, branch 2.72 m to the left:
 z = 105.75 + 50/1500 · 2.72 = 105.8407 m.
 
-**Pairs.** Every height point behind WA up to the ldS sits on a sleeper and has a partner on the same
-sleeper of the other track, with the same curve and reason. **Either track may be given**: working out the
-other track (below) snaps the given track's points there to their nearest sleeper and gives the other its
-partners at the plane's heights. Heights are kept to 0.1 mm; a pair agreeing within 0.05 mm agrees, from
-0.2 mm the check says "turnout plane violated". Where the areas of two turnouts overlap on one track
-(common in crossovers), the long sleepers there carry all three tracks: each turnout keeps its grid up to
-the middle of the overlap. A form whose ldS the catalogue does not state is coupled up to WE.
+Between WA and ldS the plane is drawn (cross section, 3D) but not stored; a height point there is a free
+point like any other. A form whose ldS the catalogue does not state is coupled up to WE. Where the areas
+of two turnouts overlap on one track (common in crossovers), each draws its plane up to the middle of the
+overlap.
 
-**Coupling points** (`switchChain.js`) — no gradient changes at WA or at the ldS; the points there are not
-entered but follow from points outside:
+**WA and ldS** (`switchChain.js`, decision 384) — every turnout has a point at WA and at the ldS on both
+tracks, once their heights reach there (an ldS point is put on the gradient where it is missing). They are
+not entered; each follows from the points either side of it:
 
-- *Main route:* every WA and ldS point lies on the straight line between the nearest free point before it and
-  the nearest after it, along the way a train runs (approach, main route, on over the WA of the next
-  turnout). Without a point before the WA, the WA is free.
-- *Branch:* its ldS point lies in the turnout plane; the first point behind it lies on the continuation of the
-  gradient the branch runs into the ldS with — only its station and the gradient beyond it are entered; its
-  height is shown, not typed.
-- *Crossover* (two turnouts whose branches are the ends of one track, on two different main tracks — a
-  passing loop on one main track is none): given a main route, the whole crossover lies in that track's
-  plane — the connecting track, and the other main route's WA and ldS, whose line Q₂–P₂ then runs through
-  them; nothing is stored between the two ldS. Given the connecting track, both main routes follow it, and
-  more than 20 m between the two ldS carry exactly one point, where the two continuations meet, 20 m or
-  less none.
+- *Main route:* every WA and ldS point lies on the straight line Q → P between the nearest free point before
+  it and the nearest after it, along the way a train runs (approach, main route, on over the WA of the next
+  turnout). Without a point before the WA, the WA is the line's end.
+- *Branch* (the connecting track of a crossover is the branch of both turnouts): its WA is the end of the
+  track and lies on no line — it is taken over from the main route. Its ldS lies on the line from the point
+  before it (its WA, or a free point between) to the first point behind it, which has to be free and its own:
+  in a crossover each ldS needs a free point of its own behind it, else the ldS stays as stored and the
+  design mode says so.
 
-**Nothing couples on its own** (decision 383). A write changes what it changes; `heightRoles` still tells the
-profile which points it may let the user change (WA and ldS are shown only), and `planeDeviations` where a
-turnout no longer lies in its plane. The **Höhenplan lists the switches of the track on show** with the
-button that works them out (`otherTrackHeights`, via the store's `computeOtherTrack`, one undo step): the
-track on show is *given* and keeps its free points; only what the rules above bind follows — its WA and ldS
-on their lines, the point behind a branch's ldS on its continuation, its points between WA and ldS on their
-sleepers. The other track takes the turnout's plane — the branch u/1500 · y above the main route at each
-sleeper, higher where it leaves to the side the cant raises, lower on the other side, whichever way either
-track's stations run. A track without a gradient over the turnout is given points at WA and ldS from the
-given track's plane. Crossings and slips (`otherTrack.js`): every other track the switch has elements on
-takes, over those elements, the given track's plane — its height at the foot of the perpendicular, tilted
-by its cant (`planeAcross`), at both ends of the stretch and in the middle where the plane bows. Where a
-lock holds what would change, the store refuses the step as any other.
+**Coupled** (the default): a turnout's tracks meet at WA (one height) and at the ldS (the branch in the
+plane, `z_b = z_m + g·a + u/1500·y`, `ldsLift`). The store runs `withSwitchHeights` after every write, for
+the turnouts on the tracks it changed and then those on the tracks that moved with them: ldS points, lines,
+coupling. **The track the write changed leads**: from the main route, the branch takes the toe and moves
+the free point behind its ldS so the line through it meets the plane; from the branch, the main route moves
+the free point behind its turnout (P) so its ldS lies under the branch's, the branch's toe following the
+main route's (a secant on that one height, the rest linear). Both or neither changed: the main route leads;
+a track whose heights did not reach the turnout before never leads.
+
+**Design mode** (Entwurfsmodus Weichen, a switch under the Höhenplan's heading): nothing couples — the
+lines still hold. A WA or ldS selected in the profile is taken over into the other track
+(`takeOverHeight`, the store's `takeOverSwitchHeight`, one undo step): into the branch the toe is set, at
+the ldS the free point behind it moves; into the main route its P moves so the line meets the height there.
+`switchMisfits` lists what does not fit (WA and ldS apart by more than 0.2 mm, a branch ldS without a free
+point of its own); the mode ends only when the list is empty. It is kept per opened project in the session:
+a project that does not fit opens in it, and a write the coupling cannot follow turns it on.
+
+Crossings and slips are not coupled.
 
 **Locked points** (`heightLocks.js`, decision 382). A point with `locked` keeps its height and its station:
 the profile and its table show it only (a lock column toggles it; deleting it asks first and takes the lock
-with it). Where it is one of the points the coupling sets for a turnout (toe, ldS, the point between the ldS
-of a crossover, a point on its continuation), the turnout is *frozen* — and with it the other turnout of a
-crossover ≤ 20 m: `heightRoles` marks its points `frozen`, and gives the free ends of the lines through its
-toe and ldS (Q and P) a continuation role, so they move only along that line. The store calls `lockBreach`
-after every write and refuses the write — said in the step notice — where a locked height went or changed,
-or a frozen turnout's height at its toe or an ldS did (working it out from a track whose line no longer
-runs through a locked toe, say). A write that reshapes a
-frozen turnout's tracks is not held there (the alignment comes first); a locked point keeps its height
-through it. `setHeightsForTracks(…, { unlock: true })` lets a write take locks away.
+with it). The store calls `lockBreach` after every write — lines and coupling done — and refuses the write,
+said in the step notice, where a locked height went or changed: a locked WA or ldS holds its line and the
+coupling with it. A write that reshapes the tracks may move a locked point along them (the alignment comes
+first); its height stays. `setHeightsForTracks(…, { unlock: true })` lets a write take locks away.
 
 ## Routes
 
@@ -173,15 +165,15 @@ resolve against a gradient.
 
 - **Gradients on request only**; stand-in heights are never stored.
 - **Tabelle 12 read as above**, Regelwert button and length-governed radii as above.
-- **One plane per turnout, on sleepers along the bisector**; either track may be given, pairs follow.
-- **No gradient changes at WA and ldS**; the points there follow from free points outside the turnout.
+- **One plane per turnout, on sleepers along the bisector**; its tracks meet at WA and ldS.
+- **No gradient changes at WA and ldS**; the points there follow from the points either side.
+- **Coupled by default, the track written leading; a design mode to take heights over one by one** that
+  ends only when every turnout fits (decision 384, replacing the button of 383, the continuation point,
+  the crossover's point M and the pairs on sleepers).
 - **The earlier lock of turnout heights is gone**; justification is a text on the height point.
-- **A switch's other tracks are worked out on request only**, from the track on show (decision 383); the
-  separate crossover fitting (heights from cant / cant from heights) is gone — a crossover lies in the
-  plane of the main route given.
 
 ## Tests
 
-`gradientCheck.test.js`, `switchGradient.test.js`, `switchChain.test.js`, `otherTrack.test.js`,
+`gradientCheck.test.js`, `switchGradient.test.js`, `switchChain.test.js`,
 `heightLocks.test.js`, `routeProfile.test.js`, `elevationSource.test.js`, `elevationFill.test.js` next to
-the files; a crossover in cant from either track in `src/core/test/swappedTurnout.test.js`.
+the files; a crossover in cant in `src/core/test/swappedTurnout.test.js`.

@@ -1,25 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import {
-  switchCoupling, couplingOf, pairedHeights, branchPlaneHeight,
-  trackHeightAt, coupledPoints, switchBodySpans, switchLds, heightContext,
-  planeDeviations,
+  switchCoupling, couplingOf, branchPlaneHeight, trackHeightAt, switchBodySpans, switchLds, heightContext,
 } from './switchGradient'
-import { otherTrackHeights } from './otherTrack'
-import { turnoutSleepers } from '../switch/sleepers'
+import { withSwitchHeights } from './switchChain'
 import { reverseTrack } from '../track/trackModel'
-import { endPointCurvedUtm } from '../geometry/elementUtils'
 import { checkVertical } from './gradientCheck'
 import { LDS, R, branchTrack as branchOf, formOf, mainTrack as mainOf, sleeperAtX, turnout, xAtMain } from '../../test/turnoutFixture'
 
 const mainTrack = (cant = 0, heights = [{ station: 0, z: 105.2 }, { station: 60, z: 106.025 }]) => mainOf(cant, heights)
 const branchTrack = (heights = [{ station: 0, z: 105.2 }, { station: 60, z: 105.5 }]) => branchOf(heights)
 const opts = { formOf }
-/** The project with turnout `sw`'s other track worked out from track `given` — the button (decision 383). */
-const given = (p, sw, trackId) => {
-  const r = otherTrackHeights(p, sw, trackId, opts)
-  if (r.error) throw new Error(r.error)
-  return r.project
-}
 
 // The ldS sleeper leans with the bisector: it meets the branch LDS.branch
 // along it, LDS.q[1] to the left and LDS.q[0] east of WA. On a main route of
@@ -30,9 +20,13 @@ const ALONG = LDS.branch
 const G = 0.825 / 60
 const ldsZ = (cant, z0 = 105.2, g = G) => z0 + g * LDS.q[0] + (cant / 1500) * OFFSET
 
-// The coupling of the one turnout, and the branch heights pairing asks for.
-const coupling = (tracks, sw, o) => couplingOf(tracks, [sw], sw, o)
-const pairedBranch = (c) => (c ? pairedHeights(c, 'main')?.branch ?? null : null)
+// The tracks as the store leaves them, coupled (decision 384), and the
+// branch's height on its ldS there.
+const coupled = (tracks, sw = turnout(), o = opts) => withSwitchHeights({ tracks: [] }, { tracks, switches: [sw] }, { opts: o })
+const atLds = (p, o = opts) => {
+  const c = couplingOf(p.tracks, p.switches, p.switches[0], o)
+  return p.tracks.find(t => t.id === 'b').heights.find(q => Math.abs(q.station - c.ldsBranch) < 0.011)
+}
 
 describe('the ldS of a form', () => {
   it('comes from the catalogue, as the distance behind WE', () => {
@@ -46,25 +40,26 @@ describe('the ldS of a form', () => {
 
 describe('coupling a branch to its main route', () => {
   it('finds the ldS on both tracks, and how far apart they are there', () => {
-    const c = coupling([mainTrack(), branchTrack()], turnout(), opts)
+    const c = couplingOf([mainTrack(), branchTrack()], [turnout()], turnout(), opts)
     expect(c.ldsMain).toBeCloseTo(40, 6)
     expect(c.ldsBranch).toBeCloseTo(ALONG, 3)
     expect(c.offset).toBeCloseTo(OFFSET, 4)
   })
 
   it('gives the branch the main route\'s height at the ldS without cant', () => {
-    const c = coupling([mainTrack(0), branchTrack()], turnout(), opts)
-    const h = pairedBranch(c)
-    expect(h.map(p => p.station)).toEqual([0, Number(ALONG.toFixed(3)), 60])
-    expect(h[1].z).toBeCloseTo(ldsZ(0), 3)
+    const p = coupled([mainTrack(0), branchTrack()])
+    expect(p.tracks[1].heights.map(q => q.station)).toEqual([0, Number(ALONG.toFixed(3)), 60])
+    expect(atLds(p).z).toBeCloseTo(ldsZ(0), 3)
   })
 
-  it('lifts it by u/1500 · offset when it leaves to the raised side, lowers it to the other', () => {
+  it('lifts it by u/1500 · offset when it leaves to the raised side, lowers it to the other, whichever way the main track runs', () => {
     // A positive cant raises the left rail — the branch's side.
-    const up = pairedBranch(coupling([mainTrack(50), branchTrack()], turnout(), opts))
-    expect(up[1].z).toBeCloseTo(ldsZ(50), 3)
-    const down = pairedBranch(coupling([mainTrack(-50), branchTrack()], turnout(), opts))
-    expect(down[1].z).toBeCloseTo(ldsZ(-50), 3)
+    for (const cant of [50, -50, 0]) {
+      expect(atLds(coupled([mainTrack(cant), branchTrack()])).z).toBeCloseTo(ldsZ(cant), 3)
+      // The same main route stored the other way round: its cant and its stations turn with it.
+      const back = reverseTrack(mainTrack(cant))
+      expect(atLds(coupled([back, branchTrack()], turnout({ ports: { B2: { endpoint: 'END' } } }))).z).toBeCloseTo(ldsZ(cant), 3)
+    }
   })
 
   it('reproduces the worked example: 105.75 + 0.05 · 2720 / 1500', () => {
@@ -74,34 +69,37 @@ describe('coupling a branch to its main route', () => {
     const x = (() => { let lo = 30, hi = 59; for (let i = 0; i < 60; i++) { const m = (lo + hi) / 2; if (sleeperAtX(xAtMain(m)).q[1] < 2.72) lo = m; else hi = m } return (lo + hi) / 2 })()
     const foot = sleeperAtX(xAtMain(x)).q[0]
     const main = mainTrack(50, [{ station: 0, z: 105.75 - G * foot }, { station: 60, z: 105.75 + G * (60 - foot) }])
-    const c = coupling([main, branchTrack()], turnout(), { formOf: () => ({ lds: x - 30 }) })
+    const o = { formOf: () => ({ lds: x - 30 }) }
+    const c = couplingOf([main, branchTrack()], [turnout()], turnout(), o)
     expect(c.offset).toBeCloseTo(2.72, 4)
-    expect(pairedBranch(c).find(p => p.station > 0 && p.station < 60).z).toBeCloseTo(105.841, 3)
+    expect(atLds(coupled([main, branchTrack()], turnout(), o), o).z).toBeCloseTo(105.841, 3)
   })
 
   it('works the same on a branch whose stations run toward the toe', () => {
-    const reversed = reverseTrack(branchTrack())
     const sw = turnout({ ports: { B1: { endpoint: 'END' } } })
-    const c = coupling([mainTrack(50), reversed], sw, opts)
-    expect(c.offset).toBeCloseTo(OFFSET, 4)
-    expect(c.ldsBranch).toBeCloseTo(60 - ALONG, 3)
-    const h = pairedBranch(c)
-    expect(h.find(p => Math.abs(p.station - (60 - ALONG)) < 0.01).z).toBeCloseTo(ldsZ(50), 3)
+    const p = coupled([mainTrack(50), reverseTrack(branchTrack())], sw)
+    expect(couplingOf(p.tracks, p.switches, sw, opts).ldsBranch).toBeCloseTo(60 - ALONG, 3)
+    expect(atLds(p).z).toBeCloseTo(ldsZ(50), 3)
   })
 
-  it('takes away a branch point between WA and ldS without a partner on the main route, and leaves the rest', () => {
-    const branch = branchTrack([{ station: 0, z: 105.2 }, { station: 20, z: 999 }, { station: 60, z: 105.5 }])
-    const h = pairedBranch(coupling([mainTrack(0), branch], turnout(), opts))
-    expect(h.map(p => p.station)).toEqual([0, Number(ALONG.toFixed(3)), 60])
-    expect(h[h.length - 1]).toEqual({ station: 60, z: 105.5 })
+  it('keeps a branch point between WA and ldS: the line through the ldS starts there', () => {
+    const p = coupled([mainTrack(0), branchTrack([{ station: 0, z: 105.2 }, { station: 20, z: 105.3 }, { station: 60, z: 105.5 }])])
+    const b = p.tracks[1].heights
+    expect(b[1]).toEqual({ station: 20, z: 105.3 })
+    expect(atLds(p).z).toBeCloseTo(ldsZ(0), 3)
+    // The ldS on the line from 20 m to the free point behind it.
+    expect(atLds(p).z).toBeCloseTo(105.3 + (b[3].z - 105.3) * (ALONG - 20) / 40, 3)
   })
 
   it('makes up no gradient: none without heights on either side', () => {
-    expect(pairedBranch(coupling([mainTrack(0, null), branchTrack()], turnout(), opts))).toBeNull()
-    expect(pairedBranch(coupling([mainTrack(), branchTrack(null)], turnout(), opts))).toBeNull()
+    // The branch alone only gets its ldS point, on its own gradient.
+    const alone = coupled([mainTrack(0, null), branchTrack()]).tracks[1].heights
+    expect(alone.filter(q => q !== alone[1])).toEqual(branchTrack().heights)
+    expect(alone[1].z).toBeCloseTo(105.2 + 0.3 * ALONG / 60, 4)
+    expect(coupled([mainTrack(), branchTrack(null)]).tracks[1].heights).toBeUndefined()
     // A main gradient that stops before the ldS has no height to give there.
     const short = mainTrack(0, [{ station: 0, z: 105.2 }, { station: 35, z: 105.6 }])
-    expect(pairedBranch(coupling([short, branchTrack()], turnout(), opts))).toBeNull()
+    expect(atLds(coupled([short, branchTrack()])).z).toBeCloseTo(105.2 + 0.3 * ALONG / 60, 4)
   })
 
   it('couples a form without ldS up to WE (decision 383), and no other kind of switch', () => {
@@ -139,77 +137,6 @@ describe('the plane between WA and ldS', () => {
   })
 })
 
-describe('working out the other track (decision 383)', () => {
-  const project = (cant = 50, main = mainTrack(cant), branch = branchTrack()) => ({ tracks: [main, branch], switches: [turnout()] })
-  // The branch with the main route's cant, as the coupled cant has it (decision 376).
-  const cantedBranch = (cant, heights) => {
-    const b = branchTrack(heights)
-    return { ...b, elements: b.elements.map(el => ({ ...el, cant })) }
-  }
-
-  it('writes the branch and the main route\'s ldS point from the main route, and leaves it so', () => {
-    const once = given(project(), 's1', 'm')
-    expect(once.tracks[1].heights).toHaveLength(3)
-    // The main route keeps its gradient and gets a point on the ldS (decision 269).
-    expect(once.tracks[0].heights.map(p => p.station)).toEqual([0, 40, 60])
-    expect(once.tracks[0].heights[1].z).toBeCloseTo(105.2 + G * 40, 4)
-    expect(given(once, 's1', 'm')).toBe(once)
-  })
-
-  it('does nothing on its own: a write leaves the branch, the button follows it', () => {
-    const before = given(project(), 's1', 'm')
-    const edited = {
-      ...before,
-      tracks: [{ ...before.tracks[0], heights: [{ station: 0, z: 105.2 }, { station: 60, z: 107 }] }, before.tracks[1]],
-    }
-    expect(planeDeviations(couplingOf(edited.tracks, edited.switches, edited.switches[0], opts))).not.toEqual([])
-    const after = given(edited, 's1', 'm')
-    expect(after.tracks[1].heights[1].z).toBeCloseTo(ldsZ(50, 105.2, 1.8 / 60), 3)
-    // The main route's ldS point lies on its line through WA and 60 m.
-    expect(after.tracks[0].heights[1].z).toBeCloseTo(105.2 + 1.8 / 60 * 40, 4)
-  })
-
-  it('lifts the branch to the side the cant raises and lowers it to the other, whichever way the main track runs', () => {
-    for (const cant of [50, -50, 0]) {
-      expect(given(project(cant), 's1', 'm').tracks[1].heights[1].z).toBeCloseTo(ldsZ(cant), 3)
-      // The same main route stored the other way round: its cant and its stations turn with it.
-      const back = reverseTrack(mainTrack(cant, [{ station: 0, z: 105.2 }, { station: 60, z: 106.025 }]))
-      const p = { tracks: [back, branchTrack()], switches: [turnout({ ports: { B2: { endpoint: 'END' } } })] }
-      expect(given(p, 's1', 'm').tracks[1].heights.find(q => q.station > 1 && q.station < 59).z).toBeCloseTo(ldsZ(cant), 3)
-    }
-  })
-
-  it('from the branch: keeps its points and lays the main route under them, lower where the branch is on the raised side', () => {
-    for (const cant of [50, -50]) {
-      const branch = cantedBranch(cant, [{ station: 0, z: 105.2 }, { station: 20, z: 105.6 }, { station: 60, z: 106.2 }])
-      const p = given(project(cant, mainTrack(cant, [{ station: 0, z: 105.2 }, { station: 60, z: 106 }]), branch), 's1', 'b')
-      const sl = turnoutSleepers(p.tracks, turnout(), opts).sleepers
-        .reduce((a, x) => (Math.abs(x.b - 20) < Math.abs(a.b - 20) ? x : a))
-      const b = p.tracks[1].heights.find(q => Math.abs(q.station - sl.branch) < 0.002)
-      expect(b.z).toBe(105.6)
-      const m = p.tracks[0].heights.find(q => Math.abs(q.station - sl.main) < 0.002)
-      expect(Math.sign(b.z - m.z - 0.0001 * Math.sign(cant))).toBe(Math.sign(cant))
-      expect(planeDeviations(couplingOf(p.tracks, p.switches, p.switches[0], opts))).toEqual([])
-    }
-  })
-
-  it('gives a main route without a gradient one from the branch given', () => {
-    const p = given(project(0, mainTrack(0, null), branchTrack()), 's1', 'b')
-    expect(p.tracks[0].heights.map(q => q.station)).toEqual([0, 40])
-    expect(p.tracks[0].heights[0].z).toBe(105.2)
-  })
-
-  it('marks the points in the turnout\'s stretch, with their sleeper', () => {
-    const p = given(project(), 's1', 'm')
-    const marked = coupledPoints(p.tracks, p.switches, p.tracks[1], opts)
-    expect([...marked.keys()]).toEqual([1])
-    expect(marked.get(1)).toMatchObject({ side: 'branch', sleeper: { k: 'lds' } })
-    const onMain = coupledPoints(p.tracks, p.switches, p.tracks[0], opts)
-    expect([...onMain.keys()]).toEqual([1])
-    expect(onMain.get(1)).toMatchObject({ side: 'main', sleeper: { k: 'lds' } })
-  })
-})
-
 describe('the turnout in the Höhenplan', () => {
   it('reaches from WA to ldS on both tracks', () => {
     const tracks = [mainTrack(), branchTrack()]
@@ -235,155 +162,6 @@ describe('the turnout in the Höhenplan', () => {
     }
     expect(check(30)).toBe('warning')
     expect(check(50)).toBeNull()
-  })
-})
-
-describe('points in pairs on the sleepers, either track leading', () => {
-  const sw = turnout()
-  const base = (cant = 50) => given({ tracks: [mainTrack(cant), branchTrack()], switches: [sw] }, 's1', 'm')
-  const sleepers = turnoutSleepers(base().tracks, sw, opts).sleepers
-  const nearest = (key, d) => sleepers.reduce((a, b) => (Math.abs(b[key] - d) < Math.abs(a[key] - d) ? b : a))
-  const withHeights = (p, i, heights) => ({ ...p, tracks: p.tracks.map((t, j) => (j === i ? { ...t, heights } : t)) })
-  // The button, the track that changed given.
-  const couple = (before, after) => given(after, 's1', after.tracks[1] !== before.tracks[1] ? 'b' : 'm')
-  const at = (h, station) => h.find(q => Math.abs(q.station - station) < 0.002)
-  // The branch above the main route on a sleeper, the main route's gradient g there.
-  const lift = (sl, g, cant = 50) => g * sl.a + (cant / 1500) * sl.y
-
-  it('puts a point set on the main route onto its nearest sleeper, and its partner on the branch', () => {
-    const before = base()
-    const sl = nearest('m', 20.1)
-    const after = couple(before, withHeights(before, 0,
-      [{ station: 0, z: 105.2 }, { station: 20.1, z: 105.6, rv: 5000, reason: 'Bestand' }, { station: 60, z: 106.025 }]))
-    const [main, branch] = after.tracks.map(t => t.heights)
-    expect(main[1]).toEqual({ station: Number(sl.main.toFixed(3)), z: 105.6, rv: 5000, reason: 'Bestand' })
-    // At the kink the gradient is the mean of the two either side.
-    const g = (0.4 / sl.main + 0.425 / (60 - sl.main)) / 2
-    expect(at(branch, sl.branch)).toEqual({
-      station: Number(sl.branch.toFixed(3)), z: expect.closeTo(105.6 + lift(sl, g), 3), rv: 5000, reason: 'Bestand',
-    })
-    // The branch keeps its ldS point.
-    expect(branch).toHaveLength(4)
-  })
-
-  it('moves the main route when a branch point is changed, and creates and takes away its partner', () => {
-    const p0 = base()
-    const p1 = couple(p0, withHeights(p0, 0, [{ station: 0, z: 105.2 }, { station: 20, z: 105.6 }, { station: 60, z: 106.025 }]))
-    const sl = nearest('m', 20)
-    const pair = at(p1.tracks[1].heights, sl.branch)
-    // Raised by 10 mm on the branch: the main route follows by as much.
-    const p2 = couple(p1, withHeights(p1, 1, p1.tracks[1].heights.map(q => (q === pair ? { ...q, z: q.z + 0.01 } : q))))
-    expect(at(p2.tracks[0].heights, sl.main).z).toBeCloseTo(105.61, 3)
-    // A point set on the branch snaps to its sleeper and gets a partner on the main route.
-    const s2 = nearest('b', 30.12)
-    const p3 = couple(p2, withHeights(p2, 1, [...p2.tracks[1].heights, { station: 30.12, z: 105.7 }].sort((a, b) => a.station - b.station)))
-    expect(at(p3.tracks[1].heights, s2.branch).z).toBe(105.7)
-    expect(at(p3.tracks[0].heights, s2.main)).toBeTruthy()
-    const mainCount = p2.tracks[0].heights.length
-    expect(p3.tracks[0].heights).toHaveLength(mainCount + 1)
-    // Taken away on the branch, it goes on the main route as well.
-    const p4 = couple(p3, withHeights(p3, 1, p3.tracks[1].heights.filter(q => !at([q], s2.branch))))
-    expect(at(p4.tracks[0].heights, s2.main)).toBeUndefined()
-    expect(p4.tracks[0].heights).toHaveLength(mainCount)
-  })
-
-  it('gives an ldS height edited on the branch back to the plane over the main route (decision 269)', () => {
-    const p0 = base()
-    const lds = p0.tracks[1].heights[1]
-    const p1 = couple(p0, withHeights(p0, 1, p0.tracks[1].heights.map(q => (q === lds ? { ...q, z: q.z + 0.05 } : q))))
-    expect(p1.tracks[1].heights[1].z).toBeCloseTo(lds.z, 4)
-    expect(p1.tracks[0].heights).toEqual(p0.tracks[0].heights)
-  })
-
-  it('leaves the main route as it is for an edit on the branch beyond the ldS', () => {
-    const p0 = base()
-    const p1 = couple(p0, withHeights(p0, 1, p0.tracks[1].heights.map((q, i) => (i === 2 ? { ...q, z: 105.9 } : q))))
-    expect(p1.tracks[0]).toBe(p0.tracks[0])
-  })
-
-  it('changes nothing where the pairs are there already, from either track', () => {
-    const p = base()
-    expect(given(p, 's1', 'm')).toBe(p)
-    expect(given(p, 's1', 'b')).toBe(p)
-  })
-})
-
-describe('two turnouts reaching into one track from its two ends', () => {
-  // A second turnout faces the first from the other end of the main track:
-  // WA at its END, its own main route the main track's second element, its
-  // branch leaving to the south-west on R 500. Both reach 40 m into the 60 m
-  // track; the 20 m they share are split in the middle.
-  const ws = { easting: 1060, northing: 1000, zone: 5684 }
-  const node = (p) => [p.easting, p.northing]
-  const be = endPointCurvedUtm(ws, 270, 30, -R)
-  const bend = (L) => 270 - (L / R) * 180 / Math.PI
-  const second = {
-    id: 'c', epsg: 5684, trackType: 1,
-    elements: [
-      { elementType: 1, startNode: node(ws), endNode: node(be), bearing: 270, endBearing: bend(30),
-        radius: -R, length: 30, speed: 80, switchId: 's2', switchRoute: 'branch' },
-      { elementType: 1, startNode: node(be), endNode: node(endPointCurvedUtm(be, bend(30), 30, -R)), bearing: bend(30),
-        endBearing: bend(60), radius: -R, length: 30, speed: 80 },
-    ],
-    heights: [{ station: 0, z: 106.025 }, { station: 60, z: 106.2 }],
-  }
-  const main = (() => {
-    const m = mainTrack(0)
-    return { ...m, elements: m.elements.map((el, i) => (i === 1 ? { ...el, switchId: 's2', switchRoute: 'main' } : el)) }
-  })()
-  const sw2 = turnout({ switchId: 's2', ports: { B1: { trackId: 'c', endpoint: 'BEGIN' }, B2: { trackId: 'm', endpoint: 'END' } } })
-  const project = { tracks: [main, branchTrack(), second], switches: [turnout(), sw2] }
-
-  it('lays each turnout\'s own sleepers up to the middle and couples every sleeper there to all three tracks', () => {
-    const both = (q, trackId) => given(given(q, 's1', trackId), 's2', trackId)
-    const p = both(project, 'm')
-    const t = (q, id) => q.tracks.find(x => x.id === id)
-    // Neither reaches its ldS on its own: no ldS point on either branch.
-    expect(t(p, 'b').heights).toHaveLength(2)
-    const edited = { ...p, tracks: p.tracks.map(x => (x.id === 'm'
-      ? { ...x, heights: [{ station: 0, z: 105.2 }, { station: 25, z: 105.5 }, { station: 35, z: 105.7 }, { station: 60, z: 106.025 }] } : x)) }
-    const after = both(edited, 'm')
-    // 25 m lies on the first turnout's grid, 35 m on the second's — and both
-    // have a partner on both branches.
-    const g1 = turnoutSleepers(after.tracks, turnout(), opts).sleepers
-    const g2 = turnoutSleepers(after.tracks, sw2, opts).sleepers
-    const main = t(after, 'm').heights
-    expect(g1.some(sl => Math.abs(sl.main - main[1].station) < 0.001)).toBe(true)
-    expect(g2.some(sl => Math.abs(sl.main - main[2].station) < 0.001)).toBe(true)
-    expect(t(after, 'b').heights).toHaveLength(4)
-    expect(t(after, 'c').heights).toHaveLength(4)
-    // Without cant the three lie at one height on a sleeper, to the gradient over its lean.
-    for (const id of ['b', 'c']) {
-      const inner = t(after, id).heights.slice(1, 3).map(q => q.z).sort()
-      expect(Math.abs(inner[0] - 105.5)).toBeLessThan(0.003)
-      expect(Math.abs(inner[1] - 105.7)).toBeLessThan(0.003)
-    }
-    const marks = [...coupledPoints(after.tracks, after.switches, after.tracks[0], opts).values()]
-    expect(marks.map(v => [v.sw.switchId, v.also.map(x => x.switchId)])).toEqual([['s1', ['s2']], ['s2', ['s1']]])
-    // Raised on one branch, the shared sleeper takes the main track and the other branch along.
-    const b = t(after, 'b').heights
-    const i = b.findIndex(q => Math.abs(q.z - 105.7) < 0.003)
-    const raised = { ...after, tracks: after.tracks.map(x => (x.id === 'b' ? { ...x, heights: b.map((q, k) => (k === i ? { ...q, z: q.z + 0.01 } : q)) } : x)) }
-    const moved = given(given(raised, 's1', 'b'), 's2', 'm')
-    expect(t(moved, 'm').heights[2].z).toBeCloseTo(105.71, 3)
-    const c = t(moved, 'c').heights
-    expect(c.some(q => Math.abs(q.z - 105.71) < 0.003)).toBe(true)
-  })
-})
-
-describe('where a turnout no longer lies in its plane', () => {
-  const sw = turnout()
-  const paired = () => given({ tracks: [mainTrack(50), branchTrack()], switches: [sw] }, 's1', 'm')
-
-  it('says on which sleeper and by how much, when the cant changed and nothing coupled again', () => {
-    const p = paired()
-    const recant = { ...p, tracks: [{ ...p.tracks[0], elements: p.tracks[0].elements.map(el => ({ ...el, cant: 100 })) }, p.tracks[1]] }
-    const off = planeDeviations(couplingOf(recant.tracks, recant.switches, recant.switches[0], opts))
-    expect(off).toHaveLength(1)
-    expect(off[0].sleeper.k).toBe('lds')
-    // 50 mm more cant lifts the branch by 50/1500 of its offset there.
-    expect(off[0].dz).toBeCloseTo(-0.05 * OFFSET / 1.5, 3)
-    expect(planeDeviations(couplingOf(p.tracks, p.switches, p.switches[0], opts))).toEqual([])
   })
 })
 

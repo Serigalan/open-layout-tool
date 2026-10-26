@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { currentProject, hiddenKmLines, hiddenTracks, lastStep, redoStep, subscribe, undoStep } from '../storage'
+import { currentProject, hiddenKmLines, hiddenTracks, lastStep, redoStep, subscribe, switchDesignMode, undoStep } from '../storage'
 
 // The open project, read through a subscription (R1.4): a component that uses
 // one of these renders again after every write and every undo, and only reads
@@ -33,6 +33,8 @@ export const useHiddenTracks = () => useSyncExternalStore(subscribe, hiddenTrack
 
 /** The line numbers of the project's kilometrage lines hidden on the map (a Set, kept on this device). */
 export const useHiddenKmLines = () => useSyncExternalStore(subscribe, hiddenKmLines, hiddenKmLines)
+/** Is the design mode for turnouts on (decision 384)? */
+export const useSwitchDesign = () => useSyncExternalStore(subscribe, switchDesignMode, switchDesignMode)
 /** The step undo would take back and the one redo would bring again: { before, after }, or null. */
 export const useUndoStep = () => useSyncExternalStore(subscribe, undoStep, undoStep)
 export const useRedoStep = () => useSyncExternalStore(subscribe, redoStep, redoStep)

@@ -10,7 +10,7 @@ import RouteList from './RouteList'
 import { resolveRoute } from '../../utils/track'
 import useRouteOnMap from '../../map/useRouteOnMap'
 import GradientFindings from './GradientFindings'
-import SwitchHeightsList from './SwitchHeightsList'
+import SwitchDesignSection from './SwitchDesignSection'
 import FormSection from '../form/FormSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
@@ -22,11 +22,11 @@ import useMapPick from '../../map/useMapPick'
  * one, or with the buttons here — reading a whole track again (which
  * overwrites edited heights), or every track that still lacks heights.
  *
- * Above the list, what the Höhenplan rules say about the gradient on show —
- * above it, since the list of a large project runs far below the screen. The
- * line category they judge a track by is set in the project settings
- * (decision 320). Below them the switches on show, each with the button that
- * works out its other tracks from the one on show (decision 383).
+ * Under the heading the switch of the design mode for turnouts (decision
+ * 384). Above the list, what the Höhenplan rules say about the gradient on
+ * show, folded away until opened — above it, since the list of a large
+ * project runs far below the screen. The line category they judge a track
+ * by is set in the project settings (decision 320).
  */
 export default function ElevationPanel({ profileTrackId, profileRouteId = null, onShowProfile, onShowRouteProfile }) {
   const { t, fill } = useI18n()
@@ -81,9 +81,10 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
     <>
       <PanelHeading title={t('elevation_title')} search={trackSearchField(search, t)} />
       <p>{t('elevation_hint')}</p>
+      <SwitchDesignSection onShowProfile={onShowProfile} />
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
       {/* Only once there is something to judge (decision 331). */}
-      {(resolvedRoute || profileTrackId) && <FormSection title={t('elevation_rules')}>
+      {(resolvedRoute || profileTrackId) && <FormSection title={t('elevation_rules')} folded>
         {resolvedRoute ? resolvedRoute.parts.map(p => (
           <div key={p.trackId} className="route-findings">
             <span className="create-element-section">{p.track.name || p.trackId.slice(0, 8)}</span>
@@ -91,7 +92,6 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
           </div>
         )) : profileTrackId && <GradientFindings trackId={profileTrackId} />}
       </FormSection>}
-      <SwitchHeightsList trackIds={shownTrackIds} />
       <RouteList activeId={profileRouteId} onPick={(r) => onShowRouteProfile?.(r.id)} />
       <GroupedTrackList tracks={tracks} search={search}
         isActive={(track) => track.id === profileTrackId}

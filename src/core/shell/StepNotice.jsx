@@ -71,14 +71,10 @@ export default function StepNotice() {
   )
 }
 
-/** Why a lock refused a write: the locked point, or the turnout a lock holds, by track and station. */
+/** Why a lock refused a write: the locked point, by track and station. */
 function refusalText(fill, step) {
   const { breach, before } = step
   const track = before.tracks?.find(t => t.id === breach.trackId)
   const where = { track: track?.name || breach.trackId?.slice(0, 8) || '–', station: (breach.station ?? 0).toFixed(2) }
-  if (breach.kind === 'turnout') {
-    const sw = before.switches?.find(x => x.switchId === breach.switchId)
-    return fill('lock_refused_turnout', { ...where, name: sw?.name ?? sw?.label ?? '' })
-  }
   return fill('lock_refused_point', where)
 }

@@ -7,7 +7,7 @@ import {
   reverseTrack, generateId, remapEndMarks, flipEndMarks, pruneEndMarks, endKey, repairRoutes,
 } from './utils/track'
 import { coupleSwitchCants, rebuildSwitchSymbol } from './utils/switch'
-import { lengthGovernedRadii, lockBreach, otherTrackHeights } from './utils/elevation'
+import { lengthGovernedRadii, lockBreach, switchMisfits, takeOverHeight, withSwitchHeights } from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -45,6 +45,12 @@ let _undoDepth = 0
 // since the working copy's base — [{ from, to: [ids] }]. A merge reads it to
 // carry the other side's references onto the new tracks.
 let _idLog = []
+
+// The design mode for turnouts (decision 384). On: a turnout's tracks do not
+// meet at WA and ldS on their own, a height is taken over by hand. Kept per
+// opened project in this session, not in it — whoever opens one that does
+// not fit is in the mode.
+let _switchDesign = false
 
 // Write-behind state
 let _dirty = false
@@ -88,10 +94,12 @@ function mutate(fn, { undo = true, unlock = false } = {}) {
   const next = fn(_project)
   if (!next || next === before) { _idLog = logBefore; return true }
   // A route over a track the write took away runs over what lies there now (decision 249).
-  // A curve whose length counts takes the radius its gradients ask for now
-  // (decision 266). A turnout's two routes carry one cant (decision 376); its
-  // heights are worked out only when asked to (computeOtherTrack, decision 383).
-  const after = withLengthRadii(before, withCoupledCants(before, withPrunedMarks(repairRoutes(before, next))))
+  // A turnout's two routes carry one cant (decision 376); its WA and ldS lie
+  // on their lines and, unless in the design mode, its tracks meet there
+  // (decision 384). A curve whose length counts takes the radius its
+  // gradients ask for now (decision 266).
+  const after = withLengthRadii(before, withSwitchHeights(before,
+    withCoupledCants(before, withPrunedMarks(repairRoutes(before, next))), { design: _switchDesign }))
   // What a lock holds stays (Entscheidung 382): a write that would change it
   // is refused as a whole — and said so, where every step is.
   const parted = new Set(_idLog.slice(logBefore.length).map(e => e.from))
@@ -110,8 +118,47 @@ function mutate(fn, { undo = true, unlock = false } = {}) {
 
 function setProject(project) {
   _project = deepFreeze(project)
+  // Coupled, every turnout fits (decision 384): where one does not — opened
+  // so, or a write the coupling could not follow — the design mode is on.
+  if (!_switchDesign && switchMisfits(_project).length) _switchDesign = true
   persist()
   notify()
+}
+
+// ── The design mode for turnouts (Entwurfsmodus Weichen, decision 384) ─────
+
+/** Is the design mode for turnouts on? */
+export const switchDesignMode = () => _switchDesign
+
+/**
+ * Turn the design mode on or off. Off only where every turnout fits —
+ * else { misfits } (switchMisfits) and it stays on; { ok } where it is as
+ * asked now.
+ */
+export function setSwitchDesignMode(on) {
+  if (!on && _project) {
+    const misfits = switchMisfits(_project)
+    if (misfits.length) return { misfits }
+  }
+  if (_switchDesign !== !!on) {
+    _switchDesign = !!on
+    notify()
+  }
+  return { ok: true }
+}
+
+/**
+ * Take one height of a turnout over into its other track, as one undo step
+ * (elevation takeOverHeight): `at` 'wa' or 'lds', `from` 'main' or 'branch'.
+ * { ok } where it wrote, { same } where it fits already, { refused } where a
+ * lock holds what it would change (the step notice says which), or { error }.
+ */
+export function takeOverSwitchHeight(switchId, at, from) {
+  if (!_project) return { error: 'no_project' }
+  const r = takeOverHeight(_project, switchId, at, from)
+  if (r.error) return r
+  if (r.project === _project) return { same: true }
+  return mutate(() => r.project) ? { ok: true } : { refused: true }
 }
 
 // ── subscribers (R1.4) ──────────────────────────────────────────────────────
@@ -141,6 +188,7 @@ function notify() {
  */
 export function openStoredProject({ project, meta = {}, key = project.id, save = null, idLog = [] }) {
   _slot = { key, meta, save }
+  _switchDesign = false
   _idLog = [...idLog]
   _undoStack = []
   _redoStack = []
@@ -155,6 +203,7 @@ export function openStoredProject({ project, meta = {}, key = project.id, save =
  */
 export function openProject(project) {
   _slot = null
+  _switchDesign = false
   _idLog = []
   _undoStack = []
   _redoStack = []
@@ -292,21 +341,6 @@ function withCoupledCants(before, project) {
 function withLengthRadii(before, project) {
   const tracks = lengthGovernedRadii(before.tracks, project.tracks)
   return tracks === project.tracks ? project : { ...project, tracks }
-}
-
-/**
- * Work out the other tracks of a switch from the track given, as one undo
- * step (elevation otherTrackHeights, decision 383) — the button in the
- * Höhenplan. Returns { ok } where it wrote, { same } where nothing had to
- * change, { refused } where a lock holds what it would change (the step
- * notice says which), or { error } as otherTrackHeights names it.
- */
-export function computeOtherTrack(switchId, trackId) {
-  if (!_project) return { error: 'no_project' }
-  const r = otherTrackHeights(_project, switchId, trackId)
-  if (r.error) return r
-  if (r.project === _project) return { same: true }
-  return mutate(() => r.project) ? { ok: true } : { refused: true }
 }
 
 function withPrunedMarks(project) {

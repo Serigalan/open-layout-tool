@@ -44,6 +44,16 @@
   width: 90px;
 }
 
+.profile-edit .track-table-save-btn {
+  white-space: nowrap;
+  flex: none;
+}
+
+/* What a point shown only is, beside the buttons: kept readable when they crowd it. */
+.profile-edit .profile-hint {
+  min-width: 14em;
+}
+
 /* The reason for a gradient change in a turnout: a line of text, not a number. */
 .profile-edit .track-table-input.profile-reason {
   width: 16em;

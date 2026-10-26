@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { heightRoles } from './switchChain'
-import { otherTrackHeights } from './otherTrack'
+import { heightRoles, withSwitchHeights } from './switchChain'
 import { lockBreach } from './heightLocks'
 import { endPointCurvedUtm, endPointStraightUtm } from '../geometry/elementUtils'
 import { formOf } from '../../test/turnoutFixture'
@@ -34,14 +33,14 @@ function single() {
       A: { trackId: 'a', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' }, B2: { trackId: 'm', endpoint: 'BEGIN' },
     } }],
   }
-  return otherTrackHeights(project, 's1', 'm', opts).project
+  return withSwitchHeights({ tracks: [] }, project, { opts })
 }
 
 /** The project with the heights of track `id` made by `fn`. */
 const withHeights = (p, id, fn) => ({ ...p, tracks: p.tracks.map(t => (t.id === id ? { ...t, heights: fn(t.heights) } : t)) })
 const lockAt = (p, id, i) => withHeights(p, id, h => h.map((q, k) => (k === i ? { ...q, locked: true } : q)))
-/** A write as the store does it: nothing coupled on its own (decision 383), then the check. */
-const write = (before, next, extra = {}) => lockBreach(before, next, { opts, ...extra })
+/** A write as the store does it: the turnout's lines and coupling (decision 384), then the check. */
+const write = (before, next, extra = {}) => lockBreach(before, withSwitchHeights(before, next, { opts }), extra)
 
 describe('a locked point (Entscheidung 382)', () => {
   it('may be locked, and then keeps its height', () => {
@@ -68,41 +67,33 @@ describe('a locked point (Entscheidung 382)', () => {
   })
 })
 
-describe('a locked toe holds the turnout\'s gradient', () => {
+describe('a locked toe or ldS holds the turnout (decision 384)', () => {
   // The toe is the last point of the approach `a` (and the first of m and b).
-  const frozen = () => lockAt(single(), 'a', 2)
+  const lockedToe = () => lockAt(single(), 'a', 2)
 
-  it('marks the turnout\'s points, and lets the points fixing its line move only along it', () => {
-    const p = frozen()
-    const roles = heightRoles(p, opts)
-    expect(roles.get('a').get(2)).toMatchObject({ kind: 'locked', was: { kind: 'wa' } })
-    expect(roles.get('m').get(1)).toMatchObject({ kind: 'lds', frozen: true })
-    // Q, the last point before WA, and P, the first behind the ldS.
-    expect(roles.get('a').get(1)).toMatchObject({ kind: 'continuation', frozen: true })
-    expect(roles.get('m').get(2)).toMatchObject({ kind: 'continuation', frozen: true })
+  it('is shown as locked, with the role it has besides', () => {
+    const roles = heightRoles(lockedToe(), opts)
+    expect(roles.get('a').get(2)).toMatchObject({ kind: 'locked', was: { kind: 'wa', side: 'main' } })
+    expect(roles.get('m').get(1)).toMatchObject({ kind: 'lds', side: 'main' })
   })
 
-  it('refuses working out the turnout where a height before the toe would turn the line', () => {
-    const p = frozen()
+  it('refuses a height before the toe that would turn the line through it', () => {
+    const p = lockedToe()
     const tilted = withHeights(p, 'a', h => h.map((q, k) => (k === 1 ? { ...q, z: q.z + 0.2 } : q)))
-    expect(write(p, tilted)).toBeNull()
-    expect(write(tilted, otherTrackHeights(tilted, 's1', 'm', opts).project)).toMatchObject({ kind: 'turnout', switchId: 's1' })
+    expect(write(p, tilted)).toMatchObject({ kind: 'point', trackId: 'a' })
   })
 
-  it('takes Q moved along its line', () => {
-    const p = frozen()
+  it('takes a point before the toe moved along its line', () => {
+    const p = lockedToe()
     const [, q, wa] = p.tracks.find(t => t.id === 'a').heights
     const g = (wa.z - q.z) / (wa.station - q.station)
     const along = withHeights(p, 'a', h => h.map((x, k) => (k === 1 ? { ...x, station: 40, z: Math.round((q.z + g * (40 - q.station)) * 1e4) / 1e4 } : x)))
     expect(write(p, along)).toBeNull()
   })
 
-  it('lets the alignment come first: a reshaped turnout is not held', () => {
-    const p = frozen()
-    const tilted = withHeights(p, 'a', h => h.map((q, k) => (k === 1 ? { ...q, z: q.z + 0.2 } : q)))
-    const reshaped = { ...tilted, tracks: tilted.tracks.map(t => (t.id === 'm' ? { ...t, elements: [...t.elements] } : t)) }
-    const r = write(p, otherTrackHeights(reshaped, 's1', 'm', opts).project)
-    // The locked toe itself still keeps its height.
-    expect(r?.kind ?? null).not.toBe('turnout')
+  it('holds the branch\'s ldS against the coupling: the main route moved under it is refused', () => {
+    const p = lockAt(single(), 'b', 1)
+    const raised = withHeights(p, 'm', h => h.map((q, k) => (k === 2 ? { ...q, z: q.z + 0.2 } : q)))
+    expect(write(p, raised)).toMatchObject({ kind: 'point', trackId: 'b' })
   })
 })

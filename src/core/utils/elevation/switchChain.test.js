@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { heightRoles, CROSSOVER_SPAN } from './switchChain'
-import { otherTrackHeights } from './otherTrack'
-import { couplingOf, ldsPlaneHeight, planeDeviations, switchCoupling } from './switchGradient'
+import { heightRoles, switchMisfits, takeOverHeight, withSwitchHeights } from './switchChain'
+import { couplingOf, ldsLift } from './switchGradient'
 import { endPointCurvedUtm, endPointStraightUtm } from '../geometry/elementUtils'
 import { formOf } from '../../test/turnoutFixture'
 import { hasPek, loadPek } from '../../test/pekFixture'
@@ -24,44 +23,34 @@ const endOf = (el) => ({ easting: el.endNode[0], northing: el.endNode[1], zone: 
 const track = (id, elements, heights) => ({ id, epsg: 5684, trackType: 1, elements, heights })
 const opts = { formOf }
 const t = (p, id) => p.tracks.find(x => x.id === id).heights
-/** The project with turnout `sw`'s other tracks worked out from track `given` — the button (decision 383). */
-const given = (p, sw, trackId, o = opts) => {
-  const r = otherTrackHeights(p, sw, trackId, o)
-  if (r.error) throw new Error(`${sw} from ${trackId}: ${r.error}`)
+const zAt = (h, s) => h.find(p => Math.abs(p.station - s) < 0.011)?.z
+
+/** Every track of `p` as if just written — what a project opened and edited all over gets. */
+const settle = (p, design = false) => withSwitchHeights({ tracks: [] }, p, { design, opts })
+/** The store's pass over a write: track `id` given `heights` (a function of the old ones). */
+const write = (p, id, heights, design = false) => withSwitchHeights(p, {
+  ...p, tracks: p.tracks.map(x => (x.id === id ? { ...x, heights: heights(x.heights) } : x)),
+}, { design, opts })
+const setZ = (index, z) => (h) => h.map((q, i) => (i === index ? { ...q, z } : q))
+const take = (p, at, from, sw = 's1') => {
+  const r = takeOverHeight(p, sw, at, from, opts)
+  if (r.error) throw new Error(`${at} from ${from}: ${r.error}`)
   return r.project
 }
-const zAt = (h, s) => h.find(p => Math.abs(p.station - s) < 0.002)?.z
-
-/**
- * How far the connecting track `x` of a crossover leaves one straight line
- * from toe to toe (decision 276) [m]: its stored points, and the plane of
- * either turnout on its ldS.
- */
-function crossoverBend(p, ids = ['s1', 's2']) {
-  const x = t(p, 'x')
-  const [a, b] = [x[0], x[x.length - 1]]
-  const line = (s) => a.z + (b.z - a.z) * (s - a.station) / (b.station - a.station)
-  const off = x.map(q => Math.abs(q.z - line(q.station)))
-  for (const id of ids) {
-    const c = couplingOf(p.tracks, p.switches, p.switches.find(s => s.switchId === id), opts)
-    off.push(Math.abs(ldsPlaneHeight(c) - line(c.ldsBranch)))
-  }
-  return Math.max(...off)
-}
-/** Do three points lie on one straight line, to 0.1 mm? */
-const collinear = (s1, z1, s2, z2, s3, z3) => Math.abs(z2 - (z1 + (z3 - z1) * (s2 - s1) / (s3 - s1))) <= 0.00015
+const gapsOf = (p) => switchMisfits(p, opts)
 
 /** A turnout at `at`: approach `a` (100 m, ending at WA), main `m` (60 m), branch `b` (60 m on R 500). */
-function single(heights) {
+function single(heights, { cant } = {}) {
   const at = { easting: 1000, northing: 1000, zone: 5684 }
   const back = endPointStraightUtm(at, 270, 100)
-  const m1 = straight(at, 90, 30, { switchId: 's1', switchRoute: 'main' })
-  const b1 = arc(at, 90, 30, -R, { switchId: 's1', switchRoute: 'branch' })
+  const c = cant != null ? { cant } : {}
+  const m1 = straight(at, 90, 30, { switchId: 's1', switchRoute: 'main', ...c })
+  const b1 = arc(at, 90, 30, -R, { switchId: 's1', switchRoute: 'branch', ...c })
   return {
     tracks: [
-      track('a', [straight(back, 90, 100)], heights.a),
-      track('m', [m1, straight(endOf(m1), 90, 30)], heights.m),
-      track('b', [b1, arc(endOf(b1), b1.endBearing, 30, -R)], heights.b),
+      track('a', [straight(back, 90, 100, c)], heights.a),
+      track('m', [m1, straight(endOf(m1), 90, 30, c)], heights.m),
+      track('b', [b1, arc(endOf(b1), b1.endBearing, 30, -R, c)], heights.b),
     ],
     switches: [{
       switchId: 's1', kind: 'turnout', label: 'TEST',
@@ -73,367 +62,232 @@ function single(heights) {
     }],
   }
 }
+const raw = () => single({
+  a: [{ station: 0, z: 100 }, { station: 50, z: 100.5 }, { station: 100, z: 101.7 }],
+  m: [{ station: 0, z: 101.7 }, { station: 60, z: 102 }],
+  b: [{ station: 0, z: 101.7 }, { station: 60, z: 101.9 }],
+})
+const ldsOf = (p, side) => {
+  const c = couplingOf(p.tracks, p.switches, p.switches[0], opts)
+  return side === 'main' ? c.ldsMain : c.ldsBranch
+}
 
-describe('the main route through a turnout (decision 270)', () => {
-  const raw = () => single({
-    a: [{ station: 0, z: 100 }, { station: 50, z: 100.5 }, { station: 100, z: 101.7 }],
-    m: [{ station: 0, z: 101.7 }, { station: 60, z: 102 }],
-    b: [{ station: 0, z: 101.7 }, { station: 60, z: 101.9 }],
-  })
-
-  it('puts WA and ldS on the line from the last point before WA to the first behind the ldS', () => {
-    const p = given(raw(), 's1', 'm')
+describe('WA and ldS on their lines (decisions 270, 384)', () => {
+  it('puts the main route\'s WA and ldS on the line from the last point before WA to the first behind the ldS', () => {
+    const p = settle(raw(), true)
     // Q at 50 m on the approach, P at 60 m on the main route: 110 m apart.
     const g = (102 - 100.5) / 110
     expect(t(p, 'a')[2].z).toBeCloseTo(100.5 + 50 * g, 4)
-    expect(t(p, 'm').map(q => q.station)).toEqual([0, 40, 60])
+    expect(t(p, 'm')).toHaveLength(3)
     expect(t(p, 'm')[0].z).toBeCloseTo(100.5 + 50 * g, 4)
-    expect(t(p, 'm')[1].z).toBeCloseTo(100.5 + 90 * g, 4)
-    // The toe is one point on all three tracks; Q and P stay.
-    expect(t(p, 'b')[0].z).toBe(t(p, 'm')[0].z)
+    expect(zAt(t(p, 'm'), ldsOf(p, 'main'))).toBeCloseTo(100.5 + (50 + ldsOf(p, 'main')) * g, 4)
+    // Q and P stay; in the design mode the branch's toe is its own.
     expect(t(p, 'a')[1].z).toBe(100.5)
     expect(t(p, 'm')[2].z).toBe(102)
-    expect(given(p, 's1', 'm')).toBe(p)
+    expect(t(p, 'b')[0].z).toBe(101.7)
   })
 
-  it('follows a point moved before WA only when asked to', () => {
-    const p = given(raw(), 's1', 'm')
-    const edited = { ...p, tracks: p.tracks.map(x => (x.id === 'a' ? { ...x, heights: x.heights.map((q, i) => (i === 1 ? { ...q, z: 100.8 } : q)) } : x)) }
-    expect(t(edited, 'm')).toBe(t(p, 'm'))
-    const after = given(edited, 's1', 'm')
+  it('puts the branch\'s ldS on the line from its WA to the free point behind it', () => {
+    const p = settle(raw(), true)
+    const b = t(p, 'b')
+    expect(b).toHaveLength(3)
+    const s = ldsOf(p, 'branch')
+    expect(b[1].station).toBeCloseTo(s, 3)
+    expect(b[1].z).toBeCloseTo(101.7 + 0.2 * b[1].station / 60, 4)
+  })
+
+  it('splits the main route\'s line at a free point between WA and ldS', () => {
+    const p = raw()
+    p.tracks[1].heights = [p.tracks[1].heights[0], { station: 20, z: 101.5 }, p.tracks[1].heights[1]]
+    const m = t(settle(p, true), 'm')
+    expect(m[1]).toMatchObject({ station: 20, z: 101.5 })
+    expect(m[0].z).toBeCloseTo(100.5 + 50 * (101.5 - 100.5) / 70, 4)
+    expect(zAt(m, ldsOf(p, 'main'))).toBeCloseTo(101.5 + (ldsOf(p, 'main') - 20) * (102 - 101.5) / 40, 4)
+  })
+
+  it('moves WA and ldS with a point moved either side, and only them', () => {
+    const p = settle(raw(), true)
+    const after = write(p, 'a', setZ(1, 100.8), true)
     const g = (102 - 100.8) / 110
-    expect(t(after, 'm')[1].z).toBeCloseTo(100.8 + 90 * g, 4)
-  })
-
-  it('splits the line at a point between WA and ldS', () => {
-    const p = given(raw(), 's1', 'm')
-    const withInner = { ...p, tracks: p.tracks.map(x => (x.id === 'm'
-      ? { ...x, heights: [x.heights[0], { station: 20.1, z: 101.5 }, ...x.heights.slice(1)] } : x)) }
-    const after = given(withInner, 's1', 'm')
-    const m = t(after, 'm')
-    const inner = m.find(q => q.station > 15 && q.station < 25)
-    expect(inner.z).toBe(101.5)
-    // WA on Q → inner, ldS on inner → P.
-    expect(m[0].z).toBeCloseTo(100.5 + 50 * (101.5 - 100.5) / (50 + inner.station), 3)
-    const lds = m.find(q => Math.abs(q.station - 40) < 0.002)
-    expect(lds.z).toBeCloseTo(101.5 + (40 - inner.station) * (102 - 101.5) / (60 - inner.station), 3)
-  })
-
-  it('keeps the toe where nothing lies before it', () => {
-    const p = given({ ...raw(), tracks: raw().tracks.filter(x => x.id !== 'a') }, 's1', 'm')
-    expect(t(p, 'm')[0].z).toBe(101.7)
-    expect(t(p, 'm')[1].z).toBeCloseTo(101.7 + 40 * 0.3 / 60, 4)
-  })
-})
-
-describe('the branch behind its ldS (decision 271)', () => {
-  const raw = () => single({
-    a: [{ station: 0, z: 100 }, { station: 100, z: 100 }],
-    m: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }],
-    b: [{ station: 0, z: 100 }, { station: 50, z: 100.9 }, { station: 60, z: 101.2 }],
-  })
-
-  it('puts the first point behind the ldS on the continuation of the gradient into it, and leaves the next', () => {
-    const p = given(raw(), 's1', 'm')
-    const b = t(p, 'b')
-    const lds = b[1]
-    const g = (lds.z - b[0].z) / lds.station
-    expect(b[2].station).toBe(50)
-    expect(b[2].z).toBeCloseTo(lds.z + g * (50 - lds.station), 4)
-    expect(b[3].z).toBe(101.2)
-  })
-
-  it('makes the track end the point where there is none behind the ldS', () => {
-    const p = given(single({
-      a: [{ station: 0, z: 100 }, { station: 100, z: 100 }],
-      m: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }],
-      b: [{ station: 0, z: 100 }, { station: 60, z: 101.2 }],
-    }), 's1', 'm')
-    const b = t(p, 'b')
-    const g = (b[1].z - b[0].z) / b[1].station
-    expect(b[2].z).toBeCloseTo(b[1].z + g * (60 - b[1].station), 4)
+    expect(t(after, 'm')[0].z).toBeCloseTo(100.8 + 50 * g, 4)
+    expect(t(after, 'm')[2].z).toBe(102)
+    expect(t(after, 'b')).toBe(t(p, 'b'))
+    // Nothing moves where nothing was written.
+    expect(withSwitchHeights(after, after, { opts })).toBe(after)
   })
 
   it('tells the profile what each point is', () => {
-    const p = given(raw(), 's1', 'm')
+    const p = settle(raw())
     const roles = heightRoles(p, opts)
-    expect(roles.get('m').get(0)).toMatchObject({ kind: 'wa' })
+    expect(roles.get('a').get(2)).toMatchObject({ kind: 'wa', side: 'main' })
+    expect(roles.get('m').get(0)).toMatchObject({ kind: 'wa', side: 'main' })
     expect(roles.get('m').get(1)).toMatchObject({ kind: 'lds', side: 'main' })
+    expect(roles.get('b').get(0)).toMatchObject({ kind: 'wa', side: 'branch' })
     expect(roles.get('b').get(1)).toMatchObject({ kind: 'lds', side: 'branch' })
-    const cont = roles.get('b').get(2)
-    expect(cont).toMatchObject({ kind: 'continuation', free: 1 })
-    expect(cont.line.z0 + cont.line.g * (50 - cont.line.s0)).toBeCloseTo(t(p, 'b')[2].z, 4)
-    expect(roles.get('b').has(3)).toBe(false)
-    expect(roles.get('a').get(1)).toMatchObject({ kind: 'wa' })
-  })
-
-  it('changes nothing where everything fits already', () => {
-    const p = given(raw(), 's1', 'm')
-    expect(given(p, 's1', 'm')).toBe(p)
-    expect(given(p, 's1', 'b')).toBe(p)
-  })
-
-  it('gives a branch without a gradient one from the plane, and says where the given track has none', () => {
-    const bare = single({
-      a: [{ station: 0, z: 100 }, { station: 100, z: 100 }],
-      m: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }],
-    })
-    const p = given(bare, 's1', 'm')
-    const b = t(p, 'b')
-    // Its toe is the main route's, on the line through Q and P (decision 270).
-    expect(b[0]).toMatchObject({ station: 0, z: t(p, 'm')[0].z })
-    expect(b.length).toBeGreaterThanOrEqual(2)
-    expect(planeDeviations(couplingOf(p.tracks, p.switches, p.switches[0], opts))).toEqual([])
-    expect(otherTrackHeights(bare, 's1', 'b', opts)).toEqual({ error: 'no_gradient' })
-    expect(otherTrackHeights(bare, 's1', 'a', opts)).toEqual({ error: 'not_on_track' })
+    expect(roles.get('b').has(2)).toBe(false)
+    expect(roles.get('a').has(1)).toBe(false)
   })
 })
 
-describe('a turnout whose branch runs into the toe of the next (decision 271)', () => {
-  // The branch of s1 is the approach of s2: its end is s2's toe.
-  const build = () => {
-    const p = single({
+describe('coupled: the tracks meet at WA and ldS (decision 384)', () => {
+  it('gives the branch the main route\'s toe and its ldS the plane, moving the free point behind it', () => {
+    const p = settle(raw())
+    expect(gapsOf(p)).toEqual([])
+    expect(t(p, 'b')[0].z).toBe(t(p, 'm')[0].z)
+    // The main route stays as its lines make it.
+    expect(t(p, 'm')[2].z).toBe(102)
+    expect(t(p, 'b')[2].z).not.toBe(101.9)
+  })
+
+  it('lets the main route lead where it was written, its free points staying', () => {
+    const p = settle(raw())
+    const after = write(p, 'a', setZ(1, 100.8))
+    expect(gapsOf(after)).toEqual([])
+    expect(t(after, 'a')[1].z).toBe(100.8)
+    expect(t(after, 'm')[2].z).toBe(102)
+    expect(t(after, 'b')[0].z).toBe(t(after, 'm')[0].z)
+  })
+
+  it('lets the branch lead where only it was written: the main route moves the free point behind its ldS', () => {
+    const p = settle(raw())
+    const after = write(p, 'b', setZ(2, 102.5))
+    expect(gapsOf(after)).toEqual([])
+    expect(t(after, 'b')[2].z).toBe(102.5)
+    expect(t(after, 'a')[1].z).toBe(100.5)
+    expect(t(after, 'm')[2].z).not.toBe(102)
+    expect(t(after, 'b')[0].z).toBe(t(after, 'm')[0].z)
+  })
+
+  it('lifts the branch at the ldS to the side the cant raises, and lowers it to the other', () => {
+    const flat = (cant) => settle(single({
       a: [{ station: 0, z: 100 }, { station: 100, z: 100 }],
-      m: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }],
-      b: [{ station: 0, z: 100 }, { station: 60, z: 101.5 }],
-    })
-    const b = p.tracks.find(x => x.id === 'b')
-    const wa2 = endOf(b.elements[1])
-    const bearing = b.elements[1].endBearing
-    const m2a = straight(wa2, bearing, 30, { switchId: 's2', switchRoute: 'main' })
-    const b2a = arc(wa2, bearing, 30, -R, { switchId: 's2', switchRoute: 'branch' })
-    return {
-      tracks: [...p.tracks,
-        track('m2', [m2a, straight(endOf(m2a), bearing, 60)], [{ station: 0, z: 101.5 }, { station: 70, z: 99 }, { station: 90, z: 99 }]),
-        track('b2', [b2a, arc(endOf(b2a), b2a.endBearing, 30, -R)], [{ station: 0, z: 101.5 }, { station: 60, z: 101 }]),
-      ],
-      switches: [...p.switches, {
-        switchId: 's2', kind: 'turnout', label: 'TEST',
-        ports: {
-          A: { trackId: 'b', endpoint: 'END' },
-          B1: { trackId: 'b2', endpoint: 'BEGIN' },
-          B2: { trackId: 'm2', endpoint: 'BEGIN' },
-        },
-      }],
+      m: [{ station: 0, z: 100 }, { station: 60, z: 100 }],
+      b: [{ station: 0, z: 100 }, { station: 60, z: 100 }],
+    }, { cant }))
+    for (const cant of [60, -60]) {
+      const p = flat(cant)
+      const c = couplingOf(p.tracks, p.switches, p.switches[0], opts)
+      const dz = zAt(t(p, 'b'), c.ldsBranch) - zAt(t(p, 'm'), c.ldsMain)
+      // y to the left, a positive cant raises the left rail.
+      expect(dz).toBeCloseTo(cant / 1500 * c.offset, 4)
+      expect(Math.sign(dz)).toBe(Math.sign(cant * c.offset))
+      expect(ldsLift(c, t(p, 'm'))).toBeCloseTo(dz, 4)
     }
-  }
+  })
 
-  it('sets that toe on the continuation, and the next main route runs on it to its first free point', () => {
-    const first = given(build(), 's1', 'm')
-    expect(t(first, 'm2')[0].z).toBe(t(first, 'b')[2].z)
-    const p = given(first, 's2', 'm2')
-    const b = t(p, 'b')
-    const g = (b[1].z - b[0].z) / b[1].station
-    const at = (s) => b[1].z + g * (s - b[1].station)
-    expect(b[2].z).toBeCloseTo(at(60), 4)
-    const m2 = t(p, 'm2')
-    expect(m2[0].z).toBe(b[2].z)
-    expect(m2.find(q => Math.abs(q.station - 40) < 0.002).z).toBeCloseTo(at(100), 3)
-    // P of s2 at 70 m lies on it too — only its station and the gradient beyond it are its own.
-    expect(m2.find(q => q.station === 70).z).toBeCloseTo(at(130), 3)
-    expect(m2.find(q => q.station === 90).z).toBe(99)
-    const role = heightRoles(p, opts).get('m2').get(2)
-    expect(role).toMatchObject({ kind: 'continuation', free: 1 })
-    expect(role.line.z0 + role.line.g * (80 - role.line.s0)).toBeCloseTo(at(140), 3)
+  it('makes up no gradient: a branch without heights is left out', () => {
+    const p = settle(single({
+      a: [{ station: 0, z: 100 }, { station: 100, z: 100 }],
+      m: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }],
+    }))
+    expect(t(p, 'b')).toBeUndefined()
+    expect(gapsOf(p)).toEqual([])
+  })
+
+  it('lets a branch getting heights for the first time follow, not lead', () => {
+    const bare = settle(single({
+      a: [{ station: 0, z: 100 }, { station: 100, z: 100 }],
+      m: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }],
+    }))
+    const after = write(bare, 'b', () => [{ station: 0, z: 99 }, { station: 60, z: 99 }])
+    expect(t(after, 'm')).toEqual(t(bare, 'm'))
+    expect(gapsOf(after)).toEqual([])
   })
 })
 
-describe('a crossover (decision 272)', () => {
+describe('the design mode: taking one height over (decision 384)', () => {
+  // Coupled first, then the approach moved with the mode on: the main route's
+  // toe and ldS follow their line, the branch does not.
+  const apart = () => write(settle(raw()), 'a', setZ(1, 100.9), true)
+
+  it('couples nothing, and says where the tracks do not meet', () => {
+    const p = apart()
+    expect(gapsOf(p).map(m => m.at)).toEqual(['wa', 'lds'])
+  })
+
+  it('takes the toe over into the branch, then the ldS by the free point behind it', () => {
+    let p = take(apart(), 'wa', 'main')
+    expect(t(p, 'b')[0].z).toBe(t(p, 'm')[0].z)
+    expect(gapsOf(p).some(m => m.at === 'wa')).toBe(false)
+    p = take(p, 'lds', 'main')
+    expect(gapsOf(p)).toEqual([])
+    expect(take(p, 'lds', 'main')).toBe(p)
+  })
+
+  it('takes the branch\'s heights over into the main route by the free point behind its turnout', () => {
+    let p = take(apart(), 'lds', 'branch')
+    expect(gapsOf(p).map(m => m.at)).toEqual(['wa'])
+    expect(t(p, 'a')[1].z).toBe(100.9)
+    p = take(p, 'wa', 'branch')
+    expect(t(p, 'm')[0].z).toBe(t(p, 'b')[0].z)
+    expect(gapsOf(p).filter(m => m.at === 'wa')).toEqual([])
+  })
+
+  it('says why it cannot', () => {
+    expect(takeOverHeight(apart(), 'gone', 'wa', 'main', opts)).toEqual({ error: 'not_coupled' })
+    const bare = settle(single({ a: [{ station: 0, z: 100 }, { station: 100, z: 100 }], m: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }] }))
+    expect(takeOverHeight(bare, 's1', 'lds', 'main', opts)).toEqual({ error: 'no_height' })
+    // No free point behind the ldS: the branch ends at the next point.
+    const short = apart()
+    const cut = { ...short, tracks: short.tracks.map(x => (x.id === 'b' ? { ...x, heights: x.heights.slice(0, 2) } : x)) }
+    expect(takeOverHeight(cut, 's1', 'lds', 'main', opts)).toEqual({ error: 'no_free_point' })
+  })
+})
+
+describe('a crossover: the connecting track the branch of both', () => {
   // Two parallel tracks, the connecting track `x` the branch of s1 (at its
   // BEGIN) and of s2 (at its END); `mid` the straight between the two arcs.
-  const build = (mid, { h1 = [100, 100.6], h2 = [100.4, 100.1] } = {}) => {
+  const build = (mid, xHeights) => {
     const wa1 = { easting: 1000, northing: 1000, zone: 5684 }
     const x1 = arc(wa1, 90, 30, -R, { switchId: 's1', switchRoute: 'branch' })
     const x2 = straight(endOf(x1), x1.endBearing, mid)
     const x3 = arc(endOf(x2), x1.endBearing, 30, R, { switchId: 's2', switchRoute: 'branch' })
     const wa2 = endOf(x3)
-    const len = 60 + mid
     const m1 = straight(wa1, 90, 30, { switchId: 's1', switchRoute: 'main' })
     const m2 = straight(wa2, 270, 30, { switchId: 's2', switchRoute: 'main' })
     return {
       tracks: [
-        track('a1', [straight(endPointStraightUtm(wa1, 270, 100), 90, 100)], [{ station: 0, z: h1[0] - 0.5 }, { station: 100, z: h1[0] }]),
-        track('m1', [m1, straight(endOf(m1), 90, 70)], [{ station: 0, z: h1[0] }, { station: 100, z: h1[1] }]),
-        track('x', [x1, x2, x3], [{ station: 0, z: h1[0] }, { station: len, z: h2[0] }]),
-        track('a2', [straight(endPointStraightUtm(wa2, 90, 100), 270, 100)], [{ station: 0, z: h2[0] + 0.3 }, { station: 100, z: h2[0] }]),
-        track('m2', [m2, straight(endOf(m2), 270, 70)], [{ station: 0, z: h2[0] }, { station: 100, z: h2[1] }]),
-      ],
-      switches: [
-        { switchId: 's1', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a1', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'BEGIN' }, B2: { trackId: 'm1', endpoint: 'BEGIN' } }},
-        // Seen from its toe, s2's branch turns the other way: to the left of its main route, too.
-        { switchId: 's2', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a2', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'END' }, B2: { trackId: 'm2', endpoint: 'BEGIN' } }},
-      ],
-    }
-  }
-  const ldsOf = (p, id) => switchCoupling(p.tracks, p.switches.find(s => s.switchId === id), opts).ldsBranch
-
-  it('couples both turnouts', () => {
-    const p = build(60)
-    expect(ldsOf(p, 's1')).toBeGreaterThan(30)
-    expect(ldsOf(p, 's2')).toBeLessThan(90)
-  })
-
-  it('carries one point where the continuations meet, with more than 20 m between the ldS, given the connecting track', () => {
-    // Both main routes rise away from their toe: the continuations meet in a crest.
-    const raw = build(60, { h1: [100, 101], h2: [100, 101] })
-    const withExtra = { ...raw, tracks: raw.tracks.map(x => (x.id === 'x'
-      ? { ...x, heights: [x.heights[0], { station: 55, z: 100.3 }, { station: 65, z: 100.2 }, x.heights[1]] } : x)) }
-    const p = given(withExtra, 's1', 'x')
-    const x = t(p, 'x')
-    const [l1, l2] = [ldsOf(p, 's1'), ldsOf(p, 's2')]
-    expect(l2 - l1).toBeGreaterThan(CROSSOVER_SPAN)
-    const between = x.filter(q => q.station > l1 + 0.01 && q.station < l2 - 0.01)
-    expect(between).toHaveLength(1)
-    const z1 = zAt(x, l1), z2 = zAt(x, l2)
-    const g1 = (z1 - x[0].z) / l1, g2 = (z2 - x[x.length - 1].z) / (l2 - x[x.length - 1].station)
-    const M = between[0]
-    expect(M.z).toBeCloseTo(z1 + g1 * (M.station - l1), 3)
-    expect(M.z).toBeCloseTo(z2 + g2 * (M.station - l2), 3)
-    expect(heightRoles(p, opts).get('x').get(x.indexOf(M))).toMatchObject({ kind: 'middle' })
-  })
-
-  it('given a main route, runs one gradient from toe to toe however far apart the ldS lie, the track across with it', () => {
-    const raw = build(60, { h1: [100, 101], h2: [100, 101] })
-    const p = given(raw, 's1', 'm1')
-    const x = t(p, 'x')
-    const [l1, l2] = [ldsOf(p, 's1'), ldsOf(p, 's2')]
-    expect(l2 - l1).toBeGreaterThan(CROSSOVER_SPAN)
-    expect(x.filter(q => q.station > l1 + 0.01 && q.station < l2 - 0.01)).toHaveLength(0)
-    expect(t(p, 'm2')[0].z).toBe(x[x.length - 1].z)
-    expect(crossoverBend(p)).toBeLessThan(0.0005)
-    // The track given keeps its free points.
-    expect(t(p, 'm1')[t(p, 'm1').length - 1].z).toBe(101)
-    expect(given(p, 's1', 'm1')).toBe(p)
-  })
-
-  it('carries none with 20 m or less, and one gradient runs through from toe to toe', () => {
-    const raw = build(30)
-    const withExtra = { ...raw, tracks: raw.tracks.map(x => (x.id === 'x'
-      ? { ...x, heights: [x.heights[0], { station: 45, z: 100.3 }, x.heights[1]] } : x)) }
-    const p = given(withExtra, 's1', 'm1')
-    const x = t(p, 'x')
-    const [l1, l2] = [ldsOf(p, 's1'), ldsOf(p, 's2')]
-    expect(l2 - l1).toBeLessThanOrEqual(CROSSOVER_SPAN)
-    expect(x.filter(q => q.station > l1 + 0.01 && q.station < l2 - 0.01)).toHaveLength(0)
-    // s1 leads (m1 is given): its continuation reaches s2's toe.
-    const z1 = zAt(x, l1)
-    const g1 = (z1 - x[0].z) / l1
-    const end = x[x.length - 1]
-    expect(end.z).toBeCloseTo(z1 + g1 * (end.station - l1), 3)
-    // s2's line Q₂ → P₂ runs through it with the gradient that puts its
-    // plane on the ldS onto the same line (decision 276).
-    const a2 = t(p, 'a2'), m2 = t(p, 'm2')
-    expect(m2[0].z).toBe(end.z)
-    expect(collinear(-100, a2[0].z, 0, m2[0].z, 100, m2[m2.length - 1].z)).toBe(true)
-    expect(crossoverBend(p)).toBeLessThan(0.0005)
-    expect(given(p, 's1', 'm1')).toBe(p)
-  })
-})
-
-describe('who leads a crossover: the track given (decisions 276, 383)', () => {
-  // The crossover of decision 272 with 20 m or less between the ldS (mid 30),
-  // and with the two stretches overlapping (mid 0) — the usual one.
-  const build = (mid) => {
-    const wa1 = { easting: 1000, northing: 1000, zone: 5684 }
-    const x1 = arc(wa1, 90, 30, -R, { switchId: 's1', switchRoute: 'branch' })
-    const parts = [x1]
-    if (mid > 0) parts.push(straight(endOf(x1), x1.endBearing, mid))
-    const x3 = arc(endOf(parts[parts.length - 1]), x1.endBearing, 30, R, { switchId: 's2', switchRoute: 'branch' })
-    parts.push(x3)
-    const wa2 = endOf(x3)
-    const m1 = straight(wa1, 90, 30, { switchId: 's1', switchRoute: 'main' })
-    const m2 = straight(wa2, 270, 30, { switchId: 's2', switchRoute: 'main' })
-    return {
-      tracks: [
-        track('a1', [straight(endPointStraightUtm(wa1, 270, 100), 90, 100)], [{ station: 0, z: 99.5 }, { station: 50, z: 99.8 }, { station: 100, z: 100 }]),
+        track('a1', [straight(endPointStraightUtm(wa1, 270, 100), 90, 100)], [{ station: 0, z: 99.5 }, { station: 100, z: 100 }]),
         track('m1', [m1, straight(endOf(m1), 90, 70)], [{ station: 0, z: 100 }, { station: 100, z: 100.6 }]),
-        track('x', parts, [{ station: 0, z: 100 }, { station: 60 + mid, z: 100.4 }]),
-        track('a2', [straight(endPointStraightUtm(wa2, 90, 100), 270, 100)], [{ station: 0, z: 100.7 }, { station: 50, z: 100.5 }, { station: 100, z: 100.4 }]),
+        track('x', [x1, x2, x3], xHeights(60 + mid)),
+        track('a2', [straight(endPointStraightUtm(wa2, 90, 100), 270, 100)], [{ station: 0, z: 100.7 }, { station: 100, z: 100.4 }]),
         track('m2', [m2, straight(endOf(m2), 270, 70)], [{ station: 0, z: 100.4 }, { station: 100, z: 100.1 }]),
       ],
       switches: [
-        { switchId: 's1', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a1', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'BEGIN' }, B2: { trackId: 'm1', endpoint: 'BEGIN' } }},
-        { switchId: 's2', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a2', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'END' }, B2: { trackId: 'm2', endpoint: 'BEGIN' } }},
+        { switchId: 's1', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a1', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'BEGIN' }, B2: { trackId: 'm1', endpoint: 'BEGIN' } } },
+        { switchId: 's2', kind: 'turnout', label: 'TEST', ports: { A: { trackId: 'a2', endpoint: 'END' }, B1: { trackId: 'x', endpoint: 'END' }, B2: { trackId: 'm2', endpoint: 'BEGIN' } } },
       ],
     }
   }
-  const lift = (p, id, index, dz) => ({ ...p, tracks: p.tracks.map(x => (x.id === id
-    ? { ...x, heights: x.heights.map((q, i) => (i === index ? { ...q, z: roundTo(q.z + dz) } : q)) } : x)) })
-  const roundTo = (z) => Math.round(z * 10000) / 10000
-  const last = (h) => h[h.length - 1]
 
-  for (const mid of [30, 0]) {
-    describe(`${mid ? '10' : 'no'} m between the ldS`, () => {
-      it('passes an edit of the first track on to the turnout across and the track beside', () => {
-        const p = given(build(mid), 's1', 'm1')
-        // Given the first track, its toe moves and s2 follows.
-        const after = given(lift(p, 'a1', 1, 0.5), 's1', 'm1')
-        expect(t(after, 'm1')[0].z).not.toBeCloseTo(t(p, 'm1')[0].z, 3)
-        expect(last(t(after, 'x')).z).not.toBeCloseTo(last(t(p, 'x')).z, 3)
-        expect(t(after, 'm2')[0].z).toBe(last(t(after, 'x')).z)
-        // Q₂ and P₂ move onto the line through s2's toe that continues the
-        // connecting track's gradient (decision 276).
-        expect(t(after, 'a2')[1].z).not.toBeCloseTo(t(p, 'a2')[1].z, 2)
-        expect(collinear(-50, t(after, 'a2')[1].z, 0, t(after, 'm2')[0].z, 100, last(t(after, 'm2')).z)).toBe(true)
-        expect(crossoverBend(after)).toBeLessThan(0.0005)
-        expect(given(after, 's1', 'm1')).toBe(after)
-      })
+  it('needs a free point of its own behind either ldS', () => {
+    const one = settle(build(40, (L) => [{ station: 0, z: 100 }, { station: L / 2, z: 100.2 }, { station: L, z: 100.4 }]))
+    expect(gapsOf(one).filter(m => m.need)).toHaveLength(2)
+  })
 
-      it('lets the second track lead where it is the one given, and keeps it so', () => {
-        const p = given(build(mid), 's1', 'm1')
-        const after = given(lift(p, 'a2', 1, 0.5), 's2', 'm2')
-        // The edit stays, and s2's toe sits on the line through it.
-        expect(t(after, 'a2')[1].z).toBe(roundTo(t(p, 'a2')[1].z + 0.5))
-        expect(last(t(after, 'a2')).z).not.toBeCloseTo(last(t(p, 'a2')).z, 3)
-        // s1 follows: its toe on s2's continuation, Q₁ and P₁ on the line through it.
-        expect(t(after, 'x')[0].z).not.toBeCloseTo(t(p, 'x')[0].z, 3)
-        expect(t(after, 'm1')[0].z).toBe(t(after, 'x')[0].z)
-        expect(t(after, 'a1')[1].z).not.toBeCloseTo(t(p, 'a1')[1].z, 2)
-        expect(collinear(-50, t(after, 'a1')[1].z, 0, t(after, 'm1')[0].z, 100, last(t(after, 'm1')).z)).toBe(true)
-        expect(crossoverBend(after)).toBeLessThan(0.0005)
-        // Working it out again keeps it so, from either side.
-        expect(given(after, 's2', 'm2')).toBe(after)
-        expect(given(after, 's1', 'm1')).toBe(after)
-      })
-    })
-  }
+  it('couples both turnouts where it has them, each main route leading its own', () => {
+    const p = settle(build(40, (L) => [{ station: 0, z: 100 }, { station: 45, z: 100.2 }, { station: 55, z: 100.2 }, { station: L, z: 100.4 }]))
+    expect(gapsOf(p)).toEqual([])
+    expect(t(p, 'x')[0].z).toBe(t(p, 'm1')[0].z)
+    expect(t(p, 'x')[t(p, 'x').length - 1].z).toBe(t(p, 'm2')[0].z)
+    // An edit of one main route moves the connecting track's end on its side only.
+    const after = write(p, 'a1', setZ(0, 99))
+    expect(gapsOf(after)).toEqual([])
+    expect(t(after, 'm2')).toBe(t(p, 'm2'))
+    expect(zAt(t(after, 'x'), 55)).toBe(zAt(t(p, 'x'), 55))
+  })
 })
 
-describe.skipIf(!hasPek)('the crossovers of PEK Halle–Könnern (decisions 276, 383)', () => {
-  it('pass an edit before the toe given on to the other turnout, with one gradient through', () => {
+describe.skipIf(!hasPek)('PEK Halle–Könnern', () => {
+  it('couples every turnout but the crossovers lacking a free point, and stays so', () => {
     const p0 = hydrateProjects([loadPek()])[0]
-    const turnouts = p0.switches.filter(s => switchCoupling(p0.tracks, s))
-    const branchOf = (s) => (s.ports?.B1?.trackId && p0.tracks.find(x => x.id === s.ports?.B1?.trackId)?.elements.some(el => el.switchRoute === 'branch' && el.switchId === s.switchId)
-      ? { id: s.ports?.B1?.trackId, end: s.ports?.B1?.endpoint } : { id: s.ports?.B2?.trackId, end: s.ports?.B2?.endpoint })
-    const mainOf = (q, s) => couplingOf(q.tracks, q.switches, s).main.track.id
-    let checked = 0
-    for (const s of turnouts) {
-      const b = branchOf(s)
-      // A passing loop — both turnouts on one main track — is no crossover.
-      const o = turnouts.find(x => x !== s && branchOf(x).id === b.id && branchOf(x).end !== b.end && mainOf(p0, x) !== mainOf(p0, s))
-      if (!o) continue
-      const p = otherTrackHeights(p0, s.switchId, mainOf(p0, s)).project
-      if (!p) continue
-      expect(otherTrackHeights(p, s.switchId, mainOf(p, s)).project).toBe(p)
-      // The free point next to the toe on the approach.
-      const a = p.tracks.find(x => x.id === s.ports?.A?.trackId)
-      const index = s.ports?.A?.endpoint === 'END' ? a.heights.length - 2 : 1
-      if (heightRoles(p).get(a.id)?.has(index)) continue
-      const edited = { ...p, tracks: p.tracks.map(x => (x === a
-        ? { ...x, heights: x.heights.map((q, i) => (i === index ? { ...q, z: q.z + 0.5 } : q)) } : x)) }
-      const after = otherTrackHeights(edited, s.switchId, mainOf(edited, s)).project
-      const bh = (q) => q.tracks.find(x => x.id === b.id).heights
-      const otherToe = (q) => (b.end === 'BEGIN' ? bh(q)[bh(q).length - 1] : bh(q)[0]).z
-      expect(Math.abs(otherToe(after) - otherToe(p)), `${s.name} → ${o.name}`).toBeGreaterThan(0.001)
-      // One gradient through the connecting track (decision 276): every stretch
-      // longer than the one between the two ldS on it rises alike.
-      const h = bh(after)
-      const grades = h.slice(1).map((q, i) => [q.station - h[i].station, (q.z - h[i].z) / (q.station - h[i].station)])
-        .filter(([len]) => len > 2).map(([, g]) => g)
-      expect(Math.max(...grades) - Math.min(...grades), `${s.name} → ${o.name}`).toBeLessThan(0.00005)
-      expect(otherTrackHeights(after, s.switchId, mainOf(after, s)).project).toBe(after)
-      checked++
-    }
-    expect(checked).toBeGreaterThanOrEqual(3)
+    const p = withSwitchHeights({ tracks: [] }, p0)
+    const left = switchMisfits(p)
+    // Each turnout of a crossover is left with its ldS and the free point it lacks.
+    const needs = left.filter(m => m.need).map(m => m.sw.switchId)
+    expect(needs.length).toBeGreaterThanOrEqual(4)
+    expect(left.every(m => needs.includes(m.sw.switchId))).toBe(true)
+    expect(withSwitchHeights(p, { ...p, tracks: p.tracks.map(x => ({ ...x })) }).tracks.map(x => x.heights))
+      .toEqual(p.tracks.map(x => x.heights))
   })
 })

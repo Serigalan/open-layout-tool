@@ -1126,27 +1126,31 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
 }
 .project-settings-track-name:hover { color: var(--color-primary); }
 
-/* A switch on the track on show in the Höhenplan, with the button that works
-   out its other track (decision 383): name, status, then the button. */
-.switch-heights-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--color-border-soft);
+/* The design mode for turnouts under the Höhenplan's heading (decision 384):
+   a switch, and while on the turnouts that do not fit yet. */
+.switch-design { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 4px 0 10px; }
+.switch-design-toggle {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--fs-m); font-weight: 600;
 }
-
-.switch-heights-row:last-child {
-  border-bottom: none;
+.switch-design-toggle.disabled { cursor: not-allowed; }
+.switch-design-toggle input {
+  appearance: none; position: relative; width: 34px; height: 18px; margin: 0; flex: none;
+  border-radius: 9px; background: var(--color-faint); cursor: inherit; transition: background 0.15s;
 }
-
-.switch-heights-row .panel-btn {
-  align-self: flex-start;
-  margin-top: 4px;
+.switch-design-toggle input::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--color-surface); transition: left 0.15s;
 }
+.switch-design-toggle input:checked { background: var(--color-primary); }
+.switch-design-toggle input:checked::after { left: 18px; }
+.switch-design-toggle input:disabled { opacity: 0.6; }
+.switch-design-open, .switch-design > .rule-findings-ok { flex-basis: 100%; }
+.switch-design-open ul { margin: 2px 0 0; padding-left: 18px; font-size: var(--fs-s); }
+.switch-design-open li { margin: 2px 0; }
 
-.switch-heights-name {
-  font-family: var(--font-ui);
-  font-size: var(--fs-m);
-  font-weight: 600;
+/* A section heading that folds its block away (FormSection `folded`). */
+.form-section-fold {
+  padding: 0; border: none; background: none; cursor: pointer;
+  font: inherit; color: inherit; text-align: left;
 }
