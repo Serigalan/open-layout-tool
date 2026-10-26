@@ -3,7 +3,7 @@ import {
   setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches, addDependentPoint, addHeightPoint,
   releaseDependentPoint, restoreDependentPoint, setDependencyModeAt, setToeLeadAt,
 } from '../storage'
-import { useProject, useReferenceAxes, useRoutes, useSwitchDesign, useSwitches, useTracks } from '../hooks/useStore'
+import { useHiddenTracks, useProject, useReferenceAxes, useRoutes, useSwitchDesign, useSwitches, useTracks } from '../hooks/useStore'
 import {
   checkVertical, regularVerticalRadius, verticalFindings, trackHeightAt,
   heightLinks, heightRoles, routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute, DEPENDENCY_MODES,
@@ -66,18 +66,20 @@ const CURSOR_LAYERS = [{
   },
 }]
 
-// The height points of what is on show, on the map (decision 387): blue, the
-// selected one red, what it depends on yellow, what depends on it green.
+// The height points on the map (decisions 387, 394): every track's — those of
+// the tracks not on show smaller and paler —, the selected one red, what it
+// depends on yellow, what depends on it green.
 const POINTS_SOURCE = 'elevation-points-source'
 const POINT_LAYERS = [{
   sourceId: POINTS_SOURCE,
   layer: {
     id: ELEVATION_POINTS_LAYER, type: 'circle',
     paint: {
-      'circle-radius': ['match', ['get', 'state'], 'selected', 6, 'source', 5.5, 'dependent', 5.5, 4],
+      'circle-radius': ['match', ['get', 'state'], 'selected', 6, 'source', 5.5, 'dependent', 5.5, 'other', 3, 4],
       'circle-color': ['match', ['get', 'state'], 'selected', PALETTE.heightPointSelected, 'source', PALETTE.heightPointSource,
         'dependent', PALETTE.heightPointDependent, PALETTE.heightPoint],
-      'circle-stroke-width': 1.5,
+      'circle-opacity': ['match', ['get', 'state'], 'other', 0.55, 1],
+      'circle-stroke-width': ['match', ['get', 'state'], 'other', 1, 1.5],
       'circle-stroke-color': PALETTE.white,
     },
   },
@@ -96,8 +98,11 @@ const POINT_LAYERS = [{
  *
  * A point is picked the same way wherever it is shown — in the section, in
  * the table, on the map: a click picks it alone, Ctrl/Shift-click adds it to
- * or drops it from the selection. A click in the section or on the map opens
- * it in the point tab; in the table the row is picked and the table stays.
+ * or drops it from the selection. A click in either section or on the map
+ * opens it in the point tab below (decision 394); in the table the row is
+ * picked and the table stays, its fields being typed in. The map shows the
+ * height points of every track — a point of a track not on show opens that
+ * track's profile on it.
  * Everywhere the selected point is red, what it depends on yellow, what
  * depends on it green.
  *
@@ -170,6 +175,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const switches = useSwitches()
   const project  = useProject()
   const routes   = useRoutes()
+  const hidden   = useHiddenTracks()
   // A route (Paket RT) or a single track — the track as the route of one part,
   // so both are drawn and edited the same way (decision 251).
   const routeRec = routeId ? routes.find(r => r.id === routeId) ?? null : null
@@ -444,24 +450,22 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       const [lng, lat] = utmToWgs84(at.utm.easting, at.utm.northing, track.epsg)
       return { type: 'Feature', properties: { state: st, trackId: track.id, index }, geometry: { type: 'Point', coordinates: [lng, lat] } }
     }
-    // While a dependent point is picked, every track's points can be clicked.
-    const shown = new Set(picking ? tracks.filter(x => x.heights?.length).map(x => x.id) : parts.map(p => p.trackId))
+    // Every track's points (decision 394) — but a track hidden on the map, unless a point of it is linked.
+    const onShow = new Set(parts.map(p => p.trackId))
     const out = []
-    for (const id of shown) {
-      const track = tracks.find(x => x.id === id)
-      ;(track?.heights ?? []).forEach((_, i) => out.push(feature(track, i, state.get(`${id}|${i}`) ?? 'plain')))
+    for (const track of tracks) {
+      const hide = hidden?.has?.(track.id) && !onShow.has(track.id)
+      ;(track.heights ?? []).forEach((_, i) => {
+        const st = state.get(`${track.id}|${i}`) ?? (onShow.has(track.id) ? 'plain' : 'other')
+        if (!hide || st !== 'other') out.push(feature(track, i, st))
+      })
     }
-    // What a point is linked to on other tracks shows too.
-    for (const [k, st] of state) {
-      const [id, i] = k.split('|')
-      if (!shown.has(id)) out.push(feature(tracks.find(x => x.id === id), Number(i), st))
-    }
-    // Drawn last on top: the coloured ones.
-    const rank = { plain: 0, dependent: 1, source: 1, selected: 2 }
+    // Drawn last on top: the tracks on show, then the coloured ones.
+    const rank = { other: -1, plain: 0, dependent: 1, source: 1, selected: 2 }
     pointsPreview.set(POINTS_SOURCE, out.filter(Boolean).sort((a, b) => rank[a.properties.state] - rank[b.properties.state]))
     // parts and points follow resolved
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolved, tracks, selectedKeys, links, pointsPreview, picking])
+  }, [resolved, tracks, selectedKeys, links, pointsPreview, hidden])
 
   // A height point clicked on the map opens in the point tab (decision 389):
   // picked here where it is on show — with Ctrl/Shift as in the section —,
@@ -484,7 +488,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       const r = heightPointAt(m, e.point)
       if (!r) return
       const i = profile?.byRef(r.trackId, r.index)
-      if (i != null) pick(i, e.originalEvent, { open: lower !== 'profile' })
+      if (i != null) pick(i, e.originalEvent, { open: true })
       else onShowPoint?.(r)
     },
   })
@@ -553,7 +557,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
    * Point `i` picked — in the section, the table or on the map, all alike: a
    * click picks it alone, Ctrl/Shift-click adds it to or drops it from the
    * selection. `open`: a single click shows it in the point tab, where it is
-   * edited (decision 387) — from the section and the map, not from the table.
+   * edited (decisions 387, 394) — from both sections and the map, not from the table.
    */
   const pick = (i, e, { open = false } = {}) => {
     if (e?.shiftKey || e?.ctrlKey || e?.metaKey) {
@@ -945,15 +949,15 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
 
   /**
    * What a section draws and does (ElevationSection) — the same data, the
-   * selection and the cursor for both. A click in the upper one opens the
-   * point tab below, unless a section is open there too (decision 393).
+   * selection and the cursor for both. A click on a point in either opens it
+   * in the point tab below (decision 394).
    */
-  const sectionOf = (where) => ({
+  const sectionOf = () => ({
     viewKey, exaggeration, points, profile, stubs, refRuns, refPoints, devShown, refAxis, limitZ, curves, overlaps,
     stretchAt, curveAt, linkState, selection, locked, lockedByHand, coupled, pointNote, curveNote, stretchNote,
     overlapNote, cursor, setCursor, heightAt, sectionStation, onTrackAt, select, onInsert: insertPoint, fitGen: fit.gen,
     empty: noHeights ? emptyState : null,
-    onPick: (i, e) => pick(i, e, { open: where === 'upper' && lower !== 'profile' }),
+    onPick: (i, e) => pick(i, e, { open: true }),
   })
   // What a section is set with, in the bar of every half that shows one — the same values for both.
   const sectionTools = (
@@ -995,7 +999,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           </div>
         </div>
         {/* Kept in place under the map tab, so the section keeps its size and view. */}
-        <ElevationSection s={sectionOf('upper')} />
+        <ElevationSection s={sectionOf()} />
       </section>
       <div ref={dividerRef} className="elevation-divider" role="separator" aria-orientation="horizontal"
         title={t('elevation_divider_hint')} onPointerDown={startSplit} onDoubleClick={resetSplit} />
@@ -1016,7 +1020,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
             )}
           </div>
         </div>
-        {lower === 'profile' ? <ElevationSection s={sectionOf('lower')} /> : (
+        {lower === 'profile' ? <ElevationSection s={sectionOf()} /> : (
           <div className="elevation-lower-body">
             {lower === 'point' ? (
               <ElevationPointDetails key={oneKey ?? 'none'} point={one} count={selectedPoints.length} track={one ? tracks.find(x => x.id === one.owner.trackId) : null}
