@@ -14,12 +14,15 @@
  *   plane over the main route's (switchGradient.ldsLift). The main route
  *   leads.
  * - Own (`dep` on a point: the id of the point it follows; kept in the
- *   project), the way `depMode` says (decision 390): 'wa' — the same height,
- *   as at a turnout's toe; 'lds' — the source's cant over the offset
- *   between the two (switchGradient.planeFrom; across a turnout's ldS its
- *   sleeper's plane, ldsLift); 'continue' — the gradient
- *   running into the source carried on to the point. Without a mode: 'wa'
- *   across a turnout's toe, else 'lds'.
+ *   project), the way `depMode` says (decisions 390, 392): 'lds' — the
+ *   source's cant over the offset between the two (switchGradient.planeFrom;
+ *   across a turnout's ldS its sleeper's plane, ldsLift); 'continueBefore' /
+ *   'continueAfter' — the gradient of the stretch before / after the source
+ *   carried on to the point. Read from a file as well: 'wa' — the same
+ *   height, as at a turnout's toe — and 'continue' — the gradient from the
+ *   side away from the point —, no longer offered. Without a mode: 'wa'
+ *   across a turnout's toe, else 'lds'. A toe is shown as such, not as a
+ *   dependency (heightLinks).
  *   Made in the design mode, in force in both; one over a turnout's pair
  *   drops the standard one it would turn round, and one on a WA or ldS takes
  *   it off its line.
@@ -233,8 +236,12 @@ function pointIds(project) {
   return out
 }
 
-/** How a point may depend on another (decision 390). */
-export const DEPENDENCY_MODES = ['wa', 'lds', 'continue']
+/** How a point may be made to depend on another (decisions 390, 392). */
+export const DEPENDENCY_MODES = ['lds', 'continueBefore', 'continueAfter']
+// What a project may say besides: the same height ('wa', a turnout's toe)
+// and, from before decision 392, the gradient from the side away from the point.
+const KNOWN_MODES = new Set([...DEPENDENCY_MODES, 'wa', 'continue'])
+const CONTINUING = new Set(['continue', 'continueBefore', 'continueAfter'])
 
 /** Are `src` and `dst` a turnout's pair at WA or ldS (one on either track)? Its { e, at, side } of `src`, or null. */
 function pairOfBoth(pairOf, src, dst) {
@@ -243,15 +250,19 @@ function pairOfBoth(pairOf, src, dst) {
 }
 
 /** The mode a dependency has where it states none: the same height across a turnout's toe, else the plane. */
-const modeOf = (p, pair) => (DEPENDENCY_MODES.includes(p?.depMode) ? p.depMode : pair?.at === 'wa' ? 'wa' : 'lds')
+const modeOf = (p, pair) => (KNOWN_MODES.has(p?.depMode) ? p.depMode : pair?.at === 'wa' ? 'wa' : 'lds')
 
 /**
  * The height a point depending on `src` takes, the way `mode` says: 'wa' the
  * same; 'lds' the source's cant over the offset across — across a turnout's
- * ldS the plane on its sleeper (ldsLift), elsewhere planeFrom; 'continue' the
- * gradient running into the source, from the side away from the point,
- * carried on to it — along the source's track, over the run from the source
- * to the point (on another track: its foot along the source's).
+ * ldS the plane on its sleeper (ldsLift), elsewhere planeFrom;
+ * 'continueBefore' / 'continueAfter' the gradient of the source's track on
+ * the stretch before / after the source, carried on to the point — along the
+ * source's track, over the run from the source to the point (on another
+ * track: its foot along the source's); 'continue' the one from the side away
+ * from the point. The point itself does not count as the source's neighbour:
+ * next to it, it lies on the line through the source and the point beyond.
+ * Where the side has no point, the other's gradient is taken.
  */
 function followZ(project, src, dst, pairOf, mode) {
   const zs = zOf(project, src)
@@ -259,7 +270,7 @@ function followZ(project, src, dst, pairOf, mode) {
   if (mode === 'wa') return zs
   const st = trackOf(project, src.trackId), dt = trackOf(project, dst.trackId)
   const s0 = st.heights[src.index].station, s1 = dt.heights[dst.index].station
-  if (mode === 'continue') {
+  if (CONTINUING.has(mode)) {
     const h = st.heights
     let a = s1 - s0
     if (dt.id !== st.id) {
@@ -268,9 +279,11 @@ function followZ(project, src, dst, pairOf, mode) {
       const b = p.bearing * Math.PI / 180
       a = Math.sin(b) * (q.utm.easting - p.utm.easting) + Math.cos(b) * (q.utm.northing - p.utm.northing)
     }
-    const into = (n) => (n ? (zs - n.z) / (s0 - n.station) : null)
-    const before = into(h[src.index - 1]), after = into(h[src.index + 1])
-    return zs + (a >= 0 ? before ?? after ?? 0 : after ?? before ?? 0) * a
+    const near = (i) => (dt.id === st.id && i === dst.index ? h[2 * i - src.index] : h[i])
+    const into = (n) => (n && n.station !== s0 ? (zs - n.z) / (s0 - n.station) : null)
+    const before = into(near(src.index - 1)), after = into(near(src.index + 1))
+    const [own, other] = mode === 'continueBefore' || (mode === 'continue' && a >= 0) ? [before, after] : [after, before]
+    return zs + (own ?? other ?? 0) * a
   }
   const pair = pairOfBoth(pairOf, src, dst)
   if (pair?.at === 'lds') {
@@ -307,8 +320,11 @@ function dependencies(ix, project, { design = false } = {}) {
       const ref = canon(ix, project, { trackId: t.id, index })
       const from = canon(ix, project, src)
       if (keyOf(from) === keyOf(ref)) return
-      const mode = modeOf(p, pairOfBoth(pairOf, from, ref))
-      nodes.set(keyOf(ref), { ref, kind: 'own', mode, sources: [from], z: (q) => followZ(q, from, ref, pairOf, mode) })
+      const pair = pairOfBoth(pairOf, from, ref)
+      const mode = modeOf(p, pair)
+      nodes.set(keyOf(ref), {
+        ref, kind: 'own', mode, sources: [from], toe: pair?.at === 'wa' && mode === 'wa', z: (q) => followZ(q, from, ref, pairOf, mode),
+      })
     })
   }
   const followsOwn = (a, b) => nodes.get(keyOf(a))?.sources.some(s => keyOf(s) === keyOf(b))
@@ -318,7 +334,7 @@ function dependencies(ix, project, { design = false } = {}) {
       const { mt, bt, ml, bl } = pairsOf(project, e)
       for (const [m, b, mode] of [[mt, bt, 'wa'], [ml, bl, 'lds']]) {
         if (!m || !b || nodes.has(keyOf(b)) || followsOwn(m, b) || isFree(project, b)) continue
-        nodes.set(keyOf(b), { ref: b, kind: 'standard', mode, sources: [m], z: (q) => followZ(q, m, b, pairOf, mode) })
+        nodes.set(keyOf(b), { ref: b, kind: 'standard', mode, sources: [m], toe: mode === 'wa', z: (q) => followZ(q, m, b, pairOf, mode) })
       }
     }
   }
@@ -589,7 +605,7 @@ export function dependOn(project, dst, src, { mode = null, design = true, opts }
   if (had.dep === id && (had.depMode ?? null) === (mode ?? null)) return { project: p }
   const dstId = heightsOf(p, d.trackId)[d.index].id
   if (dstId && heightsOf(p, s.trackId)[s.index].dep === dstId) p = patchPoint(ix, p, s, { dep: null })
-  p = patchPoint(ix, p, d, { dep: id, depMode: DEPENDENCY_MODES.includes(mode) ? mode : null, free: null })
+  p = patchPoint(ix, p, d, { dep: id, depMode: KNOWN_MODES.has(mode) ? mode : null, free: null })
   if (ordered(dependencies(ix, p, { design })).ring.has(keyOf(d))) return { error: 'ring' }
   return { project: p }
 }
@@ -712,7 +728,10 @@ export function heightRoles(project, opts) {
  * Which points a point depends on and which depend on it, for the profile:
  * Map(`trackId|index` → { kind, mode, from: [refs], to: [refs] }) — `kind`
  * what it depends by ('own', 'standard', 'line'; null where it depends on
- * nothing), `mode` how (DEPENDENCY_MODES, or 'line'). The
+ * nothing), `mode` how (DEPENDENCY_MODES, or 'line'). A turnout's toe is no
+ * dependency (decision 392): the branch's WA taking the main route's height
+ * is `toe: true` with nothing on either list — `kind` still says whether it
+ * is the standard coupling or one of its own, to be let go of. The
  * approach's end of a toe answers as the main route's start, the one point
  * they are.
  */
@@ -729,6 +748,7 @@ export function heightLinks(project, { design = false, opts } = {}) {
     const me = at(n.ref)
     me.kind = n.kind
     me.mode = n.mode
+    if (n.toe) { me.toe = true; continue }
     me.from = n.sources
     for (const s of n.sources) at(s).to.push(n.ref)
   }

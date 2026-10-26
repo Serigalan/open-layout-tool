@@ -1273,6 +1273,11 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
             <circle cx={X(hover.station)} cy={Y(hover.z)} r="4" fill={PALETTE.white}
               stroke="var(--color-primary)" strokeWidth="1.5" strokeDasharray="2 2" pointerEvents="none" />
           )}
+          {/* A turnout's toe, marked as such (decision 392). */}
+          {points.filter(p => coupled(p.index)?.kind === 'wa').map(p => (
+            <text key={`wa${p.index}`} x={X(p.station)} y={Y(p.z) + 17} fontSize="9" fontWeight="600"
+              fill={PALETTE.label} textAnchor="middle" pointerEvents="none">WA</text>
+          ))}
           {points.filter(p => lockedByHand(p.index)).map(p => (
             // A lock above its point.
             <text key={`lk${p.index}`} x={X(p.station)} y={Y(p.z) - 22} fontSize={12}
@@ -1427,7 +1432,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               grades={one ? pointGrades(points, one.index) : null} roleText={one ? roleNote(roles.get(one.index)) : null}
               links={one ? linksOf(one.index) : null}
               nameOf={linkName} linkOf={(r) => links.get(`${r.trackId}|${r.index}`) ?? null} design={design}
-              modes={DEPENDENCY_MODES} suggested={!one ? null : coupled(one.index)?.kind === 'wa' ? 'wa' : coupled(one.index)?.kind === 'lds' ? 'lds' : 'continue'}
+              modes={DEPENDENCY_MODES} suggested={coupled(one?.index)?.kind === 'lds' ? 'lds' : 'continueBefore'}
+              toe={one && coupled(one.index)?.kind === 'wa' ? swName(coupled(one.index).sw) : null}
               picking={picking} onPickDependent={setPicking} onCancelPick={() => setPicking(null)}
               note={rvNote} onPick={pickLinked}
               editor={pointEditor} freed={!!one && !!roles.get(one.index)?.free}

@@ -6,8 +6,10 @@ import { useI18n } from '../locales/i18nContext'
  * its track, gradients, lock and what it is at a turnout, and its station,
  * height, curve (with the Regelwert offered) and reason to edit (`editor`) —
  * and its dependencies (decision 385): what it depends on and what depends on
- * it, each a link to that point, and how (decision 390: as a turnout's toe,
- * as its ldS, the gradient carried on — or on a line). In the design mode
+ * it, each a link to that point, and how (decisions 390, 392: as its ldS,
+ * the gradient before or after it carried on — or on a line). A turnout's toe
+ * is marked as such (`toe` the turnout's name): it is one point on all its
+ * tracks, no dependency. In the design mode
  * they are made and changed here: a point picked on the map made to depend
  * on this one the way chosen, the way a point follows its own source
  * changed, and every dependency let go with the × behind it — a WA or ldS
@@ -23,7 +25,7 @@ import { useI18n } from '../locales/i18nContext'
  * said — at the head, whichever part it came from.
  */
 export default function ElevationPointDetails({
-  point, count = 0, track, grades, roleText, links, linkOf, nameOf, design, modes, suggested, picking, note, editor, freed,
+  point, count = 0, track, grades, roleText, links, linkOf, nameOf, design, modes, suggested, picking, note, editor, freed, toe = null,
   onPick, onPickDependent, onCancelPick, onSetMode, onRelease, onRestore,
 }) {
   const { t, fill, num } = useI18n()
@@ -61,10 +63,13 @@ export default function ElevationPointDetails({
     const l = dependent === ref ? links : linkOf(dependent)
     if (!l?.mode) return null
     if (design && l.kind === 'own') {
+      // A way no longer offered (from an older project) stands first, until another is chosen.
       return (
         <select className="settings-select profile-point-mode" value={l.mode} title={t('elevation_dep_mode_hint')}
           onChange={e => onSetMode(dependent, e.target.value)}>
-          {modes.map(m => <option key={m} value={m}>{t(`elevation_dep_mode_${m}`)}</option>)}
+          {(modes.includes(l.mode) ? modes : [l.mode, ...modes]).map(m => (
+            <option key={m} value={m} disabled={!modes.includes(m)}>{t(`elevation_dep_mode_${m}`)}</option>
+          ))}
         </select>
       )
     }
@@ -90,7 +95,10 @@ export default function ElevationPointDetails({
     <div className="profile-point">
       {noteLine}
       <section>
-        <h4>{fill('elevation_point_title', { n: point.index + 1 })}</h4>
+        <h4>
+          {fill('elevation_point_title', { n: point.index + 1 })}
+          {toe != null && <span className="profile-toe-tag">{fill('elevation_toe_tag', { name: toe })}</span>}
+        </h4>
         {editor}
         <dl className="profile-point-facts">
           {rows.map(([k, v]) => (
@@ -100,7 +108,14 @@ export default function ElevationPointDetails({
       </section>
       <section>
         <h4>{t('elevation_links')}</h4>
-        <p className="profile-hint">{t(`elevation_link_kind_${freed ? 'free' : links?.kind ?? 'none'}`)}</p>
+        <p className="profile-hint">
+          {t(`elevation_link_kind_${freed ? 'free' : links?.toe || (toe != null && !links?.kind) ? 'toe' : links?.kind ?? 'none'}`)}
+          {/* The toe's coupling is let go like a dependency. */}
+          {design && links?.toe && (
+            <button type="button" className="profile-point-x" title={t('elevation_release_hint')} aria-label={t('elevation_release')}
+              onClick={() => onRelease(ref)}>×</button>
+          )}
+        </p>
         {freed && design && (
           <button className="track-table-save-btn" title={t('elevation_restore_hint')} onClick={onRestore}>{t('elevation_restore')}</button>
         )}

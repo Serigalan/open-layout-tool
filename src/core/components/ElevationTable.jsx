@@ -155,7 +155,7 @@ export default function ElevationTable({
                 className={selection.includes(i) ? 'track-table-row-active' : linked ? `profile-row-${linked}` : undefined}
                 title={noteAt(i) ?? (joint ? t('elevation_table_joint') : undefined)}
                 onClick={(e) => onPick(i, e)}>
-                <td>{i + 1}</td>
+                <td>{i + 1}{kind === 'wa' && <span className="profile-toe-tag" title={noteAt(i) ?? undefined}>WA</span>}</td>
                 <td className="profile-lock-cell">
                   <button type="button" className={`profile-lock-btn${isLocked ? ' on' : ''}`} aria-pressed={isLocked}
                     title={t(isLocked ? 'elevation_unlock' : 'elevation_lock')}

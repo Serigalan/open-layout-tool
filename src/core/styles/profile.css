@@ -541,3 +541,9 @@
 .profile-point-how { margin: 0 0 4px 18px; }
 .profile-point-mode { font-size: var(--fs-s); padding: 1px 4px; }
 .profile-point-picking { color: var(--color-primary); font-weight: 600; }
+/* A turnout's toe (decision 392): marked, not a dependency. */
+.profile-toe-tag {
+  margin-left: 6px; padding: 0 5px; border-radius: 3px;
+  background: var(--color-surface-alt); border: 1px solid var(--color-border);
+  font-size: var(--fs-xs); font-weight: 600; color: var(--color-text-soft); vertical-align: 1px;
+}

@@ -210,7 +210,8 @@ describe('coupled: the branch follows the main route at WA and ldS (decisions 38
     expect(ldsM.kind).toBe('line')
     expect(ldsM.from).toEqual([{ trackId: 'a', index: 1 }, { trackId: 'm', index: 2 }])
     expect(ldsM.to).toEqual([{ trackId: 'b', index: 1 }])
-    expect(links.get('b|0')).toMatchObject({ kind: 'standard', from: [{ trackId: 'm', index: 0 }] })
+    // The branch's toe takes the main route's height, marked as a toe — no dependency (decision 392).
+    expect(links.get('b|0')).toMatchObject({ kind: 'standard', toe: true, from: [] })
     // The approach's end is the toe, as the main route's start.
     expect(links.get('a|2')).toBe(links.get('m|0'))
     expect(heightLinks(p, { design: true, opts }).get('b|0').kind).toBeNull()
@@ -309,8 +310,8 @@ describe('how a point depends (decision 390)', () => {
 
   it('carrying the gradient on: the one the track runs into the source with', () => {
     // The branch's ldS on the main route's first: on its line it would hang on the point behind it — a ring.
-    expect(dependOn(apart(), pRef, ldsRef, { mode: 'continue', opts })).toEqual({ error: 'ring' })
-    const p = follow(take(apart(), 'lds', 'main'), pRef, ldsRef, 'continue')
+    expect(dependOn(apart(), pRef, ldsRef, { mode: 'continueBefore', opts })).toEqual({ error: 'ring' })
+    const p = follow(take(apart(), 'lds', 'main'), pRef, ldsRef, 'continueBefore')
     const b = t(p, 'b')
     const g = (b[1].z - b[0].z) / (b[1].station - b[0].station)
     expect(b[2].z).toBeCloseTo(b[1].z + g * (b[2].station - b[1].station), 4)
@@ -319,6 +320,42 @@ describe('how a point depends (decision 390)', () => {
     expect(t(flat, 'b')[2].depMode).toBe('lds')
     expect(t(flat, 'b')[2].z).toBeCloseTo(b[1].z, 3)
     expect(setDependencyMode(p, { trackId: 'a', index: 1 }, 'wa', opts)).toBe(p)
+  })
+
+  it('carries on the gradient before or after the source, as chosen (decision 392)', () => {
+    // A straight track without turnouts: 2 ‰·10 before the point at 40 m, level after it.
+    const plain = (heights) => ({
+      tracks: [track('x', [straight({ easting: 0, northing: 0, zone: 5684 }, 90, 100)], heights)], switches: [],
+    })
+    const p = plain([[0, 100], [20, 100.2], [40, 100.6], [60, 100.6], [80, 101]].map(([station, z]) => ({ station, z })))
+    const src = { trackId: 'x', index: 2 }
+    const zOf = (dst, mode) => {
+      const r = dependOn(p, { trackId: 'x', index: dst }, src, { mode, opts })
+      return t(withSwitchHeights(p, r.project, { design: true, opts }), 'x')[dst].z
+    }
+    expect(zOf(4, 'continueBefore')).toBeCloseTo(101.4, 4)
+    expect(zOf(4, 'continueAfter')).toBeCloseTo(100.6, 4)
+    expect(zOf(0, 'continueBefore')).toBeCloseTo(99.8, 4)
+    expect(zOf(0, 'continueAfter')).toBeCloseTo(100.6, 4)
+    // Next to the source the point is not its own neighbour: the line runs on to the point beyond.
+    expect(zOf(3, 'continueAfter')).toBeCloseTo(100.8, 4)
+    // An older project's 'continue' takes the side away from the point.
+    expect(zOf(4, 'continue')).toBeCloseTo(101.4, 4)
+    expect(zOf(0, 'continue')).toBeCloseTo(100.6, 4)
+    // Changed between the two.
+    const before = withSwitchHeights(p, dependOn(p, { trackId: 'x', index: 4 }, src, { mode: 'continueBefore', opts }).project, { design: true, opts })
+    const after = withSwitchHeights(before, setDependencyMode(before, { trackId: 'x', index: 4 }, 'continueAfter', opts), { design: true, opts })
+    expect(t(after, 'x')[4]).toMatchObject({ depMode: 'continueAfter', z: 100.6 })
+    // The toe is no longer offered.
+    expect(setDependencyMode(after, { trackId: 'x', index: 4 }, 'wa', opts)).toBe(after)
+  })
+
+  it('shows a turnout\'s toe as such, not as a dependency (decision 392)', () => {
+    const p = settle(raw())
+    const links = heightLinks(p, { opts })
+    const toe = links.get(`b|0`)
+    expect(toe).toMatchObject({ toe: true, kind: 'standard', from: [], to: [] })
+    expect(links.get(`m|0`)?.to ?? []).not.toContainEqual({ trackId: 'b', index: 0 })
   })
 
   it('gives every turnout its ldS points as a project opens, on the gradient', () => {

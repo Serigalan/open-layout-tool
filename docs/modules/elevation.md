@@ -115,13 +115,17 @@ heights reach there (an ldS point is put on the gradient where it is missing). F
 - *None:* `free` on a WA or ldS (decision 387) — let go of its line and of the standard coupling in the
   design mode; a point like any other, typed by hand, until its rule is restored (`restoreDependency`).
 - *Own:* `dep` on a point, the id of the point it follows (`id` on that one) — kept in the project, made in
-  the design mode, in force in both — the way `depMode` says (decision 390): `wa` the same height (a
-  turnout's toe: height and place the same), `lds` the source's cant over the offset across
-  (`planeFrom`: z + u/1500·y; across a turnout's ldS its sleeper's plane, `ldsLift`), `continue` the
-  gradient the source's track runs into it with, from the side away from the point, carried on over the
-  run to it (on another track: its foot along the source's). One over a pair
+  the design mode, in force in both — the way `depMode` says (decisions 390, 392; offered:
+  `DEPENDENCY_MODES`): `lds` the source's cant over the offset across (`planeFrom`: z + u/1500·y; across a
+  turnout's ldS its sleeper's plane, `ldsLift`), `continueBefore` / `continueAfter` the gradient of the
+  source's track on the stretch before / after the source, carried on over the run to the point (on another
+  track: its foot along the source's; the point itself is not the source's neighbour — next to it, the line
+  runs on to the point beyond; a side without a point takes the other's gradient). Still read, no longer
+  offered: `wa` the same height (a turnout's toe) and `continue` (the side away from the point). One over a pair
   drops the standard one it would turn round; one on a WA or ldS takes it off its line, and the line
   through its neighbours ends there.
+- A turnout's *toe* is no dependency (decision 392): `heightLinks` gives the branch's WA `toe: true` and
+  nothing on either list; the profile marks the point "WA".
 
 The store runs `withSwitchHeights` after every write: links to points gone are dropped, the turnouts on the
 tracks it changed get their ldS points, and every height that depends on what it changed is worked out
