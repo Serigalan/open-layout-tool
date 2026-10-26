@@ -121,8 +121,8 @@ never stored.
 
 A turnout lies on one set of sleepers, so its two routes carry one cant side by side. Laying it reads the
 branch off the track beside it (decision 367); `coupleSwitchCants(before, after, switches)` keeps them together
-afterwards. The store runs it on every write, before the gradients are coupled (they read the cant), and the
-element table on its working copy. Where a write changed the cant along one route, the other takes it, element
+afterwards. The store runs it on every write (the turnout's heights, worked out on request, read the cant),
+and the element table on its working copy. Where a write changed the cant along one route, the other takes it, element
 by element, at the station abreast (`switchAbreast` over the joints of the route the turnout was laid onto);
 both changed, the main route leads. Cant is signed by the raised rail as seen along a track, so a route whose
 track runs the other way from the toe takes it with the other sign. The track then carries it on over the

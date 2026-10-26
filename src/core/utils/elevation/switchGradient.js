@@ -21,9 +21,9 @@
  * The turnout lies on sleepers (switch/sleepers.js, decision 256), and every
  * height point between WA and the ldS sits on one of them and has a partner on
  * the same sleeper of the other track (decision 258). Either track can be
- * edited: after a write the track that led — the branch where only its heights
- * changed, the main route otherwise — decides which sleepers carry points, and
- * the other follows with the heights the plane gives (decision 259). WA is a
+ * given: the one given decides which sleepers carry points, and the other
+ * follows with the heights the plane gives (decision 259) — when asked to
+ * (switchChain.otherTrackHeights, decision 383), never on its own. WA is a
  * joint and carries one height already (jointGroup); the branch always has a
  * point on the ldS. Between the points the plane is not a straight line (the
  * offset grows along the branch arc), and the heights it gives there are only
@@ -32,10 +32,11 @@
  * Where the ldS lies comes from the switch catalogue (db-ril-800-0120, `lds`):
  * how far behind the switch end (WE) it is. From WA that is the length of the
  * turnout's main route — its elements on the main track — and that distance
- * on. A form that does not state one is not coupled.
+ * on. A form that does not state one is coupled up to WE, its ldS taken
+ * there (decision 383).
  */
 
-import { gradientAt, roundHeight, turnoutLinePort, portTrack } from '../track'
+import { gradientAt, pointAtStation, roundHeight, stationOnTrack, turnoutLinePort, portTrack } from '../track'
 import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from '../crossSection'
 import { mainRouteLength, routeFrom, sleeperOffsets, sleeperThrough, switchLds, turnoutSleepers } from '../switch'
 
@@ -85,14 +86,15 @@ const cantOn = (c, sl) => (sl.cant ??= sectionAtStation(c.main.track, sl.main)?.
 
 /**
  * How one turnout couples its branch to its main route, or null where it does
- * not: not a turnout, a track missing, no ldS for its form.
+ * not: not a turnout, a track missing.
  *
  * Its sleepers (switch/sleepers.turnoutSleepers) with { offset, cant }: how far
  * the branch lies to the left of the main route on the ldS sleeper [m] and the
  * main route's cant there [mm].
  */
 export function switchCoupling(tracks, sw, opts = {}) {
-  const frame = turnoutSleepers(tracks, sw, opts)
+  // A form whose ldS the catalogue does not state is coupled up to WE (decision 383).
+  const frame = turnoutSleepers(tracks, sw, { ...opts, ldsUnknown: 0 })
   if (!frame) return null
   const ldsSleeper = frame.sleepers[frame.sleepers.length - 1]
   return { ...frame, ldsSleeper, offset: ldsSleeper.y, cant: cantOn(frame, ldsSleeper) }
@@ -346,23 +348,34 @@ export function ldsPlaneTerms(c) {
 }
 
 /**
- * The switchIds of the turnouts a write reached: those one of whose three
- * tracks changed — the approach carries the point their main route's line
- * starts at (decision 270) — or whose own record did. What the store couples after
- * a write, so an edit far from any turnout leaves the turnouts alone.
+ * The height a plane through one track gives a point of another (decision
+ * 383): the height of `from` at the foot of the perpendicular, tilted across
+ * by its cant there — z = z_foot + g · a + u/1500 · y, y how far the point
+ * lies to the left of `from` in the direction of its stations, u signed the
+ * same way (a positive cant raises the left rail), a how far it lies beyond
+ * the foot along it — nothing but where the point lies past an end of
+ * `from`, whose plane then runs on with its gradient g there. What a
+ * crossing's other routes take, what the other main route of a crossover
+ * lies at, and what a turnout's other track is seeded with where it has no
+ * gradient yet. Null where `from` has none at the foot.
  */
-export function touchedTurnouts(before, after) {
-  const was = new Map((before?.tracks ?? []).map(t => [t.id, t]))
-  const changedTrack = new Set((after?.tracks ?? []).filter(t => was.get(t.id) !== t).map(t => t.id))
-  const wasSw = new Map((before?.switches ?? []).map(s => [s.switchId, s]))
-  const ids = new Set()
-  for (const sw of after?.switches ?? []) {
-    if (!isTurnout(sw)) continue
-    if (wasSw.get(sw.switchId) !== sw
-      || changedTrack.has(portTrack(sw, 'A')) || changedTrack.has(portTrack(sw, 'B1'))
-      || changedTrack.has(portTrack(sw, 'B2'))) ids.add(sw.switchId)
-  }
-  return ids
+export function planeAcross(from, to, station) {
+  const q = pointAtStation(to, station)
+  const foot = q && stationOnTrack(from, q.utm)
+  const p = foot && pointAtStation(from, foot.station)
+  const h = from.heights ?? []
+  const z = p && gradientAt(h, foot.station)
+  if (z == null) return null
+  const b = p.bearing * Math.PI / 180
+  const t = [Math.sin(b), Math.cos(b)]
+  const v = [q.utm.easting - p.utm.easting, q.utm.northing - p.utm.northing]
+  const a = t[0] * v[0] + t[1] * v[1]
+  const y = t[0] * v[1] - t[1] * v[0]
+  // The gradient there, read on the side the track has heights.
+  const step = 0.05
+  const s0 = Math.max(h[0].station, foot.station - step), s1 = Math.min(h[h.length - 1].station, foot.station + step)
+  const g = s1 > s0 ? (gradientAt(h, s1) - gradientAt(h, s0)) / (s1 - s0) : 0
+  return z + g * a + ((sectionAtStation(from, foot.station)?.cant ?? 0) / RUNNING_CIRCLE_DISTANCE) * y
 }
 
 /**

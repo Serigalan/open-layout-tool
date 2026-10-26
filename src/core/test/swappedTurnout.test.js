@@ -10,7 +10,8 @@ import { switchOnTrackPlacement, buildSwitchOnTrack, buildSwitchAtTrackEnd } fro
 import { solveConnection, computeShiftBounds, buildSCurve } from '../utils/commands/sCurve'
 import { switchElementRoute } from '../utils/switch/route'
 import { planSwitchDeletion } from '../utils/switch/switchDelete'
-import { findCrossovers, crossoverFrame } from '../utils/elevation/crossoverGradient'
+import { otherTrackHeights, switchesOfTrack } from '../utils/elevation/otherTrack'
+import { trackLength } from '../utils/track/heightUtils'
 import { ldsFromToe } from '../utils/elevation/switchGradient'
 
 import { expectValidTrack } from './chainInvariants'
@@ -184,8 +185,29 @@ describe('a crossover out of the curve', () => {
   })
 
   it('is still found as a crossover, with each line on its own track', () => {
-    const found = findCrossovers(after.tracks, after.switches)
-    expect(found).toHaveLength(1)
-    expect(crossoverFrame(after.tracks, after.switches, found[0])).not.toBeNull()
+    const listed = after.tracks.flatMap(t => switchesOfTrack(after, t.id).filter(e => e.other).map(e => ({ ...e, trackId: t.id })))
+    // Each line lists it from its own turnout, the connecting track once.
+    const mains = listed.filter(e => e.side === 'main')
+    expect(mains).toHaveLength(2)
+    expect(mains[0].trackId).not.toBe(mains[1].trackId)
+    expect(listed.filter(e => e.side === 'branch')).toHaveLength(1)
+  })
+
+  it('lays the track across in the plane of the one given, higher on the side the cant raises (decision 383)', () => {
+    const flat = { ...after, tracks: after.tracks.map(t => ({ ...t, heights: [{ station: 0, z: 100 }, { station: trackLength(t), z: 100 }] })) }
+    const mains = flat.tracks.flatMap(t => switchesOfTrack(flat, t.id).filter(e => e.other && e.side === 'main').map(e => ({ ...e, trackId: t.id })))
+    const north = (id) => flat.tracks.find(t => t.id === id).elements[0].startNode[1]
+    // The outer track lies 4.5 m to the left of the right-hand curve, on the side its 100 mm raise.
+    const [inner, outer] = mains.sort((a, b) => north(a.trackId) - north(b.trackId))
+    const toeZ = (p, sw) => {
+      const h = p.tracks.find(t => t.id === sw.ports.A.trackId).heights
+      return sw.ports.A.endpoint === 'BEGIN' ? h[0].z : h[h.length - 1].z
+    }
+    const fromInner = otherTrackHeights(flat, inner.sw.switchId, inner.trackId).project
+    expect(toeZ(fromInner, inner.sw)).toBe(100)
+    expect(toeZ(fromInner, outer.sw) - 100).toBeCloseTo(100 / 1500 * 4.5, 2)
+    const fromOuter = otherTrackHeights(flat, outer.sw.switchId, outer.trackId).project
+    expect(toeZ(fromOuter, outer.sw)).toBe(100)
+    expect(toeZ(fromOuter, inner.sw) - 100).toBeCloseTo(-100 / 1500 * 4.5, 2)
   })
 })

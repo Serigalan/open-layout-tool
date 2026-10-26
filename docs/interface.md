@@ -32,8 +32,9 @@ writes go through the store's functions (`saveTrack`, `deleteElements`, `commitS
   the rest. An undo snapshot is therefore just a reference, React can subscribe cheaply, and in development and
   tests the record is deep-frozen so an in-place change fails at once instead of corrupting history.
 - **One place for consequences.** After every write the store repairs routes over changed tracks, drops end
-  marks whose end is no longer free, recomputes length-governed vertical curves and couples the heights of every
-  turnout the write reached — all in the same undo step, so no writer has to remember them.
+  marks whose end is no longer free, keeps the cant of a turnout's two routes together and recomputes
+  length-governed vertical curves — all in the same undo step, so no writer has to remember them. A switch's
+  heights are worked out only on request (`computeOtherTrack`, the button in the Höhenplan, decision 383).
 - **Undo/redo** keep 20 steps; `withUndo` turns several writes into one step (a switch committed piece by piece
   is one Ctrl+Z). The history panel lists the steps by what they did (`project/stepLabel.js`) and jumps several
   at once. The plan header is not part of undo.

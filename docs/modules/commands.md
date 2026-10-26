@@ -51,8 +51,8 @@ number. A crossing needs straight track either side of its crossing point.
 **Switch connection** (`sCurve.js`): the slider sets the toe of the first turnout as a station on track 1
 (±50 m around the click); the construction finds the second (see `switch`). WA is placed first on the
 element change behind the turnout; the remaining pieces on both tracks must be zero or at least `l_min`. The
-connecting track is the branch of both turnouts. If the tracks are canted, the dialog then offers to fit
-the crossover's heights (`elevation`).
+connecting track is the branch of both turnouts. Its heights are worked out afterwards in the Höhenplan,
+from the track given (`elevation`, decision 383).
 
 **Editing a switch connection** (`crossoverEdit.js`, Entscheidung 364; in the Edit panel): a track that
 begins and ends at a route (B1/B2) of two turnouts of one form a turnout can be laid in with

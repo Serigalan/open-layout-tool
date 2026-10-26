@@ -32,9 +32,10 @@
  * route between them is a free point and splits its line.
  *
  * Everything works on the stored points: a point's role follows from where it
- * lies, nothing marks it. The store couples after every write
- * (coupleSwitchHeights), and `heightRoles` tells the profile what it may let
- * the user change.
+ * lies, nothing marks it. Nothing couples on its own (decision 383): asked
+ * to, `otherTrackHeights` works out one turnout's other tracks from the one
+ * given, these rules with it, and `heightRoles` tells the profile what it may
+ * let the user change.
  */
 
 import {
@@ -42,7 +43,7 @@ import {
   portEnd, trackLength,
 } from '../track'
 import {
-  carried, couplingOf, isTurnout, ldsPlaneHeight, ldsPlaneTerms, pairedHeights, roundMm, STATION_TOL, switchCouplings, touchedTurnouts, Z_TOL,
+  carried, couplingOf, ldsPlaneHeight, ldsPlaneTerms, pairedHeights, planeAcross, roundMm, STATION_TOL, switchCouplings, Z_TOL,
 } from './switchGradient'
 
 /** Between two ldS of a crossover, more than this carries a point of its own [m] (decision 272). */
@@ -220,23 +221,35 @@ function ldsLine(h, s0, sense, z0 = heightAt(h ?? [], s0)) {
 }
 const onLine = (L, s) => L.z0 + L.g * (s - L.s0)
 
-/** The other turnout of a crossover whose connecting track is `e`'s branch, or null. */
-function crossoverPartner(ix, project, e) {
-  const h = heightsOf(project, e.branch.trackId)
-  if (!h) return null
+/**
+ * The other turnout of a crossover whose connecting track is `e`'s branch, or
+ * null. Two turnouts on one main track whose branches are the ends of one
+ * track — a loop, a passing track — are no crossover (decision 383): each
+ * runs its branch on behind its ldS on its own.
+ */
+function crossoverPartner(ix, e) {
   const farEnd = e.branch.endpoint === 'BEGIN' ? 'END' : 'BEGIN'
-  return (ix.branchOn.get(e.branch.trackId) ?? []).find(o => o !== e && o.branch.endpoint === farEnd) ?? null
+  return (ix.branchOn.get(e.branch.trackId) ?? [])
+    .find(o => o !== e && o.branch.endpoint === farEnd && o.main.trackId !== e.main.trackId) ?? null
 }
 
 /** How far apart the two ldS of a crossover lie along its connecting track [m]. */
 const crossoverGap = (e, o) => (o.ldsBranch - e.ldsBranch) * e.branchSense
 
 /**
- * Does `a` lead over `b`, the other turnout of its crossover (decisions 272,
- * 275)? As the write decided (`opts.crossLead`; null where neither does),
- * else by the order in the project.
+ * Up to how far apart the two ldS of a crossover lie for its leading turnout
+ * to set the other's toe [m]: 20 m (decision 272) — any distance where the
+ * main route given leads (`opts.span`, decision 383).
  */
-const leadsOver = (a, b, opts) => (opts?.crossLead?.has(a.sw.switchId) ? opts.crossLead.get(a.sw.switchId) === true : leads(a, b) < 0)
+const spanOf = (opts) => opts?.span ?? CROSSOVER_SPAN
+
+/**
+ * Does `a` lead over `b`, the other turnout of its crossover (decisions 272,
+ * 275)? As `opts.crossLead` says — true where it leads, null where neither
+ * does; a crossover it does not name leads nowhere (decision 383: only the
+ * one worked out does) —, else by the order in the project.
+ */
+const leadsOver = (a, b, opts) => (opts?.crossLead ? opts.crossLead.get(a.sw.switchId) === true : leads(a, b) < 0)
 
 /** The end of the connecting track at `e`'s toe: its index there. */
 const toeEndIndex = (h, e) => (e.branch.endpoint === 'BEGIN' ? 0 : h.length - 1)
@@ -265,14 +278,29 @@ function toeFrom(project, e, o, opts) {
  * leads, or is no such toe.
  */
 function crossoverToe(ix, project, e, opts) {
-  const o = crossoverPartner(ix, project, e)
-  if (!o || crossoverGap(e, o) > CROSSOVER_SPAN || !leadsOver(o, e, opts)) return null
-  return toeFrom(project, e, o, opts)
+  const o = crossoverPartner(ix, e)
+  if (!o || crossoverGap(e, o) > spanOf(opts) || !leadsOver(o, e, opts)) return null
+  return opts?.planeOf ? planeToe(project, e, opts.planeOf) : toeFrom(project, e, o, opts)
+}
+
+/**
+ * What the plane of the main route given lays on the other turnout of its
+ * crossover (decision 383): { z } at that turnout's toe — the end of the
+ * connecting track — and { lds } at its ldS on it, each the given track's
+ * height across from it tilted by its cant (planeAcross). Null without one.
+ */
+function planeToe(project, e, fromId) {
+  const from = project.tracks.find(t => t.id === fromId)
+  const conn = project.tracks.find(t => t.id === e.branch.trackId)
+  if (!from || !conn) return null
+  const z = planeAcross(from, conn, e.branch.endpoint === 'BEGIN' ? 0 : trackLength(conn))
+  const lds = planeAcross(from, conn, e.ldsBranch)
+  return z == null || lds == null ? null : { z, lds }
 }
 
 /** Is `e` a turnout of a crossover with 20 m or less between its ldS? */
 function shortCrossover(ix, project, e) {
-  const o = crossoverPartner(ix, project, e)
+  const o = crossoverPartner(ix, e)
   return !!o && crossoverGap(e, o) <= CROSSOVER_SPAN
 }
 
@@ -281,88 +309,31 @@ const SETS_TOL = 0.00015
 /** An end of the other turnout's line stays where the line misses it by no more than this [m]: one step of 0.1 mm. */
 const FOLLOW_TOL = 0.00015
 
-/** The stations at which two height lists differ: a point in one that the other lacks, or has at another height. */
-function changedStations(a, b) {
-  const has = (h, p) => h.some(q => Math.abs(q.station - p.station) < 1e-9 && Math.abs(q.z - p.z) < 1e-9)
-  return [...a.filter(p => !has(b, p)), ...b.filter(p => !has(a, p))].map(p => p.station)
-}
-
-/**
- * Did the write from `before` to `after` change the side of a crossover's
- * turnout `e` (decision 275): its main route's line through the toe — any
- * point from the one before WA to the one behind it, on whichever tracks the
- * way runs — or its own points on the connecting track, between WA and ldS?
- */
-function sideEdited(ix, before, after, e, edited) {
-  const changedWithin = (id, lo, hi) => {
-    if (!edited.has(id)) return false
-    const st = changedStations(heightsOf(before, id) ?? [], heightsOf(after, id) ?? [])
-    return st.some(s => s >= lo - STATION_TOL && s <= hi + STATION_TOL)
-  }
-  const mh = heightsOf(after, e.main.trackId)
-  if (mh?.length >= 2) {
-    const ch = chainThrough(ix, after, { trackId: e.main.trackId, index: mainToeIndex(after, e) })
-    const range = new Map()
-    for (const p of [ch.S, ...ch.bound, ch.E]) {
-      if (!p) continue
-      const s = heightsOf(after, p.trackId)[p.index].station
-      const r = range.get(p.trackId)
-      range.set(p.trackId, r ? [Math.min(r[0], s), Math.max(r[1], s)] : [s, s])
-    }
-    // A way that ends at a dead end runs to the end of its track.
-    for (const [p, q] of [[ch.S, ch.bound[0]], [ch.E, ch.bound[ch.bound.length - 1]]]) {
-      if (p || !q) continue
-      const h = heightsOf(after, q.trackId)
-      const r = range.get(q.trackId)
-      range.set(q.trackId, [Math.min(r[0], h[0].station), Math.max(r[1], h[h.length - 1].station)])
-    }
-    for (const [id, [lo, hi]] of range) if (changedWithin(id, lo, hi)) return true
-  }
-  const lo = Math.min(e.branchWa, e.branchWa + e.branchSense * e.branchReach)
-  const hi = Math.max(e.branchWa, e.branchWa + e.branchSense * e.branchReach)
-  return changedWithin(e.branch.trackId, lo + STATION_TOL, hi)
-}
-
 /**
  * Which turnout of every crossover with 20 m or less between its ldS leads
- * (decision 275), by switchId (true where it leads): the one whose side the
- * write changed; where it changed neither or both — or there was nothing
- * before — the one that sets the other's toe already, in the project as it
- * was where its geometry stayed; where both do — one gradient runs through
- * (decision 276) — neither (null): the lines through both toes already meet
- * it, and either would only work the other's rounding in again; where
- * neither does, the one whose main track comes first in the project.
+ * as the profile reads it (decision 275), by switchId (true where it leads):
+ * the one that sets the other's toe; where both do — one gradient runs
+ * through (decision 276) — neither (null); where neither does, the one whose
+ * main track comes first in the project.
  */
-function crossoverLeads(ix, before, after, opts) {
+function crossoverLeads(ix, project, opts) {
   const out = new Map()
-  const was = before && new Map(before.tracks.map(t => [t.id, t]))
-  const edited = was && new Set(after.tracks.filter(t => was.get(t.id)?.heights !== t.heights).map(t => t.id))
-  const sameShape = was && before.switches === after.switches
-    && before.tracks.length === after.tracks.length && after.tracks.every(t => was.get(t.id)?.elements === t.elements)
-  const state = sameShape ? before : after
   const sets = (a, b) => {
-    const z = toeFrom(state, b, a, opts)?.z
-    const h = heightsOf(state, b.branch.trackId)
+    const z = toeFrom(project, b, a, opts)?.z
+    const h = heightsOf(project, b.branch.trackId)
     return z != null && h?.length >= 2 && Math.abs(h[toeEndIndex(h, b)].z - z) <= SETS_TOL
   }
   for (const e of ix.entries) {
     if (out.has(e.sw.switchId)) continue
-    const o = crossoverPartner(ix, after, e)
+    const o = crossoverPartner(ix, e)
     if (!o || crossoverGap(e, o) > CROSSOVER_SPAN) continue
-    let eLeads = null
-    if (edited?.size) {
-      const [eEd, oEd] = [sideEdited(ix, before, after, e, edited), sideEdited(ix, before, after, o, edited)]
-      if (eEd !== oEd) eLeads = eEd
+    const [eSets, oSets] = [sets(e, o), sets(o, e)]
+    if (eSets && oSets) {
+      out.set(e.sw.switchId, null)
+      out.set(o.sw.switchId, null)
+      continue
     }
-    if (eLeads == null) {
-      const [eSets, oSets] = [sets(e, o), sets(o, e)]
-      if (eSets && oSets) {
-        out.set(e.sw.switchId, null)
-        out.set(o.sw.switchId, null)
-        continue
-      }
-      eLeads = eSets !== oSets ? eSets : leads(e, o) < 0
-    }
+    const eLeads = eSets !== oSets ? eSets : leads(e, o) < 0
     out.set(e.sw.switchId, eLeads)
     out.set(o.sw.switchId, !eLeads)
   }
@@ -419,7 +390,8 @@ function solveChain(ix, project, chain, opts) {
       // turn about it rather than move it in turn.
       const shared = (p) => isFree(p) && walk(ix, project, { trackId: p.trackId, index: p.index, dir: p.dir }).list
         .some(q => q.cls.kind === 'wa' && shortCrossover(ix, project, q.cls.e))
-      const pinned = (p) => p && (!isFree(p) || shared(p))
+      // A free point of the track given stays where it is (decision 383).
+      const pinned = (p) => p && (!isFree(p) || shared(p) || p.trackId === opts?.givenId)
       const fixed = pinned(S) ? S : pinned(E) ? E : null
       if (fixed && fixed.d !== held.d) {
         line = { d0: fixed.d, z0: fixed.z, g: (zA - fixed.z) / (held.d - fixed.d) }
@@ -531,7 +503,7 @@ function withBranchBeyond(ix, project, e, opts) {
   const id = e.branch.trackId
   const h = heightsOf(project, id)
   if (!(h?.length >= 2)) return { project, rerun: null }
-  const o = crossoverPartner(ix, project, e)
+  const o = crossoverPartner(ix, e)
   if (o) return withCrossoverMiddle(ix, project, e, o, opts)
   const iL = h.findIndex(p => Math.abs(p.station - e.ldsBranch) <= STATION_TOL)
   if (iL < 0) return { project, rerun: null }
@@ -545,14 +517,14 @@ function withCrossoverMiddle(ix, project, e, o, opts) {
   const id = e.branch.trackId
   const h = heightsOf(project, id)
   const gap = crossoverGap(e, o)
-  const rerun = gap <= CROSSOVER_SPAN && leadsOver(e, o, opts) ? o.sw.switchId : null
+  const rerun = gap <= spanOf(opts) && leadsOver(e, o, opts) ? o.sw.switchId : null
   // Where the two stretches overlap, the long sleepers hold what lies between (decision 264).
   if (!(gap > STATION_TOL)) return { project, rerun }
   const lo = Math.min(e.ldsBranch, o.ldsBranch), hi = Math.max(e.ldsBranch, o.ldsBranch)
   const between = h.filter(p => p.station > lo + STATION_TOL && p.station < hi - STATION_TOL)
   const rest = h.filter(p => !between.includes(p))
   let middle = []
-  if (gap > CROSSOVER_SPAN) {
+  if (gap > spanOf(opts)) {
     const L1 = ldsLine(h, e.ldsBranch, e.branchSense), L2 = ldsLine(h, o.ldsBranch, o.branchSense)
     if (L1 && L2 && Math.abs(L1.g - L2.g) > 1e-12) {
       const s = (L2.z0 - L1.z0 + L1.g * L1.s0 - L2.g * L2.s0) / (L1.g - L2.g)
@@ -574,22 +546,7 @@ function withCrossoverMiddle(ix, project, e, o, opts) {
   return { project: next, rerun }
 }
 
-// ── After a write ───────────────────────────────────────────────────────────
-
-/**
- * Which track of a turnout a write led with (decision 259): the branch where
- * only its heights changed and the main route stayed as it was, the main
- * route in every other case — its heights, its shape or its cant changed, or
- * there is nothing before to compare with.
- */
-function leaderOf(wasTrack, c) {
-  const mainBefore = wasTrack.get(c.main.track.id), branchBefore = wasTrack.get(c.branch.track.id)
-  const branchEdited = branchBefore && branchBefore.heights !== c.branch.track.heights
-    && branchBefore.elements === c.branch.track.elements
-  return branchEdited && mainBefore === c.main.track ? 'branch' : 'main'
-}
-
-const touches = (sw, ids) => [portTrack(sw, 'A'), portTrack(sw, 'B1'), portTrack(sw, 'B2')].some(id => ids.has(id))
+// ── On request: the other tracks of a turnout (decision 383) ─────────────
 
 /** The project with one turnout's pairs written, the track `leader` names leading. */
 function withPairs(project, sw, leader, opts) {
@@ -601,114 +558,110 @@ function withPairs(project, sw, leader, opts) {
 
 /**
  * One turnout coupled as Paket WK asks: the branch's own points between WA and
- * ldS first where it led, then the ldS point on the main route, the lines
+ * ldS first where it leads, then the ldS point on the main route, the lines
  * through toe and ldS, the pairs from the main route, and the branch behind
  * its ldS.
  */
 function coupleOne(ix, project, e, leader, opts) {
-  if (!(heightsOf(project, e.main.trackId)?.length >= 2)) return { project, rerun: null }
+  if (!(heightsOf(project, e.main.trackId)?.length >= 2)) return project
   if (leader === 'branch') project = withPairs(project, e.sw, 'branch', opts)
   project = withMainLds(project, e)
   project = withMainLines(ix, project, e, opts)
   project = withPairs(project, e.sw, 'main', opts)
-  return withBranchBeyond(ix, project, e, opts)
+  return withBranchBeyond(ix, project, e, opts).project
 }
 
 /**
- * The project after a write with every turnout the write reached coupled
- * again (decisions 258, 259, 269–272) — in the same step, so one undo takes
- * back all of it. A turnout that changes a track passes it on to the turnouts
- * on that track; the leading turnout of a crossover has the other coupled
- * after it. The same project where nothing had to change.
+ * The project with `side` of `e` given points at WA and on the ldS where its
+ * heights do not reach there, from the plane of the track `fromId`
+ * (planeAcross): a track without a gradient over the turnout gets one to
+ * pair onto.
  */
-export function coupleSwitchHeights(before, after, { only = touchedTurnouts(before, after), formOf } = {}) {
-  if (!only?.size || !after?.tracks) return after
-  // Who leads in a crossover is the write's to say, and stays so over every
-  // pass — with the points a branch led with already paired onto its main
-  // route: a height edited in a turnout's branch changes that track's side.
-  const paired = before ? withBranchPairs(before, after, only, { formOf }) : after
-  const opts = { formOf, crossLead: crossoverLeads(indexOf(after.tracks, after.switches, { formOf }), before, paired, { formOf }) }
-  // One turnout's lines run through the next: until nothing moves any more,
-  // the turnouts a pass changed are coupled again.
-  let project = couplePass(before, after, only, opts)
-  let last = after
-  for (let n = 0; n < MAX_PASSES && project !== last; n++) {
-    const again = touchedTurnouts(last, project)
-    last = project
-    project = couplePass(null, project, again, opts)
-  }
-  return project
-}
-
-const MAX_PASSES = 24
-
-/** The project with the turnouts among `only` whose branch the write led with paired from it (decision 259). */
-function withBranchPairs(before, after, only, opts) {
-  const wasTrack = new Map(before.tracks.map(t => [t.id, t]))
-  let project = after
-  for (const id of only) {
-    const sw = after.switches?.find(s => s.switchId === id)
-    const c = sw && couplingOf(after.tracks, after.switches, sw, opts)
-    if (c && leaderOf(wasTrack, c) === 'branch') project = withPairs(project, sw, 'branch', opts)
-  }
-  return project
-}
-
-function couplePass(before, after, only, opts) {
-  const ix = indexOf(after.tracks, after.switches, opts)
-  const wasTrack = new Map((before?.tracks ?? []).map(t => [t.id, t]))
-  let project = after
-  const queue = [...only]
-  const done = new Set()
-  const again = new Set()
-  while (queue.length) {
-    const id = queue.shift()
-    if (done.has(id) && !again.has(id)) continue
-    if (done.has(id)) again.delete(id)
-    const first = !done.has(id)
-    done.add(id)
-    const e = ix.byId.get(id)
-    if (!e) continue
-    const was = project
-    const c = first ? couplingOf(project.tracks, project.switches, e.sw, opts) : null
-    const r = coupleOne(ix, project, e, c ? leaderOf(wasTrack, c) : 'main', opts)
-    project = r.project
-    if (r.rerun && !again.has(r.rerun)) { again.add(r.rerun); queue.unshift(r.rerun) }
-    if (project === was) continue
-    const changed = new Set(project.tracks.filter((t, i) => t !== was.tracks[i]).map(t => t.id))
-    for (const s of project.switches ?? []) {
-      if (!done.has(s.switchId) && isTurnout(s) && touches(s, changed)) queue.push(s.switchId)
-    }
-  }
-  return project
+function seeded(project, e, side, fromId) {
+  const port = e[side]
+  const track = project.tracks.find(t => t.id === port.trackId)
+  const from = project.tracks.find(t => t.id === fromId)
+  if (!track || !from) return project
+  const h = track.heights ?? []
+  const wa = port.endpoint === 'BEGIN' ? 0 : trackLength(track)
+  const lds = side === 'main' ? e.ldsMain : e.ldsBranch
+  const has = h.length >= 2
+  const need = [wa, lds].filter(s => !has || s < h[0].station - STATION_TOL || s > h[h.length - 1].station + STATION_TOL)
+  if (!need.length) return project
+  const add = need.map(s => ({ station: roundMm(s), z: planeAcross(from, track, s) }))
+  if (add.some(p => p.z == null)) return project
+  const next = [...(has ? h : []), ...add.map(p => ({ ...p, z: roundHeight(p.z) }))].sort((a, b) => a.station - b.station)
+  return withHeights(project, new Map([[track.id, next]]))
 }
 
 /**
- * The project with every turnout coupled — those `only` names (their
- * switchIds), or all of them: a project from before the coupling, or the
- * button that does it for all.
+ * The project with the other tracks of a turnout worked out from the one
+ * given — `givenId` its main route or its branch (decision 383); nothing
+ * couples on its own. The given track keeps its points, and only those the
+ * rules bind follow them: WA and ldS on the line through the free points
+ * either side (decision 270), the first point behind a branch's ldS on its
+ * continuation (271), every point between WA and ldS on its nearest
+ * sleeper (258). The other track takes the turnout's plane — the branch
+ * u/1500 · y above the main route, up where it leaves to the side the cant
+ * raises and down to the other, the main route the same the other way round
+ * — in pairs on the sleepers; a track without a gradient over the turnout
+ * is given one to pair onto.
+ *
+ * In a crossover the side given leads: from a main route the whole of it
+ * lies in that track's plane, tilted across by its cant — the connecting
+ * track, and the other main route's toe and ldS, which its line through
+ * them then runs on (270), however far apart the two ldS lie; from the
+ * connecting track both main routes follow, with what lies between the two
+ * ldS as decision 272 has it.
+ *
+ * Returns { project } — the same where nothing changes — or { error }:
+ * 'not_coupled', 'not_on_track', 'no_gradient'.
  */
-export function coupleSwitchGradients(project, { only = null, formOf } = {}) {
-  const ids = new Set((project?.switches ?? []).filter(sw => isTurnout(sw) && (!only || only.has(sw.switchId)))
-    .map(sw => sw.switchId))
-  return coupleSwitchHeights(null, project, { only: ids, formOf })
+export function turnoutOtherTracks(project, switchId, givenId, opts) {
+  const ix = indexOf(project.tracks, project.switches, opts)
+  const e = ix.byId.get(switchId)
+  if (!e) return { error: 'not_coupled' }
+  const lead = e.main.trackId === givenId ? 'main' : e.branch.trackId === givenId ? 'branch' : null
+  if (!lead) return { error: 'not_on_track' }
+  if (!(heightsOf(project, givenId)?.length >= 2)) return { error: 'no_gradient' }
+  const o = crossoverPartner(ix, e)
+  const crossLead = new Map(!o ? []
+    : lead === 'main' ? [[e.sw.switchId, true], [o.sw.switchId, false]]
+      : [[e.sw.switchId, null], [o.sw.switchId, null]])
+  // From a main route the crossover lies in its plane, the toe across and its ldS too.
+  const run = { ...opts, crossLead, givenId, ...(o && lead === 'main' ? { span: Infinity, planeOf: givenId } : {}) }
+  let p = seeded(project, e, lead === 'main' ? 'branch' : 'main', givenId)
+  if (o) p = seeded(p, o, 'main', givenId)
+  // One turnout's lines run through the other's: round again until nothing moves.
+  for (let n = 0; n < MAX_PASSES; n++) {
+    const was = p
+    p = coupleOne(ix, p, e, lead, run)
+    if (o) p = coupleOne(ix, p, o, lead, run)
+    if (p === was) break
+  }
+  return { project: p }
 }
 
-let lastPending = null
+const MAX_PASSES = 12
 
 /**
- * The turnouts coupling would still change — what „Weichen jetzt koppeln“
- * does: those one of whose tracks it writes.
+ * The turnouts a track belongs to as the one that could be given: [{ sw,
+ * side, other }] — `side` 'main' or 'branch' (the connecting track of a
+ * crossover is that of both: listed once, with `other` the second turnout;
+ * from a main route `other` is the turnout across).
  */
-export function pendingTurnouts(project, opts) {
+export function turnoutsOfTrack(project, trackId, opts) {
   if (!project?.tracks) return []
-  if (lastPending?.project === project && lastPending.formOf === opts?.formOf) return lastPending.result
-  const coupled = coupleSwitchGradients(project, opts)
-  const changed = new Set(coupled.tracks.filter((t, i) => t !== project.tracks[i]).map(t => t.id))
-  const result = indexOf(project.tracks, project.switches, opts).entries
-    .filter(e => [e.approach, e.main, e.branch].some(p => p && changed.has(p.trackId))).map(e => e.sw)
-  lastPending = { project, formOf: opts?.formOf, result }
-  return result
+  const ix = indexOf(project.tracks, project.switches, opts)
+  const out = []
+  for (const e of ix.entries) {
+    const side = e.main.trackId === trackId ? 'main' : e.branch.trackId === trackId ? 'branch' : null
+    if (!side) continue
+    const o = crossoverPartner(ix, e)
+    if (side === 'branch' && o && out.some(x => x.sw === o.sw)) continue
+    out.push({ sw: e.sw, side, other: o?.sw ?? null })
+  }
+  return out
 }
 
 // ── What the profile may change ─────────────────────────────────────────────
@@ -736,7 +689,7 @@ export function heightRoles(project, opts) {
   const out = couplingRoles(ix, project, opts)
   const frozen = frozenOf(ix, project, out)
   if (frozen.size || project.tracks.some(t => t.heights?.some(p => p.locked))) {
-    withLocks(ix, project, out, frozen, { ...opts, crossLead: crossoverLeads(ix, null, project, opts) })
+    withLocks(ix, project, out, frozen, { ...opts, crossLead: crossoverLeads(ix, project, opts) })
   }
   lastRoles = { tracks: project.tracks, switches: project.switches, formOf: opts?.formOf, result: out }
   return out
@@ -744,7 +697,7 @@ export function heightRoles(project, opts) {
 
 /** The roles the coupling gives, before any lock (heightRoles). */
 function couplingRoles(ix, project, opts) {
-  opts = { ...opts, crossLead: crossoverLeads(ix, null, project, opts) }
+  opts = { ...opts, crossLead: crossoverLeads(ix, project, opts) }
   const out = new Map()
   const put = (trackId, index, role, strong = true) => {
     if (!out.has(trackId)) out.set(trackId, new Map())
@@ -761,7 +714,7 @@ function couplingRoles(ix, project, opts) {
       if (r?.free) put(r.free.point.trackId, r.free.point.index, continuationRole(project, e, r.free), false)
     }
     const bh = heightsOf(project, e.branch.trackId)
-    const o = crossoverPartner(ix, project, e)
+    const o = crossoverPartner(ix, e)
     if (bh?.length >= 2 && o) {
       const lo = Math.min(e.ldsBranch, o.ldsBranch), hi = Math.max(e.ldsBranch, o.ldsBranch)
       bh.forEach((p, i) => {
@@ -813,7 +766,7 @@ function frozenOf(ix, project, roles) {
     }
   }
   for (const e of [...frozen]) {
-    const o = crossoverPartner(ix, project, e)
+    const o = crossoverPartner(ix, e)
     if (o && crossoverGap(e, o) <= CROSSOVER_SPAN) frozen.add(o)
   }
   return frozen

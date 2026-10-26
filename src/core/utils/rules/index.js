@@ -10,7 +10,7 @@ export {
   AUTO_CANT_MODEL, CANT_STEP, cantDefLevel, cantExceedsLimit, cantExceptionFields,
   cantExceptionOf, cantFromInput, cantLimit, cantSign, clampCant, computeAutoC, computeCantDef,
   computeCantDefSigned, computeSwitchCant, limitCantDef, MAX_CANT, MAX_SWITCH_CANT,
-  MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION, regelCant, roundCant,
+  MAX_SWITCH_CANT_DEF, MAX_SWITCH_CANT_EXCEPTION, regelCant,
   switchCantError, worstCantOf,
 } from './cant'
 export { bundledCatalogHash } from './catalogHash'

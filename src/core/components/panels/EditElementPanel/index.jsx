@@ -12,7 +12,6 @@ import SwitchStatusForm from './SwitchStatusForm'
 import RoutesForm from './RoutesForm'
 import BufferStopForm from '../CreateElementPanel/BufferStopForm'
 import SwitchConnectionEdit from '../ConnectSwitchPanel/SwitchConnectionEdit'
-import CrossoverGradientForm from '../CrossoverGradientForm'
 import {
   EditLengthIcon, DeleteElementIcon, EditTracksIcon, EditPropertiesIcon,
   ChangeDirectionIcon, DeleteTrackIcon, DeleteSwitchIcon,
@@ -26,7 +25,6 @@ import InfoTip from '../../form/InfoTip'
 export default function EditElementPanel({ trackTableId, trackTableRouteId, onShowTrackTable, onShowRouteTable, onCloseConstraints }) {
   const { t } = useI18n()
   const [page, setPage] = useState('menu')
-  const [crossover, setCrossover] = useState(null)   // switchIds of a connection just laid again in a cant
 
   // A constraints popup no longer covers this panel's own menu (it only fills
   // the map pane now), so its submenu buttons stay reachable while one is
@@ -119,17 +117,7 @@ export default function EditElementPanel({ trackTableId, trackTableRouteId, onSh
     <>
       {backButton()}
       <h2>{t('crossover_edit_title')}</h2>
-      <SwitchConnectionEdit onCommitted={(laid) => {
-        if (laid?.fit) { setCrossover(laid.switchIds); setPage('crossover_gradient') } else setPage('menu')
-      }} />
-    </>
-  )
-
-  if (page === 'crossover_gradient' && crossover) return (
-    <>
-      {backButton()}
-      <h2>{t('crossover_title')}</h2>
-      <CrossoverGradientForm switchIds={crossover} ask onDone={() => setPage('menu')} />
+      <SwitchConnectionEdit onCommitted={() => setPage('menu')} />
     </>
   )
 

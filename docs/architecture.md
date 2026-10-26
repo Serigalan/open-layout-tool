@@ -57,7 +57,7 @@ each needs only modules above it:
 | [switch](modules/switch.md) | geometry, rules, track | switch forms, routes, symbols, crossings, switch connections, deletion |
 | [topology](modules/topology.md) | track | connection diagram |
 | [commands](modules/commands.md) | crossSection, geometry, rules, switch, track | what the dialogs commit |
-| [elevation](modules/elevation.md) | common, crossSection, geometry, rules, switch, track | Höhenplan rules, turnout planes, coupling, crossovers, terrain |
+| [elevation](modules/elevation.md) | common, crossSection, geometry, rules, switch, track | Höhenplan rules, turnout planes, coupling on request, terrain |
 | [plan](modules/plan.md) | common, geometry, km, rules, switch, track | plan export (PDF/SVG) |
 | [exchange](modules/exchange.md) | elevation, geometry, rules, switch, track | RailJSON, Verm.ESN, ProVI, CSV, MDB |
 | [survey](modules/survey.md) | commands, geometry, track | measured axes, reference axes, shift values, alignment fit |

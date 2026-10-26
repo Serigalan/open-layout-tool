@@ -7,7 +7,6 @@ import CrossingConnectForm from './CrossingConnectForm'
 import TrackLinkForm from './TrackLinkForm'
 import SwitchDetailPage from './SwitchDetailPage'
 import SwitchSearch from './SwitchSearch'
-import CrossoverGradientForm from '../CrossoverGradientForm'
 import {
   SwitchOnTrackIcon, SwitchConnectTrackIcon, SwitchConnectionIcon, CrossingOnTrackIcon, CrossingConnectTrackIcon, SwitchLinkIcon,
   SwitchDetailIcon,
@@ -20,7 +19,6 @@ import PanelHeading from '../PanelHeading'
 export default function ConnectSwitchPanel({ detailTarget = null, onShowDetail }) {
   const { t } = useI18n()
   const [page, setPage] = useState('menu')
-  const [crossover, setCrossover] = useState(null)   // switchIds of a crossover just laid in a curve
   const [switchQuery, setSwitchQuery] = useState('')
   const back = () => setPage('menu')
 
@@ -44,17 +42,7 @@ export default function ConnectSwitchPanel({ detailTarget = null, onShowDetail }
     <>
       <BackButton onBack={back} />
       <h2>{t('scurve_title')}</h2>
-      <SCurveForm onCommitted={(laid) => {
-        if (laid?.fit) { setCrossover(laid.switchIds); setPage('crossover_gradient') } else setPage('menu')
-      }} />
-    </>
-  )
-
-  if (page === 'crossover_gradient' && crossover) return (
-    <>
-      <BackButton onBack={back} />
-      <h2>{t('crossover_title')}</h2>
-      <CrossoverGradientForm switchIds={crossover} ask onDone={back} />
+      <SCurveForm onCommitted={() => setPage('menu')} />
     </>
   )
 

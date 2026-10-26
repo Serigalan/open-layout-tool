@@ -75,7 +75,7 @@ const CANT_DEF_COEFF = RW_CANT_DEFICIENCY_COEFF // D = k·v²/R − C
 export const cantSign = (radius) => (radius < 0 ? -1 : 1)
 
 /** Snap a cant to the design step; the magnitude decides, not the sign. */
-export const roundCant = (mm) => Math.sign(mm) * Math.round(Math.abs(mm) / CANT_STEP) * CANT_STEP
+const roundCant = (mm) => Math.sign(mm) * Math.round(Math.abs(mm) / CANT_STEP) * CANT_STEP
 
 /** Below this cant deficiency without any cant, computeAutoC proposes none [mm]. */
 const AUTO_CANT_MIN_DEF = 60

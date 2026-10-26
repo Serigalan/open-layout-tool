@@ -7,7 +7,7 @@ import {
   reverseTrack, generateId, remapEndMarks, flipEndMarks, pruneEndMarks, endKey, repairRoutes,
 } from './utils/track'
 import { coupleSwitchCants, rebuildSwitchSymbol } from './utils/switch'
-import { coupleSwitchGradients, coupleSwitchHeights, lengthGovernedRadii, lockBreach } from './utils/elevation'
+import { lengthGovernedRadii, lockBreach, otherTrackHeights } from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -89,14 +89,11 @@ function mutate(fn, { undo = true, unlock = false } = {}) {
   if (!next || next === before) { _idLog = logBefore; return true }
   // A route over a track the write took away runs over what lies there now (decision 249).
   // A curve whose length counts takes the radius its gradients ask for now
-  // (decision 266) — before the turnouts are paired, which read the curves,
-  // and again for the tracks the pairing moved.
-  // A turnout's two routes carry one cant (decision 376) — coupled first, since
-  // the gradients of a turnout read its cant.
-  const repaired = withCoupledCants(before, withPrunedMarks(repairRoutes(before, next)))
-  const after = withLengthRadii(before, withCoupledGradients(before, withLengthRadii(before, repaired)))
-  // What a lock holds stays (Entscheidung 382): a write that would change it,
-  // the coupling done, is refused as a whole — and said so, where every step is.
+  // (decision 266). A turnout's two routes carry one cant (decision 376); its
+  // heights are worked out only when asked to (computeOtherTrack, decision 383).
+  const after = withLengthRadii(before, withCoupledCants(before, withPrunedMarks(repairRoutes(before, next))))
+  // What a lock holds stays (Entscheidung 382): a write that would change it
+  // is refused as a whole — and said so, where every step is.
   const parted = new Set(_idLog.slice(logBefore.length).map(e => e.from))
   const breach = lockBreach(before, after, { unlock, parted })
   if (breach) {
@@ -279,24 +276,12 @@ export function withUndo(fn) {
 // write that takes the track away or connects a switch to that end drops it.
 // Done here rather than in each writer, because every writer comes by here.
 /**
- * The project with every turnout a write reached paired again (switchGradient,
- * decisions 258–259): the track the write led with keeps its points, each on
- * a sleeper, and the other follows on the same sleepers — a height edited on
- * the branch moves the main route, one edited on the main route (or a cant or
- * a geometry changed) moves the branch; in the same step, so one undo takes
- * back both. Turnouts the write did not reach are left alone.
- */
-/**
  * The project with the cant of every turnout's two routes coupled again where
  * the write changed it along one of them (switch coupleSwitchCants).
  */
 function withCoupledCants(before, project) {
   const tracks = coupleSwitchCants(before.tracks, project.tracks, project.switches)
   return tracks === project.tracks ? project : { ...project, tracks }
-}
-
-function withCoupledGradients(before, project) {
-  return coupleSwitchHeights(before, project)
 }
 
 /**
@@ -310,30 +295,18 @@ function withLengthRadii(before, project) {
 }
 
 /**
- * Apply what fitting a crossover worked out (crossoverGradient): the new
- * heights of the tracks it reached and the new cant of their curve, as one
- * undo step — the coupling of the turnouts follows in the same step.
+ * Work out the other tracks of a switch from the track given, as one undo
+ * step (elevation otherTrackHeights, decision 383) — the button in the
+ * Höhenplan. Returns { ok } where it wrote, { same } where nothing had to
+ * change, { refused } where a lock holds what it would change (the step
+ * notice says which), or { error } as otherTrackHeights names it.
  */
-export function applyCrossoverGradient(plan) {
-  if (!plan?.ok) return false
-  return mutate(p => ({
-    ...p,
-    tracks: (p.tracks ?? []).map(t => {
-      const heights = plan.heights.get(t.id)
-      const elements = plan.elements.get(t.id)
-      if (!heights && !elements) return t
-      return { ...t, ...(heights ? { heights } : {}), ...(elements ? { elements } : {}) }
-    }),
-  }))
-}
-
-/**
- * Couple the branch of every turnout to its main route, as one undo step —
- * for a project whose turnouts were never written since coupling began, and
- * which the store couples only where a write reaches them.
- */
-export function coupleAllSwitchGradients() {
-  return mutate(p => coupleSwitchGradients(p))
+export function computeOtherTrack(switchId, trackId) {
+  if (!_project) return { error: 'no_project' }
+  const r = otherTrackHeights(_project, switchId, trackId)
+  if (r.error) return r
+  if (r.project === _project) return { same: true }
+  return mutate(() => r.project) ? { ok: true } : { refused: true }
 }
 
 function withPrunedMarks(project) {

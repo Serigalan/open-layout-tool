@@ -9,7 +9,7 @@ import {
   openStoredProject, currentStoredProject, currentStoredMeta, closeStoredProject, flushPendingWrites, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
   hiddenKmLines, setKmLinesHidden,
-  setTrackHeights, setHeightsForTracks, commitReconnect, loadPlatforms, commitImport, historySteps, travelHistory,
+  setTrackHeights, setHeightsForTracks, computeOtherTrack, commitReconnect, loadPlatforms, commitImport, historySteps, travelHistory,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/track/trackEndMarks'
 import { endPointCurvedUtm, endPointStraightUtm } from './utils/geometry/elementUtils'
@@ -501,7 +501,7 @@ describe('tracks hidden on the map', () => {
   })
 })
 
-describe('the gradient of a turnout is coupled', () => {
+describe('the gradient of a turnout is worked out on request (decision 383)', () => {
   // A 500 – 1:12 laid at (1000, 1000), its body 30 m long: the main route
   // straight east, the branch on R 500 to the left. The catalogue puts the
   // ldS 6.334 m behind WE.
@@ -537,23 +537,26 @@ describe('the gradient of a turnout is coupled', () => {
   const branch = () => loadTracks().find(t => t.id === 'b').heights
   const expected = (slope) => 100 + slope * LDS.q[0] + 0.06 * LDS.q[1] / 1.5
 
-  it('follows a height edited on the main route, and undoes with it in one step', () => {
+  it('follows a height edited on the main route when asked to, and undoes in one step', () => {
     openProject(project())
     expect(branch()).toHaveLength(2)          // opened as it was: nothing written yet
     setTrackHeights('m', [{ station: 0, z: 100 }, { station: 60, z: 101.2 }])
+    expect(branch()).toHaveLength(2)          // a write couples nothing on its own
+    expect(computeOtherTrack('s1', 'm')).toEqual({ ok: true })
+    expect(computeOtherTrack('s1', 'm')).toEqual({ same: true })
     const ldsPoint = branch()[1]
     expect(ldsPoint.station).toBeCloseTo(LDS.branch, 2)
     expect(ldsPoint.z).toBeCloseTo(expected(1.2 / 60), 3)
     undo()
     expect(branch()).toHaveLength(2)
-    expect(loadTracks().find(t => t.id === 'm').heights[1].z).toBe(100.6)
+    expect(loadTracks().find(t => t.id === 'm').heights[1].z).toBe(101.2)
+    expect(computeOtherTrack('s1', 'x')).toEqual({ error: 'not_on_track' })
   })
 
   it('gives an edited ldS height on the branch back to the plane (decision 269)', () => {
     openProject(project())
-    // A write to the branch reaches the turnout as well: it is coupled at once,
-    // and the main route gets its point on the ldS.
-    setHeightsForTracks(new Map([['b', [{ station: 0, z: 100 }, { station: 60, z: 100.2 }]]]))
+    // Worked out from the main route, the main route gets its point on the ldS.
+    computeOtherTrack('s1', 'm')
     const coupled = branch()
     expect(coupled).toHaveLength(3)
     const main = () => loadTracks().find(t => t.id === 'm').heights
@@ -561,6 +564,8 @@ describe('the gradient of a turnout is coupled', () => {
     expect(main()[1].station).toBeCloseTo(36.334, 3)
     const was = main()
     setHeightsForTracks(new Map([['b', coupled.map((p, i) => (i === 1 ? { ...p, z: p.z + 0.05 } : p))]]))
+    expect(branch()[1].z).toBeCloseTo(expected(0.6 / 60) + 0.05, 3)
+    computeOtherTrack('s1', 'b')
     expect(branch()[1].z).toBeCloseTo(expected(0.6 / 60), 3)
     expect(main()).toEqual(was)
   })

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { coupleSwitchGradients, coupleSwitchHeights, heightRoles } from './switchChain'
+import { heightRoles } from './switchChain'
+import { otherTrackHeights } from './otherTrack'
 import { lockBreach } from './heightLocks'
 import { endPointCurvedUtm, endPointStraightUtm } from '../geometry/elementUtils'
 import { formOf } from '../../test/turnoutFixture'
@@ -33,14 +34,14 @@ function single() {
       A: { trackId: 'a', endpoint: 'END' }, B1: { trackId: 'b', endpoint: 'BEGIN' }, B2: { trackId: 'm', endpoint: 'BEGIN' },
     } }],
   }
-  return coupleSwitchGradients(project, opts)
+  return otherTrackHeights(project, 's1', 'm', opts).project
 }
 
 /** The project with the heights of track `id` made by `fn`. */
 const withHeights = (p, id, fn) => ({ ...p, tracks: p.tracks.map(t => (t.id === id ? { ...t, heights: fn(t.heights) } : t)) })
 const lockAt = (p, id, i) => withHeights(p, id, h => h.map((q, k) => (k === i ? { ...q, locked: true } : q)))
-/** A write as the store does it: the coupling, then the check. */
-const write = (before, next, extra = {}) => lockBreach(before, coupleSwitchHeights(before, next, opts), { opts, ...extra })
+/** A write as the store does it: nothing coupled on its own (decision 383), then the check. */
+const write = (before, next, extra = {}) => lockBreach(before, next, { opts, ...extra })
 
 describe('a locked point (Entscheidung 382)', () => {
   it('may be locked, and then keeps its height', () => {
@@ -81,10 +82,11 @@ describe('a locked toe holds the turnout\'s gradient', () => {
     expect(roles.get('m').get(2)).toMatchObject({ kind: 'continuation', frozen: true })
   })
 
-  it('refuses a height before the toe that would turn the line', () => {
+  it('refuses working out the turnout where a height before the toe would turn the line', () => {
     const p = frozen()
     const tilted = withHeights(p, 'a', h => h.map((q, k) => (k === 1 ? { ...q, z: q.z + 0.2 } : q)))
-    expect(write(p, tilted)).toMatchObject({ kind: 'turnout', switchId: 's1' })
+    expect(write(p, tilted)).toBeNull()
+    expect(write(tilted, otherTrackHeights(tilted, 's1', 'm', opts).project)).toMatchObject({ kind: 'turnout', switchId: 's1' })
   })
 
   it('takes Q moved along its line', () => {
@@ -99,7 +101,7 @@ describe('a locked toe holds the turnout\'s gradient', () => {
     const p = frozen()
     const tilted = withHeights(p, 'a', h => h.map((q, k) => (k === 1 ? { ...q, z: q.z + 0.2 } : q)))
     const reshaped = { ...tilted, tracks: tilted.tracks.map(t => (t.id === 'm' ? { ...t, elements: [...t.elements] } : t)) }
-    const r = write(p, reshaped)
+    const r = write(p, otherTrackHeights(reshaped, 's1', 'm', opts).project)
     // The locked toe itself still keeps its height.
     expect(r?.kind ?? null).not.toBe('turnout')
   })

@@ -1,21 +1,19 @@
 import { useState } from 'react'
-import { loadTracks, currentProject, setHeightsForTracks, coupleAllSwitchGradients } from '../../storage'
-import { pendingTurnouts, fillHeights, chosenTerrainSource, findCrossovers } from '../../utils/elevation'
+import { loadTracks, currentProject, setHeightsForTracks } from '../../storage'
+import { fillHeights, chosenTerrainSource } from '../../utils/elevation'
 import { useProject } from '../../hooks/useStore'
 import TerrainSourceSelect from '../TerrainSourceSelect'
 import GroupedTrackList from './GroupedTrackList'
 import { trackSearchField, useTrackSearch } from './trackSearch'
 import PanelHeading from './PanelHeading'
 import RouteList from './RouteList'
-import { resolveRoute, turnoutLinePort, portTrack } from '../../utils/track'
+import { resolveRoute } from '../../utils/track'
 import useRouteOnMap from '../../map/useRouteOnMap'
 import GradientFindings from './GradientFindings'
-import CrossoverGradientForm from './CrossoverGradientForm'
+import SwitchHeightsList from './SwitchHeightsList'
 import FormSection from '../form/FormSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
-import BackButton from './BackButton'
-import InfoTip from '../form/InfoTip'
 
 /**
  * Vertical alignment: pick a track to see its profile in the overlay, and
@@ -27,7 +25,8 @@ import InfoTip from '../form/InfoTip'
  * Above the list, what the Höhenplan rules say about the gradient on show —
  * above it, since the list of a large project runs far below the screen. The
  * line category they judge a track by is set in the project settings
- * (decision 320). The crossovers to fit come last.
+ * (decision 320). Below them the switches on show, each with the button that
+ * works out its other tracks from the one on show (decision 383).
  */
 export default function ElevationPanel({ profileTrackId, profileRouteId = null, onShowProfile, onShowRouteProfile }) {
   const { t, fill } = useI18n()
@@ -36,24 +35,19 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
   const [result, setResult] = useState(null)   // { updated, missing } of the last run
   const [terrainSource, setTerrainSource] = useState(chosenTerrainSource)
   const project = useProject()
-  const [crossover, setCrossover] = useState(null)   // switchIds of the crossover being fitted
   const search = useTrackSearch()
-  // Turnouts whose points do not lie in pairs on their sleepers yet: the store
-  // pairs a turnout when a write reaches it, so a project from before has some.
-  const uncoupled = project ? pendingTurnouts(project).length : 0
 
   // A track is picked on the map as readily as from the list, and the one under
   // the cursor is drawn on the hover layer so it is clear which it would be.
   // Unlike the element table, the profile overlay takes no clicks of its own —
   // it only marks the elements its selection falls in — so this stays live
   // while a profile is open, and a click swaps it over to the track clicked.
-  // While a crossover is being fitted, a click on the map marks its range instead.
   // The route on show (Paket RT), drawn on the map; its tracks are what a reload reads.
   const route = profileRouteId ? (project?.routes ?? []).find(r => r.id === profileRouteId) ?? null : null
   const resolvedRoute = route && project ? resolveRoute(route, project.tracks, project.switches) : null
   useRouteOnMap('elevation-route', resolvedRoute)
   // A click on one of the route's own tracks keeps the route.
-  useMapPick({ active: !crossover, hover: 'track', onPick: ({ trackId }) => {
+  useMapPick({ hover: 'track', onPick: ({ trackId }) => {
     if (!resolvedRoute?.parts.some(p => p.trackId === trackId)) onShowProfile?.(trackId)
   } })
   const shownTrackIds = resolvedRoute ? resolvedRoute.parts.map(p => p.trackId) : profileTrackId ? [profileTrackId] : []
@@ -83,45 +77,21 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
     ? t('elevation_failed')
     : fill('elevation_result', { updated: r.updated, missing: r.missing })
 
-  if (crossover) {
-    return (
-      <>
-        <BackButton onBack={() => setCrossover(null)} />
-        <h2>{t('crossover_title')}</h2>
-        <CrossoverGradientForm switchIds={crossover} onDone={() => setCrossover(null)} />
-      </>
-    )
-  }
-
-  // The project's crossovers, those on the track on show first.
-  const crossovers = project ? findCrossovers(project.tracks, project.switches) : []
-  const linePortTrack = (sw) => portTrack(sw, turnoutLinePort(sw))
-  const onShown = (c) => [portTrack(c.w1, 'A'), linePortTrack(c.w1), portTrack(c.w2, 'A'), linePortTrack(c.w2), c.conn.id]
-    .includes(profileTrackId)
-  crossovers.sort((a, b) => Number(onShown(b)) - Number(onShown(a)))
-
   return (
     <>
       <PanelHeading title={t('elevation_title')} search={trackSearchField(search, t)} />
       <p>{t('elevation_hint')}</p>
       {tracks.length === 0 && <p className="form-error">{t('plan_no_tracks')}</p>}
-      {/* Only once there is something to judge, or turnouts to couple (decision 331). */}
-      {(resolvedRoute || profileTrackId || uncoupled > 0) && <FormSection title={t('elevation_rules')}>
+      {/* Only once there is something to judge (decision 331). */}
+      {(resolvedRoute || profileTrackId) && <FormSection title={t('elevation_rules')}>
         {resolvedRoute ? resolvedRoute.parts.map(p => (
           <div key={p.trackId} className="route-findings">
             <span className="create-element-section">{p.track.name || p.trackId.slice(0, 8)}</span>
             <GradientFindings trackId={p.trackId} />
           </div>
         )) : profileTrackId && <GradientFindings trackId={profileTrackId} />}
-        {uncoupled > 0 && (
-          <>
-            <p className="selecting-hint">{fill('elevation_couple_status', { n: uncoupled })} <InfoTip text={t('elevation_couple_hint')} /></p>
-            <button className="panel-btn panel-btn-full mt-2 secondary" onClick={() => coupleAllSwitchGradients()}>
-              {fill('elevation_couple_all', { n: uncoupled })}
-            </button>
-          </>
-        )}
       </FormSection>}
+      <SwitchHeightsList trackIds={shownTrackIds} />
       <RouteList activeId={profileRouteId} onPick={(r) => onShowRouteProfile?.(r.id)} />
       <GroupedTrackList tracks={tracks} search={search}
         isActive={(track) => track.id === profileTrackId}
@@ -140,19 +110,6 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
       </button>
       {busy && <p className="selecting-hint">{t('elevation_loading')}</p>}
       {result && !busy && <p className={result.failed ? 'form-error' : 'selecting-hint'}>{resultText(result)}</p>}
-      <FormSection title={t('crossover_section')} info={t('crossover_section_hint')}>
-        {crossovers.length === 0 && <p className="selecting-hint">{t('crossover_none')}</p>}
-        {crossovers.map(c => (
-          <div key={c.conn.id} className="crossover-pair">
-            <span className={onShown(c) ? 'track-group-item active' : 'track-group-item'}>
-              {fill('crossover_title_switches', { a: c.w1.name ?? '', b: c.w2.name ?? '' })}
-            </span>
-            <button className="panel-btn secondary" onClick={() => setCrossover([c.w1.switchId, c.w2.switchId])}>
-              {t('crossover_open')}
-            </button>
-          </div>
-        ))}
-      </FormSection>
     </>
   )
 }

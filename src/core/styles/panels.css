@@ -953,27 +953,6 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
   cursor: pointer;
 }
 
-/* Fitting a crossover's gradient: a choice per line, two fields side by side. */
-.crossover-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 4px 0;
-  cursor: pointer;
-}
-
-.crossover-pair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  align-items: end;
-}
-
-.crossover-pair input {
-  width: 100%;
-  box-sizing: border-box;
-}
-
 /* The track a splice keeps its distance to, and the button that picks it. */
 .splice-clearance-pick {
   display: flex;
@@ -1146,3 +1125,28 @@ input.input-error, select.input-error, textarea.input-error { border-color: var(
   font-family: var(--font-ui); font-size: var(--fs-s); font-weight: 600; color: var(--color-text); text-align: left;
 }
 .project-settings-track-name:hover { color: var(--color-primary); }
+
+/* A switch on the track on show in the Höhenplan, with the button that works
+   out its other track (decision 383): name, status, then the button. */
+.switch-heights-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.switch-heights-row:last-child {
+  border-bottom: none;
+}
+
+.switch-heights-row .panel-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.switch-heights-name {
+  font-family: var(--font-ui);
+  font-size: var(--fs-m);
+  font-weight: 600;
+}

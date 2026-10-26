@@ -244,8 +244,9 @@ const geometries = new WeakMap()
 
 /**
  * The sleepers of one turnout, or null where it has none to speak of: not a
- * turnout, a track missing or in another plane, no ldS for its form, a track
- * shorter than the turnout.
+ * turnout, a track missing or in another plane, no ldS for its form (unless
+ * `ldsUnknown` says how far behind WE to take it), a track shorter than the
+ * turnout.
  *
  * Returns { sw, main, branch, we, lds, ldsMain, ldsBranch, weBisector, samples, sleepers, grid }:
  * `main` / `branch` the two tracks as seen from WA (routeFrom), `we` and
@@ -257,9 +258,9 @@ const geometries = new WeakMap()
  * `branch` its station on each and `a` / `y` how it sits in the main track's
  * frame (sleeperOffsets).
  */
-export function turnoutSleepers(tracks, sw, { formOf = switchTypeByLabel, rail = null } = {}) {
+export function turnoutSleepers(tracks, sw, { formOf = switchTypeByLabel, rail = null, ldsUnknown = null } = {}) {
   if (!isTurnout(sw)) return null
-  const behindWe = switchLds(sw, formOf)
+  const behindWe = switchLds(sw, formOf) ?? ldsUnknown
   if (behindWe == null) return null
   const main = routeFrom(tracks, sw, turnoutLinePort(sw))
   const branch = routeFrom(tracks, sw, turnoutDivergingPort(sw))

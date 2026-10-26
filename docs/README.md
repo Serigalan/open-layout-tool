@@ -24,7 +24,7 @@ whoever maintains or reviews the tool. User guidance is in the app (*Leitfaden*,
 | [track](modules/track.md) | tracks, switch records and ports, heights, links, track ends, platforms, routes |
 | [switch](modules/switch.md) | switch forms, turnouts on any stem, crossings, switch connections, connecting to a track, deletion |
 | [rules](modules/rules.md) | the rule catalogue and its expression language, cant, speed and length limits, alignment checks |
-| [elevation](modules/elevation.md) | Höhenplan rules, the turnout plane and coupling points, crossovers in cant, terrain |
+| [elevation](modules/elevation.md) | Höhenplan rules, the turnout plane and coupling points, a switch's other tracks on request, terrain |
 | [crossSection](modules/crossSection.md) | cross section, superstructure, clearance contours |
 | [commands](modules/commands.md) | what the dialogs commit |
 | [splice](modules/splice.md) | joining two track ends |

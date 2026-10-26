@@ -1,8 +1,5 @@
 import { useProject } from '../../hooks/useStore'
-import {
-  checkVertical, verticalFindings, couplingOf, planeDeviations, switchLds, pendingTurnouts,
-} from '../../utils/elevation'
-import { isLinkSwitch, portsOf, portTrack } from '../../utils/track'
+import { checkVertical, verticalFindings } from '../../utils/elevation'
 import { ruleById, severityLabelKey } from '../../utils/rules'
 import { useI18n } from '../../locales/i18nContext'
 
@@ -12,46 +9,16 @@ import { useI18n } from '../../locales/i18nContext'
  *
  * Read through the store's subscription, so it follows every height edited in
  * the profile. One line per rule, with how often it was found and where first,
- * in the colour of its step, as RuleFindings lists a dialog's. Below, the
- * turnouts on the track and whether their gradient is coupled (switchGradient).
+ * in the colour of its step, as RuleFindings lists a dialog's. The switches
+ * on the track are listed apart, with their button (SwitchHeightsList).
  */
 export default function GradientFindings({ trackId }) {
   const { t, fill } = useI18n()
   const project = useProject()
   const track = project?.tracks?.find(tr => tr.id === trackId)
   if (!track) return <p className="selecting-hint">{t('elevation_rules_pick')}</p>
-  const turnouts = (project.switches ?? []).filter(sw => !isLinkSwitch(sw)
-    && portsOf(sw).some(p => portTrack(sw, p.port) === track.id))
-  // What coupling would still change (Paket WK): the pairs, the lines through
-  // toe and ldS, the continuation behind it.
-  const pendingIds = new Set(pendingTurnouts(project).map(sw => sw.switchId))
-  const switchLines = turnouts.map(sw => {
-    const c = couplingOf(project.tracks, project.switches, sw)
-    const name = sw.name ?? sw.label ?? ''
-    if (c) {
-      const station = (c.main.track.id === track.id ? c.ldsMain : c.branch.track.id === track.id ? c.ldsBranch : null)
-      if (station == null) return null
-      // Coupled where nothing would change any more — else it will be with
-      // the next write that reaches the turnout, or the button.
-      const pending = pendingIds.has(sw.switchId)
-      const key = pending ? 'elevation_switch_pending' : 'elevation_switch_coupled'
-      const line = fill(key, { name, label: sw.label ?? '', station: station.toFixed(2) })
-      // Where the two tracks no longer lie in the turnout's plane.
-      const off = pending ? [] : planeDeviations(c)
-      if (!off.length) return line
-      const worst = Math.max(...off.map(d => Math.abs(d.dz)))
-      return [line, fill('elevation_switch_plane_off', { name, label: sw.label ?? '', n: off.length, dz: (worst * 1000).toFixed(0) })]
-    }
-    if ((sw.kind ?? 'turnout') === 'turnout' && switchLds(sw) == null) {
-      return fill('elevation_switch_no_lds', { name, label: sw.label ?? '' })
-    }
-    return null
-  }).flat().filter(Boolean)
-  const switchList = switchLines.length > 0 && (
-    <ul className="rule-findings">{switchLines.map(line => <li key={line}>{line}</li>)}</ul>
-  )
   if (!(track.heights?.length >= 2)) {
-    return <><p className="selecting-hint">{t('elevation_rules_none')}</p>{switchList}</>
+    return <p className="selecting-hint">{t('elevation_rules_none')}</p>
   }
 
   const check = checkVertical(track, { project, switches: project.switches })
@@ -75,7 +42,6 @@ export default function GradientFindings({ trackId }) {
         <p className="rule-findings rule-findings-ok">✓ {t('elevation_rules_ok')}</p>
       )}
       {unchecked > 0 && <p className="selecting-hint">{fill('elevation_rules_unchecked', { n: unchecked })}</p>}
-      {switchList}
     </>
   )
 }
