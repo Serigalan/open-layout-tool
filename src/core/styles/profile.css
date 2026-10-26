@@ -425,3 +425,18 @@
   font-size: 15px; line-height: 1; color: var(--color-muted);
 }
 .profile-point-x:hover { color: var(--color-danger); }
+
+/* "Depends on" and "dependent" in the colours their points have on the map and in the graphic. */
+.profile-point h5.profile-point-from { color: var(--color-height-source-text); }
+.profile-point h5.profile-point-to { color: var(--color-height-dependent); }
+.profile-point-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.profile-point-from .profile-point-dot { background: var(--color-height-source); }
+.profile-point-to .profile-point-dot { background: var(--color-height-dependent); }
+.profile-point-links.from li::before { color: var(--color-height-source); }
+.profile-point-links.to li::before { color: var(--color-height-dependent); }
+.profile-point-actions { display: flex; gap: 8px; margin-top: 4px; }
+.profile-point-none { flex-direction: column; gap: 8px; max-width: 46em; text-align: center; margin: 0 auto; }
+
+/* The head of the profile one height in every view (decision 388). */
+.profile-overlay .track-table-header { min-height: 53px; box-sizing: border-box; }
+.profile-controls { min-height: 32px; }

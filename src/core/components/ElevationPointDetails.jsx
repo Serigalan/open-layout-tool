@@ -12,7 +12,8 @@ import { useI18n } from '../locales/i18nContext'
  * let go with the × behind it — a WA or ldS let go of its rule (`freed`) is
  * put back under it.
  *
- * `point` the selected point of the route (null where none or several are),
+ * `point` the selected point of the route (null where none or several are —
+ * `count` of them, edited together with `editor`),
  * `track` its track; `grades` { before, after }; `roleText` what it is;
  * `links` { kind, from, to } (switchChain.heightLinks), `nameOf(ref)` a
  * linked point's name; `across` the tracks beside
@@ -20,12 +21,26 @@ import { useI18n } from '../locales/i18nContext'
  * `note` what the last action said.
  */
 export default function ElevationPointDetails({
-  point, track, grades, roleText, links, nameOf, design, across, trackName, canTakeOver, note, editor, freed,
+  point, count = 0, track, grades, roleText, links, nameOf, design, across, trackName, canTakeOver, note, editor, freed,
   onPick, onTakeOver, onAddDependent, onDependOn, onRelease, onRestore,
 }) {
   const { t, fill, num } = useI18n()
   const [beside, setBeside] = useState('')
-  if (!point) return <div className="profile-empty"><span>{t('elevation_point_none')}</span></div>
+  if (!point && !count) {
+    return <div className="profile-empty profile-point-none"><span>{t('elevation_point_none')}</span><span className="profile-hint">{t('elevation_hint_edit')}</span></div>
+  }
+  // Several points: what they take together, no dependencies.
+  if (!point) {
+    return (
+      <div className="profile-point">
+        <section>
+          <h4>{fill('elevation_selected', { n: count })}</h4>
+          {editor}
+          {note && <p className="form-error">{note}</p>}
+        </section>
+      </div>
+    )
+  }
 
   const besideId = across.some(x => x.trackId === beside) ? beside : across[0]?.trackId ?? ''
   const ref = { trackId: point.owner.trackId, index: point.owner.index }
@@ -38,8 +53,8 @@ export default function ElevationPointDetails({
     [t('elevation_point_role'), roleText || t('elevation_point_free')],
   ]
   // `release(r)` the point whose dependency the × behind r lets go.
-  const linkList = (refs, release) => (refs.length ? (
-    <ul className="profile-point-links">
+  const linkList = (refs, release, kind) => (refs.length ? (
+    <ul className={`profile-point-links ${kind}`}>
       {refs.map(r => (
         <li key={`${r.trackId}|${r.index}`}>
           <button type="button" className="link-btn" onClick={() => onPick(r)}>{nameOf(r)}</button>
@@ -69,11 +84,11 @@ export default function ElevationPointDetails({
         {freed && design && (
           <button className="track-table-save-btn" title={t('elevation_restore_hint')} onClick={onRestore}>{t('elevation_restore')}</button>
         )}
-        <h5>{t('elevation_links_from_title')}</h5>
+        <h5 className="profile-point-from"><span className="profile-point-dot" aria-hidden="true" />{t('elevation_links_from_title')}</h5>
         {/* Each × lets the point go of what it depends on — of a line through two points, both at once. */}
-        {linkList(links?.from ?? [], () => ref)}
-        <h5>{t('elevation_links_to_title')}</h5>
-        {linkList(links?.to ?? [], (r) => r)}
+        {linkList(links?.from ?? [], () => ref, 'from')}
+        <h5 className="profile-point-to"><span className="profile-point-dot" aria-hidden="true" />{t('elevation_links_to_title')}</h5>
+        {linkList(links?.to ?? [], (r) => r, 'to')}
         {design ? (
           <div className="profile-point-tools">
             {canTakeOver && (

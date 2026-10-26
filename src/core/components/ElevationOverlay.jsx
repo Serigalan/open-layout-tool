@@ -698,56 +698,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     : regular.noSpeed ? t('elevation_regular_no_speed')
       : regular.rv == null ? t('elevation_regular_no_curve')
         : fill('elevation_regular_value', { rv: num(regular.rv, { digits: 0 }) })
-  const pointEditor = one && (
-    <div className="profile-point-edit">
-      <label>
-        <span>{t('elevation_station')}</span>
-        {stationMovable(one)
-          ? <NumberInput className="track-table-input" step="0.1" value={stDraft} onChange={e => setStDraft(e.target.value)} {...editProps} />
-          : <span className="profile-point-value">{num(one.station, { digits: 3 })}</span>}
-        <span>m</span>
-      </label>
-      <label>
-        <span>{t('elevation_height')}</span>
-        {!locked.has(one.index)
-          ? <NumberInput className="track-table-input" step="0.001" value={draft} onChange={e => setDraft(e.target.value)} {...editProps} />
-          : <span className="profile-point-value">{num(one.z, { digits: 4 })}</span>}
-        <span>m</span>
-      </label>
-      <label title={t('elevation_vcurve_hint')}>
-        <span>{t('elevation_vcurve')}</span>
-        {!curveHeld(one.index)
-          ? <NumberInput className="track-table-input" step="100" min="0" value={rvShown} placeholder="–" onChange={e => setRvDraft(e.target.value)} {...editProps} />
-          : <span className="profile-point-value">–</span>}
-        <span>m</span>
-      </label>
-      {!curveHeld(one.index) && (
-        <div className="profile-point-regular">
-          <span className="profile-hint">{regularText}</span>
-          {regular && !regular.noSpeed && (regular.rv ?? null) !== (one.rv ?? null) && (
-            <button className="track-table-save-btn" title={t('elevation_vcurve_regular_hint')} onClick={setRegularRadius}>
-              {t('elevation_regular_take')}
-            </button>
-          )}
-          {laShown != null && (
-            <span className="profile-hint">{fill('elevation_vcurve_length_label', { la: num(laShown, { digits: 0 }) })}</span>
-          )}
-        </div>
-      )}
-      {!curveHeld(one.index) && (
-        <label title={t('elevation_reason_hint')}>
-          <span>{t('elevation_reason')}</span>
-          <input type="text" className="track-table-input profile-reason" value={reasonShown}
-            placeholder={t('elevation_reason_placeholder')} onChange={e => setReasonDraft(e.target.value)} {...editProps} />
-        </label>
-      )}
-    </div>
-  )
-  const detailsButton = one && viewKind !== 'point' && (
-    <button className="track-table-save-btn" title={t('elevation_point_details_hint')} onClick={() => chooseView('point')}>
-      {t('elevation_point_details')}
-    </button>
-  )
 
   // ── Locking points (Entscheidung 382) ─────────────────────────────────────
   // The selection locked, or — where all of it is locked already — unlocked.
@@ -771,6 +721,74 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     <button className="track-table-save-btn" title={t('elevation_lock_hint')} onClick={toggleLock}>
       {t(allLocked ? 'elevation_unlock' : 'elevation_lock')}
     </button>
+  )
+
+  // Several points selected (in the graphic, by Ctrl/Shift or a frame) are
+  // edited here together: one height and one curve for all, the Regelwert
+  // for each; lock and delete with them.
+  const many = selectedPoints.length > 1
+  const pointEditor = selectedPoints.length > 0 && (
+    <div className="profile-point-edit">
+      {one && (
+        <label>
+          <span>{t('elevation_station')}</span>
+          {stationMovable(one)
+            ? <NumberInput className="track-table-input" step="0.1" value={stDraft} onChange={e => setStDraft(e.target.value)} {...editProps} />
+            : <span className="profile-point-value">{num(one.station, { digits: 3 })}</span>}
+          <span>m</span>
+        </label>
+      )}
+      <label>
+        <span>{t('elevation_height')}</span>
+        {selectedPoints.some(p => !locked.has(p.index))
+          ? <NumberInput className="track-table-input" step="0.001" value={draft} placeholder={t('elevation_mixed')}
+            onChange={e => setDraft(e.target.value)} {...editProps} />
+          : <span className="profile-point-value">{one ? num(one.z, { digits: 4 }) : '–'}</span>}
+        <span>m</span>
+      </label>
+      <label title={t('elevation_vcurve_hint')}>
+        <span>{t('elevation_vcurve')}</span>
+        {selectedPoints.some(p => !curveHeld(p.index))
+          ? <NumberInput className="track-table-input" step="100" min="0" value={rvShown}
+            placeholder={rvMixed ? t('elevation_mixed') : '–'} onChange={e => setRvDraft(e.target.value)} {...editProps} />
+          : <span className="profile-point-value">–</span>}
+        <span>m</span>
+      </label>
+      {one && !curveHeld(one.index) && (
+        <div className="profile-point-regular">
+          <span className="profile-hint">{regularText}</span>
+          {regular && !regular.noSpeed && (regular.rv ?? null) !== (one.rv ?? null) && (
+            <button className="track-table-save-btn" title={t('elevation_vcurve_regular_hint')} onClick={setRegularRadius}>
+              {t('elevation_regular_take')}
+            </button>
+          )}
+          {laShown != null && (
+            <span className="profile-hint">{fill('elevation_vcurve_length_label', { la: num(laShown, { digits: 0 }) })}</span>
+          )}
+        </div>
+      )}
+      {many && (
+        <div className="profile-point-regular">
+          <button className="track-table-save-btn" title={t('elevation_vcurve_regular_hint')} onClick={setRegularRadius}>
+            {t('elevation_vcurve_regular')}
+          </button>
+        </div>
+      )}
+      {((one && !curveHeld(one.index)) || (many && reasonAsked)) && (
+        <label title={t('elevation_reason_hint')}>
+          <span>{t('elevation_reason')}</span>
+          <input type="text" className="track-table-input profile-reason" value={reasonShown}
+            placeholder={t('elevation_reason_placeholder')} onChange={e => setReasonDraft(e.target.value)} {...editProps} />
+        </label>
+      )}
+      <div className="profile-point-actions">
+        {lockButton}
+        <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
+          title={t('elevation_delete_hint')} onClick={() => remove()}>
+          {fill('elevation_delete', { n: deletable.length })}
+        </button>
+      </div>
+    </div>
   )
 
   // ── Splitting the gradient with a new point ──────────────────────────────
@@ -1210,7 +1228,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           })()}
         </div>
         <div className="profile-controls">
-          {viewKind === 'table' ? (
+          {/* One row in every view: the table's given values, the graphic's axis and exaggeration. */}
+          {viewKind === 'table' && (
             <div className="profile-edit">
               <label className="profile-edit">
                 {t('elevation_given')}
@@ -1219,88 +1238,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                 </select>
               </label>
               <InfoTip text={t('elevation_given_hint')} />
-              {detailsButton}
-              {rvNote && <span className="form-error">{rvNote}</span>}
             </div>
-          ) : viewKind === 'point' ? (
-            selectedPoints.length > 0 && (
-              <div className="profile-edit">
-                {lockButton}
-                <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
-                  title={t('elevation_delete_hint')} onClick={() => remove()}>
-                  {fill('elevation_delete', { n: deletable.length })}
-                </button>
-                <CloseButton onClick={() => select([])} />
-              </div>
-            )
-          ) : selectedPoints.length && selectedPoints.every(p => curveHeld(p.index)) ? (
-            <div className="profile-edit">
-              <span className="profile-hint" title={roleNote(roles.get(selectedPoints[0].index))}>
-                {fill(`elevation_role_short_${coupled(selectedPoints[0].index).kind}`, { name: swName(coupled(selectedPoints[0].index).sw) })}
-              </span>
-              {detailsButton}
-              {lockButton}
-              {rvNote && <span className="form-error">{rvNote}</span>}
-              <CloseButton onClick={() => select([])} />
-            </div>
-          ) : selectedPoints.length ? (
-            <div className="profile-edit">
-              {selectedPoints.length === 1 && stationMovable(selectedPoints[0]) ? (
-                <>
-                  <span>{t('elevation_station')}</span>
-                  <NumberInput className="track-table-input" step="0.1" value={stDraft}
-                    onChange={e => setStDraft(e.target.value)} {...editProps} />
-                  <span>m</span>
-                </>
-              ) : (
-                <span>{selectedPoints.length === 1
-                  ? `${t('elevation_station')} ${selectedPoints[0].station.toFixed(2)} m`
-                  : fill('elevation_selected', { n: selectedPoints.length })}</span>
-              )}
-              {selectedPoints.some(p => !roles.has(p.index)) ? (
-                <>
-                  <NumberInput className="track-table-input" step="0.001" value={draft} autoFocus
-                    placeholder={t('elevation_mixed')}
-                    onChange={e => setDraft(e.target.value)} {...editProps} />
-                  <span>m</span>
-                </>
-              ) : selectedPoints.length === 1 && (
-                <span className="profile-hint" title={roleNote(roles.get(selectedPoints[0].index))}>
-                  {`${t('elevation_height')} ${num(selectedPoints[0].z, { digits: 4 })} m`}
-                </span>
-              )}
-              <span title={t('elevation_vcurve_hint')}>{t('elevation_vcurve')}</span>
-              <NumberInput className="track-table-input" step="100" min="0" value={rvShown}
-                placeholder={rvMixed ? t('elevation_mixed') : '–'} title={t('elevation_vcurve_hint')}
-                onChange={e => setRvDraft(e.target.value)} {...editProps} />
-              <span>m</span>
-              <button className="track-table-save-btn" title={t('elevation_vcurve_regular_hint')} onClick={setRegularRadius}>
-                {t('elevation_vcurve_regular')}
-              </button>
-              {laShown != null && (
-                <span className="profile-hint" title={fill('elevation_vcurve_length_governs', { la: num(laShown, { digits: 2 }) })}>
-                  {fill('elevation_vcurve_length_label', { la: num(laShown, { digits: 0 }) })}
-                </span>
-              )}
-              {reasonAsked && (
-                <>
-                  <span title={t('elevation_reason_hint')}>{t('elevation_reason')}</span>
-                  <input type="text" className="track-table-input profile-reason" value={reasonShown}
-                    placeholder={t('elevation_reason_placeholder')} title={t('elevation_reason_hint')}
-                    onChange={e => setReasonDraft(e.target.value)} {...editProps} />
-                </>
-              )}
-              {detailsButton}
-              {rvNote && <span className="form-error">{rvNote}</span>}
-              {lockButton}
-              <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
-                title={t('elevation_delete_hint')} onClick={() => remove()}>
-                {fill('elevation_delete', { n: deletable.length })}
-              </button>
-              <CloseButton onClick={() => select([])} />
-            </div>
-          ) : (
-            <InfoTip text={t('elevation_hint_edit')} />
           )}
           {viewKind === 'graphic' && axes.length > 0 && (
             <label className="profile-edit" title={t('elevation_ref_hint')}>
@@ -1339,7 +1277,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
             </div>
           )
           : viewKind === 'point' ? (
-            <ElevationPointDetails point={one} track={one ? tracks.find(x => x.id === one.owner.trackId) : null}
+            <ElevationPointDetails point={one} count={selectedPoints.length} track={one ? tracks.find(x => x.id === one.owner.trackId) : null}
               grades={one ? pointGrades(points, one.index) : null} roleText={one ? roleNote(roles.get(one.index)) : null}
               links={one ? linksOf(one.index) : null}
               nameOf={linkName} design={design} across={across}

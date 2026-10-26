@@ -139,7 +139,11 @@ selected where it is on show, else its track's profile opened on it —, and in 
 take over, add a dependent point across, make it depend on the point across (`dependOnAcross`), and an ×
 behind every dependency (`releaseDependency`: one of its own goes, else a WA or ldS is let go of its rule).
 While the profile is open its height points are on the map too: blue, the selected one red, what it depends
-on yellow, what depends on it green. The rules summary stands beside the tabs, the same in every view. `switchMisfits` lists the
+on yellow, what depends on it green — the two lists in the point view headed in the same colours. The rules
+summary stands beside the tabs, the same in every view, and the head is one height in all three (decision
+388): the graphic's carries only the reference axis and the exaggeration, the table's its given values;
+selection, lock and delete are the point view's, which edits several points selected in the graphic together
+(one height, one curve, the Regelwert for each). `switchMisfits` lists the
 turnouts whose WA or ldS do not meet (more than 0.2 mm); the mode ends only when the list is empty. It is
 kept per opened project in the session: a project that does not fit opens in it, and so does one an undo
 brings back.

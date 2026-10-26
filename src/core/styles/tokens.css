@@ -20,6 +20,12 @@
   --color-ok: #27ae60;
   --color-info: #5b9bd5;
 
+  /* Height points and their dependencies (palette.js heightPoint*): yellow
+     what a point depends on — a darker one for text —, green what depends on it. */
+  --color-height-source: #f5c400;
+  --color-height-source-text: #a68500;
+  --color-height-dependent: #2e9d3a;
+
   /* What the map draws a pick in: under the cursor, picked. */
   --color-map-hover: #ff8c00;
   --color-map-selected: #a52a1f;
