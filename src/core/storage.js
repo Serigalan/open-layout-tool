@@ -9,7 +9,7 @@ import {
 import { coupleSwitchCants, rebuildSwitchSymbol } from './utils/switch'
 import {
   addDependentAt, lengthGovernedRadii, lockBreach, releaseDependency, restoreDependency, setDependencyMode, switchMisfits,
-  withAllLdsPoints, withSwitchHeights,
+  withAllLdsPoints, withSwitchHeights, setToeLead, withToesJoined, withTurnoutTwin,
 } from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
@@ -180,6 +180,33 @@ export function releaseDependentPoint(ref) {
   return writeLinks({ project: releaseDependency(_project, ref, { design: _switchDesign }) })
 }
 
+/**
+ * Set which toe of turnout `switchId` its height comes from, 'main' or
+ * 'branch' (elevation setToeLead, decision 393), as one undo step.
+ */
+export function setToeLeadAt(switchId, lead) {
+  if (!_project) return { error: 'no_project' }
+  return writeLinks({ project: setToeLead(_project, switchId, lead) })
+}
+
+/**
+ * Write a track's heights with a point added at `index` (a double click in
+ * the profile), and — where it lies inside a turnout — its twin on the other
+ * track, depending on it as an ldS does (elevation withTurnoutTwin, decision
+ * 393). One undo step: { ok, twin }, or { refused } (a lock).
+ */
+export function addHeightPoint(trackId, heights, index) {
+  if (!_project) return { error: 'no_project' }
+  let twin = null
+  const done = mutate(p => {
+    const added = { ...p, tracks: p.tracks.map(t => (t.id === trackId ? { ...t, heights } : t)) }
+    const r = withTurnoutTwin(added, { trackId, index }, { design: _switchDesign })
+    twin = r.twin ?? null
+    return r.project ?? added
+  })
+  return done ? { ok: true, twin } : { refused: true }
+}
+
 /** Put a WA or ldS let go back under its rule (elevation restoreDependency), as one undo step. */
 export function restoreDependentPoint(ref) {
   if (!_project) return { error: 'no_project' }
@@ -218,8 +245,9 @@ export function openStoredProject({ project, meta = {}, key = project.id, save =
   _undoStack = []
   _redoStack = []
   _lastStep = null
-  // Every turnout's WA and ldS a point to pick (decision 390) — on the gradient, nothing moves.
-  setProject(withAllLdsPoints(withPrunedMarks(hydrateProjects([structuredClone(project)])[0])))
+  // Every turnout's WA and ldS a point to pick (decision 390) — on the gradient, nothing moves —,
+  // and its toe one height (decision 393).
+  setProject(withToesJoined(withAllLdsPoints(withPrunedMarks(hydrateProjects([structuredClone(project)])[0]))))
   return _project
 }
 
@@ -234,7 +262,7 @@ export function openProject(project) {
   _undoStack = []
   _redoStack = []
   _lastStep = null
-  setProject(withAllLdsPoints(withPrunedMarks(project)))
+  setProject(withToesJoined(withAllLdsPoints(withPrunedMarks(project))))
   return _project
 }
 

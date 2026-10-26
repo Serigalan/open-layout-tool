@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches, addDependentPoint,
-  releaseDependentPoint, restoreDependentPoint, setDependencyModeAt,
+  setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches, addDependentPoint, addHeightPoint,
+  releaseDependentPoint, restoreDependentPoint, setDependencyModeAt, setToeLeadAt,
 } from '../storage'
 import { useProject, useReferenceAxes, useRoutes, useSwitchDesign, useSwitches, useTracks } from '../hooks/useStore'
 import {
@@ -12,14 +12,14 @@ import {
 import { ruleById, severityLabelKey } from '../utils/rules'
 import {
   adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps,
-  elementAtStation, insertHeightPoint, solveHeightPoint, pointGrades, GIVEN_MODES, partStation,
+  elementAtStation, solveHeightPoint, pointGrades, GIVEN_MODES, partStation,
   resolveRoute, routeAt, routePointAt, reverseTrack, pointAtStation, stationOnTrack,
 } from '../utils/track'
 import { filterForElements, FILTER_NONE, heightPointAt, mapIsLive, pickAt, setPickingDependent } from '../map/pick'
 import {
-  comparedLine, deviationAt, heightsComparable, nearestAxis, referenceProfile, shiftValues,
+  comparedLine, heightsComparable, nearestAxis, referenceProfile, shiftValues,
 } from '../utils/survey'
-import { loadSettings, saveSettings, clamp, niceStep, stepDecimals, ticks } from '../utils/common'
+import { loadSettings, saveSettings, clamp } from '../utils/common'
 import useReferenceAxesOnMap from '../map/useReferenceAxesOnMap'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
@@ -29,35 +29,25 @@ import { utmToWgs84, wgs84ToUTM } from '../utils/geometry'
 import { ELEVATION_POINTS_LAYER, TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { fitToTracks } from '../map/mapRenderUtils'
-import { useDrag, useElementSize, useWheelZoom } from './chart/useChartViewport'
+import { gradeLabel } from './chart/grade'
 import CloseButton from './form/CloseButton'
 import InfoTip from './form/InfoTip'
 import NumberInput from './form/NumberInput'
+import ElevationSection from './ElevationSection'
 import ElevationTable from './ElevationTable'
 import ElevationPointDetails from './ElevationPointDetails'
 import ConfirmModal from './ConfirmModal'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
 const NO_POINTS = []
-const MARGIN = { left: 60, right: 20, top: 30, bottom: 32 }
-// Narrower than this and the gradient label would not fit between its points.
-const GRADE_LABEL_MIN_PX = 52
 // The share of the overlay above the divider, and how far it may be dragged.
 const SPLIT_DEFAULT = 0.5
 const SPLIT_MIN = 0.2
 const SPLIT_MAX = 0.8
 // Room kept around the tracks when the map is fitted to them [px].
 const MAP_FIT_PAD = 30
-// How close to the gradient a double click splits it, and how far it has to
-// stay from a point already there.
-const INSERT_HIT_PX = 8
-const INSERT_POINT_GAP_PX = 7
-// The reference axis (Paket V) laid over the profile: its height read every
-// this much [m], and the strip below the profile that draws how far the
-// gradient lies above or below it — its height and the gap above it [px].
+// The reference axis (Paket V) laid over the profile: its height read every this much [m].
 const REF_EVERY = 1
-const DEV_STRIP_PX = 64
-const DEV_GAP_PX = 14
 // The limit in height the shift values warn beyond [mm] (Entscheidung 200).
 const DEFAULT_LIMIT_Z = 50
 // Where the cursor stands on the profile, shown on the map: a dot on the
@@ -93,14 +83,6 @@ const POINT_LAYERS = [{
   },
 }]
 
-/** A gradient in ‰, signed — a rise is written with its plus, a level stretch as 0 — in the language's digits. */
-const gradeLabel = (perMille, num) => {
-  const v = Number(perMille.toFixed(2)) || 0   // ... and never as "-0.00"
-  return `${v > 0 ? '+' : ''}${num(v, { digits: 2 })} ‰`
-}
-
-/** A finding worth drawing: something the rules said, short of "kept". */
-const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
 
 /**
  * The Höhenplan of one track or route over the whole map area (decision 391):
@@ -201,21 +183,15 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const title = routeRec ? routeRec.name : track ? track.name || track.id.slice(0, 8) : ''
 
   const [exaggeration, setExaggeration] = useState(10)
-  const [view, setView]         = useState(null)     // { k, x0, z0 }: px per m, station at the left edge, height at the bottom edge
   const [selection, setSelection] = useState([])   // indices of the height points being edited
   const [draft, setDraft]       = useState('')
   const [rvDraft, setRvDraft]   = useState(null)   // vertical curve radius typed for the selection, null: untouched
   const [rvNote, setRvNote]     = useState(null)     // what setting the Regelwert left undone
   const [reasonDraft, setReasonDraft] = useState(null)   // the reason typed for the selection; null: untouched
-  const [band, setBand]         = useState(null)     // rubber band { x0, y0, x1, y1 } while Shift-dragging
-  const [hover, setHover]       = useState(null)     // { station, z } a double click would add a point at
   const [cursor, setCursor]     = useState(null)     // station [m] the cursor stands over, shown on the map
   const rootRef  = useRef(null)
-  const bodyRef  = useRef(null)
-  const svgRef   = useRef(null)
   const upperBarRef = useRef(null)
   const dividerRef = useRef(null)
-  const size = useElementSize(bodyRef)                // { w, h } of the drawing area
   // Reading the gradient from the terrain: { key, state } with state
   // 'busy', 'missing' (no height data there) or 'failed'.
   const [reading, setReading] = useState(null)
@@ -352,9 +328,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       roles.set(i, { ...role, part })
     }
   }
-  // Shown only — height, station and the point itself. A point locked by
-  // hand (Entscheidung 382) is one too, but may still be deleted, after asking.
-  const locked = new Map([...roles].filter(([, r]) => !r.free))
   /** The role the coupling gives a point, under a lock where there is one. */
   const coupled = (i) => (roles.get(i)?.kind === 'locked' ? roles.get(i).was : roles.get(i))
   /** Does the coupling hold the point's curve and reason as well (toe, ldS)? */
@@ -373,12 +346,24 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     : role.kind === 'locked' ? [t('elevation_role_locked'), roleNote(role.was)].filter(Boolean).join('\n')
       : role.kind === 'own' ? t('elevation_role_own')
         : role.free ? fill('elevation_role_freed', { what: fill(`elevation_link_${role.kind}_${role.side}`, { name: swName(role.sw) }) })
-          : fill(`elevation_role_${role.kind}_${role.side}`, { name: swName(role.sw) }))
+          // A toe says whether it sets the toe's one height or takes it (decision 393).
+          : fill(`elevation_role_${role.kind}_${role.side}${role.kind === 'wa' ? (role.lead ? '_lead' : '_follow') : ''}`, { name: swName(role.sw) }))
   // What a point depends on and what depends on it (decision 385), by its
   // track and index; named by its role at a turnout, else by its station —
   // and its track where that is not the one on show.
   const links = useMemo(() => heightLinks(project, { design }), [project, design])
   const linksOf = (i) => (points[i] ? links.get(`${points[i].owner.trackId}|${points[i].owner.index}`) ?? null : null)
+  /** The turnout whose toe point `p` is (decision 393): { sw, name, lead — whether this toe sets the height —, leading: 'main' | 'branch' }, or null. */
+  const toeOf = (p) => {
+    const r = p ? coupled(p.index) : null
+    return r?.kind === 'wa' ? { sw: r.sw, name: swName(r.sw), lead: !!r.lead, leading: r.sw.toeLead === 'branch' ? 'branch' : 'main' } : null
+  }
+  /** Is point `i` the toe that sets the toe's height, held by nothing else? It is entered like a free point. */
+  const leads = (i) => !!toeOf(points[i])?.lead && !linksOf(i)?.kind
+  // Shown only — height, station and the point itself — what a role holds
+  // and the leading toe not. A point locked by hand (Entscheidung 382) is one
+  // too, but may still be deleted, after asking.
+  const locked = new Map([...roles].filter(([i, r]) => !r.free && !leads(i)))
   const linkName = (r) => {
     const tr = tracks.find(x => x.id === r.trackId)
     const p = tr?.heights?.[r.index]
@@ -406,41 +391,15 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const pointNote = (i) => [roleNote(roles.get(i)), linksNote(i), points[i]?.reason && fill('elevation_reason_note', { reason: points[i].reason })]
     .filter(Boolean).join('\n') || null
 
-  // ── Fit the view to the data when the track or the exaggeration changes ───
-  const plotW = size ? size.w - MARGIN.left - MARGIN.right : 0
-  // The deviation strip, where shown, takes its share below the profile.
-  const devPx = devShown ? DEV_STRIP_PX + DEV_GAP_PX : 0
-  const plotBottom = size ? size.h - MARGIN.bottom - devPx : 0
-  const plotH = size ? plotBottom - MARGIN.top : 0
-  const [fitKey, setFitKey] = useState(null)
-  const [seenH, setSeenH] = useState(null)       // the plot height the view was last laid out for
-  // Re-fitted for another track or exaggeration, once the area is measured,
-  // and when points appear or go (the terrain fill arriving, a reload) — not
-  // for an edited height, which must not throw the view around — nor for a
-  // point added or deleted here (`keepView`).
-  // The reference axis counts as it is laid over the track or taken away.
-  const fitPoints = [...allPoints, ...refPoints.map(p => ({ station: p.s, z: p.z }))]
-  const fitKeyFor = (n) => `${viewKey}|${exaggeration}|${size ? 1 : 0}|${devPx}|${n}`
-  const wantFit = fitKeyFor(fitPoints.length)
-  const keepView = (n) => setFitKey(fitKeyFor(fitPoints.length + n))
-  if (size && fitPoints.length && fitKey !== wantFit) {
-    const stations = fitPoints.map(p => p.station), zs = fitPoints.map(p => p.z)
-    const sMin = Math.min(...stations), sMax = Math.max(...stations)
-    const zMin = Math.min(...zs), zMax = Math.max(...zs)
-    const ds = Math.max(sMax - sMin, 10), dz = Math.max(zMax - zMin, 1)
-    const k = Math.min(plotW / ds, plotH / (dz * exaggeration)) * 0.85
-    setView({
-      k,
-      x0: sMin - (plotW / k - ds) / 2,
-      z0: zMin - (plotH / (k * exaggeration) - dz) / 2,
-    })
-    setFitKey(wantFit)
-    setSeenH(plotH)
-  } else if (size && view && seenH !== plotH) {
-    // The drawing area grown or shrunk (the divider dragged): the heights in its middle stay there.
-    if (seenH != null) setView(v => ({ ...v, z0: v.z0 + (seenH - plotH) / 2 / (v.k * exaggeration) }))
-    setSeenH(plotH)
-  }
+  // ── When the sections fit their view anew (ElevationSection) ─────────────
+  // Points coming or going (the terrain fill arriving, a reload, the
+  // reference axis laid over or taken away) count up `fitGen`; a point added
+  // or deleted in the profile is expected (`keepView`) and does not.
+  const fitCount = allPoints.length + refPoints.length
+  const [fit, setFit] = useState({ n: fitCount, gen: 0, expect: null })
+  if (fit.n !== fitCount) setFit(f => ({ n: fitCount, gen: f.expect === fitCount ? f.gen : f.gen + 1, expect: null }))
+  const keepView = (n) => setFit(f => ({ ...f, expect: f.n + n }))
+
   const [activeKey, setActiveKey] = useState(viewKey)
   if (activeKey !== viewKey) { setActiveKey(viewKey); setSelection([]); setDraft(''); setRvDraft(null) }
 
@@ -465,15 +424,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       : ['any', ...[...byTrack].map(([id, idx]) => filterForElements(id, idx))])
     return () => { if (mapIsLive(map, m) && m.getLayer(TRACKS_SELECTED_LAYER)) m.setFilter(TRACKS_SELECTED_LAYER, FILTER_NONE) }
   }, [map, selectedElementsKey])
-
-  // ── Zoom about the cursor (both axes, the exaggeration stays) ─────────────
-  useWheelZoom(svgRef, (f, px, py) => setView(v => {
-    if (!v) return v
-    const k = clamp(v.k * f, 1e-4, 1e4)
-    const s = v.x0 + (px - MARGIN.left) / v.k
-    const z = v.z0 + (plotBottom - py) / (v.k * exaggeration)
-    return { k, x0: s - (px - MARGIN.left) / k, z0: z - (plotBottom - py) / (k * exaggeration) }
-  }), !!size)
 
   // ── The cursor's station on the map ──────────────────────────────────────
   // ── The height points on the map (decision 387) ─────────────────────────
@@ -534,7 +484,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       const r = heightPointAt(m, e.point)
       if (!r) return
       const i = profile?.byRef(r.trackId, r.index)
-      if (i != null) pick(i, e.originalEvent, { open: true })
+      if (i != null) pick(i, e.originalEvent, { open: lower !== 'profile' })
       else onShowPoint?.(r)
     },
   })
@@ -549,42 +499,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     // parts follow resolved
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolved, cursor, cursorPreview])
-
-  // ── Pan by dragging, pick a group of points with Shift ────────────────────
-  // A drag that stays put is a click on the background: it drops the selection.
-  const svgXY = (e) => {
-    const rect = svgRef.current.getBoundingClientRect()
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
-  }
-  const drag = useDrag({
-    onStart: (e) => {
-      if (!view) return null
-      if (e.shiftKey) { const { x, y } = svgXY(e); setBand({ x0: x, y0: y, x1: x, y1: y }) }
-      return { view, band: e.shiftKey, quiet: e.shiftKey, add: e.ctrlKey || e.metaKey }
-    },
-    onMove: (e, start, { dx, dy }) => {
-      if (start.band) { const { x, y } = svgXY(e); setBand(b => b && { ...b, x1: x, y1: y }); return }
-      const { k, x0, z0 } = start.view
-      setView({ k, x0: x0 - dx / k, z0: z0 + dy / (k * exaggeration) })
-    },
-    onEnd: (start, moved) => {
-      setBand(null)
-      if (start.band && band) selectInBand(band, start.add)
-      else if (!start.band && !moved) select([])
-    },
-  })
-
-  /** Every point of the track inside the rubber band, added to or replacing the selection. */
-  const selectInBand = (b, add) => {
-    const [xLo, xHi] = [Math.min(b.x0, b.x1), Math.max(b.x0, b.x1)]
-    const [yLo, yHi] = [Math.min(b.y0, b.y1), Math.max(b.y0, b.y1)]
-    const hit = points.filter(p => {
-      const x = X(p.station), y = Y(p.z)
-      return x >= xLo && x <= xHi && y >= yLo && y <= yHi
-    }).map(p => p.index)
-    if (!hit.length && !add) return select([])
-    select(add ? [...new Set([...selection, ...hit])] : hit)
-  }
 
   // ── Selecting points, editing and deleting them ───────────────────────────
   const isSelected = (p) => selection.includes(p.index)
@@ -912,41 +826,14 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     </div>
   )
 
-  // ── Splitting the gradient with a new point ──────────────────────────────
   /**
-   * The point a double click at (x, y) would add: on the gradient, between
-   * two points of the track the route runs there — added to that track.
+   * A point a section adds with a double click (`c`: { trackId, heights,
+   * index, z }), written with its twin across a turnout (decision 393) and
+   * selected.
    */
-  const insertAt = ({ x, y }) => {
-    if (!view || !size || !points.length || x < MARGIN.left || x > size.w - MARGIN.right || y > plotBottom) return null
-    const station = Math.round((view.x0 + (x - MARGIN.left) / view.k) * 100) / 100
-    const on = onTrackAt(station)
-    if (!on || station < 0 || station > profile.length) return null
-    const r = insertHeightPoint(on.part.track.heights, on.station)
-    if (!r) return null
-    const z = r.heights[r.index].z
-    const [a, b] = [r.heights[r.index - 1], r.heights[r.index + 1]].map(h => X(routeStationOfPart(on.part, h.station)))
-    if (Math.abs(Y(z) - y) > INSERT_HIT_PX
-      || Math.abs(x - a) < INSERT_POINT_GAP_PX || Math.abs(b - x) < INSERT_POINT_GAP_PX) return null
-    return { station, z, trackId: on.trackId, ...r }
-  }
-  // The station under the cursor, on the track — or null beside the plot.
-  const cursorAt = ({ x, y }) => {
-    if (!view || !size || x < MARGIN.left || x > size.w - MARGIN.right
-      || y < MARGIN.top || y > size.h - MARGIN.bottom) return null
-    const station = view.x0 + (x - MARGIN.left) / view.k
-    return station >= 0 && station <= (profile?.length ?? 0) ? station : null
-  }
-  const showInsert = (e) => {
-    const c = e.buttons ? null : insertAt(svgXY(e))
-    setHover(h => (h?.station === c?.station ? h : c && { station: c.station, z: c.z }))
-  }
-  const insert = (e) => {
-    const c = insertAt(svgXY(e))
-    if (!c) return
-    setTrackHeights(c.trackId, c.heights)
+  const insertPoint = (c) => {
+    addHeightPoint(c.trackId, c.heights, c.index)
     keepView(1)
-    setHover(null)
     // Where the new point stands in the route, read from the state just written.
     const now = loadTracks(), sw = loadSwitches()
     const next = routeRec ? resolveRoute(routeRec, now, sw) : trackAsRoute(now.find(tr => tr.id === trackId))
@@ -974,7 +861,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
 
   // Drawn values to what the drawing shows: stations and lengths to the cm, heights to the mm.
   const cm = (v) => num(v, { digits: 2 })
-  const mm = (v) => num(v, { digits: 3 })
   const overlapNote = (o) => [
     fill('elevation_vcurve_overlap', {
       a: cm(points[o.a].station), b: cm(points[o.b].station),
@@ -982,15 +868,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     }),
     `HP.AR.04 · ${t(severityLabelKey('error'))}: ${ruleById('HP.AR.04')?.title ?? ''}`,
   ].join('\n')
-
-  // ── Geometry helpers ──────────────────────────────────────────────────────
-  const X = (station) => MARGIN.left + (station - view.x0) * view.k
-  const Y = (z) => plotBottom - (z - view.z0) * view.k * exaggeration
-  const typeLabel = (el) => {
-    if (el.elementType === 2) return t(el.transitionType === 'bloss' ? 'table_type_bloss' : 'table_type_transition')
-    if (el.radius != null) return `R ${Math.round(Math.abs(el.radius))}`
-    return t('table_type_straight')
-  }
 
   // The gradient read from the terrain for every track of the route, as one step.
   const readState = reading?.key === viewKey ? reading.state : null
@@ -1023,308 +900,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     const part = parts.find(p => p.trackId === section.trackId)
     return part && Number.isFinite(section.station) ? routeStationOfPart(part, clamp(section.station, 0, part.length)) : null
   })()
-  const sectionZ = sectionStation != null ? heightAt(sectionStation) : null
-  const cursorZ = cursor != null ? heightAt(cursor) : null
-  const cursorDz = cursor != null && devShown ? deviationAt(refRuns, cursor) : null
-  /** A lift in mm, signed. */
-  const mmLabel = (v) => { const m = Math.round(v * 1000); return `${m > 0 ? '+' : m < 0 ? '−' : ''}${Math.abs(m)} mm` }
-
-  /**
-   * The points of a reference run one to a pixel column — the one furthest
-   * from 0 by `value` — so a long axis read every metre stays a clean line.
-   */
-  const perPixel = (pts, value = () => 0) => {
-    const out = []
-    let px = null, best = null
-    for (const p of pts) {
-      const x = Math.round(X(p.s))
-      if (x !== px) { if (best) out.push(best); px = x; best = p }
-      else if (Math.abs(value(p)) > Math.abs(value(best))) best = p
-    }
-    if (best) out.push(best)
-    return out
-  }
-
-  /**
-   * Below the profile: the gradient minus the reference axis [mm] over the
-   * same stations, the height limit dashed either side, red dots beyond it.
-   */
-  const deviationStrip = ({ sTicks, right, foot }) => {
-    const top = foot - DEV_STRIP_PX, mid = top + DEV_STRIP_PX / 2
-    const devs = refPoints.filter(p => p.dz != null)
-    const peak = Math.max(limitZ, 0.005, ...devs.map(p => Math.abs(p.dz))) * 1.15
-    const DY = (d) => mid - d / peak * (DEV_STRIP_PX / 2)
-    const labelled = Math.abs(DY(limitZ) - mid) >= 10 ? limitZ : peak / 1.15
-    return (
-      <g>
-        <rect x={MARGIN.left} y={top} width={plotW} height={DEV_STRIP_PX} fill="none" stroke={PALETTE.gridLine} />
-        {sTicks.map(s => <line key={`ds${s}`} x1={X(s)} x2={X(s)} y1={top} y2={foot} stroke={PALETTE.gridLine} />)}
-        <line x1={MARGIN.left} x2={right} y1={mid} y2={mid} stroke={PALETTE.axis} />
-        {[limitZ, -limitZ].map(v => (
-          <line key={`dl${v}`} x1={MARGIN.left} x2={right} y1={DY(v)} y2={DY(v)}
-            stroke={PALETTE.invalid} strokeDasharray="4 3" />
-        ))}
-        {[labelled, -labelled].map(v => (
-          <text key={`dt${v}`} x={MARGIN.left - 6} y={DY(v) + 4} fontSize="10" fill={PALETTE.textSoft} textAnchor="end">
-            {mmLabel(v).replace(' mm', '')}
-          </text>
-        ))}
-        <text x={MARGIN.left - 6} y={top - 4} fontSize="11" fill={PALETTE.muted} textAnchor="end">Δh [mm]</text>
-        <text x={MARGIN.left + 4} y={top - 4} fontSize="10" fill={PALETTE.referenceAxis}>
-          {fill('elevation_ref_strip', { name: refAxis.name, limit: Math.round(limitZ * 1000) })}
-        </text>
-        <g clipPath="url(#profile-dev-clip)" pointerEvents="none">
-          {refRuns.map((run, i) => {
-            // A run may lose the track's gradient on the way: draw what has one.
-            const parts = []
-            let part = []
-            for (const p of run) {
-              if (p.dz == null) { if (part.length) parts.push(part); part = []; continue }
-              part.push(p)
-            }
-            if (part.length) parts.push(part)
-            return parts.map((pts, j) => (
-              <polyline key={`dv${i}-${j}`} fill="none" stroke={PALETTE.previewLine} strokeWidth="1.5"
-                points={perPixel(pts, p => p.dz).map(p => `${X(p.s)},${DY(p.dz)}`).join(' ')} />
-            ))
-          })}
-          {devs.filter(p => Math.abs(p.dz) > limitZ + 1e-9).map(p => (
-            <circle key={`db${p.s}`} cx={X(p.s)} cy={DY(p.dz)} r="2" fill={PALETTE.invalid} />
-          ))}
-          {sectionStation != null && (
-            <line x1={X(sectionStation)} x2={X(sectionStation)} y1={top} y2={foot}
-              stroke={PALETTE.mapSelected} strokeWidth="1.5" strokeDasharray="3 2" />
-          )}
-          {cursor != null && (
-            <>
-              <line x1={X(cursor)} x2={X(cursor)} y1={top} y2={foot} stroke={PALETTE.mapHover} strokeWidth="1" strokeDasharray="2 2" />
-              {cursorDz != null && (
-                <circle cx={X(cursor)} cy={DY(cursorDz)} r="3" fill={PALETTE.mapHover} stroke={PALETTE.white} strokeWidth="1.5" />
-              )}
-            </>
-          )}
-        </g>
-      </g>
-    )
-  }
-
-  const drawing = () => {
-    if (!size || !view) return null
-    // `bottom` is the profile's, `foot` the station axis' below the strip.
-    const right = size.w - MARGIN.right, bottom = plotBottom, foot = size.h - MARGIN.bottom
-    const sStep = niceStep(70, view.k), zStep = niceStep(26, view.k * exaggeration)
-    const sTicks = ticks(view.x0, view.x0 + plotW / view.k, sStep)
-    const zTicks = ticks(view.z0, view.z0 + plotH / (view.k * exaggeration), zStep)
-
-    // Gradient of every stretch in ‰, at its middle — left out where the label
-    // would not fit between the two points.
-    const grades = []
-    for (let i = 1; i < points.length; i++) {
-      const a = points[i - 1], b = points[i]
-      const run = b.station - a.station
-      if (!(run > 0)) continue
-      const x1 = X(a.station), x2 = X(b.station)
-      if (x2 - x1 < GRADE_LABEL_MIN_PX) continue
-      grades.push({ x: (x1 + x2) / 2, y: (Y(a.z) + Y(b.z)) / 2, grade: (b.z - a.z) / run * 1000, stretch: stretchAt.get(i) })
-    }
-
-    let lastLabelX = -Infinity
-    const labelled = points.filter(p => {
-      const x = X(p.station)
-      if (x - lastLabelX < 44) return false
-      lastLabelX = x
-      return true
-    })
-
-    return (
-      <svg ref={svgRef} className={`profile-svg${drag.dragging ? ' dragging' : ''}`} width={size.w} height={size.h}
-        style={hover && !drag.dragging ? { cursor: 'copy' } : undefined}
-        {...drag.handlers}
-        onPointerMove={e => { drag.handlers.onPointerMove(e); showInsert(e); setCursor(cursorAt(svgXY(e))) }}
-        onPointerLeave={() => { setHover(null); setCursor(null) }}
-        onDoubleClick={insert}>
-        <defs>
-          <clipPath id="profile-clip"><rect x={MARGIN.left} y={MARGIN.top} width={plotW} height={plotH} /></clipPath>
-          <clipPath id="profile-dev-clip"><rect x={MARGIN.left} y={foot - DEV_STRIP_PX} width={plotW} height={DEV_STRIP_PX} /></clipPath>
-        </defs>
-        {/* grid */}
-        {sTicks.map(s => <line key={`gs${s}`} x1={X(s)} x2={X(s)} y1={MARGIN.top} y2={bottom} stroke={PALETTE.gridLine} />)}
-        {zTicks.map(z => <line key={`gz${z}`} x1={MARGIN.left} x2={right} y1={Y(z)} y2={Y(z)} stroke={PALETTE.gridLine} />)}
-        {/* axes */}
-        <line x1={MARGIN.left} x2={right} y1={bottom} y2={bottom} stroke={PALETTE.axis} />
-        <line x1={MARGIN.left} x2={MARGIN.left} y1={MARGIN.top} y2={bottom} stroke={PALETTE.axis} />
-        {sTicks.map(s => (
-          <text key={`ts${s}`} x={X(s)} y={foot + 16} fontSize="11" fill={PALETTE.textSoft} textAnchor="middle">{num(s, { digits: stepDecimals(sStep) })}</text>
-        ))}
-        {zTicks.map(z => (
-          <text key={`tz${z}`} x={MARGIN.left - 6} y={Y(z) + 4} fontSize="11" fill={PALETTE.textSoft} textAnchor="end">{num(z, { digits: stepDecimals(zStep) })}</text>
-        ))}
-        <text x={right} y={foot + 28} fontSize="11" fill={PALETTE.muted} textAnchor="end">{t('elevation_station')} [m]</text>
-        <text x={4} y={MARGIN.top - 12} fontSize="11" fill={PALETTE.muted}>{t('elevation_height')} [m]</text>
-
-        <g clipPath="url(#profile-clip)">
-          {/* element boundaries */}
-          {[...profile.boundaries, { station: profile.length }].map((b, i) => (
-            <g key={`b${i}`}>
-              <line x1={X(b.station)} x2={X(b.station)} y1={MARGIN.top} y2={bottom} stroke={PALETTE.elementBoundary} strokeDasharray="3 3" />
-              {b.el && <text x={X(b.station) + 3} y={MARGIN.top + 11} fontSize="10" fill={PALETTE.label}>{typeLabel(b.el)}</text>}
-            </g>
-          ))}
-          {/* where the route goes over from one track to the next, named */}
-          {profile.partStarts.map(({ station, part }) => (
-            <g key={`ps${part.trackId}${station}`} pointerEvents="none">
-              <line x1={X(station)} x2={X(station)} y1={MARGIN.top} y2={bottom} stroke={PALETTE.axis} strokeWidth="1.5" />
-              <text x={X(station) + 3} y={MARGIN.top + 23} fontSize="10" fill={PALETTE.textStrong}>
-                {`▶ ${part.track.name || part.trackId.slice(0, 8)}${part.reversed ? ' ⇄' : ''}`}
-              </text>
-            </g>
-          ))}
-          {/* joined tracks */}
-          {stubs.map((s, i) => {
-            const [a, b] = s.points
-            return (
-              <g key={`n${i}`}>
-                <line x1={X(a.station)} y1={Y(a.z)} x2={X(b.station)} y2={Y(b.z)} stroke={PALETTE.axis} strokeWidth="2" strokeDasharray="6 4" />
-                <circle cx={X(b.station)} cy={Y(b.z)} r="3" fill={PALETTE.white} stroke={PALETTE.axis} strokeWidth="1.5" />
-                <text x={X(b.station)} y={Y(b.z) - 8} fontSize="10" fill={PALETTE.label} textAnchor="middle">{s.name}</text>
-              </g>
-            )
-          })}
-          {/* the reference axis, where it runs along the track */}
-          {refRuns.map((run, i) => (
-            <polyline key={`ref${i}`} fill="none" stroke={PALETTE.referenceAxis} strokeWidth="1.5" strokeDasharray="6 3"
-              pointerEvents="none" points={perPixel(run).map(p => `${X(p.s)},${Y(p.z)}`).join(' ')} />
-          ))}
-          {/* the vertical curves rounding the gradient changes */}
-          {curves.map((c, i) => (
-            <polyline key={`vc${i}`} fill="none" stroke={PALETTE.verticalCurve} strokeWidth="2"
-              points={c.map(p => `${X(p.station)},${Y(p.z)}`).join(' ')} />
-          ))}
-          {/* where two of them run into each other: the shared stretch, framed */}
-          {overlaps.map(o => {
-            const x1 = X(o.from), x2 = X(o.to), y1 = Y(o.zMax), y2 = Y(o.zMin)
-            const w = Math.max(x2 - x1, 4), h = Math.max(y2 - y1, 4)
-            return (
-              <rect key={`vo${o.a}-${o.b}`} className="rule-sev-error" x={(x1 + x2 - w) / 2 - 4} y={(y1 + y2 - h) / 2 - 6}
-                width={w + 8} height={h + 12} rx="3" fill="currentColor" fillOpacity="0.15"
-                stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 2">
-                <title>{overlapNote(o)}</title>
-              </rect>
-            )
-          })}
-          {/* the track */}
-          <polyline fill="none" stroke="var(--color-primary)" strokeWidth="2"
-            points={points.map(p => `${X(p.station)},${Y(p.z)}`).join(' ')} />
-          {/* the tangent points, where each vertical curve begins and ends */}
-          {curves.flatMap((c, i) => [c[0], c[c.length - 1]].map((p, k) => (
-            <circle key={`ve${i}-${k}`} cx={X(p.station)} cy={Y(p.z)} r="3" fill={PALETTE.verticalCurveEnd}
-              stroke={PALETTE.verticalCurveEndEdge} strokeWidth="0.75">
-              <title>{fill(k ? 'elevation_vcurve_end' : 'elevation_vcurve_start', { station: cm(p.station) })}</title>
-            </circle>
-          )))}
-          {/* stretches a rule flags, in the colour of its step */}
-          {[...stretchAt.values()].filter(flagged).map(s => (
-            <line key={`sf${s.index}`} className={`rule-sev-${s.severity}`} stroke="currentColor" strokeWidth="4"
-              strokeOpacity="0.75" strokeLinecap="round"
-              x1={X(points[s.index - 1].station)} y1={Y(points[s.index - 1].z)}
-              x2={X(points[s.index].station)} y2={Y(points[s.index].z)}>
-              <title>{stretchNote(s)}</title>
-            </line>
-          ))}
-          {grades.map((g, i) => (
-            <text key={`g${i}`} x={g.x} y={g.y + 14} fontSize="10" textAnchor="middle"
-              className={flagged(g.stretch) ? `rule-sev-${g.stretch.severity}` : undefined}
-              fill={flagged(g.stretch) ? 'currentColor' : PALETTE.muted}>
-              {g.stretch && <title>{stretchNote(g.stretch)}</title>}
-              {gradeLabel(g.grade, num)}
-            </text>
-          ))}
-          {/* gradient changes a rule flags: a ring in the colour of its step */}
-          {[...curveAt.values()].filter(flagged).map(c => (
-            <circle key={`cf${c.index}`} className={`rule-sev-${c.severity}`} cx={X(c.station)} cy={Y(points[c.index].z)}
-              r="8.5" fill="none" stroke="currentColor" strokeWidth="2" pointerEvents="none" />
-          ))}
-          {labelled.map(p => (
-            <text key={`l${p.index}`} x={X(p.station)} y={Y(p.z) - 9} fontSize="10" fill={PALETTE.textStrong} textAnchor="middle">
-              {mm(p.z)}{p.rv != null && <tspan fill={PALETTE.label}> R{Math.round(p.rv)}
-                {p.la != null && ` ${fill('elevation_vcurve_length_label', { la: num(p.la, { digits: 0 }) })}`}</tspan>}
-            </text>
-          ))}
-          {/* where the cross section is taken */}
-          {sectionStation != null && (
-            <g pointerEvents="none">
-              <line x1={X(sectionStation)} x2={X(sectionStation)} y1={MARGIN.top} y2={bottom}
-                stroke={PALETTE.mapSelected} strokeWidth="1.5" strokeDasharray="3 2" />
-              {sectionZ != null && (
-                <circle cx={X(sectionStation)} cy={Y(sectionZ)} r="4.5" fill={PALETTE.mapSelected} stroke={PALETTE.white} strokeWidth="1.5" />
-              )}
-            </g>
-          )}
-          {cursor != null && (
-            <g pointerEvents="none">
-              <line x1={X(cursor)} x2={X(cursor)} y1={MARGIN.top} y2={bottom}
-                stroke={PALETTE.mapHover} strokeWidth="1" strokeDasharray="2 2" />
-              {cursorZ != null && (
-                <circle cx={X(cursor)} cy={Y(cursorZ)} r="3.5" fill={PALETTE.mapHover} stroke={PALETTE.white} strokeWidth="1.5" />
-              )}
-            </g>
-          )}
-          {hover && (
-            <circle cx={X(hover.station)} cy={Y(hover.z)} r="4" fill={PALETTE.white}
-              stroke="var(--color-primary)" strokeWidth="1.5" strokeDasharray="2 2" pointerEvents="none" />
-          )}
-          {/* A turnout's toe, marked as such (decision 392). */}
-          {points.filter(p => coupled(p.index)?.kind === 'wa').map(p => (
-            <text key={`wa${p.index}`} x={X(p.station)} y={Y(p.z) + 17} fontSize="9" fontWeight="600"
-              fill={PALETTE.label} textAnchor="middle" pointerEvents="none">WA</text>
-          ))}
-          {points.filter(p => lockedByHand(p.index)).map(p => (
-            // A lock above its point.
-            <text key={`lk${p.index}`} x={X(p.station)} y={Y(p.z) - 22} fontSize={12}
-              textAnchor="middle" pointerEvents="none">🔒</text>
-          ))}
-          {points.map(p => {
-            const on = isSelected(p)
-            return (
-              <circle className="clickable" key={`p${p.index}`} cx={X(p.station)} cy={Y(p.z)} r={on ? 5.5 : 3.5}
-                fill={on ? PALETTE.heightPointSelected : linkState.get(p.index) === 'source' ? PALETTE.heightPointSource
-                  : linkState.get(p.index) === 'dependent' ? PALETTE.heightPointDependent : PALETTE.white}
-                stroke={on ? PALETTE.heightPointSelected : 'var(--color-primary)'} strokeWidth="2"
-                strokeDasharray={locked.has(p.index) ? '2 1.5' : undefined}
-                onPointerDown={e => e.stopPropagation()} onClick={e => pick(p.index, e, { open: true })}>
-                {(curveAt.has(p.index) || roles.has(p.index) || p.reason) && (
-                  <title>
-                    {[pointNote(p.index), curveAt.has(p.index) && curveNote(curveAt.get(p.index))].filter(Boolean).join('\n')}
-                  </title>
-                )}
-              </circle>
-            )
-          })}
-        </g>
-        {devShown && deviationStrip({ sTicks, right, foot })}
-        {sectionStation != null && X(sectionStation) >= MARGIN.left && X(sectionStation) <= right && (
-          <text x={X(sectionStation)} y={MARGIN.top - 6} fontSize="10" fill={PALETTE.mapSelected} textAnchor="middle" pointerEvents="none">
-            {fill('elevation_section_marker', {
-              station: cm(sectionStation),
-              z: sectionZ != null ? ` · ${mm(sectionZ)} m` : '',
-            })}
-          </text>
-        )}
-        {cursor != null && sectionStation == null && (
-          <text x={clamp(X(cursor), MARGIN.left + 40, right - 40)} y={MARGIN.top - 6} fontSize="10" fill={PALETTE.mapHover}
-            textAnchor="middle" pointerEvents="none">
-            {`${cm(cursor)} m${cursorZ != null ? ` · ${mm(cursorZ)} m` : ''}${cursorDz != null ? ` · Δh ${mmLabel(cursorDz)}` : ''}`}
-          </text>
-        )}
-        {band && (
-          <rect x={Math.min(band.x0, band.x1)} y={Math.min(band.y0, band.y1)}
-            width={Math.abs(band.x1 - band.x0)} height={Math.abs(band.y1 - band.y0)}
-            fill={PALETTE.heightPointSelected} fillOpacity="0.08" stroke={PALETTE.heightPointSelected} strokeDasharray="4 3" />
-        )}
-      </svg>
-    )
-  }
-
   // The rules in a word, in the upper tab bar — the same place whatever is
   // open: the list itself is in the panel, which a long track list may have
   // scrolled away.
@@ -1368,6 +943,43 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     </div>
   )
 
+  /**
+   * What a section draws and does (ElevationSection) — the same data, the
+   * selection and the cursor for both. A click in the upper one opens the
+   * point tab below, unless a section is open there too (decision 393).
+   */
+  const sectionOf = (where) => ({
+    viewKey, exaggeration, points, profile, stubs, refRuns, refPoints, devShown, refAxis, limitZ, curves, overlaps,
+    stretchAt, curveAt, linkState, selection, locked, lockedByHand, coupled, pointNote, curveNote, stretchNote,
+    overlapNote, cursor, setCursor, heightAt, sectionStation, onTrackAt, select, onInsert: insertPoint, fitGen: fit.gen,
+    empty: noHeights ? emptyState : null,
+    onPick: (i, e) => pick(i, e, { open: where === 'upper' && lower !== 'profile' }),
+  })
+  // What a section is set with, in the bar of every half that shows one — the same values for both.
+  const sectionTools = (
+    <>
+      {axes.length > 0 && (
+        <label className="profile-edit" title={t('elevation_ref_hint')}>
+          <span className="profile-ref-swatch" aria-hidden="true" />
+          {t('shift_axis')}
+          <select className="settings-select" value={refChoice} onChange={e => chooseRef(e.target.value)}>
+            <option value="">{t('elevation_ref_none')}</option>
+            <option value="auto">{fill('shift_axis_auto', { name: autoAxis?.name ?? '–' })}</option>
+            {inPlane.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          {refNote && <span className="profile-hint">{refNote}</span>}
+        </label>
+      )}
+      <label className="profile-edit">
+        {t('elevation_exaggeration')}
+        <select className="settings-select" value={exaggeration} onChange={e => setExaggeration(Number(e.target.value))}>
+          {EXAGGERATIONS.map(x => <option key={x} value={x}>{x}×</option>)}
+        </select>
+      </label>
+      <InfoTip text={t('elevation_hint_edit')} />
+    </>
+  )
+
   return (
     <div ref={rootRef} className={`elevation-overlay${upper === 'map' ? ' map-shown' : ''}`}
       style={{ gridTemplateRows: `minmax(0, ${split}fr) auto minmax(0, ${1 - split}fr)` }}>
@@ -1378,43 +990,21 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           {tabs(['profile', 'map'], upper, chooseUpper, v => t(`elevation_view_${v}`))}
           {rulesSummary}
           <div className="elevation-bar-tools">
-            {upper === 'profile' && axes.length > 0 && (
-              <label className="profile-edit" title={t('elevation_ref_hint')}>
-                <span className="profile-ref-swatch" aria-hidden="true" />
-                {t('shift_axis')}
-                <select className="settings-select" value={refChoice} onChange={e => chooseRef(e.target.value)}>
-                  <option value="">{t('elevation_ref_none')}</option>
-                  <option value="auto">{fill('shift_axis_auto', { name: autoAxis?.name ?? '–' })}</option>
-                  {inPlane.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-                {refNote && <span className="profile-hint">{refNote}</span>}
-              </label>
-            )}
-            {upper === 'profile' && (
-              <label className="profile-edit">
-                {t('elevation_exaggeration')}
-                <select className="settings-select" value={exaggeration} onChange={e => setExaggeration(Number(e.target.value))}>
-                  {EXAGGERATIONS.map(x => <option key={x} value={x}>{x}×</option>)}
-                </select>
-              </label>
-            )}
-            {upper === 'profile' && <InfoTip text={t('elevation_hint_edit')} />}
-            {upper === 'map' && <InfoTip text={t('elevation_map_hint')} />}
+            {upper === 'profile' ? sectionTools : <InfoTip text={t('elevation_map_hint')} />}
             <CloseButton onClick={onClose} />
           </div>
         </div>
-        {/* Kept in place under the map tab, so the drawing keeps its size and view. */}
-        <div className="profile-body" ref={bodyRef} aria-hidden={upper === 'map'}>
-          {noHeights ? emptyState : drawing()}
-        </div>
+        {/* Kept in place under the map tab, so the section keeps its size and view. */}
+        <ElevationSection s={sectionOf('upper')} />
       </section>
       <div ref={dividerRef} className="elevation-divider" role="separator" aria-orientation="horizontal"
         title={t('elevation_divider_hint')} onPointerDown={startSplit} onDoubleClick={resetSplit} />
       <section className="elevation-lower">
         <div className="elevation-bar">
-          {tabs(['table', 'point'], lower, chooseLower, v => (v === 'point' && many
+          {tabs(['profile', 'table', 'point'], lower, chooseLower, v => (v === 'point' && many
             ? fill('elevation_view_points', { n: selectedPoints.length }) : t(`elevation_view_${v}`)))}
           <div className="elevation-bar-tools">
+            {lower === 'profile' && sectionTools}
             {lower === 'table' && (
               <label className="profile-edit">
                 {t('elevation_given')}
@@ -1426,28 +1016,30 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
             )}
           </div>
         </div>
-        <div className="elevation-lower-body">
-          {lower === 'point' ? (
-            <ElevationPointDetails key={oneKey ?? 'none'} point={one} count={selectedPoints.length} track={one ? tracks.find(x => x.id === one.owner.trackId) : null}
-              grades={one ? pointGrades(points, one.index) : null} roleText={one ? roleNote(roles.get(one.index)) : null}
-              links={one ? linksOf(one.index) : null}
-              nameOf={linkName} linkOf={(r) => links.get(`${r.trackId}|${r.index}`) ?? null} design={design}
-              modes={DEPENDENCY_MODES} suggested={coupled(one?.index)?.kind === 'lds' ? 'lds' : 'continueBefore'}
-              toe={one && coupled(one.index)?.kind === 'wa' ? swName(coupled(one.index).sw) : null}
-              picking={picking} onPickDependent={setPicking} onCancelPick={() => setPicking(null)}
-              note={rvNote} onPick={pickLinked}
-              editor={pointEditor} freed={!!one && !!roles.get(one.index)?.free}
-              onRestore={() => said(restoreDependentPoint(refOf(one)))}
-              onSetMode={(r, m) => said(setDependencyModeAt(r, m))}
-              onRelease={(r) => said(releaseDependentPoint(r))} />
-          ) : points.length ? (
-            <ElevationTable points={points} length={profile.length} onWrite={writePoint}
-              mode={given} roles={roles} noteAt={pointNote} onLock={(i) => { select([i]); toggleLockAt(i) }}
-              stretchAt={stretchAt} curveAt={curveAt} stretchNote={stretchNote} curveNote={curveNote}
-              selection={selection} linkState={linkState} onPick={pick} />
-          ) : upper === 'map' && noHeights ? emptyState
-            : <div className="profile-empty"><span>{t('elevation_no_heights')}</span></div>}
-        </div>
+        {lower === 'profile' ? <ElevationSection s={sectionOf('lower')} /> : (
+          <div className="elevation-lower-body">
+            {lower === 'point' ? (
+              <ElevationPointDetails key={oneKey ?? 'none'} point={one} count={selectedPoints.length} track={one ? tracks.find(x => x.id === one.owner.trackId) : null}
+                grades={one ? pointGrades(points, one.index) : null} roleText={one ? roleNote(roles.get(one.index)) : null}
+                links={one ? linksOf(one.index) : null}
+                nameOf={linkName} linkOf={(r) => links.get(`${r.trackId}|${r.index}`) ?? null} design={design}
+                modes={DEPENDENCY_MODES} suggested={coupled(one?.index)?.kind === 'lds' ? 'lds' : 'continueBefore'}
+                toe={toeOf(one)} onToeLead={(lead) => said(setToeLeadAt(toeOf(one).sw.switchId, lead))}
+                picking={picking} onPickDependent={setPicking} onCancelPick={() => setPicking(null)}
+                note={rvNote} onPick={pickLinked}
+                editor={pointEditor} freed={!!one && !!roles.get(one.index)?.free}
+                onRestore={() => said(restoreDependentPoint(refOf(one)))}
+                onSetMode={(r, m) => said(setDependencyModeAt(r, m))}
+                onRelease={(r) => said(releaseDependentPoint(r))} />
+            ) : points.length ? (
+              <ElevationTable points={points} length={profile.length} onWrite={writePoint}
+                mode={given} roles={roles} noteAt={pointNote} onLock={(i) => { select([i]); toggleLockAt(i) }}
+                stretchAt={stretchAt} curveAt={curveAt} stretchNote={stretchNote} curveNote={curveNote}
+                selection={selection} linkState={linkState} onPick={pick} leads={leads} />
+            ) : upper !== 'profile' && noHeights ? emptyState
+              : <div className="profile-empty"><span>{t('elevation_no_heights')}</span></div>}
+          </div>
+        )}
       </section>
       {askDelete && (
         <ConfirmModal message={t('elevation_delete_locked_ask')} onConfirm={() => remove(true)} onCancel={() => setAskDelete(false)} />

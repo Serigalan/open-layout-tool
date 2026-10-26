@@ -9,11 +9,12 @@ import NumberInput from './form/NumberInput'
  * a mode names, the station or the height in its place; on a joint (a track
  * end other tracks meet) the station stays whatever is typed. Nothing on a
  * turnout's WA or ldS, which follow from the points either side, nor on a
- * locked point (`role`, switchChain.heightRoles) — a WA or ldS let go is.
+ * locked point (`role`, switchChain.heightRoles) — a WA or ldS let go is,
+ * and the toe that sets the toe's height (`leads`, decision 393).
  */
-function editableAt(i, n, mode, { joint, role }) {
+function editableAt(i, n, mode, { joint, role, leads }) {
   // A WA or ldS let go of its rule (decision 387) is typed like any point.
-  if (role && !role.free) return new Map()
+  if (role && !role.free && !leads) return new Map()
   const available = ['s', 'z', i > 0 && 'gb', i < n - 1 && 'ga'].filter(Boolean)
   if (joint) return new Map(available.filter(k => k !== 's').map(k => [k, 's']))
   const pair = [...GIVEN_MODES[mode]]
@@ -79,7 +80,7 @@ function ValueCell({ value, digits, step, editable, onCommit, className, title }
  */
 export default function ElevationTable({
   points, length, mode, roles, noteAt, onLock,
-  stretchAt, curveAt, stretchNote, curveNote, selection, linkState, onPick, onWrite,
+  stretchAt, curveAt, stretchNote, curveNote, selection, linkState, onPick, onWrite, leads = () => false,
 }) {
   const { t, fill, num } = useI18n()
   const [error, setError] = useState(null)       // { index, code } of the last value that could not be taken
@@ -136,7 +137,7 @@ export default function ElevationTable({
           {points.map((p, i) => {
             const role = roles.get(i)
             const joint = points[i].trackEnd != null || points[i].joint
-            const edit = editableAt(i, n, mode, { joint, role })
+            const edit = editableAt(i, n, mode, { joint, role, leads: leads(i) })
             const g = pointGrades(points, i)
             const cell = (key) => ({
               editable: edit.has(key),

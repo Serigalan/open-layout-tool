@@ -168,7 +168,8 @@ There is **no station on an element** — stations are the running sum of the le
 - `label` names the form in `db-ril-800-0120.json`; `formVersion` the version of the form tables it was built
   against.
 - `ports.X = { trackId, endpoint }` — which end (`BEGIN` | `END`) of which track the port holds.
-- Optional: `swapped: true` (an outer-bent turnout built as the plain form with routes swapped), `status`,
+- Optional: `swapped: true` (an outer-bent turnout built as the plain form with routes swapped), `toeLead:
+  'branch'` (a turnout's toe takes its one height from the branch's point, not the main route's — decision 393), `status`,
   `mainRadius`/`mainRadiusEnd` (stem radii where the tracks do not state them), `pad` (point address from an
   MDB import).
 - No symbol: body, LCS line, label position and bauform are derived on load.

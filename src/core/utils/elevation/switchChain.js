@@ -9,10 +9,12 @@
  *   next turnout. Without a point before the WA the WA is the line's end. A
  *   branch's ldS that nothing else holds lies on the line between its
  *   neighbours on the branch the same way (an ldS between does not count).
- * - Standard (outside the design mode): a turnout's tracks meet — its
- *   branch's WA takes the main route's height, its branch's ldS lies in the
- *   plane over the main route's (switchGradient.ldsLift). The main route
- *   leads.
+ * - Toe (decision 393, in both modes): a turnout's WA is one height on all
+ *   its tracks — the one of the toe that leads, the main route's unless the
+ *   turnout says `toeLead: 'branch'`. Not a dependency to make or let go:
+ *   only which toe leads is chosen (setToeLead).
+ * - Standard (outside the design mode): its branch's ldS lies in the plane
+ *   over the main route's (switchGradient.ldsLift). The main route leads.
  * - Own (`dep` on a point: the id of the point it follows; kept in the
  *   project), the way `depMode` says (decisions 390, 392): 'lds' — the
  *   source's cant over the offset between the two (switchGradient.planeFrom;
@@ -21,14 +23,15 @@
  *   carried on to the point. Read from a file as well: 'wa' — the same
  *   height, as at a turnout's toe — and 'continue' — the gradient from the
  *   side away from the point —, no longer offered. Without a mode: 'wa'
- *   across a turnout's toe, else 'lds'. A toe is shown as such, not as a
- *   dependency (heightLinks).
+ *   across a turnout's toe, else 'lds'. An own dependency of the toe that
+ *   follows gives way to the toe's one height.
  *   Made in the design mode, in force in both; one over a turnout's pair
  *   drops the standard one it would turn round, and one on a WA or ldS takes
  *   it off its line.
- * - None (`free` on a point, decision 387): a WA or ldS let go of its line
- *   and of the standard coupling in the design mode — a point like any
- *   other, entered by hand, until its rule is restored.
+ * - None (`free` on a point, decision 387): a WA of a main route or an ldS
+ *   let go of its line and of the standard coupling in the design mode — a
+ *   point like any other, entered by hand, until its rule is restored. The
+ *   toe's one height stays.
  *
  * The store works them out after every write (withSwitchHeights), every
  * source before what depends on it, for what the write touched. In the
@@ -43,7 +46,8 @@
  */
 
 import {
-  endOfIndex, heightAt, jointGroup, pointAtStation, roundHeight, turnoutDivergingPort, turnoutLinePort, portTrack, portEnd,
+  endOfIndex, heightAt, jointGroup, pointAtStation, roundHeight, stationOnTrack, trackLength, turnoutDivergingPort, turnoutLinePort,
+  portTrack, portEnd,
 } from '../track'
 import { ldsLift, planeFrom, roundMm, STATION_TOL, switchCouplings, Z_TOL } from './switchGradient'
 
@@ -320,22 +324,26 @@ function dependencies(ix, project, { design = false } = {}) {
       const ref = canon(ix, project, { trackId: t.id, index })
       const from = canon(ix, project, src)
       if (keyOf(from) === keyOf(ref)) return
-      const pair = pairOfBoth(pairOf, from, ref)
-      const mode = modeOf(p, pair)
-      nodes.set(keyOf(ref), {
-        ref, kind: 'own', mode, sources: [from], toe: pair?.at === 'wa' && mode === 'wa', z: (q) => followZ(q, from, ref, pairOf, mode),
-      })
+      const mode = modeOf(p, pairOfBoth(pairOf, from, ref))
+      nodes.set(keyOf(ref), { ref, kind: 'own', mode, sources: [from], z: (q) => followZ(q, from, ref, pairOf, mode) })
     })
   }
   const followsOwn = (a, b) => nodes.get(keyOf(a))?.sources.some(s => keyOf(s) === keyOf(b))
-  // Standard: a turnout's branch follows its main route at WA and ldS.
+  // The toe: one height, the leading toe's — over any own dependency of the
+  // one that follows, and none of the leading one on it.
+  for (const e of ix.entries) {
+    const { mt, bt } = pairsOf(project, e)
+    if (!mt || !bt) continue
+    const [lead, follow] = e.sw.toeLead === 'branch' ? [bt, mt] : [mt, bt]
+    if (followsOwn(lead, follow)) nodes.delete(keyOf(lead))
+    nodes.set(keyOf(follow), { ref: follow, kind: 'toe', mode: 'wa', sources: [lead], z: (q) => zOf(q, lead) })
+  }
+  // Standard: a turnout's branch follows its main route at the ldS.
   if (!design) {
     for (const e of ix.entries) {
-      const { mt, bt, ml, bl } = pairsOf(project, e)
-      for (const [m, b, mode] of [[mt, bt, 'wa'], [ml, bl, 'lds']]) {
-        if (!m || !b || nodes.has(keyOf(b)) || followsOwn(m, b) || isFree(project, b)) continue
-        nodes.set(keyOf(b), { ref: b, kind: 'standard', mode, sources: [m], toe: mode === 'wa', z: (q) => followZ(q, m, b, pairOf, mode) })
-      }
+      const { ml, bl } = pairsOf(project, e)
+      if (!ml || !bl || nodes.has(keyOf(bl)) || followsOwn(ml, bl) || isFree(project, bl)) continue
+      nodes.set(keyOf(bl), { ref: bl, kind: 'standard', mode: 'lds', sources: [ml], z: (q) => followZ(q, ml, bl, pairOf, 'lds') })
     }
   }
   // Lines of the main routes: a point that depends on others, or that is let go, ends them.
@@ -512,6 +520,12 @@ export function withSwitchHeights(before, after, { design = false, opts } = {}) 
     const b = was.get(t.id)
     return !b || b.heights !== t.heights || b.elements !== t.elements
   }).map(t => t.id))
+  // Another toe leading: the turnout's tracks are worked out again.
+  const lead = new Map((before?.switches ?? []).map(sw => [sw.switchId, sw.toeLead ?? null]))
+  for (const sw of after.switches ?? []) {
+    if ((sw.toeLead ?? null) === (lead.get(sw.switchId) ?? null)) continue
+    for (const port of Object.values(sw.ports ?? {})) if (port?.trackId) changed.add(port.trackId)
+  }
   if (!changed.size) return after
   let p = withoutLostLinks(after)
   const ix = indexOf(p.tracks, p.switches ?? [], opts)
@@ -589,12 +603,15 @@ function newPointId(project) {
  * joined to it — told to follow it the way `mode` says (DEPENDENCY_MODES;
  * null: the default for the pair); where `src` followed `dst`, that is
  * turned round. Returns { project } or { error }: 'same' (one point), 'ring'
- * (it would come to depend on itself, over other dependencies).
+ * (it would come to depend on itself, over other dependencies), 'toe' (`dst`
+ * is a turnout's toe that follows the leading one).
  */
 export function dependOn(project, dst, src, { mode = null, design = true, opts } = {}) {
   const ix = indexOf(project.tracks, project.switches ?? [], opts)
   const [d, s] = [canon(ix, project, dst), canon(ix, project, src)]
   if (keyOf(d) === keyOf(s)) return { error: 'same' }
+  // A toe that follows the leading one takes its height from it alone (decision 393).
+  if (dependencies(ix, project, { design }).get(keyOf(d))?.kind === 'toe') return { error: 'toe' }
   let p = project
   let id = heightsOf(p, s.trackId)[s.index].id
   if (!id) {
@@ -622,7 +639,39 @@ export function releaseDependency(project, ref, { design = true, opts } = {}) {
   const p = heightsOf(project, r.trackId)?.[r.index]
   if (!p) return project
   if (p.dep) return patchPoint(ix, project, r, { dep: null, depMode: null })
-  return dependencies(ix, project, { design }).has(keyOf(r)) ? patchPoint(ix, project, r, { free: true }) : project
+  // The toe's one height is not let go of (decision 393).
+  const n = dependencies(ix, project, { design }).get(keyOf(r))
+  return n && n.kind !== 'toe' ? patchPoint(ix, project, r, { free: true }) : project
+}
+
+/**
+ * The project with the toe of turnout `switchId` set by its main route's
+ * ('main') or its branch's ('branch') point (decision 393) — stored as
+ * `toeLead: 'branch'` on the turnout, nothing for the main route. The heights
+ * follow when the store works the write out (withSwitchHeights).
+ */
+export function setToeLead(project, switchId, lead) {
+  const sw = project.switches?.find(x => x.switchId === switchId)
+  if (!sw || (sw.toeLead ?? 'main') === lead) return project
+  const { toeLead: _l, ...rest } = sw
+  const next = lead === 'branch' ? { ...rest, toeLead: 'branch' } : rest
+  return { ...project, switches: project.switches.map(x => (x === sw ? next : x)) }
+}
+
+/**
+ * The project with every turnout's toe at one height, the leading toe's
+ * (decision 393) — what a project gets as it is opened. The same project
+ * where every toe is so already.
+ */
+export function withToesJoined(project, opts) {
+  if (!project?.tracks || !project.switches?.length) return project
+  const ix = indexOf(project.tracks, project.switches, opts)
+  return ix.entries.reduce((p, e) => {
+    const { mt, bt } = pairsOf(p, e)
+    if (!mt || !bt) return p
+    const [lead, follow] = e.sw.toeLead === 'branch' ? [bt, mt] : [mt, bt]
+    return setHeight(ix, p, follow, zOf(p, lead))
+  }, project)
 }
 
 /** The project with the point `ref` (and those joined to it) back under its rule: no longer `free`. */
@@ -671,6 +720,39 @@ export function addDependentAt(project, src, target, { mode = null, design = tru
   return r.error ? r : { project: r.project, ref }
 }
 
+/**
+ * The project with a point added inside a turnout twinned (decision 393):
+ * where the point `ref` lies on its main route or branch between the toe and
+ * the ldS — clear of both —, the other track gets a point at the same place
+ * (where the normal from it meets that track; one already there within
+ * 0.5 m is taken), depending on it as an ldS does (mode 'lds': the source's
+ * cant over the offset across). Returns { project, twin } — `twin` the new
+ * point's ref, null where there is nothing to twin, or { error } as
+ * addDependentAt has it.
+ */
+export function withTurnoutTwin(project, ref, { design = false, opts } = {}) {
+  const none = { project, twin: null }
+  const track = trackOf(project, ref.trackId)
+  const s = track?.heights?.[ref.index]?.station
+  if (s == null || !project.switches?.length) return none
+  const ix = indexOf(project.tracks, project.switches, opts)
+  for (const e of ix.onTrack.get(track.id) ?? []) {
+    const side = e.main.trackId === track.id ? 'main' : e.branch.trackId === track.id ? 'branch' : null
+    if (!side) continue
+    const port = e[side], other = e[side === 'main' ? 'branch' : 'main']
+    const toe = port.endpoint === 'BEGIN' ? 0 : trackLength(track)
+    const lds = side === 'main' ? e.ldsMain : e.ldsBranch
+    if (!(s > Math.min(toe, lds) + SNAP && s < Math.max(toe, lds) - SNAP)) continue
+    const at = pointAtStation(track, s)
+    const ot = trackOf(project, other.trackId)
+    const foot = at && ot && stationOnTrack(ot, at.utm)
+    if (!foot) continue
+    const r = addDependentAt(project, ref, { trackId: ot.id, station: foot.station }, { mode: 'lds', design, opts })
+    return r.error ? r : { project: r.project, twin: r.ref }
+  }
+  return none
+}
+
 // ── What the profile shows ──────────────────────────────────────────────────
 
 let lastRoles = null
@@ -678,8 +760,9 @@ let lastRoles = null
 /**
  * What the points of a project are, by track and stored index — what the
  * profile and its table show only:
- *   { kind: 'wa', sw, side }     toe of a turnout ('main' on the approach and
- *                                main route, 'branch' on the branch)
+ *   { kind: 'wa', sw, side, lead } toe of a turnout ('main' on the approach
+ *                                and main route, 'branch' on the branch),
+ *                                `lead` where it sets the toe's height
  *   { kind: 'lds', sw, side }    ldS point on the main route or branch —
  *                                either with `free` where it is let go, and
  *                                then entered like any other
@@ -712,7 +795,9 @@ export function heightRoles(project, opts) {
     for (const role of ['approach', 'main', 'branch']) {
       if (!e[role]) continue
       const i = toeIndex(project, e[role])
-      put(e[role].trackId, i, { kind: 'wa', sw: e.sw, side: role === 'branch' ? 'branch' : 'main', ...free(e[role].trackId, i) })
+      // The toe is one height (decision 393): `lead` the toe that sets it — which alone may be let go of its line.
+      const lead = (e.sw.toeLead === 'branch') === (role === 'branch')
+      put(e[role].trackId, i, { kind: 'wa', sw: e.sw, side: role === 'branch' ? 'branch' : 'main', lead, ...(lead ? free(e[role].trackId, i) : {}) })
     }
   }
   for (const t of project.tracks) {
@@ -729,9 +814,8 @@ export function heightRoles(project, opts) {
  * Map(`trackId|index` → { kind, mode, from: [refs], to: [refs] }) — `kind`
  * what it depends by ('own', 'standard', 'line'; null where it depends on
  * nothing), `mode` how (DEPENDENCY_MODES, or 'line'). A turnout's toe is no
- * dependency (decision 392): the branch's WA taking the main route's height
- * is `toe: true` with nothing on either list — `kind` still says whether it
- * is the standard coupling or one of its own, to be let go of. The
+ * dependency (decisions 392, 393): the toe that follows the leading one is
+ * `kind` 'toe', `toe: true`, with nothing on either list. The
  * approach's end of a toe answers as the main route's start, the one point
  * they are.
  */
@@ -748,7 +832,7 @@ export function heightLinks(project, { design = false, opts } = {}) {
     const me = at(n.ref)
     me.kind = n.kind
     me.mode = n.mode
-    if (n.toe) { me.toe = true; continue }
+    if (n.kind === 'toe') { me.toe = true; continue }
     me.from = n.sources
     for (const s of n.sources) at(s).to.push(n.ref)
   }

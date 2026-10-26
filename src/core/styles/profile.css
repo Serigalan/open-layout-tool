@@ -547,3 +547,4 @@
   background: var(--color-surface-alt); border: 1px solid var(--color-border);
   font-size: var(--fs-xs); font-weight: 600; color: var(--color-text-soft); vertical-align: 1px;
 }
+.profile-point-lead { margin: 4px 0 8px; }

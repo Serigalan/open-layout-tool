@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  addDependentAt, dependOn, heightLinks, heightRoles, releaseDependency, restoreDependency, setDependencyMode, switchMisfits,
-  withAllLdsPoints, withSwitchHeights,
+  addDependentAt, dependOn, heightLinks, heightRoles, releaseDependency, restoreDependency, setDependencyMode, setToeLead,
+  switchMisfits, withAllLdsPoints, withSwitchHeights, withToesJoined, withTurnoutTwin,
 } from './switchChain'
 import { couplingOf, ldsLift } from './switchGradient'
 import { pointAtStation, stationOnTrack } from '../track'
@@ -99,10 +99,10 @@ describe('WA and ldS on their lines (decisions 270, 384)', () => {
     expect(t(p, 'm')).toHaveLength(3)
     expect(t(p, 'm')[0].z).toBeCloseTo(100.5 + 50 * g, 4)
     expect(zAt(t(p, 'm'), ldsOf(p, 'main'))).toBeCloseTo(100.5 + (50 + ldsOf(p, 'main')) * g, 4)
-    // Q and P stay; in the design mode the branch's toe is its own.
+    // Q and P stay; the branch's toe is the main route's height, in the design mode too (decision 393).
     expect(t(p, 'a')[1].z).toBe(100.5)
     expect(t(p, 'm')[2].z).toBe(102)
-    expect(t(p, 'b')[0].z).toBe(101.7)
+    expect(t(p, 'b')[0].z).toBe(t(p, 'm')[0].z)
   })
 
   it('puts the branch\'s ldS on the line from its WA to the free point behind it', () => {
@@ -111,7 +111,7 @@ describe('WA and ldS on their lines (decisions 270, 384)', () => {
     expect(b).toHaveLength(3)
     const s = ldsOf(p, 'branch')
     expect(b[1].station).toBeCloseTo(s, 3)
-    expect(b[1].z).toBeCloseTo(101.7 + 0.2 * b[1].station / 60, 4)
+    expect(b[1].z).toBeCloseTo(b[0].z + (101.9 - b[0].z) * b[1].station / 60, 4)
   })
 
   it('splits the main route\'s line at a free point between WA and ldS', () => {
@@ -123,13 +123,14 @@ describe('WA and ldS on their lines (decisions 270, 384)', () => {
     expect(zAt(m, ldsOf(p, 'main'))).toBeCloseTo(101.5 + (ldsOf(p, 'main') - 20) * (102 - 101.5) / 40, 4)
   })
 
-  it('moves WA and ldS with a point moved either side, and only them', () => {
+  it('moves WA and ldS with a point moved either side, and only them — the branch\'s toe along', () => {
     const p = settle(raw(), true)
     const after = write(p, 'a', setZ(1, 100.8), true)
     const g = (102 - 100.8) / 110
     expect(t(after, 'm')[0].z).toBeCloseTo(100.8 + 50 * g, 4)
     expect(t(after, 'm')[2].z).toBe(102)
-    expect(t(after, 'b')).toBe(t(p, 'b'))
+    expect(t(after, 'b')[0].z).toBe(t(after, 'm')[0].z)
+    expect(t(after, 'b')[2]).toBe(t(p, 'b')[2])
     // Nothing moves where nothing was written.
     expect(withSwitchHeights(after, after, { opts })).toBe(after)
   })
@@ -211,23 +212,25 @@ describe('coupled: the branch follows the main route at WA and ldS (decisions 38
     expect(ldsM.from).toEqual([{ trackId: 'a', index: 1 }, { trackId: 'm', index: 2 }])
     expect(ldsM.to).toEqual([{ trackId: 'b', index: 1 }])
     // The branch's toe takes the main route's height, marked as a toe — no dependency (decision 392).
-    expect(links.get('b|0')).toMatchObject({ kind: 'standard', toe: true, from: [] })
+    expect(links.get('b|0')).toMatchObject({ kind: 'toe', toe: true, from: [] })
     // The approach's end is the toe, as the main route's start.
     expect(links.get('a|2')).toBe(links.get('m|0'))
-    expect(heightLinks(p, { design: true, opts }).get('b|0').kind).toBeNull()
+    // In the design mode as well: the toe is one height (decision 393).
+    expect(heightLinks(p, { design: true, opts }).get('b|0').kind).toBe('toe')
   })
 })
 
 describe('the design mode: dependencies of one\'s own (decision 385)', () => {
 
-  it('couples nothing, and says where the tracks do not meet', () => {
-    expect(gapsOf(apart()).map(m => m.at)).toEqual(['wa', 'lds'])
+  it('couples no ldS, says where they do not meet — the toe stays one height (decision 393)', () => {
+    expect(gapsOf(apart()).map(m => m.at)).toEqual(['lds'])
   })
 
-  it('takes the toe and the ldS over into the branch for good: they follow the main route from then on', () => {
-    let p = take(apart(), 'wa', 'main')
+  it('takes the ldS over into the branch for good: it follows the main route from then on', () => {
+    // The toe follows the main route without being taken over, and cannot be made to depend.
+    expect(dependOn(apart(), { trackId: 'b', index: 0 }, { trackId: 'm', index: 0 }, { mode: 'wa', opts })).toEqual({ error: 'toe' })
+    let p = apart()
     expect(t(p, 'b')[0].z).toBe(t(p, 'm')[0].z)
-    expect(t(p, 'b')[0].dep).toBe(t(p, 'm')[0].id)
     p = take(p, 'lds', 'main')
     expect(gapsOf(p)).toEqual([])
     expect(dependOn(p, { trackId: 'b', index: 1 }, { trackId: 'm', index: 1 }, { mode: 'lds', opts }).project).toBe(p)
@@ -237,20 +240,57 @@ describe('the design mode: dependencies of one\'s own (decision 385)', () => {
     expect(heightRoles(after, opts).get('b').get(1)).toMatchObject({ kind: 'lds', side: 'branch' })
   })
 
-  it('takes the branch\'s heights over into the main route, which then leaves its line there', () => {
-    let p = take(apart(), 'lds', 'branch')
-    const ldsM = zAt(t(p, 'm'), ldsOf(p, 'main'))
-    expect(gapsOf(p).map(m => m.at)).toEqual(['wa'])
-    p = take(p, 'wa', 'branch')
-    expect(t(p, 'm')[0].z).toBe(t(p, 'b')[0].z)
-    // The toe is one point with the approach's end.
-    expect(t(p, 'a')[2].z).toBe(t(p, 'b')[0].z)
-    expect(zAt(t(p, 'm'), ldsOf(p, 'main'))).toBeCloseTo(ldsM, 3)
-    expect(gapsOf(p)).toEqual([])
-    // Turned round: taken over from the main route again, the main route is free once more.
-    p = take(p, 'lds', 'main')
-    expect(t(p, 'm')[1].dep).toBeUndefined()
-    expect(t(p, 'b')[1].dep).toBe(t(p, 'm')[1].id)
+  it('lets the branch\'s toe lead: the main route takes its height and leaves its line there (decision 393)', () => {
+    const p = apart()
+    const led = withSwitchHeights(p, setToeLead(p, 's1', 'branch'), { design: true, opts })
+    expect(led.switches[0].toeLead).toBe('branch')
+    expect(heightRoles(led, opts).get('b').get(0)).toMatchObject({ kind: 'wa', lead: true })
+    expect(heightRoles(led, opts).get('m').get(0)).toMatchObject({ kind: 'wa', lead: false })
+    // The branch's toe typed: the main route and the approach's end take it, Q stays.
+    const typed = write(led, 'b', setZ(0, 101), true)
+    expect(t(typed, 'm')[0].z).toBe(101)
+    expect(t(typed, 'a')[2].z).toBe(101)
+    expect(t(typed, 'a')[1].z).toBe(100.9)
+    // The main route's toe follows and cannot be made to depend, nor be let go of it.
+    expect(dependOn(typed, { trackId: 'm', index: 0 }, { trackId: 'm', index: 2 }, { opts })).toEqual({ error: 'toe' })
+    expect(releaseDependency(typed, { trackId: 'm', index: 0 }, { opts })).toBe(typed)
+    // Back to the main route: its toe on its line again, the branch's along.
+    const back = withSwitchHeights(typed, setToeLead(typed, 's1', 'main'), { design: true, opts })
+    expect(back.switches[0].toeLead).toBeUndefined()
+    expect(t(back, 'm')[0].z).toBeCloseTo(t(p, 'm')[0].z, 4)
+    expect(t(back, 'b')[0].z).toBe(t(back, 'm')[0].z)
+    expect(setToeLead(back, 's1', 'main')).toBe(back)
+  })
+
+  it('joins every toe as a project opens', () => {
+    const p = raw()
+    p.tracks[2].heights = [{ station: 0, z: 99 }, { station: 60, z: 101.9 }]
+    const joined = withToesJoined(p, opts)
+    expect(t(joined, 'b')[0].z).toBe(t(p, 'm')[0].z)
+    expect(withToesJoined(joined, opts)).toBe(joined)
+  })
+
+  it('twins a point added inside a turnout on the other track, depending on it as an ldS does (decision 393)', () => {
+    const p = settle(raw())
+    const add = (q, id, station) => {
+      const h = t(q, id)
+      const z = h[0].z + (h[1].z - h[0].z) * station / h[1].station
+      const next = [...h, { station, z }].sort((x, y) => x.station - y.station)
+      return { project: { ...q, tracks: q.tracks.map(x => (x.id === id ? { ...x, heights: next } : x)) }, index: next.findIndex(x => x.station === station) }
+    }
+    const { project, index } = add(p, 'm', 20)
+    const r = withTurnoutTwin(project, { trackId: 'm', index }, { opts })
+    expect(r.twin.trackId).toBe('b')
+    const after = withSwitchHeights(p, r.project, { opts })
+    const twin = t(after, 'b')[r.twin.index]
+    expect(twin.station).toBeCloseTo(20, 0)
+    expect(twin).toMatchObject({ dep: t(after, 'm')[index].id, depMode: 'lds' })
+    // Without cant: the same height.
+    expect(twin.z).toBeCloseTo(t(after, 'm')[index].z, 3)
+    // Beyond the ldS, or on the approach, there is nothing to twin.
+    const out = add(p, 'm', 50)
+    expect(withTurnoutTwin(out.project, { trackId: 'm', index: out.index }, { opts }).twin).toBeNull()
+    expect(withTurnoutTwin(p, { trackId: 'a', index: 1 }, { opts }).twin).toBeNull()
   })
 
   it('refuses a ring, and lets a point go again', () => {
@@ -354,7 +394,7 @@ describe('how a point depends (decision 390)', () => {
     const p = settle(raw())
     const links = heightLinks(p, { opts })
     const toe = links.get(`b|0`)
-    expect(toe).toMatchObject({ toe: true, kind: 'standard', from: [], to: [] })
+    expect(toe).toMatchObject({ toe: true, kind: 'toe', from: [], to: [] })
     expect(links.get(`m|0`)?.to ?? []).not.toContainEqual({ trackId: 'b', index: 0 })
   })
 
@@ -416,10 +456,7 @@ describe('a crossover: the connecting track the branch of both', () => {
     expect(x[1].z).toBeCloseTo(line(x[1].station), 3)
     expect(x[2].z).toBeCloseTo(line(x[2].station), 3)
     expect(gapsOf(p).length).toBeGreaterThan(0)
-    for (const sw of ['s1', 's2']) {
-      p = take(p, 'wa', 'main', sw)
-      p = take(p, 'lds', 'main', sw)
-    }
+    for (const sw of ['s1', 's2']) p = take(p, 'lds', 'main', sw)
     expect(gapsOf(p)).toEqual([])
   })
 

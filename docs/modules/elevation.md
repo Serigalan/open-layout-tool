@@ -109,7 +109,12 @@ heights reach there (an ldS point is put on the gradient where it is missing). F
   before the WA, the WA is the line's end. A branch's ldS that nothing else holds lies on the line between
   its neighbours on the branch (an ldS between does not count: a crossover's connecting track runs from toe
   to toe).
-- *Standard* (outside the design mode): the branch's WA takes the main route's height, its ldS lies in the
+- *Toe* (decision 393, in both modes): a turnout's WA is one height on all its tracks — the leading toe's, the
+  main route's unless the turnout says `toeLead: 'branch'` (`setToeLead`); the other is `kind` 'toe', cannot be
+  made to depend (`dependOn` → 'toe') nor let go. `withToesJoined` joins every toe as a project opens.
+- *Twin* (decision 393): a point added inside a turnout, between toe and ldS, gets a point at the same place on
+  the other track depending on it as an ldS does (`withTurnoutTwin`, store `addHeightPoint`).
+- *Standard* (outside the design mode): its ldS lies in the
   plane over the main route's (`z_b = z_m + g·a + u/1500·y`, `ldsLift`). The main route leads; a write on
   the branch leaves its WA and ldS where they are.
 - *None:* `free` on a WA or ldS (decision 387) — let go of its line and of the standard coupling in the
@@ -124,8 +129,8 @@ heights reach there (an ldS point is put on the gradient where it is missing). F
   offered: `wa` the same height (a turnout's toe) and `continue` (the side away from the point). One over a pair
   drops the standard one it would turn round; one on a WA or ldS takes it off its line, and the line
   through its neighbours ends there.
-- A turnout's *toe* is no dependency (decision 392): `heightLinks` gives the branch's WA `toe: true` and
-  nothing on either list; the profile marks the point "WA".
+- A turnout's *toe* is no dependency (decision 392): `heightLinks` gives the toe that follows `toe: true` and
+  nothing on either list; the profile marks the point "WA" and names the leading toe.
 
 The store runs `withSwitchHeights` after every write: links to points gone are dropped, the turnouts on the
 tracks it changed get their ldS points, and every height that depends on what it changed is worked out

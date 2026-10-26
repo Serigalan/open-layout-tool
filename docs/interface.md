@@ -110,8 +110,8 @@ removes it before effect cleanups run).
   `trackTable/RuleCell`, the errors listed, each Hinweis with a field for its reason — `reasons`, and a
   turnout's `cantException` for LP.KB.05 —, green once all are written; reasons for findings that no longer
   stand are dropped on Save; decision 374), `ElevationOverlay` (the height profile over the whole map area,
-  decision 391: a draggable divider, above it the longitudinal section or the map seen through, below it
-  `ElevationTable` or `ElevationPointDetails` for the selected point; with the coupling roles and dependencies
+  decision 391: a draggable divider, above it the longitudinal section (`ElevationSection`) or the map seen
+  through, below it a second section, `ElevationTable` or `ElevationPointDetails` for the selected point; with the coupling roles and dependencies
   from `elevation`), `CrossSectionOverlay`, `BandsOverlay` (curvature,
   cant, speed, rule findings), `TopologyGraphOverlay`, `PlanPreviewOverlay`, `ProjectTracksOverlay`,
   `RegelwerkOverlay` / `PhysicsOverlay` (read-only rulebooks), `collab/CompareOverlay` (two states on the map).

@@ -15,7 +15,7 @@ export {
 export { routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute } from './routeProfile'
 export {
   addDependentAt, DEPENDENCY_MODES, heightLinks, heightRoles, releaseDependency, restoreDependency, setDependencyMode,
-  switchMisfits, withAllLdsPoints, withSwitchHeights,
+  setToeLead, switchMisfits, withAllLdsPoints, withSwitchHeights, withToesJoined, withTurnoutTwin,
 } from './switchChain'
 export { lockBreach } from './heightLocks'
 export { heightContext, trackHeightAt } from './switchGradient'

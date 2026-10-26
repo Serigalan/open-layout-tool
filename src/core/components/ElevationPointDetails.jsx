@@ -8,8 +8,9 @@ import { useI18n } from '../locales/i18nContext'
  * and its dependencies (decision 385): what it depends on and what depends on
  * it, each a link to that point, and how (decisions 390, 392: as its ldS,
  * the gradient before or after it carried on — or on a line). A turnout's toe
- * is marked as such (`toe` the turnout's name): it is one point on all its
- * tracks, no dependency. In the design mode
+ * is marked as such (`toe` { name, lead, leading }): one height on all its
+ * tracks, no dependency; in the design mode which toe sets it — the main
+ * route's or the branch's — is chosen here (`onToeLead`, decision 393). In the design mode
  * they are made and changed here: a point picked on the map made to depend
  * on this one the way chosen, the way a point follows its own source
  * changed, and every dependency let go with the × behind it — a WA or ldS
@@ -26,7 +27,7 @@ import { useI18n } from '../locales/i18nContext'
  */
 export default function ElevationPointDetails({
   point, count = 0, track, grades, roleText, links, linkOf, nameOf, design, modes, suggested, picking, note, editor, freed, toe = null,
-  onPick, onPickDependent, onCancelPick, onSetMode, onRelease, onRestore,
+  onPick, onPickDependent, onCancelPick, onSetMode, onRelease, onRestore, onToeLead,
 }) {
   const { t, fill, num } = useI18n()
   const [chosen, setChosen] = useState(null)
@@ -97,7 +98,7 @@ export default function ElevationPointDetails({
       <section>
         <h4>
           {fill('elevation_point_title', { n: point.index + 1 })}
-          {toe != null && <span className="profile-toe-tag">{fill('elevation_toe_tag', { name: toe })}</span>}
+          {toe && <span className="profile-toe-tag">{fill('elevation_toe_tag', { name: toe.name })}</span>}
         </h4>
         {editor}
         <dl className="profile-point-facts">
@@ -109,13 +110,20 @@ export default function ElevationPointDetails({
       <section>
         <h4>{t('elevation_links')}</h4>
         <p className="profile-hint">
-          {t(`elevation_link_kind_${freed ? 'free' : links?.toe || (toe != null && !links?.kind) ? 'toe' : links?.kind ?? 'none'}`)}
-          {/* The toe's coupling is let go like a dependency. */}
-          {design && links?.toe && (
-            <button type="button" className="profile-point-x" title={t('elevation_release_hint')} aria-label={t('elevation_release')}
-              onClick={() => onRelease(ref)}>×</button>
-          )}
+          {t(`elevation_link_kind_${freed ? 'free' : links?.toe || (toe && !links?.kind) ? 'toe' : links?.kind ?? 'none'}`)}
         </p>
+        {/* Which toe sets the toe's one height: chosen in the design mode, else said. */}
+        {toe && (
+          <label className="profile-edit profile-point-lead" title={t('elevation_toe_lead_hint')}>
+            {t('elevation_toe_lead')}
+            {design ? (
+              <select className="settings-select" value={toe.leading} onChange={e => onToeLead(e.target.value)}>
+                {['main', 'branch'].map(v => <option key={v} value={v}>{t(`elevation_toe_lead_${v}`)}</option>)}
+              </select>
+            ) : <strong>{t(`elevation_toe_lead_${toe.leading}`)}</strong>}
+            {!toe.lead && <span className="profile-hint">{t('elevation_toe_follows')}</span>}
+          </label>
+        )}
         {freed && design && (
           <button className="track-table-save-btn" title={t('elevation_restore_hint')} onClick={onRestore}>{t('elevation_restore')}</button>
         )}
