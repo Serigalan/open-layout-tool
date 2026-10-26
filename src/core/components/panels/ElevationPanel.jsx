@@ -14,6 +14,7 @@ import SwitchDesignSection from './SwitchDesignSection'
 import FormSection from '../form/FormSection'
 import { useI18n } from '../../locales/i18nContext'
 import useMapPick from '../../map/useMapPick'
+import { heightPointAt } from '../../map/pick'
 
 /**
  * Vertical alignment: pick a track to see its profile in the overlay, and
@@ -47,7 +48,9 @@ export default function ElevationPanel({ profileTrackId, profileRouteId = null, 
   const resolvedRoute = route && project ? resolveRoute(route, project.tracks, project.switches) : null
   useRouteOnMap('elevation-route', resolvedRoute)
   // A click on one of the route's own tracks keeps the route.
-  useMapPick({ hover: 'track', onPick: ({ trackId }) => {
+  // A height point of the profile on show is the profile's to open (decision 389).
+  useMapPick({ hover: 'track', onPick: ({ trackId }, e) => {
+    if (heightPointAt(e.target, e.point)) return
     if (!resolvedRoute?.parts.some(p => p.trackId === trackId)) onShowProfile?.(trackId)
   } })
   const shownTrackIds = resolvedRoute ? resolvedRoute.parts.map(p => p.trackId) : profileTrackId ? [profileTrackId] : []

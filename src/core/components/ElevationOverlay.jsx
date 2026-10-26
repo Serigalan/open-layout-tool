@@ -15,7 +15,7 @@ import {
   elementAtStation, insertHeightPoint, solveHeightPoint, pointGrades, GIVEN_MODES, partStation,
   resolveRoute, routeAt, routePointAt, reverseTrack, pointAtStation,
 } from '../utils/track'
-import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
+import { filterForElements, FILTER_NONE, heightPointAt, mapIsLive } from '../map/pick'
 import {
   comparedLine, deviationAt, heightsComparable, nearestAxis, referenceProfile, shiftValues,
 } from '../utils/survey'
@@ -24,8 +24,9 @@ import useReferenceAxesOnMap from '../map/useReferenceAxesOnMap'
 import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import usePreview from '../map/usePreview'
+import useMapEvents from '../map/useMapEvents'
 import { utmToWgs84 } from '../utils/geometry'
-import { TRACKS_SELECTED_LAYER } from '../map/layerIds'
+import { ELEVATION_POINTS_LAYER, TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
 import CloseButton from './form/CloseButton'
@@ -75,7 +76,7 @@ const POINTS_SOURCE = 'elevation-points-source'
 const POINT_LAYERS = [{
   sourceId: POINTS_SOURCE,
   layer: {
-    id: 'elevation-points-layer', type: 'circle',
+    id: ELEVATION_POINTS_LAYER, type: 'circle',
     paint: {
       'circle-radius': ['match', ['get', 'state'], 'selected', 6, 'source', 5.5, 'dependent', 5.5, 4],
       'circle-color': ['match', ['get', 'state'], 'selected', PALETTE.heightPointSelected, 'source', PALETTE.heightPointSource,
@@ -435,7 +436,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       const at = h && pointAtStation(track, h.station)
       if (!at) return null
       const [lng, lat] = utmToWgs84(at.utm.easting, at.utm.northing, track.epsg)
-      return { type: 'Feature', properties: { state: st }, geometry: { type: 'Point', coordinates: [lng, lat] } }
+      return { type: 'Feature', properties: { state: st, trackId: track.id, index }, geometry: { type: 'Point', coordinates: [lng, lat] } }
     }
     const shown = new Set(parts.map(p => p.trackId))
     const out = []
@@ -454,6 +455,18 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     // parts and points follow resolved
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolved, tracks, selectedKeys, links, pointsPreview])
+
+  // A height point clicked on the map opens in the point view (decision 389):
+  // selected here where it is on show, else in its own track's profile.
+  useMapEvents(!!resolved, {
+    click: (e, m) => {
+      const r = heightPointAt(m, e.point)
+      if (!r) return
+      const i = profile?.byRef(r.trackId, r.index)
+      if (i != null) { select([i]); setViewKind('point') }
+      else onShowPoint?.(r)
+    },
+  })
 
   const cursorPreview = usePreview(CURSOR_LAYERS)
   useEffect(() => {

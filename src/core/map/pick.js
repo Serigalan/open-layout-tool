@@ -1,4 +1,4 @@
-import { SWITCH_FILLS_LAYER, TRACKS_LAYER } from './layerIds'
+import { ELEVATION_POINTS_LAYER, SWITCH_FILLS_LAYER, TRACKS_LAYER } from './layerIds'
 
 // Asking the map what lies under a point, and the filters that pick out a
 // track, an element or a switch on the hover and selection layers.
@@ -75,6 +75,27 @@ export function pickAt(map, point, { layers = [TRACKS_LAYER], accept = null, pre
     }
   }
   return null
+}
+
+/** How near a height point a click has to be to be on it [px] — closer than a track pick, so the line beside it stays a track. */
+const HEIGHT_POINT_TOLERANCE = 7
+
+/**
+ * The height point of the profile on show under a point on the map (decision
+ * 389): { trackId, index } of the nearest within reach, or null — where none
+ * is, or the profile is not open.
+ */
+export function heightPointAt(map, point) {
+  if (!map?.getLayer?.(ELEVATION_POINTS_LAYER)) return null
+  const t = HEIGHT_POINT_TOLERANCE
+  const hits = map.queryRenderedFeatures([[point.x - t, point.y - t], [point.x + t, point.y + t]], { layers: [ELEVATION_POINTS_LAYER] })
+  let best = null, bestD = Infinity
+  for (const f of hits) {
+    const p = map.project(f.geometry.coordinates)
+    const d = Math.hypot(p.x - point.x, p.y - point.y)
+    if (d < bestD && f.properties?.trackId != null) { best = f; bestD = d }
+  }
+  return best ? { trackId: best.properties.trackId, index: Number(best.properties.index) } : null
 }
 
 /** The track element under a point — { trackId, elementIndex } — or null (see pickAt). */

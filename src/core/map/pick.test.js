@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { HIT_TOLERANCE, elementUnderPoint, pickAt, notSwitchBranch } from './pick'
-import { SWITCH_FILLS_LAYER, TRACKS_LAYER } from './layerIds'
+import { HIT_TOLERANCE, elementUnderPoint, heightPointAt, pickAt, notSwitchBranch } from './pick'
+import { ELEVATION_POINTS_LAYER, SWITCH_FILLS_LAYER, TRACKS_LAYER } from './layerIds'
 
 // What a click on the map lands on. The map is faked down to the two calls the
 // hit test makes of it — everything it decides is decided here, not by MapLibre.
@@ -72,5 +72,24 @@ describe('pickAt (R3.1)', () => {
     })
     const hit = pickAt(m, { x: 0, y: 0 }, { layers: [SWITCH_FILLS_LAYER, TRACKS_LAYER], accept: (p) => !!p.switchId })
     expect(hit).toMatchObject({ switchId: 'w1', layer: SWITCH_FILLS_LAYER, trackId: null })
+  })
+})
+
+describe('heightPointAt (decision 389)', () => {
+  const point = (trackId, index, x, y) => ({ properties: { trackId, index }, geometry: { coordinates: [x, y] } })
+  const fakeMap = (hits, on = true) => ({
+    getLayer: (id) => (on && id === ELEVATION_POINTS_LAYER ? {} : undefined),
+    queryRenderedFeatures: () => hits,
+    project: ([x, y]) => ({ x, y }),
+  })
+
+  it('takes the nearest height point of the profile on show', () => {
+    const m = fakeMap([point('t1', 4, 105, 200), point('t2', 7, 101, 201)])
+    expect(heightPointAt(m, { x: 100, y: 200 })).toEqual({ trackId: 't2', index: 7 })
+  })
+
+  it('finds none where nothing is there, or the profile is closed', () => {
+    expect(heightPointAt(fakeMap([]), { x: 0, y: 0 })).toBeNull()
+    expect(heightPointAt(fakeMap([point('t1', 1, 0, 0)], false), { x: 0, y: 0 })).toBeNull()
   })
 })

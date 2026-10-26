@@ -139,7 +139,9 @@ selected where it is on show, else its track's profile opened on it —, and in 
 take over, add a dependent point across, make it depend on the point across (`dependOnAcross`), and an ×
 behind every dependency (`releaseDependency`: one of its own goes, else a WA or ldS is let go of its rule).
 While the profile is open its height points are on the map too: blue, the selected one red, what it depends
-on yellow, what depends on it green — the two lists in the point view headed in the same colours. The rules
+on yellow, what depends on it green; a click on one opens it in the point view, a linked one of another track
+in that track's profile (decision 389, `map/pick.heightPointAt`; the Höhenplan panel's track pick lets it
+through) — the two lists in the point view headed in the same colours. The rules
 summary stands beside the tabs, the same in every view, and the head is one height in all three (decision
 388): the graphic's carries only the reference axis and the exaggeration, the table's its given values;
 selection, lock and delete are the point view's, which edits several points selected in the graphic together
