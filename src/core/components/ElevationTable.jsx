@@ -9,10 +9,11 @@ import NumberInput from './form/NumberInput'
  * a mode names, the station or the height in its place; on a joint (a track
  * end other tracks meet) the station stays whatever is typed. Nothing on a
  * turnout's WA or ldS, which follow from the points either side, nor on a
- * locked point (`role`, switchChain.heightRoles).
+ * locked point (`role`, switchChain.heightRoles) — a WA or ldS let go is.
  */
 function editableAt(i, n, mode, { joint, role }) {
-  if (role) return new Map()
+  // A WA or ldS let go of its rule (decision 387) is typed like any point.
+  if (role && !role.free) return new Map()
   const available = ['s', 'z', i > 0 && 'gb', i < n - 1 && 'ga'].filter(Boolean)
   if (joint) return new Map(available.filter(k => k !== 's').map(k => [k, 's']))
   const pair = [...GIVEN_MODES[mode]]

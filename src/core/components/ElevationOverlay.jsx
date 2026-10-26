@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches, takeOverSwitchHeight, addDependentPoint,
-  dependOnAcrossPoint, releaseDependentPoint,
+  dependOnAcrossPoint, releaseDependentPoint, restoreDependentPoint,
 } from '../storage'
 import { useProject, useReferenceAxes, useRoutes, useSwitchDesign, useSwitches, useTracks } from '../hooks/useStore'
 import {
@@ -13,7 +13,7 @@ import { ruleById, severityLabelKey } from '../utils/rules'
 import {
   adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps,
   elementAtStation, insertHeightPoint, solveHeightPoint, pointGrades, GIVEN_MODES, partStation,
-  resolveRoute, routeAt, routePointAt, reverseTrack,
+  resolveRoute, routeAt, routePointAt, reverseTrack, pointAtStation,
 } from '../utils/track'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
 import {
@@ -64,6 +64,23 @@ const CURSOR_LAYERS = [{
       'circle-radius': 6,
       'circle-color': PALETTE.mapHover,
       'circle-stroke-width': 2,
+      'circle-stroke-color': PALETTE.white,
+    },
+  },
+}]
+
+// The height points of what is on show, on the map (decision 387): blue, the
+// selected one red, what it depends on yellow, what depends on it green.
+const POINTS_SOURCE = 'elevation-points-source'
+const POINT_LAYERS = [{
+  sourceId: POINTS_SOURCE,
+  layer: {
+    id: 'elevation-points-layer', type: 'circle',
+    paint: {
+      'circle-radius': ['match', ['get', 'state'], 'selected', 6, 'source', 5.5, 'dependent', 5.5, 4],
+      'circle-color': ['match', ['get', 'state'], 'selected', PALETTE.heightPointSelected, 'source', PALETTE.heightPointSource,
+        'dependent', PALETTE.heightPointDependent, PALETTE.heightPoint],
+      'circle-stroke-width': 1.5,
       'circle-stroke-color': PALETTE.white,
     },
   },
@@ -286,11 +303,11 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   }
   // Shown only — height, station and the point itself. A point locked by
   // hand (Entscheidung 382) is one too, but may still be deleted, after asking.
-  const locked = roles
+  const locked = new Map([...roles].filter(([, r]) => !r.free))
   /** The role the coupling gives a point, under a lock where there is one. */
   const coupled = (i) => (roles.get(i)?.kind === 'locked' ? roles.get(i).was : roles.get(i))
   /** Does the coupling hold the point's curve and reason as well (toe, ldS)? */
-  const curveHeld = (i) => ['wa', 'lds'].includes(coupled(i)?.kind)
+  const curveHeld = (i) => ['wa', 'lds'].includes(coupled(i)?.kind) && !coupled(i).free
   /** Is the point locked by hand? */
   const lockedByHand = (i) => roles.get(i)?.kind === 'locked'
   /** The track and its own station at a station of the route. */
@@ -304,7 +321,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const roleNote = (role) => (!role ? null
     : role.kind === 'locked' ? [t('elevation_role_locked'), roleNote(role.was)].filter(Boolean).join('\n')
       : role.kind === 'own' ? t('elevation_role_own')
-        : fill(`elevation_role_${role.kind}_${role.side}`, { name: swName(role.sw) }))
+        : role.free ? fill('elevation_role_freed', { what: fill(`elevation_link_${role.kind}_${role.side}`, { name: swName(role.sw) }) })
+          : fill(`elevation_role_${role.kind}_${role.side}`, { name: swName(role.sw) }))
   // What a point depends on and what depends on it (decision 385), by its
   // track and index; named by its role at a turnout, else by its station —
   // and its track where that is not the one on show.
@@ -325,6 +343,14 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     if (!l) return null
     return [l.from.length > 0 && fill('elevation_links_from', { list: l.from.map(linkName).join('; ') }),
       l.to.length > 0 && fill('elevation_links_to', { list: l.to.map(linkName).join('; ') })].filter(Boolean).join('\n') || null
+  }
+  // In the graphic as on the map: what the one selected point depends on, and what depends on it.
+  const linkState = new Map()
+  if (selection.length === 1 && points[selection[0]]) {
+    const l = linksOf(selection[0])
+    for (const [list, st] of [[l?.from ?? [], 'source'], [l?.to ?? [], 'dependent']]) {
+      for (const r of list) { const i = profile.byRef(r.trackId, r.index); if (i != null) linkState.set(i, st) }
+    }
   }
   const pointNote = (i) => [roleNote(roles.get(i)), linksNote(i), points[i]?.reason && fill('elevation_reason_note', { reason: points[i].reason })]
     .filter(Boolean).join('\n') || null
@@ -393,16 +419,53 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   }), !!size)
 
   // ── The cursor's station on the map ──────────────────────────────────────
+  // ── The height points on the map (decision 387) ─────────────────────────
+  const pointsPreview = usePreview(POINT_LAYERS, { legend: false })
+  const selectedKeys = selection.map(i => points[i]).filter(Boolean).map(p => `${p.owner.trackId}|${p.owner.index}`).join(',')
+  useEffect(() => {
+    if (!resolved) { pointsPreview.clear(); return }
+    const sel = new Set(selectedKeys ? selectedKeys.split(',') : [])
+    const only = sel.size === 1 ? links.get([...sel][0]) : null
+    const state = new Map()
+    for (const r of only?.from ?? []) state.set(`${r.trackId}|${r.index}`, 'source')
+    for (const r of only?.to ?? []) state.set(`${r.trackId}|${r.index}`, 'dependent')
+    for (const k of sel) state.set(k, 'selected')
+    const feature = (track, index, st) => {
+      const h = track?.heights?.[index]
+      const at = h && pointAtStation(track, h.station)
+      if (!at) return null
+      const [lng, lat] = utmToWgs84(at.utm.easting, at.utm.northing, track.epsg)
+      return { type: 'Feature', properties: { state: st }, geometry: { type: 'Point', coordinates: [lng, lat] } }
+    }
+    const shown = new Set(parts.map(p => p.trackId))
+    const out = []
+    for (const id of shown) {
+      const track = tracks.find(x => x.id === id)
+      ;(track?.heights ?? []).forEach((_, i) => out.push(feature(track, i, state.get(`${id}|${i}`) ?? 'plain')))
+    }
+    // What a point is linked to on other tracks shows too.
+    for (const [k, st] of state) {
+      const [id, i] = k.split('|')
+      if (!shown.has(id)) out.push(feature(tracks.find(x => x.id === id), Number(i), st))
+    }
+    // Drawn last on top: the coloured ones.
+    const rank = { plain: 0, dependent: 1, source: 1, selected: 2 }
+    pointsPreview.set(POINTS_SOURCE, out.filter(Boolean).sort((a, b) => rank[a.properties.state] - rank[b.properties.state]))
+    // parts and points follow resolved
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolved, tracks, selectedKeys, links, pointsPreview])
+
   const cursorPreview = usePreview(CURSOR_LAYERS)
   useEffect(() => {
-    const point = resolved && cursor != null ? routePointAt(resolved, cursor) : null
+    // Only the graphic has a cursor: the other views leave the selected point to be seen.
+    const point = resolved && cursor != null && viewKind === 'graphic' ? routePointAt(resolved, cursor) : null
     if (!point) { cursorPreview.clear(); return }
     const on = parts.find(p => p.trackId === point.trackId)
     const [lng, lat] = utmToWgs84(point.utm.easting, point.utm.northing, on.track.epsg)
     cursorPreview.set(CURSOR_SOURCE, { type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [lng, lat] } })
     // parts follow resolved
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolved, cursor, cursorPreview])
+  }, [resolved, cursor, cursorPreview, viewKind])
 
   // ── Pan by dragging, pick a group of points with Shift ────────────────────
   // A drag that stays put is a click on the background: it drops the selection.
@@ -461,7 +524,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     setReasonDraft(null)
   }
   // A point's station can move unless it is a joint or a turnout sets it.
-  const stationMovable = (p) => !locked.has(p.index) && p.trackEnd == null && !p.joint
+  // A WA or ldS let go keeps its station: it is where the turnout puts it.
+  const stationMovable = (p) => !roles.has(p.index) && p.trackEnd == null && !p.joint
 
   /**
    * Write a point solved along the route (`r`: { station, z } in route
@@ -489,8 +553,9 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const laShown = selectedPoints.length && selectedPoints.every(p => p.la != null && p.la === selectedPoints[0].la)
     ? selectedPoints[0].la : null
   /** Click picks one point, Ctrl/Shift-click adds it to or drops it from the selection. */
+  // A single click opens the point view on it, where it is edited (decision 387).
   const pick = (p, e) => {
-    if (!(e.shiftKey || e.ctrlKey || e.metaKey)) return select([p.index])
+    if (!(e.shiftKey || e.ctrlKey || e.metaKey)) { select([p.index]); setViewKind('point'); return }
     select(isSelected(p) ? selection.filter(i => i !== p.index) : [...selection, p.index])
   }
 
@@ -541,7 +606,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     // the height of its points, and the curve and reason of toe and ldS.
     const entries = selectedPoints.map(p => {
       const q = { ...patch }
-      if (roles.has(p.index)) delete q.z
+      if (locked.has(p.index)) delete q.z
       if (curveHeld(p.index)) { delete q.rv; delete q.la; delete q.reason }
       return Object.keys(q).length ? { trackId: p.owner.trackId, index: p.owner.index, ...q } : null
     }).filter(Boolean)
@@ -626,6 +691,58 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     if (i != null) select([i])
     else onShowPoint?.(r)
   }
+  // The point view's fields: station, height, curve with its Regelwert, reason —
+  // written as the toolbar's are, on Enter or on leaving the field.
+  const regular = one && !curveHeld(one.index) ? regularVerticalRadius(one.owner.part.track, one.owner.index, { switches }) : null
+  const regularText = !regular ? t('elevation_regular_none')
+    : regular.noSpeed ? t('elevation_regular_no_speed')
+      : regular.rv == null ? t('elevation_regular_no_curve')
+        : fill('elevation_regular_value', { rv: num(regular.rv, { digits: 0 }) })
+  const pointEditor = one && (
+    <div className="profile-point-edit">
+      <label>
+        <span>{t('elevation_station')}</span>
+        {stationMovable(one)
+          ? <NumberInput className="track-table-input" step="0.1" value={stDraft} onChange={e => setStDraft(e.target.value)} {...editProps} />
+          : <span className="profile-point-value">{num(one.station, { digits: 3 })}</span>}
+        <span>m</span>
+      </label>
+      <label>
+        <span>{t('elevation_height')}</span>
+        {!locked.has(one.index)
+          ? <NumberInput className="track-table-input" step="0.001" value={draft} onChange={e => setDraft(e.target.value)} {...editProps} />
+          : <span className="profile-point-value">{num(one.z, { digits: 4 })}</span>}
+        <span>m</span>
+      </label>
+      <label title={t('elevation_vcurve_hint')}>
+        <span>{t('elevation_vcurve')}</span>
+        {!curveHeld(one.index)
+          ? <NumberInput className="track-table-input" step="100" min="0" value={rvShown} placeholder="–" onChange={e => setRvDraft(e.target.value)} {...editProps} />
+          : <span className="profile-point-value">–</span>}
+        <span>m</span>
+      </label>
+      {!curveHeld(one.index) && (
+        <div className="profile-point-regular">
+          <span className="profile-hint">{regularText}</span>
+          {regular && !regular.noSpeed && (regular.rv ?? null) !== (one.rv ?? null) && (
+            <button className="track-table-save-btn" title={t('elevation_vcurve_regular_hint')} onClick={setRegularRadius}>
+              {t('elevation_regular_take')}
+            </button>
+          )}
+          {laShown != null && (
+            <span className="profile-hint">{fill('elevation_vcurve_length_label', { la: num(laShown, { digits: 0 }) })}</span>
+          )}
+        </div>
+      )}
+      {!curveHeld(one.index) && (
+        <label title={t('elevation_reason_hint')}>
+          <span>{t('elevation_reason')}</span>
+          <input type="text" className="track-table-input profile-reason" value={reasonShown}
+            placeholder={t('elevation_reason_placeholder')} onChange={e => setReasonDraft(e.target.value)} {...editProps} />
+        </label>
+      )}
+    </div>
+  )
   const detailsButton = one && viewKind !== 'point' && (
     <button className="track-table-save-btn" title={t('elevation_point_details_hint')} onClick={() => chooseView('point')}>
       {t('elevation_point_details')}
@@ -1023,7 +1140,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
             const on = isSelected(p)
             return (
               <circle className="clickable" key={`p${p.index}`} cx={X(p.station)} cy={Y(p.z)} r={on ? 5.5 : 3.5}
-                fill={on ? PALETTE.mapSelected : PALETTE.white}
+                fill={on ? PALETTE.mapSelected : linkState.get(p.index) === 'source' ? PALETTE.heightPointSource
+                  : linkState.get(p.index) === 'dependent' ? PALETTE.heightPointDependent : PALETTE.white}
                 stroke={on ? PALETTE.mapSelected : 'var(--color-primary)'} strokeWidth="2"
                 strokeDasharray={locked.has(p.index) ? '2 1.5' : undefined}
                 onPointerDown={e => e.stopPropagation()} onClick={e => pick(p, e)}>
@@ -1075,6 +1193,21 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               </button>
             ))}
           </div>
+          {check && points.length >= 2 && (() => {
+            // The rules in a word, in the head beside the tabs — the same place in
+            // every view: the list itself is in the panel, which a long track
+            // list may have scrolled away.
+            const found = verticalFindings(check)
+            const n = found.reduce((sum, f) => sum + f.places, 0)
+            return (
+              <span className={`profile-rules rule-sev-${check.severity ?? 'none'}`}
+                title={found.length
+                  ? found.map(f => `${f.id} · ${t(severityLabelKey(f.severity))}: ${ruleById(f.id)?.title ?? ''}${f.places > 1 ? ` (${f.places}×)` : ''}`).join('\n')
+                  : t('elevation_rules_ok')}>
+                {found.length ? fill('elevation_rules_summary', { n }) : `✓ ${t('elevation_rules')}`}
+              </span>
+            )
+          })()}
         </div>
         <div className="profile-controls">
           {viewKind === 'table' ? (
@@ -1089,6 +1222,17 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               {detailsButton}
               {rvNote && <span className="form-error">{rvNote}</span>}
             </div>
+          ) : viewKind === 'point' ? (
+            selectedPoints.length > 0 && (
+              <div className="profile-edit">
+                {lockButton}
+                <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
+                  title={t('elevation_delete_hint')} onClick={() => remove()}>
+                  {fill('elevation_delete', { n: deletable.length })}
+                </button>
+                <CloseButton onClick={() => select([])} />
+              </div>
+            )
           ) : selectedPoints.length && selectedPoints.every(p => curveHeld(p.index)) ? (
             <div className="profile-edit">
               <span className="profile-hint" title={roleNote(roles.get(selectedPoints[0].index))}>
@@ -1096,7 +1240,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               </span>
               {detailsButton}
               {lockButton}
-              {rvNote && viewKind !== 'point' && <span className="form-error">{rvNote}</span>}
+              {rvNote && <span className="form-error">{rvNote}</span>}
               <CloseButton onClick={() => select([])} />
             </div>
           ) : selectedPoints.length ? (
@@ -1158,20 +1302,6 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           ) : (
             <InfoTip text={t('elevation_hint_edit')} />
           )}
-          {check && points.length >= 2 && (() => {
-            // The rules in a word, beside the controls: the list itself is in
-            // the panel, which a long track list may have scrolled away.
-            const found = verticalFindings(check)
-            const n = found.reduce((sum, f) => sum + f.places, 0)
-            return (
-              <span className={`profile-rules rule-sev-${check.severity ?? 'none'}`}
-                title={found.length
-                  ? found.map(f => `${f.id} · ${t(severityLabelKey(f.severity))}: ${ruleById(f.id)?.title ?? ''}${f.places > 1 ? ` (${f.places}×)` : ''}`).join('\n')
-                  : t('elevation_rules_ok')}>
-                {found.length ? fill('elevation_rules_summary', { n }) : `✓ ${t('elevation_rules')}`}
-              </span>
-            )
-          })()}
           {viewKind === 'graphic' && axes.length > 0 && (
             <label className="profile-edit" title={t('elevation_ref_hint')}>
               <span className="profile-ref-swatch" aria-hidden="true" />
@@ -1211,10 +1341,12 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           : viewKind === 'point' ? (
             <ElevationPointDetails point={one} track={one ? tracks.find(x => x.id === one.owner.trackId) : null}
               grades={one ? pointGrades(points, one.index) : null} roleText={one ? roleNote(roles.get(one.index)) : null}
-              links={one ? linksOf(one.index) : null} kindOf={(r) => links.get(`${r.trackId}|${r.index}`)?.kind ?? null}
+              links={one ? linksOf(one.index) : null}
               nameOf={linkName} design={design} across={across}
               trackName={(id) => tracks.find(x => x.id === id)?.name || id.slice(0, 8)}
               canTakeOver={!!one && curveHeld(one.index)} note={rvNote} onPick={pickLinked} onTakeOver={takeOver}
+              editor={pointEditor} freed={!!one && !!roles.get(one.index)?.free}
+              onRestore={() => said(restoreDependentPoint(refOf(one)))}
               onAddDependent={(id) => said(addDependentPoint(refOf(one), id))}
               onDependOn={(id) => said(dependOnAcrossPoint(refOf(one), id))}
               onRelease={(r) => said(releaseDependentPoint(r))} />

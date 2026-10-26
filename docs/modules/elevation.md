@@ -112,6 +112,8 @@ heights reach there (an ldS point is put on the gradient where it is missing). F
 - *Standard* (outside the design mode): the branch's WA takes the main route's height, its ldS lies in the
   plane over the main route's (`z_b = z_m + g·a + u/1500·y`, `ldsLift`). The main route leads; a write on
   the branch leaves its WA and ldS where they are.
+- *None:* `free` on a WA or ldS (decision 387) — let go of its line and of the standard coupling in the
+  design mode; a point like any other, typed by hand, until its rule is restored (`restoreDependency`).
 - *Own:* `dep` on a point, the id of the point it follows (`id` on that one) — kept in the project, made in
   the design mode, in force in both. The plane of the source's track through the source carries over
   (`planeFrom`: z + g·a + u/1500·y, a along and y across the source track at the source); across a
@@ -130,10 +132,14 @@ track's point there depends on this one from then on), a selected point gets a p
 track beside it (`tracksAcross`, `addDependent`: at the foot of the perpendicular, the point there within 0.5 m
 or a new one), and a point of one's own lets go (`releaseDependency`) — each one undo step through the store.
 `heightLinks` says for each point what it depends on and what depends on it. The profile shows it in a
-third view beside graphic and table, **Punkt** (decision 386): the selected point's facts (track, station,
-height, gradients, curve, reason, lock, role) and its dependencies, each linked point a link — selected
-where it is on show, else its track's profile opened on it —, and in the design mode the tools: take over,
-add a dependent point across, make it depend on the point across (`dependOnAcross`), release. `switchMisfits` lists the
+third view beside graphic and table, **Punkt** (decisions 386–387), which a click on a point in the graphic
+opens: the selected point's station, height, curve (with the Regelwert offered, `regularVerticalRadius`) and
+reason to edit, its facts (track, gradients, lock, role) and its dependencies, each linked point a link —
+selected where it is on show, else its track's profile opened on it —, and in the design mode the tools:
+take over, add a dependent point across, make it depend on the point across (`dependOnAcross`), and an ×
+behind every dependency (`releaseDependency`: one of its own goes, else a WA or ldS is let go of its rule).
+While the profile is open its height points are on the map too: blue, the selected one red, what it depends
+on yellow, what depends on it green. The rules summary stands beside the tabs, the same in every view. `switchMisfits` lists the
 turnouts whose WA or ldS do not meet (more than 0.2 mm); the mode ends only when the list is empty. It is
 kept per opened project in the session: a project that does not fit opens in it, and so does one an undo
 brings back.

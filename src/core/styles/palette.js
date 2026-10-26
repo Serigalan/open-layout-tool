@@ -39,6 +39,13 @@ export const PALETTE = Object.freeze({
   verticalCurveEnd: '#f5c400',
   verticalCurveEndEdge: '#a68500',
 
+  // Height points on the map while the profile is open (decision 387): the
+  // points, the one selected, what it depends on, what depends on it.
+  heightPoint: '#1e63d6',
+  heightPointSelected: '#d32f2f',
+  heightPointSource: '#f5c400',
+  heightPointDependent: '#2e9d3a',
+
   // The cross section
   terrain: '#2e8b3a',
   assumed: '#8a8a8a',

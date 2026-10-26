@@ -8,7 +8,8 @@ import {
 } from './utils/track'
 import { coupleSwitchCants, rebuildSwitchSymbol } from './utils/switch'
 import {
-  addDependent, dependOnAcross, lengthGovernedRadii, lockBreach, releaseDependency, switchMisfits, takeOverHeight, withSwitchHeights,
+  addDependent, dependOnAcross, lengthGovernedRadii, lockBreach, releaseDependency, restoreDependency, switchMisfits,
+  takeOverHeight, withSwitchHeights,
 } from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
@@ -183,10 +184,16 @@ export function dependOnAcrossPoint(ref, trackId) {
   return writeLinks(dependOnAcross(_project, ref, trackId, { design: _switchDesign }))
 }
 
-/** Let the point `ref` follow nothing of its own any more, as one undo step. */
+/** Let the point `ref` go of one dependency (elevation releaseDependency), as one undo step. */
 export function releaseDependentPoint(ref) {
   if (!_project) return { error: 'no_project' }
-  return writeLinks({ project: releaseDependency(_project, ref) })
+  return writeLinks({ project: releaseDependency(_project, ref, { design: _switchDesign }) })
+}
+
+/** Put a WA or ldS let go back under its rule (elevation restoreDependency), as one undo step. */
+export function restoreDependentPoint(ref) {
+  if (!_project) return { error: 'no_project' }
+  return writeLinks({ project: restoreDependency(_project, ref) })
 }
 
 // ── subscribers (R1.4) ──────────────────────────────────────────────────────

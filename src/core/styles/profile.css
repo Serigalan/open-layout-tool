@@ -29,6 +29,7 @@
 /* The controls wrap onto further rows rather than run out of the overlay. */
 .profile-overlay .track-table-header {
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: 6px 14px;
 }
 
@@ -317,6 +318,8 @@
   align-items: center;
   gap: 20px;
   align-self: stretch;
+  /* One height in every view, so the rules beside the tabs stay put. */
+  min-height: 32px;
 }
 
 .profile-tabs {
@@ -407,3 +410,18 @@
 @media (max-width: 700px) {
   .profile-point { grid-template-columns: 1fr; }
 }
+
+/* The point view's fields (decision 387): label, value, unit in a row each. */
+.profile-point-edit { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.profile-point-edit label { display: grid; grid-template-columns: 9em auto 2em; align-items: center; gap: 6px; }
+.profile-point-edit label span:first-child { color: var(--color-text-soft); }
+.profile-point-edit .track-table-input { width: 110px; }
+.profile-point-edit .track-table-input.profile-reason { width: 16em; }
+.profile-point-value { padding: 2px 0; }
+.profile-point-regular { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding-left: calc(9em + 6px); }
+/* The × behind a dependency: lets it go (design mode). */
+.profile-point-x {
+  border: none; background: none; cursor: pointer; padding: 0 4px;
+  font-size: 15px; line-height: 1; color: var(--color-muted);
+}
+.profile-point-x:hover { color: var(--color-danger); }

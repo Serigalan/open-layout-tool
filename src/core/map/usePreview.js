@@ -35,11 +35,13 @@ function markShown(sourceId, on) {
  *
  * On unmount it also resets the filters of `resetFilters` (layer ids the
  * panel borrowed, e.g. the hover layer) and the cursor if `resetCursor`.
+ * `legend: false` keeps it out of the map legend's "preview" — for what is
+ * shown, not proposed.
  */
-export default function usePreview(defs, { resetFilters = [], resetCursor = false } = {}) {
+export default function usePreview(defs, { resetFilters = [], resetCursor = false, legend = true } = {}) {
   const mapRef = useMap()
   const defsRef = useRef(defs)
-  const optsRef = useRef({ resetFilters, resetCursor })
+  const optsRef = useRef({ resetFilters, resetCursor, legend })
 
   useEffect(() => {
     const m = mapRef.current
@@ -68,7 +70,7 @@ export default function usePreview(defs, { resetFilters = [], resetCursor = fals
   const set = useCallback((sourceId, data) => {
     const geo = asGeoJSON(data)
     mapRef.current?.getSource(sourceId)?.setData(geo)
-    markShown(sourceId, (geo.features?.length ?? (geo.type === 'Feature' ? 1 : 0)) > 0)
+    if (optsRef.current.legend) markShown(sourceId, (geo.features?.length ?? (geo.type === 'Feature' ? 1 : 0)) > 0)
   }, [mapRef])
 
   const clear = useCallback(() => {

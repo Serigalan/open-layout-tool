@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  addDependent, dependOn, dependOnAcross, heightLinks, heightRoles, releaseDependency, switchMisfits, takeOverHeight, tracksAcross, withSwitchHeights,
+  addDependent, dependOn, dependOnAcross, heightLinks, heightRoles, releaseDependency, restoreDependency, switchMisfits, takeOverHeight, tracksAcross, withSwitchHeights,
 } from './switchChain'
 import { couplingOf, ldsLift } from './switchGradient'
 import { endPointCurvedUtm, endPointStraightUtm } from '../geometry/elementUtils'
@@ -41,6 +41,8 @@ const take = (p, at, from, sw = 's1') => {
   return withSwitchHeights(p, r.project, { design: true, opts })
 }
 const gapsOf = (p) => switchMisfits(p, opts)
+/** Coupled, then the approach moved in the design mode: the branch no longer meets the main route. */
+const apart = () => write(settle(raw()), 'a', setZ(1, 100.9), true)
 
 /** A turnout at `at`: approach `a` (100 m, ending at WA), main `m` (60 m), branch `b` (60 m on R 500). */
 function single(heights, { cant } = {}) {
@@ -203,9 +205,6 @@ describe('coupled: the branch follows the main route at WA and ldS (decisions 38
 })
 
 describe('the design mode: dependencies of one\'s own (decision 385)', () => {
-  // Coupled first, then the approach moved with the mode on: the main route's
-  // toe and ldS follow their line, the branch does not.
-  const apart = () => write(settle(raw()), 'a', setZ(1, 100.9), true)
 
   it('couples nothing, and says where the tracks do not meet', () => {
     expect(gapsOf(apart()).map(m => m.at)).toEqual(['wa', 'lds'])
@@ -251,6 +250,39 @@ describe('the design mode: dependencies of one\'s own (decision 385)', () => {
     expect(takeOverHeight(p, 'gone', 'wa', 'main', { opts })).toEqual({ error: 'not_coupled' })
     const bare = settle(single({ a: [{ station: 0, z: 100 }, { station: 100, z: 100 }], m: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }] }))
     expect(takeOverHeight(bare, 's1', 'lds', 'main', { opts })).toEqual({ error: 'no_height' })
+  })
+})
+
+describe('letting a WA or ldS go of its rule (decision 387)', () => {
+  it('frees the main route\'s ldS of its line: it is entered by hand, the toe\'s line ends at it, until restored', () => {
+    const p = settle(raw(), true)
+    const freed = withSwitchHeights(p, releaseDependency(p, { trackId: 'm', index: 1 }, { opts }), { design: true, opts })
+    expect(t(freed, 'm')[1].free).toBe(true)
+    expect(heightRoles(freed, opts).get('m').get(1)).toMatchObject({ kind: 'lds', free: true })
+    expect(heightLinks(freed, { design: true, opts }).get('m|1').kind).toBeNull()
+    const typed = write(freed, 'm', setZ(1, 101), true)
+    expect(t(typed, 'm')[1].z).toBe(101)
+    // The toe now lies on the line from Q to the ldS.
+    expect(t(typed, 'm')[0].z).toBeCloseTo(100.5 + (101 - 100.5) * 50 / (50 + t(typed, 'm')[1].station), 4)
+    const back = withSwitchHeights(typed, restoreDependency(typed, { trackId: 'm', index: 1 }, opts), { design: true, opts })
+    expect(t(back, 'm')[1].free).toBeUndefined()
+    expect(t(back, 'm')[1].z).not.toBe(101)
+  })
+
+  it('frees the branch of the standard coupling, and lets an own dependency go first', () => {
+    const p = settle(raw())
+    const freed = withSwitchHeights(p, releaseDependency(p, { trackId: 'b', index: 1 }, { design: false, opts }), { opts })
+    const typed = write(freed, 'b', setZ(1, 99))
+    expect(t(typed, 'b')[1].z).toBe(99)
+    expect(gapsOf(typed).map(m => m.at)).toEqual(['lds'])
+    // An own dependency is let go first, the rule under it after.
+    const own = take(apart(), 'lds', 'main')
+    const once = releaseDependency(own, { trackId: 'b', index: 1 }, { opts })
+    expect(t(once, 'b')[1].dep).toBeUndefined()
+    expect(t(once, 'b')[1].free).toBeUndefined()
+    expect(t(releaseDependency(once, { trackId: 'b', index: 1 }, { opts }), 'b')[1].free).toBe(true)
+    // A free point depends on nothing to let go of.
+    expect(releaseDependency(p, { trackId: 'a', index: 1 }, { opts })).toBe(p)
   })
 })
 

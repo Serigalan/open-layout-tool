@@ -20,6 +20,9 @@
  *   Made in the design mode, in force in both; one over a turnout's pair
  *   drops the standard one it would turn round, and one on a WA or ldS takes
  *   it off its line.
+ * - None (`free` on a point, decision 387): a WA or ldS let go of its line
+ *   and of the standard coupling in the design mode — a point like any
+ *   other, entered by hand, until its rule is restored.
  *
  * The store works them out after every write (withSwitchHeights), every
  * source before what depends on it, for what the write touched. In the
@@ -101,6 +104,7 @@ const heightsOf = (project, id) => trackOf(project, id)?.heights ?? null
 const indexAt = (h, station) => (h ?? []).findIndex(p => Math.abs(p.station - station) <= STATION_TOL)
 const keyOf = (r) => `${r.trackId}|${r.index}`
 const zOf = (project, r) => heightsOf(project, r.trackId)?.[r.index]?.z ?? null
+const isFree = (project, r) => !!heightsOf(project, r.trackId)?.[r.index]?.free
 
 /** The stored index of a turnout's toe on one of its ports' tracks, or −1 where the heights do not reach it. */
 function toeIndex(project, port) {
@@ -281,17 +285,18 @@ function dependencies(ix, project, { design = false } = {}) {
     for (const e of ix.entries) {
       const { mt, bt, ml, bl } = pairsOf(project, e)
       for (const [m, b] of [[mt, bt], [ml, bl]]) {
-        if (!m || !b || nodes.has(keyOf(b)) || followsOwn(m, b)) continue
+        if (!m || !b || nodes.has(keyOf(b)) || followsOwn(m, b) || isFree(project, b)) continue
         nodes.set(keyOf(b), { ref: b, kind: 'standard', sources: [m], z: (q) => followZ(q, m, b, pairOf) })
       }
     }
   }
-  // Lines of the main routes.
+  // Lines of the main routes: a point that depends on others, or that is let go, ends them.
   const own = new Set(nodes.keys())
+  for (const t of project.tracks) (t.heights ?? []).forEach((p, index) => { if (p.free) own.add(keyOf(canon(ix, project, { trackId: t.id, index }))) })
   for (const e of ix.entries) {
     const { mt, ml } = pairsOf(project, e)
     for (const start of [mt, ml]) {
-      if (!start || nodes.has(keyOf(start))) continue
+      if (!start || own.has(keyOf(start))) continue
       const ch = chainThrough(ix, project, start, own)
       const first = ch.S ?? ch.bound[0], last = ch.E ?? ch.bound[ch.bound.length - 1]
       if (!(last.d > first.d)) continue
@@ -315,7 +320,7 @@ function dependencies(ix, project, { design = false } = {}) {
     const h = heightsOf(project, trackId)
     if (!(h?.length >= 3)) continue
     const bound = (i) => list.some(x => x.side === 'branch' && Math.abs(h[i].station - x.station) <= STATION_TOL)
-      && !nodes.has(keyOf({ trackId, index: i }))
+      && !nodes.has(keyOf({ trackId, index: i })) && !h[i].free
     for (let i = 1; i < h.length - 1; i++) {
       if (!bound(i)) continue
       let a = i - 1, b = i + 1
@@ -539,15 +544,30 @@ export function dependOn(project, dst, src, { design = true, opts } = {}) {
   if (heightsOf(p, d.trackId)[d.index].dep === id) return { project: p }
   const dstId = heightsOf(p, d.trackId)[d.index].id
   if (dstId && heightsOf(p, s.trackId)[s.index].dep === dstId) p = patchPoint(ix, p, s, { dep: null })
-  p = patchPoint(ix, p, d, { dep: id })
+  p = patchPoint(ix, p, d, { dep: id, free: null })
   if (ordered(dependencies(ix, p, { design })).ring.has(keyOf(d))) return { error: 'ring' }
   return { project: p }
 }
 
-/** The project with the point `ref` (and those joined to it) following nothing of its own any more. */
-export function releaseDependency(project, ref, opts) {
+/**
+ * The project with the point `ref` (and those joined to it) let go of one
+ * dependency: of its own one where it has it, else — a WA or ldS on its line
+ * or following the main route — of that, the point `free` from then on
+ * (decision 387). The same project where it depends on nothing.
+ */
+export function releaseDependency(project, ref, { design = true, opts } = {}) {
   const ix = indexOf(project.tracks, project.switches ?? [], opts)
-  return patchPoint(ix, project, canon(ix, project, ref), { dep: null })
+  const r = canon(ix, project, ref)
+  const p = heightsOf(project, r.trackId)?.[r.index]
+  if (!p) return project
+  if (p.dep) return patchPoint(ix, project, r, { dep: null })
+  return dependencies(ix, project, { design }).has(keyOf(r)) ? patchPoint(ix, project, r, { free: true }) : project
+}
+
+/** The project with the point `ref` (and those joined to it) back under its rule: no longer `free`. */
+export function restoreDependency(project, ref, opts) {
+  const ix = indexOf(project.tracks, project.switches ?? [], opts)
+  return patchPoint(ix, project, canon(ix, project, ref), { free: null })
 }
 
 /**
@@ -640,7 +660,9 @@ let lastRoles = null
  * profile and its table show only:
  *   { kind: 'wa', sw, side }     toe of a turnout ('main' on the approach and
  *                                main route, 'branch' on the branch)
- *   { kind: 'lds', sw, side }    ldS point on the main route or branch
+ *   { kind: 'lds', sw, side }    ldS point on the main route or branch —
+ *                                either with `free` where it is let go, and
+ *                                then entered like any other
  *   { kind: 'own' }              a point following another one of its own
  *   { kind: 'locked', was }      a point locked by hand (Entscheidung 382),
  *                                `was` the role it has besides, or null
@@ -658,13 +680,19 @@ export function heightRoles(project, opts) {
     out.get(trackId).set(index, role)
   }
   for (const t of project.tracks) (t.heights ?? []).forEach((p, index) => { if (p.dep) put(t.id, index, { kind: 'own' }) })
+  // A WA or ldS let go (decision 387) says so: it is entered like a free point.
+  const free = (trackId, index) => (heightsOf(project, trackId)?.[index]?.free ? { free: true } : {})
   for (const e of ix.entries) {
-    put(e.main.trackId, indexAt(heightsOf(project, e.main.trackId), e.ldsMain), { kind: 'lds', sw: e.sw, side: 'main' })
-    put(e.branch.trackId, indexAt(heightsOf(project, e.branch.trackId), e.ldsBranch), { kind: 'lds', sw: e.sw, side: 'branch' })
+    for (const [port, s, side] of [[e.main, e.ldsMain, 'main'], [e.branch, e.ldsBranch, 'branch']]) {
+      const i = indexAt(heightsOf(project, port.trackId), s)
+      put(port.trackId, i, { kind: 'lds', sw: e.sw, side, ...free(port.trackId, i) })
+    }
   }
   for (const e of ix.entries) {
     for (const role of ['approach', 'main', 'branch']) {
-      if (e[role]) put(e[role].trackId, toeIndex(project, e[role]), { kind: 'wa', sw: e.sw, side: role === 'branch' ? 'branch' : 'main' })
+      if (!e[role]) continue
+      const i = toeIndex(project, e[role])
+      put(e[role].trackId, i, { kind: 'wa', sw: e.sw, side: role === 'branch' ? 'branch' : 'main', ...free(e[role].trackId, i) })
     }
   }
   for (const t of project.tracks) {
