@@ -13,7 +13,7 @@ one in the design mode —, the profile along a route, and ground heights from t
 |---|---|
 | `gradientCheck.js` | HP.LN (gradients) and HP.AR (vertical curves) applied to a track; the Regelwert radius; radii governed by a curve length |
 | `switchGradient.js` | The turnout plane: the branch's height from the main route's height, gradient and cant (`ldsLift` on the ldS sleeper, `trackHeightAt` between WA and ldS) |
-| `switchChain.js` | Which heights follow which: lines through WA and ldS, the standard coupling, dependencies of one's own (`withSwitchHeights`, run by the store); `switchMisfits`, `takeOverHeight`, `addDependent`, `releaseDependency` for the design mode; `heightRoles`, `heightLinks` for the profile |
+| `switchChain.js` | Which heights follow which: lines through WA and ldS, the standard coupling, dependencies of one's own and how (`withSwitchHeights`, run by the store); `switchMisfits`, `addDependentAt`, `setDependencyMode`, `releaseDependency`, `restoreDependency` for the design mode; `heightRoles`, `heightLinks` for the profile |
 | `heightLocks.js` | Locked height points: `lockBreach`, what a write would change that a lock holds — the store refuses it |
 | `routeProfile.js` | The profile of a route — its tracks' points over route stations — and a track as a route of one part |
 | `elevationSource.js` | Ground heights: registered point sources (DGM1 via the service in the main build), DGM5 tiles, MapTiler tiles |
@@ -115,9 +115,11 @@ heights reach there (an ldS point is put on the gradient where it is missing). F
 - *None:* `free` on a WA or ldS (decision 387) — let go of its line and of the standard coupling in the
   design mode; a point like any other, typed by hand, until its rule is restored (`restoreDependency`).
 - *Own:* `dep` on a point, the id of the point it follows (`id` on that one) — kept in the project, made in
-  the design mode, in force in both. The plane of the source's track through the source carries over
-  (`planeFrom`: z + g·a + u/1500·y, a along and y across the source track at the source); across a
-  turnout's pair the turnout's own relation (the same height at WA, `ldsLift` at the ldS). One over a pair
+  the design mode, in force in both — the way `depMode` says (decision 390): `wa` the same height (a
+  turnout's toe: height and place the same), `lds` the source's cant over the offset across
+  (`planeFrom`: z + u/1500·y; across a turnout's ldS its sleeper's plane, `ldsLift`), `continue` the
+  gradient the source's track runs into it with, from the side away from the point, carried on over the
+  run to it (on another track: its foot along the source's). One over a pair
   drops the standard one it would turn round; one on a WA or ldS takes it off its line, and the line
   through its neighbours ends there.
 
@@ -127,17 +129,18 @@ again, every source before what depends on it (a few rounds: the plane at an ldS
 it). A ring is left as it is; `dependOn` refuses to make one.
 
 **Design mode** (Entwurfsmodus Weichen, a switch under the Höhenplan's heading): the standard dependencies are
-off. In the profile, a selected WA or ldS is taken over into the other track (`takeOverHeight`: the other
-track's point there depends on this one from then on), a selected point gets a point depending on it on a
-track beside it (`tracksAcross`, `addDependent`: at the foot of the perpendicular, the point there within 0.5 m
-or a new one), and a point of one's own lets go (`releaseDependency`) — each one undo step through the store.
+off. In the profile's point view a selected point gets a point depending on it the way chosen, picked on
+the map (`addDependentAt`: a height point clicked — every track's are on the map while picking — or a place
+on a track, the point there within 0.5 m or a new one), the way a point follows changes
+(`setDependencyMode`), and a dependency lets go (`releaseDependency`) — each one undo step through the
+store. A project as it opens gets every turnout's ldS points (`withAllLdsPoints`), so each can be picked.
 `heightLinks` says for each point what it depends on and what depends on it. The profile shows it in a
 third view beside graphic and table, **Punkt** (decisions 386–387), which a click on a point in the graphic
 opens: the selected point's station, height, curve (with the Regelwert offered, `regularVerticalRadius`) and
 reason to edit, its facts (track, gradients, lock, role) and its dependencies, each linked point a link —
 selected where it is on show, else its track's profile opened on it —, and in the design mode the tools:
-take over, add a dependent point across, make it depend on the point across (`dependOnAcross`), and an ×
-behind every dependency (`releaseDependency`: one of its own goes, else a WA or ldS is let go of its rule).
+the way a point is to depend and the pick on the map, the way each own dependency goes changed in place,
+and an × behind every dependency (`releaseDependency`: one of its own goes, else a WA or ldS is let go of its rule).
 While the profile is open its height points are on the map too: blue, the selected one red, what it depends
 on yellow, what depends on it green; a click on one opens it in the point view, a linked one of another track
 in that track's profile (decision 389, `map/pick.heightPointAt`; the Höhenplan panel's track pick lets it

@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  addDependent, dependOn, dependOnAcross, heightLinks, heightRoles, releaseDependency, restoreDependency, switchMisfits, takeOverHeight, tracksAcross, withSwitchHeights,
+  addDependentAt, dependOn, heightLinks, heightRoles, releaseDependency, restoreDependency, setDependencyMode, switchMisfits,
+  withAllLdsPoints, withSwitchHeights,
 } from './switchChain'
 import { couplingOf, ldsLift } from './switchGradient'
+import { pointAtStation, stationOnTrack } from '../track'
 import { endPointCurvedUtm, endPointStraightUtm } from '../geometry/elementUtils'
 import { formOf } from '../../test/turnoutFixture'
 import { hasPek, loadPek } from '../../test/pekFixture'
@@ -34,9 +36,20 @@ const write = (p, id, heights, design = false) => withSwitchHeights(p, {
   ...p, tracks: p.tracks.map(x => (x.id === id ? { ...x, heights: heights(x.heights) } : x)),
 }, { design, opts })
 const setZ = (index, z) => (h) => h.map((q, i) => (i === index ? { ...q, z } : q))
-/** A height taken over in the design mode, as the store writes it: the dependency, then what follows from it. */
+/** A height taken over in the design mode — the other track's point made to depend on it, as the store writes it. */
+/** A turnout's point at WA or ldS on its main route or branch, as the profile names it. */
+const pairRef = (p, sw, at, side) => {
+  for (const [trackId, byIndex] of heightRoles(p, opts)) {
+    for (const [index, r] of byIndex) {
+      const role = r.kind === 'locked' ? r.was : r
+      if (role?.kind === at && role.sw.switchId === sw && role.side === side) return { trackId, index }
+    }
+  }
+  throw new Error(`no ${at} ${side} of ${sw}`)
+}
 const take = (p, at, from, sw = 's1') => {
-  const r = takeOverHeight(p, sw, at, from, { opts })
+  const other = from === 'main' ? 'branch' : 'main'
+  const r = dependOn(p, pairRef(p, sw, at, other), pairRef(p, sw, at, from), { mode: at, opts })
   if (r.error) throw new Error(`${at} from ${from}: ${r.error}`)
   return withSwitchHeights(p, r.project, { design: true, opts })
 }
@@ -216,7 +229,7 @@ describe('the design mode: dependencies of one\'s own (decision 385)', () => {
     expect(t(p, 'b')[0].dep).toBe(t(p, 'm')[0].id)
     p = take(p, 'lds', 'main')
     expect(gapsOf(p)).toEqual([])
-    expect(takeOverHeight(p, 's1', 'lds', 'main', { opts }).project).toBe(p)
+    expect(dependOn(p, { trackId: 'b', index: 1 }, { trackId: 'm', index: 1 }, { mode: 'lds', opts }).project).toBe(p)
     // Still in the mode, an edit of the approach is followed by the branch.
     const after = write(p, 'a', setZ(1, 100.2), true)
     expect(gapsOf(after)).toEqual([])
@@ -247,9 +260,8 @@ describe('the design mode: dependencies of one\'s own (decision 385)', () => {
     expect(dependOn(p, { trackId: 'm', index: 0 }, { trackId: 'a', index: 2 }, { opts })).toEqual({ error: 'same' })
     const freed = releaseDependency(p, { trackId: 'b', index: 1 }, opts)
     expect(t(freed, 'b')[1].dep).toBeUndefined()
-    expect(takeOverHeight(p, 'gone', 'wa', 'main', { opts })).toEqual({ error: 'not_coupled' })
     const bare = settle(single({ a: [{ station: 0, z: 100 }, { station: 100, z: 100 }], m: [{ station: 0, z: 100 }, { station: 60, z: 100.6 }] }))
-    expect(takeOverHeight(bare, 's1', 'lds', 'main', { opts })).toEqual({ error: 'no_height' })
+    expect(addDependentAt(bare, { trackId: 'm', index: 1 }, { trackId: 'b', station: 30 }, { opts })).toEqual({ error: 'no_height' })
   })
 })
 
@@ -283,6 +295,38 @@ describe('letting a WA or ldS go of its rule (decision 387)', () => {
     expect(t(releaseDependency(once, { trackId: 'b', index: 1 }, { opts }), 'b')[1].free).toBe(true)
     // A free point depends on nothing to let go of.
     expect(releaseDependency(p, { trackId: 'a', index: 1 }, { opts })).toBe(p)
+  })
+})
+
+describe('how a point depends (decision 390)', () => {
+  const ldsRef = { trackId: 'b', index: 1 }, pRef = { trackId: 'b', index: 2 }
+  const follow = (p, dst, src, mode) => withSwitchHeights(p, dependOn(p, dst, src, { mode, opts }).project, { design: true, opts })
+
+  it('as a toe: the same height', () => {
+    const p = follow(apart(), pRef, { trackId: 'm', index: 2 }, 'wa')
+    expect(t(p, 'b')[2].z).toBe(t(p, 'm')[2].z)
+  })
+
+  it('carrying the gradient on: the one the track runs into the source with', () => {
+    // The branch's ldS on the main route's first: on its line it would hang on the point behind it — a ring.
+    expect(dependOn(apart(), pRef, ldsRef, { mode: 'continue', opts })).toEqual({ error: 'ring' })
+    const p = follow(take(apart(), 'lds', 'main'), pRef, ldsRef, 'continue')
+    const b = t(p, 'b')
+    const g = (b[1].z - b[0].z) / (b[1].station - b[0].station)
+    expect(b[2].z).toBeCloseTo(b[1].z + g * (b[2].station - b[1].station), 4)
+    // Changed to the plane, it takes the other height.
+    const flat = withSwitchHeights(p, setDependencyMode(p, pRef, 'lds', opts), { design: true, opts })
+    expect(t(flat, 'b')[2].depMode).toBe('lds')
+    expect(t(flat, 'b')[2].z).toBeCloseTo(b[1].z, 3)
+    expect(setDependencyMode(p, { trackId: 'a', index: 1 }, 'wa', opts)).toBe(p)
+  })
+
+  it('gives every turnout its ldS points as a project opens, on the gradient', () => {
+    const p = withAllLdsPoints(raw(), opts)
+    expect(t(p, 'm')).toHaveLength(3)
+    expect(t(p, 'b')).toHaveLength(3)
+    expect(t(p, 'm')[1].z).toBeCloseTo(101.7 + 0.3 * t(p, 'm')[1].station / 60, 4)
+    expect(withAllLdsPoints(p, opts)).toBe(p)
   })
 })
 
@@ -342,15 +386,15 @@ describe('a crossover: the connecting track the branch of both', () => {
     expect(gapsOf(p)).toEqual([])
   })
 
-  it('gives a point a point depending on it on the track beside: across from it, in the plane of its track', () => {
+  it('gives a point a point depending on it, picked as a place on a track: in the plane of the source\'s track', () => {
     const p = settle(build(40, ends))
     const src = { trackId: 'm1', index: 1 }      // the ldS of s1, 40 m from its toe
-    const beside = tracksAcross(p, src)
-    expect(beside.map(x => x.trackId)).toContain('m2')
-    const r = addDependent(p, src, 'm2', { opts })
+    // The place across on m2, the way a click on the map finds it.
+    const across = stationOnTrack(p.tracks.find(x => x.id === 'm2'), pointAtStation(p.tracks.find(x => x.id === 'm1'), t(p, 'm1')[1].station).utm)
+    const r = addDependentAt(p, src, { trackId: 'm2', station: across.station }, { mode: 'lds', opts })
     const after = withSwitchHeights(p, r.project, { opts })
     const dep = t(after, 'm2')[r.ref.index]
-    expect(dep.dep).toBe(t(after, 'm1')[1].id)
+    expect(dep).toMatchObject({ dep: t(after, 'm1')[1].id, depMode: 'lds' })
     // Without cant, across a straight: the same height.
     expect(dep.z).toBeCloseTo(t(after, 'm1')[1].z, 4)
     // It holds outside the design mode too, and moves with its source.
@@ -358,16 +402,14 @@ describe('a crossover: the connecting track the branch of both', () => {
     expect(t(moved, 'm1')[1].z).not.toBe(t(after, 'm1')[1].z)
     expect(t(moved, 'm2')[r.ref.index].z).toBeCloseTo(t(moved, 'm1')[1].z, 4)
     expect(heightLinks(moved, { opts }).get('m1|1').to).toContainEqual(r.ref)
+    expect(heightLinks(moved, { opts }).get(`m2|${r.ref.index}`)).toMatchObject({ kind: 'own', mode: 'lds' })
     expect(heightRoles(moved, opts).get('m2').get(r.ref.index)).toEqual({ kind: 'own' })
-    // Across from an ldS, the branch's own ldS a few centimetres off is the one taken.
-    const toBranch = addDependent(p, src, 'x', { opts })
-    expect(toBranch.ref).toEqual({ trackId: 'x', index: 1 })
-    expect(t(toBranch.project, 'x')).toHaveLength(t(p, 'x').length)
-    // The other way round: a point made to follow the one across from it.
-    const back = dependOnAcross(p, { trackId: 'm2', index: 2 }, 'm1', { opts })
-    expect(t(back.project, 'm2')[2].dep).toBe(t(back.project, 'm1')[back.ref.index].id)
-    expect(dependOnAcross(p, { trackId: 'm2', index: 2 }, 'nowhere', { opts })).toEqual({ error: 'not_across' })
+    // A place within 0.5 m of a point is that point.
+    const near = addDependentAt(p, src, { trackId: 'x', station: t(p, 'x')[1].station + 0.3 }, { opts })
+    expect(near.ref).toEqual({ trackId: 'x', index: 1 })
+    expect(t(near.project, 'x')).toHaveLength(t(p, 'x').length)
   })
+
 })
 
 describe.skipIf(!hasPek)('PEK Halle–Könnern', () => {

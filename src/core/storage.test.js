@@ -9,7 +9,7 @@ import {
   openStoredProject, currentStoredProject, currentStoredMeta, closeStoredProject, flushPendingWrites, currentProject,
   addElementToTrack, redo, canRedo, undoStep, redoStep, hiddenTracks, setTracksHidden, subscribe,
   hiddenKmLines, setKmLinesHidden,
-  setTrackHeights, setHeightsForTracks, setSwitchDesignMode, switchDesignMode, takeOverSwitchHeight, commitReconnect, loadPlatforms, commitImport, historySteps, travelHistory,
+  setTrackHeights, setHeightsForTracks, setSwitchDesignMode, switchDesignMode, addDependentPoint, commitReconnect, loadPlatforms, commitImport, historySteps, travelHistory,
 } from './storage'
 import { newBufferStop, newBoundary } from './utils/track/trackEndMarks'
 import { endPointCurvedUtm, endPointStraightUtm } from './utils/geometry/elementUtils'
@@ -538,25 +538,27 @@ describe('the heights at a turnout\'s WA and ldS (decision 384)', () => {
   const expected = (slope) => 100 + slope * LDS.q[0] + 0.06 * LDS.q[1] / 1.5
 
   const main = () => loadTracks().find(t => t.id === 'm').heights
+  // The branch's ldS made to depend on the main route's — both there since the project opened.
+  const takeOver = () => addDependentPoint({ trackId: 'm', index: 1 }, { trackId: 'b', index: 1 }, 'lds')
 
   it('opens in the design mode where the turnout does not fit, which ends only once it does', () => {
     openProject(project())
     expect(switchDesignMode()).toBe(true)
-    expect(branch()).toHaveLength(2)          // opened as it was: nothing written yet
+    expect(branch()).toHaveLength(3)          // opened with its ldS point, nothing else written
     expect(setSwitchDesignMode(false).misfits.map(m => m.at)).toEqual(['lds'])
-    expect(takeOverSwitchHeight('s1', 'lds', 'main')).toEqual({ ok: true })
-    expect(takeOverSwitchHeight('s1', 'lds', 'main')).toEqual({ same: true })
+    expect(takeOver()).toEqual({ ok: true })
+    expect(takeOver()).toEqual({ same: true })
     const ldsPoint = branch()[1]
     expect(ldsPoint.station).toBeCloseTo(LDS.branch, 2)
     expect(ldsPoint.z).toBeCloseTo(expected(0.6 / 60), 3)
     expect(setSwitchDesignMode(false)).toEqual({ ok: true })
     expect(switchDesignMode()).toBe(false)
-    expect(takeOverSwitchHeight('x', 'lds', 'main')).toEqual({ error: 'not_coupled' })
+    expect(addDependentPoint({ trackId: 'm', index: 1 }, { trackId: 'b', station: 999 }, 'lds')).toEqual({ error: 'no_height' })
   })
 
   it('couples the branch to a height edited on the main route, and undoes in one step', () => {
     openProject(project())
-    takeOverSwitchHeight('s1', 'lds', 'main')
+    takeOver()
     setSwitchDesignMode(false)
     const was = branch()
     setTrackHeights('m', [{ station: 0, z: 100 }, { station: 60, z: 101.2 }])
@@ -568,7 +570,7 @@ describe('the heights at a turnout\'s WA and ldS (decision 384)', () => {
 
   it('keeps the branch on the main route when the branch is written behind its ldS', () => {
     openProject(project())
-    takeOverSwitchHeight('s1', 'lds', 'main')
+    takeOver()
     setSwitchDesignMode(false)
     const was = { main: main(), lds: branch()[1].z }
     setHeightsForTracks(new Map([['b', branch().map((q, i) => (i === 2 ? { ...q, z: q.z + 0.5 } : q))]]))
@@ -579,7 +581,7 @@ describe('the heights at a turnout\'s WA and ldS (decision 384)', () => {
 
   it('switches the design mode on where an undo brings back a turnout that does not fit', () => {
     openProject(project())
-    takeOverSwitchHeight('s1', 'lds', 'main')
+    takeOver()
     setSwitchDesignMode(false)
     undo()
     expect(switchDesignMode()).toBe(true)

@@ -101,7 +101,9 @@ Collections, each keyed by its own id (which is also how the merge compares them
   `reason` [text] why a gradient changes inside a turnout, `locked` [true] the point keeps its height and
   station (decision 382), `id` [text] the point's own id, given once another point depends on it, `dep`
   [text] the id of the point this one depends on — its height then follows from that one's (decision 385),
-  `free` [true] a turnout's WA or ldS let go of its rule (decision 387).
+  `depMode` how it depends — `wa` (the same height), `lds` (the source's cant over the offset between the two),
+  `continue` (the gradient into the source carried on); absent: `wa` across a turnout's toe, else `lds`
+  (decision 390) —, `free` [true] a turnout's WA or ldS let go of its rule (decision 387).
   Absent = no gradient.
 - `rails`, `sleepers` — superstructure as station ranges; absent = 54 E4 on B70 throughout.
 

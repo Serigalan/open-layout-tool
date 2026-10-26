@@ -440,3 +440,7 @@
 /* The head of the profile one height in every view (decision 388). */
 .profile-overlay .track-table-header { min-height: 53px; box-sizing: border-box; }
 .profile-controls { min-height: 32px; }
+/* How a point depends (decision 390): beside its sources, and behind each dependent. */
+.profile-point-how { margin: 0 0 4px 18px; }
+.profile-point-mode { font-size: var(--fs-s); padding: 1px 4px; }
+.profile-point-picking { color: var(--color-primary); font-weight: 600; }

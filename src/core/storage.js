@@ -8,8 +8,8 @@ import {
 } from './utils/track'
 import { coupleSwitchCants, rebuildSwitchSymbol } from './utils/switch'
 import {
-  addDependent, dependOnAcross, lengthGovernedRadii, lockBreach, releaseDependency, restoreDependency, switchMisfits,
-  takeOverHeight, withSwitchHeights,
+  addDependentAt, lengthGovernedRadii, lockBreach, releaseDependency, restoreDependency, setDependencyMode, switchMisfits,
+  withAllLdsPoints, withSwitchHeights,
 } from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
@@ -158,30 +158,20 @@ function writeLinks(r) {
 }
 
 /**
- * Take one height of a turnout over into its other track for good — the
- * other track's point there depends on this one from now on (elevation
- * takeOverHeight): `at` 'wa' or 'lds', `from` 'main' or 'branch'. { ok },
- * { same } where it did already, { refused } where a lock holds what it
- * would change (the step notice says which), or { error }.
+ * Give the point `src` ({ trackId, index }) a point depending on it the way
+ * `mode` says, picked on the map (elevation addDependentAt): `target` a
+ * height point { trackId, index } or a place on a track { trackId, station }.
+ * One undo step: { ok }, { same }, { refused } (a lock), or { error }.
  */
-export function takeOverSwitchHeight(switchId, at, from) {
+export function addDependentPoint(src, target, mode) {
   if (!_project) return { error: 'no_project' }
-  return writeLinks(takeOverHeight(_project, switchId, at, from, { design: _switchDesign }))
+  return writeLinks(addDependentAt(_project, src, target, { mode, design: _switchDesign }))
 }
 
-/**
- * Give the point `src` ({ trackId, index }) a point depending on it on track
- * `trackId`, across from it (elevation addDependent), as one undo step.
- */
-export function addDependentPoint(src, trackId) {
+/** Change how the point `ref` follows its own source (elevation setDependencyMode), as one undo step. */
+export function setDependencyModeAt(ref, mode) {
   if (!_project) return { error: 'no_project' }
-  return writeLinks(addDependent(_project, src, trackId, { design: _switchDesign }))
-}
-
-/** Make the point `ref` depend on the point across from it on track `trackId` (elevation dependOnAcross), as one undo step. */
-export function dependOnAcrossPoint(ref, trackId) {
-  if (!_project) return { error: 'no_project' }
-  return writeLinks(dependOnAcross(_project, ref, trackId, { design: _switchDesign }))
+  return writeLinks({ project: setDependencyMode(_project, ref, mode) })
 }
 
 /** Let the point `ref` go of one dependency (elevation releaseDependency), as one undo step. */
@@ -228,7 +218,8 @@ export function openStoredProject({ project, meta = {}, key = project.id, save =
   _undoStack = []
   _redoStack = []
   _lastStep = null
-  setProject(withPrunedMarks(hydrateProjects([structuredClone(project)])[0]))
+  // Every turnout's WA and ldS a point to pick (decision 390) — on the gradient, nothing moves.
+  setProject(withAllLdsPoints(withPrunedMarks(hydrateProjects([structuredClone(project)])[0])))
   return _project
 }
 
@@ -243,7 +234,7 @@ export function openProject(project) {
   _undoStack = []
   _redoStack = []
   _lastStep = null
-  setProject(withPrunedMarks(project))
+  setProject(withAllLdsPoints(withPrunedMarks(project)))
   return _project
 }
 

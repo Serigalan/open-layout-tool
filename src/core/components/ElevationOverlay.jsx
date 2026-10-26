@@ -1,21 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches, takeOverSwitchHeight, addDependentPoint,
-  dependOnAcrossPoint, releaseDependentPoint, restoreDependentPoint,
+  setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches, addDependentPoint,
+  releaseDependentPoint, restoreDependentPoint, setDependencyModeAt,
 } from '../storage'
 import { useProject, useReferenceAxes, useRoutes, useSwitchDesign, useSwitches, useTracks } from '../hooks/useStore'
 import {
   checkVertical, regularVerticalRadius, verticalFindings, trackHeightAt,
-  heightLinks, heightRoles, routeElements, routeFindings, routeProfile, routeStationOfPart, tracksAcross, trackAsRoute,
+  heightLinks, heightRoles, routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute, DEPENDENCY_MODES,
   fillHeights, chosenTerrainSource,
 } from '../utils/elevation'
 import { ruleById, severityLabelKey } from '../utils/rules'
 import {
   adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps,
   elementAtStation, insertHeightPoint, solveHeightPoint, pointGrades, GIVEN_MODES, partStation,
-  resolveRoute, routeAt, routePointAt, reverseTrack, pointAtStation,
+  resolveRoute, routeAt, routePointAt, reverseTrack, pointAtStation, stationOnTrack,
 } from '../utils/track'
-import { filterForElements, FILTER_NONE, heightPointAt, mapIsLive } from '../map/pick'
+import { filterForElements, FILTER_NONE, heightPointAt, mapIsLive, pickAt, setPickingDependent } from '../map/pick'
 import {
   comparedLine, deviationAt, heightsComparable, nearestAxis, referenceProfile, shiftValues,
 } from '../utils/survey'
@@ -25,7 +25,7 @@ import { useI18n } from '../locales/i18nContext'
 import { useMap } from '../map/MapContext'
 import usePreview from '../map/usePreview'
 import useMapEvents from '../map/useMapEvents'
-import { utmToWgs84 } from '../utils/geometry'
+import { utmToWgs84, wgs84ToUTM } from '../utils/geometry'
 import { ELEVATION_POINTS_LAYER, TRACKS_SELECTED_LAYER } from '../map/layerIds'
 import { PALETTE } from '../styles/palette'
 import { useDrag, useElementSize, useOverlayHeight, useWheelZoom } from './chart/useChartViewport'
@@ -208,6 +208,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
   const chooseGiven = (v) => { setGiven(v); remember({ elevationGiven: v }) }
   const [stDraft, setStDraft]   = useState('')     // station of a single selected point
   const design = useSwitchDesign()
+  // Picking on the map the point that is to depend on the one selected, and how (decision 390): the mode, or null.
+  const [picking, setPicking] = useState(null)
 
   // ── The reference axis laid over the profile ─────────────────────────────
   // '' for none, 'auto' for the one the track runs along the furthest, or an
@@ -438,7 +440,8 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
       const [lng, lat] = utmToWgs84(at.utm.easting, at.utm.northing, track.epsg)
       return { type: 'Feature', properties: { state: st, trackId: track.id, index }, geometry: { type: 'Point', coordinates: [lng, lat] } }
     }
-    const shown = new Set(parts.map(p => p.trackId))
+    // While a dependent point is picked, every track's points can be clicked.
+    const shown = new Set(picking ? tracks.filter(x => x.heights?.length).map(x => x.id) : parts.map(p => p.trackId))
     const out = []
     for (const id of shown) {
       const track = tracks.find(x => x.id === id)
@@ -454,12 +457,25 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     pointsPreview.set(POINTS_SOURCE, out.filter(Boolean).sort((a, b) => rank[a.properties.state] - rank[b.properties.state]))
     // parts and points follow resolved
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolved, tracks, selectedKeys, links, pointsPreview])
+  }, [resolved, tracks, selectedKeys, links, pointsPreview, picking])
 
   // A height point clicked on the map opens in the point view (decision 389):
   // selected here where it is on show, else in its own track's profile.
+  // While picking a dependent point: a height point, or a place on a track,
+  // made to depend on the point selected.
   useMapEvents(!!resolved, {
     click: (e, m) => {
+      if (picking && one) {
+        let target = heightPointAt(m, e.point)
+        if (!target) {
+          const hit = pickAt(m, e.point)
+          const tr = hit?.trackId && tracks.find(x => x.id === hit.trackId)
+          const foot = tr && stationOnTrack(tr, wgs84ToUTM([e.lngLat.lng, e.lngLat.lat], tr.epsg))
+          if (foot) target = { trackId: tr.id, station: foot.station }
+        }
+        if (target) { said(addDependentPoint(refOf(one), target, picking)); setPicking(null) }
+        return
+      }
       const r = heightPointAt(m, e.point)
       if (!r) return
       const i = profile?.byRef(r.trackId, r.index)
@@ -670,24 +686,23 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     select([])
   }
 
-  // ── Taking a height over (decision 384) ──────────────────────────────────
-  // In the design mode a toe or an ldS selected is taken over into the
-  // turnout's other track, from the track it is on here.
-  const takeOver = () => {
-    const role = selectedPoints.length === 1 && coupled(selectedPoints[0].index)
-    if (role) said(takeOverSwitchHeight(role.sw.switchId, role.kind, role.side))
-  }
-
-
-  // ── One point in full, and its dependencies (decisions 385, 386) ────────
+  // ── One point in full, and its dependencies (decisions 385, 386, 390) ──
   // The point view shows the one point selected. In the design mode a point
-  // may get a point depending on it on a track beside it — across from it,
-  // at the foot of the perpendicular —, or depend on the one there, and one
-  // following a point of its own may let go of it. A linked point opens
-  // where it is: selected here, or in its own track's profile.
+  // gets a point depending on it, picked on the map, the way chosen; how a
+  // point follows its own source is changed, and every dependency let go.
+  // A linked point opens where it is: selected here, or in its own track's
+  // profile.
   const one = selectedPoints.length === 1 ? selectedPoints[0] : null
-  const across = useMemo(() => (design && one && project ? tracksAcross(project, one.owner) : []),
-    [design, project, one?.owner.trackId, one?.owner.index]) // eslint-disable-line react-hooks/exhaustive-deps
+  const oneKey = one ? `${one.owner.trackId}|${one.owner.index}` : null
+  // Picking ends with the selection, the design mode, or Escape.
+  useEffect(() => { setPicking(null) }, [oneKey, design])
+  useEffect(() => {
+    setPickingDependent(!!picking)
+    if (!picking) return undefined
+    const onKey = (e) => { if (e.key === 'Escape') setPicking(null) }
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey); setPickingDependent(false) }
+  }, [picking])
   // Opened on a point (a link from another track's profile): that point, in the point view.
   useEffect(() => {
     const i = point && profile?.byRef(point.trackId, point.index)
@@ -1290,16 +1305,16 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
             </div>
           )
           : viewKind === 'point' ? (
-            <ElevationPointDetails point={one} count={selectedPoints.length} track={one ? tracks.find(x => x.id === one.owner.trackId) : null}
+            <ElevationPointDetails key={oneKey ?? 'none'} point={one} count={selectedPoints.length} track={one ? tracks.find(x => x.id === one.owner.trackId) : null}
               grades={one ? pointGrades(points, one.index) : null} roleText={one ? roleNote(roles.get(one.index)) : null}
               links={one ? linksOf(one.index) : null}
-              nameOf={linkName} design={design} across={across}
-              trackName={(id) => tracks.find(x => x.id === id)?.name || id.slice(0, 8)}
-              canTakeOver={!!one && curveHeld(one.index)} note={rvNote} onPick={pickLinked} onTakeOver={takeOver}
+              nameOf={linkName} linkOf={(r) => links.get(`${r.trackId}|${r.index}`) ?? null} design={design}
+              modes={DEPENDENCY_MODES} suggested={!one ? null : coupled(one.index)?.kind === 'wa' ? 'wa' : coupled(one.index)?.kind === 'lds' ? 'lds' : 'continue'}
+              picking={picking} onPickDependent={setPicking} onCancelPick={() => setPicking(null)}
+              note={rvNote} onPick={pickLinked}
               editor={pointEditor} freed={!!one && !!roles.get(one.index)?.free}
               onRestore={() => said(restoreDependentPoint(refOf(one)))}
-              onAddDependent={(id) => said(addDependentPoint(refOf(one), id))}
-              onDependOn={(id) => said(dependOnAcrossPoint(refOf(one), id))}
+              onSetMode={(r, m) => said(setDependencyModeAt(r, m))}
               onRelease={(r) => said(releaseDependentPoint(r))} />
           )
           : viewKind === 'table' && points.length ? (

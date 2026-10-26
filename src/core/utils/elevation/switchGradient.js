@@ -33,7 +33,7 @@
  * there (decision 383).
  */
 
-import { gradientAt, heightAt, pointAtStation, turnoutLinePort, portTrack } from '../track'
+import { gradientAt, pointAtStation, turnoutLinePort, portTrack } from '../track'
 import { RUNNING_CIRCLE_DISTANCE, sectionAtStation } from '../crossSection'
 import { mainRouteLength, routeFrom, sleeperOffsets, sleeperThrough, switchLds, turnoutSleepers } from '../switch'
 
@@ -178,26 +178,19 @@ export function ldsLift(c, mainHeights) {
 }
 
 /**
- * The height the plane of a track through one of its points gives a point
- * of another track (decision 384, a point depending on one): the source's
- * height, raised by the source track's gradient g over the run a along it and
- * by its cant over the offset y across it — z = z_src + g · a + u/1500 · y,
+ * The height a point of another track takes from a point it depends on "as
+ * an ldS" (decision 390): the source's height, raised by the source track's
+ * cant over the offset y between the two across it — z = z_src + u/1500 · y,
  * y to the left of the source track the way its stations run, u signed the
- * same way. Null where either point is not on its track.
+ * same way (a positive cant raises the left rail). Null where either point
+ * is not on its track.
  */
 export function planeFrom(src, srcStation, zSrc, dst, dstStation) {
   const p = pointAtStation(src, srcStation), q = pointAtStation(dst, dstStation)
   if (!p || !q || zSrc == null) return null
   const b = p.bearing * Math.PI / 180
-  const t = [Math.sin(b), Math.cos(b)]
-  const v = [q.utm.easting - p.utm.easting, q.utm.northing - p.utm.northing]
-  const a = t[0] * v[0] + t[1] * v[1]
-  const y = t[0] * v[1] - t[1] * v[0]
-  const h = src.heights ?? []
-  const step = 0.05
-  const s0 = Math.max(h[0]?.station ?? srcStation, srcStation - step), s1 = Math.min(h[h.length - 1]?.station ?? srcStation, srcStation + step)
-  const g = s1 > s0 ? (heightAt(h, s1) - heightAt(h, s0)) / (s1 - s0) : 0
-  return zSrc + g * a + ((sectionAtStation(src, srcStation)?.cant ?? 0) / RUNNING_CIRCLE_DISTANCE) * y
+  const y = Math.sin(b) * (q.utm.northing - p.utm.northing) - Math.cos(b) * (q.utm.easting - p.utm.easting)
+  return zSrc + ((sectionAtStation(src, srcStation)?.cant ?? 0) / RUNNING_CIRCLE_DISTANCE) * y
 }
 
 /**

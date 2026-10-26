@@ -77,6 +77,13 @@ export function pickAt(map, point, { layers = [TRACKS_LAYER], accept = null, pre
   return null
 }
 
+// While a point depending on the one selected is picked on the map (decision
+// 390), a click is the profile's: the Höhenplan's own track pick stands back.
+let pickingDependent = false
+/** Is a dependent point being picked on the map? */
+export const isPickingDependent = () => pickingDependent
+export function setPickingDependent(on) { pickingDependent = !!on }
+
 /** How near a height point a click has to be to be on it [px] — closer than a track pick, so the line beside it stays a track. */
 const HEIGHT_POINT_TOLERANCE = 7
 

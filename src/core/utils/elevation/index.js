@@ -14,7 +14,8 @@ export {
 } from './gradientCheck'
 export { routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute } from './routeProfile'
 export {
-  addDependent, dependOnAcross, heightLinks, heightRoles, releaseDependency, restoreDependency, switchMisfits, takeOverHeight, tracksAcross, withSwitchHeights,
+  addDependentAt, DEPENDENCY_MODES, heightLinks, heightRoles, releaseDependency, restoreDependency, setDependencyMode,
+  switchMisfits, withAllLdsPoints, withSwitchHeights,
 } from './switchChain'
 export { lockBreach } from './heightLocks'
 export { heightContext, trackHeightAt } from './switchGradient'

@@ -6,26 +6,28 @@ import { useI18n } from '../locales/i18nContext'
  * its track, gradients, lock and what it is at a turnout, and its station,
  * height, curve (with the Regelwert offered) and reason to edit (`editor`) —
  * and its dependencies (decision 385): what it depends on and what depends on
- * it, each a link to that point. In the design mode they are made and taken
- * away here: a WA or ldS taken over into the other track, a point across on a
- * track beside made to depend on it or it on that one, and every dependency
- * let go with the × behind it — a WA or ldS let go of its rule (`freed`) is
- * put back under it.
+ * it, each a link to that point, and how (decision 390: as a turnout's toe,
+ * as its ldS, the gradient carried on — or on a line). In the design mode
+ * they are made and changed here: a point picked on the map made to depend
+ * on this one the way chosen, the way a point follows its own source
+ * changed, and every dependency let go with the × behind it — a WA or ldS
+ * let go of its rule (`freed`) is put back under it.
  *
  * `point` the selected point of the route (null where none or several are —
  * `count` of them, edited together with `editor`),
  * `track` its track; `grades` { before, after }; `roleText` what it is;
- * `links` { kind, from, to } (switchChain.heightLinks), `nameOf(ref)` a
- * linked point's name; `across` the tracks beside
- * ({ trackId, dist }), `trackName(id)`; `canTakeOver` for a WA or ldS;
- * `note` what the last action said.
+ * `links` { kind, mode, from, to } (switchChain.heightLinks), `linkOf(ref)`
+ * those of a linked point, `nameOf(ref)` its name; `modes` the ways a point
+ * may depend, `suggested` the one offered first; `picking` the way a point
+ * being picked on the map will depend, or null; `note` what the last action
+ * said.
  */
 export default function ElevationPointDetails({
-  point, count = 0, track, grades, roleText, links, nameOf, design, across, trackName, canTakeOver, note, editor, freed,
-  onPick, onTakeOver, onAddDependent, onDependOn, onRelease, onRestore,
+  point, count = 0, track, grades, roleText, links, linkOf, nameOf, design, modes, suggested, picking, note, editor, freed,
+  onPick, onPickDependent, onCancelPick, onSetMode, onRelease, onRestore,
 }) {
   const { t, fill, num } = useI18n()
-  const [beside, setBeside] = useState('')
+  const [chosen, setChosen] = useState(null)
   if (!point && !count) {
     return <div className="profile-empty profile-point-none"><span>{t('elevation_point_none')}</span><span className="profile-hint">{t('elevation_hint_edit')}</span></div>
   }
@@ -42,7 +44,7 @@ export default function ElevationPointDetails({
     )
   }
 
-  const besideId = across.some(x => x.trackId === beside) ? beside : across[0]?.trackId ?? ''
+  const mode = chosen ?? suggested ?? modes[0]
   const ref = { trackId: point.owner.trackId, index: point.owner.index }
   const value = (v, digits, unit) => (v == null ? '–' : `${num(v, { digits })}${unit ? ` ${unit}` : ''}`)
   const rows = [
@@ -52,12 +54,28 @@ export default function ElevationPointDetails({
     [t('elevation_point_locked'), t(point.locked ? 'elevation_point_yes' : 'elevation_point_no')],
     [t('elevation_point_role'), roleText || t('elevation_point_free')],
   ]
+  // How a point follows: its mode as words, or — its own dependency, in the
+  // design mode — a choice that changes it.
+  const howOf = (dependent) => {
+    const l = dependent === ref ? links : linkOf(dependent)
+    if (!l?.mode) return null
+    if (design && l.kind === 'own') {
+      return (
+        <select className="settings-select profile-point-mode" value={l.mode} title={t('elevation_dep_mode_hint')}
+          onChange={e => onSetMode(dependent, e.target.value)}>
+          {modes.map(m => <option key={m} value={m}>{t(`elevation_dep_mode_${m}`)}</option>)}
+        </select>
+      )
+    }
+    return <span className="profile-hint">{t(`elevation_dep_mode_${l.mode}`)}</span>
+  }
   // `release(r)` the point whose dependency the × behind r lets go.
   const linkList = (refs, release, kind) => (refs.length ? (
     <ul className={`profile-point-links ${kind}`}>
       {refs.map(r => (
         <li key={`${r.trackId}|${r.index}`}>
           <button type="button" className="link-btn" onClick={() => onPick(r)}>{nameOf(r)}</button>
+          {kind === 'to' && howOf(r)}
           {design && (
             <button type="button" className="profile-point-x" title={t('elevation_release_hint')} aria-label={t('elevation_release')}
               onClick={() => onRelease(release(r))}>×</button>
@@ -85,33 +103,30 @@ export default function ElevationPointDetails({
           <button className="track-table-save-btn" title={t('elevation_restore_hint')} onClick={onRestore}>{t('elevation_restore')}</button>
         )}
         <h5 className="profile-point-from"><span className="profile-point-dot" aria-hidden="true" />{t('elevation_links_from_title')}</h5>
+        {(links?.from?.length ?? 0) > 0 && <div className="profile-point-how">{howOf(ref)}</div>}
         {/* Each × lets the point go of what it depends on — of a line through two points, both at once. */}
         {linkList(links?.from ?? [], () => ref, 'from')}
         <h5 className="profile-point-to"><span className="profile-point-dot" aria-hidden="true" />{t('elevation_links_to_title')}</h5>
         {linkList(links?.to ?? [], (r) => r, 'to')}
         {design ? (
           <div className="profile-point-tools">
-            {canTakeOver && (
-              <button className="track-table-save-btn" title={t('elevation_take_over_hint')} onClick={onTakeOver}>
-                {t('elevation_take_over')}
+            <label className="profile-edit">
+              {t('elevation_dep_mode')}
+              <select className="settings-select" value={mode} title={t('elevation_dep_mode_hint')} disabled={!!picking}
+                onChange={e => setChosen(e.target.value)}>
+                {modes.map(m => <option key={m} value={m}>{t(`elevation_dep_mode_${m}`)}</option>)}
+              </select>
+            </label>
+            {picking ? (
+              <>
+                <span className="profile-hint profile-point-picking">{t('elevation_pick_dependent_hint')}</span>
+                <button className="track-table-save-btn" onClick={onCancelPick}>{t('elevation_pick_cancel')}</button>
+              </>
+            ) : (
+              <button className="track-table-save-btn" title={t('elevation_pick_dependent_hint')} onClick={() => onPickDependent(mode)}>
+                {t('elevation_pick_dependent')}
               </button>
             )}
-            {across.length > 0 ? (
-              <>
-                <label className="profile-edit">
-                  {t('elevation_point_beside')}
-                  <select className="settings-select" value={besideId} onChange={e => setBeside(e.target.value)}>
-                    {across.map(x => <option key={x.trackId} value={x.trackId}>{`${trackName(x.trackId)} (${num(x.dist, { digits: 1 })} m)`}</option>)}
-                  </select>
-                </label>
-                <button className="track-table-save-btn" title={t('elevation_add_dependent_hint')} onClick={() => onAddDependent(besideId)}>
-                  {t('elevation_add_dependent')}
-                </button>
-                <button className="track-table-save-btn" title={t('elevation_depend_on_hint')} onClick={() => onDependOn(besideId)}>
-                  {t('elevation_depend_on')}
-                </button>
-              </>
-            ) : <span className="profile-hint">{t('elevation_point_no_beside')}</span>}
           </div>
         ) : <p className="profile-hint">{t('elevation_links_design_only')}</p>}
         {note && <p className="form-error">{note}</p>}

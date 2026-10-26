@@ -14,9 +14,12 @@
  *   plane over the main route's (switchGradient.ldsLift). The main route
  *   leads.
  * - Own (`dep` on a point: the id of the point it follows; kept in the
- *   project): the plane of the source's track through the source carries
- *   over to the point (switchGradient.planeFrom) — across a turnout's pair
- *   the turnout's own relation: the same height at WA, its plane at the ldS.
+ *   project), the way `depMode` says (decision 390): 'wa' — the same height,
+ *   as at a turnout's toe; 'lds' — the source's cant over the offset
+ *   between the two (switchGradient.planeFrom; across a turnout's ldS its
+ *   sleeper's plane, ldsLift); 'continue' — the gradient
+ *   running into the source carried on to the point. Without a mode: 'wa'
+ *   across a turnout's toe, else 'lds'.
  *   Made in the design mode, in force in both; one over a turnout's pair
  *   drops the standard one it would turn round, and one on a WA or ldS takes
  *   it off its line.
@@ -37,8 +40,7 @@
  */
 
 import {
-  endOfIndex, heightAt, jointGroup, pointAtStation, roundHeight, stationOnTrack, trackLength, turnoutDivergingPort,
-  turnoutLinePort, portTrack, portEnd,
+  endOfIndex, heightAt, jointGroup, pointAtStation, roundHeight, turnoutDivergingPort, turnoutLinePort, portTrack, portEnd,
 } from '../track'
 import { ldsLift, planeFrom, roundMm, STATION_TOL, switchCouplings, Z_TOL } from './switchGradient'
 
@@ -47,10 +49,8 @@ const MAX_STEPS = 400
 const FIT_TOL = 0.0002
 /** Rounds of working the dependencies out, at most: the plane at an ldS reads the gradient around it. */
 const MAX_PASSES = 4
-/** How far from a point another track may lie to take a point depending on it [m]. */
-const ACROSS_MAX = 15
-/** A point this close to the foot of the perpendicular is the one that comes to depend [m]. */
-const ACROSS_SNAP = 0.5
+/** A point this close to where a track is picked is the one picked [m]. */
+const SNAP = 0.5
 
 // ── Where the turnouts are: what follows from the geometry alone ────────────
 
@@ -233,30 +233,61 @@ function pointIds(project) {
   return out
 }
 
+/** How a point may depend on another (decision 390). */
+export const DEPENDENCY_MODES = ['wa', 'lds', 'continue']
+
+/** Are `src` and `dst` a turnout's pair at WA or ldS (one on either track)? Its { e, at, side } of `src`, or null. */
+function pairOfBoth(pairOf, src, dst) {
+  const a = pairOf.get(keyOf(src)), b = pairOf.get(keyOf(dst))
+  return a && b && a.e === b.e && a.at === b.at && a.side !== b.side ? a : null
+}
+
+/** The mode a dependency has where it states none: the same height across a turnout's toe, else the plane. */
+const modeOf = (p, pair) => (DEPENDENCY_MODES.includes(p?.depMode) ? p.depMode : pair?.at === 'wa' ? 'wa' : 'lds')
+
 /**
- * The height a point depending on `src` takes: across a turnout's pair the
- * turnout's own relation (the same height at WA, the plane on its ldS
- * sleeper), elsewhere the plane of the source's track (planeFrom).
+ * The height a point depending on `src` takes, the way `mode` says: 'wa' the
+ * same; 'lds' the source's cant over the offset across — across a turnout's
+ * ldS the plane on its sleeper (ldsLift), elsewhere planeFrom; 'continue' the
+ * gradient running into the source, from the side away from the point,
+ * carried on to it — along the source's track, over the run from the source
+ * to the point (on another track: its foot along the source's).
  */
-function followZ(project, src, dst, pairOf) {
+function followZ(project, src, dst, pairOf, mode) {
   const zs = zOf(project, src)
   if (zs == null) return null
-  const a = pairOf.get(keyOf(src)), b = pairOf.get(keyOf(dst))
-  if (a && b && a.e === b.e && a.at === b.at && a.side !== b.side) {
-    if (a.at === 'wa') return zs
-    const lift = ldsLift(a.e.c, heightsOf(project, a.e.main.trackId))
-    return a.side === 'main' ? zs + lift : zs - lift
-  }
+  if (mode === 'wa') return zs
   const st = trackOf(project, src.trackId), dt = trackOf(project, dst.trackId)
-  return planeFrom(st, st.heights[src.index].station, zs, dt, dt.heights[dst.index].station)
+  const s0 = st.heights[src.index].station, s1 = dt.heights[dst.index].station
+  if (mode === 'continue') {
+    const h = st.heights
+    let a = s1 - s0
+    if (dt.id !== st.id) {
+      const p = pointAtStation(st, s0), q = pointAtStation(dt, s1)
+      if (!p || !q) return null
+      const b = p.bearing * Math.PI / 180
+      a = Math.sin(b) * (q.utm.easting - p.utm.easting) + Math.cos(b) * (q.utm.northing - p.utm.northing)
+    }
+    const into = (n) => (n ? (zs - n.z) / (s0 - n.station) : null)
+    const before = into(h[src.index - 1]), after = into(h[src.index + 1])
+    return zs + (a >= 0 ? before ?? after ?? 0 : after ?? before ?? 0) * a
+  }
+  const pair = pairOfBoth(pairOf, src, dst)
+  if (pair?.at === 'lds') {
+    const lift = ldsLift(pair.e.c, heightsOf(project, pair.e.main.trackId))
+    return pair.side === 'main' ? zs + lift : zs - lift
+  }
+  if (pair?.at === 'wa') return zs
+  return planeFrom(st, s0, zs, dt, s1)
 }
 
 /**
  * Every point of a project whose height depends on others: Map(key → { ref,
- * kind, sources, z }) — `kind` 'own' (its `dep`), 'standard' (a turnout's
- * branch on its main route, outside the design mode) or 'line' (between two
- * points: decision 270 on a main route, the neighbours on a branch), and
- * `z(project)` the height it takes there.
+ * kind, mode, sources, z }) — `kind` 'own' (its `dep`), 'standard' (a
+ * turnout's branch on its main route, outside the design mode) or 'line'
+ * (between two points: decision 270 on a main route, the neighbours on a
+ * branch), `mode` how (DEPENDENCY_MODES, or 'line'), and `z(project)` the
+ * height it takes there.
  */
 function dependencies(ix, project, { design = false } = {}) {
   const nodes = new Map()
@@ -276,7 +307,8 @@ function dependencies(ix, project, { design = false } = {}) {
       const ref = canon(ix, project, { trackId: t.id, index })
       const from = canon(ix, project, src)
       if (keyOf(from) === keyOf(ref)) return
-      nodes.set(keyOf(ref), { ref, kind: 'own', sources: [from], z: (q) => followZ(q, from, ref, pairOf) })
+      const mode = modeOf(p, pairOfBoth(pairOf, from, ref))
+      nodes.set(keyOf(ref), { ref, kind: 'own', mode, sources: [from], z: (q) => followZ(q, from, ref, pairOf, mode) })
     })
   }
   const followsOwn = (a, b) => nodes.get(keyOf(a))?.sources.some(s => keyOf(s) === keyOf(b))
@@ -284,9 +316,9 @@ function dependencies(ix, project, { design = false } = {}) {
   if (!design) {
     for (const e of ix.entries) {
       const { mt, bt, ml, bl } = pairsOf(project, e)
-      for (const [m, b] of [[mt, bt], [ml, bl]]) {
+      for (const [m, b, mode] of [[mt, bt, 'wa'], [ml, bl, 'lds']]) {
         if (!m || !b || nodes.has(keyOf(b)) || followsOwn(m, b) || isFree(project, b)) continue
-        nodes.set(keyOf(b), { ref: b, kind: 'standard', sources: [m], z: (q) => followZ(q, m, b, pairOf) })
+        nodes.set(keyOf(b), { ref: b, kind: 'standard', mode, sources: [m], z: (q) => followZ(q, m, b, pairOf, mode) })
       }
     }
   }
@@ -306,7 +338,7 @@ function dependencies(ix, project, { design = false } = {}) {
         const ref = canon(ix, project, b)
         if (nodes.has(keyOf(ref))) continue
         nodes.set(keyOf(ref), {
-          ref, kind: 'line', sources: ends,
+          ref, kind: 'line', mode: 'line', sources: ends,
           z: (q) => {
             const [z0, z1] = ends.map(r => zOf(q, r))
             return z0 == null || z1 == null ? null : z0 + (z1 - z0) * (b.d - first.d) / (last.d - first.d)
@@ -329,7 +361,7 @@ function dependencies(ix, project, { design = false } = {}) {
       if (a < 0 || b >= h.length) continue
       const ends = [a, b].map(index => canon(ix, project, { trackId, index }))
       nodes.set(keyOf({ trackId, index: i }), {
-        ref: { trackId, index: i }, kind: 'line', sources: ends,
+        ref: { trackId, index: i }, kind: 'line', mode: 'line', sources: ends,
         z: (q) => {
           const hh = heightsOf(q, trackId)
           return hh[a].z + (hh[b].z - hh[a].z) * (hh[i].station - hh[a].station) / (hh[b].station - hh[a].station)
@@ -421,6 +453,17 @@ function withLdsPoints(project, e) {
     byTrack.set(port.trackId, [...h, { station: s, z: roundHeight(heightAt(h, s)) }].sort((a, b) => a.station - b.station))
   }
   return withHeights(project, byTrack)
+}
+
+/**
+ * The project with every turnout's ldS points there (withLdsPoints) — what a
+ * project gets as it is opened, so each WA and ldS can be picked (decision
+ * 390). The same project where none is missing.
+ */
+export function withAllLdsPoints(project, opts) {
+  if (!project?.tracks || !project.switches?.length) return project
+  const ix = indexOf(project.tracks, project.switches, opts)
+  return ix.entries.reduce((p, e) => withLdsPoints(p, e), project)
 }
 
 /** The project without a `dep` that names no point any more. */
@@ -527,11 +570,12 @@ function newPointId(project) {
 /**
  * The project with the point `dst` depending on `src` (refs { trackId,
  * index }): `src` given an id where it has none, `dst` — with the points
- * joined to it — told to follow it; where `src` followed `dst`, that is
+ * joined to it — told to follow it the way `mode` says (DEPENDENCY_MODES;
+ * null: the default for the pair); where `src` followed `dst`, that is
  * turned round. Returns { project } or { error }: 'same' (one point), 'ring'
  * (it would come to depend on itself, over other dependencies).
  */
-export function dependOn(project, dst, src, { design = true, opts } = {}) {
+export function dependOn(project, dst, src, { mode = null, design = true, opts } = {}) {
   const ix = indexOf(project.tracks, project.switches ?? [], opts)
   const [d, s] = [canon(ix, project, dst), canon(ix, project, src)]
   if (keyOf(d) === keyOf(s)) return { error: 'same' }
@@ -541,10 +585,11 @@ export function dependOn(project, dst, src, { design = true, opts } = {}) {
     id = newPointId(p)
     p = patchPoint(ix, p, s, { id })
   }
-  if (heightsOf(p, d.trackId)[d.index].dep === id) return { project: p }
+  const had = heightsOf(p, d.trackId)[d.index]
+  if (had.dep === id && (had.depMode ?? null) === (mode ?? null)) return { project: p }
   const dstId = heightsOf(p, d.trackId)[d.index].id
   if (dstId && heightsOf(p, s.trackId)[s.index].dep === dstId) p = patchPoint(ix, p, s, { dep: null })
-  p = patchPoint(ix, p, d, { dep: id, free: null })
+  p = patchPoint(ix, p, d, { dep: id, depMode: DEPENDENCY_MODES.includes(mode) ? mode : null, free: null })
   if (ordered(dependencies(ix, p, { design })).ring.has(keyOf(d))) return { error: 'ring' }
   return { project: p }
 }
@@ -560,7 +605,7 @@ export function releaseDependency(project, ref, { design = true, opts } = {}) {
   const r = canon(ix, project, ref)
   const p = heightsOf(project, r.trackId)?.[r.index]
   if (!p) return project
-  if (p.dep) return patchPoint(ix, project, r, { dep: null })
+  if (p.dep) return patchPoint(ix, project, r, { dep: null, depMode: null })
   return dependencies(ix, project, { design }).has(keyOf(r)) ? patchPoint(ix, project, r, { free: true }) : project
 }
 
@@ -571,84 +616,43 @@ export function restoreDependency(project, ref, opts) {
 }
 
 /**
- * One height of a turnout taken over into its other track, for good (the
- * design mode's button): the other track's point at WA (`at` 'wa') or on the
- * ldS ('lds') made to depend on this one's — `from` 'main' or 'branch', the
- * track whose height counts. Returns { project } or { error }:
- * 'not_coupled', 'no_height' (a track's heights do not reach the point),
- * 'ring'.
+ * The project with the way the point `ref` follows its own source changed to
+ * `mode` (DEPENDENCY_MODES). The same project where it has no source of its own.
  */
-export function takeOverHeight(project, switchId, at, from, { design = true, opts } = {}) {
+export function setDependencyMode(project, ref, mode, opts) {
   const ix = indexOf(project.tracks, project.switches ?? [], opts)
-  const e = ix.byId.get(switchId)
-  if (!e) return { error: 'not_coupled' }
-  const p = withLdsPoints(project, e)
-  const pr = pairsOf(p, e)
-  const [m, b] = at === 'wa' ? [pr.mt, pr.bt] : [pr.ml, pr.bl]
-  if (!m || !b) return { error: 'no_height' }
-  return from === 'main' ? dependOn(p, b, m, { design, opts }) : dependOn(p, m, b, { design, opts })
+  const r = canon(ix, project, ref)
+  if (!heightsOf(project, r.trackId)?.[r.index]?.dep || !DEPENDENCY_MODES.includes(mode)) return project
+  return patchPoint(ix, project, r, { depMode: mode })
 }
 
 /**
- * The tracks a point could have a point depending on it on: every other
- * track whose heights pass within 15 m of it, nearest first — [{ trackId,
- * station, dist }], the station there at the foot of the perpendicular.
+ * The project with a point depending on the point `src`, picked on the map
+ * (decision 390): `target` a height point { trackId, index }, or a place on
+ * a track { trackId, station } — the point there within 0.5 m, else a new
+ * one on the gradient. Returns { project, ref } or { error }: 'no_height'
+ * (the track has no gradient there), 'same', 'ring'.
  */
-export function tracksAcross(project, ref) {
-  const track = trackOf(project, ref.trackId)
-  const at = track?.heights?.[ref.index] && pointAtStation(track, track.heights[ref.index].station)?.utm
-  if (!at) return []
-  const out = []
-  for (const t of project.tracks) {
-    const h = t.heights
-    if (t.id === track.id || !(h?.length >= 2)) continue
-    const foot = stationOnTrack(t, at)
-    if (!foot || foot.dist > ACROSS_MAX || foot.station < h[0].station - STATION_TOL || foot.station > h[h.length - 1].station + STATION_TOL) continue
-    out.push({ trackId: t.id, station: Math.max(0, Math.min(trackLength(t), foot.station)), dist: foot.dist })
+export function addDependentAt(project, src, target, { mode = null, design = true, opts } = {}) {
+  let p = project
+  let ref = target.index != null ? { trackId: target.trackId, index: target.index } : null
+  if (!ref) {
+    const h = heightsOf(p, target.trackId)
+    if (!(h?.length >= 2) || target.station < h[0].station - STATION_TOL || target.station > h[h.length - 1].station + STATION_TOL) {
+      return { error: 'no_height' }
+    }
+    const near = h.reduce((best, q, i) => (Math.abs(q.station - target.station) <= SNAP
+      && (best < 0 || Math.abs(q.station - target.station) < Math.abs(h[best].station - target.station)) ? i : best), -1)
+    if (near >= 0) ref = { trackId: target.trackId, index: near }
+    else {
+      const station = roundMm(target.station)
+      const next = [...h, { station, z: roundHeight(heightAt(h, station)) }].sort((x, y) => x.station - y.station)
+      p = withHeights(p, new Map([[target.trackId, next]]))
+      ref = { trackId: target.trackId, index: next.findIndex(q => q.station === station) }
+    }
   }
-  return out.sort((a, b) => a.dist - b.dist)
-}
-
-/**
- * The point on `trackId` across from the point `ref`, at the foot of the
- * perpendicular — the one there already within 0.5 m, or a new one on the
- * gradient there: { project, ref }, or { error: 'not_across' } where the
- * track does not pass by it.
- */
-function pointAcross(project, ref, trackId) {
-  const there = tracksAcross(project, ref).find(x => x.trackId === trackId)
-  if (!there) return { error: 'not_across' }
-  const h = heightsOf(project, trackId)
-  const index = h.reduce((best, q, i) => (Math.abs(q.station - there.station) <= ACROSS_SNAP
-    && (best < 0 || Math.abs(q.station - there.station) < Math.abs(h[best].station - there.station)) ? i : best), -1)
-  if (index >= 0) return { project, ref: { trackId, index } }
-  const station = roundMm(there.station)
-  const next = [...h, { station, z: roundHeight(heightAt(h, station)) }].sort((a, b) => a.station - b.station)
-  return { project: withHeights(project, new Map([[trackId, next]])), ref: { trackId, index: next.findIndex(q => q.station === station) } }
-}
-
-/**
- * The project with a point on `trackId` depending on the point `src`: the
- * point there across from it (pointAcross). Returns { project, ref } or
- * { error }: 'not_across', 'same', 'ring'.
- */
-export function addDependent(project, src, trackId, { design = true, opts } = {}) {
-  const at = pointAcross(project, src, trackId)
-  if (at.error) return at
-  const r = dependOn(at.project, at.ref, src, { design, opts })
-  return r.error ? r : { project: r.project, ref: at.ref }
-}
-
-/**
- * The project with the point `ref` depending on the point across from it on
- * `trackId` (pointAcross). Returns { project, ref } — `ref` the source — or
- * { error }: 'not_across', 'same', 'ring'.
- */
-export function dependOnAcross(project, ref, trackId, { design = true, opts } = {}) {
-  const at = pointAcross(project, ref, trackId)
-  if (at.error) return at
-  const r = dependOn(at.project, ref, at.ref, { design, opts })
-  return r.error ? r : { project: r.project, ref: at.ref }
+  const r = dependOn(p, ref, src, { mode, design, opts })
+  return r.error ? r : { project: r.project, ref }
 }
 
 // ── What the profile shows ──────────────────────────────────────────────────
@@ -706,8 +710,9 @@ export function heightRoles(project, opts) {
 
 /**
  * Which points a point depends on and which depend on it, for the profile:
- * Map(`trackId|index` → { kind, from: [refs], to: [refs] }) — `kind` how it
- * depends ('own', 'standard', 'line'; null where it depends on nothing). The
+ * Map(`trackId|index` → { kind, mode, from: [refs], to: [refs] }) — `kind`
+ * what it depends by ('own', 'standard', 'line'; null where it depends on
+ * nothing), `mode` how (DEPENDENCY_MODES, or 'line'). The
  * approach's end of a toe answers as the main route's start, the one point
  * they are.
  */
@@ -723,6 +728,7 @@ export function heightLinks(project, { design = false, opts } = {}) {
   for (const n of dependencies(ix, project, { design }).values()) {
     const me = at(n.ref)
     me.kind = n.kind
+    me.mode = n.mode
     me.from = n.sources
     for (const s of n.sources) at(s).to.push(n.ref)
   }
