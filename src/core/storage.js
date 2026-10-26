@@ -7,7 +7,9 @@ import {
   reverseTrack, generateId, remapEndMarks, flipEndMarks, pruneEndMarks, endKey, repairRoutes,
 } from './utils/track'
 import { coupleSwitchCants, rebuildSwitchSymbol } from './utils/switch'
-import { lengthGovernedRadii, lockBreach, switchMisfits, takeOverHeight, withSwitchHeights } from './utils/elevation'
+import {
+  addDependent, lengthGovernedRadii, lockBreach, releaseDependency, switchMisfits, takeOverHeight, withSwitchHeights,
+} from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
 
@@ -147,18 +149,38 @@ export function setSwitchDesignMode(on) {
   return { ok: true }
 }
 
-/**
- * Take one height of a turnout over into its other track, as one undo step
- * (elevation takeOverHeight): `at` 'wa' or 'lds', `from` 'main' or 'branch'.
- * { ok } where it wrote, { same } where it fits already, { refused } where a
- * lock holds what it would change (the step notice says which), or { error }.
- */
-export function takeOverSwitchHeight(switchId, at, from) {
-  if (!_project) return { error: 'no_project' }
-  const r = takeOverHeight(_project, switchId, at, from)
+/** A change of dependencies written as one undo step: { ok }, { same }, { refused } (a lock), or the { error } it came with. */
+function writeLinks(r) {
   if (r.error) return r
   if (r.project === _project) return { same: true }
   return mutate(() => r.project) ? { ok: true } : { refused: true }
+}
+
+/**
+ * Take one height of a turnout over into its other track for good — the
+ * other track's point there depends on this one from now on (elevation
+ * takeOverHeight): `at` 'wa' or 'lds', `from` 'main' or 'branch'. { ok },
+ * { same } where it did already, { refused } where a lock holds what it
+ * would change (the step notice says which), or { error }.
+ */
+export function takeOverSwitchHeight(switchId, at, from) {
+  if (!_project) return { error: 'no_project' }
+  return writeLinks(takeOverHeight(_project, switchId, at, from, { design: _switchDesign }))
+}
+
+/**
+ * Give the point `src` ({ trackId, index }) a point depending on it on track
+ * `trackId`, across from it (elevation addDependent), as one undo step.
+ */
+export function addDependentPoint(src, trackId) {
+  if (!_project) return { error: 'no_project' }
+  return writeLinks(addDependent(_project, src, trackId, { design: _switchDesign }))
+}
+
+/** Let the point `ref` follow nothing of its own any more, as one undo step. */
+export function releaseDependentPoint(ref) {
+  if (!_project) return { error: 'no_project' }
+  return writeLinks({ project: releaseDependency(_project, ref) })
 }
 
 // ── subscribers (R1.4) ──────────────────────────────────────────────────────

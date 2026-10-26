@@ -26,18 +26,35 @@
   z-index: 1;
 }
 
+/* The controls wrap onto further rows rather than run out of the overlay. */
+.profile-overlay .track-table-header {
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
 .profile-controls {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: 14px;
+  gap: 6px 14px;
+  min-width: 0;
 }
 
 .profile-edit {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
   font-size: var(--fs-s);
   color: var(--color-text-soft);
+}
+
+/* What a selected point depends on and what depends on it (decision 385): a row of its own, last. */
+.profile-edit .profile-links {
+  flex-basis: 100%;
+  order: 99;
+  white-space: pre-line;
 }
 
 .profile-edit .track-table-input {

@@ -13,6 +13,8 @@ export {
   checkVertical, lengthGovernedRadii, projectLineCategory, regularVerticalRadius, verticalFindings,
 } from './gradientCheck'
 export { routeElements, routeFindings, routeProfile, routeStationOfPart, trackAsRoute } from './routeProfile'
-export { heightRoles, switchMisfits, takeOverHeight, withSwitchHeights } from './switchChain'
+export {
+  addDependent, heightLinks, heightRoles, releaseDependency, switchMisfits, takeOverHeight, tracksAcross, withSwitchHeights,
+} from './switchChain'
 export { lockBreach } from './heightLocks'
 export { heightContext, trackHeightAt } from './switchGradient'

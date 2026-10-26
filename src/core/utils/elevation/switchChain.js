@@ -1,54 +1,59 @@
 /**
- * The heights at a turnout's toe (WA) and last through sleeper (ldS)
- * (decision 384, replacing Paket WK's rules 269–276 and the button of 383).
- * The points there are not entered: each follows from the points either
- * side of it.
+ * Which heights follow which (decisions 384–385): a height point may depend
+ * on others, and a point that does is shown only — its height is worked out.
  *
- * - Main route: every WA and ldS point lies on the straight line between the
- *   nearest free point before it and the nearest one behind it, along the
- *   way a train runs — approach, main route, on over the WA of the next
- *   turnout (decision 270). Without a point before the WA (an open end) the
- *   WA is the line's end itself.
- * - Branch (the connecting track of a crossover is the branch of both): its
- *   WA is the end of the track and follows nothing on it — it is taken over
- *   from the main route; its ldS lies on the straight line from the point
- *   before it (its WA, or a free point between) to the first point behind
- *   it, which has to be a free one and its own — in a crossover one behind
- *   either ldS. Where there is none, the ldS stays as it is.
+ * - Lines (decision 270): every WA and ldS point of a main route lies on the
+ *   straight line Q → P between the nearest points before and behind it that
+ *   are not held by that line (free points, or points that depend on others)
+ *   — along the way a train runs: approach, main route, on over the WA of the
+ *   next turnout. Without a point before the WA the WA is the line's end. A
+ *   branch's ldS that nothing else holds lies on the line between its
+ *   neighbours on the branch the same way (an ldS between does not count).
+ * - Standard (outside the design mode): a turnout's tracks meet — its
+ *   branch's WA takes the main route's height, its branch's ldS lies in the
+ *   plane over the main route's (switchGradient.ldsLift). The main route
+ *   leads.
+ * - Own (`dep` on a point: the id of the point it follows; kept in the
+ *   project): the plane of the source's track through the source carries
+ *   over to the point (switchGradient.planeFrom) — across a turnout's pair
+ *   the turnout's own relation: the same height at WA, its plane at the ldS.
+ *   Made in the design mode, in force in both; one over a turnout's pair
+ *   drops the standard one it would turn round, and one on a WA or ldS takes
+ *   it off its line.
  *
- * Every WA and ldS point is there on both tracks, once the heights reach it.
+ * The store works them out after every write (withSwitchHeights), every
+ * source before what depends on it, for what the write touched. In the
+ * design mode (Entwurfsmodus Weichen) the standard ones are off: heights are
+ * taken over one by one as own dependencies, and the mode ends only once
+ * every turnout fits (switchMisfits). A ring of dependencies is refused where
+ * it would be made, and left as it is where it is found.
  *
- * Coupled — the default — the tracks of a turnout meet there: the same
- * height at WA, and at the ldS the branch in the plane of the main route,
- * u/1500 · y above it (switchGradient). The track a write changed leads, the
- * other follows: a branch takes the WA as it is and puts the free point
- * behind its ldS where the line through the ldS meets the plane; a main
- * route puts the free point behind its ldS where its line meets the branch's
- * ldS, the branch's WA following its own. In the design mode
- * (Entwurfsmodus Weichen) nothing couples: the lines still hold, and one
- * height at a time is taken over into the other track on request
- * (takeOverHeight) — the mode ends only once every turnout fits again
- * (switchMisfits).
- *
- * Everything works on the stored points: a point's role follows from where it
- * lies, nothing marks it.
+ * A point's role follows from where it lies and what it says; a dependency
+ * names its source by the point's id, which stays with the point however its
+ * track is split or joined.
  */
 
-import { endOfIndex, heightAt, jointGroup, roundHeight, turnoutDivergingPort, turnoutLinePort, portTrack, portEnd } from '../track'
-import { ldsLift, roundMm, STATION_TOL, switchCouplings, Z_TOL } from './switchGradient'
+import {
+  endOfIndex, heightAt, jointGroup, pointAtStation, roundHeight, stationOnTrack, trackLength, turnoutDivergingPort,
+  turnoutLinePort, portTrack, portEnd,
+} from '../track'
+import { ldsLift, planeFrom, roundMm, STATION_TOL, switchCouplings, Z_TOL } from './switchGradient'
 
 const MAX_STEPS = 400
-/** Coupling and a write's knock-on round again until nothing moves, at most this often. */
-const MAX_PASSES = 12
 /** Two heights fit to this — both are kept to 0.1 mm [m]. */
 const FIT_TOL = 0.0002
+/** Rounds of working the dependencies out, at most: the plane at an ldS reads the gradient around it. */
+const MAX_PASSES = 4
+/** How far from a point another track may lie to take a point depending on it [m]. */
+const ACROSS_MAX = 15
+/** A point this close to the foot of the perpendicular is the one that comes to depend [m]. */
+const ACROSS_SNAP = 0.5
 
 // ── Where the turnouts are: what follows from the geometry alone ────────────
 
 /**
- * One coupled turnout as the lines see it: its three ports (track and the end
- * at WA), the stations of the ldS on its main route and branch, how the
- * stations of either run from WA (+1 away, −1 toward), and its coupling (the
+ * One coupled turnout: its three ports (track and the end at WA), the
+ * stations of the ldS on its main route and branch, and its coupling (the
  * geometry the plane is read from).
  */
 function entryOf(c) {
@@ -60,7 +65,6 @@ function entryOf(c) {
     sw, c,
     approach: port('A'), main: port(turnoutLinePort(sw)), branch: port(turnoutDivergingPort(sw)),
     ldsMain: roundMm(c.ldsMain), ldsBranch: roundMm(c.ldsBranch),
-    mainSense: c.main.sense, branchSense: c.branch.sense,
   }
 }
 
@@ -95,6 +99,34 @@ function indexOf(tracks, switches, opts) {
 const trackOf = (project, id) => project.tracks.find(t => t.id === id) ?? null
 const heightsOf = (project, id) => trackOf(project, id)?.heights ?? null
 const indexAt = (h, station) => (h ?? []).findIndex(p => Math.abs(p.station - station) <= STATION_TOL)
+const keyOf = (r) => `${r.trackId}|${r.index}`
+const zOf = (project, r) => heightsOf(project, r.trackId)?.[r.index]?.z ?? null
+
+/** The stored index of a turnout's toe on one of its ports' tracks, or −1 where the heights do not reach it. */
+function toeIndex(project, port) {
+  const track = port && trackOf(project, port.trackId)
+  const h = track?.heights
+  if (!(h?.length >= 2)) return -1
+  const index = port.endpoint === 'BEGIN' ? 0 : h.length - 1
+  return endOfIndex(track, index) === port.endpoint ? index : -1
+}
+
+/**
+ * A turnout's points at WA and ldS, as refs, null where the heights do not
+ * reach: `mt` its toe on the main route (on the approach where the main
+ * route's heights do not reach it), `bt` on the branch, `ml` and `bl` its
+ * two ldS.
+ */
+function pairsOf(project, e) {
+  const ref = (port, index) => (index >= 0 ? { trackId: port.trackId, index } : null)
+  const mainToe = toeIndex(project, e.main)
+  return {
+    mt: mainToe >= 0 ? ref(e.main, mainToe) : e.approach ? ref(e.approach, toeIndex(project, e.approach)) : null,
+    bt: ref(e.branch, toeIndex(project, e.branch)),
+    ml: ref(e.main, indexAt(heightsOf(project, e.main.trackId), e.ldsMain)),
+    bl: ref(e.branch, indexAt(heightsOf(project, e.branch.trackId), e.ldsBranch)),
+  }
+}
 
 /**
  * What a stored point is: the toe of a turnout ('wa', `role` the port's —
@@ -113,6 +145,18 @@ function classify(ix, track, index) {
 }
 /** Is the point one the line of a main route holds — a toe it runs over, or its ldS? */
 const onMainRoute = (cls) => (cls.kind === 'wa' && cls.role !== 'branch') || (cls.kind === 'lds' && cls.side === 'main')
+
+/**
+ * The one stored point a toe of a main route is written as: of the approach's
+ * end and the main route's start — one joint, one height — the main route's.
+ */
+function canon(ix, project, r) {
+  const track = trackOf(project, r.trackId)
+  const end = track && endOfIndex(track, r.index)
+  const atToe = end && ix.toe.get(`${r.trackId}|${end}`)
+  if (!atToe || atToe.role === 'branch') return { trackId: r.trackId, index: r.index }
+  return pairsOf(project, atToe.e).mt ?? { trackId: r.trackId, index: r.index }
+}
 
 // ── The lines of the main routes (decision 270) ─────────────────────────────
 
@@ -137,28 +181,23 @@ function step(ix, project, pos) {
 }
 
 /**
- * The bound points one way from `start`, and the point the way ends at: the
- * first one that is not bound — free, or held by a branch's own line — or
- * null at a dead end.
+ * The bound points one way from `start`, and the point the way ends at — the
+ * first one that is not bound (free, held by a line of its own, or depending
+ * on a point: `own` the keys of those) —, or null at a dead end.
  */
-function walk(ix, project, start) {
+function walk(ix, project, start, own) {
   const list = []
-  const seen = new Set([`${start.trackId}|${start.index}`])
+  const seen = new Set([keyOf(start)])
   let pos = start, d = 0
   for (let n = 0; n < MAX_STEPS; n++) {
     const next = step(ix, project, pos)
     if (!next) return { list, end: null }
-    const k = `${next.trackId}|${next.index}`
-    if (seen.has(k)) return { list, end: null }
-    seen.add(k)
+    if (seen.has(keyOf(next))) return { list, end: null }
+    seen.add(keyOf(next))
     d += next.ds
     const track = trackOf(project, next.trackId)
-    const cls = classify(ix, track, next.index)
-    const item = { trackId: next.trackId, index: next.index, dir: next.dir, d, z: track.heights[next.index].z, cls }
-    if (cls.kind === 'free') return { list, end: item }
-    // A toe reached over its turnout's branch, a branch's ldS: their own
-    // lines hold them, and this one ends there.
-    if (!onMainRoute(cls)) return { list, end: { ...item, cls: { kind: 'held' } } }
+    const item = { trackId: next.trackId, index: next.index, dir: next.dir, d }
+    if (own.has(keyOf(canon(ix, project, item))) || !onMainRoute(classify(ix, track, next.index))) return { list, end: item }
     list.push(item)
     pos = next
   }
@@ -170,88 +209,149 @@ function walk(ix, project, start) {
  * from it: S and E the points it ends at (null at a dead end), `bound` the
  * points between, in order.
  */
-function chainThrough(ix, project, start) {
-  const track = trackOf(project, start.trackId)
-  const self = { ...start, d: 0, z: track.heights[start.index].z, cls: classify(ix, track, start.index) }
-  const fwd = walk(ix, project, { ...start, dir: 1 })
-  const back = walk(ix, project, { ...start, dir: -1 })
+function chainThrough(ix, project, start, own) {
+  const fwd = walk(ix, project, { ...start, dir: 1 }, own)
+  const back = walk(ix, project, { ...start, dir: -1 }, own)
   const flip = (p) => ({ ...p, d: -p.d })
   return {
     S: back.end && flip(back.end),
     E: fwd.end,
-    bound: [...back.list.map(flip).reverse(), self, ...fwd.list],
+    bound: [...back.list.map(flip).reverse(), { ...start, d: 0 }, ...fwd.list],
   }
 }
 
-/** The line a chain's points lie on: through its two ends, or the bound point it starts at where it has none. */
-function chainLine({ S, E, bound }) {
-  const first = S ?? bound[0], last = E ?? bound[bound.length - 1]
-  if (!(last.d > first.d)) return null
-  return { d0: first.d, z0: first.z, g: (last.z - first.z) / (last.d - first.d) }
-}
-const onLine = (L, d) => L.z0 + L.g * (d - L.d0)
+// ── The dependencies ────────────────────────────────────────────────────────
 
-/** The stored index of a turnout's toe on one of its ports' tracks, or −1 where the heights do not reach it. */
-function toeIndex(project, port) {
-  const track = port && trackOf(project, port.trackId)
-  const h = track?.heights
-  if (!(h?.length >= 2)) return -1
-  const index = port.endpoint === 'BEGIN' ? 0 : h.length - 1
-  return endOfIndex(track, index) === port.endpoint ? index : -1
-}
-
-/** The chain of `e`'s main route through its toe ('wa') or its ldS ('lds'), with the start; null without that point. */
-function mainChain(ix, project, e, at) {
-  const index = at === 'wa' ? toeIndex(project, e.main) : indexAt(heightsOf(project, e.main.trackId), e.ldsMain)
-  if (index < 0) return null
-  const start = { trackId: e.main.trackId, index }
-  return { start, chain: chainThrough(ix, project, start) }
+/** Every point id of a project: Map(id → { trackId, index }). */
+function pointIds(project) {
+  const out = new Map()
+  for (const t of project.tracks) (t.heights ?? []).forEach((p, index) => { if (p.id && !out.has(p.id)) out.set(p.id, { trackId: t.id, index }) })
+  return out
 }
 
 /**
- * The end of a main route's chain behind the turnout — away from the
- * approach, the way the main route's stations run from WA — where it is a
- * free point that can move: the P of the line Q → P.
+ * The height a point depending on `src` takes: across a turnout's pair the
+ * turnout's own relation (the same height at WA, the plane on its ldS
+ * sleeper), elsewhere the plane of the source's track (planeFrom).
  */
-function farEnd({ chain }, e) {
-  const end = e.mainSense > 0 ? chain.E : chain.S
-  return end?.cls.kind === 'free' ? end : null
-}
-
-// ── The line of a branch's ldS ──────────────────────────────────────────────
-
-/**
- * Where the line through a branch's ldS runs: { trackId, a, lds, p } — the
- * stored indices of the point before it (its WA, or the nearest free point
- * between), of the ldS point and of the free point behind it (−1 where the
- * next point behind is none, or not free). Null without the ldS point.
- */
-function branchLine(ix, project, e) {
-  const track = trackOf(project, e.branch.trackId)
-  const h = track?.heights
-  const lds = indexAt(h, e.ldsBranch)
-  if (lds < 0) return null
-  // Toward WA the index runs against the way the stations leave it.
-  const back = -e.branchSense
-  let a = -1
-  for (let i = lds + back; i >= 0 && i < h.length; i += back) {
-    const cls = classify(ix, track, i)
-    if (cls.kind === 'free' || (cls.kind === 'wa' && cls.e === e)) { a = i; break }
+function followZ(project, src, dst, pairOf) {
+  const zs = zOf(project, src)
+  if (zs == null) return null
+  const a = pairOf.get(keyOf(src)), b = pairOf.get(keyOf(dst))
+  if (a && b && a.e === b.e && a.at === b.at && a.side !== b.side) {
+    if (a.at === 'wa') return zs
+    const lift = ldsLift(a.e.c, heightsOf(project, a.e.main.trackId))
+    return a.side === 'main' ? zs + lift : zs - lift
   }
-  const next = lds + e.branchSense
-  const p = h[next] && classify(ix, track, next).kind === 'free' ? next : -1
-  return { trackId: track.id, a, lds, p }
+  const st = trackOf(project, src.trackId), dt = trackOf(project, dst.trackId)
+  return planeFrom(st, st.heights[src.index].station, zs, dt, dt.heights[dst.index].station)
 }
 
 /**
- * Is the free point behind a branch's ldS its own — not the one behind the
- * ldS of another turnout on the same track as well (a crossover with one
- * point between its two ldS)?
+ * Every point of a project whose height depends on others: Map(key → { ref,
+ * kind, sources, z }) — `kind` 'own' (its `dep`), 'standard' (a turnout's
+ * branch on its main route, outside the design mode) or 'line' (between two
+ * points: decision 270 on a main route, the neighbours on a branch), and
+ * `z(project)` the height it takes there.
  */
-function ownFree(ix, project, e, line) {
-  if (line?.p == null || line.p < 0) return false
-  return !(ix.ldsOn.get(line.trackId) ?? []).some(x => x.side === 'branch' && x.e !== e
-    && branchLine(ix, project, x.e)?.p === line.p)
+function dependencies(ix, project, { design = false } = {}) {
+  const nodes = new Map()
+  const pairOf = new Map()
+  for (const e of ix.entries) {
+    const pr = pairsOf(project, e)
+    for (const [k, at, side] of [['mt', 'wa', 'main'], ['bt', 'wa', 'branch'], ['ml', 'lds', 'main'], ['bl', 'lds', 'branch']]) {
+      if (pr[k]) pairOf.set(keyOf(pr[k]), { e, at, side })
+    }
+  }
+  // Own dependencies: what a point says it follows.
+  const ids = pointIds(project)
+  for (const t of project.tracks) {
+    (t.heights ?? []).forEach((p, index) => {
+      const src = p.dep && ids.get(p.dep)
+      if (!src) return
+      const ref = canon(ix, project, { trackId: t.id, index })
+      const from = canon(ix, project, src)
+      if (keyOf(from) === keyOf(ref)) return
+      nodes.set(keyOf(ref), { ref, kind: 'own', sources: [from], z: (q) => followZ(q, from, ref, pairOf) })
+    })
+  }
+  const followsOwn = (a, b) => nodes.get(keyOf(a))?.sources.some(s => keyOf(s) === keyOf(b))
+  // Standard: a turnout's branch follows its main route at WA and ldS.
+  if (!design) {
+    for (const e of ix.entries) {
+      const { mt, bt, ml, bl } = pairsOf(project, e)
+      for (const [m, b] of [[mt, bt], [ml, bl]]) {
+        if (!m || !b || nodes.has(keyOf(b)) || followsOwn(m, b)) continue
+        nodes.set(keyOf(b), { ref: b, kind: 'standard', sources: [m], z: (q) => followZ(q, m, b, pairOf) })
+      }
+    }
+  }
+  // Lines of the main routes.
+  const own = new Set(nodes.keys())
+  for (const e of ix.entries) {
+    const { mt, ml } = pairsOf(project, e)
+    for (const start of [mt, ml]) {
+      if (!start || nodes.has(keyOf(start))) continue
+      const ch = chainThrough(ix, project, start, own)
+      const first = ch.S ?? ch.bound[0], last = ch.E ?? ch.bound[ch.bound.length - 1]
+      if (!(last.d > first.d)) continue
+      const ends = [first, last].map(p => canon(ix, project, p))
+      for (const b of ch.bound) {
+        if (b === first || b === last) continue
+        const ref = canon(ix, project, b)
+        if (nodes.has(keyOf(ref))) continue
+        nodes.set(keyOf(ref), {
+          ref, kind: 'line', sources: ends,
+          z: (q) => {
+            const [z0, z1] = ends.map(r => zOf(q, r))
+            return z0 == null || z1 == null ? null : z0 + (z1 - z0) * (b.d - first.d) / (last.d - first.d)
+          },
+        })
+      }
+    }
+  }
+  // A branch's ldS that nothing holds: on the line between its neighbours there.
+  for (const [trackId, list] of ix.ldsOn) {
+    const h = heightsOf(project, trackId)
+    if (!(h?.length >= 3)) continue
+    const bound = (i) => list.some(x => x.side === 'branch' && Math.abs(h[i].station - x.station) <= STATION_TOL)
+      && !nodes.has(keyOf({ trackId, index: i }))
+    for (let i = 1; i < h.length - 1; i++) {
+      if (!bound(i)) continue
+      let a = i - 1, b = i + 1
+      while (a >= 0 && bound(a)) a--
+      while (b < h.length && bound(b)) b++
+      if (a < 0 || b >= h.length) continue
+      const ends = [a, b].map(index => canon(ix, project, { trackId, index }))
+      nodes.set(keyOf({ trackId, index: i }), {
+        ref: { trackId, index: i }, kind: 'line', sources: ends,
+        z: (q) => {
+          const hh = heightsOf(q, trackId)
+          return hh[a].z + (hh[b].z - hh[a].z) * (hh[i].station - hh[a].station) / (hh[b].station - hh[a].station)
+        },
+      })
+    }
+  }
+  return nodes
+}
+
+/**
+ * The keys of the nodes in the order they follow one another — every source
+ * before what depends on it — and the ring: those that depend on themselves
+ * over others, which are left out.
+ */
+function ordered(nodes) {
+  const out = [], state = new Map(), ring = new Set()
+  const visit = (k, path) => {
+    if (state.get(k) === 2) return
+    if (state.get(k) === 1) { for (const x of path.slice(path.indexOf(k))) ring.add(x); return }
+    state.set(k, 1)
+    for (const s of nodes.get(k).sources) if (nodes.has(keyOf(s))) visit(keyOf(s), [...path, k])
+    state.set(k, 2)
+    out.push(k)
+  }
+  for (const k of nodes.keys()) visit(k, [])
+  return { order: out.filter(k => !ring.has(k)), ring }
 }
 
 // ── Writing ─────────────────────────────────────────────────────────────────
@@ -263,35 +363,43 @@ function withHeights(project, byTrack) {
 
 /**
  * The points one height is written to with `ref`: the points joined to it —
- * but the toe of a branch is a point of its own (it is taken over, not
+ * but the toe of a branch is a point of its own (it follows, it is not
  * joined), and the toe of a main route does not take it along.
  */
 function groupOf(ix, project, ref) {
-  const track = trackOf(project, ref.trackId)
-  const end = endOfIndex(track, ref.index)
   const isBranchToe = (r) => {
     const tr = trackOf(project, r.trackId)
     const en = tr && endOfIndex(tr, r.index)
     return !!en && ix.toe.get(`${r.trackId}|${en}`)?.role === 'branch'
   }
-  if (end && isBranchToe(ref)) return [ref]
+  if (isBranchToe(ref)) return [ref]
   return jointGroup(project.tracks, project.switches, ref).filter(r => !isBranchToe(r))
 }
 
-/** The project with one point — and its group (groupOf) — at height z, unless it is there already. */
+/** The project with the fields of `patch` on one point and its group (groupOf); a field null goes. */
+function patchPoint(ix, project, ref, patch) {
+  const byTrack = new Map()
+  for (const p of groupOf(ix, project, ref)) {
+    const hh = byTrack.get(p.trackId) ?? heightsOf(project, p.trackId)
+    if (!hh?.[p.index]) continue
+    byTrack.set(p.trackId, hh.map((q, i) => {
+      if (i !== p.index) return q
+      const out = { ...q, ...patch }
+      for (const k of Object.keys(patch)) if (patch[k] == null) delete out[k]
+      return out
+    }))
+  }
+  return withHeights(project, byTrack)
+}
+
+/** The project with one point — and its group — at height z, unless it is there already. */
 function setHeight(ix, project, ref, z) {
   const h = heightsOf(project, ref.trackId)
   if (!h?.[ref.index] || z == null || Math.abs(h[ref.index].z - z) <= Z_TOL) return project
   // Just beyond the tolerance it may round to what is there already.
   const zr = roundHeight(z)
   if (Math.abs(h[ref.index].z - zr) < 1e-9) return project
-  const byTrack = new Map()
-  for (const p of groupOf(ix, project, ref)) {
-    const hh = byTrack.get(p.trackId) ?? heightsOf(project, p.trackId)
-    if (!hh?.[p.index]) continue
-    byTrack.set(p.trackId, hh.map((q, i) => (i === p.index ? { ...q, z: zr } : q)))
-  }
-  return withHeights(project, byTrack)
+  return patchPoint(ix, project, ref, { z: zr })
 }
 
 /**
@@ -310,268 +418,211 @@ function withLdsPoints(project, e) {
   return withHeights(project, byTrack)
 }
 
-/** The project with the toe and the ldS of `e`'s main route on their lines (decision 270). */
-function withMainLines(ix, project, e) {
-  for (const at of ['wa', 'lds']) {
-    const mc = mainChain(ix, project, e, at)
-    const L = mc && chainLine(mc.chain)
-    if (!L) continue
-    for (const p of mc.chain.bound) project = setHeight(ix, project, p, onLine(L, p.d))
-  }
-  return project
-}
-
-/** The project with `e`'s branch ldS on the line from the point before it to the free one behind it. */
-function withBranchLine(ix, project, e) {
-  const line = branchLine(ix, project, e)
-  if (!line || line.a < 0 || line.p < 0) return project
-  const h = heightsOf(project, line.trackId)
-  const [A, L, P] = [h[line.a], h[line.lds], h[line.p]]
-  const z = A.z + (P.z - A.z) * (L.station - A.station) / (P.station - A.station)
-  return setHeight(ix, project, { trackId: line.trackId, index: line.lds }, z)
-}
-
-/** Every line through `e`'s points held: its main route's, then its branch's. */
-const withLines = (ix, project, e) => withBranchLine(ix, withMainLines(ix, project, e), e)
-
-// ── How a turnout fits ──────────────────────────────────────────────────────
-
-/** The height of `e`'s toe on its main route — or its approach, where the main route's heights do not reach it. */
-function mainToeZ(project, e) {
-  for (const port of [e.main, e.approach]) {
-    const i = toeIndex(project, port)
-    if (i >= 0) return heightsOf(project, port.trackId)[i].z
-  }
-  return null
-}
-const branchToeZ = (project, e) => {
-  const i = toeIndex(project, e.branch)
-  return i >= 0 ? heightsOf(project, e.branch.trackId)[i].z : null
-}
-/** The height of an ldS: its point, else the gradient there; null where the heights do not reach it. */
-function ldsZ(project, port, station) {
-  const h = heightsOf(project, port.trackId)
-  if (!(h?.length >= 2) || station < h[0].station - STATION_TOL || station > h[h.length - 1].station + STATION_TOL) return null
-  const i = indexAt(h, station)
-  return i >= 0 ? h[i].z : heightAt(h, station)
+/** The project without a `dep` that names no point any more. */
+function withoutLostLinks(project) {
+  const ids = new Set(pointIds(project).keys())
+  let changed = false
+  const tracks = project.tracks.map(t => {
+    if (!t.heights?.some(p => p.dep && !ids.has(p.dep))) return t
+    changed = true
+    return { ...t, heights: t.heights.map(p => {
+      if (!p.dep || ids.has(p.dep)) return p
+      const { dep: _d, ...rest } = p
+      return rest
+    }) }
+  })
+  return changed ? { ...project, tracks } : project
 }
 
 /**
- * How far `e`'s tracks are apart from meeting: { wa, lds } [m] — the branch's
- * toe above the main route's, the branch's ldS above the plane of the main
- * route there —, each null where either track's heights do not reach it.
+ * What the store does to a write (`after`, from `before`): links to points
+ * gone dropped, every turnout on a track it changed given its ldS points, and
+ * every height that depends on what it changed worked out again, every source
+ * before what depends on it. `design`: the design mode, without the standard
+ * dependencies. The same project where nothing changes.
  */
-function gaps(project, e) {
-  const [zm, zb] = [mainToeZ(project, e), branchToeZ(project, e)]
-  const [lm, lb] = [ldsZ(project, e.main, e.ldsMain), ldsZ(project, e.branch, e.ldsBranch)]
-  const lift = lm != null && lb != null ? ldsLift(e.c, heightsOf(project, e.main.trackId)) : null
-  return {
-    wa: zm != null && zb != null ? zb - zm : null,
-    lds: lift != null ? lb - (lm + lift) : null,
+export function withSwitchHeights(before, after, { design = false, opts } = {}) {
+  if (!after?.tracks) return after
+  const was = new Map((before?.tracks ?? []).map(t => [t.id, t]))
+  const changed = new Set(after.tracks.filter(t => {
+    const b = was.get(t.id)
+    return !b || b.heights !== t.heights || b.elements !== t.elements
+  }).map(t => t.id))
+  if (!changed.size) return after
+  let p = withoutLostLinks(after)
+  const ix = indexOf(p.tracks, p.switches ?? [], opts)
+  for (const e of new Set([...changed].flatMap(id => ix.onTrack.get(id) ?? []))) p = withLdsPoints(p, e)
+  const nodes = dependencies(ix, p, { design })
+  const { order } = ordered(nodes)
+  // What the write touched: every point on a track it changed, and on from there.
+  const dirty = new Set()
+  for (const k of order) {
+    const n = nodes.get(k)
+    if (changed.has(n.ref.trackId) || n.sources.some(s => changed.has(s.trackId) || dirty.has(keyOf(s)))) dirty.add(k)
   }
+  // The plane at an ldS reads the main route's gradient there, which the
+  // line through it may move after: round again until nothing moves.
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const start = p
+    for (const k of order) {
+      if (!dirty.has(k)) continue
+      const n = nodes.get(k)
+      p = setHeight(ix, p, n.ref, n.z(p))
+    }
+    if (p === start) break
+  }
+  return p
 }
+
+// ── How a turnout fits ──────────────────────────────────────────────────────
 
 /**
  * Where a project's turnouts do not fit — what keeps the design mode from
  * ending: [{ sw, at, dz }] with `at` 'wa' or 'lds' and dz how far the branch
- * lies above where it should [m], and [{ sw, at: 'lds', need: 'free_point' }]
- * where the branch has no free point of its own behind its ldS, which the
- * coupling would move. A turnout whose tracks have no heights there is left
+ * lies above where it should [m] — at WA the main route's height, at the ldS
+ * the plane over it. A turnout whose tracks have no heights there is left
  * out — nothing is made up.
  */
 export function switchMisfits(project, opts) {
   if (!project?.tracks || !project.switches?.length) return []
   const ix = indexOf(project.tracks, project.switches, opts)
   const out = []
+  // An ldS not stored yet is read on the gradient.
+  const ldsZ = (port, s, r) => {
+    if (r) return zOf(project, r)
+    const h = heightsOf(project, port.trackId)
+    return h?.length >= 2 && s > h[0].station && s < h[h.length - 1].station ? heightAt(h, s) : null
+  }
   for (const e of ix.entries) {
-    const g = gaps(project, e)
-    if (g.wa != null && Math.abs(g.wa) > FIT_TOL) out.push({ sw: e.sw, at: 'wa', dz: g.wa })
-    if (g.lds != null && Math.abs(g.lds) > FIT_TOL) out.push({ sw: e.sw, at: 'lds', dz: g.lds })
-    const line = g.lds != null && branchLine(ix, project, e)
-    if (line && !ownFree(ix, project, e, line)) out.push({ sw: e.sw, at: 'lds', need: 'free_point' })
+    const { mt, bt, ml, bl } = pairsOf(project, e)
+    if (mt && bt) {
+      const dz = zOf(project, bt) - zOf(project, mt)
+      if (Math.abs(dz) > FIT_TOL) out.push({ sw: e.sw, at: 'wa', dz })
+    }
+    const [zm, zb] = [ldsZ(e.main, e.ldsMain, ml), ldsZ(e.branch, e.ldsBranch, bl)]
+    if (zm != null && zb != null) {
+      const dz = zb - (zm + ldsLift(e.c, heightsOf(project, e.main.trackId)))
+      if (Math.abs(dz) > FIT_TOL) out.push({ sw: e.sw, at: 'lds', dz })
+    }
   }
   return out
 }
 
-// ── Taking a height over ────────────────────────────────────────────────────
+// ── Making and taking away dependencies (the design mode) ───────────────────
 
-/**
- * The project with a free point moved to where `residual` of the project —
- * after `apply` writes the point at a height, `z0` the one it has — comes to
- * nothing:
- * the secant from where it is, the residual running near enough straight
- * with it.
- */
-function solveFree(project, apply, z0, residual) {
-  let a = z0, ra = residual(apply(project, a))
-  if (ra == null || Math.abs(ra) <= Z_TOL) return project
-  let b = z0 + 0.01, rb = residual(apply(project, b))
-  for (let k = 0; k < 4 && rb != null && Math.abs(rb) > Z_TOL / 2 && Math.abs(rb - ra) > 1e-12; k++) {
-    const c = b - rb * (b - a) / (rb - ra)
-    a = b; ra = rb
-    b = c; rb = residual(apply(project, b))
+/** A point id not yet in the project. */
+function newPointId(project) {
+  const ids = pointIds(project)
+  for (;;) {
+    const id = Math.random().toString(36).slice(2, 10)
+    if (id.length === 8 && !ids.has(id)) return id
   }
-  return rb == null ? project : apply(project, roundHeight(b))
-}
-
-/** The branch of `e` given the toe of its main route, the line through its ldS with it. */
-function branchToeFromMain(ix, project, e) {
-  const z = mainToeZ(project, e)
-  const i = toeIndex(project, e.branch)
-  if (z == null || i < 0) return withBranchLine(ix, project, e)
-  return withBranchLine(ix, setHeight(ix, project, { trackId: e.branch.trackId, index: i }, z), e)
 }
 
 /**
- * The branch's ldS brought into the plane of the main route: its own free
- * point behind it moved so the line through it meets the plane there. Null
- * where it has none.
+ * The project with the point `dst` depending on `src` (refs { trackId,
+ * index }): `src` given an id where it has none, `dst` — with the points
+ * joined to it — told to follow it; where `src` followed `dst`, that is
+ * turned round. Returns { project } or { error }: 'same' (one point), 'ring'
+ * (it would come to depend on itself, over other dependencies).
  */
-function branchLdsFromMain(ix, project, e) {
-  const line = branchLine(ix, project, e)
-  if (!ownFree(ix, project, e, line)) return null
-  const ref = { trackId: line.trackId, index: line.p }
-  const apply = (p, z) => withBranchLine(ix, setHeight(ix, p, ref, z), e)
-  return solveFree(project, apply, heightsOf(project, ref.trackId)[ref.index].z, p => gaps(p, e).lds)
-}
-
-/**
- * The main route's ldS brought under the branch's, which stays: the free
- * point behind it on the main route moved so its line meets the plane there
- * — and with `toe`, the branch's toe following the main route's as it moves
- * (the coupled tracks). Null where the line ends at no free point.
- */
-function mainLdsFromBranch(ix, project, e, { toe = false } = {}) {
-  const mc = mainChain(ix, project, e, 'lds')
-  const end = mc && farEnd(mc, e)
-  if (!end) return null
-  const lb = ldsZ(project, e.branch, e.ldsBranch)
-  if (lb == null) return null
-  const ref = { trackId: end.trackId, index: end.index }
-  const apply = (p, z) => {
-    const q = withMainLines(ix, setHeight(ix, p, ref, z), e)
-    return toe ? branchToeFromMain(ix, q, e) : q
+export function dependOn(project, dst, src, { design = true, opts } = {}) {
+  const ix = indexOf(project.tracks, project.switches ?? [], opts)
+  const [d, s] = [canon(ix, project, dst), canon(ix, project, src)]
+  if (keyOf(d) === keyOf(s)) return { error: 'same' }
+  let p = project
+  let id = heightsOf(p, s.trackId)[s.index].id
+  if (!id) {
+    id = newPointId(p)
+    p = patchPoint(ix, p, s, { id })
   }
-  return solveFree(project, apply, heightsOf(project, ref.trackId)[ref.index].z, p => gaps(p, e).lds)
+  if (heightsOf(p, d.trackId)[d.index].dep === id) return { project: p }
+  const dstId = heightsOf(p, d.trackId)[d.index].id
+  if (dstId && heightsOf(p, s.trackId)[s.index].dep === dstId) p = patchPoint(ix, p, s, { dep: null })
+  p = patchPoint(ix, p, d, { dep: id })
+  if (ordered(dependencies(ix, p, { design })).ring.has(keyOf(d))) return { error: 'ring' }
+  return { project: p }
+}
+
+/** The project with the point `ref` (and those joined to it) following nothing of its own any more. */
+export function releaseDependency(project, ref, opts) {
+  const ix = indexOf(project.tracks, project.switches ?? [], opts)
+  return patchPoint(ix, project, canon(ix, project, ref), { dep: null })
 }
 
 /**
- * The main route's toe brought to the branch's: the free point behind it on
- * the main route moved so its line meets that height at WA — or, with nothing
- * before the toe, the toe itself, which is the line's end. Null where the line
- * ends at no free point.
+ * One height of a turnout taken over into its other track, for good (the
+ * design mode's button): the other track's point at WA (`at` 'wa') or on the
+ * ldS ('lds') made to depend on this one's — `from` 'main' or 'branch', the
+ * track whose height counts. Returns { project } or { error }:
+ * 'not_coupled', 'no_height' (a track's heights do not reach the point),
+ * 'ring'.
  */
-function mainToeFromBranch(ix, project, e) {
-  const z = branchToeZ(project, e)
-  const mc = mainChain(ix, project, e, 'wa')
-  if (z == null || !mc) return null
-  const before = e.mainSense > 0 ? mc.chain.S : mc.chain.E
-  if (!before) return withMainLines(ix, setHeight(ix, project, mc.start, z), e)
-  const end = farEnd(mc, e)
-  if (!end) return null
-  const ref = { trackId: end.trackId, index: end.index }
-  const apply = (p, q) => withMainLines(ix, setHeight(ix, p, ref, q), e)
-  return solveFree(project, apply, heightsOf(project, ref.trackId)[ref.index].z, p => mainToeZ(p, e) - z)
-}
-
-/**
- * The project with one height of a turnout taken over into its other track
- * (the design mode's button): `at` 'wa' or 'lds', `from` 'main' or 'branch'
- * — the track whose height counts. Into the branch: its toe takes the main
- * route's height; at the ldS the free point behind it moves so the line
- * through it meets the plane. Into the main route: the free point behind the
- * point — the P of the line Q → P — moves so the line meets the branch's
- * height there, or under it by the plane at the ldS. Returns { project }
- * (the same where it fits already) or { error }: 'not_coupled', 'no_height'
- * (a track's heights do not reach the point), 'no_free_point' (no free point
- * to move).
- */
-export function takeOverHeight(project, switchId, at, from, opts) {
-  const ix = indexOf(project.tracks, project.switches, opts)
+export function takeOverHeight(project, switchId, at, from, { design = true, opts } = {}) {
+  const ix = indexOf(project.tracks, project.switches ?? [], opts)
   const e = ix.byId.get(switchId)
   if (!e) return { error: 'not_coupled' }
-  let p = withLines(ix, withLdsPoints(project, e), e)
-  const g = gaps(p, e)
-  if (g[at] == null) return { error: 'no_height' }
-  if (Math.abs(g[at]) <= FIT_TOL) return { project: p }
-  const next = at === 'wa'
-    ? (from === 'main' ? branchToeFromMain(ix, p, e) : mainToeFromBranch(ix, p, e))
-    : (from === 'main' ? branchLdsFromMain(ix, p, e) : mainLdsFromBranch(ix, p, e))
-  return next ? { project: next } : { error: 'no_free_point' }
-}
-
-// ── After every write (the store) ───────────────────────────────────────────
-
-/**
- * Which track of `e` leads: the one the write changed; where it changed both
- * or neither, the main route. A track whose heights did not reach the
- * turnout before never leads while the other's did.
- */
-function leaderOf(e, before, written) {
-  const covered = (id, s) => {
-    const tr = before.get(id)
-    const h = tr?.heights
-    return h?.length >= 2 && s >= h[0].station - STATION_TOL && s <= h[h.length - 1].station + STATION_TOL
-  }
-  const [mainNew, branchNew] = [!covered(e.main.trackId, e.ldsMain), !covered(e.branch.trackId, e.ldsBranch)]
-  if (branchNew && !mainNew) return 'main'
-  if (mainNew && !branchNew) return 'branch'
-  return written.has(e.branch.trackId) && !written.has(e.main.trackId) ? 'branch' : 'main'
-}
-
-/** One turnout coupled, `leader` the track that counts. */
-function couple(ix, project, e, leader) {
-  const g = gaps(project, e)
-  if ((g.wa == null || Math.abs(g.wa) <= FIT_TOL) && (g.lds == null || Math.abs(g.lds) <= FIT_TOL)) return project
-  if (leader === 'branch' && g.lds != null) {
-    const p = mainLdsFromBranch(ix, project, e, { toe: true })
-    if (p) return p
-  }
-  // The main route leads — or has to, where its line has no free point to move.
-  const p = branchToeFromMain(ix, project, e)
-  return branchLdsFromMain(ix, p, e) ?? p
+  const p = withLdsPoints(project, e)
+  const pr = pairsOf(p, e)
+  const [m, b] = at === 'wa' ? [pr.mt, pr.bt] : [pr.ml, pr.bl]
+  if (!m || !b) return { error: 'no_height' }
+  return from === 'main' ? dependOn(p, b, m, { design, opts }) : dependOn(p, m, b, { design, opts })
 }
 
 /**
- * What the store does to a write (`after`, from `before`): every turnout on a
- * track it changed gets its ldS points, its WA and ldS on their lines, and —
- * unless `design` — its tracks coupled, the track the write changed leading;
- * then again for the turnouts on the tracks that moved with it, until nothing
- * moves. The same project where nothing changes.
+ * The tracks a point could have a point depending on it on: every other
+ * track whose heights pass within 15 m of it, nearest first — [{ trackId,
+ * station, dist }], the station there at the foot of the perpendicular.
  */
-export function withSwitchHeights(before, after, { design = false, opts } = {}) {
-  if (!after?.tracks || !after.switches?.length) return after
-  const ix = indexOf(after.tracks, after.switches, opts)
-  if (!ix.entries.length) return after
-  const was = new Map((before?.tracks ?? []).map(t => [t.id, t]))
-  const changedFrom = (from, to) => new Set(to.tracks.filter(t => {
-    const b = from.get(t.id)
-    return !b || b.heights !== t.heights || b.elements !== t.elements
-  }).map(t => t.id))
-  const written = new Set(after.tracks.filter(t => was.get(t.id)?.heights !== t.heights).map(t => t.id))
-  let changed = changedFrom(was, after)
-  let p = after
-  for (let n = 0; n < MAX_PASSES && changed.size; n++) {
-    const todo = new Set([...changed].flatMap(id => ix.onTrack.get(id) ?? []))
-    if (!todo.size) break
-    const start = p
-    for (const e of todo) p = withLines(ix, withLdsPoints(p, e), e)
-    if (!design) for (const e of todo) p = couple(ix, p, e, leaderOf(e, was, written))
-    changed = changedFrom(new Map(start.tracks.map(t => [t.id, t])), p)
+export function tracksAcross(project, ref) {
+  const track = trackOf(project, ref.trackId)
+  const at = track?.heights?.[ref.index] && pointAtStation(track, track.heights[ref.index].station)?.utm
+  if (!at) return []
+  const out = []
+  for (const t of project.tracks) {
+    const h = t.heights
+    if (t.id === track.id || !(h?.length >= 2)) continue
+    const foot = stationOnTrack(t, at)
+    if (!foot || foot.dist > ACROSS_MAX || foot.station < h[0].station - STATION_TOL || foot.station > h[h.length - 1].station + STATION_TOL) continue
+    out.push({ trackId: t.id, station: Math.max(0, Math.min(trackLength(t), foot.station)), dist: foot.dist })
   }
-  return p
+  return out.sort((a, b) => a.dist - b.dist)
 }
 
-// ── What the profile may change ─────────────────────────────────────────────
+/**
+ * The project with a point on `trackId` depending on the point `src`: the
+ * point there across from it, at the foot of the perpendicular — the one
+ * there already within 0.5 m, or a new one. Returns { project, ref } or { error }:
+ * 'not_across' (the track does not pass by it), 'same', 'ring'.
+ */
+export function addDependent(project, src, trackId, { design = true, opts } = {}) {
+  const there = tracksAcross(project, src).find(x => x.trackId === trackId)
+  if (!there) return { error: 'not_across' }
+  const h = heightsOf(project, trackId)
+  let index = h.reduce((best, q, i) => (Math.abs(q.station - there.station) <= ACROSS_SNAP
+    && (best < 0 || Math.abs(q.station - there.station) < Math.abs(h[best].station - there.station)) ? i : best), -1)
+  let p = project
+  if (index < 0) {
+    const station = roundMm(there.station)
+    const next = [...h, { station, z: roundHeight(heightAt(h, station)) }].sort((a, b) => a.station - b.station)
+    index = next.findIndex(q => q.station === station)
+    p = withHeights(p, new Map([[trackId, next]]))
+  }
+  const r = dependOn(p, { trackId, index }, src, { design, opts })
+  return r.error ? r : { project: r.project, ref: { trackId, index } }
+}
+
+// ── What the profile shows ──────────────────────────────────────────────────
 
 let lastRoles = null
 
 /**
- * What every WA and ldS point of a project is, by track and stored index —
- * what the profile and its table show only:
+ * What the points of a project are, by track and stored index — what the
+ * profile and its table show only:
  *   { kind: 'wa', sw, side }     toe of a turnout ('main' on the approach and
  *                                main route, 'branch' on the branch)
  *   { kind: 'lds', sw, side }    ldS point on the main route or branch
+ *   { kind: 'own' }              a point following another one of its own
  *   { kind: 'locked', was }      a point locked by hand (Entscheidung 382),
  *                                `was` the role it has besides, or null
  */
@@ -587,6 +638,7 @@ export function heightRoles(project, opts) {
     if (!out.has(trackId)) out.set(trackId, new Map())
     out.get(trackId).set(index, role)
   }
+  for (const t of project.tracks) (t.heights ?? []).forEach((p, index) => { if (p.dep) put(t.id, index, { kind: 'own' }) })
   for (const e of ix.entries) {
     put(e.main.trackId, indexAt(heightsOf(project, e.main.trackId), e.ldsMain), { kind: 'lds', sw: e.sw, side: 'main' })
     put(e.branch.trackId, indexAt(heightsOf(project, e.branch.trackId), e.ldsBranch), { kind: 'lds', sw: e.sw, side: 'branch' })
@@ -602,5 +654,35 @@ export function heightRoles(project, opts) {
     })
   }
   lastRoles = { tracks: project.tracks, switches: project.switches, formOf: opts?.formOf, result: out }
+  return out
+}
+
+/**
+ * Which points a point depends on and which depend on it, for the profile:
+ * Map(`trackId|index` → { kind, from: [refs], to: [refs] }) — `kind` how it
+ * depends ('own', 'standard', 'line'; null where it depends on nothing). The
+ * approach's end of a toe answers as the main route's start, the one point
+ * they are.
+ */
+export function heightLinks(project, { design = false, opts } = {}) {
+  if (!project?.tracks) return new Map()
+  const ix = indexOf(project.tracks, project.switches ?? [], opts)
+  const out = new Map()
+  const at = (r) => {
+    const k = keyOf(r)
+    if (!out.has(k)) out.set(k, { kind: null, from: [], to: [] })
+    return out.get(k)
+  }
+  for (const n of dependencies(ix, project, { design }).values()) {
+    const me = at(n.ref)
+    me.kind = n.kind
+    me.from = n.sources
+    for (const s of n.sources) at(s).to.push(n.ref)
+  }
+  for (const e of ix.entries) {
+    const ai = toeIndex(project, e.approach)
+    const { mt } = pairsOf(project, e)
+    if (ai >= 0 && mt && mt.trackId !== e.approach.trackId && out.has(keyOf(mt))) out.set(keyOf({ trackId: e.approach.trackId, index: ai }), out.get(keyOf(mt)))
+  }
   return out
 }

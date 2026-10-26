@@ -2,15 +2,16 @@ import { useMemo } from 'react'
 import { useProject, useSwitchDesign } from '../../hooks/useStore'
 import { setSwitchDesignMode } from '../../storage'
 import { switchMisfits } from '../../utils/elevation'
-import { portTrack, turnoutDivergingPort, turnoutLinePort } from '../../utils/track'
+import { portTrack, turnoutLinePort } from '../../utils/track'
 import InfoTip from '../form/InfoTip'
 import { useI18n } from '../../locales/i18nContext'
 
 /**
- * The design mode for turnouts (Entwurfsmodus Weichen, decision 384): a
- * switch under the Höhenplan's heading. Off, a turnout's tracks meet at WA
- * and ldS on their own; on, they do not, and a WA or ldS selected in the
- * profile is taken over into the other track by hand. It ends only once
+ * The design mode for turnouts (Entwurfsmodus Weichen, decisions 384–385):
+ * a switch under the Höhenplan's heading. Off, a turnout's branch follows its
+ * main route at WA and ldS; on, it does not, and in the profile a point is
+ * made to depend on another — a WA or ldS taken over into the other track,
+ * a point added across from one —, which holds in both. It ends only once
  * every turnout fits — until then the list says where one does not, and a
  * click shows the track to take it over from.
  */
@@ -21,10 +22,11 @@ export default function SwitchDesignSection({ onShowProfile }) {
   const misfits = useMemo(() => (project ? switchMisfits(project) : []), [project])
   if (!project?.switches?.length) return null
   const swName = (sw) => [sw.name, sw.label && `(${sw.label})`].filter(Boolean).join(' ')
-  const what = (m) => (m.need ? t('switch_design_need_free_point')
-    : fill(`switch_design_off_${m.at}`, { dz: num(Math.abs(m.dz) * 1000, { digits: 1 }), way: t(m.dz > 0 ? 'switch_design_higher' : 'switch_design_lower') }))
-  // A gap is taken over from the main route; a missing free point is the branch's.
-  const trackOf = (m) => portTrack(m.sw, m.need ? turnoutDivergingPort(m.sw) : turnoutLinePort(m.sw))
+  const what = (m) => fill(`switch_design_off_${m.at}`, {
+    dz: num(Math.abs(m.dz) * 1000, { digits: 1 }), way: t(m.dz > 0 ? 'switch_design_higher' : 'switch_design_lower'),
+  })
+  // A gap is taken over from the main route, most of the time.
+  const trackOf = (m) => portTrack(m.sw, turnoutLinePort(m.sw))
   const stuck = design && misfits.length > 0
   return (
     <div className="switch-design">

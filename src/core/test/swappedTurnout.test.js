@@ -185,19 +185,14 @@ describe('a crossover out of the curve', () => {
     after.tracks.forEach(t => expectValidTrack(t))
   })
 
-  it('couples both turnouts in the cant, once the connecting track has a free point behind either ldS (decision 384)', () => {
+  it('couples both turnouts in the cant, the connecting track in the plane of either main route at its ldS (decisions 384, 385)', () => {
     const flat = { ...after, tracks: after.tracks.map(t => ({ ...t, heights: [{ station: 0, z: 100 }, { station: trackLength(t), z: 100 }] })) }
     const cs = flat.switches.map(sw => couplingOf(flat.tracks, flat.switches, sw))
     const conn = cs[0].branch.track
     expect(cs[1].branch.track.id).toBe(conn.id)
-    // Without one the coupling cannot move the connecting track, and says so.
-    expect(switchMisfits(withSwitchHeights({ tracks: [] }, flat)).filter(m => m.need)).toHaveLength(2)
-    // A free point 2 m behind either ldS, toward the middle.
-    const free = cs.map(c => ({ station: c.ldsBranch + 2 * c.branch.sense, z: 100 }))
-    const withFree = { ...flat, tracks: flat.tracks.map(t => (t.id === conn.id ? { ...t, heights: [...t.heights, ...free].sort((a, b) => a.station - b.station) } : t)) }
-    const p = withSwitchHeights({ tracks: [] }, withFree)
+    const p = withSwitchHeights({ tracks: [] }, flat)
     expect(switchMisfits(p)).toEqual([])
-    // At either ldS the connecting track lies in that turnout's plane: up toward the outer line, which the cant raises.
+    // Up toward the outer line at either ldS, which the cant raises.
     const h = p.tracks.find(t => t.id === conn.id).heights
     const at = (s) => h.find(q => Math.abs(q.station - s) < 0.011).z
     const mainAt = (c) => p.tracks.find(t => t.id === c.main.track.id).heights.find(q => Math.abs(q.station - c.ldsMain) < 0.011).z

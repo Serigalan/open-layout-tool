@@ -34,8 +34,8 @@ writes go through the store's functions (`saveTrack`, `deleteElements`, `commitS
 - **One place for consequences.** After every write the store repairs routes over changed tracks, drops end
   marks whose end is no longer free, keeps the cant of a turnout's two routes together and recomputes
   length-governed vertical curves — all in the same undo step, so no writer has to remember them. A turnout's
-  WA and ldS are put on their lines and, outside the design mode, its tracks coupled there, the track written
-  leading (`withSwitchHeights`, decision 384).
+  WA and ldS and every point depending on another are worked out again — lines, the standard coupling
+  outside the design mode, dependencies of one's own (`withSwitchHeights`, decisions 384–385).
 - **Undo/redo** keep 20 steps; `withUndo` turns several writes into one step (a switch committed piece by piece
   is one Ctrl+Z). The history panel lists the steps by what they did (`project/stepLabel.js`) and jumps several
   at once. The plan header is not part of undo.

@@ -566,25 +566,22 @@ describe('the heights at a turnout\'s WA and ldS (decision 384)', () => {
     expect(branch()).toEqual(was)
   })
 
-  it('lets the main route follow a branch edited behind its ldS', () => {
+  it('keeps the branch on the main route when the branch is written behind its ldS', () => {
     openProject(project())
     takeOverSwitchHeight('s1', 'lds', 'main')
     setSwitchDesignMode(false)
-    const p = branch()[2].z
-    setHeightsForTracks(new Map([['b', branch().map((q, i) => (i === 2 ? { ...q, z: p + 0.5 } : q))]]))
+    const was = { main: main(), lds: branch()[1].z }
+    setHeightsForTracks(new Map([['b', branch().map((q, i) => (i === 2 ? { ...q, z: q.z + 0.5 } : q))]]))
     expect(switchDesignMode()).toBe(false)
-    expect(branch()[2].z).toBe(Math.round((p + 0.5) * 1e4) / 1e4)
-    // The main route has nothing before its toe, so the toe stays and its gradient turns.
-    expect(main()[0].z).toBe(100)
-    expect(main()[2].z).not.toBe(100.6)
+    expect(branch()[1].z).toBe(was.lds)
+    expect(main()).toEqual(was.main)
   })
 
-  it('switches the design mode on where a write leaves a turnout that the coupling cannot follow', () => {
+  it('switches the design mode on where an undo brings back a turnout that does not fit', () => {
     openProject(project())
     takeOverSwitchHeight('s1', 'lds', 'main')
     setSwitchDesignMode(false)
-    // The branch loses the free point behind its ldS.
-    setHeightsForTracks(new Map([['b', branch().slice(0, 2)]]))
+    undo()
     expect(switchDesignMode()).toBe(true)
   })
 })

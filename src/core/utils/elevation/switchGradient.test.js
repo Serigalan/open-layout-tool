@@ -82,13 +82,11 @@ describe('coupling a branch to its main route', () => {
     expect(atLds(p).z).toBeCloseTo(ldsZ(50), 3)
   })
 
-  it('keeps a branch point between WA and ldS: the line through the ldS starts there', () => {
+  it('keeps a branch point between WA and ldS, the ldS following the main route all the same', () => {
     const p = coupled([mainTrack(0), branchTrack([{ station: 0, z: 105.2 }, { station: 20, z: 105.3 }, { station: 60, z: 105.5 }])])
-    const b = p.tracks[1].heights
-    expect(b[1]).toEqual({ station: 20, z: 105.3 })
+    expect(p.tracks[1].heights[1]).toEqual({ station: 20, z: 105.3 })
     expect(atLds(p).z).toBeCloseTo(ldsZ(0), 3)
-    // The ldS on the line from 20 m to the free point behind it.
-    expect(atLds(p).z).toBeCloseTo(105.3 + (b[3].z - 105.3) * (ALONG - 20) / 40, 3)
+    expect(p.tracks[1].heights[3]).toEqual({ station: 60, z: 105.5 })
   })
 
   it('makes up no gradient: none without heights on either side', () => {
