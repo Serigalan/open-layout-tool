@@ -8,8 +8,9 @@ import { useI18n } from '../../locales/i18nContext'
  * is the number as text with a point, as from a `type="number"` field, so a
  * handler reads `e.target.value` as before. ↑/↓ step by `step` (1 unless
  * given, 'any' for none) within `min`/`max`, as the browser's own field did. `unit` stands behind the field.
+ * `digits`: the value shown with that many decimals while it is not being typed.
  */
-export default function NumberInput({ value, onChange, onBlur, onKeyDown, step = 1, min, max, unit, className, ...rest }) {
+export default function NumberInput({ value, onChange, onBlur, onKeyDown, step = 1, min, max, unit, digits = null, className, ...rest }) {
   const { language } = useI18n()
   const [draft, setDraft] = useState(null)
   const emit = (text) => onChange?.({ target: { value: text }, currentTarget: { value: text } })
@@ -33,7 +34,7 @@ export default function NumberInput({ value, onChange, onBlur, onKeyDown, step =
 
   const input = (
     <input {...rest} type="text" inputMode="decimal" className={className}
-      value={draft ?? formatNum(value, language)}
+      value={draft ?? formatNum(value, language, { digits })}
       onChange={(e) => { setDraft(e.target.value); emit(parseNumText(e.target.value)) }}
       onBlur={(e) => { setDraft(null); onBlur?.(e) }}
       onKeyDown={keyDown} />

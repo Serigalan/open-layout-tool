@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GIVEN_MODES, pointGrades, solveHeightPoint, tangentLength } from '../utils/track'
 import { useI18n } from '../locales/i18nContext'
 import NumberInput from './form/NumberInput'
@@ -43,7 +43,7 @@ function ValueCell({ value, digits, step, editable, onCommit, className, title }
   }
   return (
     <td className={className} title={title}>
-      <NumberInput className="track-table-input" step={step} value={draft ?? shown}
+      <NumberInput className="track-table-input" step={step} digits={digits} value={draft ?? shown}
         onChange={e => setDraft(e.target.value)} onBlur={commit}
         onKeyDown={e => {
           if (e.key === 'Enter') { commit(); done.current = true; e.currentTarget.blur() }
@@ -60,7 +60,11 @@ function ValueCell({ value, digits, step, editable, onCommit, className, title }
  * station, height and the two gradients are given (`mode`, GIVEN_MODES) and
  * can be typed; the other two follow, the points either side stay. A
  * gradient a rule flags and a curve with a finding are coloured as in the
- * graphic view. A row clicked is the selection the graphic view shows.
+ * section. A row is picked as a point is in the section (`onPick(index, e)`:
+ * Ctrl/Shift adds to the selection); the selected rows are marked, and so are
+ * — by `linkState` (index → 'source' | 'dependent') — what the one selected
+ * point depends on and what depends on it, in the colours of the section and
+ * the map. A point selected elsewhere is scrolled into view.
  *
  * A radius typed is what counts for the curve; a length typed is noted on the
  * point instead (`la`, decision 266) and the store works the radius out from
@@ -75,11 +79,17 @@ function ValueCell({ value, digits, step, editable, onCommit, className, title }
  */
 export default function ElevationTable({
   points, length, mode, roles, noteAt, onLock,
-  stretchAt, curveAt, stretchNote, curveNote, selection, onSelect, onWrite,
+  stretchAt, curveAt, stretchNote, curveNote, selection, linkState, onPick, onWrite,
 }) {
-  const { t, fill } = useI18n()
+  const { t, fill, num } = useI18n()
   const [error, setError] = useState(null)       // { index, code } of the last value that could not be taken
   const n = points.length
+  const bodyRef = useRef(null)
+  // The first selected row in view — it may have been picked in the section or on the map.
+  const first = selection.length ? Math.min(...selection) : null
+  useEffect(() => {
+    if (first != null) bodyRef.current?.querySelector(`tr[data-index="${first}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [first])
 
   const apply = (i, key, value, partner) => {
     const p = points[i]
@@ -122,7 +132,7 @@ export default function ElevationTable({
             <th>T [m]</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody ref={bodyRef}>
           {points.map((p, i) => {
             const role = roles.get(i)
             const joint = points[i].trackEnd != null || points[i].joint
@@ -138,11 +148,13 @@ export default function ElevationTable({
             const kind = role?.kind === 'locked' ? role.was?.kind : role?.kind
             const inner = !['wa', 'lds'].includes(kind) && i > 0 && i < n - 1
             const isLocked = role?.kind === 'locked'
-            const governs = p.la != null ? fill('elevation_vcurve_length_governs', { la: p.la.toFixed(2) }) : null
+            const governs = p.la != null ? fill('elevation_vcurve_length_governs', { la: num(p.la, { digits: 2 }) }) : null
+            const linked = linkState?.get(i)
             return (
-              <tr key={i} className={selection.includes(i) ? 'track-table-row-active' : undefined}
+              <tr key={i} data-index={i}
+                className={selection.includes(i) ? 'track-table-row-active' : linked ? `profile-row-${linked}` : undefined}
                 title={noteAt(i) ?? (joint ? t('elevation_table_joint') : undefined)}
-                onClick={() => onSelect([i])}>
+                onClick={(e) => onPick(i, e)}>
                 <td>{i + 1}</td>
                 <td className="profile-lock-cell">
                   <button type="button" className={`profile-lock-btn${isLocked ? ' on' : ''}`} aria-pressed={isLocked}
@@ -161,7 +173,7 @@ export default function ElevationTable({
                 <ValueCell value={tl == null ? (p.la ?? null) : 2 * tl} digits={2} step={1}
                   editable={inner && !joint} onCommit={(v) => applyLength(i, v)}
                   className={governs ? 'profile-governing' : undefined} title={governs ?? t('elevation_vcurve_length_hint')} />
-                <td>{tl == null ? '–' : tl.toFixed(2)}</td>
+                <td>{tl == null ? '–' : num(tl, { digits: 2 })}</td>
               </tr>
             )
           })}

@@ -51,13 +51,6 @@
   color: var(--color-text-soft);
 }
 
-/* What a selected point depends on and what depends on it (decision 385): a row of its own, last. */
-.profile-edit .profile-links {
-  flex-basis: 100%;
-  order: 99;
-  white-space: pre-line;
-}
-
 .profile-edit .track-table-input {
   width: 90px;
 }
@@ -311,22 +304,121 @@
   cursor: pointer;
 }
 
-/* Höhenplan: the title and the tabs graphic / table, standing on the header's
-   bottom edge — the active one open to the view below it. */
-.profile-head {
+/* ── The Höhenplan over the whole map area (decision 391) ─────────────────────
+   Above the divider the longitudinal section or the map seen through, below
+   it the table or the selected point; each half under a bar of its tabs. The
+   overlay itself lets the pointer through: what is open in it takes it. */
+.elevation-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  pointer-events: none;
+  font-family: var(--font-ui);
+}
+
+.elevation-upper,
+.elevation-lower {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.elevation-upper > .profile-body,
+.elevation-lower {
+  background: #fff;
+  pointer-events: auto;
+}
+
+/* The map tab: the section stays in place, unseen, and the map takes the pointer. */
+.elevation-overlay.map-shown .elevation-upper > .profile-body {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Title, tabs standing on the bar's bottom edge, the rules; on the right what
+   the open tab is set with. One height whichever tab is open. */
+.elevation-bar {
   display: flex;
   align-items: center;
-  gap: 20px;
-  align-self: stretch;
-  /* One height in every view, so the rules beside the tabs stay put. */
-  min-height: 32px;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  min-height: 44px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--color-border);
+  background: #fff;
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+
+.elevation-bar-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 14px;
+  margin-left: auto;
+  min-width: 0;
+}
+
+.elevation-lower-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* The divider: dragged up or down, a double click puts it back in the middle. */
+.elevation-divider {
+  height: 7px;
+  background: var(--color-border);
+  border-top: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  cursor: ns-resize;
+  pointer-events: auto;
+  position: relative;
+}
+
+.elevation-divider::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 36px;
+  height: 3px;
+  margin-left: -18px;
+  border-radius: 2px;
+  background: var(--color-muted);
+}
+
+.elevation-divider:hover,
+.elevation-divider:active {
+  background: var(--color-primary);
+}
+
+/* While the map is seen through the overlay, what sits at its top edge moves below the tab bar. */
+.map-pane:has(> .elevation-overlay.map-shown) .maplibregl-ctrl-top-right,
+.map-pane:has(> .elevation-overlay.map-shown) .maplibregl-ctrl-top-left {
+  top: 44px;
+}
+
+/* Under the section the map's own legend has nothing to explain. */
+.map-pane:has(> .elevation-overlay:not(.map-shown)) .map-legend {
+  display: none;
+}
+
+.map-pane:has(> .elevation-overlay.map-shown) .map-legend,
+.map-pane:has(> .elevation-overlay.map-shown) .elevation-legend {
+  top: 56px;
 }
 
 .profile-tabs {
   display: flex;
   align-self: flex-end;
   gap: 2px;
-  margin-bottom: -11px;   /* the header's padding and its border */
+  margin-bottom: -1px;   /* onto the bar's border */
 }
 
 .profile-tab {
@@ -340,6 +432,7 @@
   font-size: var(--fs-s);
   color: var(--color-text-soft);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .profile-tab:hover {
@@ -352,7 +445,6 @@
   background: #fff;
   color: var(--color-primary);
   font-weight: 600;
-  margin-bottom: -1px;
   padding-bottom: 9px;
   box-shadow: inset 0 2px 0 var(--color-primary);
 }
@@ -435,11 +527,16 @@
 .profile-point-links.from li::before { color: var(--color-height-source); }
 .profile-point-links.to li::before { color: var(--color-height-dependent); }
 .profile-point-actions { display: flex; gap: 8px; margin-top: 4px; }
+/* What the last action said, across both columns at the head. */
+.profile-point-note { grid-column: 1 / -1; margin: 0; }
+
+/* The table's selected rows in the red of the selected point, and the rows of what it depends on
+   and what depends on it, as in the section and on the map. */
+.profile-table tr.track-table-row-active td:first-child { box-shadow: inset 4px 0 0 var(--color-height-selected); }
+.profile-table tr.profile-row-source td:first-child { box-shadow: inset 4px 0 0 var(--color-height-source); }
+.profile-table tr.profile-row-dependent td:first-child { box-shadow: inset 4px 0 0 var(--color-height-dependent); }
 .profile-point-none { flex-direction: column; gap: 8px; max-width: 46em; text-align: center; margin: 0 auto; }
 
-/* The head of the profile one height in every view (decision 388). */
-.profile-overlay .track-table-header { min-height: 53px; box-sizing: border-box; }
-.profile-controls { min-height: 32px; }
 /* How a point depends (decision 390): beside its sources, and behind each dependent. */
 .profile-point-how { margin: 0 0 4px 18px; }
 .profile-point-mode { font-size: var(--fs-s); padding: 1px 4px; }

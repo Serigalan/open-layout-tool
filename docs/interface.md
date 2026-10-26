@@ -109,8 +109,10 @@ removes it before effect cleanups run).
   change reaches and writes it back on Save; the rule column's errors and Hinweise open a dialog,
   `trackTable/RuleCell`, the errors listed, each Hinweis with a field for its reason — `reasons`, and a
   turnout's `cantException` for LP.KB.05 —, green once all are written; reasons for findings that no longer
-  stand are dropped on Save; decision 374), `ElevationOverlay` + `ElevationTable` (graphic and table view of the
-  height profile, with the coupling roles from `elevation`), `CrossSectionOverlay`, `BandsOverlay` (curvature,
+  stand are dropped on Save; decision 374), `ElevationOverlay` (the height profile over the whole map area,
+  decision 391: a draggable divider, above it the longitudinal section or the map seen through, below it
+  `ElevationTable` or `ElevationPointDetails` for the selected point; with the coupling roles and dependencies
+  from `elevation`), `CrossSectionOverlay`, `BandsOverlay` (curvature,
   cant, speed, rule findings), `TopologyGraphOverlay`, `PlanPreviewOverlay`, `ProjectTracksOverlay`,
   `RegelwerkOverlay` / `PhysicsOverlay` (read-only rulebooks), `collab/CompareOverlay` (two states on the map).
 - `icons.jsx` — all symbols on a 20 px grid; `chart/` — the curvature diagram and deviation band.

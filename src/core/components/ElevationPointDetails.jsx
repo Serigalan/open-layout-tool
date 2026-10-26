@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useI18n } from '../locales/i18nContext'
 
 /**
- * The Höhenplan's third view (decisions 386–387): one selected point in full —
+ * The Höhenplan's point tab, below the divider (decisions 386–387, 391): one selected point in full —
  * its track, gradients, lock and what it is at a turnout, and its station,
  * height, curve (with the Regelwert offered) and reason to edit (`editor`) —
  * and its dependencies (decision 385): what it depends on and what depends on
@@ -20,7 +20,7 @@ import { useI18n } from '../locales/i18nContext'
  * those of a linked point, `nameOf(ref)` its name; `modes` the ways a point
  * may depend, `suggested` the one offered first; `picking` the way a point
  * being picked on the map will depend, or null; `note` what the last action
- * said.
+ * said — at the head, whichever part it came from.
  */
 export default function ElevationPointDetails({
   point, count = 0, track, grades, roleText, links, linkOf, nameOf, design, modes, suggested, picking, note, editor, freed,
@@ -31,14 +31,15 @@ export default function ElevationPointDetails({
   if (!point && !count) {
     return <div className="profile-empty profile-point-none"><span>{t('elevation_point_none')}</span><span className="profile-hint">{t('elevation_hint_edit')}</span></div>
   }
+  const noteLine = note && <p className="form-error profile-point-note">{note}</p>
   // Several points: what they take together, no dependencies.
   if (!point) {
     return (
       <div className="profile-point">
+        {noteLine}
         <section>
           <h4>{fill('elevation_selected', { n: count })}</h4>
           {editor}
-          {note && <p className="form-error">{note}</p>}
         </section>
       </div>
     )
@@ -87,6 +88,7 @@ export default function ElevationPointDetails({
 
   return (
     <div className="profile-point">
+      {noteLine}
       <section>
         <h4>{fill('elevation_point_title', { n: point.index + 1 })}</h4>
         {editor}
@@ -129,7 +131,6 @@ export default function ElevationPointDetails({
             )}
           </div>
         ) : <p className="profile-hint">{t('elevation_links_design_only')}</p>}
-        {note && <p className="form-error">{note}</p>}
       </section>
     </div>
   )
