@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  addDependent, dependOn, heightLinks, heightRoles, releaseDependency, switchMisfits, takeOverHeight, tracksAcross, withSwitchHeights,
+  addDependent, dependOn, dependOnAcross, heightLinks, heightRoles, releaseDependency, switchMisfits, takeOverHeight, tracksAcross, withSwitchHeights,
 } from './switchChain'
 import { couplingOf, ldsLift } from './switchGradient'
 import { endPointCurvedUtm, endPointStraightUtm } from '../geometry/elementUtils'
@@ -331,6 +331,10 @@ describe('a crossover: the connecting track the branch of both', () => {
     const toBranch = addDependent(p, src, 'x', { opts })
     expect(toBranch.ref).toEqual({ trackId: 'x', index: 1 })
     expect(t(toBranch.project, 'x')).toHaveLength(t(p, 'x').length)
+    // The other way round: a point made to follow the one across from it.
+    const back = dependOnAcross(p, { trackId: 'm2', index: 2 }, 'm1', { opts })
+    expect(t(back.project, 'm2')[2].dep).toBe(t(back.project, 'm1')[back.ref.index].id)
+    expect(dependOnAcross(p, { trackId: 'm2', index: 2 }, 'nowhere', { opts })).toEqual({ error: 'not_across' })
   })
 })
 

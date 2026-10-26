@@ -360,7 +360,9 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
             initialRow={overlay.initialRow} onPickTrack={(track) => openOverlay({ kind: 'trackTable', track, initialRow: null })}
             onDirtyChange={setTableDirty} onClose={() => closeOverlay('trackTable')} />}
           {overlay?.kind === 'profile' && <ElevationOverlay trackId={overlay.trackId} routeId={overlay.routeId ?? null}
-            section={detached?.kind === 'crossSection' ? detached.at : null} onClose={() => closeOverlay('profile')} />}
+            section={detached?.kind === 'crossSection' ? detached.at : null} point={overlay.point ?? null}
+            onShowPoint={(ref) => openOverlay({ kind: 'profile', trackId: ref.trackId, point: ref })}
+            onClose={() => closeOverlay('profile')} />}
           {overlay?.kind === 'projectTracks' && <ProjectTracksOverlay onClose={() => closeOverlay('projectTracks')} />}
           {overlay?.kind === 'switchDetail' && <SwitchDetailOverlay switchId={overlay.switchId ?? null}
             formLabel={overlay.formLabel ?? null} rail={overlay.rail ?? null} onClose={() => closeOverlay('switchDetail')} />}

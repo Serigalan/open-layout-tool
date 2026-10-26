@@ -129,7 +129,11 @@ off. In the profile, a selected WA or ldS is taken over into the other track (`t
 track's point there depends on this one from then on), a selected point gets a point depending on it on a
 track beside it (`tracksAcross`, `addDependent`: at the foot of the perpendicular, the point there within 0.5 m
 or a new one), and a point of one's own lets go (`releaseDependency`) — each one undo step through the store.
-`heightLinks` says for each point what it depends on and what depends on it. `switchMisfits` lists the
+`heightLinks` says for each point what it depends on and what depends on it. The profile shows it in a
+third view beside graphic and table, **Punkt** (decision 386): the selected point's facts (track, station,
+height, gradients, curve, reason, lock, role) and its dependencies, each linked point a link — selected
+where it is on show, else its track's profile opened on it —, and in the design mode the tools: take over,
+add a dependent point across, make it depend on the point across (`dependOnAcross`), release. `switchMisfits` lists the
 turnouts whose WA or ldS do not meet (more than 0.2 mm); the mode ends only when the list is empty. It is
 kept per opened project in the session: a project that does not fit opens in it, and so does one an undo
 brings back.

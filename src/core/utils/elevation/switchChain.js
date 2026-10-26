@@ -590,26 +590,45 @@ export function tracksAcross(project, ref) {
 }
 
 /**
- * The project with a point on `trackId` depending on the point `src`: the
- * point there across from it, at the foot of the perpendicular — the one
- * there already within 0.5 m, or a new one. Returns { project, ref } or { error }:
- * 'not_across' (the track does not pass by it), 'same', 'ring'.
+ * The point on `trackId` across from the point `ref`, at the foot of the
+ * perpendicular — the one there already within 0.5 m, or a new one on the
+ * gradient there: { project, ref }, or { error: 'not_across' } where the
+ * track does not pass by it.
  */
-export function addDependent(project, src, trackId, { design = true, opts } = {}) {
-  const there = tracksAcross(project, src).find(x => x.trackId === trackId)
+function pointAcross(project, ref, trackId) {
+  const there = tracksAcross(project, ref).find(x => x.trackId === trackId)
   if (!there) return { error: 'not_across' }
   const h = heightsOf(project, trackId)
-  let index = h.reduce((best, q, i) => (Math.abs(q.station - there.station) <= ACROSS_SNAP
+  const index = h.reduce((best, q, i) => (Math.abs(q.station - there.station) <= ACROSS_SNAP
     && (best < 0 || Math.abs(q.station - there.station) < Math.abs(h[best].station - there.station)) ? i : best), -1)
-  let p = project
-  if (index < 0) {
-    const station = roundMm(there.station)
-    const next = [...h, { station, z: roundHeight(heightAt(h, station)) }].sort((a, b) => a.station - b.station)
-    index = next.findIndex(q => q.station === station)
-    p = withHeights(p, new Map([[trackId, next]]))
-  }
-  const r = dependOn(p, { trackId, index }, src, { design, opts })
-  return r.error ? r : { project: r.project, ref: { trackId, index } }
+  if (index >= 0) return { project, ref: { trackId, index } }
+  const station = roundMm(there.station)
+  const next = [...h, { station, z: roundHeight(heightAt(h, station)) }].sort((a, b) => a.station - b.station)
+  return { project: withHeights(project, new Map([[trackId, next]])), ref: { trackId, index: next.findIndex(q => q.station === station) } }
+}
+
+/**
+ * The project with a point on `trackId` depending on the point `src`: the
+ * point there across from it (pointAcross). Returns { project, ref } or
+ * { error }: 'not_across', 'same', 'ring'.
+ */
+export function addDependent(project, src, trackId, { design = true, opts } = {}) {
+  const at = pointAcross(project, src, trackId)
+  if (at.error) return at
+  const r = dependOn(at.project, at.ref, src, { design, opts })
+  return r.error ? r : { project: r.project, ref: at.ref }
+}
+
+/**
+ * The project with the point `ref` depending on the point across from it on
+ * `trackId` (pointAcross). Returns { project, ref } — `ref` the source — or
+ * { error }: 'not_across', 'same', 'ring'.
+ */
+export function dependOnAcross(project, ref, trackId, { design = true, opts } = {}) {
+  const at = pointAcross(project, ref, trackId)
+  if (at.error) return at
+  const r = dependOn(at.project, ref, at.ref, { design, opts })
+  return r.error ? r : { project: r.project, ref: at.ref }
 }
 
 // ── What the profile shows ──────────────────────────────────────────────────

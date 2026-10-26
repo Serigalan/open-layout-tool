@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   setTrackHeights, setHeightsForTracks, currentProject, loadTracks, loadSwitches, takeOverSwitchHeight, addDependentPoint,
-  releaseDependentPoint,
+  dependOnAcrossPoint, releaseDependentPoint,
 } from '../storage'
 import { useProject, useReferenceAxes, useRoutes, useSwitchDesign, useSwitches, useTracks } from '../hooks/useStore'
 import {
@@ -12,7 +12,7 @@ import {
 import { ruleById, severityLabelKey } from '../utils/rules'
 import {
   adjacentTracks, neighbourStub, jointHeightUpdates, verticalCurves, verticalCurveOverlaps,
-  elementAtStation, insertHeightPoint, solveHeightPoint, GIVEN_MODES, partStation,
+  elementAtStation, insertHeightPoint, solveHeightPoint, pointGrades, GIVEN_MODES, partStation,
   resolveRoute, routeAt, routePointAt, reverseTrack,
 } from '../utils/track'
 import { filterForElements, FILTER_NONE, mapIsLive } from '../map/pick'
@@ -32,6 +32,7 @@ import CloseButton from './form/CloseButton'
 import InfoTip from './form/InfoTip'
 import NumberInput from './form/NumberInput'
 import ElevationTable from './ElevationTable'
+import ElevationPointDetails from './ElevationPointDetails'
 import ConfirmModal from './ConfirmModal'
 
 const EXAGGERATIONS  = [1, 2, 5, 10, 20]
@@ -140,7 +141,7 @@ const flagged = (entry) => entry?.severity && entry.severity !== 'ok'
  */
 // The profile is read from the store, through the subscription: every write
 // draws it again.
-export default function ElevationOverlay({ trackId, routeId = null, section = null, onClose }) {
+export default function ElevationOverlay({ trackId, routeId = null, section = null, point = null, onShowPoint, onClose }) {
   const { t, fill, num } = useI18n()
   const map = useMap()
   const tracks   = useTracks()
@@ -179,7 +180,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
 
   // ── Graphic or table view, and which two values the table is given ───────
   const [viewKind, setViewKind] = useState(() => {
-    try { return loadSettings().elevationView === 'table' ? 'table' : 'graphic' } catch { return 'graphic' }
+    try { const v = loadSettings().elevationView; return v === 'table' || v === 'point' ? v : 'graphic' } catch { return 'graphic' }
   })
   const [given, setGiven] = useState(() => {
     try { const g = loadSettings().elevationGiven; return GIVEN_MODES[g] ? g : 'sz' } catch { return 'sz' }
@@ -599,51 +600,36 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
     if (role) said(takeOverSwitchHeight(role.sw.switchId, role.kind, role.side))
   }
 
-  const takeOverButton = (
-    <button className="track-table-save-btn" title={t('elevation_take_over_hint')} onClick={takeOver}>
-      {t('elevation_take_over')}
-    </button>
-  )
 
-  // ── Dependent points (decision 385) ──────────────────────────────────────
-  // In the design mode a point selected may get a point depending on it on a
-  // track beside it — across from it, at the foot of the perpendicular — and
-  // one following a point of its own may let go of it.
+  // ── One point in full, and its dependencies (decisions 385, 386) ────────
+  // The point view shows the one point selected. In the design mode a point
+  // may get a point depending on it on a track beside it — across from it,
+  // at the foot of the perpendicular —, or depend on the one there, and one
+  // following a point of its own may let go of it. A linked point opens
+  // where it is: selected here, or in its own track's profile.
   const one = selectedPoints.length === 1 ? selectedPoints[0] : null
   const across = useMemo(() => (design && one && project ? tracksAcross(project, one.owner) : []),
     [design, project, one?.owner.trackId, one?.owner.index]) // eslint-disable-line react-hooks/exhaustive-deps
-  const [acrossId, setAcrossId] = useState('')
+  // Opened on a point (a link from another track's profile): that point, in the point view.
+  useEffect(() => {
+    const i = point && profile?.byRef(point.trackId, point.index)
+    if (i == null) return
+    select([i])
+    setViewKind('point')
+  }, [point]) // eslint-disable-line react-hooks/exhaustive-deps
   const said = (r) => setRvNote(r.error ? t(`elevation_take_over_err_${r.error}`) : r.refused ? t('elevation_take_over_refused')
     : r.same ? t('elevation_take_over_same') : null)
-  const addDependent = () => {
-    const target = across.find(x => x.trackId === acrossId) ?? across[0]
-    if (one && target) said(addDependentPoint({ trackId: one.owner.trackId, index: one.owner.index }, target.trackId))
+  const refOf = (p) => ({ trackId: p.owner.trackId, index: p.owner.index })
+  /** A linked point: selected where it is on show, else its track's profile opened on it. */
+  const pickLinked = (r) => {
+    const i = profile?.byRef(r.trackId, r.index)
+    if (i != null) select([i])
+    else onShowPoint?.(r)
   }
-  const linkTools = design && one && (
-    <>
-      {curveHeld(one.index) && takeOverButton}
-      {across.length > 0 && (
-        <>
-          <select className="settings-select" value={across.some(x => x.trackId === acrossId) ? acrossId : across[0].trackId}
-            title={t('elevation_add_dependent_hint')} onChange={e => setAcrossId(e.target.value)}>
-            {across.map(x => (
-              <option key={x.trackId} value={x.trackId}>
-                {`${tracks.find(tr => tr.id === x.trackId)?.name || x.trackId.slice(0, 8)} (${num(x.dist, { digits: 1 })} m)`}
-              </option>
-            ))}
-          </select>
-          <button className="track-table-save-btn" title={t('elevation_add_dependent_hint')} onClick={addDependent}>
-            {t('elevation_add_dependent')}
-          </button>
-        </>
-      )}
-      {linksOf(one.index)?.kind === 'own' && (
-        <button className="track-table-save-btn" title={t('elevation_release_hint')}
-          onClick={() => said(releaseDependentPoint({ trackId: one.owner.trackId, index: one.owner.index }))}>
-          {t('elevation_release')}
-        </button>
-      )}
-    </>
+  const detailsButton = one && viewKind !== 'point' && (
+    <button className="track-table-save-btn" title={t('elevation_point_details_hint')} onClick={() => chooseView('point')}>
+      {t('elevation_point_details')}
+    </button>
   )
 
   // ── Locking points (Entscheidung 382) ─────────────────────────────────────
@@ -1082,7 +1068,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
           <span className="track-table-title">{title}</span>
           {routeRec && !resolved.ok && <span className="profile-hint msg-warn">{t('elevation_route_gaps')}</span>}
           <div className="profile-tabs" role="tablist" aria-label={t('elevation_view')}>
-            {['graphic', 'table'].map(v => (
+            {['graphic', 'table', 'point'].map(v => (
               <button key={v} type="button" role="tab" aria-selected={viewKind === v}
                 className={`profile-tab${viewKind === v ? ' active' : ''}`} onClick={() => chooseView(v)}>
                 {t(`elevation_view_${v}`)}
@@ -1100,7 +1086,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                 </select>
               </label>
               <InfoTip text={t('elevation_given_hint')} />
-              {linkTools}
+              {detailsButton}
               {rvNote && <span className="form-error">{rvNote}</span>}
             </div>
           ) : selectedPoints.length && selectedPoints.every(p => curveHeld(p.index)) ? (
@@ -1108,10 +1094,9 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               <span className="profile-hint" title={roleNote(roles.get(selectedPoints[0].index))}>
                 {fill(`elevation_role_short_${coupled(selectedPoints[0].index).kind}`, { name: swName(coupled(selectedPoints[0].index).sw) })}
               </span>
-              {one && linksNote(one.index) && <span className="profile-hint profile-links">{linksNote(one.index)}</span>}
-              {linkTools}
+              {detailsButton}
               {lockButton}
-              {rvNote && <span className="form-error">{rvNote}</span>}
+              {rvNote && viewKind !== 'point' && <span className="form-error">{rvNote}</span>}
               <CloseButton onClick={() => select([])} />
             </div>
           ) : selectedPoints.length ? (
@@ -1161,8 +1146,7 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
                     onChange={e => setReasonDraft(e.target.value)} {...editProps} />
                 </>
               )}
-              {one && linksNote(one.index) && <span className="profile-hint profile-links">{linksNote(one.index)}</span>}
-              {linkTools}
+              {detailsButton}
               {rvNote && <span className="form-error">{rvNote}</span>}
               {lockButton}
               <button className="track-table-save-btn profile-delete-btn" disabled={!deletable.length}
@@ -1223,6 +1207,17 @@ export default function ElevationOverlay({ trackId, routeId = null, section = nu
               {readState === 'missing' && <span className="form-error">{t('elevation_compute_missing')}</span>}
               {readState === 'failed' && <span className="form-error">{t('elevation_failed')}</span>}
             </div>
+          )
+          : viewKind === 'point' ? (
+            <ElevationPointDetails point={one} track={one ? tracks.find(x => x.id === one.owner.trackId) : null}
+              grades={one ? pointGrades(points, one.index) : null} roleText={one ? roleNote(roles.get(one.index)) : null}
+              links={one ? linksOf(one.index) : null} kindOf={(r) => links.get(`${r.trackId}|${r.index}`)?.kind ?? null}
+              nameOf={linkName} design={design} across={across}
+              trackName={(id) => tracks.find(x => x.id === id)?.name || id.slice(0, 8)}
+              canTakeOver={!!one && curveHeld(one.index)} note={rvNote} onPick={pickLinked} onTakeOver={takeOver}
+              onAddDependent={(id) => said(addDependentPoint(refOf(one), id))}
+              onDependOn={(id) => said(dependOnAcrossPoint(refOf(one), id))}
+              onRelease={(r) => said(releaseDependentPoint(r))} />
           )
           : viewKind === 'table' && points.length ? (
             <ElevationTable points={points} length={profile.length} onWrite={writePoint}

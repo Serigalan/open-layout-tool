@@ -8,7 +8,7 @@ import {
 } from './utils/track'
 import { coupleSwitchCants, rebuildSwitchSymbol } from './utils/switch'
 import {
-  addDependent, lengthGovernedRadii, lockBreach, releaseDependency, switchMisfits, takeOverHeight, withSwitchHeights,
+  addDependent, dependOnAcross, lengthGovernedRadii, lockBreach, releaseDependency, switchMisfits, takeOverHeight, withSwitchHeights,
 } from './utils/elevation'
 
 export const REPORT_KEY_PREFIX = 'olt_reports_'
@@ -175,6 +175,12 @@ export function takeOverSwitchHeight(switchId, at, from) {
 export function addDependentPoint(src, trackId) {
   if (!_project) return { error: 'no_project' }
   return writeLinks(addDependent(_project, src, trackId, { design: _switchDesign }))
+}
+
+/** Make the point `ref` depend on the point across from it on track `trackId` (elevation dependOnAcross), as one undo step. */
+export function dependOnAcrossPoint(ref, trackId) {
+  if (!_project) return { error: 'no_project' }
+  return writeLinks(dependOnAcross(_project, ref, trackId, { design: _switchDesign }))
 }
 
 /** Let the point `ref` follow nothing of its own any more, as one undo step. */
