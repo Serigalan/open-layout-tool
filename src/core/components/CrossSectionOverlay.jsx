@@ -109,8 +109,8 @@ const inRange = (p, station) => station >= (p.startStation ?? 0) && station <= (
  * a double click fits it again. Walking the station puts the section back in
  * the middle at the zoom chosen — the further in, the closer to this track.
  *
- * The slider walks the station along the whole track; nothing here is
- * editable. The section is a view of the alignment; what it shows is changed
+ * The slider walks the station along the whole track, the field beside it
+ * takes it to the centimetre; nothing here is editable. The section is a view of the alignment; what it shows is changed
  * by changing the track (see CrossSectionPanel).
  *
  * `onDetach` takes it into a window of its own; there (`detached`) it fills
@@ -154,13 +154,13 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   const route = at.routeId ? (currentProject()?.routes ?? []).find(r => r.id === at.routeId) ?? null : null
   const resolvedRoute = route ? resolveRoute(route, tracks, switches) : null
   const onRoute = resolvedRoute?.parts.length ? resolvedRoute : null
-  const routeTotal = onRoute ? Math.round(onRoute.length * 10) / 10 : 0
+  const routeTotal = onRoute ? Math.round(onRoute.length * 100) / 100 : 0
   const routeS = onRoute
     ? clamp(at.routeStation ?? routeStationOf(onRoute, at.trackId, at.station ?? 0) ?? 0, 0, routeTotal) : null
   const routePos = onRoute ? routeAt(onRoute, routeS) : null
   const flip = !!routePos?.part.reversed
   const track = routePos ? routePos.part.track : tracks.find(tr => tr.id === at.trackId)
-  const total = track ? Math.round(trackLength(track) * 10) / 10 : 0
+  const total = track ? Math.round(trackLength(track) * 100) / 100 : 0
   const station = routePos ? routePos.station : track ? clamp(at.station ?? 0, 0, total) : 0
   /** Where the section is taken, looking the way it is drawn. */
   const lookOrigin = () => {
@@ -178,8 +178,8 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   // In a window of its own, the window is named after what it shows.
   const trackName = track ? track.name || track.id.slice(0, 8) : ''
   const title = !track ? ''
-    : onRoute ? `${route.name} · ${t('cross_section_station')} ${routeS.toFixed(1)} m · ${trackName} ${station.toFixed(1)} m`
-      : `${trackName} · ${t('cross_section_station')} ${station.toFixed(1)} m`
+    : onRoute ? `${route.name} · ${t('cross_section_station')} ${routeS.toFixed(2)} m · ${trackName} ${station.toFixed(2)} m`
+      : `${trackName} · ${t('cross_section_station')} ${station.toFixed(2)} m`
   useEffect(() => {
     const doc = bodyRef.current?.ownerDocument
     if (detached && doc && title) doc.title = `${t('platform_cross_section')} · ${title}`
@@ -237,7 +237,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   // where a track without a gradient stands, and that depends on the terrain.
   const terrainHalf = Math.max(reach + 10, MIN_TERRAIN_HALF)
   const terrainStep = Math.max(0.5, Math.round(2 * terrainHalf / 200 * 2) / 2)
-  const terrainKey = track ? `${track.id}|${station.toFixed(1)}|${terrainHalf}|${terrainStep}|${terrainSource}|${flip}` : null
+  const terrainKey = track ? `${track.id}|${station.toFixed(2)}|${terrainHalf}|${terrainStep}|${terrainSource}|${flip}` : null
 
   useEffect(() => {
     if (!terrainKey || !track) return
@@ -711,7 +711,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
   ]
   const goOnto = (o) => onAtChange?.({
     ...at, trackId: o.trackId,
-    station: o.endpoint === 'END' ? Math.round(trackLength(o.track) * 10) / 10 : 0,
+    station: o.endpoint === 'END' ? Math.round(trackLength(o.track) * 100) / 100 : 0,
   })
   // Stepping over an end goes on by itself where only one track carries on.
   const soleOnward = (endpoint) => {
@@ -740,6 +740,20 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
     const next = dir > 0 ? Math.floor(station + 1e-6) + 1 : Math.ceil(station - 1e-6) - 1
     onAtChange?.({ ...at, station: clamp(next, 0, total) })
   }
+
+  // The station typed in, to the centimetre; ↑/↓ in the field step a
+  // centimetre. A field left empty or half typed moves nothing.
+  const stationField = (value, max, go) => (
+    <span className="cross-section-slider-label">
+      <NumberInput className="track-table-input cross-section-station" min={0} max={max} step={0.01} digits={2}
+        value={value} title={t('cross_section_station_hint')} aria-label={t('cross_section_station')}
+        onChange={e => {
+          const s = e.target.value === '' ? NaN : Number(e.target.value)
+          if (Number.isFinite(s)) go(clamp(s, 0, max))
+        }} />
+      {` / ${max.toFixed(2)} m`}
+    </span>
+  )
 
   const state = main.state
   return (
@@ -848,9 +862,9 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
             onChange={e => goRoute(Number(e.target.value))} />
           <button className="cross-section-step" disabled={routeS >= routeTotal} onClick={() => stepTo(1)}
             title={t('cross_section_step_forward')} aria-label={t('cross_section_step_forward')}>▶</button>
-          <span className="cross-section-slider-label">{`${routeS.toFixed(1)} / ${routeTotal.toFixed(1)} m`}</span>
+          {stationField(routeS, routeTotal, goRoute)}
           <span className="cross-section-onward" title={t(flip ? 'cross_section_route_against' : 'cross_section_route_along')}>
-            {fill('cross_section_route_on', { name: trackName, s: station.toFixed(1) })}{flip ? ' ⇄' : ''}
+            {fill('cross_section_route_on', { name: trackName, s: station.toFixed(2) })}{flip ? ' ⇄' : ''}
           </span>
         </div>
       ) : (
@@ -863,7 +877,7 @@ export default function CrossSectionOverlay({ at, onAtChange, onClose, detached 
         />
         <button className="cross-section-step" disabled={station >= total && !soleOnward('END')} onClick={() => stepTo(1)}
           title={t('cross_section_step_forward')} aria-label={t('cross_section_step_forward')}>▶</button>
-        <span className="cross-section-slider-label">{`${station.toFixed(1)} / ${total.toFixed(1)} m`}</span>
+        {stationField(station, total, s => onAtChange?.({ ...at, station: s }))}
         {onwardAt.length > 0 && (
           <span className="cross-section-onward">
             {t('cross_section_onward')}

@@ -1171,6 +1171,7 @@
   "cross_section_show": "Show cross section",
   "cross_section_hint": "Click a track on the map or pick one from the list to see its cross section.",
   "cross_section_station": "Station",
+  "cross_section_station_hint": "Type the station – ↑/↓ steps one centimetre on or back",
   "cross_section_step_back": "One metre back",
   "cross_section_step_forward": "One metre on",
   "cross_section_onward": "carry on to:",

@@ -208,6 +208,11 @@
   white-space: nowrap;
 }
 
+.cross-section-slider-label .cross-section-station {
+  width: 72px;
+  text-align: right;
+}
+
 /* Near an end of the track: the tracks that carry on there, one button each. */
 .cross-section-onward {
   display: flex;
