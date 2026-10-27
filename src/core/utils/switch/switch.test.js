@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  SWITCH_TYPES, SWITCH_TYPES_SPECIAL, SWITCH_CONNECTION_STAGES, switchTypeByLabel, switchArcLength, switchStraightLength, switchBranchSections, switchBranchLength, switchFormChain, branchRadius, switchMarkDistance,
+  SWITCH_TYPES, SWITCH_TYPES_SPECIAL, SWITCH_CONNECTION_STAGES, switchTypeByLabel, switchArcLength, switchStraightLength, switchBranchSections, switchBranchLength, switchFormChain, branchRadius, switchMarkDistance, switchBranchPointAt, switchTangents,
 } from './catalogue'
 import { switchBranchChain, switchBranchRoute, switchChainTo, switchChainSlice } from './route'
 import { computeSwitchGeometryUtm } from './symbol'
@@ -397,5 +397,26 @@ describe('the mark distance the form table is built on', () => {
     // reason.
     expect(switchMarkDistance({ R: 190, ratio: 6.3 })).toBe(0.30)
     expect(switchMarkDistance({ R: 215, ratio: 4.8 })).toBe(0.30)
+  })
+})
+
+describe('a point of the branch', () => {
+  const form = switchTypeByLabel('190 – 1:9')
+
+  it('follows the arc from the toe: y = R(1 − cos(s/R))', () => {
+    for (const s of [1, 5, 15]) {
+      const { x, y } = switchBranchPointAt(form, s)
+      expect(x).toBeCloseTo(190 * Math.sin(s / 190), 9)
+      expect(y).toBeCloseTo(190 * (1 - Math.cos(s / 190)), 9)
+    }
+  })
+
+  it('ends where the tangents say the branch ends, and stays there beyond it', () => {
+    const { t1, t2 } = switchTangents(form)
+    const alpha = Math.atan(1 / 9)
+    const end = switchBranchPointAt(form, switchBranchLength(form))
+    expect(end.x).toBeCloseTo(t1 + t2 * Math.cos(alpha), 9)
+    expect(end.y).toBeCloseTo(t2 * Math.sin(alpha), 9)
+    expect(switchBranchPointAt(form, 1000)).toEqual(end)
   })
 })

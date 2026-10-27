@@ -4,6 +4,7 @@ import {
   buildAllTracksFromMdb, buildTracksFromMdb, mdbSwitchInventory, mdbBufferStops, matchMdbBufferStops,
 } from './mdbImport'
 import { placeMdbSwitches } from './mdbSwitchPlacement'
+import { dropCoveredTracks } from './mdbAxisCleanup'
 import { mdbKmLines } from './mdbKmLine'
 import { projectBox } from '../km'
 
@@ -51,6 +52,56 @@ export async function toPlane(tracks, target, notes, fill, { loadGrids = loadGri
   return out
 }
 
+/** At most this many names in one line of the report. */
+const LISTED = 20
+
+/** A list of names for the report, cut at LISTED with the rest counted. */
+function listed(items) {
+  const shown = items.slice(0, LISTED).join(', ')
+  return items.length > LISTED ? `${shown} … (+${items.length - LISTED})` : shown
+}
+
+/** What the axis cleanup (mdbAxisCleanup) has to say. */
+function cleanupNotes({ dropped, partial }, fill) {
+  const notes = []
+  if (dropped.length) {
+    notes.push(fill('data_exchange_mdb_duplicates', {
+      n: dropped.length, list: listed(dropped.map(d => `${d.track.name} → ${d.by.name}`)),
+    }))
+  }
+  // Each overlapping pair once, whichever way round it was found.
+  const pairs = new Map()
+  for (const p of partial) {
+    const key = [p.track.name, p.by.name].sort().join('|')
+    if (!pairs.has(key)) pairs.set(key, p)
+  }
+  if (pairs.size) {
+    notes.push(fill('data_exchange_mdb_overlaps', {
+      n: pairs.size, list: listed([...pairs.values()].map(p => `${p.track.name} ${Math.round(p.share * 100)} % → ${p.by.name}`)),
+    }))
+  }
+  return notes
+}
+
+/**
+ * Joints within one plane whose two ends are a millimetre to a metre apart —
+ * ProVI warns at those, because the axis has a gap where it should run on.
+ * Across a plane boundary the gap is the transformation's and says nothing.
+ */
+const GAP_MIN = 0.001
+const GAP_MAX = 1
+
+function gapNote(joints, tracks, fill) {
+  const gaps = joints.filter(j => !j.crsChange && j.gap > GAP_MIN && j.gap <= GAP_MAX)
+  if (!gaps.length) return null
+  const name = new Map(tracks.map(tr => [tr.id, tr.name]))
+  gaps.sort((a, b) => b.gap - a.gap)
+  return fill('data_exchange_mdb_gaps', {
+    n: gaps.length,
+    list: listed(gaps.map(j => `${name.get(j.a.trackId)}/${name.get(j.b.trackId)} ${(j.gap * 1000).toFixed(1)} mm`)),
+  })
+}
+
 /**
  * What importing `strecke` of an MDB payload (or ALL_STRECKEN) adds to a
  * project holding `existing` ({ tracks, switches }): the tracks, the switches
@@ -80,6 +131,10 @@ export async function runMdbImport({
     : buildTracksFromMdb(payload, strecke)
   const inventory = mdbSwitchInventory(payload)
 
+  // A stretch the file states twice is one track too many — and one no switch
+  // can be placed on (mdbAxisCleanup). The copies go before anything is placed.
+  const cleaned = dropCoveredTracks(built.tracks)
+
   // Switches part the tracks they sit on, so this has to happen before
   // anything is saved: what comes back are the tracks as they are afterwards,
   // and records carrying their symbol — the same shape a switch dialog
@@ -89,12 +144,19 @@ export async function runMdbImport({
   // (mdbSwitchDerive), and an import that drew the one and left out the other
   // would hand over a network that is wrong where it is quietest.
   const placed = withSwitches
-    ? placeMdbSwitches(payload, built.tracks, inventory.units, {
+    ? placeMdbSwitches(payload, cleaned.tracks, inventory.units, {
       newId, existingSwitches, derive: true,
     })
-    : { tracks: built.tracks, switches: [], errors: [] }
+    : { tracks: cleaned.tracks, switches: [], errors: [] }
 
-  const notes = [...built.errors, ...inventory.errors, ...placed.errors]
+  const notes = [...built.errors, ...cleanupNotes(cleaned, fill), ...inventory.errors, ...placed.errors]
+  if (placed.branchOff?.length) {
+    notes.push(fill('data_exchange_mdb_branch_off', {
+      n: placed.branchOff.length,
+      list: listed([...placed.branchOff].sort((a, b) => b.across - a.across)
+        .map(o => `${o.name} ${(o.across * 100).toFixed(1)}/${(o.along * 100).toFixed(1)} cm`)),
+    }))
+  }
   if (!placed.tracks.length) return { notes, counts: { tracks: 0, switches: 0, kmLines: 0 }, commit: null }
 
   const names = new Set(existingTracks.map(tr => tr.name).filter(Boolean))
@@ -134,6 +196,8 @@ export async function runMdbImport({
     notes.push(fill('data_exchange_mdb_links', { n: links.length, crs: joints.filter(j => j.crsChange).length }))
   }
   if (fanned) notes.push(fill('data_exchange_mdb_fanned', { n: fanned }))
+  const gaps = gapNote(joints, afterTracks, fill)
+  if (gaps) notes.push(gaps)
 
   // Buffer stops (Satzart 31, form „Prellbock") go on the free track end
   // they stand at. The file names no type and no brake length, so each

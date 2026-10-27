@@ -261,3 +261,51 @@ describe('the height system of a gradient', () => {
     expect(foreign).toEqual({ X00: fixture.gradients.length })
   })
 })
+
+describe('what the gradient of a file contradicts itself in', () => {
+  it('finds nothing in a delivery whose heights and gradients agree', () => {
+    const { mismatch, jumps } = mdbGradientChains(payload)
+    expect(mismatch.count).toBe(0)
+    expect(jumps).toEqual([])
+  })
+
+  it('reports an element whose heights do not fit its gradient and length, and keeps the heights', () => {
+    // One point 5 cm higher than its gradient puts it: both elements it ends
+    // are off by that much.
+    const pad = fixture.gradients[3].pad2
+    const moved = parseMdbPayload({
+      ...fixture,
+      heights: fixture.heights.map(h => (h.pad === pad && h.sys === 'V00' ? { ...h, h: h.h + 0.05 } : h)),
+    })
+    const { chains, mismatch } = mdbGradientChains(moved)
+    expect(mismatch.count).toBe(2)
+    expect(mismatch.max).toBeCloseTo(0.05, 4)
+    expect(mismatch.worst[0]).toMatchObject({ sys: 'V00' })
+    expect(chains).toHaveLength(1)
+  })
+
+  // Two chains of one line and height system, meeting at station 200: the
+  // first arrives at 11.00 m, the second leaves at 11.05 m.
+  const meeting = (h2) => parseMdbPayload({
+    stations: [['A', 100], ['B', 200], ['C', 200], ['D', 300]]
+      .map(([pad, station]) => ({ pad, station, strecke: '5510', richtung: 1 })),
+    heights: [['A', 10], ['B', 11], ['C', h2], ['D', h2 + 1]].map(([pad, h]) => ({ pad, sys: 'V00', h })),
+    gradients: [
+      { pad1: 'A', pad2: 'B', sys: 'V00', typ: 0, p1: 100, p2: 10, p3: 10 },
+      { pad1: 'C', pad2: 'D', sys: 'V00', typ: 0, p1: 100, p2: 10, p3: 10 },
+    ],
+  })
+
+  it('reports a jump where two chains of one system meet at different heights', () => {
+    const { chains, jumps } = mdbGradientChains(meeting(11.05))
+    expect(chains).toHaveLength(2)
+    expect(jumps).toHaveLength(1)
+    expect(jumps[0]).toMatchObject({ line: '5510', sys: 'V00' })
+    expect(jumps[0].station).toBeCloseTo(200, 6)
+    expect(jumps[0].dz).toBeCloseTo(0.05, 6)
+  })
+
+  it('takes two chains meeting at one height as no jump', () => {
+    expect(mdbGradientChains(meeting(11)).jumps).toEqual([])
+  })
+})

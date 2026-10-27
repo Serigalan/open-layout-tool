@@ -114,6 +114,60 @@ export function stationIndex(payload) {
   return { station, line }
 }
 
+/**
+ * How far the heights of an element's two points may disagree with its own
+ * gradient and length before it is reported [m]. The file states heights to
+ * the tenth of a millimetre and gradients to the ten-thousandth of a per mille,
+ * so rounding alone stays under a millimetre even over a kilometre.
+ */
+const HEIGHT_TOL = 0.005
+
+/**
+ * Two chains of one height system that meet this close on the line meet at one
+ * point [m] — and then have to agree on its height to a tenth of a millimetre,
+ * or the gradient jumps there (ProVI's Höhensprung).
+ */
+const JUMP_STATION = 1e-5
+const JUMP_HEIGHT = 1e-4
+
+/**
+ * Every element whose two stated heights do not differ by what its gradient
+ * and length make (ProVI's consistency check): `{ count, max, worst }`, the
+ * worst few with their point addresses. The heights win — they are what the
+ * tangent polygon is built from (heightsAlong); the gradient only fills in a
+ * height the file does not state.
+ */
+function heightMismatches(gradients, height) {
+  const off = []
+  for (const el of gradients) {
+    const a = height.get(padKey(el?.pad1, el?.sys))
+    const b = height.get(padKey(el?.pad2, el?.sys))
+    if (a == null || b == null || !Number.isFinite(el?.p1)) continue
+    const d = Math.abs(b - a - (el.p2 + el.p3) / 2 * el.p1 / 1000)
+    if (d > HEIGHT_TOL) off.push({ pad1: el.pad1, pad2: el.pad2, sys: el.sys, d })
+  }
+  off.sort((x, y) => y.d - x.d)
+  return { count: off.length, max: off[0]?.d ?? 0, worst: off.slice(0, 5) }
+}
+
+/**
+ * Places where one chain of a line ends and another of the same height system
+ * begins at the same station, at another height. Two systems meeting is no
+ * jump — they are two readings of one gradient.
+ */
+function heightJumps(chains) {
+  const jumps = []
+  for (const a of chains) {
+    for (const b of chains) {
+      if (a === b || a.line !== b.line || a.sys !== b.sys) continue
+      if (Math.abs(a.to - b.from) > JUMP_STATION) continue
+      const dz = Math.abs(a.points[a.points.length - 1].z - b.points[0].z)
+      if (dz > JUMP_HEIGHT) jumps.push({ line: a.line, sys: a.sys, station: a.to, dz })
+    }
+  }
+  return jumps
+}
+
 /** Order the gradient elements of one height system into chains. */
 function chainsOf(elements) {
   const out = new Map()
@@ -253,6 +307,9 @@ function verticesOf(chain, station, height, sys) {
  * Chains are built per height system: two systems over the same stretch are
  * two readings of the same gradient, not one chain with a step in it.
  * `foreign` counts the elements in a system without EPSG code, per system.
+ * `mismatch` and `jumps` are what the file contradicts itself in
+ * (heightMismatches, heightJumps) — for the report, the chains are built all
+ * the same.
  */
 export function mdbGradientChains(payload) {
   const { station, line } = stationIndex(payload)
@@ -293,7 +350,12 @@ export function mdbGradientChains(payload) {
     }
   }
   out.sort((a, b) => a.rank - b.rank)
-  return { chains: out, refused, foreign }
+  const known = (payload?.gradients ?? []).filter(el => hoehensystemOf(el?.sys))
+  return {
+    chains: out, refused, foreign,
+    mismatch: heightMismatches(known, height),
+    jumps: heightJumps(out),
+  }
 }
 
 /** Height on the tangent polygon at an absolute station. */

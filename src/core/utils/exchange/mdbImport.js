@@ -550,8 +550,8 @@ function checkNotes(checks) {
  */
 function verticalFor(payload) {
   const { station, line } = stationIndex(payload)
-  const { chains, refused, foreign } = mdbGradientChains(payload)
-  return { station, line, chains, refused, foreign, drift: 0, systems: new Map() }
+  const { chains, refused, foreign, mismatch, jumps } = mdbGradientChains(payload)
+  return { station, line, chains, refused, foreign, mismatch, jumps, drift: 0, systems: new Map() }
 }
 
 /**
@@ -610,6 +610,17 @@ function gradientNotes(vertical, tracks) {
   if (vertical.refused) {
     notes.push(`${vertical.refused} Höhenketten übersprungen – kein Punkt der Kette `
       + 'ist stationiert oder keiner trägt eine Höhe im eigenen Höhensystem.')
+  }
+  if (vertical.mismatch?.count) {
+    const { count, max, worst } = vertical.mismatch
+    notes.push(`${count} Höhenelemente (Satzart 22): Höhe der Punkte, Neigung und Länge passen nicht zusammen `
+      + `(größte Abweichung ${(max * 1000).toFixed(1)} mm; ${worst.map(w => `${w.pad1.trim()}–${w.pad2.trim()} `
+      + `${w.sys} ${(w.d * 1000).toFixed(1)} mm`).join(', ')}) – übernommen sind die Höhen der Punkte.`)
+  }
+  if (vertical.jumps?.length) {
+    notes.push(`${vertical.jumps.length} Höhensprünge zwischen zwei Gradienten desselben Höhensystems: `
+      + `${vertical.jumps.slice(0, 5).map(j => `Strecke ${j.line} ${j.sys} bei ${j.station.toFixed(3)} m `
+      + `${(j.dz * 1000).toFixed(1)} mm`).join(', ')}.`)
   }
   if (vertical.drift > 0.1) {
     notes.push(`Stationierung und Geometrie weichen um bis zu ${vertical.drift.toFixed(2)} m `

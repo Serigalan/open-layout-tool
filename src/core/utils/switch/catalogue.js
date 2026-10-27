@@ -288,18 +288,22 @@ export const hasCompoundBranch = (type) =>
 const kappa = (r) => (r ? 1 / r : 0)
 
 /**
- * The branch of a form laid from WA along +x, turning toward +y: its end
- * point and the angle of its end tangent [rad]. Arcs and straights exactly, a
- * clothoid by Simpson's rule over its own angle.
+ * The branch of a form laid from WA along +x, turning toward +y: the point
+ * `upTo` metres along it (its end where that is beyond) and the angle of the
+ * tangent there [rad]. Arcs and straights exactly, a clothoid by Simpson's
+ * rule over its own angle.
  */
-function branchEnd(sections) {
-  let x = 0, y = 0, th = 0
+function branchPoint(sections, upTo = Infinity) {
+  let x = 0, y = 0, th = 0, run = 0
   for (const section of sections) {
-    const L = section.length
+    if (run >= upTo) break
+    const full = section.length
+    const L = Math.min(full, upTo - run)
+    run += L
     if (section.type === 'clothoid') {
       const k0 = kappa(section.R), k1 = kappa(section.REnd)
       const n = 200
-      const angle = (s) => th + k0 * s + (k1 - k0) * s * s / (2 * L)
+      const angle = (s) => th + k0 * s + (k1 - k0) * s * s / (2 * full)
       let sx = 0, sy = 0
       for (let i = 0; i <= n; i++) {
         const w = i === 0 || i === n ? 1 : (i % 2 ? 4 : 2)
@@ -318,6 +322,20 @@ function branchEnd(sections) {
     }
   }
   return { x, y, angle: th }
+}
+
+/** The end of the branch and its end tangent. */
+function branchEnd(sections) {
+  return branchPoint(sections)
+}
+
+/**
+ * A point of the form's branch `s` metres from WA, in the turnout's own frame:
+ * `x` along the through route, `y` off it toward the branch side [m].
+ */
+export function switchBranchPointAt(type, s) {
+  const { x, y } = branchPoint(switchBranchSections(type), s)
+  return { x, y }
 }
 
 /**

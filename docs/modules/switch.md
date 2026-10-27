@@ -65,7 +65,9 @@ sections: a clothoid from a large radius at the toe (the curvature steps there, 
 arc — `6000/3700 – 1:32.5 fb` — two arcs (`7000/6000 – 1:42 fb`), or that and a clothoid running out to the
 straight (`…/∞`). `branch` states them as the table does (`{ type: 'clothoid', R1, R2, length }`, arcs with
 their `length`); `R` is the smallest radius, which the speed follows. Their through length is t1 + t2, where
-the branch's end tangent crosses the through route (`switchTangents`), not a sum of arc tangents. A run-out
+the branch's end tangent crosses the through route (`switchTangents`), not a sum of arc tangents. Any point of
+a form's branch, as `x` along the through route and `y` off it, comes from `switchBranchPointAt` — the MDB import
+measures a surveyed branch against it. A run-out
 branch states more than the turnout: its WE is where the tracks stand `s_we` apart (the table's s), so it is
 cut in the run-out clothoid or carried on straight to there — with that every form meets t1, t2 and l of the
 table to 2 cm. Laid on a curved stem, a clothoid section's curvature adds to the stem's piece by piece

@@ -1,7 +1,7 @@
 import {
   ALL_SWITCH_TYPES, CROSSING_TYPES, switchStraightLength, switchBranchLength, crossingEndDistance,
   crossingAngle, crossingLegRadius, rebuildSwitchSymbol, switchRouteBearingAt, switchElementRoute,
-  placeSwitchOnTrack,
+  placeSwitchOnTrack, switchBranchPointAt,
 } from '../switch'
 import {
   newSwitchFields, switchElementMark, splitTrackAtJoint, splitElementAt, carveSwitchRoute,
@@ -10,7 +10,7 @@ import {
 } from '../track'
 import { resolveEndBearing } from '../geometry'
 import { epsgForLagesystem } from './mdbImport'
-import { deriveMdbTurnouts, offsetOnTrack, AXIS_TOL } from './mdbSwitchDerive'
+import { deriveMdbTurnouts, offsetOnTrack, offsetOnElement, AXIS_TOL } from './mdbSwitchDerive'
 
 /**
  * Putting the MDB's switch inventory onto the tracks the same import built.
@@ -28,6 +28,20 @@ import { deriveMdbTurnouts, offsetOnTrack, AXIS_TOL } from './mdbSwitchDerive'
  * only marks which existing elements are its routes, and the symbol is derived
  * from them on load (`rebuildSwitchSymbol`).
  */
+
+/**
+ * What placeSwitchOnTrack refuses with, in the words of the import report —
+ * the switch module answers with message keys for the dialogs, and the report
+ * is written here, without the dialogs' translations.
+ */
+const PLACE_REFUSAL = {
+  switch_on_track_outside: 'Weichenanfang liegt außerhalb des Gleises',
+  switch_on_track_no_room: 'zu wenig Gleis für die Weichenlänge',
+  switch_on_track_bloss: 'unter der Weiche liegt ein Bloss-Bogen',
+  switch_on_track_over_switch: 'die Weiche würde über eine bestehende Weiche reichen',
+  switch_on_track_kink: 'das Gleis hat unter der Weiche einen Knick',
+}
+const refusal = (key) => PLACE_REFUSAL[key] ?? key
 
 /** How far off the axis a switch point may fall and still count as on it [m]. */
 const PLACE_TOL = 0.5
@@ -345,7 +359,7 @@ function placeCrossingUnit(found, unit, type, tracks, makeId) {
     const track = current.find(t => t.id === leg.track.id) ?? leg.track
     const ahead = placeSwitchOnTrack(track, leg.station, false, half)
     const back = placeSwitchOnTrack(track, leg.station, true, half)
-    if (ahead.error || back.error) return { error: `${ahead.error || back.error} – nicht gesetzt.` }
+    if (ahead.error || back.error) return { error: `${refusal(ahead.error || back.error)} – nicht gesetzt.` }
 
     const names = new Set(current.map(t => t.name).filter(Boolean))
     const split = ahead.joint != null
@@ -466,13 +480,16 @@ function noteUnplaced(tracks, coords, systems, unit, reason) {
  * database's short elements but not where an arc is long enough to leave its
  * chord by more than the tolerance.
  *
- * Returns { tracks, switches, errors } — the tracks as they are after every
- * placement, ready to be saved as they are.
+ * Returns { tracks, switches, errors, branchOff } — the tracks as they are
+ * after every placement, ready to be saved as they are, and the placed
+ * turnouts whose branch strays from their form as `{ name, across, along }`.
  */
 export function placeMdbSwitches(payload, tracks, units,
   { existingSwitches = [], newId, derive = false, tracksFor = null, project = projectOnTrack } = {}) {
   const errors = []
   const switches = []
+  // Placed turnouts whose branch strays from their form (branchDeviation).
+  const branchOff = []
   const makeId = newId ?? generateId
   // The import hands over tracks without ids — the store gives them one at save
   // time. A port names a track by id, so they get one here, before the first
@@ -564,11 +581,9 @@ export function placeMdbSwitches(payload, tracks, units,
     // A derived switch has no designation from the file either, so it is named
     // from that number, the way a switch built in the app is.
     const number = nextNumber()
-    switches.push({
-      ...placed.record,
-      number,
-      name: placed.record.name || switchDesignation(number, placed.record.kind),
-    })
+    const name = placed.record.name || switchDesignation(number, placed.record.kind)
+    switches.push({ ...placed.record, number, name })
+    if (placed.deviation) branchOff.push({ name: `${unitLabel(unit)} (${unit.label})`, ...placed.deviation })
   }
 
   // The symbol travels with the record, exactly as a dialog commits it — the
@@ -584,7 +599,7 @@ export function placeMdbSwitches(payload, tracks, units,
     if (!sw.fillCoords) errors.push(`${sw.name} (${sw.label}): gesetzt, aber der Weichenkörper `
       + 'lässt sich aus den Routen nicht ableiten – auf der Karte unsichtbar.')
   }
-  return { tracks: current, switches: drawn, errors }
+  return { tracks: current, switches: drawn, errors, branchOff }
 }
 
 /**
@@ -636,6 +651,63 @@ function placeAtToe(found, unit, type, tracks) {
   }
 }
 
+/**
+ * How far the surveyed branch strays from the form it is filed as: ProVI's
+ * check of an integrated turnout, 1 cm across and 5 cm along. The branch is
+ * walked from the toe metre by metre and every point measured against the
+ * stem — its offset from it and its station along it — and compared with the
+ * form's branch at the same distance from WA (switchBranchPointAt). A bent
+ * switch bends both routes alike, so the offset between them stays the form's
+ * to a few millimetres. The survey is kept either way: this only says where
+ * the Bauform the file names and the alignment it states disagree.
+ */
+const BRANCH_TOL_ACROSS = 0.01
+const BRANCH_TOL_ALONG = 0.05
+
+/**
+ * offsetOnTrack over the stretch of a track between two stations only — a
+ * turnout's branch is measured against the few elements around its toe, not
+ * against the whole line its stem belongs to.
+ */
+function offsetBetween(track, pt, lo, hi) {
+  let best = null
+  let acc = 0
+  for (const el of track.elements ?? []) {
+    const L = el.length ?? 0
+    if (acc + L >= lo && acc <= hi) {
+      const { s, dist } = offsetOnElement(el, pt, track.epsg)
+      if (!best || dist < best.dist) best = { dist, station: acc + s }
+    }
+    acc += L
+  }
+  return best
+}
+
+function branchDeviation(host, toeStation, reversed, branchTrack, branchEndpoint, type, branchLen) {
+  // The symmetrical turnout has no through route to measure against: both its
+  // routes leave the toe.
+  if (type.symmetric) return null
+  const total = trackLength(branchTrack)
+  const lo = toeStation - branchLen - 10
+  const hi = toeStation + branchLen + 10
+  const steps = []
+  for (let s = 1; s < branchLen; s++) steps.push(s)
+  steps.push(branchLen)
+  let across = 0, along = 0
+  for (const s of steps) {
+    const station = branchEndpoint === 'BEGIN' ? s : total - s
+    const at = elementAtStation(branchTrack.elements, station)
+    if (!at) break
+    const p = pointAtStationUtm(at.el, at.s, branchTrack.epsg)
+    const hit = offsetBetween(host, [p.easting, p.northing], lo, hi)
+    if (!hit) break
+    const form = switchBranchPointAt(type, s)
+    across = Math.max(across, Math.abs(hit.dist - Math.abs(form.y)))
+    along = Math.max(along, Math.abs((reversed ? toeStation - hit.station : hit.station - toeStation) - form.x))
+  }
+  return across > BRANCH_TOL_ACROSS || along > BRANCH_TOL_ALONG ? { across, along } : null
+}
+
 function placeOne(found, unit, type, tracks, makeId, project = projectOnTrack) {
   const { host, branch } = found
   const track = tracks.find(t => t.id === host.track.id) ?? host.track
@@ -652,7 +724,7 @@ function placeOne(found, unit, type, tracks, makeId, project = projectOnTrack) {
   const reversed = angleTo(branchBearing, at.el.bearing) > 90
 
   const place = placeSwitchOnTrack(track, hit.station, reversed, straightLen)
-  if (place.error) return { error: `${place.error} – nicht gesetzt.` }
+  if (place.error) return { error: `${refusal(place.error)} – nicht gesetzt.` }
 
   const names = new Set(tracks.map(t => t.name).filter(Boolean))
   const split = place.joint != null
@@ -678,6 +750,10 @@ function placeOne(found, unit, type, tracks, makeId, project = projectOnTrack) {
   const branchCarved = carveSwitchRoute(branchTrack, branch.endpoint, branchCut,
     switchElementMark(identity, 'branch'), branchLen)
   if (!branchCarved) return { error: 'Zweigroute nicht schneidbar – nicht gesetzt.' }
+  // A derived unit took its form from this very branch; only a stated one can
+  // disagree with it.
+  const deviation = unit.type ? null
+    : branchDeviation(track, hit.station, reversed, branchTrack, branch.endpoint, type, branchLen)
 
   const pieces = split.tracks
     .map(t => (t.id === carved.id ? carved : t))
@@ -689,6 +765,7 @@ function placeOne(found, unit, type, tracks, makeId, project = projectOnTrack) {
   return {
     tracks: next,
     remaps: [{ oldId: track.id, newId: [pieces[0].id, pieces[1].id] }],
+    deviation,
     record: {
       ...identity,
       trailing: reversed, speed: type.speed,

@@ -28,6 +28,7 @@ converted on the server.
 | `mdbImport.js` | in | The DB ASCII interface (Satzarten 11–41) as converted from Access by the server |
 | `mdbGradient.js` | in | MDB gradient (Satzart 22 + 13 + 11) → `track.heights` with its height datum |
 | `mdbKmLine.js` | in | MDB kilometrage line (Satzart 24) → `project.kmLines` |
+| `mdbAxisCleanup.js` | in | Axis fragments the MDB states twice, left out before switches are placed |
 | `mdbSwitchPlacement.js` | in | The MDB's switch inventory placed onto the imported tracks |
 | `mdbSwitchDerive.js` | in | Turnouts the inventory does not state, read from the alignment |
 | `mdbPipeline.js` | in | The whole MDB import: tracks, plane, switches, links, buffer stops, notes |
@@ -168,6 +169,15 @@ where it is silent or guesses, the delivered files decide.
   end point the file states in the same Lagesystem (2 mm, ProVI's limit; the test database: 2 of 9 275). The
   mean point error of Satzart 12 (`MP · 10^MPEXP`) tells surveyed points (3 mm) from digitised ones (2 m);
   tracks on digitised points are named.
+- **Axis cleanup** (`mdbAxisCleanup.js`, ProVI's „Gleisachsen bereinigen“): Satzart 33 files an element under
+  every Gleisabschnitt it belongs to (68 elements of the test database under two or three track numbers), and a
+  planned Trasse or a second survey can lay its own points over a track that is there. A track lying **entirely**
+  on another of its plane — every metre within 1 cm of the other's axis, tracks of 3 m and more — is left out
+  before any switch is placed (the longer of two stays, between equals the first); one lying on another for half
+  its length or more is named, not cut. In the test database 31 copies go, 35 overlaps are named; the switch
+  that had taken a copy of its own stem as its branch (551 in 20212746) now takes the real one.
+- **Gaps.** A joint within one plane whose two ends are 1 mm to 1 m apart is linked like any other and reported:
+  the axis has a gap there. Across a plane boundary the gap is the transformation's and is not.
 - **Gradient** (`mdbGradient.js`): Satzart 22 states gradient elements between point addresses with the
   gradient before and after; a rounding has `Rv = 1000·L/Δi`. Satzart 13 gives the point heights per height
   system, Satzart 11 the stations along the line. Height and plan chains share no point address — only the
@@ -180,6 +190,10 @@ where it is silent or guesses, the delivered files decide.
   DB_REF delivers by GNSS, are read as the datum each is tied to — DHHN2016 and DHHN92; where a point is stated
   in both, O lies a median 1.7 cm above N, the step between those two. Systems without an EPSG code (HN56, W,
   X) are not taken. Where several gradients cover a track the current datum wins.
+- **Gradient checks.** Every element of Satzart 22 whose two point heights differ from what its gradient and
+  length make by more than 5 mm is reported (the test database: 11, the worst 0.47 m) — the heights of the
+  points are what the tangent polygon is built from. Two chains of one line and height system meeting at one
+  station (10⁻⁵ m) at heights more than 0.1 mm apart are reported as a Höhensprung.
 - **Kilometrage line** (`mdbKmLine.js`): Satzart 24 is laid out like the track elements, the kilometrage
   running with the length from `EKAKM` to `EKEKM`; type 6 is the kilometrage jump and ends a run. For every
   line an imported track names, the line is cut to the project and kept in `project.kmLines` with `source:
@@ -198,6 +212,12 @@ where it is silent or guesses, the delivered files decide.
   elsewhere, a stretch surveyed twice) are counted, not turned into switches. Crossings are not derived: in
   plan a level crossing and a flyover are the same picture. A measured form the catalogue does not know is
   reported, not bent onto the nearest.
+- **Branch against its form.** A stated turnout's surveyed branch is walked from the toe metre by metre and
+  measured against the stem — offset and station — and compared with the form's branch at the same distance
+  (`switchBranchPointAt`). More than 1 cm across or 5 cm along (ProVI's limits) is reported with both values;
+  the switch is set, the survey kept. Not for derived turnouts (their form came from that branch) nor for the
+  symmetrical turnout (no through route). Survey branches leave the toe a few centimetres off often enough:
+  92 of 1 116 in the test database, 24 of 39 in DSO251194.
 - **Buffer stops** from nodes of form "Prellbock"; **links** at the joints between chains of different
   Lagesysteme.
 
@@ -211,6 +231,8 @@ where it is silent or guesses, the delivered files decide.
 - **The gradient keeps its own height datum**; DBRH is read as the official datum it is tied to.
 - **Track type and side from the Richtungskennzeichen**; a delivery without sections grouped by its points.
 - **The kilometrage of the delivery replaces the shipped line** in the project.
+- **A copy of an axis is left out, an overlap is named**; gaps, gradient contradictions and branches off their
+  form are reported, never repaired.
 - **Derived turnouts need an end on a track and an angle**; no derived crossings.
 - **Import reports outside the record.**
 - **Routes export as one axis or not at all.**
@@ -220,5 +242,5 @@ where it is silent or guesses, the delivered files decide.
 ## Tests
 
 A test file per importer and exporter, with real-data fixtures in `src/core/test/fixtures/`
-(`mdb_*.json`, `provi_ausschnitt.zip`, `track_optimized.json`), plus `mdbLagesystem.test.js` and
-`mdbOhneAbschnitt.test.js`.
+(`mdb_*.json`, `provi_ausschnitt.zip`, `track_optimized.json`), plus `mdbLagesystem.test.js`,
+`mdbOhneAbschnitt.test.js` and `mdbAxisCleanup.test.js`.

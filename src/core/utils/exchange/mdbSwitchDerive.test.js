@@ -121,6 +121,31 @@ describe('a switch the file states', () => {
   })
 })
 
+describe('a stated switch measured against its form', () => {
+  it('says nothing where the branch is the form', () => {
+    const { switches, branchOff } = build(survey({ nodes: [node('TOE', 12, 'EW 54-190-1:9')] }))
+    expect(switches).toHaveLength(1)
+    expect(branchOff).toEqual([])
+  })
+
+  it('reports a branch that strays from the form the file names, and sets the switch', () => {
+    // Fremd leaves on R = 400, the file says 190 – 1:9: 27 m from the toe the
+    // form is 1.83 m off the stem, the branch 0.92 m.
+    const { switches, branchOff } = build(survey({ nodes: [node('F0', 13, 'EW 54-190-1:9')] }))
+    expect(switches).toHaveLength(1)
+    expect(branchOff).toHaveLength(1)
+    expect(branchOff[0].name).toContain('13')
+    expect(branchOff[0].across).toBeGreaterThan(0.9)
+    expect(branchOff[0].across).toBeLessThan(1)
+  })
+
+  it('does not measure a derived switch, whose form came from that branch', () => {
+    const { switches, branchOff } = build(survey(), { derive: true })
+    expect(switches.length).toBeGreaterThan(0)
+    expect(branchOff).toEqual([])
+  })
+})
+
 describe('a Weichenanfang beside the tracks it belongs to', () => {
   // The same switch, but its point is stated 10 cm north of both — which is
   // 10 cm off the stem's axis and 10 cm from the branch's first point.
