@@ -24,7 +24,7 @@ there instead of silently doing nothing.
 | In the browser | On the server |
 |---|---|
 | creating and editing tracks, elements, switches, crossings, heights, platforms, cross sections | optimizing a track, reconnecting, alignment fit from axis points, splice with track spacing (Python) |
-| joining two tracks (splice), rule checks, plan/OSRD/exchange/Verm.ESN export | MDB conversion, DGM1 terrain (Python) |
+| joining two tracks (splice), rule checks, plan/OSRD/exchange/Verm.ESN export | MDB conversion, DGM1 terrain and relief tiles (Python) |
 | merging and resolving conflicts | sign-in, projects, variants, revisions, images, members (Node) |
 | point clouds read on this device | checking every revision; preparing uploaded clouds, long runs over them (Node) |
 
@@ -40,6 +40,7 @@ anything renders:
 | `importSections` | MDB import and MDB import into DB_REF |
 | `sidebarFoot` | service status (are project server and Python service there?) |
 | `terrainSources` | the Länder's DGM1 via the Python service |
+| `basemaps` | "DGM1 der Länder": DGM5 with the service's 1 m relief tiles over it from map zoom 15 |
 | `cloudProviders`, `useCloudServer`, `useServerRun`, `useCloudRegistration`, `crossSectionTools`, `workspaceAddons` | point clouds on the server, long runs, re-referencing, the 3D window link |
 | `regelwerkService` | the rule catalogues as the service has them (with drift check) |
 | `spliceWithClearance` | splice with a spacing to a neighbouring track, computed by the service |
@@ -135,6 +136,7 @@ A small HTTP service (`service.py`) around the package `olt_optimizer`, behind t
 | `POST /align` | Alignment and gradient fit from axis points (`alignment_fit.py`, `gradient_fit.py`) |
 | `POST /mdb` | Converts an Access file (via mdbtools) into its Satzarten as JSON |
 | `POST /terrain` | DGM1 heights of the Länder that publish fixed-URL tiles (`terrain.py`) |
+| `GET /dem/<z>/<x>/<y>.png` | Terrain-RGB map tiles (zoom 16–17) from the same DGM1, heights to the centimetre; gaps filled from DGM5, 404 outside these Länder (`dem_tiles.py`) |
 | `GET /health`, `GET /regelwerke`, `GET /regelwerke/<id>` | Status; the catalogues a run can be held to, with the catalogue hash for the drift check |
 
 The service reads the **same rule catalogue** as the app (`src/core/constraints`, through a symlink in the package)
@@ -152,3 +154,9 @@ and evaluates it with a Python port of the expression language; a rule it cannot
 - **Members per project; 404 for the unauthorised.**
 - **Point clouds: shared per project on the server, chunked uploads with hashes, served with membership checks.**
 - **One Python service** for what is Python, reached over HTTP, not a CLI.
+- **The DGM1 relief is drawn from the tiles the terrain service already reads**, not from the Länder's own
+  hillshade WMS: only a height per pixel gives the same colour scale, legend and hillshade as DGM5, so the two
+  meet without a seam. The tiles carry centimetres (MapLibre's `custom` encoding) — the usual 0.1 m would draw
+  terraces into flat ground at under a metre a pixel. Below map zoom 15 DGM5 is as fine as the screen, and
+  above it a view needs a dozen DGM1 tiles rather than hundreds. A tile drawn while a Land's portal failed is
+  sent `no-store`, so the gap is not kept for the week the others are.

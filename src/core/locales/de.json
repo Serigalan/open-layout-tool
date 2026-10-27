@@ -92,6 +92,8 @@
   "basemap_ign_ortho": "IGN Ortho",
   "basemap_basemapde": "basemap.de",
   "basemap_dgm5": "DGM5",
+  "basemap_dgm1": "DGM1 der Länder",
+  "basemap_dgm1_hint": "1 m beim Hineinzoomen – TH, SN, BE, BB, BY, BW, NW; sonst DGM5",
   "legend_elevation": "Höhe (m)",
   "basemap_landesvermessung": "Landesvermessung",
   "basemap_landesvermessung_pick": "Bundesland wählen",

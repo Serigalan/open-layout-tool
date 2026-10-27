@@ -168,6 +168,13 @@ async function postJson(path, payload, { signal } = {}) {
 }
 
 /**
+ * The URL template of the service's relief tiles (GET /dem/{z}/{x}/{y}.png,
+ * terrain-RGB from the Länder's DGM1). Absolute, since MapLibre fetches tiles
+ * from a worker; on the app's own origin the session cookie goes with them.
+ */
+export const demTilesUrl = () => `${new URL(`${SERVICE}/dem/`, window.location.href).href}{z}/{x}/{y}.png`
+
+/**
  * Ground heights from the Länder's DGM1, which only the service can read (the
  * Länder publish tiles without a CORS header). `lngLats` are WGS84
  * [[lng, lat], ...].

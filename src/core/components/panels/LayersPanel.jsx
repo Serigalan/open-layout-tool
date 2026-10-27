@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  BASEMAPS, DEFAULT_BASEMAP, LANDESVERMESSUNG_STATES, LANDESVERMESSUNG_THUMBNAIL, lvBasemapId, lvStatesOf,
+  allBasemaps, DEFAULT_BASEMAP, LANDESVERMESSUNG_STATES, LANDESVERMESSUNG_THUMBNAIL, lvBasemapId, lvStatesOf,
 } from '../../basemaps'
 import { KM_COLOR, KM_OTHER_COLOR, KM_JUMP_COLOR } from '../../map/kmLineLayer'
 import { useHiddenKmLines, useProject } from '../../hooks/useStore'
@@ -92,16 +92,20 @@ export default function LayersPanel({ activeBasemap, onBasemapChange, kmOverlays
         <section key={group} className="layer-group">
           <p className="layers-group-label">{t(`layers_group_${group}`)}</p>
           <div className="layer-list">
-            {BASEMAPS.filter((b) => b.group === group).map((basemap) => (
+            {allBasemaps().filter((b) => b.group === group).map((basemap) => (
               <button
                 key={basemap.id}
                 type="button"
                 className={`layer-row${activeBasemap === basemap.id ? ' active' : ''}`}
                 aria-pressed={activeBasemap === basemap.id}
+                title={basemap.sublabelKey ? t(basemap.sublabelKey) : undefined}
                 onClick={() => onBasemapChange(basemap.id)}
               >
                 <img src={basemap.thumbnail} alt="" className="layer-thumbnail" />
-                <span className="layer-label">{t(basemap.labelKey)}</span>
+                <span className="layer-label">
+                  {t(basemap.labelKey)}
+                  {basemap.sublabelKey && <span className="layer-sublabel">{t(basemap.sublabelKey)}</span>}
+                </span>
               </button>
             ))}
             {group === 'germany' && (

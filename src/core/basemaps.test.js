@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { findBasemap, lvBasemapId, lvStatesOf } from './basemaps'
+import { allBasemaps, findBasemap, fineReliefStyle, isElevationBasemap, lvBasemapId, lvStatesOf } from './basemaps'
 
 describe('state orthophotos as one basemap', () => {
   it('joins the states in the list order, whatever order they were ticked in', () => {
@@ -32,5 +32,22 @@ describe('state orthophotos as one basemap', () => {
   it('finds the fixed basemaps as before and nothing for an unknown id', () => {
     expect(findBasemap('liberty').id).toBe('liberty')
     expect(findBasemap('lv-xx')).toBeUndefined()
+  })
+})
+
+describe('elevation basemaps', () => {
+  it('without the server only the fixed ones, DGM5 and the worldwide relief coloured by height', () => {
+    expect(allBasemaps().map((b) => b.id)).not.toContain('dgm1')
+    expect(allBasemaps().filter((b) => b.elevation).map((b) => b.id)).toEqual(['elevation', 'dgm5'])
+    expect(isElevationBasemap('lv-by')).toBe(false)
+    expect(isElevationBasemap('dgm1')).toBe(false)
+  })
+
+  it('puts a finer DEM over DGM5 without touching the DGM5 basemap', () => {
+    const style = fineReliefStyle({ tiles: ['https://x/{z}/{x}/{y}.png'], minzoom: 16 })
+    expect(style.layers.map((l) => l.id))
+      .toEqual(['background', 'color-relief', 'hillshade', 'color-relief-fine', 'hillshade-fine'])
+    expect(style.layers.filter((l) => l.source === 'fineSource').map((l) => l.minzoom)).toEqual([15, 15])
+    expect(findBasemap('dgm5').style.layers).toHaveLength(3)
   })
 })

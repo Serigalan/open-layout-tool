@@ -9,7 +9,7 @@ src/core/
   storage.js        the project store: the one open project, undo/redo, write-behind
   extensions.js     extension points the server build fills
   localStore.js     what this browser keeps for the app (storage dialog)
-  basemaps.js       basemap styles (OSM, aerial, elevation, Liberty, WMS of the Länder)
+  basemaps.js       basemap styles (OSM, aerial, elevation, Liberty, WMS of the Länder; more from extension point `basemaps`)
   hooks/            React access to the store and to shared field logic
   map/              the MapLibre map: instance, project layers, picking, previews, km and topology layers
   shell/            the map workspace: sidebar, panel register, overlay rules, step notice

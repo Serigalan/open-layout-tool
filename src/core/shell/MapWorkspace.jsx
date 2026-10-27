@@ -1,7 +1,8 @@
 import { Suspense, lazy, useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useI18n } from '../locales/i18nContext'
 import { MapContext } from '../map/MapContext'
-import useMapInstance, { ELEVATION_BASEMAPS } from '../map/useMapInstance'
+import useMapInstance from '../map/useMapInstance'
+import { isElevationBasemap } from '../basemaps'
 import TiltToggle from '../map/TiltToggle'
 import { renderTracksOnMap, updateMapColors } from '../map/trackLayers'
 import { currentProject, deleteKmLine, loadSwitches, loadTracks, redo, saveKmLine, undo } from '../storage'
@@ -351,7 +352,7 @@ export default function MapWorkspace({ onHome, beforeHome, resetKey = 0, renderE
         <div className="map-pane">
           <div className="map-container" ref={mapContainer} />
           <TiltToggle tilt={tilt} />
-          {ELEVATION_BASEMAPS.has(activeBasemap) && <ElevationLegend range={elevationRange} />}
+          {isElevationBasemap(activeBasemap) && <ElevationLegend range={elevationRange} />}
           <StepNotice />
           <MapLegend color={color} />
 

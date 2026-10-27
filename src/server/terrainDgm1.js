@@ -1,4 +1,5 @@
-import { terrainOnServer } from './optimizerService'
+import { fineReliefStyle } from '../core/basemaps'
+import { demTilesUrl, terrainOnServer } from './optimizerService'
 
 /**
  * The Länder's DGM1 as a source of ground heights (core/utils/elevation/elevationSource.js,
@@ -60,3 +61,33 @@ function dgm1Label(id) {
 }
 
 export const dgm1Source = { id: 'dgm1', sample: sampleDgm1, label: dgm1Label }
+
+/**
+ * The Länder's DGM1 as a basemap (extension point `basemaps`): DGM5 coloured
+ * and shaded as everywhere, and over it the service's 1 m relief tiles of zoom
+ * 16 and 17 (tools/optimizer/olt_optimizer/dem_tiles.py), drawn from map zoom
+ * 15 (~1.5 m a pixel) on — heights to the centimetre, packed as
+ * `h = (R · 65536 + G · 256 + B) · 0.01 − 10000`. Zoomed out, outside these
+ * Länder and until a tile has come, DGM5 shows.
+ */
+export const dgm1Relief = {
+  id: 'dgm1',
+  thumbnail: './dgm1.webp',
+  labelKey: 'basemap_dgm1',
+  sublabelKey: 'basemap_dgm1_hint',
+  group: 'germany',
+  elevation: true,
+  get style() {
+    return fineReliefStyle({
+      tiles: [demTilesUrl()],
+      minzoom: 16,
+      maxzoom: 17,
+      encoding: 'custom',
+      redFactor: 655.36,
+      greenFactor: 2.56,
+      blueFactor: 0.01,
+      baseShift: 10000,
+      attribution: 'DGM1 © TLBG, GeoSN, Geoportal Berlin, LGB, LDBV, LGL-BW, Geobasis NRW · DGM5 © BKG',
+    })
+  },
+}

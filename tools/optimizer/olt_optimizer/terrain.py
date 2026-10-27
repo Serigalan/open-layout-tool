@@ -152,6 +152,25 @@ class Tile:
             return None
         return float(sum(v * w for v, w in weighted if w > 0))
 
+    def heights(self, e, n):
+        """`height` for arrays of points at once — NaN where it would be None."""
+        rows, cols = self.grid.shape
+        c = np.clip(np.asarray(e, dtype=np.float64) - self.x0, 0.0, cols - 1.0)
+        r = np.clip(self.y0 - np.asarray(n, dtype=np.float64), 0.0, rows - 1.0)
+        c0, r0 = np.floor(c).astype(np.int64), np.floor(r).astype(np.int64)
+        c1, r1 = np.minimum(c0 + 1, cols - 1), np.minimum(r0 + 1, rows - 1)
+        tc, tr = c - c0, r - r0
+        g = self.grid
+        out = np.zeros(c.shape, dtype=np.float64)
+        bad = np.zeros(c.shape, dtype=bool)
+        for v, w in ((g[r0, c0], (1 - tc) * (1 - tr)), (g[r0, c1], tc * (1 - tr)),
+                     (g[r1, c0], (1 - tc) * tr), (g[r1, c1], tc * tr)):
+            has = w > 0
+            bad |= has & ~np.isfinite(v)
+            out += np.where(has & np.isfinite(v), v, 0.0) * w
+        out[bad] = np.nan
+        return out
+
 
 def parse_xyz(raw, label):
     """An XYZ list as a Tile.
@@ -297,7 +316,13 @@ class TileStore:
 
     def get(self, source, ek, nk):
         """The tile with its lower-left corner at kilometre (ek, nk), or None
-        where the source has none there.
+        where the source has none there."""
+        return self.get_status(source, ek, nk)[0]
+
+    def get_status(self, source, ek, nk):
+        """(tile, failed): the tile as `get` has it, and whether a None is a
+        failed download rather than a tile the source does not have — a map
+        tile drawn without it must not be kept by the browser.
 
         Two requests wanting the same tile share one download: the second waits
         on the first instead of fetching the same megabytes again.
@@ -306,10 +331,10 @@ class TileStore:
         with self._lock:
             if key in self._memory:
                 self._memory.move_to_end(key)
-                return self._memory[key]
+                return self._memory[key], False
             missing_at = self._missing.get(key)
             if missing_at is not None and time.monotonic() - missing_at < MISSING_TTL:
-                return None
+                return None, False
             event = self._loading.get(key)
             owner = event is None
             if owner:
@@ -317,7 +342,8 @@ class TileStore:
         if not owner:
             event.wait(FETCH_TIMEOUT * 2)
             with self._lock:
-                return self._memory.get(key)
+                tile = self._memory.get(key)
+                return tile, tile is None and key not in self._missing
         try:
             tile = self._load(source, ek, nk)
         except Exception:                                      # noqa: BLE001
@@ -334,31 +360,35 @@ class TileStore:
                 self._missing[key] = time.monotonic()
             self._loading.pop(key, None)
             event.set()
-        return tile
+        return tile, failed
 
 
 _store = TileStore()
-_transformers = {}
+# One set of transformers per thread: a pyproj Transformer must not be used by
+# two threads at once, and the service answers every request in its own.
+_transformers = threading.local()
+
+
+def transformer(src, dst):
+    """This thread's pyproj Transformer from `src` to `dst` (EPSG codes), lng/lat order."""
+    from pyproj import Transformer                              # noqa: PLC0415
+
+    cache = getattr(_transformers, "by_pair", None)
+    if cache is None:
+        cache = _transformers.by_pair = {}
+    tr = cache.get((src, dst))
+    if tr is None:
+        tr = cache[(src, dst)] = Transformer.from_crs(src, dst, always_xy=True)
+    return tr
 
 
 def _to_plane(crs, lng, lat):
-    from pyproj import Transformer                              # noqa: PLC0415
-
-    tr = _transformers.get(crs)
-    if tr is None:
-        tr = _transformers[crs] = Transformer.from_crs(4326, crs, always_xy=True)
-    return tr.transform(lng, lat)
+    return transformer(4326, crs).transform(lng, lat)
 
 
 def to_lnglat(e, n, crs=25832):
     """A plane point back to WGS84 — for requests that still send EPSG:25832."""
-    from pyproj import Transformer                              # noqa: PLC0415
-
-    key = ("inv", crs)
-    tr = _transformers.get(key)
-    if tr is None:
-        tr = _transformers[key] = Transformer.from_crs(crs, 4326, always_xy=True)
-    return tr.transform(e, n)
+    return transformer(crs, 4326).transform(e, n)
 
 
 def sample(lnglats, store=None):

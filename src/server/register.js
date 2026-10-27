@@ -4,7 +4,7 @@ import {
 } from '../core/components/icons'
 import { crossoverOnServer, fetchRegelwerk, fetchRegelwerke, spliceOnServer } from './optimizerService'
 import ServiceStatus from './ServiceStatus'
-import { dgm1Source } from './terrainDgm1'
+import { dgm1Relief, dgm1Source } from './terrainDgm1'
 import { serverClouds } from './cloudsOnServer'
 import useCloudServer from './useCloudServer'
 import useServerRun from './useServerRun'
@@ -45,8 +45,10 @@ extend('importSections', { id: 'mdb-dbref', Component: MdbDbrefImport })
 // Whether the services are there, at the sidebar's foot (R10.12).
 extend('sidebarFoot', ServiceStatus)
 
-// The Länder's DGM1, read by the service.
+// The Länder's DGM1, read by the service — as ground heights, and drawn as a
+// basemap from the service's relief tiles.
 extend('terrainSources', dgm1Source)
+extend('basemaps', dgm1Relief)
 
 // The rule catalogues as the service has them (the regelwerk popup).
 provide('regelwerkService', { list: fetchRegelwerke, get: fetchRegelwerk })

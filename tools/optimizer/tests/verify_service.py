@@ -431,6 +431,96 @@ with tempfile.TemporaryDirectory() as cache:
     ok("DGM1: jenseits der Landesgrenze antwortet das Nachbarland",
        heights == [321.0] and sources == ["dgm1-by"])
 
+# ── 7) Reliefkacheln aus dem DGM1 (dem_tiles), ohne Netz geprüft ───────────
+from olt_optimizer import dem_tiles                                 # noqa: E402
+import imagecodecs                                                  # noqa: E402
+
+
+def slope(e, n):
+    """Eine schiefe Ebene, damit jede Zelle ihre eigene Höhe hat."""
+    return 200.0 + 0.0123 * (e - 640_000) + 0.0071 * (n - 5_650_000)
+
+
+class PlaneStore:
+    """Thüringens Kacheln als Ebene; westlich von `east_end` keine (oder eine fehlgeschlagene)."""
+
+    def __init__(self, east_end=10**9, failing=False):
+        self.east_end, self.failing, self.asked = east_end, failing, []
+
+    def get_status(self, source, ek, nk):
+        self.asked.append((source.id, ek, nk))
+        if source.id != "dgm1-th" or ek * 1000 >= self.east_end:
+            return None, self.failing and source.id == "dgm1-th"
+        x0, y0 = ek * 1000 + 0.5, nk * 1000 + 999.5
+        cols, rows = np.meshgrid(np.arange(1000), np.arange(1000))
+        grid = slope(x0 + cols, y0 - rows).astype(np.float32)
+        return terrain.Tile(grid, x0, y0, "dgm1-th"), False
+
+
+def decode_cm(png):
+    im = imagecodecs.png_decode(png).astype(np.int64)
+    return (im[..., 0] * 65536 + im[..., 1] * 256 + im[..., 2]) * 0.01 - 10000.0
+
+
+def mercator_tile(lng, lat, z):
+    n = 2 ** z
+    return z, int((lng + 180) / 360 * n), int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n)
+
+
+def mapbox_png(height, size=512):
+    v = int(round((height + 10000) * 10))
+    rgb = np.zeros((size, size, 3), dtype=np.uint8)
+    rgb[...] = (v >> 16) & 255, (v >> 8) & 255, v & 255
+    return imagecodecs.png_encode(rgb)
+
+
+asked5 = []
+dgm5_flat = dem_tiles.Dgm5(fetch=lambda url: asked5.append(url) or mapbox_png(150.0))
+z, x, y = mercator_tile(*ll(640_500.0, 5_650_500.0), 16)
+lng, lat = dem_tiles.pixel_lnglat(z, x, y)
+ok("Relief: Pixelmitten liegen in ihrer Kachel",
+   lng.shape == (256, 256) and mercator_tile(lng[0, 0], lat[0, 0], 16) == (z, x, y)
+   and mercator_tile(lng[-1, -1], lat[-1, -1], 16) == (z, x, y))
+
+png, keep = dem_tiles.render(z, x, y, store=PlaneStore(), dgm5=dgm5_flat)
+h = decode_cm(png)
+east, north = terrain._to_plane(25832, lng, lat)
+ok("Relief: jede Pixelhöhe auf den Zentimeter wie im DGM1",
+   keep and np.abs(h - slope(np.asarray(east), np.asarray(north))).max() <= 0.006)
+ok("Relief: ganz im DGM1 wird das DGM5 nicht gefragt", asked5 == [])
+
+# Eine Kachel über der Kilometerlinie 640: östlich davon hat das Land keine DGM1-Kachel.
+z, x, y = mercator_tile(*ll(640_000.0, 5_650_500.0), 16)
+lng, lat = dem_tiles.pixel_lnglat(z, x, y)
+east, north = (np.asarray(v) for v in terrain._to_plane(25832, lng, lat))
+store = PlaneStore(east_end=640_000)
+png, keep = dem_tiles.render(z, x, y, store=store, dgm5=dgm5_flat)
+h = decode_cm(png)
+gap = east >= store.east_end
+# Im letzten halben Meter vor der Lücke hält die Kachel ihren Randwert (wie bei /terrain).
+inner = east < store.east_end - 0.5
+ok("Relief: wo das DGM1 fehlt, steht das DGM5",
+   keep and gap.any() and inner.any() and np.abs(h[gap] - 150.0).max() < 0.006
+   and np.abs(h[inner] - slope(east, north)[inner]).max() <= 0.006)
+ok("Relief: das DGM5 jenseits Zoom 15 aus der Kachel darüber",
+   asked5 and asked5[0].endswith(f"/15/{x >> 1}/{y >> 1}.png"))
+
+png, keep = dem_tiles.render(z, x, y, store=PlaneStore(east_end=0), dgm5=dgm5_flat)
+ok("Relief: kein DGM1 in der ganzen Kachel → keine Kachel, darf bleiben", png is None and keep)
+png, keep = dem_tiles.render(z, x, y, store=PlaneStore(east_end=0, failing=True), dgm5=dgm5_flat)
+ok("Relief: Portal antwortet nicht → keine Kachel, nicht aufheben", png is None and not keep)
+
+no_dgm5 = dem_tiles.Dgm5(fetch=lambda url: None)
+png, keep = dem_tiles.render(z, x, y, store=store, dgm5=no_dgm5)
+ok("Relief: ohne DGM5 füllt der nächste DGM1-Pixel die Lücke",
+   png is not None and not np.isnan(decode_cm(png)).any()
+   and np.abs(decode_cm(png)[gap] - 150.0).min() > 1)
+
+far = PlaneStore()
+fz, fx, fy = mercator_tile(*FRANCE, 16)
+ok("Relief: außerhalb aller Länder wird keine Quelle gefragt",
+   dem_tiles.render(fz, fx, fy, store=far, dgm5=dgm5_flat) == (None, True) and far.asked == [])
+
 with tempfile.TemporaryDirectory() as cache:
     proc3, BASE3 = start_server(OLT_TERRAIN_CACHE=cache)
     try:
@@ -446,6 +536,15 @@ with tempfile.TemporaryDirectory() as cache:
         status, body, _ = call(BASE3, "/terrain", {"lnglat": [[0, 0]] * 20001})
         ok("/terrain: zu viele Punkte → 413 too_large",
            status == 413 and body == {"error": "too_large"})
+        status, body, headers = call(BASE3, f"/dem/{fz}/{fx}/{fy}.png",
+                                     headers={"Origin": "https://open-layout-tool.org"})
+        ok("/dem: Kachel außerhalb aller Länder → 404, darf im Browser bleiben",
+           status == 404 and headers.get("Cache-Control", "").startswith("private, max-age=")
+           and headers.get("Access-Control-Allow-Origin") == "https://open-layout-tool.org")
+        status, body, _ = call(BASE3, f"/dem/15/{fx >> 1}/{fy >> 1}.png")
+        ok("/dem: unter Zoom 16 → 400", status == 400 and body == {"error": "invalid_payload"})
+        status, body, _ = call(BASE3, "/dem/16/70000/1.png")
+        ok("/dem: Kachel jenseits des Rasters → 400", status == 400)
     finally:
         proc3.terminate()
         proc3.wait(10)

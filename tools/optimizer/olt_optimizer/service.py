@@ -19,6 +19,10 @@
                           built, {"points": [[e, n], ...]} in EPSG:25832),
                           answer: {"heights": [...], "sources": [...]} from
                           the Länder's DGM1, null where none has the point
+    GET  /dem/<z>/<x>/<y>.png
+                          a terrain-RGB map tile from the Länder's DGM1, zoom
+                          16–17, heights to the centimetre (dem_tiles.py);
+                          404 where no Land has any of it
     GET  /health          so the panel can say "no server" before the user clicks
     GET  /regelwerke      the rule catalogues a run may be held to: id, name and
                           the catalogue's own version, plus `catalogHash` over
@@ -39,6 +43,7 @@ and `joint_optimize` with a high `maxiter` runs for minutes.
 import json
 import multiprocessing
 import os
+import re
 import tempfile
 import threading
 import time
@@ -53,6 +58,7 @@ from .reconnect import reconnect_payload
 from .crossover import crossover_payload
 from .splice import splice_payload
 from .terrain import sample as terrain_sample, to_lnglat
+from . import dem_tiles
 
 HOST = os.environ.get("OLT_OPTIMIZER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("OLT_OPTIMIZER_PORT", "8099"))
@@ -87,6 +93,11 @@ MAX_RECONNECT_BODY = 8 * 1024 * 1024
 # Solving a switch connection: both branch ends every half metre over up to
 # 600 m, for up to three forms, some 150 bytes a sample.
 MAX_CROSSOVER_BODY = 4 * 1024 * 1024
+
+# A relief tile stays in the browser this long — the DGM1 is renewed every few
+# years, not by the day.
+DEM_MAX_AGE = 7 * 24 * 3600
+DEM_ROUTE = re.compile(r"^/dem/(\d{1,2})/(\d{1,7})/(\d{1,7})\.png$")
 
 MAX_ITER = 150
 MAX_ELEMENTS = 2000
@@ -287,9 +298,44 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def _do_dem(self, match):
+        """A relief tile (dem_tiles.render).
+
+        Like /terrain not held to the optimizer's slots. Drawn without a DGM1
+        tile the portal did not hand out, it is sent with `no-store`, so the
+        browser asks again rather than keeping the gap for a week.
+        """
+        z, x, y = (int(v) for v in match.groups())
+        if not dem_tiles.MIN_ZOOM <= z <= dem_tiles.MAX_ZOOM or x >= 2 ** z or y >= 2 ** z:
+            self._respond(400, {"error": "invalid_payload"})
+            return
+        try:
+            png, keep = dem_tiles.render(z, x, y)
+        except Exception as exc:                               # noqa: BLE001
+            self.log_message("dem %d/%d/%d failure: %s", z, x, y, exc)
+            self._respond(500, {"error": "internal"})
+            return
+        cache = f"private, max-age={DEM_MAX_AGE}" if keep else "no-store"
+        if png is None:
+            body = b'{"error": "not_found"}'
+            self.send_response(404)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+        else:
+            body = png
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", cache)
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):                                          # noqa: N802
-        route = self.path.rstrip("/")
-        if route in ("/health", ""):
+        route = self.path.split("?", 1)[0].rstrip("/")
+        dem = DEM_ROUTE.match(route)
+        if dem:
+            self._do_dem(dem)
+        elif route in ("/health", ""):
             self._respond(200, {"status": "ok"})
         elif route == "/regelwerke":
             self._respond(200, {"regelwerke": list_regelwerke(), "catalogHash": catalog_hash()})

@@ -1,4 +1,5 @@
 import { MAPTILER_KEY } from './utils/common'
+import { extensionsOf } from './extensions'
 
 const TERRAIN_URL =
   `https://api.maptiler.com/tiles/terrain-rgb/tiles.json?key=${MAPTILER_KEY}`
@@ -37,6 +38,10 @@ function buildColorExpression(minElev, maxElev) {
   RELIEF_RAMP.forEach(([t, [r, g, b]]) => expr.push(minElev + t * span, `rgb(${r},${g},${b})`))
   return expr
 }
+
+// The layers coloured by elevation: the basemap's own, and a finer DEM's over
+// it (fineReliefStyle) — one scale for both, so they meet without a seam.
+const RELIEF_LAYERS = ['color-relief', 'color-relief-fine']
 
 let _refitTimer   = null
 let _lastRange    = null
@@ -114,7 +119,9 @@ function refitElevationRange(map) {
     if (Math.abs(lo - _lastRange[0]) < tolerance && Math.abs(hi - _lastRange[1]) < tolerance) return
   }
   _lastRange = [lo, hi]
-  map.setPaintProperty('color-relief', 'color-relief-color', buildColorExpression(lo, hi))
+  for (const id of RELIEF_LAYERS) {
+    if (map.getLayer(id)) map.setPaintProperty(id, 'color-relief-color', buildColorExpression(lo, hi))
+  }
   _rangeListener?.([lo, hi])
 }
 
@@ -223,6 +230,9 @@ const DGM5_STYLE = {
       type: 'raster-dem',
       url: DGM5_URL,
       tileSize: 256,
+      // The BKG serves zoom 15 at most and its TileJSON does not say so —
+      // without this every view zoomed further in asks for tiles that 404.
+      maxzoom: 15,
     },
   },
   terrain: { source: 'dgm5Source', exaggeration: 1.5 },
@@ -282,12 +292,46 @@ const ELEVATION_STYLE = {
   ],
 }
 
+/**
+ * DGM5 as the elevation basemap has it, with a finer DEM drawn over it from
+ * the source's `minzoom` on — the Länder's DGM1 from the service (src/server).
+ * Further out, outside the finer DEM's area and while its tiles are still
+ * coming, DGM5 shows; the 3D terrain and the colour scale's range stay on
+ * DGM5, so the scale does not jump as the finer tiles arrive. `source` is the
+ * finer raster-dem source as MapLibre takes it (tiles of 256 px, encoding,
+ * zoom range, attribution).
+ */
+export function fineReliefStyle(source) {
+  const style = JSON.parse(JSON.stringify(DGM5_STYLE))
+  style.sources.fineSource = { type: 'raster-dem', tileSize: 256, ...source }
+  // MapLibre's zoom counts 512 px tiles: a 256 px tile of zoom z is drawn
+  // from map zoom z − 1 on, so the layers start one zoom before the tiles.
+  const minzoom = Math.max(0, (source.minzoom ?? 0) - 1)
+  style.layers.push(
+    {
+      id: 'color-relief-fine',
+      type: 'color-relief',
+      source: 'fineSource',
+      minzoom,
+      paint: { 'color-relief-color': buildColorExpression(0, 100) },
+    },
+    {
+      id: 'hillshade-fine',
+      type: 'hillshade',
+      source: 'fineSource',
+      minzoom,
+      paint: { 'hillshade-method': 'igor', 'hillshade-exaggeration': 0.4 },
+    },
+  )
+  return style
+}
+
 // Each entry's `thumbnail` is the preview in the layers panel, a 200 × 150 px
 // cut of the map itself (public/), so no two look alike: the orthophotos show
 // different places, DGM5 a river valley at the zoom its 5 m grid is made for.
 // The state orthophotos are not listed here: any choice of states is a
 // basemap of its own, made by `findBasemap` from LANDESVERMESSUNG_STATES.
-export const BASEMAPS = [
+const BASEMAPS = [
   {
     id: 'liberty',
     thumbnail: './liberty.webp',
@@ -307,6 +351,7 @@ export const BASEMAPS = [
     thumbnail: './dem.webp',
     labelKey: 'basemap_elevation',
     group: 'worldwide',
+    elevation: true,
     get style() { return JSON.parse(JSON.stringify(ELEVATION_STYLE)) },
   },
   {
@@ -335,11 +380,23 @@ export const BASEMAPS = [
     thumbnail: './dgm5.webp',
     labelKey: 'basemap_dgm5',
     group: 'germany',
+    elevation: true,
     get style() { return JSON.parse(JSON.stringify(DGM5_STYLE)) },
   },
 ]
 
 export const DEFAULT_BASEMAP = 'liberty'
+
+/**
+ * The fixed basemaps and, after them, those the server adds (extension point
+ * `basemaps`, entries shaped like BASEMAPS' — the Länder's DGM1). `elevation`
+ * marks a basemap coloured by height: it gets the legend, and its terrain is
+ * reset on leaving it; `sublabelKey` says more under the label.
+ */
+export const allBasemaps = () => [...BASEMAPS, ...extensionsOf('basemaps')]
+
+/** Whether the basemap with this id is coloured by elevation. */
+export const isElevationBasemap = (basemapId) => findBasemap(basemapId)?.elevation === true
 
 /**
  * Several states' orthophotos are one basemap, its id their ids joined by `+`
@@ -360,7 +417,7 @@ export function lvStatesOf(basemapId) {
 
 /** The basemap with this id, the state orthophotos in any combination included. */
 export function findBasemap(basemapId) {
-  const fixed = BASEMAPS.find((b) => b.id === basemapId)
+  const fixed = allBasemaps().find((b) => b.id === basemapId)
   if (fixed) return fixed
   const states = lvStatesOf(basemapId)
   if (!states.length) return undefined

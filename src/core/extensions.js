@@ -20,6 +20,7 @@
  *   sidebarFoot         beside the sidebar's foot      Component
  *   workspaceAddons     rendered in the map view       Component({ project, crossSectionAt, onShowCrossSection })
  *   terrainSources      a source of ground heights     { id, sample, label }        (elevationSource)
+ *   basemaps            a basemap in the layers panel  { id, thumbnail, labelKey, group, style, ... } (basemaps)
  *   cloudProviders      clouds from elsewhere           { list, reader }             (projectClouds, cloudSource)
  *   crossSectionTools   beside the section's cloud      Component({ projectId, clouds, level, onLevel })
  *   localStoreSections  what else the browser keeps     { id, read, deleteAll, ... } (localStore)

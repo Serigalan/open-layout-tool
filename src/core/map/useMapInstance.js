@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { DEFAULT_BASEMAP, findBasemap, updateElevationRange, onElevationRange } from '../basemaps'
+import { DEFAULT_BASEMAP, findBasemap, isElevationBasemap, updateElevationRange, onElevationRange } from '../basemaps'
 import { updateLabels } from './labelUtils'
 import { loadSettings, saveSettings } from '../utils/common'
 
-// Basemaps whose colours mean elevation: their terrain is reset on leaving
-// them, and they get a legend.
-export const ELEVATION_BASEMAPS = new Set(['elevation', 'dgm5'])
 // MapLibre's own limit, for when tilting is allowed. Without it the map only
 // turns in the plane: a pitch limit of 0 holds the right mouse button, the
 // compass, the keyboard and two fingers alike to the bearing.
@@ -108,7 +105,9 @@ export default function useMapInstance({ onStyleLoad }) {
     if (!m || basemapId === activeBasemap) return
     const basemap = findBasemap(basemapId)
     if (!basemap) { console.warn('[map] Unknown basemap:', basemapId); return }
-    if (ELEVATION_BASEMAPS.has(activeBasemap)) {
+    // A basemap whose colours mean elevation (isElevationBasemap) brings its
+    // terrain; leaving it, the terrain goes.
+    if (isElevationBasemap(activeBasemap)) {
       try { m.setTerrain(null) } catch (err) { console.warn('[map] Failed to reset terrain:', err) }
     }
     setActiveBasemap(basemapId)
